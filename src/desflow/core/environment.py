@@ -363,10 +363,10 @@ class EgressMixIn:
             # The warm-up counts from the start of the run, as the statistics reset
             # below does, so a run with an initial_time drops the right records
             self.egress_predicates = [
-                _after_warmup(self.now + float(warmup), predicate)  # type: ignore[attr-defined]
+                _after_warmup(self.now + warmup, predicate)  # type: ignore[attr-defined]
                 for predicate in self.egress_predicates
             ]
-            self.start_internal(self._end_warmup(float(warmup)))  # type: ignore[attr-defined]
+            self.start_internal(self._end_warmup(warmup))  # type: ignore[attr-defined]
         # "auto": off while the clock is detached from the wall clock, once a second
         # otherwise; a run that goes live starts it when it does
         self._lag_on_go_live = False
@@ -620,7 +620,7 @@ class EgressMixIn:
         self._append_record(
             {
                 "stream_type": "telemetry",
-                "sim_ts": float(round(self.now, 3)),  # type: ignore[attr-defined]
+                "sim_ts": float(self.now),  # type: ignore[attr-defined]
                 "timestamp": self._get_iso_timestamp(self.start_datetime, self.now),  # type: ignore[attr-defined]
                 "path_id": (
                     path_id
@@ -673,7 +673,7 @@ class EgressMixIn:
         self._append_record(
             {
                 "stream_type": "event",
-                "sim_ts": float(round(self.now, 3)),  # type: ignore[attr-defined]
+                "sim_ts": float(self.now),  # type: ignore[attr-defined]
                 "timestamp": self._get_iso_timestamp(self.start_datetime, self.now),  # type: ignore[attr-defined]
                 "key": (
                     event_key
@@ -713,7 +713,7 @@ class EgressMixIn:
         self._append_record(
             {
                 "stream_type": "label",
-                "sim_ts": float(round(self.now, 3)),  # type: ignore[attr-defined]
+                "sim_ts": float(self.now),  # type: ignore[attr-defined]
                 "timestamp": self._get_iso_timestamp(self.start_datetime, self.now),  # type: ignore[attr-defined]
                 "path": path,
                 "old": _jsonable(old),
@@ -892,6 +892,25 @@ class StatisticsMixIn:
             self.stats.publish()
 
 
+def _resolve_strict(
+    strict: Optional[bool], factor: float, go_live_at: Optional[datetime]
+) -> bool:
+    """Gives `strict` its value when the run leaves it unset.
+
+    Args:
+        strict: True, False, or None to decide from the pacing.
+        factor: The real-time factor.
+        go_live_at: The logical instant at which pacing switches to real time.
+
+    Returns:
+        bool: `strict` as given; when None, True for a run that is paced or goes
+            live, and False at `factor` 0 with no `go_live_at`.
+    """
+    if strict is not None:
+        return strict
+    return bool(factor) or go_live_at is not None
+
+
 class DynamicRealtimeEnvironment(
     RealtimeEnvironment, RegistryMixIn, IngressMixIn, EgressMixIn, StatisticsMixIn
 ):
@@ -912,7 +931,7 @@ class DynamicRealtimeEnvironment(
         self,
         initial_time=0,
         factor=1.0,
-        strict=True,
+        strict: Optional[bool] = None,
         logical_start_time: Optional[datetime] = None,
         go_live_at: Optional[datetime] = None,
         timezone: Optional[str] = None,
@@ -924,13 +943,15 @@ class DynamicRealtimeEnvironment(
         Args:
             initial_time (float, optional): The initial simulation time. Defaults to 0.
             factor (float, optional): The real-time factor (e.g., 1.0 = 1 sim second per real second). Defaults to 1.0.
-            strict (bool, optional): If True, a paced step raises `RuntimeError` when the
+            strict (bool, optional): If True, a step raises `RuntimeError` when the
                 run is more than `factor` real seconds behind the wall clock, as SimPy's
-                `RealtimeEnvironment` does. It is never checked at `factor` 0, where an
-                unpaced run has no wall clock to fall behind, nor before `go_live_at`.
-                Pass False for a live run whose sinks can block. `sync()` moves only
-                the wall-clock anchor to now; `resume_pacing()` moves both anchors.
-                Defaults to True, as SimPy.
+                `RealtimeEnvironment` does. At `factor` 0 that is any step once the
+                wall clock has moved, as in SimPy; before `go_live_at` it is never
+                checked. Pass False for a live run whose sinks can block. `sync()`
+                moves only the wall-clock anchor to now; `resume_pacing()` moves both
+                anchors. By default (None) it is True for a paced run or one with
+                `go_live_at`, and False at `factor` 0 with no `go_live_at`, where an
+                unpaced run has no wall clock to fall behind.
             logical_start_time (datetime, optional): Overrides the environment's base clock.
                 Crucial for historical backfilling (e.g., generating data from last week).
             go_live_at (datetime, optional): Logical instant at which pacing switches to
@@ -970,10 +991,19 @@ class DynamicRealtimeEnvironment(
             else datetime.now(self.zone)
         )
 
-        super().__init__(initial_time=initial_time, factor=factor, strict=strict)
+        super().__init__(
+            initial_time=initial_time,
+            factor=factor,
+            strict=_resolve_strict(strict, factor, go_live_at),
+        )
 
         # True while `run()` is stepping, when `step()` processes every event
         self._in_run = False
+        # True while a run has no end of its own: `step()` then ends the run when
+        # no model event is left
+        self._until_none = False
+        # The event `run()` is running to, so a step knows it is already triggered
+        self._until_event: Optional[Event] = None
         self._go_live_sim_time: Optional[float] = None
         if go_live_at is not None:
             self._go_live_sim_time = self._resolve_go_live_time(
@@ -1174,9 +1204,14 @@ class DynamicRealtimeEnvironment(
         Raises:
             simpy.core.EmptySchedule: If no model event is left. The events of
                 desflow's own stay in the queue for a later `run()` or `finish()`.
+                Inside a run with no end of its own, `run()` ends there too.
         """
         if self._in_run:
-            if self._factor or self._go_live_sim_time is not None:
+            if self._until_none and math.isinf(self.peek()) and not self._ending():
+                # A run with no end of its own ends when no model event is left,
+                # as SimPy's does; the events of desflow's own would go on for ever
+                raise EmptySchedule
+            if self._factor or self._go_live_sim_time is not None or self.strict:
                 self._step_event()
             else:
                 # The unpaced run, which is `_step_event()` without its checks,
@@ -1192,16 +1227,28 @@ class DynamicRealtimeEnvironment(
         """Runs to `until`, a time or an event, as SimPy's `run()` does.
 
         Args:
-            until: A time, an event, or None to run until the queue is empty.
+            until: A time, an event, or None to run until no model event is left.
+                The events of desflow's own, such as statistics readings and flush
+                timers, do not keep the run going.
 
         Returns:
             Any: The value of the `until` event, or None for a time.
         """
         previous, self._in_run = self._in_run, True
+        previous_open, previous_event = self._until_none, self._until_event
+        self._until_none = previous_open or until is None
+        self._until_event = until if isinstance(until, Event) else previous_event
         try:
             return super().run(until)
         finally:
             self._in_run = previous
+            self._until_none = previous_open
+            self._until_event = previous_event
+
+    def _ending(self) -> bool:
+        """Whether the event the run is going to is triggered and waits to be processed,
+        such as the end of a `stop`, which is one of desflow's own events."""
+        return self._until_event is not None and self._until_event.triggered
 
     def _step_event(self) -> Event:
         """Processes the head of the queue, whichever kind of event it is.
@@ -1239,11 +1286,13 @@ class DynamicRealtimeEnvironment(
             head = self._queue[0][0]
         factor = self._factor
         # At factor 0 there is no wall clock to wait for, so SimPy's own step runs
-        # without the real-time arithmetic (issue #24, fix 4). `strict` means
-        # nothing without a wall clock and is not checked. After the go-live switch
-        # a timer it scheduled at `now` is before the go-live instant, so it is not
-        # a step that fell behind and is not checked either.
-        if factor:
+        # without the real-time arithmetic (issue #24, fix 4), unless `strict` was
+        # asked for: then the check of SimPy's `RealtimeEnvironment` runs, which
+        # raises once the wall clock has moved, and there is nothing to sleep for.
+        # Before `go_live_at` the check is off, as the run is unpaced until then.
+        # After the go-live switch a timer it scheduled at `now` is before the
+        # go-live instant, so it is not a step that fell behind and is not checked.
+        if factor or (self.strict and self._go_live_sim_time is None):
             real_time = self.real_start + (head - self.env_start) * factor
             if (
                 self.strict

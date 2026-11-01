@@ -988,7 +988,7 @@ def _kept_yaml(tmp_path, case, n):
             if interrupted
             else ""
         )
-        + "run: {until: 40}\n"
+        + "run: {until: 40, on_unhandled_failure: continue}\n"
     )
 
     def prepare(app):
@@ -1033,7 +1033,9 @@ def test_c3_a_unit_the_task_before_kept_goes_back_when_the_task_ends_without_sta
         assert first_rival == 10
     else:
         assert first_rival < 10, case
-    got = _kept_events(run_builder(_kept_builder(case, n), 40))
+    got = _kept_events(
+        run_builder(_kept_builder(case, n), 40, on_unhandled_failure="continue")
+    )
     assert got == expected
     outcome = _kept_yaml(tmp_path, case, n)
     assert _kept_events(outcome.records) == _kept_reference(case, n, arrivals=True)
@@ -1643,7 +1645,7 @@ def test_c3_a_kept_unit_goes_back_when_the_flow_ends_without_a_next_task(
         yield context.env.timeout(0)
 
     app.add_process(script)
-    outcome = run_builder(app, 30, raises=True)
+    outcome = run_builder(app, 30, raises=True, on_unhandled_failure="continue")
     assert outcome.error is None
     assert _kept_events(outcome.records) == expected
     assert app.get_resource("picker").count == 0
@@ -1661,7 +1663,7 @@ def test_c3_a_kept_unit_goes_back_when_the_flow_ends_without_a_next_task(
         "tasks:\n"
         f"  A: {{service: pick, resource: picker, keep: [picker]{fail}, payload: {{event: x}}}}\n"
         "  R: {service: one, resource: picker, payload: {event: x}}\n"
-        "run: {until: 30}\n"
+        "run: {until: 30, on_unhandled_failure: continue}\n"
     )
     outcome = run_yaml_text(tmp_path, text, {"a": [0] * n, "r": [0] * n})
     assert outcome.error is None
@@ -2167,7 +2169,6 @@ def test_c3_an_error_outside_the_function_gives_back_a_kept_unit_in_a_child_flow
     """A child flow's task that keeps a unit gives it back when an error raised outside
     its function ends the flow, as a SimPy `with` block does, so a rival is served."""
     app = SimulationContext("C3", factor=0.0)
-    app.on_unhandled_failure = "continue"
     app.add_resource("picker", current_cap=1, max_cap=1)
     app.add_service("broken", dist="constant", value=2)
     app.add_service("one", dist="constant", value=1)
@@ -2200,6 +2201,6 @@ def test_c3_an_error_outside_the_function_gives_back_a_kept_unit_in_a_child_flow
         yield ctx.env.timeout(0)
 
     app.add_process(start)
-    run_builder(app, 5)
+    run_builder(app, 5, on_unhandled_failure="continue")
     assert started == [0.0]
     assert app.get_resource("picker").count == 0

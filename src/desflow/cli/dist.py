@@ -166,7 +166,7 @@ def _values_text(family: Any, parameters: Dict[str, float]) -> str:
         assert config.mean is not None and config.std is not None
         mean, variance = clamped_normal_moments(config.mean, config.std)
         moments += (
-            f"; draws below {MIN_DELAY:.5f} s are raised to it, which gives "
+            f"; negative draws are raised to {MIN_DELAY}, which gives "
             f"mean {mean:.6g}, std {variance**0.5:.6g}"
         )
     std = variance**0.5
@@ -174,7 +174,7 @@ def _values_text(family: Any, parameters: Dict[str, float]) -> str:
     draw = f"{fixed:.6g}"
     if fixed < MIN_DELAY:
         # The sampler raises every draw below the minimum delay to it
-        draw += f", raised to the minimum delay {MIN_DELAY:.5f} s"
+        draw += f", raised to {MIN_DELAY}"
     ratio = f" (std / mean {std / mean:.3g})" if mean > 0 else ""
     lines = [
         "parameters: " + ", ".join(f"{k} {v:.6g}" for k, v in shown.items()),

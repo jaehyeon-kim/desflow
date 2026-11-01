@@ -61,7 +61,7 @@ def _reference_any():
 
 def _low_level_any():
     def start(env):
-        restocked = Signal(env, "restocked")
+        restocked = Signal(env, "restocked", once=False)
         counter = iter(range(100))
 
         def order():
@@ -83,7 +83,7 @@ def _low_level_any():
 
 def _builder_any():
     app = SimulationContext("C2", factor=0.0)
-    app.add_signal("restocked")
+    app.add_signal("restocked", once=False)
     app.add_arrival("orders", dist="constant", value=3)
     app.add_arrival("restocks", dist="constant", value=5)
 
@@ -311,7 +311,7 @@ def _builder_all(broken):
         context.spawn(restock(0, entity=entity))
 
     app.add_process(script)
-    return run_builder(app, 16)
+    return run_builder(app, 16, on_unhandled_failure="continue")
 
 
 def test_c2_wait_for_all_events():

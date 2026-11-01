@@ -153,8 +153,8 @@ class Shop:
         self.packers = DynamicResource(env, "Shop", "packers")
         self.stock = DynamicContainer(env, "Shop", "stock")
         self.signals = {
-            "courier_left": Signal(env, "courier_left"),
-            "truck_ready": Signal(env, "truck_ready"),
+            "courier_left": Signal(env, "courier_left", once=False),
+            "truck_ready": Signal(env, "truck_ready", once=False),
         }
         self.routes = routes()
         # One random sequence of its own for pack_order's routing, as the builder uses

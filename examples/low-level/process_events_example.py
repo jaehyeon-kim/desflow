@@ -49,7 +49,7 @@ class Shop:
 
     def __init__(self, env, sampler):
         self.env, self.sampler = env, sampler
-        self.ready = Signal(env, "ready")
+        self.ready = Signal(env, "ready", once=False)
         self.ids = {}
 
     def next_id(self, task):

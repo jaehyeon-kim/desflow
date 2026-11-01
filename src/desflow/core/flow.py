@@ -355,7 +355,7 @@ class Transfer:
 
     def amount_for(
         self, task_id: Any, upstream: Optional[Upstream], scope: Scope
-    ) -> float:
+    ) -> Union[int, float]:
         """
         Returns the amount for one task instance.
 
@@ -365,13 +365,13 @@ class Transfer:
             scope: What an expression's names read.
 
         Returns:
-            float: The amount.
+            Union[int, float]: The amount, as written when it is a number.
         """
         if self._expression is not None:
-            return float(self._expression.evaluate(scope))
+            return as_given(self._expression.evaluate(scope))
         if callable(self.amount):
-            return float(self.amount(task_id, payload_of(upstream)))
-        return float(self.amount)
+            return as_given(self.amount(task_id, payload_of(upstream)))
+        return as_given(self.amount)
 
     @property
     def expressions(self) -> List[Expression]:
@@ -644,6 +644,24 @@ class Wait:
         return [n.target for n in self.branches.values() if n.kind == "condition"]
 
 
+def as_given(value: Any) -> Union[int, float]:
+    """
+    Returns a number as it was written, so an integer amount stays an integer.
+
+    Args:
+        value: A number, or other text or value that `float` can read.
+
+    Returns:
+        Union[int, float]: The number itself, or `float(value)` for anything else.
+
+    Raises:
+        ValueError: If `value` is not a number and `float` cannot read it.
+    """
+    if isinstance(value, (int, float)):
+        return value
+    return float(value)
+
+
 def _wait_branch(branch: Any) -> Tuple[str, Any]:
     """One branch of a wait, as its kind and its checked target."""
     from desflow.utils import suggestion, time_to_seconds
@@ -675,7 +693,7 @@ def _wait_branch(branch: Any) -> Tuple[str, Any]:
             raise ValueError(f"a wait timeout is seconds or a duration, got {target!r}")
         if seconds < 0:
             raise ValueError(f"a wait timeout must be 0 or more, got {target!r}")
-        return kind, (float(seconds), value)
+        return kind, (seconds, value)
     if kind == "condition":
         return kind, Expression(target)
     if kind in ("get", "put"):

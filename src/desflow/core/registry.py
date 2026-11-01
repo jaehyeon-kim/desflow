@@ -19,6 +19,31 @@ from desflow.models.params import (
 logger = logging.getLogger(__name__)
 
 
+_AS_GIVEN_PATHS = (".service.", ".arrival.", ".containers.")
+
+
+def _is_number(value: Any) -> bool:
+    """Whether `value` is an int or a float, and not a bool."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _stored_as_given(path: str, current: Any, new: Any) -> bool:
+    """Whether a live update is stored as written, with no cast to the current type.
+
+    That holds for a distribution parameter or a container value that gets a number or
+    a bool, and for a variable that gets a finite number, when the current value is a
+    number. Infinity and NaN are not finite, so they go to the cast to the current
+    type, which refuses them over an integer variable.
+    """
+    if not _is_number(current):
+        return False
+    if any(part in path for part in _AS_GIVEN_PATHS):
+        return _is_number(new) or isinstance(new, bool)
+    if ".variables." in path and _is_number(new):
+        return math.isfinite(new)
+    return False
+
+
 def _infinite_capacity(path: str, value: Any) -> bool:
     """Whether `value` is infinity, or the text "inf", written to a capacity path."""
     if not path.endswith((".current_cap", ".max_cap")):
@@ -281,7 +306,9 @@ class SimulationRegistry:
 
         Includes dynamic type casting to protect the simulation from crashing if
         external systems send improperly typed data (e.g., sending the string "5"
-        instead of the integer 5).
+        instead of the integer 5). A number written over a number is stored as given
+        on a distribution parameter, a container value and a variable, so 0.5 over 2
+        stays 0.5 and 9.5 over a variable of 10 stays 9.5.
 
         A capacity path (`current_cap` or `max_cap`) takes `inf` and the text `"inf"`
         as no limit, whatever type it held.
@@ -339,8 +366,20 @@ class SimulationRegistry:
         if current_val is not None and _infinite_capacity(path, new_value):
             # No limit: inf, or the text "inf", on a capacity path of any type
             validated_value = math.inf
+        elif current_val is not None and _stored_as_given(path, current_val, new_value):
+            # A number written over a number keeps its type, as SimPy's keeps it:
+            # 0.5 over 2 is 0.5, 3 over 2.5 is 3, and true is 1
+            validated_value = (
+                int(new_value) if isinstance(new_value, bool) else new_value
+            )
         elif current_val is not None:
             expected_type = type(current_val)
+            if _is_number(current_val) and any(
+                part in path for part in _AS_GIVEN_PATHS
+            ):
+                # Text, such as "0.5" from a connector, is read as a float, as it was
+                # when these values were always floats
+                expected_type = float
             # If types don't match, attempt a safe cast (e.g., "5" -> 5)
             if not isinstance(new_value, expected_type):
                 try:
@@ -640,10 +679,8 @@ class SimulationRegistry:
         self._fill_unbounded(cap_config)
         path = f"{sim_id}.containers.{name}"
         self._configs[path] = cap_config
-        # A container level is continuous, so an integer starting value must not
-        # make later updates integers through the type cast in update()
-        self._register_cap(path, cap_config, cast=float)
-        level = float(getattr(cap_config, "level", 0.0))
+        self._register_cap(path, cap_config)
+        level = getattr(cap_config, "level", 0)
         self._values[f"{path}.level"] = DynamicValue(self.env, f"{path}.level", level)
 
     def register_store(self, sim_id: str, name: str, cap_config: CapacityConfig):
@@ -693,10 +730,8 @@ class SimulationRegistry:
                 path = f"{path_prefix}.{name}"
                 self._values[path] = DynamicValue(self.env, path, value)
 
-    def _register_cap(
-        self, path_prefix: str, cap_config: Any, cast: Optional[Callable] = None
-    ):
-        """Internal: Flattens a CapacityConfig, converting both values with `cast` if given.
+    def _register_cap(self, path_prefix: str, cap_config: Any):
+        """Internal: Flattens a CapacityConfig into its two paths.
 
         A `current_cap` outside `[0, max_cap]` is clamped to that range with a warning,
         as a live update is, and the config is updated, so `explain` reads the
@@ -710,8 +745,6 @@ class SimulationRegistry:
                 f"outside [0, max_cap {max_cap}]. Stored as {clamped}."
             )
             current_cap = cap_config.current_cap = clamped
-        if cast is not None:
-            current_cap, max_cap = cast(current_cap), cast(max_cap)
         self._values[f"{path_prefix}.current_cap"] = DynamicValue(
             self.env, f"{path_prefix}.current_cap", current_cap
         )

@@ -207,6 +207,7 @@ def _build(
     if context is not None:
         context.factor = 0.0
         context.go_live_at = None
+        context.strict = None
         if warmup is not None:
             context.warmup = warmup
         context.start(

@@ -295,7 +295,7 @@ def test_c2_wait_branch_in_a_failing_all():
         context.spawn(boom(0, entity=Entity("b-0", "b", {})))
 
     app.add_process(script)
-    records = run_builder(app, 10)
+    records = run_builder(app, 10, on_unhandled_failure="continue")
     assert times(records, "order", "failed") == [1.0]
     assert app.get_resource("m").in_use == 0
     assert app.get_resource("m").queue == []
@@ -433,7 +433,7 @@ def _builder_nested_failure():
         context.spawn(boom(0, entity=Entity("b", "b", {})))
 
     app.add_process(script)
-    return run_builder(app, 20)
+    return run_builder(app, 20, on_unhandled_failure="continue")
 
 
 def test_c2_nested_condition_with_a_failing_member():
@@ -535,7 +535,7 @@ def _builder_custom_rule_failure():
         context.spawn(boom(0, entity=Entity("b", "b", {})))
 
     app.add_process(script)
-    return run_builder(app, 20)
+    return run_builder(app, 20, on_unhandled_failure="continue")
 
 
 def test_c2_custom_rule_with_a_failing_member():

@@ -3,14 +3,17 @@ import pytest
 from desflow.models.params import DistributionConfig
 
 
-def test_distribution_parameters_are_floats():
-    """A whole number is stored as a float, so a later live update keeps its fraction."""
+def test_distribution_parameters_are_stored_as_given():
+    """A whole number stays an integer, as in SimPy; a bool or text is made a float."""
     config = DistributionConfig(dist="exponential", rate=2)
-    assert isinstance(config.rate, float)
+    assert type(config.rate) is int
 
-    config = DistributionConfig(dist="lognormal", mean=3, std=1)
-    assert isinstance(config.mean, float)
-    assert isinstance(config.std, float)
+    config = DistributionConfig(dist="lognormal", mean=3.5, std="1")
+    assert type(config.mean) is float
+    assert type(config.std) is float
+
+    config = DistributionConfig(dist="empirical", values=[1, 2.5])
+    assert [type(item) for item in config.values] == [int, float]
 
 
 @pytest.mark.parametrize(

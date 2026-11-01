@@ -25,7 +25,7 @@ resources:
       work: interrupt
   packers: {current_cap: 2, max_cap: 4}
 
-signals: [opened, closed]
+signals: {opened: {once: false}, closed: {once: false}}
 
 services:
   packing: {dist: triangular, low: 2 s, mode: 4 s, high: 8 s}

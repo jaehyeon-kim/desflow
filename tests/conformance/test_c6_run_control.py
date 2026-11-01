@@ -7,9 +7,10 @@ event time is relative to that start, matching SimPy.
 
 from pathlib import Path
 
+import pytest
 import simpy
 
-from desflow import DynamicRealtimeEnvironment
+from desflow import DynamicRealtimeEnvironment, Entity
 from desflow.core.context import SimulationContext
 from tests.conformance.harness import (
     RecordingEgress,
@@ -240,3 +241,73 @@ def test_c6_current_time():
     for records in (_builder_current_time(), run_yaml("c6_current_time.yaml")[0]):
         assert times(records, "early") == [105.0]
         assert times(records, "late") == [110.0]
+
+
+def _reference_step_count(entities, length):
+    """SimPy: `entities` processes start at 0, and each takes the one unit of a
+    resource `length` times in a row, serving 1 each time. The count of `env.step()`
+    calls until the queue is empty."""
+    env = simpy.Environment()
+    unit = simpy.Resource(env, capacity=1)
+
+    def entity():
+        for _ in range(length):
+            with unit.request() as request:
+                yield request
+                yield env.timeout(1)
+
+    def script():
+        for _ in range(entities):
+            env.process(entity())
+        yield env.timeout(0)
+
+    env.process(script())
+    steps = 0
+    while env.peek() != float("inf"):
+        env.step()
+        steps += 1
+    return steps, env.now
+
+
+def _builder_step_count(entities, length):
+    """The same model as a chain of `length` tasks, each taking the unit and serving 1,
+    each handing on to the next; the count of `app.step()` calls."""
+    app = SimulationContext("C6", factor=0.0)
+    app.add_resource("unit", current_cap=1, max_cap=1)
+    app.add_service("serve", dist="constant", value=1)
+    names = [f"t{index}" for index in range(length)]
+    functions = {}
+    for index, name in enumerate(names):
+        following = names[index + 1] if index + 1 < length else None
+
+        @app.task(service_id="serve", resource_id="unit", next=following, name=name)
+        def step(task_id):
+            return {"event": "served"}
+
+        functions[name] = step
+
+    def script(context):
+        for number in range(entities):
+            context.spawn(functions[names[0]](0, entity=Entity(f"e-{number}", "e", {})))
+        yield context.env.timeout(0)
+
+    app.add_process(script)
+    app.start()
+    steps = 0
+    while app.peek() != float("inf"):
+        app.step()
+        steps += 1
+    now = app.env.now
+    app.close()
+    return steps, now
+
+
+@pytest.mark.parametrize("length", [2, 5, 14])
+@pytest.mark.parametrize("entities", [1, 3, 10])
+def test_step_count_equals_simpy(entities, length):
+    """`step()` counts the events of the model only, so a model that loops through
+    tasks takes as many steps as SimPy's program does, and ends at the same time (T8).
+    """
+    assert _builder_step_count(entities, length) == _reference_step_count(
+        entities, length
+    )

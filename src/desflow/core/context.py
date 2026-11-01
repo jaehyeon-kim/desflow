@@ -146,7 +146,7 @@ class SimulationContext:
         initial_time: Union[float, str] = 0.0,
         lag_interval: Union[float, str, None] = None,
         timezone: Optional[str] = None,
-        strict: bool = False,
+        strict: Optional[bool] = None,
         environment: Optional[Type[DynamicRealtimeEnvironment]] = None,
     ):
         """
@@ -181,11 +181,13 @@ class SimulationContext:
                 record timestamps are written in, with their offset. By default the
                 zone of `logical_start_time`, or UTC. A `logical_start_time` or
                 `go_live_at` without an offset is read in it.
-            strict: When True a paced step raises `RuntimeError` if the run is more
-                than `factor` real seconds behind the wall clock, as SimPy's
-                `RealtimeEnvironment` does. It is never checked at `factor` 0. False
-                by default, unlike the low-level environment, because a live run
-                whose sink blocks falls behind and should go on.
+            strict: When True a step raises `RuntimeError` if the run is more than
+                `factor` real seconds behind the wall clock, as SimPy's
+                `RealtimeEnvironment` does; at `factor` 0 that is any step once the
+                wall clock has moved. By default (None) it is True for a paced run or
+                one with `go_live_at`, and False at `factor` 0 with no `go_live_at`.
+                Pass False for a live run whose sink blocks and should go on when it
+                falls behind.
             environment: A subclass of `DynamicRealtimeEnvironment` that the run is
                 built on, for a model that overrides `step`, `schedule` or `__init__`.
                 A subclass that overrides `__init__` takes `**kwargs` and passes
@@ -314,8 +316,19 @@ class SimulationContext:
         self._default_until: Any = None
         self._default_stop: Any = None
         self._default_drain: Any = None
-        self._default_unhandled: str = "continue"
-        self._on_unhandled_failure: str = "continue"
+        self._default_unhandled: str = "stop"
+        self._on_unhandled_failure: str = "stop"
+        # The blueprint's `run.segments` (a list of mappings, or `{every: seconds}`),
+        # `run.steps` and `run.sync`; start() keeps them for the run that uses them
+        self._default_segments: Any = None
+        self._default_steps = False
+        self._default_sync = False
+        self._segments: Any = None
+        self._steps = False
+        self._sync = False
+        # True once advance() or step() has moved the run, so finish() leaves the
+        # segments and steps to the caller who is driving it
+        self._moved = False
         # The run's end, entities in the model, and the drain state, set by start()
         self._until: Any = None
         self._end: Optional[simpy.Event] = None
@@ -377,6 +390,9 @@ class SimulationContext:
         context._default_stop = run.stop
         context._default_drain = run.drain_setting()
         context._default_unhandled = run.on_unhandled_failure
+        context._default_segments = _segment_plan(run)
+        context._default_steps = run.steps
+        context._default_sync = run.sync
         if preview is None:
             context._before_run = list(run.before)
         elif run.before:
@@ -384,6 +400,7 @@ class SimulationContext:
         if preview is not None and preview.sample is not None:
             context.factor = 0.0
             context.go_live_at = None
+            context.strict = None
             context._sample_limit = preview.sample
         context._repeat_hint = f"Repeat it with: desflow run {path} --seed {{seed}}"
         context._source = Path(path)
@@ -502,7 +519,7 @@ class SimulationContext:
         if not interval > 0:
             raise ValueError(f"stats interval must be greater than 0, got {interval}")
         self._stats_level = level
-        self._stats_interval = float(interval)
+        self._stats_interval = interval
         return self
 
     def with_batching(
@@ -1933,7 +1950,7 @@ class SimulationContext:
     def add_signal(
         self,
         name: str,
-        once: bool = False,
+        once: bool = True,
         on: Optional[List[Mapping[str, Any]]] = None,
     ) -> "SimulationContext":
         """
@@ -1945,9 +1962,10 @@ class SimulationContext:
 
         Args:
             name: The signal's name.
-            once: When True the signal fires once, as SimPy's `Event` does: it does
-                not re-arm, a wait after the firing resumes at once, and a second
-                firing is refused.
+            once: When True, the default, the signal fires once, as SimPy's `Event`
+                does: it does not re-arm, a wait after the firing resumes at once,
+                and a second firing is an error under `stop`. When False it re-arms
+                after each firing, and a wait after a firing waits for the next.
             on: Actions run when the signal fires, each a mapping with one of `fire`,
                 `spawn`, `interrupt` or `path`, as a task's `on` takes them.
 
@@ -2224,17 +2242,18 @@ class SimulationContext:
         if self._env is None or not self.started:
             raise RuntimeError("finish() needs a run that start() has started")
         try:
-            env = self._env
+            if not self._moved:
+                self._run_plan()
             if self._end is not None:
                 if self._end.callbacks is None and not self._end._ok:
                     # `env.run(until=...)` returns the value of a processed event,
                     # so a failed stop that advance() reached is raised here
                     raise self._end._value
-                return env.run(until=self._end)
+                return self._run_env(self._end)
             if self._run_ended():
                 # advance() or step() already reached until, where a run ends
                 return None
-            return env.run(until=self._until)
+            return self._run_env(self._until)
         finally:
             self.close()
 
@@ -2271,6 +2290,7 @@ class SimulationContext:
         """
         if self._env is None or not self.started:
             raise RuntimeError("advance() needs a run that start() has started")
+        self._moved = True
         env = self._env
         if self._run_ended():
             raise RuntimeError(
@@ -2296,6 +2316,101 @@ class SimulationContext:
         segment._ok, segment._value = True, None
         env.schedule(segment, simpy.events.URGENT, until - env.now)
         return self._advance_to(segment)
+
+    def _run_plan(self) -> None:
+        """Runs the blueprint's `run.segments` or `run.steps` before `finish()` runs the
+        rest of the run, publishing a reading after each segment or event."""
+        if self._segments is not None:
+            self._run_segments(self._segments)
+        elif self._steps:
+            self._run_steps()
+
+    def _segment_entries(self, segments: Any) -> List[Mapping[str, Any]]:
+        """The entries of `run.segments`: the list as given, or for `{every: t}` one
+        entry ending at each multiple of `t` below `until`, and one at `until`."""
+        if not isinstance(segments, Mapping):
+            return list(segments)
+        every, entries, count = segments["every"], [], 1
+        while (
+            self._until is not None and self.initial_time + count * every < self._until
+        ):
+            entries.append({"until": self.initial_time + count * every})
+            count += 1
+        return [*entries, {"until": self._until}]
+
+    def _run_segments(self, segments: Any) -> None:
+        """Runs the model one segment at a time, as a SimPy program that calls
+        `env.run(until=...)` in a loop does, and publishes `system.simulation.segment`
+        after each.
+
+        A segment ends at its `until`, at its `stop`, or, for `{}`, at the end of the
+        run. A segment after the run's own end does not run. `look` names a task whose
+        new entity runs its zero-time steps once the segment has stopped, ahead of the
+        events at the stop time.
+        """
+        env = self.env
+        for index, entry in enumerate(self._segment_entries(segments)):
+            if self._run_ended():
+                break
+            if entry.get("sync"):
+                env.sync()
+            if entry.get("until") is not None:
+                self.advance(entry["until"])
+            elif entry.get("stop") is not None:
+                self.advance(self._stop_event(entry["stop"]))
+            else:
+                self._run_to_end()
+            if entry.get("look") is not None:
+                self._look(entry["look"])
+            self._publish_reading("system.simulation.segment", {"index": index})
+            if entry.get("until") is None and entry.get("stop") is None:
+                break
+
+    def _run_to_end(self) -> None:
+        """Runs a started run to its own end, which `finish()` then finds reached."""
+        self._moved = True
+        self._run_env(self._end if self._end is not None else self._until)
+
+    def _look(self, task: str) -> None:
+        """Runs a new entity of `task` to the end of its zero-time steps, before any
+        other event at this instant, which SimPy's urgent start of a process ensures."""
+        process = self._spawn_entity(task, None, None, None)
+        while not process.triggered:
+            self.env.step()
+
+    def _run_steps(self) -> None:
+        """Processes the model's events one at a time up to `until`, as a loop of
+        `env.peek()` and `env.step()` does, publishing `system.simulation.step` after
+        each. The run ends in place of SimPy's `EmptySchedule` when none is left."""
+        count = 0
+        while self.peek() < (math.inf if self._until is None else self._until):
+            self.step()
+            count += 1
+            self._publish_reading("system.simulation.step", {"step": count})
+
+    def _publish_reading(self, path: str, fields: Dict[str, Any]) -> None:
+        """Publishes `fields`, then `now` and `peek` (null when no model event is
+        left, because a JSON record cannot hold infinity), as telemetry."""
+        env = self.env
+        head = env.peek()
+        env.publish_telemetry(
+            path, {**fields, "now": env.now, "peek": None if math.isinf(head) else head}
+        )
+
+    def _run_env(self, until: Any) -> Any:
+        """Runs the environment to `until`, ending the run when no model event is left
+        if the context has no `until` of its own.
+
+        A `stop` or a drain reaches `env.run` as an event, so the environment cannot
+        tell from its argument that the run has no time limit.
+        """
+        env = self._env
+        assert env is not None  # the callers checked that the run has started
+        previous, env._until_none = env._until_none, self._until is None
+        try:
+            return env.run(until=until)
+        finally:
+            env._until_none = previous
 
     def _run_ended(self) -> bool:
         """Whether the run has reached its own end: the end event of a `stop` or
@@ -2328,7 +2443,7 @@ class SimulationContext:
         if limit is not None:
             limit.callbacks.append(stop)
         try:
-            return env.run(until=target)
+            return self._run_env(target)
         finally:
             # An event that did not stop the run must not stop a later one
             for event in (limit, target):
@@ -2407,6 +2522,10 @@ class SimulationContext:
             on_unhandled_failure = (
                 self._default_unhandled if run_settings else "continue"
             )
+        self._segments = self._default_segments if run_settings else None
+        self._steps = self._default_steps if run_settings else False
+        self._sync = self._default_sync if run_settings else False
+        self._moved = False
         self._on_unhandled_failure = on_unhandled_failure
         # Read before any connector starts its thread, so a bad value stops the run
         # with nothing to tear down
@@ -2418,6 +2537,16 @@ class SimulationContext:
             raise ValueError(
                 f"until ({until:g}) must be greater than the initial time "
                 f"({self.initial_time:g}); set until later, or initial_time earlier"
+            )
+        if (stop or drain) and self._segments is not None:
+            raise ValueError(
+                "run.segments cannot be used with run.stop or run.drain: a segment "
+                "ends at its own until or stop"
+            )
+        if (stop or drain) and self._steps:
+            raise ValueError(
+                "run.steps cannot be used with run.stop or run.drain: steps already "
+                "reads the run after each event"
             )
         if isinstance(drain, Mapping) and drain.get("limit") is not None:
             _seconds(drain["limit"])
@@ -2523,7 +2652,7 @@ class SimulationContext:
             # the statistics are read at the end
             self._env.stats.configure(self.sim_id, level, self._stats_interval)
         self._signals = {
-            name: Signal(self._env, name, once=self._signal_once.get(name, False))
+            name: Signal(self._env, name, once=self._signal_once.get(name, True))
             for name in self._signal_names
         }
         for name, actions in self._signal_on.items():
@@ -2632,7 +2761,7 @@ class SimulationContext:
         self._end = self._end_event(until, stop, drain)
         self._closed = False
         self.started = True
-        if self.strict:
+        if self._env.strict or self._sync:
             # Building takes wall time, which a strict run must not count as lag
             self._env.sync()
         logger.info("Simulation engine started.")
@@ -2650,6 +2779,7 @@ class SimulationContext:
             simpy.core.EmptySchedule: If no model event is left.
         """
         self.env.step()
+        self._moved = True
 
     def peek(self) -> float:
         """
@@ -2726,7 +2856,7 @@ class SimulationContext:
         if until is not None:
             horizon = env.internal_event()
             horizon._ok, horizon._value = True, None
-            env.schedule(horizon, simpy.events.URGENT, float(until) - env.now)
+            env.schedule(horizon, simpy.events.URGENT, until - env.now)
             if drain:
 
                 def begin_drain(_event: Any) -> None:
@@ -2873,7 +3003,7 @@ class SimulationContext:
                     )
                 fire = action["fire"]
                 if (fire.get("urgent") or fire.get("after") is not None) and not (
-                    self._signal_once.get(signal, False)
+                    self._signal_once.get(signal, True)
                 ):
                     raise ValueError(
                         "`urgent` and `after` need a one-shot signal (`once=True`); "
@@ -3198,6 +3328,17 @@ def _whole_or_unlimited(value: Any) -> bool:
     return number == math.inf or (math.isfinite(number) and number.is_integer())
 
 
+def _segment_plan(run: Any) -> Any:
+    """A blueprint's `run.segments` as plain data: a list of mappings with the keys
+    that are set, or `{"every": seconds}`; None when it has none."""
+    segments = run.segments
+    if segments is None:
+        return None
+    if hasattr(segments, "every"):
+        return {"every": segments.every}
+    return [segment.model_dump(exclude_none=True) for segment in segments]
+
+
 def _check_end(until: Any, stop: Any, drain: Any, signals: List[str]) -> None:
     """Checks `stop` and `drain` before anything is built."""
     if drain and until is None:
@@ -3350,9 +3491,10 @@ def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
     return {"path": entry["path"], "value": entry.get("value")}
 
 
-def _seconds(value: Union[float, str]) -> float:
-    """Reads seconds, or a duration such as `"10 min"`."""
-    return time_to_seconds(value) if isinstance(value, str) else float(value)
+def _seconds(value: Union[int, float, str]) -> Union[int, float]:
+    """Reads seconds, or a duration such as `"10 min"`. A number is returned as given,
+    so an integer stays an integer."""
+    return time_to_seconds(value) if isinstance(value, str) else value
 
 
 def _distribution_of(spec: Mapping[str, Any]) -> DistributionConfig:

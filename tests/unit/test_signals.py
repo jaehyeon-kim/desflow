@@ -5,7 +5,7 @@ from desflow.core.signals import Signal
 def test_a_signal_failure_nobody_waits_for_is_defused():
     """A `Signal.fail` with no waiter defuses the failed event, so the run goes on."""
     env = DynamicRealtimeEnvironment(factor=0.0)
-    closing = Signal(env, "closing")
+    closing = Signal(env, "closing", once=False)
 
     def process():
         yield env.timeout(1)

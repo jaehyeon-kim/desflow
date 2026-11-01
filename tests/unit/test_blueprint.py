@@ -989,6 +989,210 @@ def test_zero_until_is_rejected(tmp_path):
         SimulationContext.from_yaml(path)
 
 
+SEGMENTED = """\
+simulation: {sim_id: S, factor: 0, random_seed: 1}
+services: {one: {dist: constant, value: 1}}
+arrivals: {a: {replay: {path: a.csv}, spawn: ticking}}
+tasks:
+  ticking: {service: one, payload: {event_type: tick}}
+  looking: {payload: {event_type: look}}
+run:
+  until: 6
+"""
+
+
+SEEN = """\
+def seen(task_id, context):
+    return {"at": context.env.now, "next_event": context.env.peek()}
+"""
+
+
+def _segmented(tmp_path, run, tasks=None, until=True):
+    text = SEGMENTED.split("run:")[0] + "run:\n" + textwrap.indent(run, "  ")
+    if until:
+        text = text.replace("run:\n", "run:\n  until: 6\n", 1)
+    if tasks:
+        text = text.replace("  looking:", tasks + "\n  looking:")
+    (tmp_path / "a.csv").write_text("time\n1\n1\n3\n")
+    return write(tmp_path, text)
+
+
+def _readings(records, path_id):
+    return [r["value"] for r in records if r.get("path_id") == path_id]
+
+
+def test_segments_run_through_desflow_run(tmp_path):
+    path = _segmented(
+        tmp_path, "segments:\n  - {until: 2, look: looking}\n  - {until: 6}\n"
+    )
+    result = CliRunner().invoke(cli, ["run", str(path), "--stdout"])
+    assert result.exit_code == 0, result.output
+    assert result.output.count("system.simulation.segment") == 2
+
+
+def test_segments_run_in_every_replication(tmp_path, monkeypatch):
+    path = _segmented(
+        tmp_path, "segments:\n  - {until: 2, look: looking}\n  - {until: 6}\n"
+    )
+    calls = []
+    original = SimulationContext._run_segments
+
+    def spy(self, segments):
+        calls.append(len(segments))
+        return original(self, segments)
+
+    monkeypatch.setattr(SimulationContext, "_run_segments", spy)
+    result = CliRunner().invoke(cli, ["run", str(path), "--replications", "2"])
+    assert result.exit_code == 0, result.output
+    assert len(calls) >= 2
+
+
+@pytest.mark.parametrize(
+    "segments,stop",
+    [
+        ("  - {until: 2}\n  - {until: 4, look: looking}\n  - {until: 6}\n", 4),
+        ("  - {until: 2}\n  - {until: 6, look: looking}\n", 6),
+    ],
+    ids=["middle", "last"],
+)
+def test_look_reads_before_the_events_at_the_stop(tmp_path, segments, stop):
+    """The look's `!python` payload reads the context at the stop time, before the
+    events due at that time run: the clock is the stop and the next event is due
+    at it. A task that ends at 4 is recorded after the look."""
+    (tmp_path / "seen_logic.py").write_text(SEEN, encoding="utf-8")
+    path = _segmented(tmp_path, "segments:\n" + segments)
+    path.write_text(
+        path.read_text().replace(
+            "looking: {payload: {event_type: look}}",
+            "looking: {payload: !python seen_logic.seen}",
+        )
+    )
+    capture = _Capture()
+    app = SimulationContext.from_yaml(path)
+    app.add_egress(capture)
+    app.run()
+    events = [r for r in capture.records if r["stream_type"] == "event"]
+    look = next(r for r in events if r["task"] == "looking")
+    assert look["value"]["at"] == stop
+    if stop == 4:
+        assert look["value"]["next_event"] == 4
+        after = [r for r in events if r["task"] == "ticking" and r["sim_ts"] == 4]
+        assert after and events.index(look) < events.index(after[0])
+    assert [r["now"] for r in _readings(capture.records, "system.simulation.segment")][
+        -1
+    ] == 6
+
+
+def test_look_task_refuses_a_timed_step(tmp_path):
+    path = _segmented(
+        tmp_path,
+        "segments:\n  - {until: 2, look: looking}\n",
+        tasks="  looking: {service: one, payload: {event_type: look}}",
+    )
+    text = path.read_text().replace("  looking: {payload: {event_type: look}}\n", "")
+    path.write_text(text)
+    with pytest.raises(BlueprintError, match="a look"):
+        SimulationContext.from_yaml(path)
+
+
+@pytest.mark.parametrize(
+    "other,message",
+    [
+        ("segments:\n  - {until: 2}\n", "run.steps cannot be used with run.segments"),
+        ("drain: true\n", "run.steps cannot be used with run.stop or run.drain"),
+        (
+            "stop: {signal: gate}\n",
+            "run.steps cannot be used with run.stop or run.drain",
+        ),
+    ],
+    ids=["segments", "drain", "stop"],
+)
+def test_run_steps_refuses_segments_stop_and_drain(tmp_path, other, message):
+    path = _segmented(tmp_path, "steps: true\n" + other)
+    path.write_text(
+        path.read_text().replace("services:", "signals: {gate: {}}\nservices:")
+    )
+    with pytest.raises(BlueprintError, match=message):
+        SimulationContext.from_yaml(path)
+
+
+@pytest.mark.parametrize(
+    "other", ["drain: true\n", "stop: {signal: gate}\n"], ids=["drain", "stop"]
+)
+def test_segments_refuse_stop_and_drain(tmp_path, other):
+    path = _segmented(tmp_path, other + "segments:\n  - {until: 2}\n")
+    path.write_text(
+        path.read_text().replace("services:", "signals: {gate: {}}\nservices:")
+    )
+    with pytest.raises(BlueprintError, match="run.segments cannot be used"):
+        SimulationContext.from_yaml(path)
+
+
+def test_the_cli_drain_flag_cannot_be_used_with_segments_or_steps(tmp_path):
+    for run in ("segments:\n  - {until: 2}\n", "steps: true\n"):
+        path = _segmented(tmp_path, run)
+        result = CliRunner().invoke(cli, ["run", str(path), "--drain"])
+        assert result.exit_code != 0
+        assert "cannot be used with run.stop or run.drain" in result.output
+
+
+def test_run_with_a_stop_or_drain_refuses_steps_and_segments(tmp_path):
+    steps = SimulationContext.from_yaml(_segmented(tmp_path, "steps: true\n"))
+    with pytest.raises(ValueError, match="run.steps cannot be used"):
+        steps.run(drain=True)
+    segments = SimulationContext.from_yaml(
+        _segmented(tmp_path, "segments:\n  - {until: 2}\n")
+    )
+    with pytest.raises(ValueError, match="run.segments cannot be used"):
+        segments.run(drain=True)
+
+
+def test_segment_untils_must_increase(tmp_path):
+    path = _segmented(tmp_path, "segments:\n  - {until: 4}\n  - {until: 2}\n")
+    with pytest.raises(BlueprintError, match="segment untils increase"):
+        SimulationContext.from_yaml(path)
+
+
+def test_an_entry_after_an_open_segment_is_refused(tmp_path):
+    path = _segmented(tmp_path, "segments:\n  - {}\n  - {until: 3}\n")
+    with pytest.raises(BlueprintError, match="this segment never runs"):
+        SimulationContext.from_yaml(path)
+
+
+def test_every_needs_until(tmp_path):
+    path = _segmented(tmp_path, "segments: {every: 2}\n", until=False)
+    with pytest.raises(BlueprintError, match="every needs run.until"):
+        SimulationContext.from_yaml(path)
+
+
+def test_every_counts_from_the_initial_time(tmp_path):
+    path = _segmented(tmp_path, "segments: {every: 10}\n")
+    text = (
+        path.read_text()
+        .replace("until: 6", "until: 130")
+        .replace("factor: 0,", "factor: 0, initial_time: 100,")
+    )
+    path.write_text(text)
+    (tmp_path / "a.csv").write_text("time\n101\n")
+    capture = _Capture()
+    app = SimulationContext.from_yaml(path)
+    app.add_egress(capture)
+    app.run()
+    nows = [r["now"] for r in _readings(capture.records, "system.simulation.segment")]
+    assert nows == [110, 120, 130]
+
+
+def test_run_steps_publishes_one_record_per_model_event(tmp_path):
+    path = _segmented(tmp_path, "steps: true\n", until=False)
+    capture = _Capture()
+    app = SimulationContext.from_yaml(path)
+    app.add_egress(capture)
+    app.run()
+    steps = _readings(capture.records, "system.simulation.step")
+    assert [s["step"] for s in steps] == list(range(1, len(steps) + 1))
+    assert len(steps) >= 4
+
+
 def test_a_connector_value_error_names_the_line(tmp_path):
     pytest.importorskip("pyiceberg")
     text = MINIMAL + textwrap.dedent("""\

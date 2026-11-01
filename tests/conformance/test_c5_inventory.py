@@ -435,3 +435,45 @@ def test_c5_a_default_put_goes_on_in_the_step_the_put_event_is_processed(
         and r["value"].get("status") != "queued"
     ]
     assert got == expected
+
+
+def test_c5_container_amounts_and_levels_keep_integers():
+    """A container that starts at `level: 5` with a put of 3 and a get of 2 reads an
+    `int` level at each step, as SimPy's container does, and `env.now` stays an
+    `int` with a constant arrival (MF2)."""
+    env = simpy.Environment()
+    tank = simpy.Container(env, capacity=10, init=5)
+
+    def mover():
+        yield env.timeout(2)
+        yield tank.put(3)
+        yield tank.get(2)
+
+    env.process(mover())
+    env.run()
+    assert tank.level == 6 and type(tank.level) is int and type(env.now) is int
+
+    text = (
+        "simulation: {sim_id: C5, factor: 0}\n"
+        "services: {one: {dist: constant, value: 2}}\n"
+        "containers: {tank: {current_cap: 10, max_cap: 10, level: 5}}\n"
+        "arrivals: {a: {replay: {path: a.csv}, spawn: move}}\n"
+        "tasks:\n"
+        "  move:\n"
+        "    service: one\n"
+        "    put: {container: tank, amount: 3}\n"
+        "    payload: {event: moved}\n"
+        "    next: take\n"
+        "  take:\n"
+        "    get: {container: tank, amount: 2}\n"
+        "    payload: {event: taken}\n"
+        "run: {until: 10}\n"
+    )
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as folder:
+        outcome = run_yaml_text(Path(folder), text, {"a": [0]})
+        assert outcome.error is None, outcome.error
+        level = outcome.app_or_env.get_container("tank").level
+    assert level == 6 and type(level) is int

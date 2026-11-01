@@ -679,8 +679,21 @@ def test_sim_ts_is_a_plain_float_when_the_clock_is_a_numpy_float():
 
         record = env._event_buffer[-1]
         assert type(record["sim_ts"]) is float
-        assert record["sim_ts"] == 3.142
+        assert record["sim_ts"] == 3.14159
         assert orjson.dumps(record)  # a numpy float raises here
+    finally:
+        env.teardown()
+
+
+def test_sim_ts_is_not_rounded():
+    """`sim_ts` is the clock as it is, so a model in small time units keeps its times,
+    in an event and in a telemetry reading (T6)."""
+    env = _buffered_env()
+    try:
+        env._now = 0.0004
+        env.publish_event("task-001", {"status": "started"})
+        env.publish_telemetry("Shop.level", 1)
+        assert [record["sim_ts"] for record in env._event_buffer[-2:]] == [0.0004] * 2
     finally:
         env.teardown()
 

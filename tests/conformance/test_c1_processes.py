@@ -652,7 +652,7 @@ def test_c1_wait_for_a_process_abandoned_in_a_child_flow():
     # No on_interrupt_next: the child flow's end event fails, so the wait fails at 2
     failed = [
         r["sim_ts"]
-        for r in run_builder(build(None), 10)
+        for r in run_builder(build(None), 10, on_unhandled_failure="continue")
         if r["task"] == "driver"
         and isinstance(r["value"], dict)
         and r["value"].get("status") == "failed"

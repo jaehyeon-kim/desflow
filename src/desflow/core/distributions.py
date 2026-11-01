@@ -11,7 +11,7 @@ parameters as attributes, so a draw builds no mapping.
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Union
 
 import numpy as np
 
@@ -270,12 +270,12 @@ def _probabilities(numbers: Any) -> np.ndarray:
     return weights / weights.sum()
 
 
-def _draw_empirical(c: Any, rng: np.random.Generator) -> float:
+def _draw_empirical(c: Any, rng: np.random.Generator) -> Union[int, float]:
     if c.values is not None:
         if c.weights is None:
-            return float(c.values[rng.integers(len(c.values))])
+            return c.values[rng.integers(len(c.values))]
         index = rng.choice(len(c.values), p=_probabilities(c.weights))
-        return float(c.values[index])
+        return c.values[index]
     # A histogram: a bin chosen by its count, then a uniform point inside it
     index = rng.choice(len(c.counts), p=_probabilities(c.counts))
     return float(rng.uniform(c.edges[index], c.edges[index + 1]))
@@ -460,8 +460,8 @@ DISTRIBUTIONS: Dict[str, Distribution] = _distributions(
     ),
     Distribution(
         name="normal",
-        summary="Symmetric times around a mean. Draws below 0.00001 s (`min_delay`) "
-        "are raised to it, which raises the mean; truncated_normal avoids that.",
+        summary="Symmetric times around a mean. Negative draws are raised to 0 "
+        "(`min_delay`), which raises the mean; truncated_normal avoids that.",
         parameters=("mean", "std"),
         required=("mean", "std"),
         defaults={"std": 0.0},

@@ -29,7 +29,7 @@ app = (
     .add_service("sweeping", dist="constant", value=1)
     .add_service("guarding", dist="constant", value=100)
     # A plain signal re-arms; the one-shot closing fires once and spawns a sweep
-    .add_signal("ready")
+    .add_signal("ready", once=False)
     .add_signal("closing", once=True, on=[{"spawn": {"task": "sweep", "after": 1}}])
     .add_arrival("orders", dist="constant", value=6)
     .add_arrival("shippers", dist="constant", value=7)

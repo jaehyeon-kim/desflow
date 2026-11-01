@@ -18,3 +18,4 @@ tasks:
     fail_reason: broken delivery
 run:
   until: 6
+  on_unhandled_failure: continue

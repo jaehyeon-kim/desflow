@@ -12,14 +12,24 @@ context keeps the decorator and the checks made before the clock starts.
 from __future__ import annotations
 
 import functools
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+)
 
 from simpy import Interrupt
 from simpy.events import Condition
 from simpy.resources.resource import Preempted
 
 from desflow.core.expressions import Expression, Scope
-from desflow.core.flow import Router, Transfer, Wait, make_scope
+from desflow.core.flow import Router, Transfer, Wait, as_given, make_scope
 from desflow.resources.resource import QueueFull
 from desflow.models.flow import Entity, Upstream
 from desflow.utils import suggestion
@@ -518,7 +528,7 @@ class TaskRun:
             self.publish(self.status("queued"))
             stats.task_queued(spec.name, self.task_id)
             if spec.patience is not None:
-                self._patience_left = float(self._patience())
+                self._patience_left = self._patience()
 
         failure: Any = None
         while spec.wait is not None:
@@ -648,7 +658,7 @@ class TaskRun:
                             config = env.registry.get_config(
                                 f"{self.context.sim_id}.service.{spec.service_id}"
                             )
-                            remaining = float(self.context.sampler.sample(config))
+                            remaining = self.context.sampler.sample(config)
                         service_from = env.now
                         self._target = "service"
                         yield env.timeout(remaining)
@@ -942,13 +952,13 @@ class TaskRun:
             extra["wait"] = self.waits
         return extra
 
-    def _patience(self) -> float:
+    def _patience(self) -> Union[int, float]:
         spec = self.spec
         if spec.patience_of is not None:
-            return spec.patience_of.evaluate(self.scope())
+            return as_given(spec.patience_of.evaluate(self.scope()))
         if callable(spec.patience):
-            return spec.patience(self.task_id, self.entity.attributes)
-        return spec.patience
+            return as_given(spec.patience(self.task_id, self.entity.attributes))
+        return as_given(spec.patience)
 
     def _rank(self) -> Any:
         spec = self.spec

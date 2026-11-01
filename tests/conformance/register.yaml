@@ -37,6 +37,10 @@
   low_level: "`yield env.timeout(delay)`"
   checks:
     - tests/conformance/test_c1_timed_wait.py::test_c1_timed_wait
+    - tests/conformance/test_c1_timed_wait.py::test_delay_of_zero_stays_zero
+    - tests/conformance/test_c1_timed_wait.py::test_a_gap_of_zero_keeps_an_arrival_at_one_instant
+    - tests/conformance/test_c1_timed_wait.py::test_integer_literals_stay_integers
+    - tests/conformance/test_c1_timed_wait.py::test_a_constant_arrival_keeps_integer_times
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_single_branch_wait_goes_on_in_the_step_its_event_is_processed
   page: user-guide/tasks-and-processes/index.md#a-timed-step
 
@@ -104,7 +108,7 @@
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_failure
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_failure_handled_by_on_fail
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
-  differences: "By default (`on_unhandled_failure` is `continue`) a failure no task waits for ends the entity's flow in YAML and the builder, publishes `failed` and is counted, and the run goes on; under `on_unhandled_failure` of `stop` it stops the run, matching SimPy and the low-level API, where an exception nobody handles stops the run."
+  differences: "By default (`on_unhandled_failure` is `stop`) a failure no task waits for stops the run, matching SimPy and the low-level API, where an exception nobody handles stops the run; under `on_unhandled_failure` of `continue` it ends the entity's flow in YAML and the builder, publishes `failed` and is counted, and the run goes on."
 
 - id: C1
   inventory: [SP-V8]
@@ -534,6 +538,7 @@
   low_level: "`put.cancel()`"
   checks:
     - tests/conformance/test_c5_inventory.py::test_c5_cancel_quantity_put
+    - tests/conformance/test_c5_inventory.py::test_c5_container_amounts_and_levels_keep_integers
   page: user-guide/model-parts/stores-and-containers.md#pick-an-item-or-give-up-waiting
 
 - id: C5
@@ -706,15 +711,33 @@
   page: user-guide/model-parts/task-flow.md#attributes
 
 - id: C6
+  inventory: [SP-E11]
+  operation: A run with no until
+  description: "A run with no `until` ends when no model event is left, as SimPy's `run()` does, with statistics, a sink or an ingress connector on; a `stop` that can no longer happen raises SimPy's `RuntimeError`, and only a model that keeps making events runs on."
+  simpy: "`core.Environment.run()` returns when no event is left"
+  yaml: "`run:` with no `until`"
+  builder: "`app.run()` with no `until`"
+  low_level: "`env.run()` with no `until`"
+  checks:
+    - tests/conformance/test_c6_end_conditions.py::test_no_until_ends_with_statistics
+    - tests/conformance/test_c6_end_conditions.py::test_no_until_ends_with_a_sink
+    - tests/conformance/test_c6_end_conditions.py::test_no_until_ends_with_ingress
+    - tests/conformance/test_c6_end_conditions.py::test_no_until_with_a_stop_that_never_fires
+    - tests/conformance/test_c6_end_conditions.py::test_no_until_with_a_stop_that_fires_at_the_last_event
+  page: user-guide/time-and-pacing/run-length.md#run-length_1
+
+- id: C6
   inventory: [SP-E12]
   operation: Stop at a time
   description: "The run ends at a given simulation time."
   simpy: "`simpy.core.Environment.run(until=...)`"
-  yaml: "`run.until`"
+  yaml: "`run.until`, or `run.segments` for several stops with a `look` at each"
   builder: "`app.run(until=...)`"
   low_level: "`env.run(until=...)`"
   checks:
     - tests/conformance/test_c6_run_control.py::test_c6_stop_at_a_time
+    - tests/conformance/test_yaml_only.py::test_cv_040_run_segments_with_a_look
+    - tests/conformance/test_yaml_only.py::test_cv_040_run_segments_every
   page: user-guide/time-and-pacing/run-length.md#run-length_1
 
 - id: C7
@@ -727,6 +750,7 @@
   low_level: "`yield req | env.timeout(patience)`, then `req.triggered`"
   checks:
     - tests/conformance/test_c7_patience.py::test_c7_reneging
+    - tests/conformance/test_c7_patience.py::test_c7_patience_that_evaluates_to_text_is_read_as_a_number
     - tests/conformance/test_c7_patience.py::test_c7_reneging_tie_timeout_scheduled_after_the_grant
     - tests/conformance/test_c7_patience.py::test_c7_reneging_tie_timeout_scheduled_before_the_grant
     - tests/conformance/test_c7_patience.py::test_c7_reneged_request_leaves_the_queue
@@ -790,20 +814,22 @@
   operation: Step one event
   description: "The run advances one event at a time, so a script can watch each step."
   simpy: "`simpy.core.Environment.step()`"
-  yaml: "`SimulationContext.from_yaml(path).start()`, then `.step()`"
+  yaml: "`run: {steps: true}`, or `SimulationContext.from_yaml(path).start()`, then `.step()`"
   builder: "`app.start()`, `app.step()`, `app.close()`"
   low_level: "`env.step()`"
   checks:
     - tests/conformance/test_c6_end_conditions.py::test_c6_step_one_event
+    - tests/conformance/test_c6_run_control.py::test_step_count_equals_simpy
+    - tests/conformance/test_yaml_only.py::test_cv_032_and_cv_034_run_steps_reads_peek_and_step
   page: user-guide/time-and-pacing/run-length.md#step-and-peek
-  differences: A blueprint has no stepping key; its context, from `from_yaml`, steps as a builder context does.
+  differences: "`run.steps` publishes the step count and the clock after each step of a run; stepping a model by hand is for a script, which steps the context from `from_yaml` as it steps a builder context."
 
 - id: C6
   inventory: [SP-E8]
   operation: Inspect next event time
   description: "A script reads when the next event will happen without running it."
   simpy: "`simpy.core.Environment.peek()`"
-  yaml: "`SimulationContext.from_yaml(path).start()`, then `.peek()`"
+  yaml: "`run: {steps: true}` publishes `peek` after each step, or `SimulationContext.from_yaml(path).start()`, then `.peek()`"
   builder: "`app.peek()`"
   low_level: "`env.peek()`"
   checks:
@@ -827,7 +853,7 @@
     - tests/conformance/test_c6_end_conditions.py::test_c6_finish_after_steps_that_reached_until
     - tests/conformance/test_c6_end_conditions.py::test_c6_finish_after_steps_to_until_with_statistics_due_there
   page: user-guide/time-and-pacing/run-length.md#step-and-peek
-  differences: "With only desflow's own events left, `step()` raises `EmptySchedule` and `peek()` gives infinity, but the queue is not empty: `run()` and `finish()` still process those events."
+  differences: "With only desflow's own events left, `step()` raises `EmptySchedule` and `peek()` gives infinity, but the queue is not empty: `run()` and `finish()` with an `until` still process those events, and a run with no `until` ends when only they are left."
 
 - id: C6
   inventory: [SP-E14]
@@ -1003,7 +1029,7 @@
 - id: C6
   inventory: [SP-R2]
   operation: Strict pacing
-  description: "With `strict` on, a paced step more than `factor` seconds behind the wall clock raises `RuntimeError`, as SimPy's `RealtimeEnvironment(strict=True)` does."
+  description: "With `strict` on, a step more than `factor` seconds behind the wall clock raises `RuntimeError`, as SimPy's `RealtimeEnvironment(strict=True)` does, also at factor 0 once the wall clock has moved."
   simpy: "`rt.RealtimeEnvironment.strict`"
   yaml: "`simulation.strict`"
   builder: "`SimulationContext(strict=True)`"
@@ -1015,13 +1041,16 @@
 - id: C6
   inventory: [SP-R3]
   operation: Strict by default
-  description: "The low-level environment is strict unless `strict=False` is passed, as SimPy's is; the builder and YAML default to off."
+  description: "Strict is on unless `strict=False` is passed, as SimPy's is, in the low-level environment, the builder and YAML. A run at factor 0 that does not set `strict` is not strict, because it has no wall clock to fall behind, and a `go_live_at` run is strict."
   simpy: "`rt.RealtimeEnvironment(strict=True)`"
-  yaml: "`simulation.strict`, default `false`"
-  builder: "`SimulationContext(strict=False)`, the default"
-  low_level: "`DynamicRealtimeEnvironment(strict=True)`, the default"
+  yaml: "`simulation.strict`, default `true` when `factor` is above 0 or `go_live_at` is set"
+  builder: "`SimulationContext(strict=None)`, the default, resolves the same way"
+  low_level: "`DynamicRealtimeEnvironment(strict=None)`, the default, resolves the same way"
   checks:
-    - tests/conformance/test_c6_pacing.py::test_c6_strict_default
+    - tests/conformance/test_c6_pacing.py::test_strict_default_resolves_by_factor
+    - tests/conformance/test_c6_pacing.py::test_explicit_strict_at_factor_zero_raises
+    - tests/conformance/test_c6_pacing.py::test_forced_factor_zero_ignores_strict
+    - tests/conformance/test_c6_pacing.py::test_c6_go_live_under_strict_raises_nothing
   page: user-guide/time-and-pacing/clocks-and-pacing.md#strict-pacing
 
 - id: C6
@@ -1029,21 +1058,22 @@
   operation: Sync with the wall clock
   description: "`sync()` resets only the wall-clock anchor (`real_start`), as SimPy's does, so strict stops counting the time before it. Going on after a pause with the pace kept needs `resume_pacing()`, which also moves the simulation anchor."
   simpy: "`rt.RealtimeEnvironment.sync`"
-  yaml: "not in YAML: `app.start()`, then `app.env.sync()`"
+  yaml: "`run: {sync: true}` syncs as the run starts, and `sync: true` on a segment as that segment starts, or `app.start()`, then `app.env.sync()`"
   builder: "`app.env.sync()` after `start()`; the builder syncs once when it builds a strict run"
   low_level: "`env.sync()`"
   checks:
     - tests/conformance/test_c6_pacing.py::test_c6_sync_catches_up
+    - tests/conformance/test_yaml_only.py::test_cv_099_run_sync_calls_sync_where_it_is_asked
   page: user-guide/time-and-pacing/clocks-and-pacing.md#strict-pacing
 
 - id: C1
   inventory: [SP-V3]
   operation: One-shot event
-  description: "A one-shot signal fires once, as SimPy's `Event` does: it does not re-arm, a wait after the firing resumes at once, and a second firing is refused."
+  description: "A signal is one-shot by default and fires once, as SimPy's `Event` does: it does not re-arm, a wait after the firing resumes at once, and a second firing is refused. `once: false` makes a signal that re-arms."
   simpy: "`events.Event`"
-  yaml: "`signals: {closing: {once: true}}`"
-  builder: "`add_signal(name, once=True)`"
-  low_level: "`Signal(env, name, once=True)`"
+  yaml: "`signals: {closing: {}}`, or `once: false` to re-arm"
+  builder: "`add_signal(name)`, or `once=False` to re-arm"
+  low_level: "`Signal(env, name)`, or `once=False` to re-arm"
   checks:
     - tests/conformance/test_c1_events.py::test_c1_one_shot_event
     - tests/conformance/test_c1_events.py::test_c1_one_shot_event_fired_twice
@@ -1088,9 +1118,9 @@
 - id: C1
   inventory: [SP-V7]
   operation: Failure nobody handles
-  description: "Under `on_unhandled_failure: stop` a task, child flow or one-shot signal failure nobody handles stops the run, as SimPy; under `continue`, the default, it is defused and the run goes on."
+  description: "By default (`on_unhandled_failure: stop`) a task, child flow or one-shot signal failure nobody handles stops the run, as SimPy; under `continue` it is defused and the run goes on."
   simpy: "`core.Environment.run`"
-  yaml: "`run: {on_unhandled_failure: stop}`"
+  yaml: "`run: {on_unhandled_failure: continue}` to go on, `stop` is the default"
   builder: "`run(on_unhandled_failure=...)` or `start(on_unhandled_failure=...)`"
   low_level: "`DynamicRealtimeEnvironment(on_unhandled_failure=...)`"
   checks:
@@ -1222,28 +1252,7 @@
     - tests/conformance/test_c1_process_interaction.py::test_c1_subscribe_interrupts_the_next_task_after_a_hand_on
   page: user-guide/tasks-and-processes/signals-and-waiting.md#be-told-when-a-flow-ends
 
-# Differences kept by design, approved by the owner: A run with no until and
-# Capacity 0 on 18 Oct 2026, Strict pacing at factor 0 on 21 Oct 2026 (D-E1).
-
-- id: D
-  inventory: [SP-E11]
-  status: difference
-  operation: A run with no until
-  simpy: "`core.Environment.run()` returns when no event is left"
-  yaml: "`run:` with no `until`"
-  builder: "`app.run()` with no `until`"
-  low_level: "`env.run()` with no `until`"
-  checks: []
-  differences: "A run with a sink or an ingress connector and no `until` runs for ever, because a live run has no end: the connectors keep events coming. Give it an `until`, with a `drain` when it should finish its work, or a `stop` that is sure to happen, or stop it with Ctrl+C."
-
-- id: D
-  inventory: []
-  status: difference
-  operation: Strict pacing at factor 0
-  simpy: "`rt.RealtimeEnvironment(factor=0, strict=True)` raises once the wall clock has moved"
-  checks: []
-  differences: "An unpaced run has no wall clock to fall behind, so SimPy's check at factor 0 would raise on the first step of every unpaced script. `strict` is never checked at factor 0, also before `go_live_at`."
-  page: user-guide/time-and-pacing/clocks-and-pacing.md#strict-pacing
+# Differences kept by design, approved by the owner: Capacity 0 on 18 Oct 2026.
 
 - id: D
   inventory: [SP-S3]

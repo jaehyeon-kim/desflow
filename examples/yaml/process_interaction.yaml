@@ -25,7 +25,7 @@ services:
   inspecting: {dist: constant, value: 2 s}
   wrapping: {dist: constant, value: 3 s}
 
-signals: [courier_left]
+signals: {courier_left: {once: false}}
 
 arrivals:
   orders: {dist: exponential, rate: 0.12, spawn: pack, attributes: {gift: 0}}

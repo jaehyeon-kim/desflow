@@ -38,3 +38,4 @@ tasks:
     payload: {event: done}
 run:
   until: 20
+  on_unhandled_failure: continue

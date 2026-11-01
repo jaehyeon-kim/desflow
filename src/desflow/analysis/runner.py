@@ -412,6 +412,7 @@ def _publish(model: Model, replications: Replications, until: Any) -> None:
         stop = default_until(model)
     context.factor = 0.0
     context.go_live_at = None
+    context.strict = None
     context.warmup = None
     context.initial_time = float(stop or 0.0)
     # The clock never moves, so the run is started with no end of its own: its

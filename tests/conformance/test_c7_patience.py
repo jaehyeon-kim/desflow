@@ -802,7 +802,7 @@ def test_c7_queue_limit_fails_a_request_wait_branch():
             context.spawn(task(context.next_instance(task.__name__)))
 
     app.add_process(script)
-    assert seen(run_builder(app, 20)) == expected
+    assert seen(run_builder(app, 20, on_unhandled_failure="continue")) == expected
     assert app.get_resource("machine").in_use == 0
 
 
@@ -1004,3 +1004,21 @@ def test_c7_a_preempted_request_wait_reneges_when_the_patience_runs_out(tmp_path
     assert outcome.error is None
     assert times(outcome.records, "lo", "reneged") == [5.0]
     assert len(outcome.app_or_env.get_resource("machine").queue) == 0
+
+
+def test_c7_patience_that_evaluates_to_text_is_read_as_a_number(tmp_path):
+    """A patience expression that gives text, such as an attribute written "2", is
+    converted to a number as it was before numbers were kept as written."""
+    text = (
+        "simulation: {sim_id: C7, factor: 0}\n"
+        "resources: {machine: {current_cap: 1, max_cap: 1}}\n"
+        "services: {hold: {dist: constant, value: 5}}\n"
+        "arrivals:\n"
+        "  a: {replay: {path: a.csv}, spawn: hold, attributes: {p: '2'}}\n"
+        "tasks:\n"
+        "  hold: {service: hold, resource: machine, patience: attr.p,"
+        " payload: {event: done}}\n"
+        "run: {until: 20}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"a": [0, 1]})
+    assert outcome.error is None, outcome.error

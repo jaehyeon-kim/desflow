@@ -32,7 +32,7 @@ For the example `{dist: exponential, rate: 0.5}`: mean 2, variance 4, and with n
 
 ## normal
 
-Symmetric times around a mean. Draws below 0.00001 s (`min_delay`) are raised to it, which raises the mean; truncated_normal avoids that.
+Symmetric times around a mean. Negative draws are raised to 0 (`min_delay`), which raises the mean; truncated_normal avoids that.
 
 | | |
 |---|---|

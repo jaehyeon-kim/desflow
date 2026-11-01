@@ -27,3 +27,4 @@ tasks:
     fail_reason: broken delivery
 run:
   until: 16
+  on_unhandled_failure: continue

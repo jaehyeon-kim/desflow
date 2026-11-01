@@ -30,11 +30,266 @@
   since: 0.29.0
   changelog: "With `on_interrupt: resume` or `restart`, a plain interrupt no longer gives back a unit the task holds, so the task goes on at once with it and other entities waiting for the unit wait until the task ends. A task with several resources asks again only for the unit it lost or still waited for, so it can wait for one while it holds the others, and a task preempted on one resource, or broken down on one, keeps the rest. A unit the task before kept with `keep` stays until the task starts, unless its resource breaks down or a preemption takes it, and now goes back at once when the task reneges, its wait fails or its function raises with no `on_fail`, or it has no next task. With `resume`, a task interrupted at the exact end of its service now goes on one step later, after other processes whose service ends then, as `yield env.timeout(0)` does. A preemption or a breakdown still takes the unit. To give the unit back and queue again, use `on_interrupt: abandon` with `on_interrupt_next` naming a task that asks for it; that keeps neither the `resumed` record, nor the time left (the next task draws its own service time), nor the task's counts (the interrupted task counts `interrupted` and neither `resumed` nor `finished`, and the next task counts its own `finished`)."
 - run: example:interruptions:builder
-  since: 0.29.0
-  changelog: "With `on_interrupt: resume` or `restart`, a plain interrupt no longer gives back a unit the task holds, so the task goes on at once with it and other entities waiting for the unit wait until the task ends. A task with several resources asks again only for the unit it lost or still waited for, so it can wait for one while it holds the others, and a task preempted on one resource, or broken down on one, keeps the rest. A unit the task before kept with `keep` stays until the task starts, unless its resource breaks down or a preemption takes it, and now goes back at once when the task reneges, its wait fails or its function raises with no `on_fail`, or it has no next task. With `resume`, a task interrupted at the exact end of its service now goes on one step later, after other processes whose service ends then, as `yield env.timeout(0)` does. A preemption or a breakdown still takes the unit. To give the unit back and queue again, use `on_interrupt: abandon` with `on_interrupt_next` naming a task that asks for it; that keeps neither the `resumed` record, nor the time left (the next task draws its own service time), nor the task's counts (the interrupted task counts `interrupted` and neither `resumed` nor `finished`, and the next task counts its own `finished`)."
+  since: 1.0.0
+  changelog: "With `on_interrupt: resume` or `restart`, a plain interrupt no longer gives back a unit the task holds, so the task goes on at once with it and other entities waiting for the unit wait until the task ends. A task with several resources asks again only for the unit it lost or still waited for, so it can wait for one while it holds the others, and a task preempted on one resource, or broken down on one, keeps the rest. A unit the task before kept with `keep` stays until the task starts, unless its resource breaks down or a preemption takes it, and now goes back at once when the task reneges, its wait fails or its function raises with no `on_fail`, or it has no next task. With `resume`, a task interrupted at the exact end of its service now goes on one step later, after other processes whose service ends then, as `yield env.timeout(0)` does. A preemption or a breakdown still takes the unit. To give the unit back and queue again, use `on_interrupt: abandon` with `on_interrupt_next` naming a task that asks for it; that keeps neither the `resumed` record, nor the time left (the next task draws its own service time), nor the task's counts (the interrupted task counts `interrupted` and neither `resumed` nor `finished`, and the next task counts its own `finished`). `sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
 - run: example:interruptions:low_level
-  since: 0.29.0
-  changelog: "With `on_interrupt: resume` or `restart`, a plain interrupt no longer gives back a unit the task holds, so the task goes on at once with it and other entities waiting for the unit wait until the task ends. A task with several resources asks again only for the unit it lost or still waited for, so it can wait for one while it holds the others, and a task preempted on one resource, or broken down on one, keeps the rest. A unit the task before kept with `keep` stays until the task starts, unless its resource breaks down or a preemption takes it, and now goes back at once when the task reneges, its wait fails or its function raises with no `on_fail`, or it has no next task. With `resume`, a task interrupted at the exact end of its service now goes on one step later, after other processes whose service ends then, as `yield env.timeout(0)` does. A preemption or a breakdown still takes the unit. To give the unit back and queue again, use `on_interrupt: abandon` with `on_interrupt_next` naming a task that asks for it; that keeps neither the `resumed` record, nor the time left (the next task draws its own service time), nor the task's counts (the interrupted task counts `interrupted` and neither `resumed` nor `finished`, and the next task counts its own `finished`)."
+  since: 1.0.0
+  changelog: "With `on_interrupt: resume` or `restart`, a plain interrupt no longer gives back a unit the task holds, so the task goes on at once with it and other entities waiting for the unit wait until the task ends. A task with several resources asks again only for the unit it lost or still waited for, so it can wait for one while it holds the others, and a task preempted on one resource, or broken down on one, keeps the rest. A unit the task before kept with `keep` stays until the task starts, unless its resource breaks down or a preemption takes it, and now goes back at once when the task reneges, its wait fails or its function raises with no `on_fail`, or it has no next task. With `resume`, a task interrupted at the exact end of its service now goes on one step later, after other processes whose service ends then, as `yield env.timeout(0)` does. A preemption or a breakdown still takes the unit. To give the unit back and queue again, use `on_interrupt: abandon` with `on_interrupt_next` naming a task that asks for it; that keeps neither the `resumed` record, nor the time left (the next task draws its own service time), nor the task's counts (the interrupted task counts `interrupted` and neither `resumed` nor `finished`, and the next task counts its own `finished`). `sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
 - run: example:interruptions:yaml
-  since: 0.29.0
-  changelog: "With `on_interrupt: resume` or `restart`, a plain interrupt no longer gives back a unit the task holds, so the task goes on at once with it and other entities waiting for the unit wait until the task ends. A task with several resources asks again only for the unit it lost or still waited for, so it can wait for one while it holds the others, and a task preempted on one resource, or broken down on one, keeps the rest. A unit the task before kept with `keep` stays until the task starts, unless its resource breaks down or a preemption takes it, and now goes back at once when the task reneges, its wait fails or its function raises with no `on_fail`, or it has no next task. With `resume`, a task interrupted at the exact end of its service now goes on one step later, after other processes whose service ends then, as `yield env.timeout(0)` does. A preemption or a breakdown still takes the unit. To give the unit back and queue again, use `on_interrupt: abandon` with `on_interrupt_next` naming a task that asks for it; that keeps neither the `resumed` record, nor the time left (the next task draws its own service time), nor the task's counts (the interrupted task counts `interrupted` and neither `resumed` nor `finished`, and the next task counts its own `finished`)."
+  since: 1.0.0
+  changelog: "With `on_interrupt: resume` or `restart`, a plain interrupt no longer gives back a unit the task holds, so the task goes on at once with it and other entities waiting for the unit wait until the task ends. A task with several resources asks again only for the unit it lost or still waited for, so it can wait for one while it holds the others, and a task preempted on one resource, or broken down on one, keeps the rest. A unit the task before kept with `keep` stays until the task starts, unless its resource breaks down or a preemption takes it, and now goes back at once when the task reneges, its wait fails or its function raises with no `on_fail`, or it has no next task. With `resume`, a task interrupted at the exact end of its service now goes on one step later, after other processes whose service ends then, as `yield env.timeout(0)` does. A preemption or a breakdown still takes the unit. To give the unit back and queue again, use `on_interrupt: abandon` with `on_interrupt_next` naming a task that asks for it; that keeps neither the `resumed` record, nor the time left (the next task draws its own service time), nor the task's counts (the interrupted task counts `interrupted` and neither `resumed` nor `finished`, and the next task counts its own `finished`). `sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: blueprint:c3_interrupt_service_resume.yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:backfill_live:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:backfill_live:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:backfill_live:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:breakdowns:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:breakdowns:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:breakdowns:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:changing_demand:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:changing_demand:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:changing_demand:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:competing_resources:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:competing_resources:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:competing_resources:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:end_conditions:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:end_conditions:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:end_conditions:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:experiment:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:experiment:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:experiment:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:file:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:file:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:file:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:filtered_inventory:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:filtered_inventory:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:filtered_inventory:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:fitting:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:fitting:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:fitting:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:flow:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:flow:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:flow:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:iceberg:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:iceberg:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:iceberg:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:kafka:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:kafka:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:kafka:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:local:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:local:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:local:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:local_replay:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:local_replay:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:local_replay:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:measuring:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:measuring:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:measuring:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:parquet:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:parquet:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:parquet:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:patience:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:patience:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:patience:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:postgres:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:postgres:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:postgres:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:postgres_orders:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:postgres_orders:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:postgres_orders:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:process_interaction:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:process_interaction:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:process_interaction:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:redis:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:redis:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:redis:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:replications:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:replications:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:replications:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:stock:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:stock:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: example:stock:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:breakdowns_and_shifts:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:breakdowns_and_shifts:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:breakdowns_and_shifts:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:live_parameters:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:live_parameters:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:live_parameters:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:long_run:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:long_run:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:long_run:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:order_fulfilment:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:order_fulfilment:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:order_fulfilment:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:task_flow:builder
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:task_flow:low_level
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: scenario:task_flow:yaml
+  since: 1.0.0
+  changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."

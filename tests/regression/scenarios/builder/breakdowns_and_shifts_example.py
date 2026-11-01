@@ -21,8 +21,8 @@ app = (
         work="interrupt",
     )
     .add_resource("packers", current_cap=2, max_cap=4)
-    .add_signal("opened")
-    .add_signal("closed")
+    .add_signal("opened", once=False)
+    .add_signal("closed", once=False)
     .add_service("packing", dist="triangular", low=2, mode=4, high=8)
     .add_service("wrapping", dist="uniform", low=2, high=4)
     .add_arrival("orders", dist="exponential", rate=0.25)

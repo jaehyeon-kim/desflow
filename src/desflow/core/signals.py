@@ -1,9 +1,11 @@
 """Signals: named events that tasks and processes fire and wait for.
 
-A `Signal` wraps SimPy's shared-event pattern: one pending `simpy.Event` that every
-waiter yields, succeeded or failed when the signal fires, and replaced by a fresh
-one at once, so the signal can fire again. Every waiter of one firing resumes; a
-waiter that starts after a firing waits for the next.
+A `Signal` wraps SimPy's shared-event pattern: one `simpy.Event` that every waiter
+yields, succeeded or failed when the signal fires. By default the signal fires once
+and keeps that event, so a waiter that starts after the firing resumes at once. With
+`once=False` the event is replaced by a fresh one at the firing, so the signal can fire
+again; every waiter of one firing resumes, and a waiter that starts after a firing
+waits for the next.
 """
 
 import logging
@@ -36,7 +38,8 @@ class SignalFailed(Exception):
 
 class Signal:
     """
-    A named event that can fire many times, each firing waking every waiter.
+    A named event that fires once, or many times with `once=False`, each firing waking
+    every waiter.
 
     Attributes:
         env: The environment.
@@ -46,16 +49,17 @@ class Signal:
         value (Any): The value of the last firing, or the failure reason.
     """
 
-    def __init__(self, env: Environment, name: str = "signal", once: bool = False):
+    def __init__(self, env: Environment, name: str = "signal", once: bool = True):
         """
         Creates a signal that has not fired yet.
 
         Args:
             env: The environment.
             name: Its name, as a blueprint's `signals` and `signal.<name>` use it.
-            once: When True the signal fires once, as SimPy's `Event` does: it does
-                not re-arm, so a wait after the firing resumes at once, and a second
-                firing is refused.
+            once: When True, the default, the signal fires once, as SimPy's `Event`
+                does: it does not re-arm, so a wait after the firing resumes at once,
+                and a second firing is refused. When False it is replaced by a fresh
+                event after each firing, so it can fire again.
         """
         self.env = env
         self.name = name

@@ -10,7 +10,7 @@ The `simulation` section: the arguments of `SimulationContext`.
 
 `logical_start_time` and `go_live_at` take `now`, a signed duration from now such as `-1d` or `-10m`, an ISO datetime, or a `!python` datetime. Both read the same `now`, the moment the file is validated, so `-10m` and `now` are exactly ten minutes apart. `now` and a time without an offset are read in `timezone`, an IANA name, UTC by default.
 
-`strict` makes a paced step raise `RuntimeError` when the run is more than `factor` seconds behind the wall clock; it is False here and never checked at `factor` 0. `environment` is a subclass of `DynamicRealtimeEnvironment` the run is built on.
+`strict` makes a step raise `RuntimeError` when the run is more than `factor` seconds behind the wall clock, as SimPy's real-time environment does. Left unset it is true for a paced run or one with `go_live_at`, and false at `factor: 0` with no `go_live_at`. At `factor: 0`, `strict: true` raises once the wall clock has moved, as SimPy's does. `environment` is a subclass of `DynamicRealtimeEnvironment` the run is built on.
 
 | Key | Type | Default |
 |---|---|---|
@@ -20,10 +20,10 @@ The `simulation` section: the arguments of `SimulationContext`.
 | `timezone` | text | none |
 | `logical_start_time` | Time | none |
 | `go_live_at` | Time | none |
-| `warmup` | number or Duration | none |
-| `initial_time` | number or Duration | `0.0` |
+| `warmup` | integer or number or Duration | none |
+| `initial_time` | integer or number or Duration | `0.0` |
 | `lag_interval` | number or Duration | none |
-| `strict` | boolean | `false` |
+| `strict` | boolean | none |
 | `environment` | !python reference | none |
 
 ## resources
@@ -36,8 +36,8 @@ A `resources` entry: its capacity, the order its queue is served in, whether a r
 
 | Key | Type | Default |
 |---|---|---|
-| `current_cap` | number | none |
-| `max_cap` | number | none |
+| `current_cap` | integer or number | none |
+| `max_cap` | integer or number | none |
 | `queue` | text | `"fifo"` |
 | `preempt` | boolean | `false` |
 | `queue_limit` | integer | none |
@@ -64,8 +64,8 @@ A `containers` entry: its capacity, the largest level, its starting level and th
 
 | Key | Type | Default |
 |---|---|---|
-| `current_cap` | number | none |
-| `max_cap` | number | none |
+| `current_cap` | integer or number | none |
+| `max_cap` | integer or number | none |
 | `level` | integer or number | `0` |
 | `type` | !python reference | none |
 
@@ -79,8 +79,8 @@ A `stores` entry: how many items it holds, whether it serves by priority, the it
 
 | Key | Type | Default |
 |---|---|---|
-| `current_cap` | number | none |
-| `max_cap` | number | none |
+| `current_cap` | integer or number | none |
+| `max_cap` | integer or number | none |
 | `priority` | boolean | `false` |
 | `items` | list of any value |  |
 | `type` | !python reference | none |
@@ -96,16 +96,16 @@ Time-valued parameters (`mean`, `std`, `low`, `mode`, `high`, `scale`, `value`, 
 | Key | Type | Default |
 |---|---|---|
 | `dist` | text | required |
-| `rate` | number | none |
-| `mean` | number or Duration | none |
-| `std` | number or Duration | none |
-| `low` | number or Duration | none |
-| `value` | number or Duration | none |
-| `high` | number or Duration | none |
-| `mode` | number or Duration | none |
-| `shape` | number | none |
-| `scale` | number or Duration | none |
-| `values` | list of number or Duration | none |
+| `rate` | integer or number | none |
+| `mean` | integer or number or Duration | none |
+| `std` | integer or number or Duration | none |
+| `low` | integer or number or Duration | none |
+| `value` | integer or number or Duration | none |
+| `high` | integer or number or Duration | none |
+| `mode` | integer or number or Duration | none |
+| `shape` | integer or number | none |
+| `scale` | integer or number or Duration | none |
+| `values` | list of integer or number or Duration | none |
 | `weights` | list of number | none |
 | `edges` | list of number or Duration | none |
 | `counts` | list of number | none |
@@ -119,16 +119,16 @@ An `arrivals` entry: a distribution, or a `replay` of recorded rows, the task it
 | Key | Type | Default |
 |---|---|---|
 | `dist` | text | none |
-| `rate` | number | none |
-| `mean` | number or Duration | none |
-| `std` | number or Duration | none |
-| `low` | number or Duration | none |
-| `value` | number or Duration | none |
-| `high` | number or Duration | none |
-| `mode` | number or Duration | none |
-| `shape` | number | none |
-| `scale` | number or Duration | none |
-| `values` | list of number or Duration | none |
+| `rate` | integer or number | none |
+| `mean` | integer or number or Duration | none |
+| `std` | integer or number or Duration | none |
+| `low` | integer or number or Duration | none |
+| `value` | integer or number or Duration | none |
+| `high` | integer or number or Duration | none |
+| `mode` | integer or number or Duration | none |
+| `shape` | integer or number | none |
+| `scale` | integer or number or Duration | none |
+| `values` | list of integer or number or Duration | none |
 | `weights` | list of number | none |
 | `edges` | list of number or Duration | none |
 | `counts` | list of number | none |
@@ -160,11 +160,11 @@ Type: mapping of names to [SignalSpec](#signals) or list of names. Optional.
 
 A `signals` entry in the mapping form: `{closing: {once: true, on: [...]}}`.
 
-`once` makes the signal fire once, as SimPy's `Event` does; `on` lists actions run when the signal fires, as a task's `on` lists actions run when it ends.
+A signal fires once, as SimPy's `Event` does, unless it says `once: false`, which re-arms it after each firing. `on` lists actions run when the signal fires, as a task's `on` lists actions run when it ends.
 
 | Key | Type | Default |
 |---|---|---|
-| `once` | boolean | `false` |
+| `once` | boolean | `true` |
 | `on` | list of [OnEntry](#onentry) |  |
 
 ### OnEntry
@@ -189,7 +189,7 @@ An `on:` fire action: fire `signal` with a literal `value`, or with the outcome 
 | `value` | None | none |
 | `from` | text | none |
 | `urgent` | boolean | `false` |
-| `after` | number or Duration | none |
+| `after` | integer or number or Duration | none |
 
 ### SpawnAction
 
@@ -198,7 +198,7 @@ A `spawn:` key or an `on:` spawn action: start `task` as a new entity, after an 
 | Key | Type | Default |
 |---|---|---|
 | `task` | text | required |
-| `after` | number or Duration | none |
+| `after` | integer or number or Duration | none |
 
 ### InterruptAction
 
@@ -228,8 +228,8 @@ A `tasks` entry, built with `SimulationContext.task`.
 | `id_field` | text | none |
 | `item_field` | text | none |
 | `attributes` | list of text |  |
-| `priority` | number or text | none |
-| `patience` | number or text or Duration or expression | none |
+| `priority` | integer or number or text | none |
+| `patience` | integer or number or text or Duration or expression | none |
 | `balk` | text | none |
 | `get` | [TransferStep](#transferstep) | none |
 | `put` | [TransferStep](#transferstep) | none |
@@ -259,7 +259,7 @@ A task's `get` or `put`: one `container` with an `amount`, or one `store`.
 |---|---|---|
 | `container` | text | none |
 | `store` | text | none |
-| `amount` | number or text | `1.0` |
+| `amount` | integer or number or text | `1.0` |
 | `priority` | None | `0.0` |
 | `filter` | text | none |
 | `wait` | boolean | `true` |
@@ -305,7 +305,7 @@ A `wait` branch of a number of seconds, a duration such as `30 s`, or `{after, v
 
 | Key | Type | Default |
 |---|---|---|
-| `timeout` | number or text or [TimeoutAfter](#timeoutafter) | required |
+| `timeout` | integer or number or text or [TimeoutAfter](#timeoutafter) | required |
 
 ### TimeoutAfter
 
@@ -313,7 +313,7 @@ A `wait` timeout with a value: `{after: 40 s, value: ...}`, as SimPy's `env.time
 
 | Key | Type | Default |
 |---|---|---|
-| `after` | number or text | required |
+| `after` | integer or number or text | required |
 | `value` | None | none |
 
 ### ConditionWait
@@ -426,7 +426,7 @@ A `scenario` entry: at simulation time `at`, set `path` to `value`, publish a gr
 
 | Key | Type | Default |
 |---|---|---|
-| `at` | number or Duration | required |
+| `at` | integer or number or Duration | required |
 | `path` | text | none |
 | `value` | None | none |
 | `record` | mapping | none |
@@ -485,7 +485,7 @@ Written as a level alone (`stats: basic`) or as a mapping (`stats: {level: all, 
 | Key | Type | Default |
 |---|---|---|
 | `level` | `none` or `minimal` or `basic` or `typical` or `all` | required |
-| `interval` | number or Duration | `10.0` |
+| `interval` | integer or number or Duration | `10.0` |
 
 ## run
 
@@ -495,13 +495,18 @@ The `run` section.
 
 `before` lists `!python` functions called with no arguments before the run starts, for setup such as creating topics or tables. `stop` ends the run before `until` at the next firing of a signal, `{signal: name}`, or when a condition first holds, `{condition: ...}`. `drain`, `true` or `{limit: 1 h}`, stops the arrivals at `until` and runs on until no entity is left in the model.
 
+`segments` runs the model in parts and publishes a reading after each, as a SimPy program that calls `env.run(until=...)` in a loop does: a list of `RunSegment`, or `{every: <time>}` for equal parts up to `until`. `steps: true` publishes `system.simulation.step`, `{step, now, peek}`, after each model event, as a loop of `env.step()` and `env.peek()` reads them. `sync: true` calls `env.sync()` as the run starts. A run with no `until` ends when no model event is left.
+
 | Key | Type | Default |
 |---|---|---|
-| `until` | number or Duration | none |
+| `until` | integer or number or Duration | none |
 | `before` | list of !python reference |  |
 | `stop` | mapping of names to text | none |
 | `drain` | boolean or [Drain](#drain) | `false` |
-| `on_unhandled_failure` | `stop` or `continue` | `"continue"` |
+| `on_unhandled_failure` | `stop` or `continue` | `"stop"` |
+| `segments` | list of [RunSegment](#runsegment) or [SegmentEvery](#segmentevery) | none |
+| `steps` | boolean | `false` |
+| `sync` | boolean | `false` |
 
 ### Drain
 
@@ -510,3 +515,24 @@ A `run.drain` mapping: the longest a drain may run after `until`.
 | Key | Type | Default |
 |---|---|---|
 | `limit` | number or Duration | none |
+
+### RunSegment
+
+A `run.segments` entry: the run goes on to `until` or to `stop`, then waits for the next entry.
+
+An entry has at most one of `until` and `stop`; `{}` runs to the end. After the segment stops, `look` names a task whose new entity reads the model before any event at the stop time runs, and `sync` re-anchors the wall clock at the start of the segment. A record at `system.simulation.segment` reports `index`, `now` and `peek` (null when no model event is left) as the segment ends.
+
+| Key | Type | Default |
+|---|---|---|
+| `until` | integer or number or text or Duration | none |
+| `stop` | mapping of names to text | none |
+| `look` | text | none |
+| `sync` | boolean | `false` |
+
+### SegmentEvery
+
+`run.segments: {every: 10 s}`: a segment every `every` seconds up to `run.until`.
+
+| Key | Type | Default |
+|---|---|---|
+| `every` | integer or number or text or Duration | required |

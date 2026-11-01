@@ -6,12 +6,14 @@ from desflow.config import MIN_DELAY
 from desflow.explain.models import VERIFY_HINT, ArrivalResult, Graph, Node
 
 
+_NO_RATE = "a gap of 0 has no rate"
+
+
 def moments(parameters: Dict) -> Tuple[float, float]:
     """The mean and variance of the values the sampler gives for a distribution.
 
-    The sampler raises every draw below its minimum delay to it, so a normal's mean
-    is the clamped normal's (`clamped_normal_moments`), and a constant below the
-    minimum delay is the minimum delay.
+    The sampler raises every negative draw to 0, so a normal's mean is the clamped
+    normal's (`clamped_normal_moments`), and a negative constant is 0.
 
     Args:
         parameters: The distribution, such as `{"dist": "exponential", "rate": 2}`.
@@ -52,6 +54,9 @@ def arrival_results(graph: Graph) -> List[ArrivalResult]:
             )
             continue
         mean, variance = moments(node.distribution)
+        if mean == 0:
+            results.append(ArrivalResult(name=node.label, reason=_NO_RATE))
+            continue
         results.append(
             ArrivalResult(name=node.label, rate=1.0 / mean, ca2=variance / mean**2)
         )

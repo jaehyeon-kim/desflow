@@ -43,7 +43,7 @@ def check_step(step: Mapping[str, Any]) -> dict:
     if "at" not in step:
         raise ValueError("a scenario step needs at")
     at = step["at"]
-    seconds = time_to_seconds(at) if isinstance(at, str) else float(at)
+    seconds = time_to_seconds(at) if isinstance(at, str) else at
     if seconds < 0:
         raise ValueError(f"a scenario step's at must be 0 or more, got {at!r}")
     if ("path" in step) != ("value" in step):

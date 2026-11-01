@@ -15,6 +15,9 @@ import statistics
 from collections import defaultdict
 from pathlib import Path
 
+import pytest
+from skipped_by_1_0_0 import SKIPPED
+
 DURATIONS = Path(__file__).parent / "durations.json"
 
 _measured: dict = defaultdict(float)
@@ -33,6 +36,10 @@ def _groups(nodeids, count):
 
 
 def pytest_collection_modifyitems(config, items):
+    for item in items:
+        reason = SKIPPED.get(item.nodeid.removeprefix("tests/docs/"))
+        if reason:
+            item.add_marker(pytest.mark.skip(reason=reason))
     shard = os.environ.get("DOCS_SHARD")
     if not shard:
         return

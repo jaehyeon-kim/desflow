@@ -132,12 +132,11 @@ class DynamicContainer(BaseDynamicResource):
         super().__init__(env, sim_id, container_id, "containers")
 
         self._level_val = env.registry.get(f"{sim_id}.containers.{container_id}.level")
-        max_cap = float(self._max_cap_val.value)
+        max_cap = self._max_cap_val.value
         # Prevent initialization out-of-bounds
-        initial_capacity = max(0.0, min(float(self._current_cap_val.value), max_cap))
+        initial_capacity = max(0, min(self._current_cap_val.value, max_cap))
         if init is None:
-            # The registry holds the level as a float, so later updates stay
-            # fractional; the configured level keeps the type it was given
+            # The configured level keeps the type it was given
             config = env.registry.get_config(f"{sim_id}.containers.{container_id}")
             init = getattr(config, "level", self._level_val.value)
         start = init
@@ -223,7 +222,7 @@ class DynamicContainer(BaseDynamicResource):
         """Applies a live update to the level path, such as a restock."""
         while True:
             yield self._level_val.wait_for_change()
-            self._container._level = float(self._level_val.value)
+            self._container._level = self._level_val.value
             self._changed()
             # A higher level can serve waiting gets, a lower one can make room for puts
             if self._container.get_queue:
@@ -240,8 +239,8 @@ class DynamicContainer(BaseDynamicResource):
             new_target (float): The new capacity limit dictated by the control plane.
         """
         # Safely bind the new target to absolute physical limits [0, max_cap]
-        max_cap = float(self._max_cap_val.value)
-        new_target = max(0.0, min(float(new_target), max_cap))
+        max_cap = self._max_cap_val.value
+        new_target = max(0, min(new_target, max_cap))
 
         self._container._capacity = new_target
 

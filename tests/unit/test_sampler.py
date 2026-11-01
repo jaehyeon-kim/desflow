@@ -138,6 +138,7 @@ def test_constant_returns_its_value_and_draws_nothing():
     assert rng.bit_generator.state == state
 
 
-def test_constant_of_zero_is_the_smallest_delay():
+def test_constant_of_zero_stays_zero():
     sampler = Sampler(rng=np.random.default_rng(0))
-    assert sampler.sample(DistributionConfig(dist="constant", value=0.0)) == 0.00001
+    assert sampler.sample(DistributionConfig(dist="constant", value=0.0)) == 0
+    assert sampler.sample(DistributionConfig(dist="normal", mean=-5, std=0)) == 0

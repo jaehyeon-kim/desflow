@@ -208,7 +208,7 @@ class Statistics:
             raise ValueError(f"stats interval must be greater than 0, got {interval}")
         self.sim_id = sim_id
         self.level = level
-        self.interval = float(interval)
+        self.interval = interval
         self._rank = STATS_LEVELS.index(level)
         for key, obj in self._objects.items():
             self._start_averages(key, obj)

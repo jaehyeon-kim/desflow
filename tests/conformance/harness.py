@@ -171,22 +171,26 @@ def run_yaml_text(
 
 
 def run_builder(
-    app: SimulationContext, until: float, raises: bool = False
+    app: SimulationContext,
+    until: float,
+    raises: bool = False,
+    on_unhandled_failure: Optional[str] = None,
 ) -> Union[List[Dict[str, Any]], Outcome]:
     """Runs a builder model into a recording egress.
 
     With `raises=True` the run's exception is caught and returned in an
-    `Outcome`; otherwise it propagates, as today.
+    `Outcome`; otherwise it propagates, as today. `on_unhandled_failure` is passed to
+    `run()`, whose default is `stop`.
     """
     rec = RecordingEgress()
     app.add_egress(rec)
     if not raises:
-        app.run(until=until)
+        app.run(until=until, on_unhandled_failure=on_unhandled_failure)
         return rec.records
     value: Any = None
     error: Optional[BaseException] = None
     try:
-        value = app.run(until=until)
+        value = app.run(until=until, on_unhandled_failure=on_unhandled_failure)
     except Exception as exc:  # noqa: BLE001: kept for the caller to assert on
         error = exc
     return Outcome(rec.records, value, error, app)

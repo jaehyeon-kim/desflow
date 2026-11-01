@@ -8,6 +8,13 @@ from desflow.core.distributions import (
 )
 
 
+def _number(value: Any) -> Union[int, float]:
+    """A number as given, so an integer stays an integer; anything else as a float."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value
+    return float(value)
+
+
 @dataclass
 class DistributionConfig:
     """
@@ -18,7 +25,8 @@ class DistributionConfig:
     use the new rate for the next event. The family (`dist`) is fixed at load, and
     only its parameters change live.
 
-    Numbers are stored as floats, so a live update to 0.5 is not cast to an integer.
+    Numbers are stored as given: an integer stays an integer, as in SimPy, and a live
+    update to 0.5 is not cast to an integer.
     The family and its parameters are checked when the config is built, against the
     registry of distributions in `desflow.core.distributions`.
 
@@ -75,9 +83,9 @@ class DistributionConfig:
                 continue
             try:
                 if name in LIST_PARAMETERS:
-                    setattr(self, name, [float(item) for item in value])
+                    setattr(self, name, [_number(item) for item in value])
                 else:
-                    setattr(self, name, float(value))
+                    setattr(self, name, _number(value))
             except (TypeError, ValueError):
                 kind = "a list of numbers" if name in LIST_PARAMETERS else "a number"
                 raise ValueError(

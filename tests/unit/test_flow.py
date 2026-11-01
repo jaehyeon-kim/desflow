@@ -453,7 +453,7 @@ def test_a_child_flow_that_raises_gives_its_unit_back():
         context.spawn(pack(0))
 
     app.add_process(script)
-    app.start(until=20)
+    app.start(until=20, on_unhandled_failure="continue")
     try:
         app.env.run(until=20)
         packers = app.get_resource("packers")
@@ -719,7 +719,7 @@ def test_a_losing_child_flow_that_fails_later_does_not_stop_the_run():
         yield context.env.timeout(0)
 
     app.add_process(script)
-    app.run(until=30)
+    app.run(until=30, on_unhandled_failure="continue")
     events = [
         (r["sim_ts"], r["task"], r["value"].get("event"))
         for r in keep.records

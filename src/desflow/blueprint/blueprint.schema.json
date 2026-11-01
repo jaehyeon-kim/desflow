@@ -268,6 +268,9 @@
         "rate": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -281,6 +284,9 @@
         },
         "mean": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },
@@ -299,6 +305,9 @@
         "std": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -315,6 +324,9 @@
         },
         "low": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },
@@ -333,6 +345,9 @@
         "value": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -349,6 +364,9 @@
         },
         "high": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },
@@ -367,6 +385,9 @@
         "mode": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -384,6 +405,9 @@
         "shape": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -397,6 +421,9 @@
         },
         "scale": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },
@@ -417,6 +444,9 @@
             {
               "items": {
                 "anyOf": [
+                  {
+                    "type": "integer"
+                  },
                   {
                     "type": "number"
                   },
@@ -747,6 +777,9 @@
         "current_cap": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -760,6 +793,9 @@
         },
         "max_cap": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },
@@ -811,6 +847,9 @@
         "rate": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -824,6 +863,9 @@
         },
         "mean": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },
@@ -842,6 +884,9 @@
         "std": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -858,6 +903,9 @@
         },
         "low": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },
@@ -876,6 +924,9 @@
         "value": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -892,6 +943,9 @@
         },
         "high": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },
@@ -910,6 +964,9 @@
         "mode": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -927,6 +984,9 @@
         "shape": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -940,6 +1000,9 @@
         },
         "scale": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },
@@ -960,6 +1023,9 @@
             {
               "items": {
                 "anyOf": [
+                  {
+                    "type": "integer"
+                  },
                   {
                     "type": "number"
                   },
@@ -1201,6 +1267,10 @@
         },
         "after": {
           "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
             {
               "type": "number",
               "exclusiveMinimum": 0
@@ -1489,6 +1559,9 @@
         "current_cap": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -1502,6 +1575,9 @@
         },
         "max_cap": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },
@@ -1589,22 +1665,29 @@
     },
     "Run": {
       "additionalProperties": false,
-      "description": "The `run` section.\n\n`before` lists `!python` functions called with no arguments before the run\nstarts, for setup such as creating topics or tables. `stop` ends the run before\n`until` at the next firing of a signal, `{signal: name}`, or when a condition\nfirst holds, `{condition: ...}`. `drain`, `true` or `{limit: 1 h}`, stops the\narrivals at `until` and runs on until no entity is left in the model.",
+      "description": "The `run` section.\n\n`before` lists `!python` functions called with no arguments before the run\nstarts, for setup such as creating topics or tables. `stop` ends the run before\n`until` at the next firing of a signal, `{signal: name}`, or when a condition\nfirst holds, `{condition: ...}`. `drain`, `true` or `{limit: 1 h}`, stops the\narrivals at `until` and runs on until no entity is left in the model.\n\n`segments` runs the model in parts and publishes a reading after each, as a\nSimPy program that calls `env.run(until=...)` in a loop does: a list of\n`RunSegment`, or `{every: <time>}` for equal parts up to `until`. `steps: true`\npublishes `system.simulation.step`, `{step, now, peek}`, after each model event, as\na loop of `env.step()` and `env.peek()` reads them. `sync: true` calls `env.sync()`\nas the run starts. A run with no `until` ends when no model event is left.",
       "properties": {
         "until": {
           "anyOf": [
             {
-              "exclusiveMinimum": 0,
-              "type": "number"
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "$ref": "#/$defs/Placeholder"
+                }
+              ],
+              "gt": 0
             },
             {
               "type": "null"
             },
             {
               "$ref": "#/$defs/Duration"
-            },
-            {
-              "$ref": "#/$defs/Placeholder"
             }
           ],
           "default": null
@@ -1644,7 +1727,7 @@
           "default": false
         },
         "on_unhandled_failure": {
-          "default": "continue",
+          "default": "stop",
           "anyOf": [
             {
               "enum": [
@@ -1657,9 +1740,115 @@
               "$ref": "#/$defs/Placeholder"
             }
           ]
+        },
+        "segments": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/RunSegment"
+              },
+              "type": "array"
+            },
+            {
+              "$ref": "#/$defs/SegmentEvery"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "steps": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "sync": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
         }
       },
       "title": "Run",
+      "type": "object"
+    },
+    "RunSegment": {
+      "additionalProperties": false,
+      "description": "A `run.segments` entry: the run goes on to `until` or to `stop`, then waits for\nthe next entry.\n\nAn entry has at most one of `until` and `stop`; `{}` runs to the end. After the\nsegment stops, `look` names a task whose new entity reads the model before any\nevent at the stop time runs, and `sync` re-anchors the wall clock at the start of\nthe segment. A record at `system.simulation.segment` reports `index`, `now` and\n`peek` (null when no model event is left) as the segment ends.",
+      "properties": {
+        "until": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "stop": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "look": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sync": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        }
+      },
+      "title": "RunSegment",
       "type": "object"
     },
     "RunningTarget": {
@@ -1707,6 +1896,9 @@
       "properties": {
         "at": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },
@@ -1762,12 +1954,42 @@
       "title": "ScenarioStep",
       "type": "object"
     },
+    "SegmentEvery": {
+      "additionalProperties": false,
+      "description": "`run.segments: {every: 10 s}`: a segment every `every` seconds up to `run.until`.",
+      "properties": {
+        "every": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        }
+      },
+      "required": [
+        "every"
+      ],
+      "title": "SegmentEvery",
+      "type": "object"
+    },
     "SignalSpec": {
       "additionalProperties": false,
-      "description": "A `signals` entry in the mapping form: `{closing: {once: true, on: [...]}}`.\n\n`once` makes the signal fire once, as SimPy's `Event` does; `on` lists actions\nrun when the signal fires, as a task's `on` lists actions run when it ends.",
+      "description": "A `signals` entry in the mapping form: `{closing: {once: true, on: [...]}}`.\n\nA signal fires once, as SimPy's `Event` does, unless it says `once: false`, which\nre-arms it after each firing. `on` lists actions run when the signal fires, as a\ntask's `on` lists actions run when it ends.",
       "properties": {
         "once": {
-          "default": false,
+          "default": true,
           "anyOf": [
             {
               "type": "boolean"
@@ -1803,7 +2025,7 @@
     },
     "Simulation": {
       "additionalProperties": false,
-      "description": "The `simulation` section: the arguments of `SimulationContext`.\n\n`logical_start_time` and `go_live_at` take `now`, a signed duration from now such\nas `-1d` or `-10m`, an ISO datetime, or a `!python` datetime. Both read the same\n`now`, the moment the file is validated, so `-10m` and `now` are exactly ten\nminutes apart. `now` and a time without an offset are read in `timezone`, an IANA\nname, UTC by default.\n\n`strict` makes a paced step raise `RuntimeError` when the run is more than `factor`\nseconds behind the wall clock; it is False here and never checked at `factor` 0.\n`environment` is a subclass of `DynamicRealtimeEnvironment` the run is built on.",
+      "description": "The `simulation` section: the arguments of `SimulationContext`.\n\n`logical_start_time` and `go_live_at` take `now`, a signed duration from now such\nas `-1d` or `-10m`, an ISO datetime, or a `!python` datetime. Both read the same\n`now`, the moment the file is validated, so `-10m` and `now` are exactly ten\nminutes apart. `now` and a time without an offset are read in `timezone`, an IANA\nname, UTC by default.\n\n`strict` makes a step raise `RuntimeError` when the run is more than `factor`\nseconds behind the wall clock, as SimPy's real-time environment does. Left unset\nit is true for a paced run or one with `go_live_at`, and false at `factor: 0`\nwith no `go_live_at`. At `factor: 0`, `strict: true` raises once the wall clock\nhas moved, as SimPy's does.\n`environment` is a subclass of `DynamicRealtimeEnvironment` the run is built on.",
       "properties": {
         "sim_id": {
           "type": "string"
@@ -1869,11 +2091,35 @@
         "warmup": {
           "anyOf": [
             {
-              "minimum": 0,
-              "type": "number"
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "$ref": "#/$defs/Placeholder"
+                }
+              ],
+              "ge": 0
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Duration"
+            }
+          ],
+          "default": null
+        },
+        "initial_time": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
             },
             {
               "$ref": "#/$defs/Duration"
@@ -1882,21 +2128,7 @@
               "$ref": "#/$defs/Placeholder"
             }
           ],
-          "default": null
-        },
-        "initial_time": {
-          "default": 0.0,
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "$ref": "#/$defs/Duration"
-            },
-            {
-              "$ref": "#/$defs/Placeholder"
-            }
-          ]
+          "default": 0.0
         },
         "lag_interval": {
           "anyOf": [
@@ -1917,15 +2149,18 @@
           "default": null
         },
         "strict": {
-          "default": false,
           "anyOf": [
             {
               "type": "boolean"
             },
             {
+              "type": "null"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
-          ]
+          ],
+          "default": null
         },
         "environment": {
           "anyOf": [
@@ -1954,6 +2189,10 @@
         },
         "after": {
           "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
             {
               "type": "number",
               "exclusiveMinimum": 0
@@ -1998,10 +2237,11 @@
           ]
         },
         "interval": {
-          "default": 10.0,
           "anyOf": [
             {
-              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -2010,7 +2250,9 @@
             {
               "$ref": "#/$defs/Placeholder"
             }
-          ]
+          ],
+          "default": 10.0,
+          "gt": 0
         }
       },
       "required": [
@@ -2026,6 +2268,9 @@
         "current_cap": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -2039,6 +2284,9 @@
         },
         "max_cap": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },
@@ -2155,6 +2403,9 @@
         "priority": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -2171,6 +2422,9 @@
         },
         "patience": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },
@@ -2468,6 +2722,9 @@
         "after": {
           "anyOf": [
             {
+              "type": "integer"
+            },
+            {
               "type": "number"
             },
             {
@@ -2494,6 +2751,9 @@
       "properties": {
         "timeout": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },
@@ -2543,6 +2803,9 @@
         },
         "amount": {
           "anyOf": [
+            {
+              "type": "integer"
+            },
             {
               "type": "number"
             },

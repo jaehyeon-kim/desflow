@@ -79,7 +79,7 @@ def _reference_signals():
 
 def _low_level_signals():
     def start(env):
-        restocked = Signal(env, "restocked")
+        restocked = Signal(env, "restocked", once=False)
         counter = iter(range(100))
 
         def waiter():
@@ -103,7 +103,7 @@ def _low_level_signals():
 
 def _builder_signals():
     app = SimulationContext("C1", factor=0.0)
-    app.add_signal("restocked")
+    app.add_signal("restocked", once=False)
     app.add_arrival("waiters", dist="constant", value=3)
     app.add_arrival("restocks", dist="constant", value=5)
 
@@ -222,7 +222,7 @@ def _builder_signal_failure():
         context.spawn(restock(0))
 
     app.add_process(script)
-    return run_builder(app, 6)
+    return run_builder(app, 6, on_unhandled_failure="continue")
 
 
 def test_c1_signal_event_failure():
@@ -347,7 +347,7 @@ def _builder_child(fails=False, handled=False):
             entity = yield context.wait_for_arrival("orders")
             context.spawn(order(context.next_instance("order"), entity=entity))
 
-    return run_builder(app, 15)
+    return run_builder(app, 15, on_unhandled_failure="continue")
 
 
 def test_c1_start_and_wait_for_a_process():
@@ -979,7 +979,7 @@ def _reference_chain(n):
 
 CHAIN = """
 simulation: {sim_id: C1, factor: 0}
-signals: [tick]
+signals: {tick: {once: false}}
 arrivals:
   starts: {replay: {path: starts.csv}, spawn: tick}
 tasks:

@@ -239,7 +239,7 @@ def test_c1_trigger_from_another_event_failure():
         yield context.env.event()
 
     app.add_process(script)
-    records = run_builder(app, 5)
+    records = run_builder(app, 5, on_unhandled_failure="continue")
     # measure fails at 0, fires ready as a failure, and the watcher fails with it
     failed = [
         (r["sim_ts"], r["value"].get("reason"))
@@ -377,7 +377,7 @@ def test_c1_failure_nobody_handles_losing_child_flow():
         yield context.env.event()
 
     app.add_process(script)
-    records = run_builder(app, 10)  # continue by default: no error
+    records = run_builder(app, 10, on_unhandled_failure="continue")  # no error
     # the order resumes when the fast branch wins at 1
     assert times(records, "order") == [1.0]
 
@@ -616,7 +616,7 @@ def test_c1_on_spawn_upstream_after_each_end():
 
     run_builder(build(fails=False), 5)
     assert seen["upstream"] == {"event": "packed"}  # the finished payload
-    run_builder(build(fails=True), 5)
+    run_builder(build(fails=True), 5, on_unhandled_failure="continue")
     assert seen["upstream"]["status"] == "failed"  # the failed status after a failure
     assert seen["upstream"]["reason"] == "scratched"
 
@@ -1014,7 +1014,7 @@ def test_c1_fire_from_the_ending_task_wakes_a_waiter_in_the_step_the_task_ends(
         "simulation: {sim_id: C1, factor: 0}\n"
         "resources: {r: {current_cap: 1}}\n"
         f"{ONE}\n"
-        "signals: [done]\n"
+        "signals: {done: {once: false}}\n"
         "arrivals:\n"
         "  closer: {replay: {path: closer.csv}, spawn: closer}\n"
         "  waiter: {replay: {path: waiter.csv}, spawn: waiter}\n"
@@ -1032,7 +1032,7 @@ def test_c1_fire_from_the_ending_task_wakes_a_waiter_in_the_step_the_task_ends(
     app.add_resource("r", current_cap=1, max_cap=1)
     app.add_service("one", dist="constant", value=1)
     app.add_service("three", dist="constant", value=3)
-    app.add_signal("done")
+    app.add_signal("done", once=False)
 
     @app.task(
         service_id="one",
@@ -1608,7 +1608,7 @@ LATER_ORDERS = {
 def _later(tmp_path, kind, actions):
     """The YAML of a model of `kind` whose a_start/closer task runs `actions` in a
     signal's `on:` that the task fires."""
-    signal = "signals:\n  later: {on: " + actions + "}\n"
+    signal = "signals:\n  later: {once: false, on: " + actions + "}\n"
     fire = "on: [{fire: {signal: later}}]"
     if kind == "flag":
         text = (

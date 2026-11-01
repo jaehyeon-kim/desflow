@@ -40,7 +40,7 @@ Every name `from desflow import ...` gives, with the first line of its docstring
 | `ResourceBase` | A resource of units that tasks request, with a capacity that follows the registry. |
 | `Router` | Chooses the task that follows a finished one. |
 | `Sampler` | Generates random numbers based on live `DistributionConfig` objects. |
-| `Signal` | A named event that can fire many times, each firing waking every waiter. |
+| `Signal` | A named event that fires once, or many times with `once=False`, each firing waking every waiter. |
 | `SignalFailed` | The exception a waiter of a failed signal receives. |
 | `SimParameter` | The master schema representing the state of a specific simulation entity (like a production line). |
 | `SimulationContext` | Builder and Orchestrator for Event-Driven Digital Twins. |

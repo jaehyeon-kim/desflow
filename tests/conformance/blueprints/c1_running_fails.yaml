@@ -22,3 +22,4 @@ processes:
   - !python tests.conformance.batch2_scripts.one_start
 run:
   until: 10
+  on_unhandled_failure: continue

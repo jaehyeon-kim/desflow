@@ -645,3 +645,51 @@ def test_a_refusal_inside_a_process_ends_the_run_as_param_rejected(
     assert raised.value.value == -1
     assert str(raised.value) == raised.value.reason
     assert "std" in raised.value.reason
+
+
+def test_a_number_over_a_number_is_stored_as_given(registry):
+    """A live update keeps the number as written, as SimPy keeps it: 0.5 over 2 is
+    0.5, 3 over 2.5 is 3, true is 1, and 9.5 over a variable of 10 is 9.5. Text is still
+    cast to the type of the current value, so "7" over 10 is 7.0."""
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop",
+            arrival={"orders": DistributionConfig(dist="exponential", rate=2)},
+            service={"pack": DistributionConfig(dist="normal", mean=2.5, std=1)},
+            containers={"tank": CapacityConfig(current_cap=10, max_cap=10)},
+            variables={"count": 10},
+        )
+    )
+    cases = [
+        ("Shop.arrival.orders.rate", 0.5, 0.5, float),
+        ("Shop.service.pack.mean", 3, 3, int),
+        ("Shop.arrival.orders.rate", True, 1, int),
+        ("Shop.containers.tank.level", 4, 4, int),
+        ("Shop.containers.tank.level", 4.5, 4.5, float),
+        ("Shop.variables.count", 9.5, 9.5, float),
+        ("Shop.variables.count", "7", 7.0, float),
+        ("Shop.arrival.orders.rate", "0.25", 0.25, float),
+        ("Shop.containers.tank.current_cap", "7.5", 7.5, float),
+    ]
+    for path, written, stored, kind in cases:
+        registry.update(path, written)
+        value = registry.get(path).value
+        assert value == stored and type(value) is kind, (path, written, value)
+    # text over an integer variable casts to the integer type
+    registry.update("Shop.variables.count", 10)
+    registry.update("Shop.variables.count", "8")
+    assert registry.get("Shop.variables.count").value == 8
+    assert type(registry.get("Shop.variables.count").value) is int
+    registry.update("Shop.variables.count", float("inf"))
+    assert registry.get("Shop.variables.count").value == 8
+
+
+def test_infinity_and_nan_are_refused_over_an_integer_variable(registry):
+    """A finite number is stored as written, but infinity and NaN go to the cast to
+    the current type, which refuses them over an integer."""
+    registry.register_sim_parameter(
+        SimParameter(sim_id="Shop", variables={"count": 10})
+    )
+    for bad in (float("inf"), float("nan")):
+        registry.update("Shop.variables.count", bad)
+        assert registry.get("Shop.variables.count").value == 10

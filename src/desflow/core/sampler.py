@@ -1,5 +1,5 @@
 import zlib
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 
@@ -105,7 +105,9 @@ class Sampler:
         """
         return sorted(self._generators)
 
-    def sample(self, config: DistributionConfig, min_delay: float = MIN_DELAY) -> float:
+    def sample(
+        self, config: DistributionConfig, min_delay: float = MIN_DELAY
+    ) -> Union[int, float]:
         """
         Draws a random sample using the current parameters in the provided config.
 
@@ -117,7 +119,8 @@ class Sampler:
             min_delay (float): The smallest value returned.
 
         Returns:
-            float: A sampled float representing a time duration (e.g., arrival gap or service time).
+            Union[int, float]: A sampled time duration (e.g., arrival gap or service time),
+                   an integer when the config holds integers and its draw is one.
                    Returns `min_delay` if the sample is smaller than `min_delay`.
                    A std of 0 gives the mean every time.
 

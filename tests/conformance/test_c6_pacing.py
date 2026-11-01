@@ -222,48 +222,133 @@ def test_c6_sync_catches_up(monkeypatch):
         run.close()
 
 
-def test_c6_strict_default(monkeypatch):
-    """The low-level default is SimPy's, True; the builder and YAML default to False
-    and take the setting; and `strict` is never checked at factor 0, where SimPy's
-    check would raise as soon as the wall clock moves (owner decision D-E1). The
-    go-live is reached under strict at factor 1 with a sink, in the low-level API and
-    the builder, and nothing raises."""
+def test_strict_default_resolves_by_factor(monkeypatch):
+    """SimPy's default is true. Left unset, `strict` is true for a paced run and for
+    one with `go_live_at`, and false at factor 0 with no `go_live_at`, so an unpaced
+    script is not refused for the wall clock moving (T1). A value given is kept."""
     assert RealtimeEnvironment().strict is True
     assert DynamicRealtimeEnvironment().strict is True
-    assert SimulationContext("C6").strict is False
+    assert DynamicRealtimeEnvironment(factor=0.5).strict is True
+    assert DynamicRealtimeEnvironment(factor=0).strict is False
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    live = DynamicRealtimeEnvironment(
+        factor=0, logical_start_time=start, go_live_at=start + timedelta(days=1)
+    )
+    assert live.strict is True
+    assert DynamicRealtimeEnvironment(factor=0.5, strict=False).strict is False
+    assert DynamicRealtimeEnvironment(factor=0, strict=True).strict is True
+
+    assert SimulationContext("C6").strict is None
+    assert SimulationContext("C6", strict=False).strict is False
     app = SimulationContext.from_yaml(BLUEPRINTS / "c6_step.yaml")
-    assert app.strict is False
-    assert SimulationContext("C6", strict=True).strict is True
+    assert app.strict is None
+    for factor, expected in ((1.0, True), (0.0, False)):
+        context = SimulationContext("C6", factor=factor)
+        context.start(1)
+        assert context.env.strict is expected
+        context.close()
 
-    def idle(env):
-        for _ in range(5):
-            yield env.timeout(10)
+    # a paced builder run falls behind and raises, as SimPy's does
+    clock = FakeClock().install(monkeypatch)
+    paced = SimulationContext("C6", factor=1.0)
+    paced.start(10)
+    paced.env.process(idle_ticks(paced.env))
+    clock.advance(5)
+    with pytest.raises(RuntimeError, match="too slow for real time"):
+        paced.finish()
 
+
+def idle_ticks(env):
+    for _ in range(5):
+        yield env.timeout(10)
+
+
+def test_explicit_strict_at_factor_zero_raises(monkeypatch):
+    """`strict: true` at factor 0 raises once the wall clock has moved, as SimPy's
+    `RealtimeEnvironment(factor=0, strict=True)` does (T14). Before `go_live_at` it is
+    never checked, and the default at factor 0 raises nothing."""
     clock = FakeClock().install(monkeypatch)
     reference = RealtimeEnvironment(factor=0.0, strict=True)
-    reference.process(idle(reference))
+    reference.process(idle_ticks(reference))
     clock.advance(100)
     with pytest.raises(RuntimeError, match="too slow"):
         reference.run()
 
-    # desflow at factor 0: the clock jumping does not raise, also before go_live_at
-    for go_live in (
-        None,
-        datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(days=1),
-    ):
+    clock = FakeClock().install(monkeypatch)
+    env = DynamicRealtimeEnvironment(factor=0.0, strict=True)
+    env.process(idle_ticks(env))
+    clock.advance(100)
+    with pytest.raises(RuntimeError, match=r"too slow for real time \(100.000s\)"):
+        env.run(until=40)
+    env.teardown()
+
+    # the same run with the unset default, and with an explicit false, goes on
+    for strict in (None, False):
         clock = FakeClock().install(monkeypatch)
-        env = DynamicRealtimeEnvironment(
-            factor=0.0,
-            strict=True,
-            logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
-            go_live_at=go_live,
-        )
-        env.process(idle(env))
+        env = DynamicRealtimeEnvironment(factor=0.0, strict=strict)
+        env.process(idle_ticks(env))
         clock.advance(100)
         env.run(until=40)
         assert env.now == 40
         env.teardown()
 
+    # before go_live_at the run is unpaced, so nothing is checked
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    clock = FakeClock().install(monkeypatch)
+    env = DynamicRealtimeEnvironment(
+        factor=0.0,
+        strict=True,
+        logical_start_time=start,
+        go_live_at=start + timedelta(days=1),
+    )
+    env.process(idle_ticks(env))
+    clock.advance(100)
+    env.run(until=40)
+    assert env.now == 40
+    env.teardown()
+
+
+@pytest.mark.parametrize(
+    "args", [["--sample", "3"], ["--replications", "2"]], ids=["sample", "replications"]
+)
+def test_forced_factor_zero_ignores_strict(args, monkeypatch, tmp_path):
+    """A blueprint with `strict: true` and `factor: 1` run through `--sample` and
+    `--replications` (every replication, and the run that sends the summary to the
+    sinks) is unpaced, so strict resolves to false there and nothing raises for the
+    wall clock."""
+    from typer.testing import CliRunner
+
+    from desflow.cli import app as cli
+
+    blueprint = tmp_path / "strict.yaml"
+    blueprint.write_text(
+        (BLUEPRINTS / "c6_strict.yaml").read_text()
+        + "services: {one: {dist: constant, value: 1}}\n"
+        "arrivals: {a: {dist: constant, value: 1, spawn: work}}\n"
+        "tasks: {work: {service: one, payload: {event: done}}}\n"
+        "egress:\n  - type: Console\n"
+    )
+    assert SimulationContext.from_yaml(blueprint).strict is True
+
+    seen = []
+    original = SimulationContext.start
+
+    def spy(self, *args, **kwargs):
+        env = original(self, *args, **kwargs)
+        seen.append((env.factor, env.strict))
+        return env
+
+    monkeypatch.setattr(SimulationContext, "start", spy)
+    result = CliRunner().invoke(cli, ["run", str(blueprint), *args])
+    assert result.exit_code == 0, result.output
+    assert seen and set(seen) == {(0.0, False)}
+    if args[0] == "--replications":
+        assert len(seen) >= 3  # two replications and the summary run
+
+
+def test_c6_go_live_under_strict_raises_nothing(monkeypatch):
+    """The go-live is reached under strict at factor 1 with a sink, in the low-level API
+    and the builder, and nothing raises."""
     # the go-live is reached under strict at factor 1: the wall clock keeps pace with
     # the run, so nothing is behind and nothing raises, with a sink present
     go_live = datetime(2026, 1, 1, 0, 0, 10, tzinfo=timezone.utc)

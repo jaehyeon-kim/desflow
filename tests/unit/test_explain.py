@@ -561,6 +561,15 @@ def test_a_clamped_normal_uses_its_effective_mean():
     assert packers.utilization == pytest.approx(0.8 * mean)
 
 
+def test_a_gap_of_zero_has_no_rate():
+    """A constant gap of 0 stays 0, so the arrival has no rate to divide by, and what
+    depends on it is unknown rather than a division by zero."""
+    explanation = _shop(arrival={"dist": "constant", "value": 0}).analyze()
+    arrival = explanation.arrivals[0]
+    assert arrival.rate is None and arrival.reason == "a gap of 0 has no rate"
+    assert _by_name(explanation.resources, "packers").utilization is None
+
+
 def test_capacity_rows():
     small = _by_name(_shop(packers=1, most=4).analyze().resources, "packers")
     assert [(r.capacity, r.status) for r in small.capacities] == [

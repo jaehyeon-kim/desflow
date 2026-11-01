@@ -82,6 +82,8 @@ def test_simulation_execution_wiring(MockEnv):
     """
     mock_env_instance = MockEnv.return_value
     mock_env_instance.now = 0  # finish() compares the clock with `until`
+    # A container reads its capacities from the registry, and compares them
+    mock_env_instance.registry.get.return_value.value = 100
     mock_ingress = MagicMock()
     mock_egress = MagicMock()
 
@@ -97,7 +99,7 @@ def test_simulation_execution_wiring(MockEnv):
 
     # Validate that Engine was created and run
     MockEnv.assert_called_once_with(
-        factor=0.0, strict=False, on_unhandled_failure="continue"
+        factor=0.0, strict=None, on_unhandled_failure="stop"
     )
     mock_env_instance.run.assert_called_once_with(until=10)
     mock_env_instance.teardown.assert_called_once()
@@ -464,7 +466,7 @@ def test_a_raising_function_fails_the_task_and_ends_the_flow():
         yield context.env.timeout(1)
 
     app.add_process(script)
-    app.run(until=2)
+    app.run(until=2, on_unhandled_failure="continue")
     readings = app.env.stats.readings()
     assert readings["TestSim.stats.tasks.t.failed"] == 1
     assert readings["TestSim.stats.flows.t.failed"] == 1
@@ -701,11 +703,11 @@ def test_a_context_runs_twice_with_a_drain():
     assert app.env.now > 10
 
 
-def test_a_live_run_with_an_ingress_keeps_going_after_the_last_model_event():
-    """Approved difference E11: with an ingress or a sink and no `until`, the run does
-    not stop at the model's last event. At factor 0 the ingress monitor keeps
-    scheduling events, so the run continues past the model event at 5; a wrapped step
-    stops it at 100, and teardown still writes the records."""
+def test_a_run_with_an_ingress_and_a_sink_ends_at_the_last_model_event():
+    """With an ingress or a sink and no `until`, the run ends when no model event is
+    left, as SimPy's `run()` does. At factor 0 the ingress monitor keeps scheduling
+    events of desflow's own, which do not hold the run open. Teardown still writes the
+    records."""
     from desflow import LocalIngress
 
     class _Keep:
@@ -729,23 +731,9 @@ def test_a_live_run_with_an_ingress_keeps_going_after_the_last_model_event():
         context.env.publish_event("job-1", {"status": "done"})
 
     app.add_process(model)
-    env = app.start()  # no until
-    original_step = env.step
+    app.run()  # no until
 
-    def step():
-        if env.now >= 100:
-            raise KeyboardInterrupt
-        return original_step()
-
-    env.step = step  # type: ignore[method-assign]
-    try:
-        app.finish()
-    except KeyboardInterrupt:
-        pass
-
-    # The run went past the model's last event at 5 to 100, so a no-until run does not
-    # stop at the last model event; teardown wrote the record.
-    assert env.now >= 100
+    assert app.env.now == 5
     assert any(r.get("key") == "job-1" for r in kept.records)
 
 

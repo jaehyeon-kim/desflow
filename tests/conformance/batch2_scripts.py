@@ -40,6 +40,12 @@ def one_start(context: Any):
     yield context.env.event()
 
 
+def start_wait(context: Any):
+    """Starts one `wait` task at 0, with no delay, as a single arrival would."""
+    context.spawn(context._tasks["wait"](context.next_instance("wait"), context))
+    yield context.env.event()
+
+
 def one_driver(context: Any):
     """Starts one `driver` task at 0, as a single arrival would."""
     yield from _start_at(context, 0, "driver")()

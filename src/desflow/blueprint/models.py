@@ -67,12 +67,15 @@ from desflow.utils import suggestion, time_to_seconds
 WHEN_NAMES = ("history", "live", LABELS)
 
 
-def _seconds(value: Union[float, str]) -> float:
-    """Accepts a number of seconds or a duration such as `"10 min"`."""
+def _seconds(value: Union[int, float, str]) -> Union[int, float]:
+    """Accepts a number of seconds or a duration such as `"10 min"`.
+
+    A number is returned as given, so an integer stays an integer, as in SimPy; a
+    duration in text is a float."""
     if isinstance(value, str):
         return time_to_seconds(value)
     if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return float(value)
+        return value
     raise ValueError("expected seconds or a duration such as '10 min'")
 
 
@@ -128,8 +131,11 @@ class Simulation(_Model):
     minutes apart. `now` and a time without an offset are read in `timezone`, an IANA
     name, UTC by default.
 
-    `strict` makes a paced step raise `RuntimeError` when the run is more than `factor`
-    seconds behind the wall clock; it is False here and never checked at `factor` 0.
+    `strict` makes a step raise `RuntimeError` when the run is more than `factor`
+    seconds behind the wall clock, as SimPy's real-time environment does. Left unset
+    it is true for a paced run or one with `go_live_at`, and false at `factor: 0`
+    with no `go_live_at`. At `factor: 0`, `strict: true` raises once the wall clock
+    has moved, as SimPy's does.
     `environment` is a subclass of `DynamicRealtimeEnvironment` the run is built on.
     """
 
@@ -140,12 +146,12 @@ class Simulation(_Model):
     timezone: Optional[str] = None
     logical_start_time: Optional[datetime] = None
     go_live_at: Optional[datetime] = None
-    warmup: Optional[float] = Field(default=None, ge=0)
-    initial_time: float = 0.0
+    warmup: Optional[Union[int, float]] = Field(default=None, ge=0)
+    initial_time: Union[int, float] = 0.0
     # Seconds between lag readings; unset is off at factor 0 and 1 s otherwise
     lag_interval: Optional[float] = Field(default=None, ge=0)
-    # False in a blueprint, unlike the low-level environment: live sinks can block
-    strict: bool = False
+    # Unset is true when paced or live and false otherwise; false lets a blocking sink fall behind
+    strict: Optional[bool] = None
     # A subclass of DynamicRealtimeEnvironment, as `!python module.Env`
     environment: Optional[Type[DynamicRealtimeEnvironment]] = None
 
@@ -189,16 +195,16 @@ class Distribution(_Model):
     """
 
     dist: str
-    rate: Optional[float] = None
-    mean: Optional[float] = None
-    std: Optional[float] = None
-    low: Optional[float] = None
-    value: Optional[float] = None
-    high: Optional[float] = None
-    mode: Optional[float] = None
-    shape: Optional[float] = None
-    scale: Optional[float] = None
-    values: Optional[List[float]] = None
+    rate: Optional[Union[int, float]] = None
+    mean: Optional[Union[int, float]] = None
+    std: Optional[Union[int, float]] = None
+    low: Optional[Union[int, float]] = None
+    value: Optional[Union[int, float]] = None
+    high: Optional[Union[int, float]] = None
+    mode: Optional[Union[int, float]] = None
+    shape: Optional[Union[int, float]] = None
+    scale: Optional[Union[int, float]] = None
+    values: Optional[List[Union[int, float]]] = None
     weights: Optional[List[float]] = None
     edges: Optional[List[float]] = None
     counts: Optional[List[float]] = None
@@ -293,8 +299,8 @@ class Resource(_Model):
     `!python` subclass of `ResourceBase`.
     """
 
-    current_cap: Optional[float] = None
-    max_cap: Optional[float] = None
+    current_cap: Optional[Union[int, float]] = None
+    max_cap: Optional[Union[int, float]] = None
     queue: str = DEFAULT_QUEUE_ORDER
     preempt: bool = False
     queue_limit: Optional[int] = None
@@ -348,8 +354,8 @@ class Store(_Model):
     which sets its own order, so it cannot be given with `priority`.
     """
 
-    current_cap: Optional[float] = None
-    max_cap: Optional[float] = None
+    current_cap: Optional[Union[int, float]] = None
+    max_cap: Optional[Union[int, float]] = None
     priority: bool = False
     items: List[Any] = Field(default_factory=list)
     type: Optional[Type[StoreBase]] = None
@@ -380,8 +386,8 @@ class Container(_Model):
     `!python` subclass of `ContainerBase`.
     """
 
-    current_cap: Optional[float] = None
-    max_cap: Optional[float] = None
+    current_cap: Optional[Union[int, float]] = None
+    max_cap: Optional[Union[int, float]] = None
     # An int stays an int, as simpy.Container keeps it
     level: Union[int, float] = 0
     type: Optional[Type[ContainerBase]] = None
@@ -407,7 +413,7 @@ class TransferStep(_Model):
 
     container: Optional[str] = None
     store: Optional[str] = None
-    amount: Union[float, str] = 1.0
+    amount: Union[int, float, str] = 1.0
     priority: Any = 0.0
     filter: Optional[str] = None
     wait: bool = True
@@ -505,7 +511,7 @@ class SpawnAction(_Model):
     an optional delay."""
 
     task: str
-    after: Optional[Union[float, str]] = None
+    after: Optional[Union[int, float, str]] = None
 
     @field_validator("after", mode="before")
     @classmethod
@@ -532,7 +538,7 @@ class FireAction(_Model):
     value: Any = None
     from_: Optional[str] = Field(default=None, alias="from")
     urgent: bool = False
-    after: Optional[Union[float, str]] = None
+    after: Optional[Union[int, float, str]] = None
 
     @field_validator("after", mode="before")
     @classmethod
@@ -636,7 +642,7 @@ class TimeoutAfter(_Model):
     """A `wait` timeout with a value: `{after: 40 s, value: ...}`, as SimPy's
     `env.timeout(delay, value)` carries a value the waiter receives."""
 
-    after: Union[float, str]
+    after: Union[int, float, str]
     value: Any = None
 
 
@@ -644,7 +650,7 @@ class TimeoutWait(_Model):
     """A `wait` branch of a number of seconds, a duration such as `30 s`, or
     `{after, value}` with a value the waiter receives."""
 
-    timeout: Union[float, str, TimeoutAfter]
+    timeout: Union[int, float, str, TimeoutAfter]
 
 
 class ConditionWait(_Model):
@@ -741,8 +747,8 @@ class Task(_Model):
     id_field: Optional[str] = None
     item_field: Optional[str] = None
     attributes: List[str] = Field(default_factory=list)
-    priority: Optional[Union[float, str]] = None
-    patience: Optional[Union[float, str]] = None
+    priority: Optional[Union[int, float, str]] = None
+    patience: Optional[Union[int, float, str]] = None
     balk: Optional[str] = None
     get: Optional[TransferStep] = None
     put: Optional[TransferStep] = None
@@ -993,7 +999,7 @@ class Stats(_Model):
     """
 
     level: str
-    interval: float = Field(default=DEFAULT_STATS_INTERVAL, gt=0)
+    interval: Union[int, float] = Field(default=DEFAULT_STATS_INTERVAL, gt=0)
 
     @field_validator("interval", mode="before")
     @classmethod
@@ -1019,7 +1025,7 @@ class ScenarioStep(_Model):
     instances of a task, as a task's `interrupt` does.
     """
 
-    at: float
+    at: Union[int, float]
     path: Optional[str] = None
     value: Any = None
     record: Optional[Dict[str, Any]] = None
@@ -1054,6 +1060,64 @@ class Drain(_Model):
         return None if value is None else _seconds(value)
 
 
+def _check_stop(value: Any) -> Any:
+    """Checks a `stop` is one signal or one condition, whose text parses."""
+    if value is None:
+        return value
+    if len(value) != 1 or not set(value) <= {"signal", "condition"}:
+        raise ValueError("stop takes {signal: name} or {condition: ...}")
+    if "condition" in value:
+        Expression(value["condition"])
+    return value
+
+
+class RunSegment(_Model):
+    """A `run.segments` entry: the run goes on to `until` or to `stop`, then waits for
+    the next entry.
+
+    An entry has at most one of `until` and `stop`; `{}` runs to the end. After the
+    segment stops, `look` names a task whose new entity reads the model before any
+    event at the stop time runs, and `sync` re-anchors the wall clock at the start of
+    the segment. A record at `system.simulation.segment` reports `index`, `now` and
+    `peek` (null when no model event is left) as the segment ends.
+    """
+
+    until: Optional[Union[int, float, str]] = None
+    stop: Optional[Dict[str, str]] = None
+    look: Optional[str] = None
+    sync: bool = False
+
+    @field_validator("until", mode="before")
+    @classmethod
+    def _parse_until(cls, value: Any) -> Any:
+        return None if value is None else _seconds(value)
+
+    @field_validator("stop")
+    @classmethod
+    def _one_stop(cls, value: Any) -> Any:
+        return _check_stop(value)
+
+    @model_validator(mode="after")
+    def _one_end(self) -> "RunSegment":
+        if self.until is not None and self.stop is not None:
+            raise ValueError("a segment takes until or stop, not both")
+        return self
+
+
+class SegmentEvery(_Model):
+    """`run.segments: {every: 10 s}`: a segment every `every` seconds up to `run.until`."""
+
+    every: Union[int, float, str]
+
+    @field_validator("every", mode="before")
+    @classmethod
+    def _parse_every(cls, value: Any) -> Any:
+        number = _seconds(value)
+        if number <= 0:
+            raise ValueError("every must be above 0")
+        return number
+
+
 class Run(_Model):
     """The `run` section.
 
@@ -1062,24 +1126,28 @@ class Run(_Model):
     `until` at the next firing of a signal, `{signal: name}`, or when a condition
     first holds, `{condition: ...}`. `drain`, `true` or `{limit: 1 h}`, stops the
     arrivals at `until` and runs on until no entity is left in the model.
+
+    `segments` runs the model in parts and publishes a reading after each, as a
+    SimPy program that calls `env.run(until=...)` in a loop does: a list of
+    `RunSegment`, or `{every: <time>}` for equal parts up to `until`. `steps: true`
+    publishes `system.simulation.step`, `{step, now, peek}`, after each model event, as
+    a loop of `env.step()` and `env.peek()` reads them. `sync: true` calls `env.sync()`
+    as the run starts. A run with no `until` ends when no model event is left.
     """
 
-    until: Optional[float] = Field(default=None, gt=0)
+    until: Optional[Union[int, float]] = Field(default=None, gt=0)
     before: List[Callable[[], Any]] = Field(default_factory=list)
     stop: Optional[Dict[str, str]] = None
     drain: Union[bool, Drain] = False
-    on_unhandled_failure: Literal["stop", "continue"] = "continue"
+    on_unhandled_failure: Literal["stop", "continue"] = "stop"
+    segments: Optional[Union[List[RunSegment], SegmentEvery]] = None
+    steps: bool = False
+    sync: bool = False
 
     @field_validator("stop")
     @classmethod
     def _one_stop(cls, value: Any) -> Any:
-        if value is None:
-            return value
-        if len(value) != 1 or not set(value) <= {"signal", "condition"}:
-            raise ValueError("stop takes {signal: name} or {condition: ...}")
-        if "condition" in value:
-            Expression(value["condition"])
-        return value
+        return _check_stop(value)
 
     @model_validator(mode="after")
     def _drain_needs_until(self) -> "Run":
@@ -1102,11 +1170,12 @@ class Run(_Model):
 class SignalSpec(_Model):
     """A `signals` entry in the mapping form: `{closing: {once: true, on: [...]}}`.
 
-    `once` makes the signal fire once, as SimPy's `Event` does; `on` lists actions
-    run when the signal fires, as a task's `on` lists actions run when it ends.
+    A signal fires once, as SimPy's `Event` does, unless it says `once: false`, which
+    re-arms it after each firing. `on` lists actions run when the signal fires, as a
+    task's `on` lists actions run when it ends.
     """
 
-    once: bool = False
+    once: bool = True
     on: List[OnEntry] = Field(default_factory=list)
 
 
@@ -1135,7 +1204,7 @@ class Blueprint(_Model):
     @classmethod
     def _signal_mapping(cls, value: Any) -> Any:
         """Lets `signals` be written as a list of names, as before, or a mapping of
-        name to `{once, on}`."""
+        name to `{once, on}`; a name alone is a one-shot signal."""
         if isinstance(value, list):
             return {name: {} for name in value}
         return value

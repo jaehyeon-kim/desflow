@@ -80,9 +80,9 @@ def test_variability_label_boundaries(mean, std, label):
 
 
 def test_clamped_normal_moments_match_the_sampler_draws():
-    """The sampler raises every draw below min_delay to it; the formulas give the
-    mean and variance of those draws."""
-    draws = np.maximum(0.00001, np.random.default_rng(7).normal(1.0, 2.0, 1_000_000))
+    """The sampler raises every negative draw to 0; the formulas give the mean and
+    variance of those draws."""
+    draws = np.maximum(0, np.random.default_rng(7).normal(1.0, 2.0, 1_000_000))
     mean, variance = clamped_normal_moments(1.0, 2.0)
     assert mean == pytest.approx(draws.mean(), rel=0.01)
     assert variance == pytest.approx(draws.var(), rel=0.01)
@@ -120,15 +120,18 @@ def test_dist_lists_every_family_and_shows_one():
 def test_dist_shows_the_clamped_normal():
     result = _dist("normal", "--mean", "1", "--std", "2")
     assert result.exit_code == 0
-    assert "which gives mean 1.3956, std 1.48787" in result.output
+    assert "which gives mean 1.39559, std 1.48787" in result.output
 
 
-def test_dist_names_a_draw_raised_to_the_minimum_delay():
-    result = _dist("constant", "--value", "0")
+def test_dist_names_a_negative_draw_raised_to_zero():
+    result = _dist("normal", "--mean=-1", "--std", "1")
     assert result.exit_code == 0
-    assert "every draw is 0, raised to the minimum delay 0.00001 s" in result.output
-    unclamped = _dist("constant", "--value", "2")
-    assert "every draw is 2\n" in unclamped.output
+    assert "every draw is -1, raised to 0\n" in result.output
+    for unclamped in (
+        _dist("constant", "--value", "0"),
+        _dist("constant", "--value", "2"),
+    ):
+        assert ", raised to" not in unclamped.output
 
 
 @pytest.mark.parametrize(

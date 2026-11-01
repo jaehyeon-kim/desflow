@@ -292,13 +292,13 @@ def test_cli_writes_the_settings_and_the_plot(tmp_path):
 
 def test_plotted_values_are_drawn_as_a_run_draws_them():
     """The plot's values come through a Sampler, so a run's smallest delay applies:
-    a normal centred on 0 gives no value below it."""
+    a normal centred on 0 gives no negative value."""
     settings = {"dist": "normal", "mean": 0.0, "std": 1.0}
     values = fitting._generate(settings, 2000)
     sampler = Sampler(seed=0)
     config = DistributionConfig(**settings)
     assert list(values) == [sampler.sample(config) for _ in range(2000)]
-    assert values.min() == 0.00001 and np.mean(values == 0.00001) > 0.4
+    assert values.min() == 0 and np.mean(values == 0) > 0.4
 
 
 def test_an_include_of_itself_is_refused(tmp_path):

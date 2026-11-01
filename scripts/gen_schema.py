@@ -152,6 +152,8 @@ INPUT_FORMS: Dict[Tuple[str, str], Any] = {
     ("ScenarioStep", "_parse_at"): DURATION,
     ("Drain", "_parse_limit"): DURATION,
     ("Run", "_parse_until"): DURATION,
+    ("RunSegment", "_parse_until"): DURATION,
+    ("SegmentEvery", "_parse_every"): DURATION,
     ("Blueprint", "_signal_mapping"): SIGNAL_NAMES,
     ("Blueprint", "_bare_level"): STATS_LEVEL,
     ("Blueprint", "_bare_functions"): PROCESS_REFS,
@@ -274,7 +276,7 @@ def _tighten(schema: Dict[str, Any]) -> None:
         prop = defs[name]["properties"]["after"]
         prop["anyOf"] = [alt for alt in prop["anyOf"] if alt != {"type": "string"}]
         for alt in prop["anyOf"]:
-            if alt == {"type": "number"}:
+            if alt in ({"type": "integer"}, {"type": "number"}):
                 alt["exclusiveMinimum"] = 0
     defs["Stats"]["properties"]["level"] = {"enum": list(STATS_LEVELS)}
     defs["Task"]["properties"]["on_interrupt"] = {

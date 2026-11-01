@@ -21,3 +21,4 @@ tasks:
     payload: {event: repaired}
 run:
   until: 15
+  on_unhandled_failure: continue

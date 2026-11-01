@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 from pydantic import ValidationError
 
 from desflow.blueprint.loader import BlueprintError, SourceMap, read_document
-from desflow.blueprint.models import Blueprint, Run, unknown_key
+from desflow.blueprint.models import Blueprint, Run, SegmentEvery, unknown_key
 from desflow.config import LABELS
 from desflow.connectors.egress.local import ConsoleEgress
 from desflow.core.expressions import Expression
@@ -564,6 +564,96 @@ def _undefined(name: str, defined: Iterable[str], section: str) -> str:
     )
 
 
+# Task keys that take time or wait, which a `look` task must not have: a step that
+# yields lets the other events of that instant run before the look finishes.
+_TIMED_KEYS = (
+    "service",
+    "service_time",
+    "wait",
+    "resource",
+    "seize",
+    "get",
+    "put",
+    "patience",
+    "batch",
+    "open",
+    "next",
+)
+
+
+def _check_segments(blueprint: Blueprint, source: SourceMap) -> None:
+    """Checks `run.segments` and `run.steps` against the rest of the `run` section
+    and the tasks a `look` names."""
+    run, simulation = blueprint.run, blueprint.simulation
+    if run.steps and (run.segments is not None or run.stop or run.drain):
+        other = "segments" if run.segments is not None else "stop or run.drain"
+        raise source.error(
+            ("run", "steps"),
+            f"run.steps cannot be used with run.{other}: steps already reads the "
+            "run after each event",
+        )
+    segments = run.segments
+    if segments is None:
+        return
+    if run.stop or run.drain:
+        raise source.error(
+            ("run", "segments"),
+            "run.segments cannot be used with run.stop or run.drain: a segment "
+            "ends at its own until or stop",
+        )
+    if isinstance(segments, SegmentEvery):
+        if run.until is None:
+            raise source.error(
+                ("run", "segments", "every"),
+                "every needs run.until, which is where the last segment ends",
+            )
+        return
+    previous = simulation.initial_time
+    for index, segment in enumerate(segments):
+        if (
+            index
+            and segments[index - 1].until is None
+            and segments[index - 1].stop is None
+        ):
+            raise source.error(
+                ("run", "segments", index),
+                "this segment never runs: the segment before it has neither until "
+                "nor stop, so it runs to the end of the run",
+            )
+        if segment.until is not None:
+            if segment.until <= previous:
+                raise source.error(
+                    ("run", "segments", index, "until"),
+                    f"segment until ({segment.until:g}) must be after the previous "
+                    f"end ({previous:g}); segment untils increase",
+                )
+            previous = segment.until
+        if segment.stop is not None:
+            _check_stop(
+                segment.stop, ("run", "segments", index, "stop"), blueprint, source
+            )
+        if segment.look is not None:
+            _check_look(segment.look, blueprint, source, index)
+
+
+def _check_look(name: str, blueprint: Blueprint, source: SourceMap, index: int) -> None:
+    """Checks a segment's `look` names a task that takes no time."""
+    where = ("run", "segments", index, "look")
+    task = blueprint.tasks.get(name)
+    if task is None:
+        raise source.error(
+            where,
+            f"look names task '{name}', " + _undefined(name, blueprint.tasks, "tasks"),
+        )
+    timed = [key for key in _TIMED_KEYS if getattr(task, key, None) is not None]
+    if timed:
+        raise source.error(
+            where,
+            f"look task '{name}' has {', '.join(timed)}, which can wait; a look "
+            "reads the model before any event at the stop time, so it takes no time",
+        )
+
+
 def _check_run(blueprint: Blueprint, source: SourceMap) -> None:
     """Checks the `run` section against the rest of the blueprint, when it loads.
 
@@ -578,10 +668,25 @@ def _check_run(blueprint: Blueprint, source: SourceMap) -> None:
             f"until ({run.until:g}) must be greater than the initial time "
             f"({simulation.initial_time:g}); set until later, or initial_time earlier",
         )
-    if not run.stop:
-        return
-    ((kind, target),) = run.stop.items()
-    where = ("run", "stop", kind)
+    _check_segments(blueprint, source)
+    if run.stop:
+        _check_stop(run.stop, ("run", "stop"), blueprint, source)
+
+
+def _check_stop(
+    stop: Dict[str, str], where: tuple, blueprint: Blueprint, source: SourceMap
+) -> None:
+    """Checks a `stop` names a signal under `signals`, or a condition whose names
+    exist and that reads no entity.
+
+    Args:
+        stop: The one-entry mapping, `{signal: name}` or `{condition: text}`.
+        where: The location of the mapping, for the error's line.
+        blueprint: The blueprint the names are looked up in.
+        source: The blueprint's source map.
+    """
+    ((kind, target),) = stop.items()
+    where = (*where, kind)
     if kind == "signal":
         if target not in blueprint.signals:
             raise source.error(

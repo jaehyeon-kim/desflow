@@ -50,7 +50,7 @@ class Shop:
     def __init__(self, env, sampler):
         self.env, self.sampler = env, sampler
         self.packers = DynamicResource(env, "Shop", "packers")
-        self.courier_left = Signal(env, "courier_left")
+        self.courier_left = Signal(env, "courier_left", once=False)
         self.ids = {}
 
     def next_id(self, task):

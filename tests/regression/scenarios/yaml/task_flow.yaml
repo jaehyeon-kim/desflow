@@ -20,7 +20,7 @@ resources:
 containers:
   stock: {current_cap: 100, max_cap: 100, level: 12}
 
-signals: [courier_left, truck_ready]
+signals: {courier_left: {once: false}, truck_ready: {once: false}}
 
 services:
   packing: {dist: triangular, low: 1 s, mode: 2 s, high: 4 s}

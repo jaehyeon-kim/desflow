@@ -25,8 +25,8 @@ services:
 
 # --8<-- [start:events]
 signals:
-  # A plain signal re-arms; the one-shot closing fires once and spawns a sweep
-  ready: {}
+  # ready re-arms; the one-shot closing fires once and spawns a sweep
+  ready: {once: false}
   closing:
     once: true
     on:

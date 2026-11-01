@@ -40,7 +40,12 @@ NOT_BLUEPRINTS = {
     "docs/snippets/yaml/fitted/complete_picking.yaml",
     "docs/snippets/yaml/fitted/complete_packing.yaml",
 }
-FOLDERS = ("examples/yaml", "tests/conformance/blueprints", "docs/snippets/yaml")
+FOLDERS = (
+    "examples/yaml",
+    "tests/conformance/blueprints",
+    "tests/conformance/yaml_only",
+    "docs/snippets/yaml",
+)
 
 
 def _generator():
@@ -173,12 +178,25 @@ def _at(data: Any, path: tuple) -> Any:
     return data
 
 
+def _untagged(loc: Any) -> tuple:
+    """A model error's location without the names pydantic adds for the members of a
+    union, such as `list[RunSegment]` or `SegmentEvery` for `run.segments`."""
+    return tuple(
+        step
+        for step in loc
+        if not (isinstance(step, str) and ("[" in step or step in UNION_MEMBERS))
+    )
+
+
+UNION_MEMBERS = {"SegmentEvery"}
+
+
 def _model_errors(data: Any) -> set:
     """What the models report for `data`, as (type, location) pairs."""
     try:
         models.Blueprint.model_validate(data)
     except ValueError as exc:
-        return {(item["type"], tuple(item["loc"])) for item in exc.errors()}  # type: ignore[attr-defined]
+        return {(item["type"], _untagged(item["loc"])) for item in exc.errors()}  # type: ignore[attr-defined]
     return set()
 
 

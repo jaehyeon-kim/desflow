@@ -191,7 +191,7 @@ def test_one_shot_signal_fired_twice_is_dropped_under_continue():
 
     app.add_process(script)
     # no waiter; the run reaches until with no error
-    records = run_builder(app, 6)
+    records = run_builder(app, 6, on_unhandled_failure="continue")
     assert times(records, "shut") == [1.0, 4.0]
 
 
@@ -395,6 +395,21 @@ def test_stop_policy_raises_a_root_task_failure():
     cont_app = build()
     cont_app.add_egress(RecordingEgress())
     cont_app.run(until=5, on_unhandled_failure="continue")  # no error
+
+    default_app = build()
+    default_app.add_egress(RecordingEgress())
+    with pytest.raises(Exception, match="scratched"):
+        default_app.run(until=5)  # the default is stop
+
+
+def test_a_signal_is_one_shot_unless_told_otherwise():
+    """`add_signal` with no `once` makes a one-shot signal, and `once=False` makes a
+    signal that re-arms."""
+    app = SimulationContext("S", factor=0.0)
+    app.add_signal("one")
+    app.add_signal("again", once=False)
+    assert app._signal_once["one"] is True
+    assert app._signal_once["again"] is False
 
 
 # -------------------------------------------------- on: fire-from load checks (V4-V6)

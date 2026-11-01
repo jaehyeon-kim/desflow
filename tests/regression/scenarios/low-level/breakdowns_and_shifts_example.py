@@ -67,8 +67,8 @@ class Shop:
         self.env, self.sampler = env, sampler
         self.station = DynamicResource(env, "Shop", "station")
         self.packers = DynamicResource(env, "Shop", "packers")
-        self.opened = Signal(env, "opened")
-        self.closed = Signal(env, "closed")
+        self.opened = Signal(env, "opened", once=False)
+        self.closed = Signal(env, "closed", once=False)
         self.ids = {}
 
     def is_open(self):
