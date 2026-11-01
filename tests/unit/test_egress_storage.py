@@ -411,7 +411,7 @@ def test_jsonl_creates_the_folder_once(tmp_path: Path):
     egress._write_batch([EVENT])
     egress._write_batch([EVENT])
 
-    spy.create_dir.assert_called_once_with(str(tmp_path / "a"), recursive=True)
+    spy.create_dir.assert_called_once_with((tmp_path / "a").as_posix(), recursive=True)
     assert len(list((tmp_path / "a").glob("events_*.jsonl"))) == 2
 
 
