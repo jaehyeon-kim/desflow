@@ -1,0 +1,31 @@
+name: Platforms
+
+# The 1.0 build runs the unit and conformance tests on the other platforms on each
+# push to its branch, because pipeline.yml runs only on main and on pull requests.
+on:
+  push:
+    branches: [release-1.0.0]
+
+permissions:
+  contents: read
+
+jobs:
+  unit-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Fetch Python 3.12
+        run: uv python install 3.12
+
+      - name: Run Unit and Conformance Tests
+        run: uv run --python 3.12 --all-extras pytest tests/unit tests/conformance -q -n auto --tb=short
