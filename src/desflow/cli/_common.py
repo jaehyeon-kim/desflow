@@ -1,7 +1,9 @@
 """What more than one `desflow` command uses: logging, error exits and `--until`."""
 
+import contextlib
 import logging
-from typing import NoReturn, Optional
+import re
+from typing import Dict, Iterator, List, NoReturn, Optional
 
 import typer
 
@@ -41,3 +43,48 @@ def parse_until(value: Optional[str]) -> Optional[float]:
         return time_to_seconds(value)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from None
+
+
+_VARIABLE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def parse_variables(values: Optional[List[str]]) -> Dict[str, str]:
+    """`--var NAME=VALUE` options as a mapping; the last of a repeated name wins.
+
+    Args:
+        values: The options as typed, such as `["PACKERS=3", "TOPIC=orders"]`.
+
+    Returns:
+        Dict[str, str]: The text of each value, which the blueprint reads as it
+            reads an environment variable.
+
+    Raises:
+        typer.BadParameter: If an option has no `=`, or its name is not one a
+            `${NAME}` placeholder can have.
+    """
+    found: Dict[str, str] = {}
+    for item in values or []:
+        name, separator, value = item.partition("=")
+        if not separator or not _VARIABLE_NAME.fullmatch(name):
+            raise typer.BadParameter(
+                f"{item!r} is not NAME=VALUE; the name has letters, digits and "
+                f"underscores, and does not start with a digit",
+                param_hint="--var",
+            )
+        found[name] = value
+    return found
+
+
+@contextlib.contextmanager
+def quiet_builds() -> Iterator[None]:
+    """Shows the warnings of a blueprint build once: inside the block, each further
+    build of the same file logs only errors. `desflow run --replications` and
+    `desflow test` build the file once for each run, and the warnings of the first
+    build are the same."""
+    builds = logging.getLogger("desflow.blueprint.build")
+    before = builds.level
+    builds.setLevel(logging.ERROR)
+    try:
+        yield
+    finally:
+        builds.setLevel(before)

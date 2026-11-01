@@ -593,3 +593,438 @@ async def test_kafka_egress_drops_reserved_keys(MockProducer, run_until, caplog)
     assert len(warnings) == 1
     assert "KafkaEgress drops the payload key '__table__'" in warnings[0].getMessage()
     assert records[0]["value"] == {"__table__": "orders", "status": "placed"}
+
+
+# ==========================================
+# Batch 3: sink options of a blueprint's Kafka entry
+# ==========================================
+
+
+def _sent(producer):
+    """The (topic, key, decoded value) of every message a mocked producer was given."""
+    return [
+        (call.args[0], call.kwargs["key"], json.loads(call.kwargs["value"]))
+        for call in producer.send.call_args_list
+    ]
+
+
+async def _publish(egress, batch, producer, run_until):
+    """Runs the egress over one batch until every record has been sent."""
+    batches = queue.Queue()
+    batches.put(batch)
+    await run_until(
+        egress.run(batches),
+        lambda: batches.empty() and producer.send.call_count >= len(batch),
+    )
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_topic_field_selects_the_topic_and_is_removed(MockProducer, run_until):
+    """`__topic__` in an event's value picks its topic, and the key is not sent.
+
+    Telemetry keeps `telemetry_topic`, and an event without the field goes to
+    `event_topic`.
+    """
+    producer = MockProducer.return_value = AsyncMock()
+    egress = KafkaEgress(bootstrap_servers="b:9092", topic_policy="manual")
+    batch = [
+        {"stream_type": "event", "key": "k1", "value": {"__topic__": "orders", "n": 1}},
+        {"stream_type": "event", "key": "k2", "value": {"n": 2}},
+        {"stream_type": "telemetry", "path_id": "p", "value": 3},
+    ]
+
+    await _publish(egress, batch, producer, run_until)
+
+    assert _sent(producer) == [
+        ("orders", b"k1", {"key": "k1", "value": {"n": 1}}),
+        ("sim-events", b"k2", {"key": "k2", "value": {"n": 2}}),
+        ("sim-telemetry", b"p", {"path_id": "p", "value": 3}),
+    ]
+    assert batch[0]["value"] == {"__topic__": "orders", "n": 1}
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_topic_router_wins_over_the_topic_field(MockProducer, run_until):
+    """A `topic_router` is the user's explicit function, so it wins; the key is
+    still removed from the message."""
+    producer = MockProducer.return_value = AsyncMock()
+    egress = KafkaEgress(bootstrap_servers="b:9092", topic_router=lambda d: "routed")
+    batch = [{"stream_type": "event", "key": "k", "value": {"__topic__": "t", "n": 1}}]
+
+    await _publish(egress, batch, producer, run_until)
+
+    assert _sent(producer) == [("routed", b"k", {"key": "k", "value": {"n": 1}})]
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_a_topic_field_that_is_not_a_name_is_ignored_with_a_warning(
+    MockProducer, run_until, caplog
+):
+    """A number in `__topic__` cannot name a topic: the event goes to the event topic."""
+    producer = MockProducer.return_value = AsyncMock()
+    egress = KafkaEgress(bootstrap_servers="b:9092", topic_policy="manual")
+    batch = [{"stream_type": "event", "key": "k", "value": {"__topic__": 5}}]
+
+    await _publish(egress, batch, producer, run_until)
+
+    assert _sent(producer)[0][0] == "sim-events"
+    assert "ignores __topic__ 5" in caplog.text
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_envelope_false_sends_the_value_alone(MockProducer, run_until):
+    """With `envelope` off the message is the event's value, keyed by the record key.
+
+    A value that is not a mapping is sent as JSON. A ground-truth record is sent whole.
+    """
+    producer = MockProducer.return_value = AsyncMock()
+    egress = KafkaEgress(bootstrap_servers="b:9092", topic_policy="manual")
+    egress.envelope = False
+    batch = [
+        {"stream_type": "event", "key": "k1", "value": {"a": 1}},
+        {"stream_type": "event", "key": "k2", "value": "text"},
+        {"stream_type": "label", "key": "k3", "path": "p"},
+    ]
+
+    await _publish(egress, batch, producer, run_until)
+
+    assert _sent(producer) == [
+        ("sim-events", b"k1", {"a": 1}),
+        ("sim-events", b"k2", "text"),
+        ("sim-events", b"k3", {"key": "k3", "path": "p"}),
+    ]
+
+
+def test_topic_policy_modes_are_read(mock_admin):
+    """`topic_policy` takes a bare mode word or a mapping, and refuses the rest."""
+    assert KafkaEgress("b:9092", topic_policy="manual").topic_policy["mode"] == "manual"
+    egress = KafkaEgress(
+        "b:9092",
+        topic_policy={
+            "mode": "drop_and_create",
+            "partitions": 3,
+            "replication_factor": 2,
+            "topic_configs": {"retention.ms": 1000},
+        },
+    )
+    assert egress.topic_policy == {
+        "mode": "drop_and_create",
+        "partitions": 3,
+        "replication_factor": 2,
+        "topic_configs": {"retention.ms": "1000"},
+    }
+    with pytest.raises(ValueError, match="mode 'sometimes' is not one of"):
+        KafkaEgress("b:9092", topic_policy="sometimes")
+    with pytest.raises(ValueError, match=r"unknown key\(s\) \['partition'\]"):
+        KafkaEgress("b:9092", topic_policy={"partition": 3})
+    with pytest.raises(ValueError, match="partitions must be a whole number"):
+        KafkaEgress("b:9092", topic_policy={"partitions": 0})
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_topic_policy_creates_with_its_settings(MockProducer, mock_admin):
+    """The policy's partitions, replication and settings reach the create request."""
+    MockProducer.return_value = AsyncMock()
+    egress = KafkaEgress(
+        bootstrap_servers="b:9092",
+        topic_policy={"partitions": 6, "topic_configs": {"cleanup.policy": "compact"}},
+    )
+
+    await _run_until_started(egress, MockProducer.return_value)
+
+    admin = mock_admin.return_value
+    admin.drop_topics.assert_not_called()
+    admin.create_topics.assert_called_once_with(
+        topics_config=[
+            {
+                "name": name,
+                "partitions": 6,
+                "topic_configs": {"cleanup.policy": "compact"},
+            }
+            for name in ("sim-events", "sim-telemetry")
+        ]
+    )
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_topic_policy_drop_and_create_drops_first(MockProducer, mock_admin):
+    """`drop_and_create` deletes the topics before it creates them again."""
+    MockProducer.return_value = AsyncMock()
+    calls = []
+    admin = mock_admin.return_value
+    admin.drop_topics.side_effect = lambda names: calls.append(("drop", names))
+    admin.create_topics.side_effect = lambda topics_config: calls.append(
+        ("create", [c["name"] for c in topics_config])
+    )
+    egress = KafkaEgress(bootstrap_servers="b:9092", topic_policy="drop_and_create")
+
+    await _run_until_started(egress, MockProducer.return_value)
+
+    assert calls == [
+        ("drop", ["sim-events", "sim-telemetry"]),
+        ("create", ["sim-events", "sim-telemetry"]),
+    ]
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_topic_policy_manual_creates_nothing(MockProducer, mock_admin):
+    """`manual` leaves every topic to the operator."""
+    MockProducer.return_value = AsyncMock()
+    egress = KafkaEgress(bootstrap_servers="b:9092", topic_policy="manual")
+
+    await _run_until_started(egress, MockProducer.return_value)
+
+    mock_admin.return_value.create_topics.assert_not_called()
+    mock_admin.return_value.drop_topics.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_topics_settings_per_topic(MockProducer, mock_admin):
+    """`topics` gives a topic its own settings over the sink's policy, and the
+    sink creates it even with a `topic_router`, which leaves the event and telemetry
+    topics alone."""
+    MockProducer.return_value = AsyncMock()
+    egress = KafkaEgress(
+        bootstrap_servers="b:9092",
+        topic_router=lambda d: "orders",
+        topic_policy={"partitions": 2},
+        topics={
+            "orders": {"partitions": 8},
+            "audit": {"mode": "manual"},
+            "clicks": {"topic_configs": {"retention.ms": "5"}},
+        },
+    )
+
+    await _run_until_started(egress, MockProducer.return_value)
+
+    mock_admin.return_value.create_topics.assert_called_once_with(
+        topics_config=[
+            {"name": "orders", "partitions": 8},
+            {"name": "clicks", "partitions": 2, "topic_configs": {"retention.ms": "5"}},
+        ]
+    )
+
+
+def test_topics_serializer_applies_to_its_topic_only():
+    """`topics.<t>.serializer` serves that topic, and `serializer` serves the rest."""
+    egress = KafkaEgress(
+        "b:9092",
+        serializer={
+            "type": "confluent_avro",
+            "registry_url": "http://registry:8081",
+            "schema": AVRO_SCHEMA,
+        },
+        topics={
+            "orders": {
+                "serializer": {
+                    "type": "confluent_json_schema",
+                    "registry_url": "http://registry:8081",
+                    "schema": '{"type": "object"}',
+                }
+            }
+        },
+    )
+
+    assert isinstance(egress.default_serializer, ConfluentAvroSerializer)
+    assert isinstance(egress.topic_serializers["orders"], ConfluentJsonSchemaSerializer)
+    with pytest.raises(ValueError, match="serializer or default_serializer"):
+        KafkaEgress(
+            "b:9092",
+            serializer={
+                "type": "glue_avro",
+                "registry_name": "r",
+                "schema": AVRO_SCHEMA,
+            },
+            default_serializer=MagicMock(),
+        )
+    with pytest.raises(ValueError, match="both give a serializer for 'orders'"):
+        KafkaEgress(
+            "b:9092",
+            topic_serializers={"orders": MagicMock()},
+            topics={"orders": {"serializer": MagicMock()}},
+        )
+
+
+def test_build_serializer_builds_each_type(tmp_path):
+    """Every one of the six types is built from its mapping, and the registry
+    arguments reach the serializer."""
+    from desflow.connectors.egress.kafka import build_serializer
+
+    schema_file = tmp_path / "schema.avsc"
+    schema_file.write_text(AVRO_SCHEMA)
+    spec = {
+        "type": "confluent_avro",
+        "registry_url": "http://registry:8081",
+        "schema_file": str(schema_file),
+        "auth": ["user", "secret"],
+        "timeout": 3,
+        "max_retries": 1,
+    }
+    with patch("desflow.connectors.egress.kafka.ConfluentAvroSerializer") as cls:
+        build_serializer(spec)
+    cls.assert_called_once_with(
+        "http://registry:8081",
+        AVRO_SCHEMA,
+        auth=("user", "secret"),
+        timeout=3,
+        max_retries=1,
+    )
+    assert isinstance(build_serializer(spec), ConfluentAvroSerializer)
+    assert isinstance(
+        build_serializer(
+            {
+                "type": "glue_avro",
+                "registry_name": "r",
+                "schema": AVRO_SCHEMA,
+                "boto3": {"region_name": "us-east-1"},
+            }
+        ),
+        GlueAvroSerializer,
+    )
+    assert isinstance(
+        build_serializer(
+            {
+                "type": "glue_json_schema",
+                "registry_name": "r",
+                "schema": {"type": "object"},
+                "boto3": {"region_name": "us-east-1"},
+            }
+        ),
+        GlueJsonSchemaSerializer,
+    )
+
+
+def test_build_serializer_refuses_what_does_not_belong(tmp_path):
+    from desflow.connectors.egress.kafka import build_serializer
+
+    with pytest.raises(ValueError, match="type 'avro' is not one of"):
+        build_serializer({"type": "avro"})
+    with pytest.raises(ValueError, match=r"unknown key\(s\) \['registry_name'\]"):
+        build_serializer(
+            {
+                "type": "confluent_avro",
+                "registry_url": "u",
+                "registry_name": "r",
+                "schema": AVRO_SCHEMA,
+            }
+        )
+    with pytest.raises(ValueError, match="needs registry_url"):
+        build_serializer({"type": "confluent_avro", "schema": AVRO_SCHEMA})
+    with pytest.raises(ValueError, match="needs schema or schema_file"):
+        build_serializer({"type": "confluent_avro", "registry_url": "u"})
+    with pytest.raises(ValueError, match="schema or schema_file, not both"):
+        build_serializer(
+            {
+                "type": "confluent_avro",
+                "registry_url": "u",
+                "schema": "{}",
+                "schema_file": "f",
+            }
+        )
+    with pytest.raises(ValueError, match="needs descriptor_file and message"):
+        build_serializer({"type": "confluent_protobuf", "registry_url": "u"})
+    with pytest.raises(ValueError, match=r"unknown key\(s\) \['descriptor_file'\]"):
+        build_serializer(
+            {
+                "type": "confluent_avro",
+                "registry_url": "u",
+                "schema": "{}",
+                "descriptor_file": "d",
+            }
+        )
+
+
+def test_build_serializer_builds_a_protobuf_class_from_a_descriptor_file(tmp_path):
+    """A descriptor set and a message name give the message class, and the
+    serializer encodes a message of it with the Confluent framing."""
+    from google.protobuf import descriptor_pb2
+
+    from desflow.connectors.egress.kafka import _message_class, build_serializer
+
+    file_proto = descriptor_pb2.FileDescriptorProto(
+        name="shop.proto", package="shop", syntax="proto3"
+    )
+    message = file_proto.message_type.add(name="Order")
+    message.field.add(
+        name="order_id",
+        number=1,
+        type=descriptor_pb2.FieldDescriptorProto.TYPE_STRING,
+        label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL,
+    )
+    descriptor_file = tmp_path / "shop.desc"
+    descriptor_file.write_bytes(
+        descriptor_pb2.FileDescriptorSet(file=[file_proto]).SerializeToString()
+    )
+    spec = {"descriptor_file": str(descriptor_file), "message": "shop.Order"}
+
+    cls = _message_class(spec)
+
+    assert cls.DESCRIPTOR.full_name == "shop.Order"
+    assert cls(order_id="o-1").SerializeToString() == b"\n\x03o-1"
+    assert isinstance(
+        build_serializer(
+            {"type": "confluent_protobuf", "registry_url": "http://r:8081", **spec}
+        ),
+        ConfluentProtobufSerializer,
+    )
+    with pytest.raises(ValueError, match="no message 'shop.Missing'"):
+        _message_class({**spec, "message": "shop.Missing"})
+
+
+def test_ssl_and_token_provider(tmp_path, mock_admin):
+    """`ssl` is built by aiokafka's `create_ssl_context` from its four keys, and
+    `sasl_oauth_token_provider` builds the MSK IAM provider, or says which package
+    is missing."""
+    with patch("aiokafka.helpers.create_ssl_context") as create:
+        create.return_value = "CONTEXT"
+        egress = KafkaEgress(
+            "b:9092",
+            security_protocol="SSL",
+            ssl={
+                "cafile": "ca.pem",
+                "certfile": "c.pem",
+                "keyfile": "k.pem",
+                "password": "pw",
+            },
+        )
+    create.assert_called_once_with(
+        cafile="ca.pem", certfile="c.pem", keyfile="k.pem", password="pw"
+    )
+    assert egress.producer_config["ssl_context"] == "CONTEXT"
+    assert egress.producer_config["security_protocol"] == "SSL"
+    with pytest.raises(ValueError, match=r"ssl has unknown key\(s\) \['cert'\]"):
+        KafkaEgress("b:9092", ssl={"cert": "c.pem"})
+
+    signer = types.ModuleType("aws_msk_iam_sasl_signer")
+    signer.MSKAuthTokenProvider = MagicMock()
+    signer.MSKAuthTokenProvider.generate_auth_token.return_value = ("TOKEN", 1)
+    with patch.dict(sys.modules, {"aws_msk_iam_sasl_signer": signer}):
+        egress = KafkaEgress(
+            "b:9092",
+            sasl_oauth_token_provider={"type": "aws_msk_iam", "region": "us-east-1"},
+        )
+        provider = egress.producer_config["sasl_oauth_token_provider"]
+        assert asyncio.run(provider.token()) == "TOKEN"
+    signer.MSKAuthTokenProvider.generate_auth_token.assert_called_once_with("us-east-1")
+
+    with patch.dict(sys.modules, {"aws_msk_iam_sasl_signer": None}):
+        with pytest.raises(ImportError, match="aws-msk-iam-sasl-signer-python"):
+            KafkaEgress(
+                "b:9092",
+                sasl_oauth_token_provider={"type": "aws_msk_iam", "region": "r"},
+            )
+    with pytest.raises(ValueError, match="takes {type: aws_msk_iam, region"):
+        KafkaEgress("b:9092", sasl_oauth_token_provider={"type": "gcp"})
+
+
+def test_a_topics_value_that_is_not_a_mapping_names_the_topic(mock_admin):
+    with pytest.raises(ValueError, match=r"topics\.orders must be a mapping"):
+        KafkaEgress("b:9092", topics={"orders": "manual"})

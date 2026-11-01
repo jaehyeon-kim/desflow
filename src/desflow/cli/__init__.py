@@ -10,6 +10,7 @@ from typing import Annotated
 import typer
 
 from desflow.cli import (
+    check,
     dist,
     examples,
     experiment,
@@ -18,6 +19,7 @@ from desflow.cli import (
     report,
     run,
     schema,
+    test,
 )
 
 app = typer.Typer(
@@ -64,7 +66,18 @@ def _main(
     """Run, explain and analyse desflow simulations, fit their inputs, and download the examples."""
 
 
-for _module in (run, explain, experiment, report, fit, dist, schema, examples):
+for _module in (
+    run,
+    check,
+    test,
+    explain,
+    experiment,
+    report,
+    fit,
+    dist,
+    schema,
+    examples,
+):
     _module.register(app)
 
 

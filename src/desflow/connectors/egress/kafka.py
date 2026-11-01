@@ -20,7 +20,13 @@ import orjson
 from aiokafka import AIOKafkaProducer
 from aiokafka.admin import AIOKafkaAdminClient
 
-from desflow.connectors.admin.kafka import KafkaAdminConnector
+from desflow.connectors.admin.kafka import (
+    KafkaAdminConnector,
+    apply_topic_policies,
+    build_ssl_context,
+    build_token_provider,
+)
+from desflow.connectors.admin.kafka import topic_policy as read_topic_policy
 from desflow.connectors._schema_registry.unset import UNSET
 from desflow.connectors._schema_registry.errors import (  # noqa: F401
     SchemaRegistryError,
@@ -30,6 +36,7 @@ from desflow.connectors.egress.base import (
     BaseEgress,
     drop_reserved_keys,
     extract_dict,
+    take_route,
 )
 
 logger = logging.getLogger(__name__)
@@ -713,6 +720,139 @@ class GlueProtobufSerializer:
 # ==========================================
 
 
+# The six serializer types of a `serializer` setting, with the registry they use
+SERIALIZER_TYPES = (
+    "confluent_avro",
+    "confluent_json_schema",
+    "confluent_protobuf",
+    "glue_avro",
+    "glue_json_schema",
+    "glue_protobuf",
+)
+_REGISTRY_ARGUMENTS = (
+    "auth",
+    "verify",
+    "cert",
+    "timeout",
+    "headers",
+    "proxy",
+    "max_retries",
+)
+
+
+def _schema_text(spec: Mapping, kind: str) -> str:
+    """Reads `schema` (text, or a mapping that is written as JSON) or `schema_file`."""
+    given = [key for key in ("schema", "schema_file") if spec.get(key) is not None]
+    if len(given) > 1:
+        raise ValueError(f"serializer {kind} takes schema or schema_file, not both")
+    if not given:
+        raise ValueError(f"serializer {kind} needs schema or schema_file")
+    if given[0] == "schema_file":
+        with open(spec["schema_file"], encoding="utf-8") as handle:
+            return handle.read()
+    schema = spec["schema"]
+    return schema if isinstance(schema, str) else json.dumps(schema)
+
+
+def _message_class(spec: Mapping) -> Any:
+    """Builds a Protobuf message class from `descriptor_file` and `message`.
+
+    The descriptor file is a descriptor set written by
+    `protoc --descriptor_set_out=<file> --include_imports <proto file>`, and `message`
+    is the full name of one message in it, such as `shop.Order`.
+    """
+    if not spec.get("descriptor_file") or not spec.get("message"):
+        raise ValueError("a Protobuf serializer needs descriptor_file and message")
+    from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
+
+    with open(spec["descriptor_file"], "rb") as handle:
+        descriptors = descriptor_pb2.FileDescriptorSet.FromString(handle.read())
+    pool = descriptor_pool.DescriptorPool()
+    for proto in descriptors.file:
+        pool.Add(proto)
+    try:
+        descriptor = pool.FindMessageTypeByName(spec["message"])
+    except KeyError:
+        raise ValueError(
+            f"the descriptor file has no message '{spec['message']}'"
+        ) from None
+    return message_factory.GetMessageClass(descriptor)
+
+
+def build_serializer(spec: Mapping[str, Any]) -> Any:
+    """
+    Builds a message serializer from the mapping a blueprint's `serializer` holds.
+
+    The mapping has a `type`, one of `confluent_avro`, `confluent_json_schema`,
+    `confluent_protobuf`, `glue_avro`, `glue_json_schema` and `glue_protobuf`. The
+    Confluent types take `registry_url` and the registry arguments `auth`, `verify`,
+    `cert`, `timeout`, `headers`, `proxy` and `max_retries`. The Glue types take
+    `registry_name` and `boto3`, a mapping passed to `boto3.client`. Avro and JSON
+    Schema take the schema as `schema` (text) or `schema_file`. Protobuf takes
+    `descriptor_file` and `message`, and Glue Protobuf also the `.proto` text as
+    `schema` or `schema_file`. Nothing contacts the registry here.
+
+    Args:
+        spec: The `serializer` mapping.
+
+    Returns:
+        Any: The serializer object, such as a `ConfluentAvroSerializer`.
+
+    Raises:
+        ValueError: If `type` is missing or unknown, a key does not belong to the
+            type, or a required key is missing.
+    """
+    if not isinstance(spec, Mapping):
+        raise ValueError(f"serializer must be a mapping, got {spec!r}")
+    kind = spec.get("type")
+    if kind not in SERIALIZER_TYPES:
+        raise ValueError(
+            f"serializer type '{kind}' is not one of {', '.join(SERIALIZER_TYPES)}"
+        )
+    protobuf = kind.endswith("protobuf")
+    glue = kind.startswith("glue")
+    allowed = {"type", "schema", "schema_file"} if not protobuf else {"type"}
+    if protobuf:
+        allowed |= {"descriptor_file", "message"}
+        if glue:
+            allowed |= {"schema", "schema_file"}
+    allowed |= (
+        {"registry_name", "boto3"} if glue else {"registry_url", *_REGISTRY_ARGUMENTS}
+    )
+    unknown = sorted(set(spec) - allowed)
+    if unknown:
+        raise ValueError(
+            f"serializer {kind} has unknown key(s) {unknown}; the keys are "
+            f"{', '.join(sorted(allowed))}"
+        )
+    if glue:
+        name = spec.get("registry_name")
+        if not name:
+            raise ValueError(f"serializer {kind} needs registry_name")
+        boto = dict(spec.get("boto3") or {})
+        if kind == "glue_avro":
+            return GlueAvroSerializer(name, _schema_text(spec, kind), **boto)
+        if kind == "glue_json_schema":
+            return GlueJsonSchemaSerializer(name, _schema_text(spec, kind), **boto)
+        return GlueProtobufSerializer(
+            name, _message_class(spec), _schema_text(spec, kind), **boto
+        )
+    url = spec.get("registry_url")
+    if not url:
+        raise ValueError(f"serializer {kind} needs registry_url")
+    options: Dict[str, Any] = {
+        key: spec[key] for key in _REGISTRY_ARGUMENTS if key in spec
+    }
+    for key in ("auth", "cert"):
+        if isinstance(options.get(key), list):
+            options[key] = tuple(options[key])
+    if kind == "confluent_avro":
+        return ConfluentAvroSerializer(url, _schema_text(spec, kind), **options)
+    if kind == "confluent_json_schema":
+        return ConfluentJsonSchemaSerializer(url, _schema_text(spec, kind), **options)
+    return ConfluentProtobufSerializer(url, _message_class(spec), **options)
+
+
 class KafkaEgress(BaseEgress):
     """
     High-throughput Kafka producer for simulation telemetry and events.
@@ -738,6 +878,15 @@ class KafkaEgress(BaseEgress):
         filter written against Parquet files matches nothing when it is pointed at
         a Kafka topic. Set `include_stream_type=True` to keep the field in the
         message and make both paths carry it.
+
+    An event whose `value` holds `__topic__` is sent to the topic it names, and the key
+    is removed from the message. This replaces a `topic_router` for the common case.
+    A `topic_router` wins over `__topic__`, and telemetry always goes to
+    `telemetry_topic`. `topic_policy` and `topics` create the topics, `serializer`
+    and `topics.<topic>.serializer` set the serializers from a mapping, `ssl` and
+    `sasl_oauth_token_provider` build the connection settings from a mapping, and
+    an entry added with `envelope=False` sends the event's value alone as the
+    message.
 
     Attributes:
         bootstrap_servers (str): Comma-separated list of Kafka brokers.
@@ -785,6 +934,11 @@ class KafkaEgress(BaseEgress):
         topic_serializers: Optional[Dict[str, MessageSerializer]] = None,
         default_serializer: Optional[MessageSerializer] = None,
         include_stream_type: bool = False,
+        topic_policy: Any = None,
+        topics: Optional[Mapping[str, Mapping[str, Any]]] = None,
+        serializer: Any = None,
+        ssl: Optional[Mapping[str, Any]] = None,
+        sasl_oauth_token_provider: Any = None,
         **kwargs: Any,
     ):
         """
@@ -808,16 +962,85 @@ class KafkaEgress(BaseEgress):
                 The Protobuf serializers drop it in the same way. The JSON Schema
                 serializers send it, and refuse the record when the schema does not
                 allow other properties.
+            topic_policy: How the sink treats its topics when the run starts: a mode word
+                (`create`, `drop_and_create` or `manual`) or a mapping of `mode`,
+                `partitions`, `replication_factor` and `topic_configs` (a mapping of
+                topic setting to value). `create`, the default, creates a missing
+                topic with one partition, a replication factor of 1 and no settings,
+                and leaves an existing topic as it is. `drop_and_create` deletes the
+                topic and creates it again, so each run starts empty. `manual`
+                creates nothing. The policy covers the event topic and the telemetry
+                topic, and any topic named in `topics` that sets none of its own.
+            topics: Settings per topic, a mapping of topic name to a mapping with the
+                keys of `topic_policy` and `serializer`. A topic named here is
+                created by the sink according to its policy, also when events choose
+                it with `__topic__` or a `topic_router` routes to it.
+            serializer: The serializer for every topic that `topics` or
+                `topic_serializers` gives none, in place of `default_serializer`: a
+                mapping `{type, ...}` that `build_serializer` builds, or a serializer
+                object. The mapping's `type` is `confluent_avro`,
+                `confluent_json_schema`, `confluent_protobuf`, `glue_avro`,
+                `glue_json_schema` or `glue_protobuf`; the other keys are those of
+                `build_serializer`.
+            ssl: The keys `cafile`, `certfile`, `keyfile` and `password`, passed to
+                `aiokafka.helpers.create_ssl_context`. The result is the producer's
+                `ssl_context`; set `security_protocol` to `SSL` or `SASL_SSL` as well.
+            sasl_oauth_token_provider: `{type: aws_msk_iam, region: <region>}` builds
+                the token provider for Amazon MSK IAM, which needs the package
+                `aws-msk-iam-sasl-signer-python`; a token provider object is used as
+                it is. Set `security_protocol` to `SASL_SSL` and `sasl_mechanism` to
+                `OAUTHBEARER` as well.
             **kwargs: Additional overrides for the AIOKafkaProducer configuration.
+
+        Raises:
+            ValueError: If a policy, serializer, `ssl` or token provider setting is
+                malformed, or `serializer` and `default_serializer` are both given.
+            ImportError: If `sasl_oauth_token_provider` asks for `aws_msk_iam` and
+                `aws-msk-iam-sasl-signer-python` is not installed.
         """
         self.telemetry_topic = telemetry_topic
         self.event_topic = event_topic
         self.topic_router = topic_router
         self.include_stream_type = include_stream_type
 
+        self.topic_policy = read_topic_policy(topic_policy)
+        self.topics: Dict[str, Dict[str, Any]] = {}
         # Initialize serializers in a backward-compatible way
-        self.topic_serializers = topic_serializers or {}
-        self.default_serializer = default_serializer or JsonSerializer()
+        self.topic_serializers = dict(topic_serializers or {})
+        if serializer is not None and default_serializer is not None:
+            raise ValueError("give serializer or default_serializer, not both")
+        if isinstance(serializer, Mapping):
+            serializer = build_serializer(serializer)
+        self.default_serializer = serializer or default_serializer or JsonSerializer()
+        for name, settings in (topics or {}).items():
+            if settings is not None and not isinstance(settings, Mapping):
+                raise ValueError(
+                    f"topics.{name} must be a mapping of partitions, "
+                    f"replication_factor, topic_configs and serializer, got "
+                    f"{settings!r}"
+                )
+            settings = dict(settings or {})
+            per_topic = settings.pop("serializer", None)
+            read_topic_policy(settings, f"topics.{name}")
+            self.topics[str(name)] = settings
+            if per_topic is not None:
+                if name in self.topic_serializers:
+                    raise ValueError(
+                        f"topics.{name}.serializer and topic_serializers both give "
+                        f"a serializer for '{name}'"
+                    )
+                self.topic_serializers[str(name)] = (
+                    build_serializer(per_topic)
+                    if isinstance(per_topic, Mapping)
+                    else per_topic
+                )
+
+        if ssl is not None:
+            kwargs["ssl_context"] = build_ssl_context(ssl)
+        if sasl_oauth_token_provider is not None:
+            kwargs["sasl_oauth_token_provider"] = build_token_provider(
+                sasl_oauth_token_provider
+            )
 
         # High-performance defaults for 100k/sec
         self.producer_config = {
@@ -830,9 +1053,12 @@ class KafkaEgress(BaseEgress):
 
     def _create_topics(self) -> None:
         """
-        Creates the event and telemetry topics if they do not exist yet.
+        Creates, recreates or leaves alone the sink's topics, as `topic_policy` and
+        `topics` say. They are the event and telemetry topics, when no `topic_router`
+        chooses the topics, and the topics named in `topics`.
 
-        Uses `KafkaAdminConnector`, which ignores a topic that already exists. The
+        Uses `KafkaAdminConnector`, which ignores a topic that already exists when
+        the mode is `create`. The
         producer settings the admin client also understands, such as the security
         settings, are passed on to it. A failure is logged rather than raised,
         because the producer loop that follows retries the connection itself.
@@ -844,14 +1070,37 @@ class KafkaEgress(BaseEgress):
             for key, value in self.producer_config.items()
             if key in accepted and key not in ("bootstrap_servers", "client_id")
         }
-        topics = list(dict.fromkeys([self.event_topic, self.telemetry_topic]))
+        # The event and telemetry topics, unless a topic_router names the topics, and
+        # every topic in `topics`; each follows the sink's policy with its own
+        # settings on top
+        named = [] if self.topic_router else [self.event_topic, self.telemetry_topic]
+        topics = list(dict.fromkeys([*named, *self.topics]))
+        policies = {
+            name: read_topic_policy(
+                {**self.topic_policy, **self.topics.get(name, {})}, f"topics.{name}"
+            )
+            for name in topics
+        }
         try:
-            KafkaAdminConnector(
-                bootstrap_servers=self.producer_config["bootstrap_servers"],
-                **admin_settings,
-            ).create_topics(topics_config=[{"name": name} for name in topics])
+            apply_topic_policies(
+                KafkaAdminConnector(
+                    bootstrap_servers=self.producer_config["bootstrap_servers"],
+                    **admin_settings,
+                ),
+                policies,
+            )
         except Exception as e:
             logger.warning(f"Could not create the topics {topics}: {e}")
+
+    def _warn_topic_field(self, chosen: Any) -> None:
+        """Warns once that `__topic__` held something other than a topic name."""
+        if not self.__dict__.get("_topic_field_warned"):
+            self._topic_field_warned = True
+            logger.warning(
+                "KafkaEgress ignores __topic__ %r: it must be the name of a topic, "
+                "so the event goes to the event topic.",
+                chosen,
+            )
 
     async def run(self, egress_queue: queue.Queue) -> None:
         """
@@ -871,7 +1120,7 @@ class KafkaEgress(BaseEgress):
             The loop exits gracefully upon receiving an `asyncio.CancelledError`,
             ensuring the Kafka producer is stopped correctly.
         """
-        if self.topic_router is None:
+        if self.topic_router is None or self.topics:
             await asyncio.to_thread(self._create_topics)
 
         backoff = 1.0
@@ -891,58 +1140,77 @@ class KafkaEgress(BaseEgress):
                         try:
                             # 'batch' is a list of dictionaries from the EgressMixIn
                             batch = egress_queue.get_nowait()
-                            # Kafka routes by no reserved key, so it writes none
-                            batch = drop_reserved_keys(batch, self)
-
-                            for data in batch:
-                                if self.topic_router:
-                                    # Use externalized logic if provided
-                                    topic = self.topic_router(data)
-                                    stream = data.get("stream_type", "event")
-                                else:
-                                    # Fallback to standard desflow routing
-                                    stream = data["stream_type"]
-                                    topic = (
-                                        self.telemetry_topic
-                                        if stream == "telemetry"
-                                        else self.event_topic
-                                    )
-
-                                # Extract the Kafka Key
-                                key = None
-                                if stream == "telemetry":
-                                    key = (
-                                        str(data["path_id"]).encode()
-                                        if "path_id" in data
-                                        else None
-                                    )
-                                else:
-                                    key = (
-                                        str(data["key"]).encode()
-                                        if "key" in data
-                                        else None
-                                    )
-
-                                # Build the payload without touching the record itself.
-                                # Every egress provider receives the same dictionary
-                                # objects, so removing a key here would also remove it
-                                # from what a Parquet or Redis sink writes.
-                                if self.include_stream_type:
-                                    payload = data
-                                else:
-                                    payload = {
-                                        k: v
-                                        for k, v in data.items()
-                                        if k != "stream_type"
-                                    }
-
-                                # Apply configured Serializer strategy
-                                serializer = self.topic_serializers.get(
-                                    topic, self.default_serializer
+                            # Teardown waits for this, or it would cancel the last batch
+                            self.active_tasks = getattr(self, "active_tasks", 0) + 1
+                            try:
+                                # Kafka routes by __topic__, and writes no other
+                                # reserved key
+                                batch = drop_reserved_keys(
+                                    batch, self, keep=("__topic__",)
                                 )
-                                payload_bytes = serializer.serialize(topic, payload)
 
-                                await producer.send(topic, value=payload_bytes, key=key)
+                                for data in batch:
+                                    data, chosen = take_route(data, "__topic__")
+                                    if chosen is not None and (
+                                        type(chosen) is not str or not chosen
+                                    ):
+                                        self._warn_topic_field(chosen)
+                                        chosen = None
+                                    if self.topic_router:
+                                        # Use externalized logic if provided
+                                        topic = self.topic_router(data)
+                                        stream = data.get("stream_type", "event")
+                                    else:
+                                        # Fallback to standard desflow routing
+                                        stream = data["stream_type"]
+                                        topic = (
+                                            self.telemetry_topic
+                                            if stream == "telemetry"
+                                            else chosen or self.event_topic
+                                        )
+
+                                    # Extract the Kafka Key
+                                    key = None
+                                    if stream == "telemetry":
+                                        key = (
+                                            str(data["path_id"]).encode()
+                                            if "path_id" in data
+                                            else None
+                                        )
+                                    else:
+                                        key = (
+                                            str(data["key"]).encode()
+                                            if "key" in data
+                                            else None
+                                        )
+
+                                    # Build the payload without touching the record itself.
+                                    # Every egress provider receives the same dictionary
+                                    # objects, so removing a key here would also remove it
+                                    # from what a Parquet or Redis sink writes.
+                                    if not self.envelope and stream != "label":
+                                        # The event's value alone, whatever its type
+                                        payload = data.get("value")
+                                    elif self.include_stream_type:
+                                        payload = data
+                                    else:
+                                        payload = {
+                                            k: v
+                                            for k, v in data.items()
+                                            if k != "stream_type"
+                                        }
+
+                                    # Apply configured Serializer strategy
+                                    serializer = self.topic_serializers.get(
+                                        topic, self.default_serializer
+                                    )
+                                    payload_bytes = serializer.serialize(topic, payload)
+
+                                    await producer.send(
+                                        topic, value=payload_bytes, key=key
+                                    )
+                            finally:
+                                self.active_tasks -= 1
 
                         except queue.Empty:
                             # Yield to loop if queue is empty

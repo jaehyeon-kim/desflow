@@ -76,9 +76,13 @@ def check_container_type(container_type: Optional[Any]) -> None:
         )
 
 
-class DynamicContainer(BaseDynamicResource):
+class DynamicContainer(BaseDynamicResource, Container):
     """
     A wrapper for SimPy Container with dynamic capacity updates.
+
+    It is also a SimPy `Container`, so `isinstance` holds. It runs none of SimPy's
+    constructor: `put_queue`, `get_queue`, `level` and `capacity` read the wrapped
+    container, and `put` and `get` call it.
 
     Useful for modeling continuous bulk materials (fluids, gases, battery charge) and
     stock. Unlike a standard `simpy.Container`, the capacity of this container listens
@@ -100,6 +104,10 @@ class DynamicContainer(BaseDynamicResource):
         env (Environment): The active SimPy simulation environment.
         sim_id (str): The parent simulation ID prefix.
         obj_id (str): The specific container name/identifier.
+        put_queue: The waiting puts, SimPy's queue.
+        get_queue: The waiting gets, SimPy's queue.
+        PutQueue: The type of `put_queue`, that of the wrapped container.
+        GetQueue: The type of `get_queue`, that of the wrapped container.
     """
 
     def __init__(
@@ -154,6 +162,8 @@ class DynamicContainer(BaseDynamicResource):
             env, init=start, capacity=initial_capacity or 1.0
         )
         self._container._on_change = self._level_changed
+        self.PutQueue = self._container.PutQueue
+        self.GetQueue = self._container.GetQueue
         self._container._capacity = initial_capacity
         self._level_val.track(self._container.level)
         internal_process(self.env, self._watch_level())
@@ -171,6 +181,16 @@ class DynamicContainer(BaseDynamicResource):
     def level(self) -> float:
         """float: The current amount of bulk material stored inside the container."""
         return self._container.level
+
+    @property
+    def put_queue(self) -> list:
+        """list: The waiting puts, SimPy's `put_queue`."""
+        return self._container.put_queue
+
+    @property
+    def get_queue(self) -> list:
+        """list: The waiting gets, SimPy's `get_queue`."""
+        return self._container.get_queue
 
     @property
     def getters_waiting(self) -> int:

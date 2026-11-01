@@ -817,3 +817,20 @@ def test_the_command_exits_2(tmp_path, file, arguments, message):
     result = CliRunner().invoke(cli, ["explain", source, *arguments])
     assert result.exit_code == 2
     assert message in result.stderr
+
+
+def test_on_renege_and_on_balk_edges_have_no_probability():
+    """A task with `on_renege` or `on_balk` can leave its route, so its edges carry
+    no share, and the target of each is a next edge."""
+    app = _shop(patience=5, balk="t > 5", on_renege="gave_up", on_balk="turned_away")
+    for name in ("gave_up", "turned_away"):
+        app.task(name=name)(lambda task_id: {})
+    explanation = app.analyze()
+    edges = [
+        e
+        for e in explanation.graph.edges
+        if e.source == "task:pack" and e.kind == "next"
+    ]
+    assert {e.target for e in edges} >= {"task:gave_up", "task:turned_away"}
+    assert all(e.probability is None for e in edges)
+    assert _by_name(explanation.tasks, "gave_up").rate is None

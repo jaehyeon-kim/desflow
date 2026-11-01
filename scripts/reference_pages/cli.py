@@ -48,6 +48,8 @@ _CLI_SECTIONS = {
     "schema": "set-up-an-editor",
     "dist": "convert-parameters",
     "explain": "check-it-before-a-long-run",
+    "check": "check-it-before-a-long-run",
+    "test": "check-it-before-a-long-run",
     "examples": "get-an-example",
     "examples-list": "get-an-example",
     "examples-get": "get-an-example",

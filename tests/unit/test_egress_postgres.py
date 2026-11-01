@@ -318,3 +318,176 @@ async def test_events_carry_task_fields_and_labels_are_json_rows(
             "label": '{"fault":"slow_packing"}',
         },
     ]
+
+
+def _event(value, key="orders-1"):
+    return {"stream_type": "event", "key": key, "sim_ts": 1.0, "value": value}
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_table_policy_create_makes_the_schema_first(mock_create_pool, mock_pool):
+    """`create` runs CREATE SCHEMA IF NOT EXISTS for a qualified table name before
+    the table, and reads the columns of that schema's table."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.return_value = [{"column_name": "order_id", "data_type": "integer"}]
+    conn.fetchval.return_value = None
+    egress = PostgresEgress(
+        "postgresql://u:p@localhost/db",
+        tables={
+            "shop.orders": {"columns": {"order_id": "INT"}},
+            "plain": {"columns": {"a": "INT"}},
+        },
+        table_name="shop.orders",
+    )
+
+    await egress._init_pool()
+
+    assert [call.args[0] for call in conn.execute.call_args_list] == [
+        "CREATE SCHEMA IF NOT EXISTS shop",
+        "CREATE TABLE IF NOT EXISTS shop.orders (order_id INT)",
+        "CREATE TABLE IF NOT EXISTS plain (a INT)",
+    ]
+    assert conn.fetch.call_args.args[1:] == ("shop", "orders")
+    assert egress.valid_columns == {"order_id"}
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_table_policy_create_leaves_an_existing_schema_alone(
+    mock_create_pool, mock_pool
+):
+    """A schema that already exists is not created again, because CREATE SCHEMA IF
+    NOT EXISTS needs the CREATE privilege on the database even then."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.return_value = [{"column_name": "order_id", "data_type": "integer"}]
+    conn.fetchval.return_value = 1
+    egress = PostgresEgress(
+        "postgresql://u:p@localhost/db",
+        tables={"shop.orders": {"columns": {"order_id": "INT"}}},
+    )
+
+    await egress._init_pool()
+
+    assert conn.fetchval.call_args.args[1] == "shop"
+    assert [call.args[0] for call in conn.execute.call_args_list] == [
+        "CREATE TABLE IF NOT EXISTS shop.orders (order_id INT)"
+    ]
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_table_policy_drop_and_create_drops_the_table_first(
+    mock_create_pool, mock_pool
+):
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.return_value = []
+    egress = PostgresEgress(
+        "postgresql://u:p@localhost/db",
+        tables={"orders": {"columns": {"order_id": "INT"}}},
+        table_policy="drop_and_create",
+    )
+
+    await egress._init_pool()
+
+    assert [call.args[0] for call in conn.execute.call_args_list] == [
+        "DROP TABLE IF EXISTS orders",
+        "CREATE TABLE IF NOT EXISTS orders (order_id INT)",
+    ]
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_table_policy_manual_runs_no_ddl(mock_create_pool, mock_pool):
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.return_value = [{"column_name": "order_id", "data_type": "integer"}]
+    egress = PostgresEgress(
+        "postgresql://u:p@localhost/db",
+        tables={"orders": {"columns": {"order_id": "INT"}}},
+        table_policy="manual",
+    )
+
+    await egress._init_pool()
+
+    conn.execute.assert_not_called()
+    assert egress.valid_columns == {"order_id"}
+
+
+def test_table_policy_refuses_an_unknown_word():
+    with pytest.raises(ValueError, match="table_policy 'sometimes' is not one of"):
+        PostgresEgress("postgresql://u:p@localhost/db", table_policy="sometimes")
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_keyed_entry_skips_a_record_without_its_key_columns(
+    mock_create_pool, mock_pool, run_until, caplog
+):
+    """A keyed entry skips an event that has none of its key columns, and logs one
+    warning for the batch with the count. The events that have the key are upserted,
+    and an event for another table is left to that table's entry without a warning.
+    Before 1.0.0 the first such event stopped the batch with a ValueError."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.return_value = [{"column_name": "id"}, {"column_name": "status"}]
+    egress = PostgresEgress(
+        "postgresql://u:p@localhost/db", "orders", upsert_keys=["id"]
+    )
+    egress_queue = queue.Queue()
+    egress_queue.put(
+        [
+            _event({"__table__": "orders", "id": 1, "status": "new"}),
+            _event({"__table__": "orders", "status": "lost"}),
+            _event({"status": "also lost"}),
+            _event({"__table__": "users", "name": "x"}),
+            _event({"id": 2, "status": "new"}),
+        ]
+    )
+
+    await run_until(
+        egress.run(egress_queue),
+        lambda: conn.executemany.called and egress_queue.empty(),
+    )
+
+    query, values = conn.executemany.call_args[0]
+    assert "ON CONFLICT (id) DO UPDATE" in query
+    assert values == [(1, "new"), (2, "new")]
+    [warning] = [r for r in caplog.records if "skipped records" in r.getMessage()]
+    assert "2 had none of the key columns of their table" in warning.getMessage()
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_envelope_false_writes_the_value_alone(
+    mock_create_pool, mock_pool, run_until, caplog
+):
+    """With `envelope` off the row is the value: no `sim_ts`, `event_id` or `task`
+    columns are added, and a value that is not a mapping is skipped with one warning."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.return_value = [
+        {"column_name": name} for name in ("id", "sim_ts", "event_id", "task")
+    ]
+    egress = PostgresEgress("postgresql://u:p@localhost/db", "orders")
+    egress.envelope = False
+    egress_queue = queue.Queue()
+    egress_queue.put(
+        [
+            {**_event({"id": 1}), "task": "pack"},
+            _event("text"),
+        ]
+    )
+
+    await run_until(
+        egress.run(egress_queue),
+        lambda: conn.executemany.called and egress_queue.empty(),
+    )
+
+    query, values = conn.executemany.call_args[0]
+    assert query.startswith("INSERT INTO orders (id) VALUES ($1)")
+    assert values == [(1,)]
+    assert "1 had a value that is not a mapping" in caplog.text

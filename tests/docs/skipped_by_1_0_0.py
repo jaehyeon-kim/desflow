@@ -12,6 +12,9 @@ T3 = "Batch 1 (T3): signals are one-shot by default, so this page's model fires 
 T6 = "Batch 1 (T6): records keep sim_ts unrounded, so this page shows or asserts rounded times; Batch 13 handles the page"
 T7 = "Batch 1 (T7, MF2): numbers keep the type they are written in, so this page shows 38.0 where the code now gives 38; Batch 13 regenerates the block"
 I5 = "Batch 2 (I5): a patience that ends at the instant its unit is granted reneges, so this page's tie check reads reneged where it asserts served; Batch 13 rewrites the page and the check"
+NEW_KEY_3 = "Batch 3: the key is new and no hand-written page shows it yet; Batch 13 adds the example"
+NEW_COMMAND_3 = "Batch 3: the command or option is new and no hand-written page, README line or example uses it yet; Batch 13 adds them"
+NEW_EXTRA_3 = "Batch 3: the watch extra is new and no page installs it yet; Batch 13 adds it to the installation page"
 NEW_KEY = "Batch 1: the key is new and no hand-written page shows it yet; Batch 13 adds the example"
 
 SKIPPED = {
@@ -70,4 +73,22 @@ SKIPPED = {
     "test_feature_coverage.py::test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry[RunSegment.stop]": NEW_KEY,
     "test_feature_coverage.py::test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry[RunSegment.sync]": NEW_KEY,
     "test_feature_coverage.py::test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry[SegmentEvery.every]": NEW_KEY,
+    "test_feature_coverage.py::test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry[Blueprint.tests]": NEW_KEY_3,
+    "test_feature_coverage.py::test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry[BlueprintTest.expect]": NEW_KEY_3,
+    "test_feature_coverage.py::test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry[BlueprintTest.name]": NEW_KEY_3,
+    "test_feature_coverage.py::test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry[BlueprintTest.seed]": NEW_KEY_3,
+    "test_feature_coverage.py::test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry[EgressConnector.envelope]": NEW_KEY_3,
+    "test_feature_coverage.py::test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry[ExpectedWithin.value]": NEW_KEY_3,
+    "test_feature_coverage.py::test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry[ExpectedWithin.within]": NEW_KEY_3,
+    "test_feature_coverage.py::test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry[Task.key_field]": NEW_KEY_3,
+    "test_feature_coverage.py::test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry[WhenExpr.expr]": NEW_KEY_3,
+    "test_feature_coverage.py::test_every_extra_has_an_example_a_reference_a_skill_and_a_readme_line[watch]": NEW_EXTRA_3,
+    "test_feature_coverage_commands.py::test_every_command_and_option_runs_on_the_command_line_page[desflow check]": NEW_COMMAND_3,
+    "test_feature_coverage_commands.py::test_every_command_and_option_runs_on_the_command_line_page[desflow run]": NEW_COMMAND_3,
+    "test_feature_coverage_commands.py::test_every_command_and_option_runs_on_the_command_line_page[desflow test]": NEW_COMMAND_3,
+    "test_feature_coverage_commands.py::test_every_command_has_a_reference_a_skill_line_and_a_readme_line[desflow check]": NEW_COMMAND_3,
+    "test_feature_coverage_commands.py::test_every_command_has_a_reference_a_skill_line_and_a_readme_line[desflow test]": NEW_COMMAND_3,
+    "test_feature_coverage_commands.py::test_every_command_is_used_beyond_the_command_line_page[desflow check]": NEW_COMMAND_3,
+    "test_feature_coverage_commands.py::test_every_command_is_used_beyond_the_command_line_page[desflow test]": NEW_COMMAND_3,
+    "test_gen_pages.py::test_command_line_page_holds_the_current_command_list": NEW_COMMAND_3,
 }

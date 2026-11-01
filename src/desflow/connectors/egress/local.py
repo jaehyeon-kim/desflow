@@ -2,7 +2,7 @@ import asyncio
 import logging
 import queue
 import sys
-from typing import Literal
+from typing import Any, Literal, Optional
 
 import orjson
 
@@ -41,6 +41,14 @@ class ConsoleEgress(BaseEgress):
         if format not in _FORMATS:
             raise ValueError(f"format must be log or json, got {format!r}")
         self.format = format
+
+    def _shown(self, record: dict, shown: Optional[dict] = None) -> Any:
+        """Returns what a record is written as: the record, or `shown` in its place,
+        or only its value when the entry has `envelope` off. A ground-truth record is
+        always written whole."""
+        if not self.envelope and record.get("stream_type") != "label":
+            return record.get("value")
+        return record if shown is None else shown
 
     async def run(self, egress_queue: queue.Queue) -> None:
         """
@@ -82,7 +90,7 @@ class ConsoleEgress(BaseEgress):
                 # such as a test runner, receives the lines
                 batch = drop_reserved_keys(batch, self)
                 sys.stdout.write(
-                    "".join(orjson.dumps(r).decode() + "\n" for r in batch)
+                    "".join(orjson.dumps(self._shown(r)).decode() + "\n" for r in batch)
                 )
                 sys.stdout.flush()
                 continue
@@ -95,7 +103,7 @@ class ConsoleEgress(BaseEgress):
             # from what another attached sink writes.
             lines = [
                 f"{_PREFIXES.get(data.get('stream_type', 'unknown'), '[EVT]')} "
-                f"{ {k: v for k, v in data.items() if k != 'stream_type'} }"
+                f"{self._shown(data, {k: v for k, v in data.items() if k != 'stream_type'})}"
                 for data in batch
             ]
             logger.info("\n".join(lines))

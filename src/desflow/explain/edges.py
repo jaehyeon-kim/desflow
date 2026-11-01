@@ -43,6 +43,25 @@ def used_resources(spec: "TaskSpec") -> List[str]:
     return names
 
 
+def diverts(spec: "TaskSpec") -> bool:
+    """Whether some instances of the task leave the route its `next` gives: a `fail`
+    condition, or a task for `on_fail`, `on_renege` or `on_balk`, so the share of
+    each route is not known before a run.
+
+    Args:
+        spec: The task.
+
+    Returns:
+        bool: True when the task can divert some of its instances.
+    """
+    return (
+        spec.fail is not None
+        or spec.on_fail is not None
+        or spec.on_renege is not None
+        or spec.on_balk is not None
+    )
+
+
 def task_edges(spec: "TaskSpec", nodes: List[Node], edges: List[Edge]) -> bool:
     """Adds a task's resource, get, put, spawn and next edges.
 
@@ -75,7 +94,7 @@ def task_edges(spec: "TaskSpec", nodes: List[Node], edges: List[Edge]) -> bool:
                 source=task,
                 target=node_id("task", spec.spawn["task"]),
                 kind="spawn",
-                probability=None if spec.fail is not None else 1.0,
+                probability=None if diverts(spec) else 1.0,
             )
         )
     router = spec.router
@@ -88,8 +107,8 @@ def task_edges(spec: "TaskSpec", nodes: List[Node], edges: List[Edge]) -> bool:
         edges.append(Edge(source=task, target=node, kind="next"))
         return False
     shares = router.probabilities
-    if spec.fail is not None:
-        shares = None  # a failure leaves the route the rules give
+    if diverts(spec):
+        shares = None  # a failure, renege or balk leaves the route the rules give
     if shares is not None:
         for target, share in shares.items():
             edges.append(
@@ -104,7 +123,11 @@ def task_edges(spec: "TaskSpec", nodes: List[Node], edges: List[Edge]) -> bool:
             edges.append(Edge(source=task, target=EXIT, kind="next", probability=1.0))
             return True
         return False
-    targets = sorted(router.tasks) + ([spec.on_fail] if spec.on_fail else [])
+    targets = sorted(router.tasks) + [
+        target
+        for target in (spec.on_fail, spec.on_renege, spec.on_balk)
+        if target is not None
+    ]
     for target in targets:
         edges.append(Edge(source=task, target=node_id("task", target), kind="next"))
     # when rules with no default, a failure without on_fail, or no rule at all end

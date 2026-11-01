@@ -47,9 +47,10 @@ dependencies = [
     "simpy>=4.1.2",
     "numpy>=1.26.0",
     "orjson>=3.10.0",
-    # 2.6.0 is the oldest release the unit and conformance tests pass with: 2.0 to
-    # 2.4 have no Discriminator, and 2.5 no inf_nan_mode in to_jsonable_python
-    "pydantic>=2.6.0",
+    # 2.6.1 is the oldest release desflow supports: 2.0 to 2.4 have no Discriminator,
+    # 2.5 no inf_nan_mode in to_jsonable_python, and 2.6.0 ignores a nested
+    # Discriminator, which the generators need. The pydantic-floor CI job tests it
+    "pydantic>=2.6.1",
     "pyyaml>=6.0.1",
     "typer>=0.16.0",
     # Windows has no time zone database of its own, so ZoneInfo needs this there
@@ -141,6 +142,10 @@ fit = [
     "matplotlib>=3.11.2",
     "scipy>=1.17.1",
 ]
+watch = [
+    # 1.3.0 is the release whose source `desflow run --watch` was written against
+    "watchfiles>=1.3.0",
+]
 all = [
     "desflow[kafka,redis,postgres,confluent,glue,parquet,iceberg,fit]"
 ]
@@ -190,6 +195,8 @@ dev = [
     # that guide's test on Python 3.15 (`module 'dataclasses' has no attribute
     # '_MISSING_TYPE'`), and 0.71.1 passes on 3.11, 3.12 and 3.15.
     "dataclasses-avroschema[pydantic]>=0.71.1",
+    # The tests of `desflow run --watch` use it.
+    "watchfiles>=1.3.0",
 ]
 
 [tool.ruff]

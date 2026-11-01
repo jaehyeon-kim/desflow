@@ -16,6 +16,8 @@ Options:
 
 Commands:
   run         Build the simulation in FILE and run it, or run replications...
+  check       Check that each blueprint in FILE...
+  test        Run the tests of each file in FILE...
   explain     Show the model in SOURCE as a graph, with its utilisation,...
   experiment  Run the experiment in FILE and write its artifacts and report.
   report      Build the report of an experiment again from the artifacts in...
@@ -80,6 +82,10 @@ Options:
                     readings as a JSON line, instead of writing to the file's
                     sinks. The lag readings describe the wall clock, not the
                     model.
+  --var NAME=VALUE  Fill ${NAME} in the file and in the files it includes,
+                    before the environment does. Repeat it for more.
+  --watch           Run in a child process, and run again whenever the file or a
+                    .py file beside it changes. Needs the watch extra.
   --help            Show this message and exit.
 
   Examples:
@@ -100,6 +106,90 @@ Options:
     statistic
 
     $ desflow run shop.yaml --replications 20 --seed 7
+
+    # Fill ${PACKERS} in the file, and run again whenever the file
+    changes
+
+    $ desflow run shop.yaml --var PACKERS=3 --sample 5 --watch[/bold
+    cyan]
+```
+
+## `desflow check`
+
+```text
+Usage: desflow check [OPTIONS] {FILE...}
+
+  Check that each blueprint in FILE... builds, without running it.
+
+  It reports what `desflow run` reports before the clock starts: YAML errors,
+  unknown keys, missing names, unset variables, `!python` references that cannot
+  be imported, and connectors whose extra is missing or whose settings are
+  refused. It also reports a Parquet or Jsonl entry when PyArrow is not
+  installed. It does not call `run.before`, contact a broker, a database or a
+  catalog, or run a `!python` function. Importing a `!python` module runs its
+  top-level code, as `desflow run` does. Prints `ok FILE (sim_id ID)` for each
+  valid file and every error of an invalid one, and exits 1 if any file is
+  invalid.
+
+Arguments:
+  FILE...  The blueprint files.  [required]
+
+Options:
+  --var NAME=VALUE  Fill ${NAME} in the files and in the files they include,
+                    before the environment does. Repeat it for more.
+  --help            Show this message and exit.
+
+  Examples:
+
+    # Check one blueprint without running it
+
+    $ desflow check shop.yaml
+
+    # Check every blueprint in a folder, as a pre-commit hook does
+
+    $ desflow check examples/*.yaml
+```
+
+## `desflow test`
+
+```text
+Usage: desflow test [OPTIONS] {FILE...}
+
+  Run the tests of each file in FILE... and report the statistics that differ.
+
+  A test names a seed, an end time and the statistics its run must give, such as
+  tasks.pack_order.finished. It runs the model once, unpaced, with no ingress
+  and no egress, so a test contacts no service. A test states its measures at
+  one seed in one version of desflow: a new release may draw its random numbers
+  differently, so exact seeded values are not promised across versions. Run it
+  with --fix after an upgrade or a deliberate change and read the changes. A
+  builder file reads its tests from a tests.yaml in its folder.
+
+  Prints ok for each passing test, and each difference of a failing one. Exits 1
+  if any test fails.
+
+Arguments:
+  FILE...  The blueprint files, or builder files with a tests.yaml beside them.
+           [required]
+
+Options:
+  --fix             Write the statistics the runs gave into the expect values
+                    that differ, and into a test with none, instead of reporting
+                    differences. Read the changes before you keep them.
+  --var NAME=VALUE  Fill ${NAME} in a blueprint and in the files it includes,
+                    before the environment does. Repeat it for more.
+  --help            Show this message and exit.
+
+  Examples:
+
+    # Check the tests in a blueprint
+
+    $ desflow test shop.yaml
+
+    # Write the statistics the runs gave into the expect values, then read
+    them
+
+    $ desflow test shop.yaml --fix
 ```
 
 ## `desflow explain`

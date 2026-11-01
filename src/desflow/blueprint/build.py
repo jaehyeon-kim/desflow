@@ -5,25 +5,48 @@ script that make the same calls produce the same simulation.
 """
 
 import importlib
+import importlib.util
+import logging
 import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Tuple,
+    Union,
+)
 
 from pydantic import ValidationError
 
 from desflow.blueprint.loader import BlueprintError, SourceMap, read_document
-from desflow.blueprint.models import Blueprint, Run, SegmentEvery, unknown_key
+from desflow.blueprint.models import (
+    Blueprint,
+    BlueprintTest,
+    Run,
+    SegmentEvery,
+    TestsFile,
+    WhenExpr,
+    unknown_key,
+)
 from desflow.config import LABELS
 from desflow.connectors.egress.local import ConsoleEgress
-from desflow.core.expressions import Expression
+from desflow.core.expressions import Expression, Scope
 from desflow.core.flow import Wait
 from desflow.core.registry import ParamRejected
 from desflow.core.task import check_acquisition_order
 from desflow.core.context import SimulationContext
 from desflow.core.environment import in_zone, resolve_zone
 from desflow.utils import suggestion
+
+logger = logging.getLogger(__name__)
 
 # Short connector names, mapped to the module, the class and the extra that installs
 # what the module imports. Modules are imported only when a blueprint names them, so
@@ -80,7 +103,9 @@ class Preview:
 
 
 def build(
-    path: Union[str, Path], preview: Optional[Preview] = None
+    path: Union[str, Path],
+    preview: Optional[Preview] = None,
+    variables: Optional[Mapping[str, str]] = None,
 ) -> Tuple[SimulationContext, Run]:
     """Reads, validates and builds a blueprint file.
 
@@ -93,6 +118,8 @@ def build(
         path: The YAML file.
         preview: Replace the file's egress with a JSON console, and for a sample
             leave out its ingress; None builds the file as written.
+        variables: Values for `${NAME}` that are used before the environment, as
+            `desflow run --var NAME=VALUE` gives them.
 
     Returns:
         The built context, and the `run` section for whoever starts it.
@@ -100,7 +127,80 @@ def build(
     Raises:
         BlueprintError: If the file is invalid. The message names the file and line.
     """
-    data, source = read_document(path)
+    built = load_blueprint(path, preview, variables)
+    return built.context, built.run
+
+
+def check(
+    path: Union[str, Path], variables: Optional[Mapping[str, str]] = None
+) -> SimulationContext:
+    """Builds a blueprint as `desflow run` would, without running it, and checks the
+    extras that a run imports only when it starts writing.
+
+    It is `build` and one more check: a `Parquet` or `Jsonl` entry needs PyArrow,
+    which those connectors import when they write, so a missing `parquet` extra
+    would otherwise show only once the run has started.
+
+    Args:
+        path: The YAML file.
+        variables: Values for `${NAME}`, as for `build`.
+
+    Returns:
+        SimulationContext: The built context, which `desflow check` only reads.
+
+    Raises:
+        BlueprintError: If the file is invalid or an entry needs an extra that is
+            not installed. The message names the file and line.
+    """
+    built = load_blueprint(path, None, variables)
+    if importlib.util.find_spec("pyarrow") is None:
+        for index, entry in enumerate(built.blueprint.egress):
+            if entry.type in ("Parquet", "Jsonl"):
+                raise built.source.error(
+                    ("egress", index, "type"),
+                    f"egress type {entry.type} needs PyArrow, which is not installed. "
+                    f'Install the extra with pip install "desflow[parquet]"',
+                )
+    return built.context
+
+
+class Built(NamedTuple):
+    """A blueprint file after it is validated and built.
+
+    Attributes:
+        context: The built context, not yet run.
+        run: The `run` section.
+        blueprint: The validated file.
+        source: The lines of the file's keys, for messages that name a line.
+    """
+
+    context: SimulationContext
+    run: Run
+    blueprint: Blueprint
+    source: SourceMap
+
+
+def load_blueprint(
+    path: Union[str, Path],
+    preview: Optional[Preview] = None,
+    variables: Optional[Mapping[str, str]] = None,
+) -> Built:
+    """Reads, validates and builds a blueprint file, and keeps the validated file.
+
+    `build` and `check` call it, and `desflow test` reads the file's `tests` from it.
+
+    Args:
+        path: The YAML file.
+        preview: As for `build`.
+        variables: As for `build`.
+
+    Returns:
+        Built: The context, the `run` section, the blueprint and its source map.
+
+    Raises:
+        BlueprintError: If the file is invalid. The message names the file and line.
+    """
+    data, source = read_document(path, variables=variables)
     try:
         # One `now` for the whole file, so relative times agree with each other;
         # an instant, read in the run's zone
@@ -113,10 +213,35 @@ def build(
     context = _build_context(blueprint, source, preview)
     _check_scenario(blueprint, context, source)
     _check_registry_reads(blueprint, context, source)
-    return context, blueprint.run
+    _warn_on_paths(blueprint, context, source)
+    return Built(context, blueprint.run, blueprint, source)
 
 
-def _validation_error(exc: ValidationError, source: SourceMap) -> BlueprintError:
+def read_tests_file(
+    path: Union[str, Path], variables: Optional[Mapping[str, str]] = None
+) -> Tuple[List[BlueprintTest], SourceMap]:
+    """Reads the `tests.yaml` beside a builder file: a mapping with a `tests` list.
+
+    Args:
+        path: The file.
+        variables: Values for `${NAME}`, as for `build`.
+
+    Returns:
+        The tests, and the source map of the file's lines.
+
+    Raises:
+        BlueprintError: If the file is not valid. The message names the file and line.
+    """
+    data, source = read_document(path, variables=variables)
+    try:
+        return TestsFile.model_validate(data).tests, source
+    except ValidationError as exc:
+        raise _validation_error(exc, source, TestsFile) from None
+
+
+def _validation_error(
+    exc: ValidationError, source: SourceMap, model: Any = Blueprint
+) -> BlueprintError:
     """Lists every validation error, each with its line."""
     messages = []
     for error in exc.errors():
@@ -134,7 +259,7 @@ def _validation_error(exc: ValidationError, source: SourceMap) -> BlueprintError
         where = ".".join(str(part) for part in location) or "top level"
         text = error["msg"]
         if error["type"] == "extra_forbidden":
-            text = unknown_key(Blueprint, tuple(error["loc"]))
+            text = unknown_key(model, tuple(error["loc"]))
         messages.append(str(source.error(location, f"{where}: {text}")))
     return BlueprintError("\n".join(messages))
 
@@ -358,8 +483,7 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
 
     for index, egress in enumerate(blueprint.egress):
         if (
-            isinstance(egress.when, str)
-            and egress.when != LABELS
+            egress.when in ("history", "live")
             and blueprint.simulation.go_live_at is None
         ):
             raise source.error(
@@ -868,6 +992,7 @@ def _build_context(
                 when=LABELS if egress.when == LABELS else _when(egress.when, blueprint),
                 batch_size=egress.batch_size,
                 flush_interval=egress.flush_interval,
+                envelope=egress.envelope,
             )
     else:
         # The file's connectors are not constructed, so none of their modules is
@@ -982,6 +1107,7 @@ def _build_context(
             fail=task.fail,
             fail_reason=task.fail_reason,
             on_fail=task.on_fail,
+            key_field=task.key_field,
             spawn=(
                 None
                 if task.spawn is None
@@ -1068,6 +1194,54 @@ def _check_scenario(
             raise source.error(("scenario", index, "value"), exc.reason) from None
 
 
+def _warn_on_paths(
+    blueprint: Blueprint, context: SimulationContext, source: SourceMap
+) -> None:
+    """Warns about an `on:` entry whose `path` is not a registry path, or whose
+    `value` cannot become the type the path holds, at the entry's line.
+
+    It is a warning and not a refusal, because these entries load and run today: a
+    wrong path ends the run with `KeyError` when the entry first runs, and a value
+    the registry cannot convert is logged and ignored.
+    """
+    registry = context._scratch_registry()
+    owners = [("tasks", name, task.on) for name, task in blueprint.tasks.items()]
+    owners += [
+        ("signals", name, signal.on) for name, signal in blueprint.signals.items()
+    ]
+    for section, name, entries in owners:
+        for index, entry in enumerate(entries):
+            if entry.path is None:
+                continue
+            where = (section, name, "on", index)
+            try:
+                current = registry.get(entry.path).value
+            except KeyError:
+                logger.warning(
+                    "%s",
+                    source.error(
+                        (*where, "path"),
+                        f"'{entry.path}' is not a registry path, so this on: entry "
+                        f"ends the run with KeyError when it runs. Paths look like "
+                        f"{context.sim_id}.resources.<name>.current_cap",
+                    ),
+                )
+                continue
+            if current is not None and not isinstance(entry.value, type(current)):
+                try:
+                    type(current)(entry.value)
+                except (TypeError, ValueError):
+                    logger.warning(
+                        "%s",
+                        source.error(
+                            (*where, "value"),
+                            f"'{entry.path}' holds a value of type "
+                            f"{type(current).__name__}, and {entry.value!r} cannot "
+                            f"be converted to it, so the registry ignores this value",
+                        ),
+                    )
+
+
 def _check_registry_reads(
     blueprint: Blueprint, context: SimulationContext, source: SourceMap
 ) -> None:
@@ -1124,17 +1298,33 @@ def _preview_predicate(
 
 
 def _when(
-    when: Union[str, Callable[[dict], bool], None], blueprint: Blueprint
+    when: Union[str, WhenExpr, Callable[[dict], bool], None], blueprint: Blueprint
 ) -> Optional[Callable[[dict], bool]]:
-    """The egress predicate: a `!python` function, or one for `history` or `live`.
+    """The egress predicate: a `!python` function, or one for a name or an expression.
 
-    Each record's timestamp is read as a time and compared with the go-live
-    instant, so the offset of each, which a daylight-saving change can alter during
-    a run, is taken into account. A go-live instant without an offset is read in
-    the run's zone, as the environment reads it.
+    `history` and `live` read each record's timestamp as a time and compare it with
+    the go-live instant, so the offset of each, which a daylight-saving change can
+    alter during a run, is taken into account. A go-live instant without an offset
+    is read in the run's zone, as the environment reads it. `events` and `telemetry`
+    compare the record's `stream_type`. `{expr: ...}` evaluates its expression on
+    each record, and a failure of it stops the run.
     """
+    if isinstance(when, WhenExpr):
+        expression = Expression(when.expr, records=True)
+
+        def matches(record: dict) -> bool:
+            try:
+                return bool(expression.evaluate(Scope(record=record)))
+            except ValueError as exc:
+                raise ValueError(f"egress when: {exc}") from None
+
+        return matches
     if not isinstance(when, str):
         return when
+    if when == "events":
+        return lambda record: record["stream_type"] == "event"
+    if when == "telemetry":
+        return lambda record: record["stream_type"] == "telemetry"
 
     simulation = blueprint.simulation
     assert simulation.go_live_at is not None  # checked in _check_references
@@ -1215,7 +1405,7 @@ def _instantiate(
 ) -> Any:
     try:
         return cls(**config)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, ImportError, OSError) as exc:
         raise source.error(
             location + ("config",), f"{cls.__name__} rejected its config: {exc}"
         ) from None

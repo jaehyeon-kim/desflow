@@ -94,6 +94,18 @@ class FakeCatalog:
             self.tables[identifier] = FakeTable(identifier, schema, location)
         return self.tables[identifier]
 
+    def table_exists(self, identifier):
+        return identifier in self.tables
+
+    def drop_table(self, identifier):
+        self.dropped = getattr(self, "dropped", []) + [identifier]
+        del self.tables[identifier]
+
+    def load_table(self, identifier):
+        if identifier not in self.tables:
+            raise KeyError(f"no table {identifier}")
+        return self.tables[identifier]
+
 
 def test_requires_a_destination():
     """Without a table or a router the connector has nowhere to write."""
@@ -289,16 +301,40 @@ def test_upsert_keeps_the_last_record_per_key_in_a_flush():
 
 
 @needs_upsert
-def test_upsert_record_without_its_key_raises():
-    """A record with no key cannot be matched, so it is refused rather than duplicated on every rerun."""
+def test_upsert_record_without_its_key_is_skipped_with_a_warning(caplog):
+    """A record with none of its table's key columns cannot be matched, so a keyed
+    entry skips it, and one warning at the end of the flush gives the count. The
+    record that has its key is still upserted. Before 1.0.0 the first record stopped
+    the whole batch with a ValueError."""
+    catalog = FakeCatalog()
     egress = IcebergStorageEgress(
-        catalog=FakeCatalog(),
+        catalog=catalog,
         default_table="sim.orders",
         upsert_keys={"sim.orders": ["order_id"]},
     )
 
-    with pytest.raises(ValueError, match="order_id"):
-        egress._write_batch([{"status": "new"}], pa)
+    egress._write_batch(
+        [{"status": "new"}, {"order_id": 1, "status": "new"}, {"status": "old"}], pa
+    )
+
+    df, join_cols = catalog.tables["sim.orders"].upserted[0]
+    assert df.to_pylist() == [{"order_id": 1, "status": "new"}]
+    [warning] = [r for r in caplog.records if "skipped records" in r.getMessage()]
+    assert "2 had none of the key columns of their table" in warning.getMessage()
+
+
+@needs_upsert
+def test_upsert_record_with_part_of_a_composite_key_still_raises():
+    """The skip is for a record with none of the key columns. One that has some of
+    them is a mistake in the model, and still stops the batch."""
+    egress = IcebergStorageEgress(
+        catalog=FakeCatalog(),
+        default_table="sim.orders",
+        upsert_keys={"sim.orders": ["order_id", "line"]},
+    )
+
+    with pytest.raises(ValueError, match="line"):
+        egress._write_batch([{"order_id": 1, "status": "new"}], pa)
 
 
 def test_upsert_keys_on_a_pyiceberg_without_upsert_fails_at_construction(monkeypatch):
@@ -509,20 +545,20 @@ def test_unknown_type_name_is_refused_at_construction():
 
 
 def test_reserved_keys_are_dropped(caplog):
-    """An Iceberg table gets no column for a reserved payload key."""
+    """An Iceberg table gets no column for a reserved payload key it does not route by."""
     catalog = FakeCatalog()
     egress = IcebergStorageEgress(catalog=catalog, default_table="sim.events")
     event = {
         "stream_type": "event",
         "key": "orders-1",
-        "value": {"__table__": "t", "n": 1},
+        "value": {"__stream__": "t", "n": 1},
     }
 
     egress._write_batch([event], pa)
 
     rows = catalog.tables["sim.events"].appended[0].to_pylist()
     assert rows == [{"stream_type": "event", "key": "orders-1", "n": 1}]
-    assert "IcebergStorageEgress drops the payload key '__table__'" in caplog.text
+    assert "IcebergStorageEgress drops the payload key '__stream__'" in caplog.text
 
 
 def test_an_inferred_table_has_every_column_and_gains_new_ones():
@@ -608,3 +644,177 @@ def test_the_shut_down_message_counts_only_batches_committed(caplog):
     with caplog.at_level("INFO"):
         asyncio.run(drain())
     assert "Successfully committed 2 total snapshots" in caplog.text
+
+
+def _event(value, key="orders-1"):
+    return {"stream_type": "event", "key": key, "value": value}
+
+
+def test_table_field_routes_and_is_removed():
+    """`__table__` in an event's value is the table it is written to, and the column
+    is not written. A record without it goes to `default_table`."""
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(catalog=catalog, default_table="sim.rest")
+
+    egress._write_batch(
+        [
+            _event({"__table__": "sim.orders", "n": 1}),
+            _event({"__table__": "sim.items", "n": 2}),
+            _event({"n": 3}),
+        ],
+        pa,
+    )
+
+    assert sorted(catalog.tables) == ["sim.items", "sim.orders", "sim.rest"]
+    assert catalog.tables["sim.orders"].appended[0].to_pylist() == [
+        {"stream_type": "event", "key": "orders-1", "n": 1}
+    ]
+    assert "__table__" not in catalog.tables["sim.items"].appended[0].column_names
+
+
+def test_table_router_wins_over_the_table_field():
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(catalog=catalog, table_router=lambda d: "sim.routed")
+
+    egress._write_batch([_event({"__table__": "sim.other", "n": 1})], pa)
+
+    assert list(catalog.tables) == ["sim.routed"]
+    assert catalog.tables["sim.routed"].appended[0].column_names == [
+        "stream_type",
+        "key",
+        "value",
+    ]
+
+
+@needs_upsert
+def test_an_entry_that_names_its_tables_routes_by_the_table_field_alone(caplog):
+    """With tables in `upsert_keys` and no default table, `__table__` is the only
+    destination. A record without it is skipped and counted, and each table is
+    upserted on its own keys."""
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(
+        catalog=catalog,
+        upsert_keys={"air.obs": ["station", "at"], "air.day": ["day"]},
+    )
+
+    egress._write_batch(
+        [
+            _event({"__table__": "air.obs", "station": "s", "at": 1, "pm": 2}),
+            _event({"__table__": "air.day", "day": "d1"}),
+            _event({"__table__": "air.day", "pm": 9}),
+            _event({"pm": 3}),
+            {"stream_type": "telemetry", "path_id": "p", "value": 1},
+        ],
+        pa,
+    )
+
+    assert catalog.tables["air.obs"].upserted[0][1] == ["station", "at"]
+    assert catalog.tables["air.day"].upserted[0][0].to_pylist() == [
+        {"stream_type": "event", "key": "orders-1", "day": "d1"}
+    ]
+    [warning] = [r for r in caplog.records if "skipped records" in r.getMessage()]
+    assert "had no __table__" in warning.getMessage()
+    assert "1 had none of the key columns" in warning.getMessage()
+
+
+def test_an_entry_without_any_destination_is_refused():
+    with pytest.raises(
+        ValueError, match="default_table or table_router, or tables named"
+    ):
+        IcebergStorageEgress(catalog=FakeCatalog())
+
+
+def test_table_policy_create_makes_the_namespace_and_the_table():
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(catalog=catalog, default_table="sim.t")
+
+    egress._write_batch([_event({"n": 1})], pa)
+
+    assert catalog.namespaces == ["sim"]
+    assert egress.table_policy == "create"
+    assert len(catalog.create_calls) == 1
+
+
+def test_table_policy_drop_and_create_drops_an_existing_table_once():
+    catalog = FakeCatalog()
+    catalog.tables["sim.t"] = FakeTable(
+        "sim.t", pa.schema([("old", pa.string())]), None
+    )
+    egress = IcebergStorageEgress(
+        catalog=catalog, default_table="sim.t", table_policy="drop_and_create"
+    )
+
+    egress._write_batch([_event({"n": 1})], pa)
+    egress._write_batch([_event({"n": 2})], pa)
+
+    assert catalog.dropped == ["sim.t"]
+    table = catalog.tables["sim.t"]
+    assert "old" not in table.schema().as_arrow().names
+    assert len(table.appended) == 2
+
+
+def test_table_policy_manual_creates_nothing_and_needs_the_table(caplog):
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(
+        catalog=catalog, default_table="sim.t", table_policy="manual"
+    )
+
+    egress._write_batch([_event({"n": 1})], pa)
+
+    assert catalog.namespaces == [] and catalog.create_calls == []
+    assert "no table sim.t" in caplog.text
+    catalog.tables["sim.t"] = FakeTable(
+        "sim.t", pa.schema([("n", pa.int64()), ("stream_type", pa.string())]), None
+    )
+    egress._write_batch([_event({"n": 1})], pa)
+    assert len(catalog.tables["sim.t"].appended) == 1
+    assert catalog.create_calls == []
+
+
+def test_table_policy_refuses_an_unknown_word():
+    with pytest.raises(ValueError, match="table_policy 'always' is not one of"):
+        IcebergStorageEgress(
+            catalog=FakeCatalog(), default_table="sim.t", table_policy="always"
+        )
+
+
+def test_envelope_false_writes_the_value_as_the_row(caplog):
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(catalog=catalog, default_table="sim.t")
+    egress.envelope = False
+
+    egress._write_batch(
+        [_event({"n": 1}), _event("text"), _event({"__table__": "sim.u", "n": 2})], pa
+    )
+
+    assert catalog.tables["sim.t"].appended[0].to_pylist() == [{"n": 1}]
+    assert catalog.tables["sim.u"].appended[0].to_pylist() == [{"n": 2}]
+    assert "1 had a value that is not a mapping" in caplog.text
+
+
+def test_envelope_false_leaves_a_label_record_whole():
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(catalog=catalog, default_table="sim.t")
+    egress.envelope = False
+
+    egress._write_batch(
+        [{"stream_type": "label", "key": "k", "sim_ts": 1.0, "value": {"fault": "x"}}],
+        pa,
+    )
+
+    [row] = catalog.tables["sim.t"].appended[0].to_pylist()
+    assert row["stream_type"] == "label" and row["fault"] == "x"
+
+
+def test_a_schemas_only_entry_counts_an_event_with_no_table(caplog):
+    """An entry with `schemas` and no default or router has no destination for an
+    event without `__table__`; it is counted in the warning, not dropped silently."""
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(
+        catalog=catalog, schemas={"sim.t": pa.schema([("n", pa.int64())])}
+    )
+
+    egress._write_batch([_event({"n": 1}), _event({"__table__": "sim.t", "n": 2})], pa)
+
+    assert catalog.tables["sim.t"].appended[0].to_pylist() == [{"n": 2}]
+    assert "1 had no __table__" in caplog.text

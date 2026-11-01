@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import queue
+from collections import Counter
 from collections.abc import Mapping
 from typing import Any, Callable, Dict, Optional
 
@@ -8,12 +9,15 @@ from desflow.connectors.egress.base import (
     BaseEgress,
     drop_reserved_keys,
     group_rows,
+    warn_skipped,
     parse_iso_columns,
     rows_table,
 )
 
 logger = logging.getLogger(__name__)
 
+
+TABLE_POLICIES = ("create", "drop_and_create", "manual")
 
 # Iceberg's primitive type names, as accepted in a `schemas` mapping, and the
 # PyArrow type each one is created with.
@@ -119,6 +123,14 @@ class IcebergStorageEgress(BaseEgress):
     flush is still one commit, but it can add up to three snapshots: an overwrite
     and two appends.
 
+    An event whose `value` holds `__table__`, a `namespace.table` identifier, is written
+    to that table, and the key is removed from the row. This replaces a
+    `table_router` for the common case. A `table_router` wins over `__table__`, and a
+    record with no `__table__` goes to `default_table`. An entry with `upsert_keys` is
+    keyed. It skips a record that has no destination, and a record that has none of its
+    table's key columns, and it logs one warning at the end of each flush with the
+    counts skipped. Before 1.0.0 such a record stopped the batch with an error.
+
     The catalog is supplied by the caller, either as a built `Catalog` or as a
     mapping of PyIceberg catalog properties that is passed to `load_catalog`. The
     supported catalogs, which the `iceberg` extra installs, each with the test that
@@ -196,6 +208,7 @@ class IcebergStorageEgress(BaseEgress):
         schemas: Optional[Dict[str, Any]] = None,
         locations: Optional[Dict[str, str]] = None,
         upsert_keys: Optional[Dict[str, list]] = None,
+        table_policy: str = "create",
     ):
         """
         Initializes the IcebergStorageEgress with a catalog and routing settings.
@@ -221,19 +234,37 @@ class IcebergStorageEgress(BaseEgress):
                 `unique-table-location` set otherwise appends a random suffix.
             upsert_keys: Optional key columns per table identifier. A table named
                 here is written with `upsert` on those columns; any other table is
-                appended to.
+                appended to. An entry with `upsert_keys` is keyed: it skips a record
+                that has no destination (no `__table__`, no router and no
+                `default_table`), and a record that has none of its table's key
+                columns, and warns once at the end of each flush with the counts.
+            table_policy: What the sink does about a table at its first write.
+                `create`, the default, creates the namespace and the table when they
+                do not exist. `drop_and_create` drops the table if it exists and
+                creates it again, once per run. `manual` creates nothing and fails
+                the write if the table does not exist.
 
         Raises:
-            ValueError: If neither `default_table` nor `table_router` is given, since
-                the connector would then have nowhere to write.
+            ValueError: If `table_policy` is not one of its three words, or if none
+                of `default_table`, `table_router`, `schemas`, `locations` and
+                `upsert_keys` is given, since the connector would then have nowhere
+                to write.
             ImportError: If `upsert_keys` is given and the installed pyiceberg is
                 older than 0.9.0, which added `Table.upsert`.
         """
-        if default_table is None and table_router is None:
+        if table_policy not in TABLE_POLICIES:
             raise ValueError(
-                "IcebergStorageEgress needs default_table or table_router; "
-                "without one it has no table to write to"
+                f"table_policy '{table_policy}' is not one of {', '.join(TABLE_POLICIES)}"
             )
+        # An entry that names its tables routes by `__table__` alone
+        names_tables = bool(schemas or locations or upsert_keys)
+        if default_table is None and table_router is None and not names_tables:
+            raise ValueError(
+                "IcebergStorageEgress needs default_table or table_router, or "
+                "tables named in schemas, locations or upsert_keys to route "
+                "__table__ to; without one it has no table to write to"
+            )
+        self.table_policy = table_policy
         # A mapping of properties is loaded on the first write rather than here,
         # because a REST catalog contacts its server as soon as it is built.
         self.catalog_properties: Optional[Dict[str, Any]] = None
@@ -352,35 +383,57 @@ class IcebergStorageEgress(BaseEgress):
                 upserted table lacks a key column. A batch the table refuses is
                 logged at ERROR instead.
         """
-        # A table routes by no reserved key, so it writes none
-        batch = drop_reserved_keys(batch, self)
-        grouped_batches = group_rows(batch, self.table_router, self.default_table)
+        # A table routes by __table__, and writes no other reserved key
+        batch = drop_reserved_keys(batch, self, keep=("__table__",))
+        skipped: Counter = Counter()
+        grouped_batches = group_rows(
+            batch,
+            self.table_router,
+            self.default_table,
+            self.envelope,
+            route_key="__table__",
+            require_route=self.default_table is None and self.table_router is None,
+            skipped=skipped,
+        )
 
         written = 0
-        for identifier, records in grouped_batches.items():
-            if "." not in identifier:
-                raise ValueError(
-                    f"'{identifier}' names no namespace; Iceberg identifiers are "
-                    "'namespace.table'"
-                )
-            keys = self.upsert_keys.get(identifier)
-            if keys:
-                missing = sorted({k for r in records for k in keys if r.get(k) is None})
-                if missing:
-                    # A null key never matches, so a rerun would insert the record again.
+        try:
+            for identifier, records in grouped_batches.items():
+                if "." not in identifier:
                     raise ValueError(
-                        f"Records for {identifier} lack the upsert key column(s) {missing}"
+                        f"'{identifier}' names no namespace; Iceberg identifiers are "
+                        "'namespace.table'"
                     )
-            try:
-                self._write_table(identifier, records, keys, pa)
-            except Exception as exc:
-                # One batch the table refuses does not stop the sink
-                logger.error(
-                    f"Iceberg Writer: could not write {len(records)} rows to "
-                    f"{identifier}: {exc}"
-                )
-                continue
-            written += 1
+                keys = self.upsert_keys.get(identifier)
+                if keys:
+                    # A record with none of the key columns is skipped
+                    kept = [
+                        r for r in records if any(r.get(k) is not None for k in keys)
+                    ]
+                    skipped["no_key"] += len(records) - len(kept)
+                    records = kept
+                    if not records:
+                        continue
+                    missing = sorted(
+                        {k for r in records for k in keys if r.get(k) is None}
+                    )
+                    if missing:
+                        # A null key never matches, so a rerun would insert the record again.
+                        raise ValueError(
+                            f"Records for {identifier} lack the upsert key column(s) {missing}"
+                        )
+                try:
+                    self._write_table(identifier, records, keys, pa)
+                except Exception as exc:
+                    # One batch the table refuses does not stop the sink
+                    logger.error(
+                        f"Iceberg Writer: could not write {len(records)} rows to "
+                        f"{identifier}: {exc}"
+                    )
+                    continue
+                written += 1
+        finally:
+            warn_skipped(self, skipped, "__table__")
         return written
 
     def _write_table(
@@ -418,7 +471,9 @@ class IcebergStorageEgress(BaseEgress):
         The schema comes from `schemas` when the caller pinned one, and from every
         row of this first batch otherwise. Either way the created table's own schema
         becomes the cast target for later batches, so a table that already existed
-        governs rather than the records that happen to arrive first.
+        governs rather than the records that happen to arrive first. `table_policy`
+        decides whether the namespace and table are created (`create`), the table is
+        dropped first (`drop_and_create`), or the table must exist (`manual`).
 
         Args:
             identifier (str): A `namespace.table` identifier.
@@ -443,10 +498,17 @@ class IcebergStorageEgress(BaseEgress):
                 [field for field in inferred if not pa.types.is_null(field.type)]
             )
         catalog = self._load_catalog()
-        catalog.create_namespace_if_not_exists(namespace)
-        table = catalog.create_table_if_not_exists(
-            identifier, schema=schema, location=self.locations.get(identifier)
-        )
+        if self.table_policy == "manual":
+            table = catalog.load_table(identifier)
+        else:
+            catalog.create_namespace_if_not_exists(namespace)
+            if self.table_policy == "drop_and_create" and catalog.table_exists(
+                identifier
+            ):
+                catalog.drop_table(identifier)
+            table = catalog.create_table_if_not_exists(
+                identifier, schema=schema, location=self.locations.get(identifier)
+            )
 
         # Read the cast target back from the table rather than trusting what was sent,
         # because a table that already existed keeps the schema it was created with.

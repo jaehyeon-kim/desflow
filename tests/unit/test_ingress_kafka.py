@@ -59,6 +59,13 @@ def test_missing_schema_format_dependencies(hidden, extra, build):
             build()
 
 
+@pytest.fixture(autouse=True)
+def mock_admin():
+    """Keeps the control topic's creation at start from reaching for a broker."""
+    with patch("desflow.connectors.ingress.kafka.KafkaAdminConnector") as admin:
+        yield admin
+
+
 @pytest.mark.asyncio
 @patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
 async def test_kafka_ingress_pluggable_deserializers(MockConsumer):
@@ -241,3 +248,79 @@ async def test_kafka_ingress_skips_a_payload_that_is_not_glue_framed(
     assert len(skipped) == 1
     assert skipped[0].startswith("Skipped a Kafka ingress message")
     assert "Invalid header version byte" in skipped[0]
+
+
+def test_topic_policy_creates_the_control_topic(mock_admin):
+    """`create`, the default, asks for the control topic by name. A mapping gives
+    it its settings, `drop_and_create` deletes it first, and `manual` touches
+    nothing. The consumer's security settings reach the admin client."""
+    from desflow.connectors.ingress.kafka import KafkaIngress
+
+    KafkaIngress(
+        "cfg", "b:9092", security_protocol="SSL", fetch_max_bytes=5
+    )._create_topic()
+
+    mock_admin.assert_called_once_with(
+        bootstrap_servers="b:9092", security_protocol="SSL"
+    )
+    mock_admin.return_value.create_topics.assert_called_once_with(
+        topics_config=[{"name": "cfg"}]
+    )
+
+    mock_admin.reset_mock()
+    KafkaIngress(
+        "cfg",
+        "b:9092",
+        topic_policy={
+            "mode": "drop_and_create",
+            "partitions": 3,
+            "topic_configs": {"a": 1},
+        },
+    )._create_topic()
+    mock_admin.return_value.drop_topics.assert_called_once_with(["cfg"])
+    mock_admin.return_value.create_topics.assert_called_once_with(
+        topics_config=[{"name": "cfg", "partitions": 3, "topic_configs": {"a": "1"}}]
+    )
+
+    mock_admin.reset_mock()
+    KafkaIngress("cfg", "b:9092", topic_policy="manual")._create_topic()
+    mock_admin.return_value.create_topics.assert_not_called()
+    mock_admin.return_value.drop_topics.assert_not_called()
+
+
+def test_topic_policy_refuses_a_wrong_word_at_construction():
+    from desflow.connectors.ingress.kafka import KafkaIngress
+
+    with pytest.raises(ValueError, match="mode 'never' is not one of"):
+        KafkaIngress("cfg", "b:9092", topic_policy="never")
+
+
+def test_ssl_and_token_provider_reach_the_consumer_settings():
+    """`ssl` and `sasl_oauth_token_provider` are built as the Kafka egress builds
+    them and passed on to the consumer."""
+    import types
+    import sys
+
+    from desflow.connectors.ingress.kafka import KafkaIngress
+
+    with patch("aiokafka.helpers.create_ssl_context", return_value="CONTEXT") as create:
+        ingress = KafkaIngress("cfg", "b:9092", ssl={"cafile": "ca.pem"})
+    create.assert_called_once_with(cafile="ca.pem")
+    assert ingress.kwargs["ssl_context"] == "CONTEXT"
+
+    signer = types.ModuleType("aws_msk_iam_sasl_signer")
+    signer.MSKAuthTokenProvider = MagicMock()
+    with patch.dict(sys.modules, {"aws_msk_iam_sasl_signer": signer}):
+        ingress = KafkaIngress(
+            "cfg",
+            "b:9092",
+            sasl_oauth_token_provider={"type": "aws_msk_iam", "region": "eu-west-1"},
+        )
+    assert hasattr(ingress.kwargs["sasl_oauth_token_provider"], "token")
+    with patch.dict(sys.modules, {"aws_msk_iam_sasl_signer": None}):
+        with pytest.raises(ImportError, match="aws-msk-iam-sasl-signer-python"):
+            KafkaIngress(
+                "cfg",
+                "b:9092",
+                sasl_oauth_token_provider={"type": "aws_msk_iam", "region": "r"},
+            )

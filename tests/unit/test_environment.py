@@ -1256,3 +1256,41 @@ def test_a_source_queue_can_be_copied():
     copied.put(("Shop.variables.x", 1))
 
     assert shared.get_nowait() == ("Shop.variables.x", 1, "LocalIngress")
+
+
+def test_envelope_false_provider_skips_telemetry_and_lifecycle_records(caplog):
+    """A provider set up with `envelopes=[False]` receives only the events a task
+    finishes, with the key `key=` gives. A provider with the envelope receives
+    everything. A label record goes only to a labels provider, envelope or not."""
+    env = DynamicRealtimeEnvironment(strict=False)
+    full, plain, labels = TrackingEgress(), TrackingEgress(), TrackingEgress()
+    with caplog.at_level(logging.INFO, logger="desflow.core.environment"):
+        env.setup_egress(
+            providers=[full, plain, labels],
+            batch_size=100,
+            labels=[False, False, True],
+            envelopes=[True, False, False],
+        )
+
+    env.publish_telemetry("metric", 1.0)
+    env.publish_event("orders-1", {"status": "queued"}, "pack", 1, lifecycle=True)
+    env.publish_event("orders-1", {"packed": True}, "pack", 1, key="o-77")
+    env.publish_label({"fault": "slow"})
+    env.teardown()
+
+    def shown(provider):
+        return [
+            (r["stream_type"], r.get("key"))
+            for batch in provider.received_batches
+            for r in batch
+        ]
+
+    assert shown(full) == [
+        ("telemetry", None),
+        ("event", "orders-1"),
+        ("event", "o-77"),
+    ]
+    assert shown(plain) == [("event", "o-77")]
+    assert shown(labels) == [("label", None)]
+    assert plain.envelope is False and full.envelope is True
+    assert "TrackingEgress has envelope: false" in caplog.text

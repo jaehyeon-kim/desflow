@@ -22,7 +22,7 @@
 
 gaps:
   V1:
-    text: "A service time computed from the entity, an item, shared state or the time has no key."
+    text: "A service time computed from the entity, an item, shared state or the time has no YAML key. The Builder's `service_time=` takes a function of the entity."
     form: computed
   V2:
     text: "A `wait` timeout computed for each entity has no key."
@@ -31,9 +31,6 @@ gaps:
     text: "A computed value in `set`, `payload`, `on:`, an interrupt cause, a timeout value or a put item has no key; text is kept as text."
     form: computed
     fixed: 0.31.0
-  V6:
-    text: "A Builder filter receives the item, not the entity. A task function that starts a generator whose filter reads the entity gives SimPy's behaviour."
-    fixed: 0.32.0
   V7:
     text: "An expression cannot read a name deeper than two parts, the upstream payload in `next`, an interrupt or preemption cause, which requests hold a resource, or the priority of an item taken."
     form: computed
@@ -59,7 +56,7 @@ gaps:
     text: "A flow cannot turn one source off and on."
     form: arrivals
   A7:
-    text: "Splitting into a drawn number of entities, and children that inherit attributes, have no key."
+    text: "Splitting into a drawn number of entities, and children that inherit attributes, have no YAML key. A Builder `spawn` takes a `count`, a number or a function of the entity, and no attributes are inherited."
     form: arrivals
   H1:
     text: "A priority or preemptive unit cannot be held across a drawn or computed step, or across several later steps, by keys alone."
@@ -83,7 +80,7 @@ gaps:
     text: "A process cannot suspend until another process resumes it."
     form: computed
   I6:
-    text: "Going on after a renege or a balk has no direct form; a child flow that does it reports `ok: true` and no value, as a SimPy child that returns without a value does."
+    text: "Going on after a renege or a balk has no YAML key, and the Builder's `on_renege` and `on_balk` do it; a child flow that does it reports `ok: true` and no value, as a SimPy child that returns without a value does."
     form: computed
   I10:
     text: "After an interrupt, a task under `on_interrupt: resume` asks again: a `wait: {timeout: 5}` interrupted at 2 starts again and ends at 7, a timeout inside `any` starts again, and a queued request or a `get` goes to the back of its queue, so another waiter takes the unit or the item first. A SimPy process that yields the same event again keeps the first end of the timeout and its place in the queue."
@@ -92,19 +89,13 @@ gaps:
     text: "A losing timeout branch is dropped when an `any` wait ends; SimPy can yield the same `Timeout` again."
     form: computed
     fixed: 0.31.0
-  L1:
-    text: "The Low-level stores and containers lack `put_queue`, `get_queue`, `PutQueue` and `GetQueue`, `DynamicResource` lacks `put` and `get`, and requests, stores and containers are not instances of SimPy's classes."
-    fixed: 0.32.0
-  L2:
-    text: "`DynamicStore.items` has no setter."
-    fixed: 0.32.0
   M1:
     text: "Readings at each change of a resource, and an event trace, need a `!python` resource type or environment."
     key: "`type: !python` on the resource, or `simulation.environment: !python`"
   M2:
     text: "A Builder `on=` refuses a callable. A generator started with `add_process` can add a function to an event's callbacks."
   M3:
-    text: "`on_fail` needs a `fail` condition, so a failed wait is handled only with a dummy condition."
+    text: "In YAML, `on_fail` needs a `fail` condition, so a failed wait is handled only with a dummy condition. The Builder's `on_fail` takes none."
     form: computed
   M4:
     text: "Several entities cannot start at one instant, in creation order, before any of them runs."
@@ -223,13 +214,13 @@ constructs:
   - {id: SP-T1, area: Stores, simpy: "`Store.put(item)`", gaps: [V12, V3]}
   - {id: SP-T2, area: Stores, simpy: "`Store.get()`"}
   - {id: SP-T3, area: Stores, simpy: "One waiting get is granted per put at one time"}
-  - {id: SP-T4, area: Stores, simpy: "A store that starts with items", gaps: [L2]}
+  - {id: SP-T4, area: Stores, simpy: "A store that starts with items"}
   - {id: SP-T5, area: Stores, simpy: "`Store.items`"}
   - {id: SP-T6, area: Stores, simpy: "Capacity defaults to infinity"}
   - {id: SP-T7, area: Stores, simpy: "`PriorityStore` and `PriorityItem`", gaps: [V7]}
   - {id: SP-T8, area: Stores, simpy: "Priorities of any orderable type"}
-  - {id: SP-T9, area: Stores, simpy: "`FilterStore.get(filter)`", gaps: [V6, V12]}
-  - {id: SP-B2, area: Stores, simpy: "`put_queue` and `get_queue`", gaps: [L1]}
+  - {id: SP-T9, area: Stores, simpy: "`FilterStore.get(filter)`", gaps: [V12]}
+  - {id: SP-B2, area: Stores, simpy: "`put_queue` and `get_queue`"}
   - {id: SP-B3, area: Stores, simpy: "`Put` and `Get` as context managers, and `cancel()`"}
   - {id: SP-B4, area: Stores, simpy: "Grant rules: waiting gets and puts are tried in queue order"}
   - {id: SP-B5, area: Stores, simpy: "A custom store or container with `_do_put` and `_do_get`"}

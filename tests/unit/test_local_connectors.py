@@ -259,3 +259,32 @@ async def test_file_ingress_skips_a_null_value_with_a_warning(tmp_path, caplog):
     await _watch(FileIngress(path, poll=0.01), steps)
     assert caplog.text.count("Skipped an entry of the ingress file") == 1
     assert "non-null value" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_console_envelope_false_prints_the_value_alone(capsys):
+    """With `envelope` off the json format writes each event's value and nothing
+    else, and a label record stays whole."""
+    import orjson
+
+    egress_queue = queue.Queue()
+    provider = ConsoleEgress(format="json")
+    provider.envelope = False
+    egress_queue.put(
+        [
+            {"stream_type": "event", "key": "o-1", "value": {"n": 2}},
+            {"stream_type": "label", "path_id": "x", "value": 1},
+        ]
+    )
+    task = asyncio.create_task(provider.run(egress_queue))
+    await asyncio.sleep(0.05)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    lines = capsys.readouterr().out.splitlines()
+    assert [orjson.loads(line) for line in lines] == [
+        {"n": 2},
+        {"stream_type": "label", "path_id": "x", "value": 1},
+    ]

@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 import logging
 import queue
@@ -9,12 +10,20 @@ from functools import partial
 from typing import Any, Callable, Dict, Optional, Protocol, Tuple, Union
 
 from aiokafka import AIOKafkaConsumer
+from aiokafka.admin import AIOKafkaAdminClient
 
 from desflow.connectors._schema_registry.unset import UNSET
 from desflow.connectors._schema_registry.errors import (  # noqa: F401
     SchemaRegistryError,
     SerializationError,
 )
+from desflow.connectors.admin.kafka import (
+    KafkaAdminConnector,
+    apply_topic_policies,
+    build_ssl_context,
+    build_token_provider,
+)
+from desflow.connectors.admin.kafka import topic_policy as read_topic_policy
 from desflow.connectors.ingress.base import BaseIngress, parse_change
 
 logger = logging.getLogger(__name__)
@@ -802,6 +811,9 @@ class KafkaIngress(BaseIngress):
         bootstrap_servers: str,
         topic_deserializers: Optional[Dict[str, MessageDeserializer]] = None,
         default_deserializer: Optional[MessageDeserializer] = None,
+        topic_policy: Any = None,
+        ssl: Optional[Dict[str, Any]] = None,
+        sasl_oauth_token_provider: Any = None,
         **kwargs: Any,
     ):
         """
@@ -812,7 +824,26 @@ class KafkaIngress(BaseIngress):
             bootstrap_servers: Kafka broker address or list of addresses.
             topic_deserializers: Mapping of topics to their specific deserializers.
             default_deserializer: Fallback deserializer if the topic isn't explicitly mapped.
+            topic_policy: How the control topic is treated before the run: a mode word
+                (`create`, `drop_and_create` or `manual`) or a mapping of `mode`,
+                `partitions`, `replication_factor` and `topic_configs`. `create`,
+                the default, creates the topic when it is missing, so a consumer
+                started before any producer does not wait for a topic that is not
+                there. `drop_and_create` deletes it and creates it again, and
+                `manual` creates nothing.
+            ssl: The keys `cafile`, `certfile`, `keyfile` and `password`, passed to
+                `aiokafka.helpers.create_ssl_context`. The result is the consumer's
+                `ssl_context`; set `security_protocol` to `SSL` or `SASL_SSL` as well.
+            sasl_oauth_token_provider: `{type: aws_msk_iam, region: <region>}` builds
+                the token provider for Amazon MSK IAM, which needs the package
+                `aws-msk-iam-sasl-signer-python`; a token provider object is used as
+                it is.
             **kwargs: Arbitrary keyword arguments passed to the underlying AIOKafkaConsumer.
+
+        Raises:
+            ValueError: If `topic_policy`, `ssl` or the token provider is malformed.
+            ImportError: If `sasl_oauth_token_provider` asks for `aws_msk_iam` and
+                `aws-msk-iam-sasl-signer-python` is not installed.
         """
         self.topic = topic
         self.bootstrap_servers = bootstrap_servers
@@ -820,7 +851,39 @@ class KafkaIngress(BaseIngress):
         self.topic_deserializers = topic_deserializers or {}
         self.default_deserializer = default_deserializer or JsonDeserializer()
 
+        self.topic_policy = read_topic_policy(topic_policy)
+        if ssl is not None:
+            kwargs["ssl_context"] = build_ssl_context(ssl)
+        if sasl_oauth_token_provider is not None:
+            kwargs["sasl_oauth_token_provider"] = build_token_provider(
+                sasl_oauth_token_provider
+            )
+
         self.kwargs = kwargs
+
+    def _create_topic(self) -> None:
+        """
+        Creates, recreates or leaves alone the control topic, as `topic_policy` says.
+
+        The consumer settings the admin client also understands, such as the security
+        settings, are passed on to it. A failure is logged rather than raised,
+        because the consumer loop that follows retries the connection itself.
+        """
+        accepted = inspect.signature(AIOKafkaAdminClient.__init__).parameters
+        admin_settings = {
+            key: value
+            for key, value in self.kwargs.items()
+            if key in accepted and key not in ("bootstrap_servers", "client_id")
+        }
+        try:
+            apply_topic_policies(
+                KafkaAdminConnector(
+                    bootstrap_servers=self.bootstrap_servers, **admin_settings
+                ),
+                {self.topic: self.topic_policy},
+            )
+        except Exception as e:
+            logger.warning(f"Could not create the topic {self.topic}: {e}")
 
     async def run(self, ingress_queue: queue.Queue) -> None:
         """Consumes parameter changes from Kafka and puts each on the ingress queue.
@@ -832,6 +895,7 @@ class KafkaIngress(BaseIngress):
             ingress_queue: The queue the environment applies changes from, as
                 `(path, value)` pairs.
         """
+        await asyncio.to_thread(self._create_topic)
         backoff = 1.0
         while True:
             try:

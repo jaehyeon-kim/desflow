@@ -143,3 +143,58 @@ async def test_a_column_null_in_the_first_batch_waits_for_a_value(
         ("o-1", None),
         ("o-2", "pack"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_table_field_routes(iceberg_catalog, namespace):
+    """`__table__` in an event's value is its table; the column is not written, and a
+    record without it goes to `default_table`."""
+    rest = f"{namespace}.rest"
+    orders = f"{namespace}.orders"
+    egress = IcebergStorageEgress(catalog=iceberg_catalog, default_table=rest)
+    q: queue.Queue = queue.Queue()
+    q.put(
+        [
+            {
+                "stream_type": "event",
+                "key": "a",
+                "value": {"__table__": orders, "n": 1},
+            },
+            {"stream_type": "event", "key": "b", "value": {"n": 2}},
+        ]
+    )
+
+    await drain(egress, q)
+
+    routed = iceberg_catalog.load_table(orders).scan().to_arrow()
+    assert "__table__" not in routed.column_names
+    assert [row["n"] for row in routed.to_pylist()] == [1]
+    left = iceberg_catalog.load_table(rest).scan().to_arrow().to_pylist()
+    assert [row["n"] for row in left] == [2]
+
+
+@pytest.mark.asyncio
+async def test_keyed_entry_skips(iceberg_catalog, namespace, caplog):
+    """A keyed entry writes the events that carry its key and skips the rest, such as
+    a `queued` record with no `order_id`."""
+    identifier = f"{namespace}.keyed"
+    egress = IcebergStorageEgress(
+        catalog=iceberg_catalog,
+        default_table=identifier,
+        upsert_keys={identifier: ["order_id"]},
+    )
+    q: queue.Queue = queue.Queue()
+    q.put(
+        [
+            {"stream_type": "event", "key": "a", "value": {"order_id": 1, "s": "x"}},
+            {"stream_type": "event", "key": "b", "value": {"status": "queued"}},
+            {"stream_type": "event", "key": "c", "value": {"order_id": 1, "s": "y"}},
+        ]
+    )
+
+    with caplog.at_level("WARNING"):
+        await drain(egress, q)
+
+    rows = iceberg_catalog.load_table(identifier).scan().to_arrow().to_pylist()
+    assert [(r["order_id"], r["s"]) for r in rows] == [(1, "y")]
+    assert "1 had none of the key columns of their table" in caplog.text

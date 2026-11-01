@@ -25,6 +25,7 @@ operand that cannot be evaluated fails the expression. Each name carries its sou
 | `process.name`, `.instance`, `.target` | the running task's name, its instance id, and what it waits on now (`timeout`, `signal.<n>`, `task.<n>`, `condition`, `resource.<n>`, `get.<n>`, `put.<n>`, `service`), None once ended |
 | `registry["Shop.arrival.orders.rate"]` | a registry value, by path |
 | `t` | the simulation time in seconds |
+| `record.stream_type`, `record.key`, `record.task`, `record.value.status` | in an egress `when` only: a field of the record the sink is offered, which is None when the record has none (a telemetry record has no key and no task); `record.value.<field>` is None when the value is not a mapping or lacks the field |
 """
 
 import ast
@@ -66,6 +67,8 @@ _COMPARISONS: Dict[type, Callable[[Any, Any], bool]] = {
 # The comparisons that take a string on either side
 _EQUALITY = (ast.Eq, ast.NotEq, ast.In, ast.NotIn)
 _MEMBERSHIP = (ast.In, ast.NotIn)
+# The names of a record in an egress `when`: the record's own fields, then `value.<field>`
+_RECORD = ("stream_type", "key", "task")
 # Names of more than one part, by their first word, with the parts each takes
 _PARTS = {"wait": ("done", "ok", "value"), "signal": ("count", "ok", "value")}
 
@@ -79,6 +82,19 @@ def _nested(node: ast.Attribute) -> Optional[Tuple[str, List[str]]]:
         current = current.value
     if isinstance(current, ast.Name) and current.id in _PARTS:
         return current.id, parts
+    return None
+
+
+def _record_parts(node: ast.Attribute) -> Optional[List[str]]:
+    """`record.<name>` or `record.value.<field>` as its parts, or None for any
+    other name."""
+    parts: List[str] = []
+    current: ast.AST = node
+    while isinstance(current, ast.Attribute):
+        parts.insert(0, current.attr)
+        current = current.value
+    if isinstance(current, ast.Name) and current.id == "record":
+        return parts
     return None
 
 
@@ -122,6 +138,8 @@ class Scope:
         signals: Signals by name, read as `signal.<name>.<part>`.
         process: The running task's `name`, `instance` and `target`, read as
             `process.<part>`.
+        record: The record an egress `when` is offered, read as `record.stream_type`,
+            `record.key`, `record.task` and `record.value.<field>`.
     """
 
     payload: Mapping[str, Any] = field(default_factory=dict)
@@ -134,6 +152,7 @@ class Scope:
     waits: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
     signals: Mapping[str, Any] = field(default_factory=dict)
     process: Mapping[str, Any] = field(default_factory=dict)
+    record: Optional[Mapping[str, Any]] = None
 
 
 class Expression:
@@ -150,12 +169,15 @@ class Expression:
             read each item the store holds and not the item of a get.
     """
 
-    def __init__(self, text: str):
+    def __init__(self, text: str, records: bool = False):
         """
         Parses and checks an expression.
 
         Args:
             text: The expression, such as `level.stock == 0 or payload.total > 100`.
+            records: True for an egress `when`, whose expression reads the record
+                (`record.stream_type`, `record.key`, `record.task` and
+                `record.value.<field>`) and nothing else.
 
         Raises:
             ValueError: If it is not valid Python or uses anything outside the
@@ -164,6 +186,7 @@ class Expression:
         if not isinstance(text, str):
             raise ValueError(f"an expression must be text, got {text!r}")
         self.text = text
+        self._records = records
         try:
             tree = ast.parse(text.strip(), mode="eval")
         except SyntaxError as exc:
@@ -185,6 +208,8 @@ class Expression:
             "process": set(),
             "registry": set(),
         }
+        # The record names an egress `when` reads, such as `value.event_type`
+        self.record_names: Set[str] = set()
         # True inside the arguments of count() and items()
         self._in_call = False
         self._check(tree.body, strings=False)
@@ -233,8 +258,19 @@ class Expression:
                 raise self._refuse("a string outside an == or != comparison")
             raise self._refuse(f"the constant {node.value!r}")
         if isinstance(node, ast.Name):
-            if node.id == "t":
+            if node.id == "t" and not self._records:
                 return
+            if self._records and node.id == "t":
+                raise self._refuse(
+                    "the name 't': an egress when reads only the record, whose "
+                    "time is not a name (write record.stream_type, record.key, "
+                    "record.task or record.value.<field>)"
+                )
+            if self._records and node.id == "record":
+                raise self._refuse(
+                    "the name 'record' alone (write record.stream_type, "
+                    "record.key, record.task or record.value.<field>)"
+                )
             raise self._refuse(
                 f"the name '{node.id}' (write payload.<field>, attr.<name>, "
                 f"level.<name>, users.<name>, queue.<name>, putters.<name>, "
@@ -243,6 +279,29 @@ class Expression:
                 f'signal.<name>.<part>, process.<name>, registry["<path>"] or t)'
             )
         if isinstance(node, ast.Attribute):
+            parts = _record_parts(node)
+            if parts is None and self._records:
+                raise self._refuse(
+                    "a name that is not record.stream_type, record.key, "
+                    "record.task or record.value.<field>"
+                )
+            if parts is not None:
+                if not self._records:
+                    raise self._refuse(
+                        "the name 'record', which only an egress when reads"
+                    )
+                known = (len(parts) == 1 and parts[0] in _RECORD) or (
+                    len(parts) == 2
+                    and parts[0] == "value"
+                    and not parts[1].startswith("__")
+                )
+                if not known:
+                    raise self._refuse(
+                        f"'record.{'.'.join(parts)}' (write record."
+                        f"{', record.'.join(_RECORD)} or record.value.<field>)"
+                    )
+                self.record_names.add(".".join(parts))
+                return
             if isinstance(node.value, ast.Name) and node.value.id == "process":
                 if node.attr not in _PROCESS:
                     raise self._refuse(
@@ -278,6 +337,8 @@ class Expression:
                 "an attribute that is not payload., attr., level., users., queue., "
                 "putters., getters., item. or process."
             )
+        if isinstance(node, (ast.Subscript, ast.Call)) and self._records:
+            raise self._refuse("an index or a call, which an egress when cannot")
         if isinstance(node, ast.Subscript):
             index = node.slice
             if (
@@ -401,6 +462,13 @@ class Expression:
         if isinstance(node, ast.Name):
             return scope.now
         if isinstance(node, ast.Attribute):
+            parts = _record_parts(node)
+            if parts is not None:
+                record = scope.record or {}
+                if len(parts) == 1:
+                    return record.get(parts[0])
+                value = record.get("value")
+                return value.get(parts[1]) if isinstance(value, Mapping) else None
             if isinstance(node.value, ast.Name) and node.value.id == "process":
                 if node.attr not in scope.process:
                     raise KeyError(f"the process has no '{node.attr}'")

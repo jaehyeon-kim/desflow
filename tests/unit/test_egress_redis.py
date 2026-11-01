@@ -80,3 +80,36 @@ async def test_stream_key_is_read_from_the_nested_payload(run_until):
     routed = json.loads(pipe.xadd.call_args_list[0].args[1]["payload"])
     assert "__stream__" not in routed["value"], "the key should not reach the stream"
     assert routed["value"] == {"status": "queued"}
+
+
+@pytest.mark.asyncio
+async def test_envelope_false_stores_the_value_alone(run_until):
+    """With `envelope` off the `payload` field holds the event's value as JSON,
+    without `__stream__`, and a value that is not a mapping is stored too."""
+    egress_queue = queue.Queue()
+    egress_queue.put(
+        [
+            {"stream_type": "event", "key": "e1", "value": {"__stream__": "s", "n": 1}},
+            {"stream_type": "event", "key": "e2", "value": "text"},
+        ]
+    )
+    egress = RedisEgress(url="redis://localhost:6379/0", stream_name="default")
+    egress.envelope = False
+
+    with patch("desflow.connectors.egress.redis.redis.from_url") as from_url:
+        client = AsyncMock()
+        pipe = MagicMock()
+        pipe.execute = AsyncMock()
+        client.pipeline = MagicMock(return_value=pipe)
+        from_url.return_value = client
+        await run_until(
+            egress.run(egress_queue),
+            lambda: pipe.execute.called and egress_queue.empty(),
+        )
+
+    assert [
+        (c.args[0], json.loads(c.args[1]["payload"])) for c in pipe.xadd.call_args_list
+    ] == [
+        ("s", {"n": 1}),
+        ("default", "text"),
+    ]

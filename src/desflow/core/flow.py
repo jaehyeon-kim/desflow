@@ -5,6 +5,7 @@ APIs. `Transfer` describes a task's `get` or `put`. The builder and YAML tasks u
 both; low-level code uses `Router` directly and calls `get` and `put` itself.
 """
 
+import inspect
 from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple, Union
 
 import numpy as np
@@ -223,6 +224,28 @@ class Router:
         self.tasks = set(self._names)
 
 
+def _names_entity(function: Callable[..., Any]) -> bool:
+    """Whether a store filter takes the entity by name.
+
+    True when the function has more than one parameter and one after the first is
+    called `entity` and can be passed by keyword. The first parameter is the item.
+    A function with one parameter, or one whose first parameter is `entity`, is
+    called with the item alone, so a filter written before this rule keeps its call.
+    """
+    try:
+        parameters = inspect.signature(function).parameters
+    except (TypeError, ValueError):
+        return False
+    names = list(parameters)
+    if len(names) < 2 or names[0] == "entity":
+        return False
+    named = parameters.get("entity")
+    return named is not None and named.kind in (
+        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        inspect.Parameter.KEYWORD_ONLY,
+    )
+
+
 class Transfer:
     """
     What a task takes from, or adds to, a store or a container.
@@ -270,8 +293,12 @@ class Transfer:
                 the put. Ignored by a `fifo` store.
             filter: For a store get, which item it takes: a condition such as
                 `"item.size == attr.size"`, where `item.<field>` reads the item
-                offered, or a function of the item returning True. The get takes
-                the oldest item that matches and waits while none does.
+                offered, or a function of the item returning True. A function with
+                more than one parameter, one of them after the first named `entity`,
+                also receives the entity that makes the get, by that name: `lambda
+                item, entity: ...`. A function with one parameter is called with the
+                item, whatever the parameter is named. The get takes the oldest item that matches
+                and waits while none does.
             wait: False for a put the task does not wait for (see above). Defaults
                 to True.
 
@@ -307,12 +334,15 @@ class Transfer:
             )
         self.filter = filter
         self._filter_expression: Optional[Expression] = None
+        self._filter_takes_entity = False
         if isinstance(filter, str):
             self._filter_expression = Expression(filter)
         elif filter is not None and not callable(filter):
             raise ValueError(
                 f"filter must be a condition or a function, got {filter!r}"
             )
+        elif filter is not None:
+            self._filter_takes_entity = _names_entity(filter)
         self._priority_expression: Optional[Expression] = None
         if isinstance(priority, str):
             self._priority_expression = Expression(priority)
@@ -386,13 +416,17 @@ class Transfer:
             if expression is not None
         ]
 
-    def filter_for(self, scope: Scope) -> Optional[Callable[[Any], bool]]:
+    def filter_for(
+        self, scope: Scope, entity: Any = None
+    ) -> Optional[Callable[[Any], bool]]:
         """
         Returns the function a store get offers each item to, or None for any item.
 
         Args:
             scope: What the condition's other names read, taken when the get is made;
                 `item` is set to each item offered.
+            entity: The entity that makes the get, passed by name to a function that
+                names a parameter `entity`.
 
         Returns:
             Optional[Callable[[Any], bool]]: True for an item the get may take.
@@ -405,6 +439,13 @@ class Transfer:
                 return bool(condition.evaluate(scope))
 
             return matches
+        if self._filter_takes_entity:
+            function = self.filter
+
+            def matches_entity(item: Any) -> bool:
+                return bool(function(item, entity=entity))  # type: ignore[misc,call-arg,operator]
+
+            return matches_entity
         return None if isinstance(self.filter, str) else self.filter
 
     def priority_for(

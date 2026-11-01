@@ -220,7 +220,7 @@ A `tasks` entry, built with `SimulationContext.task`.
 
 Text in a value place stays text. A time place reads a number as seconds, text `time_to_seconds` accepts as a duration, and other text as an expression.
 
-`payload` is the value of the `finished` event: a mapping, or a `!python` function called as `payload(task_id, context)`. `id_field` adds the task id to a mapping payload under that key, `item_field` adds the item its store `get` took, and `attributes` adds the named entity attributes. A task with a `service` and no `resource` is a timed step; one with neither, and no `get`, emits its payload as soon as it is spawned.
+`payload` is the value of the `finished` event: a mapping, or a `!python` function called as `payload(task_id, context)`. `id_field` adds the task id to a mapping payload under that key, `key_field` names the payload field whose value becomes the key of the finished event, and so the Kafka message key (the `queued` and `started` records keep the entity's key; a payload without the field fails the run), `item_field` adds the item its store `get` took, and `attributes` adds the named entity attributes. A task with a `service` and no `resource` is a timed step; one with neither, and no `get`, emits its payload as soon as it is spawned.
 
 `priority` is a number or an expression such as `attr.priority`, for a resource whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or an expression; `balk` is a condition checked before the task joins the queue. `resource` is one resource or a list, acquired in the order listed; `keep` hands units to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and `interrupt` interrupts the running instances of a task when this one finishes. `wait` is what the task waits for first: a signal, a child task, a timeout or a condition, or any or all of several. `signal` names a signal the task fires when it finishes. `fail` is a condition checked after the service: when it holds the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or container. `next` is a task name, `when` rules or `weights`. `set` gives the entity attribute values when the task finishes.
 
@@ -232,6 +232,7 @@ An expression uses Python's arithmetic: `/` gives a float, and `//` rounds down 
 | `resource` | text or list of text | none |
 | `payload` | mapping or !python reference | required |
 | `id_field` | text | none |
+| `key_field` | text | none |
 | `item_field` | text | none |
 | `attributes` | list of text |  |
 | `priority` | integer or number or text | none |
@@ -457,15 +458,28 @@ Type: list of [EgressConnector](#egress). Optional.
 
 An `egress` entry, with the per-provider options of `add_egress`.
 
-`when` is `history`, `live`, `labels` or a `!python` function taking one record. `history` sends the records stamped before `simulation.go_live_at`, and `live` sends the records stamped at or after it. `labels` sends the ground-truth records of scenario steps with a `record`, and nothing else.
+`when` is `history`, `live`, `events`, `telemetry`, `labels`, a mapping `{expr: ...}` or a `!python` function taking one record. `history` sends the records stamped before `simulation.go_live_at`, and `live` sends the records stamped at or after it. `events` sends the event records and `telemetry` the telemetry records. `labels` sends the ground-truth records of scenario steps with a `record`, and nothing else.
+
+`envelope: false` makes the entry plain output: the sink writes each event's value without the record around it (`stream_type`, `sim_ts`, `timestamp`, `key`, `task` and `instance`), and it receives no telemetry record and no `queued` or `started` record of a task. A Kafka or Redis sink sends a value that is not a mapping as JSON. A storage or PostgreSQL sink skips it, with one warning. The message key of Kafka stays the record's key, and a `topic_router` still receives the whole record. Ground-truth records of a `when: labels` entry are not affected.
 
 | Key | Type | Default |
 |---|---|---|
 | `type` | short name or !python reference | required |
 | `config` | mapping |  |
-| `when` | `history` or `live` or `labels` or !python reference | none |
+| `when` | `history` or `live` or `events` or `telemetry` or `labels` or [WhenExpr](#whenexpr) or !python reference | none |
+| `envelope` | boolean | `true` |
 | `batch_size` | integer | none |
 | `flush_interval` | number | none |
+
+### WhenExpr
+
+An egress `when` written as an expression: `when: {expr: <expression>}`.
+
+The expression reads the record the sink is offered: `record.stream_type` (`event` or `telemetry`), `record.key`, `record.task` and `record.value.<field>`. A name the record lacks reads as None, so `record.value.event_type == 'order_packed'` is false for a telemetry record and for an event without that field. The sink receives the record when the expression is true. An expression that fails on a record, such as `record.value.amount > 100` on a record whose value has no `amount`, fails the run.
+
+| Key | Type | Default |
+|---|---|---|
+| `expr` | text | required |
 
 ## batching
 
@@ -542,3 +556,29 @@ An entry has at most one of `until` and `stop`; `{}` runs to the end. After the 
 | Key | Type | Default |
 |---|---|---|
 | `every` | integer or number or text or Duration | required |
+
+## tests
+
+Type: list of [BlueprintTest](#tests). Optional.
+
+A `tests` entry: the statistics a model must give at one seed, checked by `desflow test`.
+
+`expect` maps a statistic name, as `measures` in an experiment file names it (`tasks.pack_order.finished`), to the number it must have, or to `{value, within}` for a tolerance. A number is compared exactly. `seed` defaults to the file's `simulation.random_seed` and `until` to `run.until`. The entry runs the model once, unpaced, with no ingress and no egress, so a test contacts no service.
+
+A test states the measures at one seed in one version of desflow. A new release may draw its random numbers differently, so a test does not promise that exact seeded records or values stay the same across versions; run `desflow test --fix` to write the new values and read them before you keep them.
+
+| Key | Type | Default |
+|---|---|---|
+| `name` | text | required |
+| `seed` | integer | none |
+| `until` | integer or number or text or Duration | none |
+| `expect` | mapping of names to [ExpectedWithin](#expectedwithin) or integer or number |  |
+
+### ExpectedWithin
+
+An `expect` value with a tolerance: the measured statistic passes when it is within `within` of `value`, in absolute terms. Use it for a value whose last digits change with the platform's floating point.
+
+| Key | Type | Default |
+|---|---|---|
+| `value` | integer or number | required |
+| `within` | integer or number | required |

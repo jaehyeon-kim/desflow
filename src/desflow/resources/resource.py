@@ -7,7 +7,7 @@ from typing import Any, ClassVar, List, Optional, Tuple, Union
 
 from simpy import Environment, Event
 from simpy.core import BoundClass
-from simpy.resources.resource import Preempted
+from simpy.resources.resource import Preempted, PriorityRequest
 
 from desflow.config import DEFAULT_QUEUE_ORDER, QUEUE_ORDERS
 from desflow.resources.base import BaseDynamicResource
@@ -25,13 +25,14 @@ def _whole(value: float) -> Union[int, float]:
     return value if math.isinf(value) else int(value)
 
 
-class DynamicResourceRequest(Event):
+class DynamicResourceRequest(PriorityRequest):
     """
     A request for one unit of a `DynamicResource`, and the event of its grant.
 
     It succeeds when a unit is granted. Used in a `with` block, leaving the block
     cancels it while it waits and releases the unit once it is granted, as a SimPy
-    `Request` does.
+    `Request` does. It is a SimPy `PriorityRequest`, so `isinstance` holds, and it
+    does not run SimPy's constructor: the resource ranks and queues the request.
 
     Attributes:
         resource (ResourceBase): The resource it asks.
@@ -47,7 +48,7 @@ class DynamicResourceRequest(Event):
     def __init__(
         self, resource: ResourceBase, priority: float = 0, preempt: bool = True
     ):
-        super().__init__(resource.env)
+        Event.__init__(self, resource.env)
         self.resource = resource
         self.priority = priority
         self.preempt = preempt
@@ -307,6 +308,16 @@ class ResourceBase(BaseDynamicResource):
     def _owed(self) -> Union[int, float]:
         """Units busy above a lowered capacity, given back as their tasks finish."""
         return max(0, len(self.users) - self._capacity)
+
+    def put(self, *args: Any, **kwargs: Any) -> DynamicResourceRequest:
+        """Requests one unit, the same as `request`; SimPy's name for a put into a
+        resource. Takes the arguments of `request`."""
+        return self.request(*args, **kwargs)
+
+    def get(self, *args: Any, **kwargs: Any) -> DynamicRelease:
+        """Gives a unit back, the same as `release`; SimPy's name for a get from a
+        resource. Takes the arguments of `release`."""
+        return self.release(*args, **kwargs)
 
     def _rank(self, request: DynamicResourceRequest) -> Tuple[Any, ...]:
         """The sort key of a new request under this resource's queue order."""

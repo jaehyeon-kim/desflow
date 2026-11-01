@@ -4,6 +4,8 @@ import inspect
 import itertools
 import logging
 import math
+import numbers
+import operator
 import secrets
 import weakref
 from datetime import datetime
@@ -244,6 +246,7 @@ class SimulationContext:
 
         # Aligned with _egress_providers by position.
         self._egress_labels: List[bool] = []
+        self._egress_envelopes: List[bool] = []
         self._stats_level = DEFAULT_STATS_LEVEL
         self._stats_interval = DEFAULT_STATS_INTERVAL
 
@@ -355,7 +358,10 @@ class SimulationContext:
 
     @classmethod
     def from_yaml(
-        cls, path: Union[str, Path], preview: Optional["Preview"] = None
+        cls,
+        path: Union[str, Path],
+        preview: Optional["Preview"] = None,
+        variables: Optional[Mapping[str, str]] = None,
     ) -> "SimulationContext":
         """
         Builds a context from a YAML blueprint file.
@@ -372,6 +378,9 @@ class SimulationContext:
                 does not use. A sample also leaves out the ingress, and runs
                 unpaced from `logical_start_time`, with `go_live_at` cleared, until
                 it has printed that many events.
+            variables: Values for `${NAME}` in the file and the files it includes,
+                used before the environment, as `desflow run --var NAME=VALUE` gives
+                them.
 
         Returns:
             SimulationContext: The built context. Its `run()` calls the blueprint's
@@ -390,7 +399,7 @@ class SimulationContext:
         """
         from desflow.blueprint.build import build
 
-        context, run = build(path, preview)
+        context, run = build(path, preview, variables)
         context._default_until = run.until
         context._default_stop = run.stop
         context._default_drain = run.drain_setting()
@@ -408,7 +417,12 @@ class SimulationContext:
             context.strict = None
             context._sample_limit = preview.sample
         context._repeat_hint = f"Repeat it with: desflow run {path} --seed {{seed}}"
-        context._source = Path(path)
+        # A copy that `analyze(verify=True)` builds reads the same variables
+        context._source = (
+            functools.partial(cls.from_yaml, path, variables=dict(variables))
+            if variables
+            else Path(path)
+        )
         return context
 
     # ==========================================
@@ -435,6 +449,7 @@ class SimulationContext:
         when: Union[Callable[[dict], bool], str, None] = None,
         batch_size: Optional[int] = None,
         flush_interval: Optional[float] = None,
+        envelope: bool = True,
     ) -> "SimulationContext":
         """
         Registers an asynchronous egress provider for data exfiltration.
@@ -459,6 +474,12 @@ class SimulationContext:
             flush_interval: Simulation seconds this provider waits before forcing a
                 flush. None uses the context default. Ignored when `factor` is 0,
                 because simulation time is then detached from the wall clock.
+            envelope: False makes this a plain-output provider. It receives no
+                telemetry record and no `queued` or `started` record, and it writes
+                each event's `value` without the record around it. Kafka and Redis
+                send a value that is not a mapping as JSON, and the storage and
+                PostgreSQL sinks skip it with one warning. Ground-truth records
+                are not affected. Defaults to True.
 
         Returns:
             SimulationContext: The current instance for method chaining.
@@ -491,6 +512,7 @@ class SimulationContext:
         self._egress_labels.append(when == LABELS)
         self._egress_batch_sizes.append(batch_size)
         self._egress_flush_intervals.append(flush_interval)
+        self._egress_envelopes.append(envelope)
         return self
 
     def with_stats(
@@ -1047,6 +1069,10 @@ class SimulationContext:
         fail: Union[str, Callable[[Any, Any], bool], None] = None,
         fail_reason: Optional[str] = None,
         on_fail: Optional[str] = None,
+        on_renege: Optional[str] = None,
+        on_balk: Optional[str] = None,
+        service_time: Union[float, str, Callable[[Entity], float], None] = None,
+        key_field: Optional[str] = None,
         keep: Optional[List[str]] = None,
         preempt: bool = True,
         on_interrupt: str = "resume",
@@ -1072,7 +1098,8 @@ class SimulationContext:
            while the task is served.
         4. Emits a `started` event.
         5. Executes the wrapped user function to extract custom payload data.
-        6. Samples the live `service_id` distribution and yields the timeout.
+        6. Samples the live `service_id` distribution, or reads `service_time`, and
+           yields the timeout.
         7. Adds its `put`, waiting for room, and checks `fail`.
         8. Emits its finished event with the user's payload, or `failed`.
         9. Fires its `signal` (or fails it), sends its `interrupt` action, applies
@@ -1099,6 +1126,12 @@ class SimulationContext:
 
         Args:
             service_id: The ID of the configured distribution dictating the execution time.
+            service_time: The execution time of this task, in place of `service_id`:
+                seconds, a duration such as `"30 s"`, an expression such as
+                `"attr.fuel / 2"` read when the service starts, or a function of the
+                entity, such as `lambda entity: entity.attributes["fuel"] / 2`. A
+                task takes `service_id` or `service_time`, not both, and records no
+                `path_id`. An interrupt under `restart` reads it again.
             resource_id: The resource the task holds while it works, or a list of
                 them, acquired in the order listed while the earlier ones are held.
             name: The task's name in records, statistics and `next` rules. Defaults
@@ -1143,7 +1176,19 @@ class SimulationContext:
                 condition's text.
             on_fail: The task a failed instance goes to. Without it, a failure ends
                 the entity's flow. A function that raises fails the task the same
-                way, with the error as the reason.
+                way, with the error as the reason, and goes to `on_fail`; so
+                `on_fail` needs no `fail` condition.
+            on_renege: The task an instance goes to after it reneges, in place of the
+                end of its flow. It still publishes `reneged` and counts as
+                reneged. Needs a `patience`.
+            on_balk: The task an instance goes to after it balks, in place of the end
+                of its flow, whether its `balk` condition holds or the waiting line
+                of its resource is full. It still publishes `balked` and counts as
+                balked. Needs a `balk` or a resource.
+            key_field: A field of the task's payload whose value becomes the key of
+                the finished event, and so the Kafka message key, in place of the
+                entity's key. The `queued` and `started` records keep the entity's
+                key. A payload without the field fails the run.
             keep: Resources in `resource_id` whose units the task hands to the next
                 task of the flow instead of releasing them; that task releases them
                 once it publishes `started`.
@@ -1208,9 +1253,29 @@ class SimulationContext:
             if interrupt.get("where") is not None:
                 Expression(interrupt["where"])
         resource_id = resources[0] if resources else None
-        if resource_id is not None and service_id is None:
+        if service_id is not None and service_time is not None:
+            raise ValueError("a task takes service_id or service_time, not both")
+        if isinstance(service_time, str):
+            try:
+                service_time = time_to_seconds(service_time)
+            except ValueError:
+                pass  # not a duration, so an expression such as "attr.fuel / 2"
+        if service_time is not None and not (
+            isinstance(service_time, str)
+            or callable(service_time)
+            or (
+                isinstance(service_time, numbers.Real)
+                and not isinstance(service_time, bool)
+            )
+        ):
             raise ValueError(
-                "a task with a resource needs a service; give service_id too"
+                f"service_time must be seconds, a duration, an expression or a "
+                f"function of the entity, got {service_time!r}"
+            )
+        if resource_id is not None and service_id is None and service_time is None:
+            raise ValueError(
+                "a task with a resource needs a service; give service_id or "
+                "service_time too"
             )
         if (
             priority is not None
@@ -1248,8 +1313,16 @@ class SimulationContext:
                 "patience is how long a task waits, so it needs a wait, a resource "
                 "or a get"
             )
-        if fail is None and (fail_reason is not None or on_fail is not None):
-            raise ValueError("fail_reason and on_fail need a fail condition")
+        if fail is None and fail_reason is not None:
+            raise ValueError("fail_reason needs a fail condition")
+        if on_renege is not None and patience is None:
+            raise ValueError(
+                "on_renege is where a reneging task goes, so it needs patience"
+            )
+        if on_balk is not None and balk is None and resource_id is None:
+            raise ValueError(
+                "on_balk is where a balking task goes, so it needs a balk or a resource"
+            )
         spec_kwargs = dict(
             patience=patience,
             balk=balk,
@@ -1258,6 +1331,10 @@ class SimulationContext:
             fail=fail,
             fail_reason=fail_reason,
             on_fail=on_fail,
+            on_renege=on_renege,
+            on_balk=on_balk,
+            service_time=service_time,
+            key_field=key_field,
             attribute_changes=dict(set or {}),
             resources=resources,
             keep=keep,
@@ -1798,6 +1875,34 @@ class SimulationContext:
             process.callbacks.append(_defuse)
         return process
 
+    def _spawn_children(
+        self,
+        spec: Mapping[str, Any],
+        parent: Optional[Entity],
+        upstream: Optional[Upstream],
+    ) -> None:
+        """Starts the entities of a `spawn:` key or `on:` action: `count` of them, read
+        once before the first starts, each by `_spawn_entity`.
+
+        A count of 0 or less starts none, as `range` gives none. A function of the
+        entity gives the count, and a result that is not a whole number (a boolean
+        counts as 1) raises `TypeError`, as `range(2.0)` does.
+        """
+        count = spec["count"]
+        if callable(count):
+            count = count(parent)
+        if isinstance(count, bool):
+            count = int(count)
+        try:
+            count = operator.index(count)
+        except TypeError:
+            raise TypeError(
+                f"the spawn count of task '{spec['task']}' gave {count!r}, which is "
+                f"not a whole number"
+            ) from None
+        for _ in range(count):
+            self._spawn_entity(spec["task"], parent, upstream, spec["after"])
+
     def _spawn_entity(
         self,
         task: str,
@@ -1934,8 +2039,7 @@ class SimulationContext:
                 after=spec.get("after"),
             )
         elif "spawn" in action:
-            spec = action["spawn"]
-            self._spawn_entity(spec["task"], entity, upstream, spec["after"])
+            self._spawn_children(action["spawn"], entity, upstream)
         elif "interrupt" in action:
             spec = action["interrupt"]
             where = spec.get("where")
@@ -2718,6 +2822,7 @@ class SimulationContext:
                 batch_sizes=self._egress_batch_sizes,
                 flush_intervals=self._egress_flush_intervals,
                 labels=self._egress_labels,
+                envelopes=self._egress_envelopes,
                 warmup=self.warmup,
                 lag_monitor_interval=(
                     "auto" if self.lag_interval is None else self.lag_interval
@@ -3250,6 +3355,8 @@ class SimulationContext:
                     )
             for target in (
                 spec.on_fail,
+                spec.on_renege,
+                spec.on_balk,
                 spec.on_interrupt_next,
                 spec.interrupt["task"] if spec.interrupt else None,
                 *(spec.wait.targets("task") if spec.wait else ()),
@@ -3291,7 +3398,7 @@ class SimulationContext:
                     takes_item
                     and spec.get is not None
                     and spec.get.wait
-                    and key in ("put", "next", "fail")
+                    and key in ("put", "next", "fail", "service_time")
                 )
                 if expression.references["item"] and not (takes_item and after_get):
                     raise ValueError(
@@ -3437,13 +3544,23 @@ def _defuse(event: Any) -> None:
 
 
 def _parse_spawn(spec: Mapping[str, Any]) -> Dict[str, Any]:
-    """Checks a `spawn:` key or spawn action and returns `{task, after}`."""
+    """Checks a `spawn:` key or spawn action and returns `{task, after, count}`.
+
+    `count` is how many entities one spawn starts: a whole number, or a function of
+    the spawning entity. It defaults to 1.
+    """
     if not isinstance(spec, Mapping):
         raise ValueError(f"a spawn is a mapping with a task, got {spec!r}")
-    extra = set(spec) - {"task", "after"}
+    extra = set(spec) - {"task", "after", "count"}
     if extra:
         raise ValueError(
-            f"a spawn takes task and after, not {', '.join(sorted(extra))}"
+            f"a spawn takes task, after and count, not {', '.join(sorted(extra))}"
+        )
+    count = spec.get("count", 1)
+    if not callable(count) and (isinstance(count, bool) or not isinstance(count, int)):
+        raise ValueError(
+            f"a spawn count is a whole number or a function of the entity, got "
+            f"{count!r}"
         )
     task = spec.get("task")
     if not isinstance(task, str):
@@ -3455,7 +3572,7 @@ def _parse_spawn(spec: Mapping[str, Any]) -> Dict[str, Any]:
         raise ValueError(f"a spawn after is seconds or a duration, got {after!r}")
     if after is not None and not after > 0:
         raise ValueError(f"a spawn after is more than 0, got {after:g}")
-    return {"task": task, "after": after}
+    return {"task": task, "after": after, "count": count}
 
 
 def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:

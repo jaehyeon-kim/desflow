@@ -4,7 +4,8 @@
 variable, so one file can serve several environments. The default applies when the
 variable is unset or empty, as in a shell. `$${` writes a literal `${`. An unquoted
 value is then read as YAML reads it, so `port: ${PG_PORT:-5432}` gives the number
-5432. A quoted value stays a string.
+5432. A quoted value stays a string. A value given by name to `read_document`, as
+`desflow run --var NAME=VALUE` does, is used before the environment.
 
 `!python module.attribute` imports the module and returns the attribute, so a
 blueprint can reference a process, a router or any other Python object. Loading a
@@ -19,7 +20,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Mapping, Optional, Tuple, Union
 
 import yaml
 
@@ -41,14 +42,16 @@ class BlueprintLoader(yaml.SafeLoader):
 _VARIABLE = re.compile(r"\$\$\{|\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 
 
-def substitute(text: str) -> str:
-    """Replaces `${VAR}` and `${VAR:-default}` with the environment variable.
+def substitute(text: str, overrides: Optional[Mapping[str, str]] = None) -> str:
+    """Replaces `${VAR}` and `${VAR:-default}` with the variable's value.
 
-    `${VAR:-default}` uses the default when the variable is unset or empty. `$${` is
-    a literal `${`.
+    A variable in `overrides` takes its value from there, and any other from the
+    environment. `${VAR:-default}` uses the default when the value is unset or empty.
+    `$${` is a literal `${`.
 
     Args:
         text: The text of a blueprint.
+        overrides: Values that are used before the environment, by name.
 
     Returns:
         str: The text with every reference replaced.
@@ -61,7 +64,10 @@ def substitute(text: str) -> str:
         if match.group(0) == "$${":
             return "${"
         name, default = match.group(1), match.group(2)
-        value = os.environ.get(name)
+        if overrides is not None and name in overrides:
+            value: Optional[str] = overrides[name]
+        else:
+            value = os.environ.get(name)
         if value:
             return value
         if default is not None:
@@ -79,7 +85,7 @@ def substitute(text: str) -> str:
 def _substitute_at(loader: yaml.SafeLoader, node: yaml.Node, text: str) -> str:
     """`substitute`, with a failure reported at the line of `node`."""
     try:
-        return substitute(text)
+        return substitute(text, getattr(loader, "variables", None))
     except ValueError as exc:
         raise BlueprintError(
             f"{loader.name}:{node.start_mark.line + 1}: {exc}"
@@ -199,7 +205,10 @@ def _construct_include(loader: yaml.SafeLoader, node: yaml.Node) -> Any:
     # Read as a document of its own, so a YAML error in it names its own file and
     # line, and a file that is not a mapping is refused there
     data, _ = read_document(
-        path, including=including, at=getattr(loader, "includes", {}).get(node)
+        path,
+        including=including,
+        at=getattr(loader, "includes", {}).get(node),
+        variables=getattr(loader, "variables", None),
     )
     return {**data, **extra}
 
@@ -340,6 +349,7 @@ def read_document(
     path: Union[str, Path],
     including: Tuple[Path, ...] = (),
     at: Optional[str] = None,
+    variables: Optional[Mapping[str, str]] = None,
 ) -> Tuple[Dict[str, Any], SourceMap]:
     """Parses a blueprint file into a mapping and its source map.
 
@@ -353,6 +363,9 @@ def read_document(
         at: What the file is when an `!include` read it: `item` for one task, signal
             or check, `section` for the `tasks` or `signals` section, so its `on`
             keys stay strings; None for a whole document.
+        variables: Values for `${NAME}` that are used before the environment, as
+            `desflow run --var NAME=VALUE` gives them. Files that `!include` reads
+            see them too.
 
     Raises:
         BlueprintError: If the file is not valid YAML, is not a mapping, or names a
@@ -369,6 +382,7 @@ def read_document(
     loader.name = str(path)
     # The files being read, so an !include of one of them is refused, not followed
     loader.including = (*including, path.resolve())  # type: ignore[attr-defined]
+    loader.variables = variables  # type: ignore[attr-defined]
     lines: Dict[Location, int] = {}
     try:
         node = loader.get_single_node()

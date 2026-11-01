@@ -12,6 +12,8 @@ context keeps the decorator and the checks made before the clock starts.
 from __future__ import annotations
 
 import functools
+import numbers
+from collections.abc import Mapping
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -96,6 +98,10 @@ class TaskSpec:
         fail: Any = None,
         fail_reason: Optional[str] = None,
         on_fail: Optional[str] = None,
+        on_renege: Optional[str] = None,
+        on_balk: Optional[str] = None,
+        service_time: Any = None,
+        key_field: Optional[str] = None,
         attribute_changes: Optional[Dict[str, Any]] = None,
         resources: Optional[List[str]] = None,
         keep: Optional[List[str]] = None,
@@ -109,6 +115,7 @@ class TaskSpec:
     ):
         self.name = name
         self.service_id = service_id
+        self.key_field = key_field
         # Every resource it holds, acquired in this order; resource_id is the first
         self.resources: List[str] = list(
             resources or ([resource_id] if resource_id else [])
@@ -140,20 +147,31 @@ class TaskSpec:
         self.fail = fail
         self.fail_reason = fail_reason
         self.on_fail = on_fail
+        self.on_renege = on_renege
+        self.on_balk = on_balk
+        self.service_time = service_time
         self.attribute_changes = dict(attribute_changes or {})
         self.rank_of = Expression(priority) if isinstance(priority, str) else None
         self.patience_of = Expression(patience) if isinstance(patience, str) else None
         self.balk_of = Expression(balk) if balk is not None else None
         self.fail_of = Expression(fail) if isinstance(fail, str) else None
+        self.service_time_of = (
+            Expression(service_time) if isinstance(service_time, str) else None
+        )
         # Waits for a unit or an item, so it queues
         self.queues = (
             bool(self.resources) or (get is not None and get.wait) or wait is not None
         )
         # Publishes started before its work
-        self.timed = service_id is not None or self.queues
+        self.timed = service_id is not None or service_time is not None or self.queues
         # Set when the function is decorated
         self.user_func: Callable[..., Any] = lambda *args, **kwargs: None
         self.declared: Any = {}
+
+    @property
+    def has_service(self) -> bool:
+        """Whether the task works for a time: a `service_id` or a `service_time`."""
+        return self.service_id is not None or self.service_time is not None
 
     @property
     def expressions(self) -> List[Tuple[str, Expression]]:
@@ -162,6 +180,7 @@ class TaskSpec:
         for key, expression in (
             ("priority", self.rank_of),
             ("patience", self.patience_of),
+            ("service_time", self.service_time_of),
             ("balk", self.balk_of),
             ("fail", self.fail_of),
         ):
@@ -260,14 +279,41 @@ class TaskRun:
 
     # ------------------------------------------------------------------ records
 
-    def publish(self, value: Any) -> None:
+    def publish(self, value: Any, key: Any = None, lifecycle: bool = False) -> None:
         """Publishes an event of this instance, keyed by its entity.
 
         Args:
             value: The event's value: a status such as `status("queued")`, or the
                 task's payload.
+            key: The record's key when it is not the entity's: the payload field
+                `key_field` names.
+            lifecycle: True for `queued` and `started`, which a plain-output sink
+                does not receive.
         """
-        self.env.publish_event(self.entity.key, value, self.spec.name, self.task_id)
+        self.env.publish_event(
+            self.entity.key,
+            value,
+            self.spec.name,
+            self.task_id,
+            key=key,
+            lifecycle=lifecycle,
+        )
+
+    def _payload_key(self, payload: Any) -> Any:
+        """Returns the record key `key_field` takes from the payload, or None.
+
+        Raises:
+            ValueError: If the payload is not a mapping with that field.
+        """
+        field = self.spec.key_field
+        if field is None:
+            return None
+        if not isinstance(payload, Mapping) or payload.get(field) is None:
+            raise ValueError(
+                f"task '{self.spec.name}' has key_field '{field}', and its payload "
+                f"has no value for it"
+            )
+        return str(payload[field])
 
     def status(self, state: str, **extra: Any) -> Dict[str, Any]:
         """Returns the value of a status event of this task.
@@ -545,7 +591,7 @@ class TaskRun:
                 self.entity.attributes,
                 self.status("balked"),
             )
-            self._end_flow("ended")
+            self._leave(spec.on_balk)
             return None
         if spec.subscribe is not None:
             # Be told when the event happens: subscribe this instance, then go on.
@@ -565,7 +611,7 @@ class TaskRun:
         # preempted task that queues again goes on from the time it had used, as
         # SimPy's reneging pattern `req | env.timeout(patience_left)` does.
         if spec.queues:
-            self.publish(self.status("queued"))
+            self.publish(self.status("queued"), lifecycle=True)
             stats.task_queued(spec.name, self.task_id)
             if spec.patience is not None:
                 self._patience_left = self._patience()
@@ -679,7 +725,7 @@ class TaskRun:
                 if not started:
                     started = True
                     if spec.timed:
-                        self.publish(self.status("started"))
+                        self.publish(self.status("started"), lifecycle=True)
                         stats.task_started(spec.name, self.task_id)
                     # Units the task before kept for this one go back once it starts.
                     # A child flow gives back only its own: the units its parent
@@ -697,12 +743,9 @@ class TaskRun:
                     self.publish(self.status("resumed"))
                     stats.task_resumed(spec.name, self.task_id)
                 if failure is None:
-                    if spec.service_id is not None and not served:
+                    if spec.has_service and not served:
                         if remaining is None:
-                            config = env.registry.get_config(
-                                f"{self.context.sim_id}.service.{spec.service_id}"
-                            )
-                            remaining = self.context.sampler.sample(config)
+                            remaining = self._service()
                         service_from = env.now
                         self._target = "service"
                         yield env.timeout(remaining)
@@ -718,7 +761,7 @@ class TaskRun:
                         put_done = True
                     failure = self._failure(payload)
                 if failure is None:
-                    self.publish(payload)
+                    self.publish(payload, key=self._payload_key(payload))
                     stats.task_finished(spec.name, self.task_id)
                     # A stop condition, such as `t >= 300`, is checked after every
                     # finished task as well as after every change of state
@@ -812,13 +855,12 @@ class TaskRun:
             # Start a new entity on success, after the signal and interrupt actions
             # and before `set`, so its upstream shares the spawning entity's
             # attributes dictionary as later `set` calls change it.
-            self.context._spawn_entity(
-                spec.spawn["task"],
+            self.context._spawn_children(
+                spec.spawn,
                 self.entity,
                 Upstream(
                     self.task_id, self.entity.key, self.entity.attributes, payload
                 ),
-                spec.spawn["after"],
             )
         self.entity.attributes.update(spec.attribute_changes)
         handed = Upstream(
@@ -1016,6 +1058,45 @@ class TaskRun:
             extra["wait"] = self.waits
         return extra
 
+    def _service(self) -> Union[int, float]:
+        """The time this instance works: a draw from the live `service_id`
+        distribution, or its `service_time`."""
+        spec = self.spec
+        if spec.service_id is not None:
+            config = self.env.registry.get_config(
+                f"{self.context.sim_id}.service.{spec.service_id}"
+            )
+            sampler = self.context.sampler
+            assert sampler is not None  # a run is under way
+            return sampler.sample(config)
+        return self._place(spec.service_time_of or spec.service_time, "service_time")
+
+    def _place(self, value: Any, key: str) -> Union[int, float]:
+        """Evaluates a time place: a number as it is, a function of the entity, or
+        text read as an expression over the entity's names.
+
+        Args:
+            value: A number, the `Expression` of a text, or a function of the
+                entity.
+            key: The task key the value was written under, for the message.
+
+        Returns:
+            Union[int, float]: The seconds.
+
+        Raises:
+            TypeError: If the value is not a number of seconds, or a boolean.
+        """
+        if isinstance(value, Expression):
+            value = value.evaluate(self.scope())
+        elif callable(value):
+            value = value(self.entity)
+        if isinstance(value, bool) or not isinstance(value, numbers.Real):
+            raise TypeError(
+                f"task '{self.spec.name}' {key} gave {value!r}, which is not a number "
+                f"of seconds"
+            )
+        return value
+
     def _patience(self) -> Union[int, float]:
         spec = self.spec
         if spec.patience_of is not None:
@@ -1041,7 +1122,7 @@ class TaskRun:
         self.outcome = Upstream(
             self.task_id, self.entity.key, self.entity.attributes, dict(record)
         )
-        self._end_flow("ended")
+        self._leave(self.spec.on_balk)
 
     def _renege(self) -> None:
         self._release_kept(own=True)
@@ -1054,7 +1135,20 @@ class TaskRun:
             self.entity.attributes,
             self.status("reneged"),
         )
-        self._end_flow("ended")
+        self._leave(self.spec.on_renege)
+
+    def _leave(self, target: Optional[str]) -> None:
+        """Ends the flow of an instance that balked or reneged, or hands it on.
+
+        Args:
+            target: The task named by `on_balk` or `on_renege`, or None to end the
+                flow. The task gets the balk or renege record as its upstream.
+        """
+        if target is None:
+            self._end_flow("ended")
+        else:
+            assert self.outcome is not None  # a balk or renege sets it
+            self._follow(target, self.outcome)
 
     def _end_flow(self, how: str) -> None:
         """Records the end of the entity's flow: `finished`, `failed`, or `ended`
@@ -1143,7 +1237,7 @@ class TaskRun:
         if transfer.store is not None:
             store = context._stores_map[transfer.store]
             if direction == "get":
-                return store.get(transfer.filter_for(scope))
+                return store.get(transfer.filter_for(scope, self.entity))
             if context._store_priority.get(transfer.store):
                 rank = transfer.priority_for(self.task_id, self.upstream, scope)
                 return store.put(store.wrap(payload, rank))

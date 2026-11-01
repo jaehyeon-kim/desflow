@@ -257,3 +257,43 @@ def test_item_names_inside_the_functions_are_kept_apart_from_item():
     expression = Expression('count(shelf, item.area == "north") > 0 and item.size > 1')
     assert expression.references["store_item"] == {"area"}
     assert expression.references["item"] == {"size"}
+
+
+def _record_scope(record):
+    return Scope(
+        payload={}, attributes={}, levels={}, registry=None, now=0.0, record=record
+    )
+
+
+def test_record_names_read_the_record_and_none_when_it_lacks_them():
+    """In an egress `when`, `record.value.<field>` is None when the value lacks the
+    field or is not a mapping, so a comparison with it is false and not an error."""
+    expression = Expression("record.value.event_type == 'packed'", records=True)
+    assert expression.record_names == {"value.event_type"}
+    assert expression.evaluate(_record_scope({"value": {"event_type": "packed"}}))
+    assert not expression.evaluate(_record_scope({"value": {"other": 1}}))
+    assert not expression.evaluate(_record_scope({"value": 3.5}))
+    assert not expression.evaluate(_record_scope({"stream_type": "telemetry"}))
+    key = Expression("record.key == 'o-1' and record.task == 'pack'", records=True)
+    assert key.evaluate(_record_scope({"key": "o-1", "task": "pack"}))
+    assert not key.evaluate(_record_scope({"key": "o-1"}))
+
+
+@pytest.mark.parametrize(
+    "text,fragment",
+    [
+        ("record.sim_ts > 1", "'record.sim_ts'"),
+        ("record > 1", "the name 'record' alone"),
+        ("t > 3", "the name 't'"),
+        ("attr.total > 1", "attr"),
+        ("record.value.a.b == 1", "record"),
+    ],
+)
+def test_record_expressions_refuse_other_names(text, fragment):
+    with pytest.raises(ValueError, match=fragment):
+        Expression(text, records=True)
+
+
+def test_record_is_refused_outside_an_egress_when():
+    with pytest.raises(ValueError, match="only an egress when reads"):
+        Expression("record.key == 'a'")

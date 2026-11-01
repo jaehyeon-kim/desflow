@@ -121,9 +121,13 @@ def check_store_type(store_type: Optional[Any], priority: bool = False) -> None:
         )
 
 
-class DynamicStore(BaseDynamicResource):
+class DynamicStore(BaseDynamicResource, Store):
     """
     A wrapper for SimPy FilterStore and PriorityStore with dynamic capacity updates.
+
+    It is also a SimPy `Store`, so `isinstance` holds. It runs none of SimPy's
+    constructor: `put_queue`, `get_queue`, `items` and `capacity` read the wrapped
+    store, and `put` and `get` call it.
 
     Useful for modeling buffers, queues, or staging areas that hold discrete,
     heterogeneous items. By setting `priority=True`, the store will automatically
@@ -141,6 +145,10 @@ class DynamicStore(BaseDynamicResource):
         env (Environment): The active SimPy simulation environment.
         sim_id (str): The parent simulation ID prefix.
         obj_id (str): The specific store name/identifier.
+        put_queue: The waiting puts, SimPy's queue.
+        get_queue: The waiting gets, SimPy's queue.
+        PutQueue: The type of `put_queue`, that of the wrapped store.
+        GetQueue: The type of `get_queue`, that of the wrapped store.
     """
 
     def __init__(
@@ -191,6 +199,8 @@ class DynamicStore(BaseDynamicResource):
         self._store = kind(env, capacity=initial_capacity or 1)
         self._store._on_change = self._changed
         self._store._capacity = initial_capacity
+        self.PutQueue = kind.PutQueue
+        self.GetQueue = kind.GetQueue
         start = list(items or [])
         if len(start) > initial_capacity:
             raise ValueError(
@@ -238,9 +248,36 @@ class DynamicStore(BaseDynamicResource):
     def items(self) -> list:
         """
         list: The actual list of distinct item objects currently residing
-        in the store.
+        in the store. Assigning a list replaces the items, which `FilterStore` code does
+        with `store.items = [...]`. As in SimPy, a get that is waiting is served at the
+        next put or get, not at the assignment, and the store keeps the list given.
+        A priority store takes a list that is already a heap.
         """
         return self._store.items
+
+    @items.setter
+    def items(self, items: Iterable[Any]) -> None:
+        """
+        Replaces the items. A waiting get is served at the next put or get, as in
+        SimPy.
+
+        Args:
+            items: The new items. A priority store takes a list that is a heap.
+        """
+        # SimPy keeps the list it is given, and serves a waiting get at the next
+        # put or get, not at the assignment
+        self._store.items = items if isinstance(items, list) else list(items)
+        self._changed()
+
+    @property
+    def put_queue(self) -> list:
+        """list: The waiting puts, SimPy's `put_queue`."""
+        return self._store.put_queue
+
+    @property
+    def get_queue(self) -> list:
+        """list: The waiting gets, SimPy's `get_queue`."""
+        return self._store.get_queue
 
     @property
     def level(self) -> int:

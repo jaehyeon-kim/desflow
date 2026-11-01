@@ -12,7 +12,7 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Mapping, Optional, Union
 
 from desflow.blueprint.build import Preview
 from desflow.core.context import SimulationContext
@@ -23,7 +23,10 @@ _entry_numbers = itertools.count()
 
 
 def load_context(
-    folder: Union[str, Path], entry: str, preview: Optional[Preview] = None
+    folder: Union[str, Path],
+    entry: str,
+    preview: Optional[Preview] = None,
+    variables: Optional[Mapping[str, str]] = None,
 ) -> SimulationContext:
     """Builds the simulation that `entry` in `folder` defines.
 
@@ -43,24 +46,31 @@ def load_context(
         entry: The entry file's name inside `folder`.
         preview: The preview `desflow run --sample` and `--stdout` make, for a
             blueprint only.
+        variables: Values for `${NAME}`, used before the environment, as `desflow
+            run --var NAME=VALUE` gives them, for a blueprint only.
 
     Returns:
         SimulationContext: The built context, not yet run.
 
     Raises:
         ValueError: If a Python entry defines no context, or several with no
-            `DESFLOW_APP`, or `DESFLOW_APP` names no context; or a preview is
-            given with a Python entry.
+            `DESFLOW_APP`, or `DESFLOW_APP` names no context; or a preview or
+            variables are given with a Python entry.
         ImportError: If `folder` is a URI and pyarrow is not installed.
         BlueprintError: If a blueprint is invalid.
     """
     local = _local_folder(folder)
     path = local / entry
     if path.suffix != _PYTHON_SUFFIX:
-        return SimulationContext.from_yaml(path, preview)
+        return SimulationContext.from_yaml(path, preview, variables)
     if preview is not None:
         raise ValueError(
             f"a preview runs a YAML blueprint, and {entry} is a Python file"
+        )
+    if variables:
+        raise ValueError(
+            f"variables fill ${{NAME}} in a YAML blueprint, and {entry} is a Python "
+            f"file, which reads its own settings"
         )
     context = _python_context(path)
     # analyze(verify=True) builds a new copy from the local file

@@ -40,6 +40,8 @@
     - tests/conformance/test_c1_timed_wait.py::test_delay_of_zero_stays_zero
     - tests/conformance/test_c1_timed_wait.py::test_a_gap_of_zero_keeps_an_arrival_at_one_instant
     - tests/conformance/test_c1_timed_wait.py::test_integer_literals_stay_integers
+    - tests/conformance/test_builder_additions.py::test_builder_service_time
+    - tests/conformance/test_builder_additions.py::test_builder_service_time_refuses_what_it_cannot_run
     - tests/conformance/test_c1_timed_wait.py::test_a_constant_arrival_keeps_integer_times
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_single_branch_wait_goes_on_in_the_step_its_event_is_processed
   page: user-guide/tasks-and-processes/index.md#a-timed-step
@@ -107,6 +109,7 @@
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_failure
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_failure_handled_by_on_fail
+    - tests/conformance/test_builder_additions.py::test_builder_on_fail_catches_a_raise
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
   differences: "By default (`on_unhandled_failure` is `stop`) a failure no task waits for stops the run, matching SimPy and the low-level API, where an exception nobody handles stops the run; under `on_unhandled_failure` of `continue` it ends the entity's flow in YAML and the builder, publishes `failed` and is counted, and the run goes on."
 
@@ -255,6 +258,7 @@
   low_level: "`with packers.request() as req: yield req`"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_ordinary_request_and_release
+    - tests/conformance/test_low_level_surface.py::test_resource_put_and_get_exist_and_put_takes_a_unit
   page: user-guide/resources/index.md#declare-a-resource
 
 - id: C4
@@ -495,6 +499,8 @@
   low_level: "`parcels.get(filter=lambda item: ...)`"
   checks:
     - tests/conformance/test_c5_inventory.py::test_c5_filtered_retrieval
+    - tests/conformance/test_builder_additions.py::test_filter_takes_the_entity_by_name
+    - tests/conformance/test_builder_additions.py::test_filter_of_one_parameter_is_called_with_the_item
   page: user-guide/model-parts/stores-and-containers.md#pick-an-item-or-give-up-waiting
   differences: A priority store takes no filter, because SimPy has no store that both ranks and filters.
 
@@ -559,6 +565,8 @@
     - tests/conformance/test_c5_queues.py::test_c5_store_put_and_get_queues
     - tests/conformance/test_c5_queues.py::test_c5_container_put_and_get_queues
     - tests/conformance/test_c5_queues.py::test_c5_queue_count_falls_when_a_waiter_leaves
+    - tests/conformance/test_low_level_surface.py::test_queue_attributes_exist
+    - tests/conformance/test_low_level_surface.py::test_isinstance_of_simpy_classes
   page: user-guide/model-parts/stores-and-containers.md#registry-paths-readings-and-conditions
 
 - id: C5
@@ -702,6 +710,8 @@
   low_level: "`ContainerConfig(level=6)` and `DynamicStore(..., items=[...])`"
   checks:
     - tests/conformance/test_c6_initial_state.py::test_c6_initial_inventory
+    - tests/conformance/test_low_level_surface.py::test_items_setter
+    - tests/conformance/test_low_level_surface.py::test_items_setter_serves_a_waiting_get_at_the_next_put
   page: user-guide/model-parts/stores-and-containers.md#start-with-items-and-serve-by-priority
 
 - id: C6
@@ -762,6 +772,8 @@
     - tests/conformance/test_c7_patience.py::test_patience_does_not_beat_a_timeout_branch_processed_first
     - tests/conformance/test_c7_patience.py::test_patience_first_at_a_tie_reneges_a_get
     - tests/conformance/test_c7_patience.py::test_patience_first_at_a_tie_reneges_a_request_asked_again
+    - tests/conformance/test_builder_additions.py::test_builder_on_renege_on_balk
+    - tests/conformance/test_builder_additions.py::test_on_renege_and_on_balk_need_their_cause
     - tests/conformance/test_c7_patience.py::test_c7_reneging_tie_timeout_scheduled_before_the_grant
     - tests/conformance/test_c7_patience.py::test_c7_reneged_request_leaves_the_queue
     - tests/conformance/test_c7_patience.py::test_c7_patience_pauses_during_service
@@ -961,6 +973,7 @@
   checks:
     - tests/conformance/test_c1_processes.py::test_c1_start_a_process_without_waiting_for_it
     - tests/conformance/test_c1_processes.py::test_c1_start_a_process_without_waiting_for_it_drain
+    - tests/conformance/test_builder_additions.py::test_builder_spawn_count
   page: user-guide/tasks-and-processes/signals-and-waiting.md#start-a-flow-without-waiting
 
 - id: C6

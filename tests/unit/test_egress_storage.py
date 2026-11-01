@@ -587,3 +587,140 @@ def test_a_file_sink_without_pyarrow_says_so_at_error(tmp_path: Path, caplog):
             env.teardown()
     errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
     assert any("pip install desflow[parquet]" in m for m in errors), errors
+
+
+def _event(value, key="orders-1", stream_type="event"):
+    return {
+        "stream_type": stream_type,
+        "sim_ts": 1.0,
+        "timestamp": "2026-01-01T00:00:01.000+00:00",
+        "key": key,
+        "value": value,
+    }
+
+
+def test_path_field_selects_the_file_and_is_removed(tmp_path: Path):
+    """`__path__` in an event's value is the file it is written to, in a folder that
+    is created for it, and the column is not written. A record without it goes to
+    `default_path`."""
+    batch = [
+        _event({"__path__": f"{tmp_path}/packed/a.jsonl", "n": 1}),
+        _event({"n": 2}),
+    ]
+    jsonl = JsonlStorageEgress(default_path=str(tmp_path / "rest.jsonl"))
+    jsonl.filesystem = fs.LocalFileSystem()
+    jsonl._write_batch(batch)
+    parquet = ParquetStorageEgress(default_path=str(tmp_path / "rest.parquet"))
+    parquet.filesystem = fs.LocalFileSystem()
+    parquet._write_batch(
+        [
+            _event({"__path__": f"{tmp_path}/deep/er/a.parquet", "n": 1}),
+            _event({"n": 2}),
+        ],
+        pa,
+        pq,
+    )
+
+    [routed] = (tmp_path / "packed").glob("a_*.jsonl")
+    assert json.loads(routed.read_text())["n"] == 1
+    assert "__path__" not in routed.read_text()
+    [rest] = tmp_path.glob("rest_*.jsonl")
+    assert json.loads(rest.read_text())["n"] == 2
+    [table] = (tmp_path / "deep" / "er").glob("a_*.parquet")
+    assert pq.read_table(table).column_names == [
+        "stream_type",
+        "sim_ts",
+        "timestamp",
+        "key",
+        "n",
+    ]
+    [rest_table] = tmp_path.glob("rest_*.parquet")
+    assert pq.read_table(rest_table).to_pylist()[0]["n"] == 2
+
+
+def test_path_router_wins_over_the_path_field(tmp_path: Path):
+    """A `path_router` is the user's explicit function. The key is still removed."""
+    egress = JsonlStorageEgress(path_router=lambda d: str(tmp_path / "routed.jsonl"))
+    egress.filesystem = fs.LocalFileSystem()
+
+    egress._write_batch([_event({"__path__": "elsewhere.jsonl", "n": 1})])
+
+    [written] = tmp_path.glob("routed_*.jsonl")
+    assert "__path__" not in written.read_text()
+    assert not list(tmp_path.glob("elsewhere*"))
+
+
+def test_envelope_false_writes_the_value_as_the_row(tmp_path: Path, caplog):
+    """With `envelope` off a row is the event's value. A value that is not a mapping
+    is skipped, and one warning per sink says so, however many flushes meet one."""
+    batch = [
+        _event({"n": 1}),
+        _event("text"),
+        _event({"__path__": f"{tmp_path}/by_path.jsonl", "n": 2}),
+    ]
+    jsonl = JsonlStorageEgress(default_path=str(tmp_path / "plain.jsonl"))
+    jsonl.filesystem = fs.LocalFileSystem()
+    jsonl.envelope = False
+
+    jsonl._write_batch(batch)
+    jsonl._write_batch(batch)
+
+    plain = [
+        json.loads(line)
+        for path in tmp_path.glob("plain_*.jsonl")
+        for line in path.read_text().splitlines()
+    ]
+    assert plain == [{"n": 1}, {"n": 1}]
+    written = [
+        json.loads(line)
+        for path in tmp_path.glob("by_path_*.jsonl")
+        for line in path.read_text().splitlines()
+    ]
+    assert written == [{"n": 2}, {"n": 2}]
+    warnings = [r for r in caplog.records if "skipped records" in r.getMessage()]
+    assert len(warnings) == 1
+    assert "1 had a value that is not a mapping" in warnings[0].getMessage()
+
+    parquet = ParquetStorageEgress(default_path=str(tmp_path / "plain.parquet"))
+    parquet.filesystem = fs.LocalFileSystem()
+    parquet.envelope = False
+    parquet._write_batch([_event({"n": 1, "m": "x"})], pa, pq)
+    [table] = tmp_path.glob("plain_*.parquet")
+    assert pq.read_table(table).to_pylist() == [{"n": 1, "m": "x"}]
+
+
+def _label():
+    return {
+        "stream_type": "label",
+        "key": "k",
+        "sim_ts": 1.0,
+        "value": {"fault": "slow_packing"},
+    }
+
+
+def test_envelope_false_leaves_a_label_record_whole(tmp_path: Path):
+    """A label record is not an event of the model, so `envelope: false` keeps its
+    envelope on the file sinks, as on Kafka, Redis, Console and Postgres."""
+    jsonl = JsonlStorageEgress(default_path=str(tmp_path / "labels.jsonl"))
+    jsonl.filesystem = fs.LocalFileSystem()
+    jsonl.envelope = False
+    jsonl._write_batch([_label()])
+    [written] = tmp_path.glob("labels_*.jsonl")
+    row = json.loads(written.read_text().splitlines()[0])
+    assert row["stream_type"] == "label" and row["fault"] == "slow_packing"
+    assert row["key"] == "k"
+
+    parquet = ParquetStorageEgress(default_path=str(tmp_path / "labels.parquet"))
+    parquet.filesystem = fs.LocalFileSystem()
+    parquet.envelope = False
+    parquet._write_batch([_label()], pa, pq)
+    [table] = tmp_path.glob("labels_*.parquet")
+    [stored] = pq.read_table(table).to_pylist()
+    assert stored["stream_type"] == "label" and stored["fault"] == "slow_packing"
+
+    routed = JsonlStorageEgress(path_router=lambda d: str(tmp_path / "routed.jsonl"))
+    routed.filesystem = fs.LocalFileSystem()
+    routed.envelope = False
+    routed._write_batch([_label()])
+    [again] = tmp_path.glob("routed_*.jsonl")
+    assert json.loads(again.read_text().splitlines()[0])["stream_type"] == "label"

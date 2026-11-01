@@ -71,6 +71,7 @@ To give a service a measured mean and standard deviation, `desflow dist <family>
 | `batching` | How records are grouped before they are sent. |
 | `stats` | Which built-in statistics are published, and how often. |
 | `run` | How long the run lasts, whether to drain at the end, and functions to call before it starts. |
+| `tests` | Named checks that `desflow test` runs: a seed, a run length and the measures expected. |
 
 ## Rules assistants get wrong
 

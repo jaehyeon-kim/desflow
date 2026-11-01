@@ -237,8 +237,7 @@ def test_every_gap_is_used_defined_and_linked_to_a_form():
     for gap in ("S1", "S2", "S3", "S4", "S5"):
         assert gap not in data["gaps"]
     # The run and time rules (T1 to T8, T13 and T14) are removed by Batch 1 of 1.0.0;
-    # the T10 and V3 rows ship in 0.31.0; the additive Low-level and filter rows in
-    # 0.32.0
+    # the T10 and V3 rows ship in 0.31.0
     for number in (*range(1, 9), 13, 14):
         assert f"T{number}" not in data["gaps"]
     for gap in ("T10", "V3"):
@@ -246,8 +245,9 @@ def test_every_gap_is_used_defined_and_linked_to_a_form():
     # Batch 2 of 1.0.0 removes T9, T11, I5, I8, I9 and H3
     for gap in ("T9", "T11", "I5", "I8", "I9", "H3"):
         assert gap not in data["gaps"]
+    # Batch 3 of 1.0.0 removes L1, L2 and V6
     for gap in ("L1", "L2", "V6"):
-        assert data["gaps"][gap]["fixed"] == "0.32.0"
+        assert gap not in data["gaps"]
     # A gap with only part of its row planned names no release
     for gap in ("V1", "I6", "M3"):
         assert "fixed" not in data["gaps"][gap]
@@ -311,4 +311,4 @@ def test_a_row_shown_native_has_no_gap_that_says_otherwise():
         "SP-B7",
     ):
         assert rows[construct] == [], construct
-    assert rows["SP-B2"] == ["L1"]
+    assert rows["SP-B2"] == []

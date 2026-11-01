@@ -29,6 +29,8 @@ from pydantic import (
     ConfigDict,
     Discriminator,
     Field,
+    StrictFloat,
+    StrictInt,
     Tag,
     TypeAdapter,
     ValidationError,
@@ -64,7 +66,7 @@ from desflow.resources.store import StoreBase, check_store_type
 from desflow.utils import suggestion, time_to_seconds
 
 # The names an egress `when` takes instead of a `!python` function.
-WHEN_NAMES = ("history", "live", LABELS)
+WHEN_NAMES = ("history", "live", "events", "telemetry", LABELS)
 
 
 def _seconds(value: Union[int, float, str]) -> Union[int, float]:
@@ -731,7 +733,10 @@ class Task(_Model):
 
     `payload` is the value of the `finished` event: a mapping, or a `!python`
     function called as `payload(task_id, context)`. `id_field` adds the task id to a
-    mapping payload under that key, `item_field` adds the item its store `get` took,
+    mapping payload under that key, `key_field` names the payload field whose value
+    becomes the key of the finished event, and so the Kafka message key (the
+    `queued` and `started` records keep the entity's key; a payload without the
+    field fails the run), `item_field` adds the item its store `get` took,
     and `attributes` adds the named entity attributes. A task with a `service` and no `resource` is a timed step; one with
     neither, and no `get`, emits its payload as soon as it is spawned.
 
@@ -758,6 +763,7 @@ class Task(_Model):
     resource: Optional[Union[str, List[str]]] = None
     payload: Union[Dict[str, Any], Callable[..., Any]]
     id_field: Optional[str] = None
+    key_field: Optional[str] = None
     item_field: Optional[str] = None
     attributes: List[str] = Field(default_factory=list)
     priority: Optional[Union[int, float, str]] = None
@@ -957,18 +963,55 @@ class Connector(_Model):
     config: Dict[str, Any] = Field(default_factory=dict)
 
 
+class WhenExpr(_Model):
+    """An egress `when` written as an expression: `when: {expr: <expression>}`.
+
+    The expression reads the record the sink is offered: `record.stream_type`
+    (`event` or `telemetry`), `record.key`, `record.task` and `record.value.<field>`.
+    A name the record lacks reads as None, so `record.value.event_type ==
+    'order_packed'` is false for a telemetry record and for an event without that
+    field. The sink receives the record when the expression is true. An expression
+    that fails on a record, such as `record.value.amount > 100` on a record whose
+    value has no `amount`, fails the run.
+    """
+
+    expr: str
+
+    @field_validator("expr")
+    @classmethod
+    def _parses(cls, value: str) -> str:
+        Expression(value, records=True)
+        return value
+
+
 class EgressConnector(Connector):
     """An `egress` entry, with the per-provider options of `add_egress`.
 
-    `when` is `history`, `live`, `labels` or a `!python` function taking one record.
-    `history` sends the records stamped before `simulation.go_live_at`, and `live`
-    sends the records stamped at or after it. `labels` sends the ground-truth records
-    of scenario steps with a `record`, and nothing else.
+    `when` is `history`, `live`, `events`, `telemetry`, `labels`, a mapping
+    `{expr: ...}` or a `!python` function taking one record. `history` sends the
+    records stamped before `simulation.go_live_at`, and `live` sends the records
+    stamped at or after it. `events` sends the event records and `telemetry` the
+    telemetry records. `labels` sends the ground-truth records of scenario steps
+    with a `record`, and nothing else.
+
+    `envelope: false` makes the entry plain output: the sink writes each event's
+    value without the record around it (`stream_type`, `sim_ts`, `timestamp`, `key`,
+    `task` and `instance`), and it receives no telemetry record and no `queued` or
+    `started` record of a task. A Kafka or Redis sink sends a value that is not a
+    mapping as JSON. A storage or PostgreSQL sink skips it, with one warning. The
+    message key of Kafka stays the record's key, and a `topic_router` still receives
+    the whole record. Ground-truth records of a `when: labels` entry are not
+    affected.
     """
 
     when: Optional[
-        Union[Literal["history", "live", "labels"], Callable[[dict], bool]]
+        Union[
+            Literal["history", "live", "events", "telemetry", "labels"],
+            WhenExpr,
+            Callable[[dict], bool],
+        ]
     ] = None
+    envelope: bool = True
     batch_size: Optional[int] = Field(default=None, gt=0)
     flush_interval: Optional[float] = Field(default=None, gt=0)
 
@@ -977,8 +1020,8 @@ class EgressConnector(Connector):
     def _known_name(cls, value: Any) -> Any:
         if isinstance(value, str) and value not in WHEN_NAMES:
             raise ValueError(
-                f"'{value}' is not a when. Use history, live, labels or a !python "
-                f"function"
+                f"'{value}' is not a when. Use history, live, events, telemetry, "
+                f"labels, a mapping with expr, or a !python function"
             )
         return value
 
@@ -1193,6 +1236,74 @@ class SignalSpec(_Model):
     on: List[OnEntry] = Field(default_factory=list)
 
 
+class ExpectedWithin(_Model):
+    """An `expect` value with a tolerance: the measured statistic passes when it is
+    within `within` of `value`, in absolute terms. Use it for a value whose last
+    digits change with the platform's floating point."""
+
+    value: Union[StrictInt, StrictFloat]
+    within: Union[StrictInt, StrictFloat] = Field(ge=0)
+
+
+class BlueprintTest(_Model):
+    """A `tests` entry: the statistics a model must give at one seed, checked by
+    `desflow test`.
+
+    `expect` maps a statistic name, as `measures` in an experiment file names it
+    (`tasks.pack_order.finished`), to the number it must have, or to `{value, within}`
+    for a tolerance. A number is compared exactly. `seed` defaults to the file's
+    `simulation.random_seed` and `until` to `run.until`. The entry runs the model
+    once, unpaced, with no ingress and no egress, so a test contacts no service.
+
+    A test states the measures at one seed in one version of desflow. A new release
+    may draw its random numbers differently, so a test does not promise that exact
+    seeded records or values stay the same across versions; run
+    `desflow test --fix` to write the new values and read them before you keep them.
+    """
+
+    name: str
+    seed: Optional[StrictInt] = None
+    until: Optional[Union[int, float, str]] = None
+    expect: Dict[str, Union[ExpectedWithin, StrictInt, StrictFloat]] = Field(
+        default_factory=dict
+    )
+
+    @field_validator("until", mode="before")
+    @classmethod
+    def _parse_until(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        number = _seconds(value)
+        if not number > 0:
+            raise ValueError("until must be above 0")
+        return number
+
+
+def _distinct_test_names(tests: List[BlueprintTest]) -> List[BlueprintTest]:
+    names = [test.name for test in tests]
+    repeated = sorted({name for name in names if names.count(name) > 1})
+    if repeated:
+        raise ValueError(
+            f"each test needs its own name; repeated: {', '.join(repeated)}"
+        )
+    return tests
+
+
+class TestsFile(_Model):
+    """The `tests.yaml` that `desflow test` reads beside a builder file, which has
+    no `tests` key of its own: a mapping with the same `tests` list a blueprint
+    holds."""
+
+    __test__ = False  # pytest would otherwise collect this class
+
+    tests: List[BlueprintTest]
+
+    @field_validator("tests")
+    @classmethod
+    def _test_names_differ(cls, value: List[BlueprintTest]) -> List[BlueprintTest]:
+        return _distinct_test_names(value)
+
+
 class Blueprint(_Model):
     """A whole blueprint file.
 
@@ -1218,6 +1329,12 @@ class Blueprint(_Model):
     batching: Optional[Batching] = None
     stats: Optional[Stats] = None
     run: Run = Field(default_factory=Run)
+    tests: List[BlueprintTest] = Field(default_factory=list)
+
+    @field_validator("tests")
+    @classmethod
+    def _test_names_differ(cls, value: List[BlueprintTest]) -> List[BlueprintTest]:
+        return _distinct_test_names(value)
 
     @field_validator("signals", mode="before")
     @classmethod

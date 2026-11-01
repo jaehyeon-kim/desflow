@@ -153,6 +153,7 @@ INPUT_FORMS: Dict[Tuple[str, str], Any] = {
     ("Drain", "_parse_limit"): DURATION,
     ("Run", "_parse_until"): DURATION,
     ("RunSegment", "_parse_until"): DURATION,
+    ("BlueprintTest", "_parse_until"): DURATION,
     ("SegmentEvery", "_parse_every"): DURATION,
     ("Blueprint", "_signal_mapping"): SIGNAL_NAMES,
     ("Blueprint", "_bare_level"): STATS_LEVEL,

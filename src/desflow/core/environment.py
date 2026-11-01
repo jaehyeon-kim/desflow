@@ -278,6 +278,7 @@ class EgressMixIn:
         flush_intervals: Optional[List[Optional[float]]] = None,
         labels: Optional[List[bool]] = None,
         warmup: Optional[float] = None,
+        envelopes: Optional[List[bool]] = None,
     ):
         """
         Initializes the egress buffers and starts the background publisher threads.
@@ -320,6 +321,11 @@ class EgressMixIn:
                 from now, the start of the run when the egress is set up with the
                 model. No provider receives a record stamped before it ends, and the
                 built-in statistics are reset then. Defaults to None, no warm-up.
+            envelopes (List, optional): One entry per provider, aligned by position.
+                False makes it a plain-output provider: it receives no telemetry and
+                no `queued` or `started` record, and the sink writes each event's
+                value without the record around it. Defaults to None, which is every
+                provider receiving the whole record.
 
         Raises:
             ValueError: If a per-provider list has the wrong length.
@@ -358,6 +364,20 @@ class EgressMixIn:
                 labels, False, len(providers), "labels"
             )
         ]
+        self.egress_envelopes: List[bool] = [
+            bool(flag)
+            for flag in self._resolve_per_provider(
+                envelopes, True, len(providers), "envelopes"
+            )
+        ]
+        for provider, envelope in zip(providers, self.egress_envelopes):
+            if not envelope:
+                provider.envelope = False
+                logger.info(
+                    "%s has envelope: false, so it skips telemetry and the queued "
+                    "and started records, and writes each event's value alone.",
+                    type(provider).__name__,
+                )
         self.egress_warmup = warmup
         if warmup is not None:
             # The warm-up counts from the start of the run, as the statistics reset
@@ -584,17 +604,24 @@ class EgressMixIn:
 
         self._event_buffers[index] = []
 
-    def _append_record(self, record: Dict[str, Any]):
+    def _append_record(self, record: Dict[str, Any], lifecycle: bool = False):
         """Internal: routes one record into each provider's buffer.
 
         Predicates are tested here rather than at flush time, so a record is tested
         once on the way in instead of against every predicate at fan-out. A
         ground-truth record goes only to labels sinks, and every other record only to
-        the others.
+        the others. A provider with `envelope` off takes no telemetry record and no
+        record of `lifecycle`, a task's `queued` or `started`.
         """
         is_label = record["stream_type"] == "label"
         for index, predicate in enumerate(self.egress_predicates):
             if self.egress_labels[index] is not is_label:
+                continue
+            if (
+                not self.egress_envelopes[index]
+                and not is_label
+                and (lifecycle or record["stream_type"] == "telemetry")
+            ):
                 continue
             if predicate is not None and not predicate(record):
                 continue
@@ -637,6 +664,8 @@ class EgressMixIn:
         value: Any,
         task: Optional[str] = None,
         instance: Any = None,
+        key: Any = None,
+        lifecycle: bool = False,
     ):
         """
         Buffers a high-volume discrete event (e.g., a task starting or finishing).
@@ -653,6 +682,10 @@ class EgressMixIn:
                 as the record's `task` field, so the payload stays the user's own.
             instance (Any, optional): The task's instance id, written as the record's
                 `instance` field.
+            key (Any, optional): The record's key, when it is not `event_key`: a
+                task's `key_field` gives the message key this way.
+            lifecycle (bool, optional): True for a task's `queued` or `started`
+                record, which a provider with `envelope` off does not receive.
         """
         if not hasattr(self, "_event_buffers"):
             return  # Fail silently if no egress is configured
@@ -670,6 +703,8 @@ class EgressMixIn:
         # the two defaults that disagree with the model dump set back. Keys and their
         # order match what the model produced. EventPayload remains the published
         # schema and is what the Avro and documentation paths describe.
+        if key is not None:
+            event_key = key
         self._append_record(
             {
                 "stream_type": "event",
@@ -683,7 +718,8 @@ class EgressMixIn:
                 "task": task,
                 "instance": instance,
                 "value": _jsonable(value),
-            }
+            },
+            lifecycle,
         )
 
     def publish_label(

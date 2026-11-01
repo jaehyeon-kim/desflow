@@ -449,8 +449,8 @@ def test_waits_signals_and_failures_are_checked_before_the_run():
     ):
         with pytest.raises(ValueError, match=fragment):
             run(**task)
-    with pytest.raises(ValueError, match="need a fail condition"):
-        SimulationContext("TestSim").task(on_fail="t")
+    with pytest.raises(ValueError, match="fail_reason needs a fail condition"):
+        SimulationContext("TestSim").task(fail_reason="late")
 
 
 def test_a_raising_function_fails_the_task_and_ends_the_flow():

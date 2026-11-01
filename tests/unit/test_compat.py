@@ -65,7 +65,7 @@ def test_ddes_warns_then_runs_desflow():
 
 # Extras desflow added after the last dynamic-des release was published, so no one
 # installs them under the old name.
-_ADDED_AFTER_THE_LAST_RELEASE = {"fit"}
+_ADDED_AFTER_THE_LAST_RELEASE = {"fit", "watch"}
 
 
 def test_last_dynamic_des_release_has_every_desflow_extra():

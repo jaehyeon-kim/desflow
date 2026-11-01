@@ -1813,3 +1813,240 @@ def test_load_context_of_a_builder_file_gives_the_paths_of_its_yaml_twin(tmp_pat
 
     assert from_builder == from_yaml
     assert from_builder
+
+
+# ---------------------------------------------------------------------------
+# Sink options of Batch 3: when names and expressions, envelope, key_field
+# ---------------------------------------------------------------------------
+TWO_TASKS = """\
+simulation: {sim_id: Shop, factor: 0, random_seed: 7}
+services:
+  packing: {dist: constant, value: 1.0}
+resources:
+  packers: {current_cap: 2, max_cap: 5}
+arrivals:
+  standard: {dist: constant, value: 2.0, spawn: pack}
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed, sku: A1}
+    id_field: order_id
+    next: ship
+  ship:
+    payload: {event_type: order_shipped, sku: A1}
+run:
+  until: 10
+stats: {level: minimal, interval: 1}
+"""
+
+
+def _run_with_sinks(tmp_path, sinks, text=TWO_TASKS):
+    """Builds the blueprint with Console sinks carrying `sinks`, swapped for captures."""
+    egress = "".join(f"  - type: Console\n    {entry}\n" for entry in sinks)
+    app = SimulationContext.from_yaml(write(tmp_path, text + "egress:\n" + egress))
+    captures = [_Capture() for _ in sinks]
+    app._egress_providers[:] = captures
+    app.run()
+    return captures
+
+
+def test_when_expr_filters_records(tmp_path):
+    """`when: {expr: ...}` over `record.value.<field>` keeps the records it is true
+    for, as the `!python` function of the Streaming Out page did, and a telemetry
+    record or an event without the field is false, not an error."""
+    packed, events, telemetry, key = _run_with_sinks(
+        tmp_path,
+        [
+            "when: {expr: \"record.value.event_type == 'order_packed'\"}",
+            "when: events",
+            "when: telemetry",
+            "when: {expr: \"record.stream_type == 'event' and record.task == 'ship'\"}",
+        ],
+    )
+
+    assert packed.records
+    assert {r["value"]["event_type"] for r in packed.records} == {"order_packed"}
+    assert {r["stream_type"] for r in events.records} == {"event"}
+    assert {r["stream_type"] for r in telemetry.records} == {"telemetry"}
+    assert {r["task"] for r in key.records} == {"ship"}
+    assert len(events.records) > len(packed.records)
+
+
+def test_when_expr_refuses_an_unknown_name(tmp_path):
+    """A name outside `record.stream_type`, `.key`, `.task` and `.value.<field>`
+    is refused at load, at the line of the `when`."""
+    for expr, fragment in (
+        ("record.sim_ts > 1", "'record.sim_ts'"),
+        ("t > 3", "the name 't'"),
+        ("attr.x > 1", "a name that is not record.stream_type"),
+        ("record > 1", "the name 'record' alone"),
+        ("record.value.a.b == 1", "'record.value.a.b'"),
+    ):
+        path = write(
+            tmp_path,
+            MINIMAL + f'egress:\n  - type: Console\n    when: {{expr: "{expr}"}}\n',
+        )
+        with pytest.raises(BlueprintError, match=re.escape(fragment)):
+            SimulationContext.from_yaml(path)
+    # `record` is a name only an egress `when` reads
+    from desflow.core.expressions import Expression
+
+    with pytest.raises(ValueError, match="only an egress when reads"):
+        Expression("record.key == 'a'")
+
+
+def test_when_expr_failure_is_a_run_failure(tmp_path):
+    """An expression that fails on a record stops the run, with the expression in
+    the message: comparing a missing field with a number is a TypeError."""
+    text = TWO_TASKS.replace(
+        "run:\n  until: 10", "run:\n  until: 10\n  on_unhandled_failure: stop"
+    )
+    app = SimulationContext.from_yaml(
+        write(
+            tmp_path,
+            text
+            + 'egress:\n  - type: Console\n    when: {expr: "record.value.total > 1"}\n',
+        )
+    )
+    app._egress_providers[:] = [_Capture()]
+
+    with pytest.raises(
+        ValueError, match="egress when: cannot evaluate 'record.value.total > 1'"
+    ):
+        app.run()
+
+
+def test_envelope_false_reaches_the_provider_and_filters_records(tmp_path):
+    """`envelope: false` on an entry is `add_egress(envelope=False)`: the provider
+    gets only the events a task finishes, and no queued or started record."""
+    plain, full = _run_with_sinks(tmp_path, ["envelope: false", "envelope: true"])
+
+    assert plain.envelope is False and full.envelope is True
+    assert plain.records
+    assert {r["stream_type"] for r in plain.records} == {"event"}
+    assert all("status" not in r["value"] for r in plain.records)
+    assert any(
+        isinstance(r["value"], dict) and r["value"].get("status") == "queued"
+        for r in full.records
+    )
+    assert {r["stream_type"] for r in full.records} == {"event", "telemetry"}
+
+
+def test_key_field_is_the_key_of_the_finished_event(tmp_path):
+    """`key_field` names the payload field that becomes the record key of the
+    finished event. The queued and started records keep the entity's key."""
+    text = TWO_TASKS.replace(
+        "    id_field: order_id\n    next: ship",
+        "    id_field: order_id\n    key_field: sku\n    next: ship",
+    )
+    (capture,) = _run_with_sinks(tmp_path, ["when: events"], text)
+
+    packed = [r for r in capture.records if r["task"] == "pack"]
+    finished = [r for r in packed if "event_type" in r["value"]]
+    lifecycle = [r for r in packed if "status" in r["value"]]
+    assert finished and {r["key"] for r in finished} == {"A1"}
+    assert lifecycle and all(r["key"].startswith("standard-") for r in lifecycle)
+    ship = [r for r in capture.records if r["task"] == "ship"]
+    assert all(r["key"].startswith("standard-") for r in ship)
+
+
+@pytest.mark.parametrize("number,text", [(7, "7"), (0, "0"), (1.5, "1.5")])
+def test_key_field_takes_a_number_as_text(tmp_path, number, text):
+    """A numeric id, such as `order_id: 7`, becomes the key `7`, as the Kafka sink
+    already writes a key."""
+    replaced = TWO_TASKS.replace(
+        "    id_field: order_id\n    next: ship",
+        "    id_field: order_id\n    key_field: qty\n    next: ship",
+    ).replace("sku: A1}", f"sku: A1, qty: {number}}}", 1)
+    (capture,) = _run_with_sinks(tmp_path, ["when: events"], replaced)
+
+    finished = [
+        r for r in capture.records if r["task"] == "pack" and "event_type" in r["value"]
+    ]
+    assert finished and {r["key"] for r in finished} == {text}
+
+
+def test_key_field_missing_is_a_run_failure(tmp_path):
+    text = TWO_TASKS.replace(
+        "    id_field: order_id\n    next: ship",
+        "    id_field: order_id\n    key_field: nope\n    next: ship",
+    )
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    app._egress_providers[:] = []
+
+    with pytest.raises(
+        ValueError,
+        match="task 'pack' has key_field 'nope', and its payload has no value for it",
+    ):
+        app.run()
+
+
+def test_sink_options_pass_through_config(tmp_path):
+    """`topic_policy`, `topics`, `serializer` and `ssl` are keys of a Kafka entry's
+    `config`, read by `KafkaEgress` itself."""
+    pytest.importorskip("aiokafka")
+    path = write(
+        tmp_path,
+        MINIMAL
+        + """\
+egress:
+  - type: Kafka
+    envelope: false
+    config:
+      bootstrap_servers: broker:9092
+      topic_policy: {mode: drop_and_create, partitions: 3}
+      topics:
+        orders: {partitions: 6, serializer: {type: glue_json_schema, registry_name: r, schema: {type: object}, boto3: {region_name: us-east-1}}}
+""",
+    )
+    app = SimulationContext.from_yaml(path)
+    kafka = app._egress_providers[0]
+
+    assert kafka.topic_policy["mode"] == "drop_and_create"
+    assert kafka.topics["orders"]["partitions"] == 6
+    assert "orders" in kafka.topic_serializers
+    assert app._egress_envelopes == [False]
+
+
+def test_a_bad_sink_option_names_the_line(tmp_path):
+    pytest.importorskip("aiokafka")
+    path = write(
+        tmp_path,
+        MINIMAL
+        + "egress:\n  - type: Kafka\n    config:\n      bootstrap_servers: b:9092\n      topic_policy: sometimes\n",
+    )
+    with pytest.raises(
+        BlueprintError,
+        match=rf"{re.escape(str(path))}:21: KafkaEgress rejected its config: .*mode 'sometimes' is not one of",
+    ):
+        SimulationContext.from_yaml(path)
+
+
+def test_an_on_entry_with_a_wrong_path_or_value_warns_at_load(tmp_path, caplog):
+    """`on:` entries load as before; one whose path is not in the registry, or whose
+    value the path cannot hold, logs a warning with the entry's line."""
+    text = MINIMAL.replace(
+        "    resource: packers\n",
+        "    resource: packers\n"
+        "    on:\n"
+        "      - {path: Shop.resources.lath.current_cap, value: 3}\n"
+        "      - {path: Shop.resources.packers.current_cap, value: many}\n",
+        1,
+    )
+    path = write(tmp_path, text)
+    with caplog.at_level("WARNING", logger="desflow.blueprint.build"):
+        SimulationContext.from_yaml(path)
+    assert "'Shop.resources.lath.current_cap' is not a registry path" in caplog.text
+    assert "cannot" in caplog.text and "many" in caplog.text
+    assert f"{path}:" in caplog.text
+    caplog.clear()
+    ok = MINIMAL.replace(
+        "    resource: packers\n",
+        "    resource: packers\n"
+        "    on:\n      - {path: Shop.resources.packers.current_cap, value: 3}\n",
+        1,
+    )
+    with caplog.at_level("WARNING", logger="desflow.blueprint.build"):
+        SimulationContext.from_yaml(write(tmp_path, ok, "ok.yaml"))
+    assert "registry path" not in caplog.text

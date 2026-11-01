@@ -145,6 +145,12 @@
     },
     "run": {
       "$ref": "#/$defs/Run"
+    },
+    "tests": {
+      "items": {
+        "$ref": "#/$defs/BlueprintTest"
+      },
+      "type": "array"
     }
   },
   "$defs": {
@@ -688,6 +694,76 @@
       "title": "Batching",
       "type": "object"
     },
+    "BlueprintTest": {
+      "additionalProperties": false,
+      "description": "A `tests` entry: the statistics a model must give at one seed, checked by\n`desflow test`.\n\n`expect` maps a statistic name, as `measures` in an experiment file names it\n(`tasks.pack_order.finished`), to the number it must have, or to `{value, within}`\nfor a tolerance. A number is compared exactly. `seed` defaults to the file's\n`simulation.random_seed` and `until` to `run.until`. The entry runs the model\nonce, unpaced, with no ingress and no egress, so a test contacts no service.\n\nA test states the measures at one seed in one version of desflow. A new release\nmay draw its random numbers differently, so a test does not promise that exact\nseeded records or values stay the same across versions; run\n`desflow test --fix` to write the new values and read them before you keep them.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "until": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "expect": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ExpectedWithin"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/Placeholder"
+              }
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "BlueprintTest",
+      "type": "object"
+    },
     "Breakdown": {
       "additionalProperties": false,
       "description": "A resource's `breakdown`: the time to each failure, the repair time, and\nwhether the tasks being served are interrupted or finish.",
@@ -1146,7 +1222,7 @@
     },
     "EgressConnector": {
       "additionalProperties": false,
-      "description": "An `egress` entry, with the per-provider options of `add_egress`.\n\n`when` is `history`, `live`, `labels` or a `!python` function taking one record.\n`history` sends the records stamped before `simulation.go_live_at`, and `live`\nsends the records stamped at or after it. `labels` sends the ground-truth records\nof scenario steps with a `record`, and nothing else.",
+      "description": "An `egress` entry, with the per-provider options of `add_egress`.\n\n`when` is `history`, `live`, `events`, `telemetry`, `labels`, a mapping\n`{expr: ...}` or a `!python` function taking one record. `history` sends the\nrecords stamped before `simulation.go_live_at`, and `live` sends the records\nstamped at or after it. `events` sends the event records and `telemetry` the\ntelemetry records. `labels` sends the ground-truth records of scenario steps\nwith a `record`, and nothing else.\n\n`envelope: false` makes the entry plain output: the sink writes each event's\nvalue without the record around it (`stream_type`, `sim_ts`, `timestamp`, `key`,\n`task` and `instance`), and it receives no telemetry record and no `queued` or\n`started` record of a task. A Kafka or Redis sink sends a value that is not a\nmapping as JSON. A storage or PostgreSQL sink skips it, with one warning. The\nmessage key of Kafka stays the record's key, and a `topic_router` still receives\nthe whole record. Ground-truth records of a `when: labels` entry are not\naffected.",
       "properties": {
         "type": {
           "anyOf": [
@@ -1180,9 +1256,14 @@
               "enum": [
                 "history",
                 "live",
+                "events",
+                "telemetry",
                 "labels"
               ],
               "type": "string"
+            },
+            {
+              "$ref": "#/$defs/WhenExpr"
             },
             {
               "$ref": "#/$defs/PythonReference"
@@ -1195,6 +1276,17 @@
             }
           ],
           "default": null
+        },
+        "envelope": {
+          "default": true,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
         },
         "batch_size": {
           "anyOf": [
@@ -1231,6 +1323,45 @@
         "type"
       ],
       "title": "EgressConnector",
+      "type": "object"
+    },
+    "ExpectedWithin": {
+      "additionalProperties": false,
+      "description": "An `expect` value with a tolerance: the measured statistic passes when it is\nwithin `within` of `value`, in absolute terms. Use it for a value whose last\ndigits change with the platform's floating point.",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "within": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "ge": 0
+        }
+      },
+      "required": [
+        "value",
+        "within"
+      ],
+      "title": "ExpectedWithin",
       "type": "object"
     },
     "FireAction": {
@@ -2331,7 +2462,7 @@
     },
     "Task": {
       "additionalProperties": false,
-      "description": "A `tasks` entry, built with `SimulationContext.task`.\n\nText in a value place stays text. A time place reads a number as seconds, text\n`time_to_seconds` accepts as a duration, and other text as an expression.\n\n`payload` is the value of the `finished` event: a mapping, or a `!python`\nfunction called as `payload(task_id, context)`. `id_field` adds the task id to a\nmapping payload under that key, `item_field` adds the item its store `get` took,\nand `attributes` adds the named entity attributes. A task with a `service` and no `resource` is a timed step; one with\nneither, and no `get`, emits its payload as soon as it is spawned.\n\n`priority` is a number or an expression such as `attr.priority`, for a resource\nwhose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or\nan expression; `balk` is a condition checked before the task joins the queue.\n`resource` is one resource or a list, acquired in the order listed; `keep` hands\nunits to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and\n`interrupt` interrupts the running instances of a task when this one finishes.\n`wait` is what the task waits for first: a signal, a child task, a timeout or a\ncondition, or any or all of several. `signal` names a signal the task fires\nwhen it finishes. `fail` is a condition checked after the service: when it holds\nthe task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or\ncontainer. `next` is a task name, `when` rules or `weights`. `set` gives the\nentity attribute values when the task finishes.\n\nAn expression uses Python's arithmetic: `/` gives a float, and `//` rounds down\nand gives an integer for two integers. `and` and `or` stop at the first operand\nthat decides the result and do not absorb an error: an operand that cannot be\nevaluated fails the expression.",
+      "description": "A `tasks` entry, built with `SimulationContext.task`.\n\nText in a value place stays text. A time place reads a number as seconds, text\n`time_to_seconds` accepts as a duration, and other text as an expression.\n\n`payload` is the value of the `finished` event: a mapping, or a `!python`\nfunction called as `payload(task_id, context)`. `id_field` adds the task id to a\nmapping payload under that key, `key_field` names the payload field whose value\nbecomes the key of the finished event, and so the Kafka message key (the\n`queued` and `started` records keep the entity's key; a payload without the\nfield fails the run), `item_field` adds the item its store `get` took,\nand `attributes` adds the named entity attributes. A task with a `service` and no `resource` is a timed step; one with\nneither, and no `get`, emits its payload as soon as it is spawned.\n\n`priority` is a number or an expression such as `attr.priority`, for a resource\nwhose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or\nan expression; `balk` is a condition checked before the task joins the queue.\n`resource` is one resource or a list, acquired in the order listed; `keep` hands\nunits to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and\n`interrupt` interrupts the running instances of a task when this one finishes.\n`wait` is what the task waits for first: a signal, a child task, a timeout or a\ncondition, or any or all of several. `signal` names a signal the task fires\nwhen it finishes. `fail` is a condition checked after the service: when it holds\nthe task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or\ncontainer. `next` is a task name, `when` rules or `weights`. `set` gives the\nentity attribute values when the task finishes.\n\nAn expression uses Python's arithmetic: `/` gives a float, and `//` rounds down\nand gives an integer for two integers. `and` and `or` stop at the first operand\nthat decides the result and do not absorb an error: an operand that cannot be\nevaluated fails the expression.",
       "properties": {
         "service": {
           "anyOf": [
@@ -2373,6 +2504,17 @@
           ]
         },
         "id_field": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "key_field": {
           "anyOf": [
             {
               "type": "string"
@@ -2845,6 +2987,20 @@
         }
       },
       "title": "TransferStep",
+      "type": "object"
+    },
+    "WhenExpr": {
+      "additionalProperties": false,
+      "description": "An egress `when` written as an expression: `when: {expr: <expression>}`.\n\nThe expression reads the record the sink is offered: `record.stream_type`\n(`event` or `telemetry`), `record.key`, `record.task` and `record.value.<field>`.\nA name the record lacks reads as None, so `record.value.event_type ==\n'order_packed'` is false for a telemetry record and for an event without that\nfield. The sink receives the record when the expression is true. An expression\nthat fails on a record, such as `record.value.amount > 100` on a record whose\nvalue has no `amount`, fails the run.",
+      "properties": {
+        "expr": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expr"
+      ],
+      "title": "WhenExpr",
       "type": "object"
     },
     "PythonReference": {

@@ -313,3 +313,132 @@ async def test_postgres_egress_partial_upsert_keeps_other_columns(postgres_conta
         (1, "shipped", 10.0),
         (2, "processing", 5.0),
     ]
+
+
+@pytest.mark.asyncio
+async def test_keyed_entry_skips(postgres_container, caplog):
+    """A keyed entry upserts the events that carry its key column and skips the
+    others, with a warning that gives the count, instead of losing the batch."""
+    import logging
+
+    dsn = postgres_container
+    conn = await asyncpg.connect(dsn)
+    await conn.execute("DROP TABLE IF EXISTS test_keyed_skip")
+    await conn.execute(
+        "CREATE TABLE test_keyed_skip (order_id INT PRIMARY KEY, status TEXT)"
+    )
+    await conn.close()
+    egress = PostgresEgress(dsn, table_name="test_keyed_skip", upsert_keys=["order_id"])
+    q = queue.Queue()
+    q.put(
+        [
+            {"value": {"order_id": 1, "status": "packed"}},
+            {"value": {"status": "queued"}},
+            {"value": {"order_id": 1, "status": "shipped"}},
+        ]
+    )
+    sql = "SELECT * FROM test_keyed_skip"
+
+    async def written():
+        return [(r["order_id"], r["status"]) for r in await _fetch(dsn, sql)] == [
+            (1, "shipped")
+        ]
+
+    with caplog.at_level(logging.WARNING):
+        await _run_egress_until(egress, q, written)
+
+    assert [(r["order_id"], r["status"]) for r in await _fetch(dsn, sql)] == [
+        (1, "shipped")
+    ]
+    assert "1 had none of the key columns of their table" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_table_policy_modes_and_schema(postgres_container):
+    """`create` makes the schema and the table; `drop_and_create` empties a table that
+    holds a row; `manual` creates nothing; and `create` leaves an existing schema
+    alone, so a role that may use it but not create schemas still starts."""
+    dsn = postgres_container
+    conn = await asyncpg.connect(dsn)
+    await conn.execute("DROP SCHEMA IF EXISTS b3_shop CASCADE")
+    await conn.execute("DROP SCHEMA IF EXISTS b3_limited CASCADE")
+    await conn.execute("DROP ROLE IF EXISTS b3_limited_role")
+    await conn.close()
+    tables = {"b3_shop.orders": {"columns": {"order_id": "INT", "status": "TEXT"}}}
+    sql = "SELECT * FROM b3_shop.orders"
+
+    async def run_with(policy, rows, expected, target=dsn, name="b3_shop.orders"):
+        egress = PostgresEgress(
+            target,
+            table_name=name,
+            tables=tables if name == "b3_shop.orders" else None,
+            table_policy=policy,
+        )
+        q = queue.Queue()
+        q.put([{"value": row} for row in rows])
+
+        async def written():
+            # The sink makes the table after it starts, and `drop_and_create` drops
+            # it first, so it may not be there at this moment
+            try:
+                found = await _fetch(dsn, f"SELECT order_id FROM {name}")
+            except asyncpg.exceptions.UndefinedTableError:
+                return False
+            # By its last row, because the row before a drop also makes a count of 1
+            ids = [r["order_id"] for r in found]
+            return len(ids) == expected and rows[-1]["order_id"] in ids
+
+        await _run_egress_until(egress, q, written)
+
+    await run_with("create", [{"order_id": 1, "status": "a"}], 1)
+    await run_with("drop_and_create", [{"order_id": 2, "status": "b"}], 1)
+    assert [r["order_id"] for r in await _fetch(dsn, sql)] == [2]
+    await run_with("manual", [{"order_id": 3, "status": "c"}], 2)
+    assert sorted(r["order_id"] for r in await _fetch(dsn, sql)) == [2, 3]
+
+    # `manual` creates no table: with none there, nothing is written
+    absent = await _fetch(dsn, "SELECT to_regclass('b3_shop.not_made') AS found")
+    egress = PostgresEgress(dsn, table_name="b3_shop.not_made", table_policy="manual")
+    q = queue.Queue()
+    q.put([{"value": {"order_id": 1}}])
+    task = asyncio.create_task(egress.run(q))
+    await asyncio.sleep(3)
+    task.cancel()
+    assert absent[0]["found"] is None
+    assert (await _fetch(dsn, "SELECT to_regclass('b3_shop.not_made') AS found"))[0][
+        "found"
+    ] is None
+
+    # A role with no CREATE on the database, but CREATE on an existing schema
+    conn = await asyncpg.connect(dsn)
+    try:
+        await conn.execute("CREATE SCHEMA b3_limited")
+        await conn.execute(
+            "CREATE ROLE b3_limited_role LOGIN PASSWORD 'limited' NOCREATEDB"
+        )
+        await conn.execute("REVOKE CREATE ON DATABASE odctl FROM b3_limited_role")
+        await conn.execute(
+            "GRANT USAGE, CREATE ON SCHEMA b3_limited TO b3_limited_role"
+        )
+    finally:
+        await conn.close()
+    limited = dsn.replace("user:password", "b3_limited_role:limited")
+    limited_tables = {"b3_limited.orders": {"columns": {"order_id": "INT"}}}
+    egress = PostgresEgress(
+        limited,
+        table_name="b3_limited.orders",
+        tables=limited_tables,
+    )
+    q = queue.Queue()
+    q.put([{"value": {"order_id": 9}}])
+
+    async def stored():
+        try:
+            return len(await _fetch(dsn, "SELECT * FROM b3_limited.orders")) == 1
+        except asyncpg.exceptions.UndefinedTableError:
+            return False
+
+    await _run_egress_until(egress, q, stored)
+    assert [
+        r["order_id"] for r in await _fetch(dsn, "SELECT * FROM b3_limited.orders")
+    ] == [9]

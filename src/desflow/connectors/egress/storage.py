@@ -3,6 +3,7 @@ import logging
 import posixpath
 import queue
 import uuid
+from collections import Counter
 from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -14,6 +15,7 @@ from desflow.connectors.egress.base import (
     BaseEgress,
     drop_reserved_keys,
     group_rows,
+    warn_skipped,
     rows_table,
     to_schema,
     widen_schema,
@@ -179,6 +181,13 @@ class JsonlStorageEgress(BaseEgress):
     errors) or dynamically dropping specific records by returning `None`. Records
     are then written as the router leaves them.
 
+    An event whose `value` holds `__path__`, a file path such as `packed/orders.jsonl`,
+    is written to that path, and the key is removed from the row. This replaces a
+    `path_router` for the common case. A `path_router` wins over `__path__`, and a
+    record with no `__path__` goes to `default_path`. The folder of each path is
+    created. With `envelope=False` on the entry, the row is the event's `value`
+    alone.
+
     Attributes:
         default_path (Optional[str]): The fallback destination path if no router is provided.
         filesystem (Optional[Any]): A PyArrow `FileSystem` instance, or the mapping it
@@ -295,9 +304,18 @@ class JsonlStorageEgress(BaseEgress):
             logger.error("Filesystem not initialized. Batch dropped.")
             return
 
-        # A file routes by no reserved key, so it writes none
-        batch = drop_reserved_keys(batch, self)
-        grouped_batches = group_rows(batch, self.path_router, self.default_path)
+        # A file routes by __path__, and writes no other reserved key
+        batch = drop_reserved_keys(batch, self, keep=("__path__",))
+        skipped: Counter = Counter()
+        grouped_batches = group_rows(
+            batch,
+            self.path_router,
+            self.default_path,
+            self.envelope,
+            route_key="__path__",
+            skipped=skipped,
+        )
+        warn_skipped(self, skipped)
 
         for target_path, records in grouped_batches.items():
             chunk_path = _generate_chunk_filename(target_path)
@@ -327,6 +345,13 @@ class ParquetStorageEgress(BaseEgress):
     Without a `path_router`, events are written to `default_path` as flat rows:
     each event's `value` mapping becomes columns, and telemetry is left out. With a
     router, records are written as the router leaves them.
+
+    An event whose `value` holds `__path__`, a file path such as `orders/orders.parquet`,
+    is written to that path, and the key is removed from the row. This replaces a
+    `path_router` for the common case. A `path_router` wins over `__path__`, and a
+    record with no `__path__` goes to `default_path`. The folder of each path is
+    created. With `envelope=False` on the entry, the row is the event's `value`
+    alone.
 
     Attributes:
         default_path (Optional[str]): The fallback destination path.
@@ -465,9 +490,18 @@ class ParquetStorageEgress(BaseEgress):
         Returns:
             int: The files written.
         """
-        # A file routes by no reserved key, so it writes none
-        batch = drop_reserved_keys(batch, self)
-        grouped_batches = group_rows(batch, self.path_router, self.default_path)
+        # A file routes by __path__, and writes no other reserved key
+        batch = drop_reserved_keys(batch, self, keep=("__path__",))
+        skipped: Counter = Counter()
+        grouped_batches = group_rows(
+            batch,
+            self.path_router,
+            self.default_path,
+            self.envelope,
+            route_key="__path__",
+            skipped=skipped,
+        )
+        warn_skipped(self, skipped)
 
         written = 0
         for target_path, records in grouped_batches.items():
