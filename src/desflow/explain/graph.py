@@ -42,10 +42,28 @@ def build_graph(context: "SimulationContext") -> Graph:
                 kind="arrival",
                 label=name,
                 distribution=_parameters(config),
+                features=features.arrival_features(context, name),
             )
         )
     for name in context._replays:
-        nodes.append(Node(id=node_id("arrival", name), kind="arrival", label=name))
+        nodes.append(
+            Node(
+                id=node_id("arrival", name),
+                kind="arrival",
+                label=name,
+                features=features.arrival_features(context, name),
+            )
+        )
+    for name, plan in context._arrival_plans.items():
+        if plan.gap is not None:
+            nodes.append(
+                Node(
+                    id=node_id("arrival", name),
+                    kind="arrival",
+                    label=name,
+                    features=features.arrival_features(context, name),
+                )
+            )
     for arrival, task in context._arrival_spawns.items():
         edges.append(
             Edge(

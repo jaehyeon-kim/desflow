@@ -11,6 +11,7 @@ gives as the reason a wait is not estimated. It reads these private attributes o
 from typing import TYPE_CHECKING, Any, List, Optional
 
 from desflow.explain.edges import used_resources
+from desflow.values.models import Sequence, Uuid
 
 if TYPE_CHECKING:
     from desflow.core.context import SimulationContext
@@ -22,6 +23,35 @@ KEEP = "keep (a unit held across tasks)"
 WAIT_TIMEOUT = "wait group with a timeout (a request can be abandoned)"
 # Two or more request leaves: the task can hold more than one unit through its service
 SEVERAL_REQUESTS = "wait group with several requests"
+# A `service_time` is read for each instance, so no distribution gives its mean
+COMPUTED_SERVICE_TIME = "computed service time"
+# An arrival's `gap` is read at the start of each gap
+COMPUTED_GAPS = "computed gaps"
+# `count`, `keys`, a `key` that can repeat or `max_events` change how many entities an
+# arrival starts, because a start whose key is still running is skipped
+LIMITED_ARRIVALS = "limited or repeated arrivals"
+
+
+def arrival_features(context: "SimulationContext", name: str) -> List[str]:
+    """What an arrival does that its distribution does not say.
+
+    Args:
+        context: The context that declares the arrival.
+        name: The arrival's name.
+
+    Returns:
+        List[str]: The features, in a fixed order.
+    """
+    plan = context._arrival_plans.get(name)
+    if plan is None:
+        return []
+    found = []
+    if plan.gap is not None:
+        found.append(COMPUTED_GAPS)
+    repeating_key = plan.key is not None and not isinstance(plan.key, (Sequence, Uuid))
+    if plan.has_entities or plan.max_events is not None or repeating_key:
+        found.append(LIMITED_ARRIVALS)
+    return found
 
 
 def task_features(context: "SimulationContext", spec: "TaskSpec") -> List[str]:
@@ -40,6 +70,8 @@ def task_features(context: "SimulationContext", spec: "TaskSpec") -> List[str]:
         features.append("abandonment (patience)")
     if spec.balk is not None:
         features.append("abandonment (balk)")
+    if spec.service_time is not None:
+        features.append(COMPUTED_SERVICE_TIME)
     if spec.preempt and any(context._resource_preempt.get(r) for r in held):
         features.append("preemption")
     if _holds_several(spec):

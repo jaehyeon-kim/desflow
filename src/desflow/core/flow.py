@@ -6,6 +6,8 @@ both; low-level code uses `Router` directly and calls `get` and `put` itself.
 """
 
 import inspect
+import numbers
+import re
 from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple, Union
 
 import numpy as np
@@ -28,6 +30,7 @@ def make_scope(
     process: Optional[Mapping[str, Any]] = None,
     resources: Optional[Mapping[str, Any]] = None,
     names: Optional[Mapping[str, Any]] = None,
+    entity: Optional[str] = None,
 ) -> Scope:
     """
     Builds what an expression's names read.
@@ -44,6 +47,7 @@ def make_scope(
         process: The running task's `name`, `instance` and `target`, for `process`.
         resources: Resources by name, for `users` and `queue`.
         names: The task's vars, for the bare names of an expression.
+        entity: The key of the entity the task runs for, for `gen: entity`.
 
     Returns:
         Scope: The scope.
@@ -62,6 +66,7 @@ def make_scope(
         signals=signals or {},
         process=process or {},
         names=names or {},
+        entity=entity,
     )
 
 
@@ -106,6 +111,9 @@ class Router:
         self._default: Optional[str] = None
         self._names: List[str] = []
         self._cumulative: Optional[np.ndarray] = None
+        # Weights with a text in them: each weight is a number or an `Expression`,
+        # read when a task finishes
+        self._weights: Optional[List[Union[int, float, Expression]]] = None
         self.rng = rng
         self.tasks: Optional[Set[str]] = set()
 
@@ -151,12 +159,22 @@ class Router:
     @property
     def weighted(self) -> bool:
         """True when the rules are weights, which draw from `rng`."""
-        return self._cumulative is not None
+        return self._cumulative is not None or self._weights is not None
+
+    @property
+    def computed(self) -> bool:
+        """True when a weight is an expression, so the shares are known only when a
+        task finishes."""
+        return self._weights is not None
 
     @property
     def conditions(self) -> List[Expression]:
         """The parsed conditions, in rule order."""
-        return [condition for condition, _ in self._when]
+        weights = self._weights or []
+        return [
+            *(condition for condition, _ in self._when),
+            *(w for w in weights if isinstance(w, Expression)),
+        ]
 
     @property
     def probabilities(self) -> Optional[Dict[str, float]]:
@@ -164,7 +182,7 @@ class Router:
         fix it: 1.0 for a task name, the normalised weights for weights, and an
         empty mapping when the flow ends. None for when rules or a function, whose
         split depends on the run."""
-        if self._function is not None or self._when:
+        if self._function is not None or self._when or self._weights is not None:
             return None
         if self._cumulative is not None:
             shares = np.diff(self._cumulative, prepend=0.0)
@@ -198,10 +216,16 @@ class Router:
         """
         if self._function is not None:
             return self._function(upstream)
-        if self._cumulative is not None:
+        if self._weights is not None:
+            if scope is None:
+                scope = make_scope(upstream, env=env, levels=levels, item=item)
+            cumulative = _share_of(self._names, self._weights, scope)
+        else:
+            cumulative = self._cumulative
+        if cumulative is not None:
             if self.rng is None:
                 raise ValueError("weights need a random generator to draw from")
-            index = int(np.searchsorted(self._cumulative, self.rng.random(), "right"))
+            index = int(np.searchsorted(cumulative, self.rng.random(), "right"))
             return self._names[min(index, len(self._names) - 1)]
         if self._when:
             if scope is None:
@@ -214,19 +238,54 @@ class Router:
     def _set_weights(self, weights: Any) -> None:
         if not isinstance(weights, Mapping) or not weights:
             raise ValueError("weights must map task names to numbers")
-        values = []
-        for name, weight in weights.items():
-            if isinstance(weight, bool) or not isinstance(weight, (int, float)):
-                raise ValueError(f"the weight of '{name}' must be a number")
-            if not weight >= 0:
-                raise ValueError(f"the weight of '{name}' must be 0 or more")
-            values.append(float(weight))
-        total = sum(values)
-        if not total > 0:
-            raise ValueError("weights must add up to more than 0")
         self._names = [str(name) for name in weights]
-        self._cumulative = np.cumsum(values) / total
         self.tasks = set(self._names)
+        if any(isinstance(weight, str) for weight in weights.values()):
+            # Text is an expression, read when a task finishes; the numbers are
+            # checked now, and a result is checked when it is read
+            self._weights = [
+                Expression(weight)
+                if isinstance(weight, str)
+                else _checked_weight(name, weight)
+                for name, weight in weights.items()
+            ]
+            return
+        self._cumulative = _cumulative(self._names, list(weights.values()))
+
+
+def _checked_weight(name: Any, weight: Any) -> Union[int, float]:
+    """A weight that is a number of 0 or more.
+
+    Raises:
+        ValueError: If it is not a number, or is below 0.
+    """
+    if isinstance(weight, bool) or not isinstance(weight, numbers.Real):
+        raise ValueError(f"the weight of '{name}' must be a number")
+    if not weight >= 0:
+        raise ValueError(f"the weight of '{name}' must be 0 or more")
+    return weight
+
+
+def _cumulative(names: List[str], weights: List[Any]) -> np.ndarray:
+    """The running shares of weights: each 0 or more, adding up to more than 0."""
+    values = [
+        float(_checked_weight(name, weight)) for name, weight in zip(names, weights)
+    ]
+    total = sum(values)
+    if not total > 0:
+        raise ValueError("weights must add up to more than 0")
+    return np.cumsum(values) / total
+
+
+def _share_of(
+    names: List[str], weights: List[Union[int, float, Expression]], scope: Scope
+) -> np.ndarray:
+    """The running shares of weights some of which are expressions, each read once
+    in `scope`, in the order written."""
+    return _cumulative(
+        names,
+        [w.evaluate(scope) if isinstance(w, Expression) else w for w in weights],
+    )
 
 
 def _names_entity(function: Callable[..., Any]) -> bool:
@@ -689,6 +748,15 @@ class Wait:
         """The parsed conditions of the `condition` leaves."""
         return [n.target for n in self.branches.values() if n.kind == "condition"]
 
+    @property
+    def time_expressions(self) -> List[Expression]:
+        """The parsed expressions of the `timeout` leaves, read when the wait starts."""
+        return [
+            n.target[0]
+            for n in self.branches.values()
+            if n.kind == "timeout" and isinstance(n.target[0], Expression)
+        ]
+
 
 def as_given(value: Any) -> Union[int, float]:
     """
@@ -708,9 +776,60 @@ def as_given(value: Any) -> Union[int, float]:
     return float(value)
 
 
+# Text that is only a number, so a name such as `inf` stays an expression
+_PLAIN_NUMBER = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
+
+
+def _timeout_delay(delay: Any, written: Any) -> Any:
+    """The delay of a wait `timeout`, checked: a number of seconds as it is, a
+    duration in text as seconds, other text as an `Expression`, and a generator as
+    it is. The last two are read when the wait starts.
+
+    Args:
+        delay: The delay as written.
+        written: The whole `timeout` value, for the message.
+
+    Raises:
+        ValueError: If the delay is none of these, or is a negative number.
+    """
+    from desflow.utils import time_to_seconds
+    from desflow.values.models import _Gen
+
+    if isinstance(delay, _Gen):
+        return delay
+    if isinstance(delay, str):
+        try:
+            seconds = time_to_seconds(delay)
+        except ValueError:
+            seconds = None
+        if seconds is None:
+            if _PLAIN_NUMBER.fullmatch(delay.strip()):
+                seconds = float(delay)  # a number in text, such as '-1'
+        if seconds is not None:
+            return _non_negative(seconds, written)
+        try:
+            return Expression(delay)
+        except ValueError as exc:
+            raise ValueError(
+                f"a wait timeout is seconds, a duration such as '5 min' or an "
+                f"expression, got {written!r}: {exc}"
+            ) from None
+    if isinstance(delay, bool) or not isinstance(delay, numbers.Real):
+        raise ValueError(
+            f"a wait timeout is seconds, a duration or an expression, got {written!r}"
+        )
+    return _non_negative(delay, written)
+
+
+def _non_negative(seconds: Any, written: Any) -> Any:
+    if seconds < 0:
+        raise ValueError(f"a wait timeout must be 0 or more, got {written!r}")
+    return seconds
+
+
 def _wait_branch(branch: Any) -> Tuple[str, Any]:
     """One branch of a wait, as its kind and its checked target."""
-    from desflow.utils import suggestion, time_to_seconds
+    from desflow.utils import suggestion
 
     if not isinstance(branch, Mapping) or len(branch) != 1:
         raise ValueError(
@@ -734,12 +853,7 @@ def _wait_branch(branch: Any) -> Tuple[str, Any]:
             if "after" not in target:
                 raise ValueError("a wait timeout mapping needs after")
             delay, value = target["after"], target.get("value")
-        seconds = time_to_seconds(delay) if isinstance(delay, str) else delay
-        if isinstance(seconds, bool) or not isinstance(seconds, (int, float)):
-            raise ValueError(f"a wait timeout is seconds or a duration, got {target!r}")
-        if seconds < 0:
-            raise ValueError(f"a wait timeout must be 0 or more, got {target!r}")
-        return kind, (seconds, value)
+        return kind, (_timeout_delay(delay, target), value)
     if kind == "condition":
         return kind, Expression(target)
     if kind in ("get", "put"):

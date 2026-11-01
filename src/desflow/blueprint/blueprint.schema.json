@@ -357,7 +357,7 @@
     },
     "Arrival": {
       "additionalProperties": false,
-      "description": "An `arrivals` entry: a distribution, or a `replay` of recorded rows, the task\nit spawns, and the attributes each entity it starts carries.\n\nFile order is creation order: arrivals are made in the order they are written,\nthen the `processes`. Events due at one time run in the order they were\nscheduled, so this order decides only ties between first due times.\n\nAn `attributes` value is a constant or a `{gen: ...}` generator, drawn once for each\nentity when it starts, in the order the entities are made. A mapping with a `gen`\nkey is a generator; `{gen: literal, value: ...}` keeps a mapping as data.",
+      "description": "An `arrivals` entry: a distribution, or a `replay` of recorded rows, the task\nit spawns, and the attributes each entity it starts carries.\n\nFile order is creation order: arrivals are made in the order they are written,\nthen the `processes`. Events due at one time run in the order they were\nscheduled, so this order decides only ties between first due times.\n\nAn `attributes` value is a constant or a `{gen: ...}` generator, drawn once for each\nentity when it starts, in the order the entities are made. A mapping with a `gen`\nkey is a generator; `{gen: literal, value: ...}` keeps a mapping as data.\n\nThe gaps come from exactly one of `dist`, `replay` or `gap`. `gap` is a number of\nseconds, a duration such as `5 min`, an expression or a generator, read at the\nstart of each gap, so a gap may read `registry[...]`, `level.<name>` and `t`.\n`first_at` is the simulation time of the first arrival, which waits for it in place\nof a gap; the gaps after it follow. A time already past arrives at once.\n`max_events` is how many times the arrival starts its task, in all: the arrival\nstops after the last, and its last start draws no further gap. A start whose key\nbelongs to an entity of the arrival that is still running is skipped with a\nwarning and counts as one.\n\n`count` makes that many entities, each with a loop of its own: it starts its task\nafter each gap, `first_at` is the time of its first start, and `max_events` is how\nmany times each entity starts. `keys` is a list of keys instead, one entity for\neach, and gives the number. `stagger` is the time between the starts of two\nentities, read after each one. `key` is a value place read once for each entity,\nfor its key; `vars` are named values read once for each entity before its\nattributes and key, which read them as bare names. Every one of these places reads\nthe run only: `attr` is refused in them, because the entity has none yet. `count`\nand `max_events` are keys of a blueprint, with no argument of `add_arrival`.\n`count`, `keys`, `first_at` and `stagger` do not apply to a replay. `count`,\n`keys`, `max_events` and `stagger` set how the arrival starts its task, so each\nneeds `spawn`; `stagger` also needs `count` or `keys`. `key`, `vars`, `gap` and\n`first_at` are read by `wait_for_arrival` too, so an arrival without `spawn` may\ncarry them.",
       "properties": {
         "dist": {
           "anyOf": [
@@ -658,6 +658,185 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Replay"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gap": {
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Generator"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/Placeholder"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "title": "Duration or expression",
+              "description": "A duration such as 30 s, or an expression such as attr.limit"
+            }
+          ],
+          "default": null
+        },
+        "first_at": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "count": {
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Generator"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/Placeholder"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "keys": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/Placeholder"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "key": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        },
+        "vars": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Value"
+          },
+          "type": "object"
+        },
+        "stagger": {
+          "default": 0,
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Generator"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/Placeholder"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "string",
+              "title": "Duration or expression",
+              "description": "A duration such as 30 s, or an expression such as attr.limit"
+            }
+          ]
+        },
+        "max_events": {
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Generator"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/Placeholder"
+                    }
+                  ]
+                }
+              ]
             },
             {
               "type": "null"
@@ -1816,6 +1995,82 @@
       "title": "EgressConnector",
       "type": "object"
     },
+    "Entity": {
+      "additionalProperties": false,
+      "description": "`entity`: the key of the entity the task runs for, such as `sensor-1`. It is\ngiven only inside a task, so an arrival's `attributes`, `vars` and `key` refuse it.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "entity",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        }
+      },
+      "required": [
+        "gen"
+      ],
+      "title": "Entity",
+      "type": "object"
+    },
     "ExpectedWithin": {
       "additionalProperties": false,
       "description": "An `expect` value with a tolerance: the measured statistic passes when it is\nwithin `within` of `value`, in absolute terms. Use it for a value whose last\ndigits change with the platform's floating point.",
@@ -2907,6 +3162,9 @@
                 "anyOf": [
                   {
                     "type": "number"
+                  },
+                  {
+                    "type": "string"
                   },
                   {
                     "$ref": "#/$defs/Placeholder"
@@ -5256,7 +5514,7 @@
     },
     "Task": {
       "additionalProperties": false,
-      "description": "A `tasks` entry, built with `SimulationContext.task`.\n\nText in a value place stays text. A time place reads a number as seconds, text\n`time_to_seconds` accepts as a duration, and other text as an expression.\n\n`payload` is the value of the `finished` event: a mapping, or a `!python`\nfunction called as `payload(task_id, context)`. `id_field` adds the task id to a\nmapping payload under that key, `key_field` names the payload field whose value\nbecomes the key of the finished event, and so the Kafka message key (the\n`queued` and `started` records keep the entity's key; a payload without the\nfield fails the run), `item_field` adds the item its store `get` took,\nand `attributes` adds the named entity attributes. A task with a `service` and no `resource` is a timed step; one with\nneither, and no `get`, emits its payload as soon as it is spawned.\n\n`priority` is a number or an expression such as `attr.priority`, for a resource\nwhose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or\nan expression; `balk` is a condition checked before the task joins the queue.\n`resource` is one resource or a list, acquired in the order listed; `keep` hands\nunits to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and\n`interrupt` interrupts the running instances of a task when this one finishes.\n`wait` is what the task waits for first: a signal, a child task, a timeout or a\ncondition, or any or all of several. `signal` names a signal the task fires\nwhen it finishes. `fail` is a condition checked after the service: when it holds\nthe task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or\ncontainer. `next` is a task name, `when` rules or `weights`. `set` gives the\nentity attribute values when the task finishes.\n\nA value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a\nmapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a\nmapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`,\n`one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`,\n`sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`,\n`subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `param`,\n`repeat`, `literal`, `object`, `call` and `row`; `null_rate`, `unique`, `omit_rate`\nand `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a\nmapping; `set` values and the `cause` of an interrupt are evaluated when the task\nfinishes or interrupts. `vars_once` names are drawn once for each entity and task,\nat the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in\norder, once for each instance of the task: when it starts if `on_start` is given,\notherwise after the service, just before the payload. A var reads the vars above it\nwith `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are\npublished as one event record when the task starts. `finish_vars` are drawn after\nthe service and may read the vars. A bare var name also reads in `put`, `fail` and\n`next.when`. A var name is an identifier, not a name an expression already uses,\nand is in one of the three groups only. Every generator node draws from its own\nstream of the run's seed, so adding a node does not change the draws of the others.\n\nAn expression uses Python's arithmetic: `/` gives a float, and `//` rounds down\nand gives an integer for two integers. `and` and `or` stop at the first operand\nthat decides the result and do not absorb an error: an operand that cannot be\nevaluated fails the expression. `**` raises to a power (an integer power above\n10000 is refused), `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `exp`,\n`log`, `log10`, `sin`, `cos` and `tan` are calls on numbers, and `has(attr.x)` is\ntrue when the entity has the attribute `x`.",
+      "description": "A `tasks` entry, built with `SimulationContext.task`.\n\nText in a value place stays text. A time place reads a number as seconds, text\n`time_to_seconds` accepts as a duration, and other text as an expression.\n\n`payload` is the value of the `finished` event: a mapping, or a `!python`\nfunction called as `payload(task_id, context)`. `payload: null` publishes no\n`finished` record and the task runs its other steps; a store `put` on such a task\nis refused, because the put carries the payload. `id_field` adds the task id to a\nmapping payload under that key, `key_field` names the payload field whose value\nbecomes the key of the finished event, and so the Kafka message key (the\n`queued` and `started` records keep the entity's key; a payload without the\nfield fails the run), `item_field` adds the item its store `get` took,\nand `attributes` adds the named entity attributes. `key` is a value place for the\nkey of the task's records, drawn once for each instance at its first record and\nwritten as text; it replaces `key_field`, and the two are not given together. A\ntask with a `service` and no `resource` is a timed step; one with\nneither, and no `get`, emits its payload as soon as it is spawned.\n\n`service_time` is the task's own time, in place of a `service`, and the two are\nnot given together: seconds, a duration such as `30 s`, an expression, or a\n`{gen: ...}` generator, read after the task has its resource and, for a `get`, its\nitem. It may read `vars_once` and `vars` as bare names, and `item.<field>` after a\nstore get. A result below 0 fails the run. A task with a `resource` needs a\n`service` or a `service_time`.\n\n`priority` is a number or an expression such as `attr.priority`, for a resource\nwhose `queue` is `priority`. `patience` is seconds, a duration such as `30 s`, an\nexpression or a generator; `balk` is a condition checked before the task joins the queue.\n`resource` is one resource or a list, acquired in the order listed; `keep` hands\nunits to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and\n`interrupt` interrupts the running instances of a task when this one finishes.\n`wait` is what the task waits for first: a signal, a child task, a timeout or a\ncondition, or any or all of several. `signal` names a signal the task fires\nwhen it finishes. `fail` is a condition checked after the service: when it holds\nthe task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or\ncontainer. `next` is a task name, `when` rules or `weights`, whose values are numbers\nor expressions read when the task finishes, with one draw for the choice. `set` gives the\nentity attribute values when the task finishes.\n\nA value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a\nmapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a\nmapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`,\n`one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`,\n`sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`,\n`subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `entity`,\n`param`, `repeat`, `literal`, `object`, `call` and `row`; `null_rate`, `unique`, `omit_rate`\nand `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a\nmapping; `set` values and the `cause` of an interrupt are evaluated when the task\nfinishes or interrupts. `vars_once` names are drawn once for each entity and task,\nat the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in\norder, once for each instance of the task: when it starts if `on_start` is given,\notherwise after the service, just before the payload; a `service_time` that reads\na var draws it first. `{gen: entity}` gives the entity's key, in a task only. A var reads the vars above it\nwith `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are\npublished as one event record when the task starts. `finish_vars` are drawn after\nthe service and may read the vars. A bare var name also reads in `put`, `fail` and\n`next.when`, but not in `next.weights`, which read the entity and the run. A var name is an identifier, not a name an expression already uses,\nand is in one of the three groups only. Every generator node draws from its own\nstream of the run's seed, so adding a node does not change the draws of the others.\n\nAn expression uses Python's arithmetic: `/` gives a float, and `//` rounds down\nand gives an integer for two integers. `and` and `or` stop at the first operand\nthat decides the result and do not absorb an error: an operand that cannot be\nevaluated fails the expression. `**` raises to a power (an integer power above\n10000 is refused), `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `exp`,\n`log`, `log10`, `sin`, `cos` and `tan` are calls on numbers, and `has(attr.x)` is\ntrue when the entity has the attribute `x`.",
       "properties": {
         "service": {
           "anyOf": [
@@ -5265,6 +5523,42 @@
             },
             {
               "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "service_time": {
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Generator"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/Placeholder"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "title": "Duration or expression",
+              "description": "A duration such as 30 s, or an expression such as attr.limit"
             }
           ],
           "default": null
@@ -5287,12 +5581,19 @@
           "default": null
         },
         "payload": {
-          "oneOf": [
+          "anyOf": [
             {
-              "$ref": "#/$defs/Payload"
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Payload"
+                },
+                {
+                  "$ref": "#/$defs/PythonReference"
+                }
+              ]
             },
             {
-              "$ref": "#/$defs/PythonReference"
+              "type": "null"
             }
           ]
         },
@@ -5305,6 +5606,10 @@
               "type": "null"
             }
           ],
+          "default": null
+        },
+        "key": {
+          "$ref": "#/$defs/Value",
           "default": null
         },
         "key_field": {
@@ -5358,13 +5663,27 @@
         "patience": {
           "anyOf": [
             {
-              "type": "integer"
-            },
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Generator"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/Placeholder"
+                    }
+                  ]
+                }
+              ]
             },
             {
               "type": "null"
@@ -5373,9 +5692,6 @@
               "type": "string",
               "title": "Duration or expression",
               "description": "A duration such as 30 s, or an expression such as attr.limit"
-            },
-            {
-              "$ref": "#/$defs/Placeholder"
             }
           ],
           "default": null
@@ -5678,21 +5994,28 @@
     },
     "TimeoutAfter": {
       "additionalProperties": false,
-      "description": "A `wait` timeout with a value: `{after: 40 s, value: ...}`, as SimPy's\n`env.timeout(delay, value)` carries a value the waiter receives. The value is a\nconstant or a `{gen: ...}` generator evaluated when the wait starts, so it may read\n`vars_once` names but no `vars`.",
+      "description": "A `wait` timeout with a value: `{after: 40 s, value: ...}`, as SimPy's\n`env.timeout(delay, value)` carries a value the waiter receives. The value is a\nconstant or a `{gen: ...}` generator evaluated when the wait starts, so it may read\n`vars_once` names but no `vars`. `after` is a time place: seconds, a duration, an\nexpression or a generator, read when the wait starts.",
       "properties": {
         "after": {
-          "anyOf": [
+          "oneOf": [
             {
-              "type": "integer"
+              "$ref": "#/$defs/Generator"
             },
             {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "$ref": "#/$defs/Placeholder"
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/$defs/Placeholder"
+                }
+              ]
             }
           ]
         },
@@ -5709,24 +6032,31 @@
     },
     "TimeoutWait": {
       "additionalProperties": false,
-      "description": "A `wait` branch of a number of seconds, a duration such as `30 s`, or\n`{after, value}` with a value the waiter receives.",
+      "description": "A `wait` branch of a time place: a number of seconds, a duration such as\n`30 s`, an expression, a `{gen: ...}` generator, or `{after, value}` with a value\nthe waiter receives. An expression or a generator is read when the wait starts.",
       "properties": {
         "timeout": {
-          "anyOf": [
+          "oneOf": [
             {
-              "type": "integer"
+              "$ref": "#/$defs/Generator"
             },
             {
-              "type": "number"
-            },
-            {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/$defs/Placeholder"
+                }
+              ]
             },
             {
               "$ref": "#/$defs/TimeoutAfter"
-            },
-            {
-              "$ref": "#/$defs/Placeholder"
             }
           ]
         }
@@ -6512,6 +6842,9 @@
         },
         {
           "$ref": "#/$defs/Attr"
+        },
+        {
+          "$ref": "#/$defs/Entity"
         },
         {
           "$ref": "#/$defs/Param"

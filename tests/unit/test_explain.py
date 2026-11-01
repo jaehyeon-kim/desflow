@@ -834,3 +834,60 @@ def test_on_renege_and_on_balk_edges_have_no_probability():
     assert {e.target for e in edges} >= {"task:gave_up", "task:turned_away"}
     assert all(e.probability is None for e in edges)
     assert _by_name(explanation.tasks, "gave_up").rate is None
+
+
+COMPUTED = """\
+simulation: {sim_id: C, factor: 0}
+resources: {m: {current_cap: 1}}
+arrivals:
+  gapped: {gap: 2, spawn: t}
+  limited: {dist: exponential, rate: 1, max_events: 3, spawn: t}
+tasks:
+  t:
+    resource: m
+    service_time: 1
+    payload: {}
+    next: {weights: {u: "attr.p", v: 1}}
+  u: {payload: {}}
+  v: {payload: {}}
+"""
+
+
+def test_an_arrival_key_that_can_repeat_leaves_the_rate_out(tmp_path):
+    """A start whose key a running entity holds is skipped, so the arrival's rate is
+    not the distribution's. A key that never repeats keeps the rate."""
+    text = (
+        "simulation: {sim_id: C, factor: 0}\n"
+        "arrivals:\n"
+        "  fixed: {dist: exponential, rate: 1, key: k, spawn: t}\n"
+        "  numbered: {dist: exponential, rate: 1, key: {gen: sequence}, spawn: t}\n"
+        "tasks:\n  t: {payload: {}}\n"
+    )
+    path = tmp_path / "model.yaml"
+    path.write_text(text, encoding="utf-8")
+    result = SimulationContext.from_yaml(path).analyze()
+    by_name = {a.name: a for a in result.arrivals}
+    assert by_name["fixed"].reason.startswith("count, keys, key or max_events")
+    assert by_name["fixed"].rate is None
+    assert by_name["numbered"].rate == 1.0
+
+
+def test_computed_times_and_arrivals_leave_the_formulas_out(tmp_path):
+    """A `gap`, a `max_events`, a `service_time` and expression weights are read when
+    the run needs them, so the formulas give no rate or wait for them, and a router
+    with expression weights does not end the flow."""
+    path = tmp_path / "model.yaml"
+    path.write_text(COMPUTED, encoding="utf-8")
+    graph = SimulationContext.from_yaml(path).analyze().graph
+    features = {node.id: node.features for node in graph.nodes}
+
+    assert features["arrival:gapped"] == ["computed gaps"]
+    assert features["arrival:limited"] == ["limited or repeated arrivals"]
+    assert features["task:t"] == ["computed service time"]
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("task:t", "exit") not in edges
+    assert ("task:u", "exit") in edges
+    result = SimulationContext.from_yaml(path).analyze()
+    reasons = {a.name: a.reason for a in result.arrivals}
+    assert reasons["gapped"].startswith("computed gaps")
+    assert reasons["limited"].startswith("count, keys, key or max_events")

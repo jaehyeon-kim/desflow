@@ -7,11 +7,13 @@ into errors with a file and line, and `SimulationContext.run` into `ValueError`s
 
 import string
 from pathlib import Path
-from typing import Any, Collection, Dict, Iterator, List, Mapping, Optional, Tuple
+from typing import Any, Collection, Dict, Iterator, List, Mapping, Optional, Set, Tuple
 
 from desflow.core.expressions import Scope
 from desflow.utils import suggestion
 from desflow.values.models import (
+    Attr,
+    Entity,
     Expr,
     Fake,
     Format,
@@ -72,6 +74,8 @@ def check_value(
     registry: Any = None,
     local: Collection[str] = (),
     mapping_field: bool = False,
+    in_arrival: bool = False,
+    run_scope: bool = False,
 ) -> List[Problem]:
     """The problems of the generators under a value.
 
@@ -85,6 +89,11 @@ def check_value(
         registry: A registry to check `param` paths against, or None to skip.
         local: Names an enclosing `expr` or `format` defines for its own arguments.
         mapping_field: Whether `node` is the value of a mapping field.
+        in_arrival: Whether the place is a `vars`, `key` or `attributes` of an
+            arrival: `var` reads the arrival's vars there, and `entity` is refused.
+        run_scope: Whether the place reads the run only, as an arrival's gap, count,
+            stagger, `max_events` and `vars` do: the entity has no attributes yet,
+            so `attr` is refused.
     """
     found: List[Problem] = []
     names = set(visible) | set(local)
@@ -106,7 +115,16 @@ def check_value(
         if isinstance(node, (Expr, Format)):
             inner |= set(node.names)
         found += _kind_problems(
-            node, path, names, in_task, services, base_dir, registry, inner
+            node,
+            path,
+            names,
+            in_task,
+            services,
+            base_dir,
+            registry,
+            inner,
+            in_arrival,
+            run_scope,
         )
     for item, item_path, is_field in children(node, path):
         found += check_value(
@@ -119,20 +137,84 @@ def check_value(
             registry=registry,
             local=local,
             mapping_field=is_field,
+            in_arrival=in_arrival,
+            run_scope=run_scope,
         )
     return found
 
 
+def names_read(place: Any) -> Set[str]:
+    """The bare names a value reads: those of an `Expression`, and every `var`, `expr`,
+    `format` and `when` argument of a generator that is not defined by the generator
+    itself.
+
+    Args:
+        place: An `Expression`, a generator, a mapping or list that holds one, or a
+            constant.
+    """
+    from desflow.core.expressions import ANY_NAME, Expression
+
+    if isinstance(place, Expression):
+        return set(place.references["name"])
+    found: Set[str] = set()
+    if isinstance(place, _Gen):
+        own: Set[str] = set()
+        texts: List[str] = []
+        if place.omit_when is not None:
+            texts.append(place.omit_when)
+        if isinstance(place, Var):
+            found.add(place.name)
+        elif isinstance(place, Expr):
+            texts.append(place.expr)
+            own = set(place.names)
+        elif isinstance(place, When):
+            texts.append(place.condition)
+        elif isinstance(place, Format):
+            own = set(place.names)
+            try:
+                for _, field, _, _ in string.Formatter().parse(place.template):
+                    if field is not None:
+                        found.add(field.split(".")[0].split("[")[0])
+            except ValueError:
+                pass
+        for text in texts:
+            try:
+                found |= Expression(text, names=ANY_NAME).references["name"]
+            except ValueError:
+                pass
+        found -= own
+    for item, _, _ in children(place, ()):
+        found |= names_read(item)
+    return found
+
+
 def _expression_names(
-    text: str, path: Tuple[Any, ...], known: Collection[str]
+    text: str,
+    path: Tuple[Any, ...],
+    known: Collection[str],
+    run_scope: bool = False,
 ) -> List[Problem]:
     from desflow.core.expressions import ANY_NAME, Expression
 
     try:
-        wanted = Expression(text, names=ANY_NAME).references["name"]
+        parsed = Expression(text, names=ANY_NAME)
     except ValueError as exc:
         return [(path, str(exc))]
-    return [(path, _unknown_name(name, known)) for name in sorted(wanted - set(known))]
+    found = [
+        (path, _unknown_name(name, known))
+        for name in sorted(parsed.references["name"] - set(known))
+    ]
+    outside = parsed.outside_run(names=False) if run_scope else None
+    if outside:
+        found.append(
+            (
+                path,
+                f"'{text}' reads {outside}, but this place reads the run (level, "
+                "users, queue, signal, registry, vars and t), not the entity or a "
+                "task",
+            )
+        )
+    return found
 
 
 def _unknown_name(name: str, known: Collection[str]) -> str:
@@ -155,13 +237,41 @@ def _kind_problems(
     base_dir: Optional[Path],
     registry: Any,
     local: Collection[str],
+    in_arrival: bool = False,
+    run_scope: bool = False,
 ) -> List[Problem]:
     found: List[Problem] = []
     known = set(names) | set(local)
-    if isinstance(node, Var):
+    if isinstance(node, Attr) and run_scope:
+        found.append(
+            (
+                path,
+                f"attr '{node.name}': this place reads the run, and the entity has "
+                "no attributes yet",
+            )
+        )
+    elif isinstance(node, Entity):
         if not in_task:
             found.append(
+                (
+                    path,
+                    "entity is the key of the entity a task runs for; there is no "
+                    "task here"
+                    + (", and the key is made in this place" if in_arrival else ""),
+                )
+            )
+    elif isinstance(node, Var):
+        if not (in_task or in_arrival):
+            found.append(
                 (path, f"var '{node.name}': vars belong to a task; there is none here")
+            )
+        elif in_arrival and not in_task and not names:
+            found.append(
+                (
+                    path,
+                    f"var '{node.name}': vars belong to a task or to the vars of "
+                    f"an arrival; this arrival has none",
+                )
             )
         elif node.name not in names:
             found.append((path + ("name",), _unknown_name(node.name, names)))
@@ -174,9 +284,11 @@ def _kind_problems(
                     "take the name of a var",
                 )
             )
-        found += _expression_names(node.expr, path + ("expr",), known)
+        found += _expression_names(node.expr, path + ("expr",), known, run_scope)
     elif isinstance(node, When):
-        found += _expression_names(node.condition, path + ("condition",), known)
+        found += _expression_names(
+            node.condition, path + ("condition",), known, run_scope
+        )
     elif isinstance(node, Format):
         try:
             fields = [
@@ -318,6 +430,7 @@ def task_value_problems(
     base_dir: Optional[Path] = None,
     registry: Any = None,
     early_end: bool = False,
+    service_time: Any = None,
 ) -> List[Problem]:
     """The problems of every value a task holds.
 
@@ -325,7 +438,10 @@ def task_value_problems(
         vars_once, vars, on_start, finish_vars: The task's keys of those names.
         others: The values read after the vars, by the key they are written under:
             `payload`, `set`, `interrupt`, `on`.
-        wait_values: The values of the wait's timeouts, by their path inside the task.
+        wait_values: The values read before the vars have a value, by their path
+            inside the task: a wait timeout's delay and value, a patience and a key.
+        service_time: The task's `service_time` when it is a generator. It may read
+            every var, which get their value when it is read.
         services: As for `check_value`.
         base_dir: As for `check_value`.
         registry: As for `check_value`.
@@ -350,6 +466,8 @@ def task_value_problems(
         found += check_value(
             value, ("on_start", name), seen, mapping_field=True, **common
         )
+    if service_time is not None:
+        found += check_value(service_time, ("service_time",), seen, **common)
     after = list(seen)
     for name, value in finish_vars.items():
         found += check_value(value, ("finish_vars", name), after, **common)

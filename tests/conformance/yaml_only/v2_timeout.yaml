@@ -1,0 +1,20 @@
+# V2: a wait timeout computed for each entity, listed with a signal. The program is
+# programs/v2_timeout.py. See test_yaml_only.py.
+simulation: {sim_id: V2, factor: 0, random_seed: 42}
+signals: {go: {}}
+arrivals:
+  sender: {replay: {path: sender.csv}, spawn: send}
+  waiters: {replay: {path: waiters.csv}, spawn: wait_for}
+tasks:
+  send:
+    wait: {timeout: 1}
+    signal: go
+    payload: {event_type: sent}
+  wait_for:
+    wait: {any: {go: {signal: go}, limit: {timeout: "attr.limit"}}}
+    on_interrupt: abandon
+    payload:
+      event_type: woke
+      signal: {gen: expr, expr: "wait.go.done"}
+      limit: {gen: expr, expr: "wait.limit.done"}
+run: {until: 100}

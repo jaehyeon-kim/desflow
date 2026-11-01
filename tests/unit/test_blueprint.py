@@ -2178,3 +2178,104 @@ def test_an_on_entry_with_a_wrong_path_or_value_warns_at_load(tmp_path, caplog):
     with caplog.at_level("WARNING", logger="desflow.blueprint.build"):
         SimulationContext.from_yaml(write(tmp_path, ok, "ok.yaml"))
     assert "registry path" not in caplog.text
+
+
+_COMPUTED = """\
+simulation: {sim_id: C, factor: 0, random_seed: 1}
+"""
+
+
+def _computed_records(tmp_path, body):
+    """Runs a blueprint into a capture sink and returns its event records."""
+    app = SimulationContext.from_yaml(write(tmp_path, _COMPUTED + body))
+    sink = _Capture()
+    app.add_egress(sink)
+    app.run()
+    return [r for r in sink.records if r["stream_type"] == "event"]
+
+
+def test_payload_null_publishes_no_record(tmp_path):
+    """`payload: null` publishes no finished record, and the task runs its other
+    steps: here its `set` reaches the next task."""
+    records = _computed_records(
+        tmp_path,
+        "arrivals: {a: {gap: 1, max_events: 1, spawn: t}}\n"
+        "tasks:\n"
+        "  t: {payload: null, set: {seen: 1}, next: u}\n"
+        "  u: {payload: {seen: {gen: attr, name: seen}}}\n"
+        "run: {until: 5}\n",
+    )
+
+    assert {r["task"] for r in records} == {"u"}
+    assert records[0]["value"] == {"seen": 1}
+
+
+def test_payload_null_refuses_a_default_put(tmp_path):
+    """A store `put` carries the task's payload, so it is refused on a task that has
+    none, at the line of the task."""
+    path = write(
+        tmp_path,
+        _COMPUTED + "stores: {q: {}}\n"
+        "arrivals: {a: {gap: 1, spawn: t}}\n"
+        "tasks:\n  t: {payload: null, put: {store: q}}\n",
+    )
+
+    with pytest.raises(BlueprintError, match="payload: null publishes no record"):
+        SimulationContext.from_yaml(path)
+
+
+def test_first_at_with_count(tmp_path):
+    """With `count`, `first_at` is the time of each entity's first start, and the
+    gaps follow."""
+    records = _computed_records(
+        tmp_path,
+        "arrivals: {a: {gap: 4, count: 2, first_at: 3, max_events: 2, spawn: t}}\n"
+        "tasks:\n  t: {payload: {ran: true}}\n"
+        "run: {until: 20}\n",
+    )
+
+    assert [(r["sim_ts"], r["key"]) for r in records] == [
+        (3, "a-1"),
+        (3, "a-2"),
+        (7, "a-1"),
+        (7, "a-2"),
+    ]
+
+
+def test_keys_and_key_are_exclusive(tmp_path):
+    path = write(
+        tmp_path,
+        _COMPUTED + "arrivals: {a: {gap: 1, keys: [x, y], key: z, spawn: t}}\n"
+        "tasks:\n  t: {payload: {}}\n",
+    )
+
+    with pytest.raises(BlueprintError, match="takes key or keys, not both"):
+        SimulationContext.from_yaml(path)
+
+
+def test_gap_refuses_attr(tmp_path):
+    """A gap is read for the arrival, before any entity has attributes."""
+    for gap in ("attr.x", "has(attr.x)"):
+        path = write(
+            tmp_path,
+            _COMPUTED + f'arrivals: {{a: {{gap: "{gap}", spawn: t}}}}\n'
+            "tasks:\n  t: {payload: {}}\n",
+        )
+
+        with pytest.raises(BlueprintError, match="gap .* reads attr"):
+            SimulationContext.from_yaml(path)
+
+
+def test_count_place_refuses_a_float_literal(tmp_path):
+    """A count place takes a whole number: 2.0, 2.5 and true are refused where they
+    are written. A computed 2.0 fails the run, which the A1 conformance test covers."""
+    for literal in ("2.0", "2.5", "true"):
+        path = write(
+            tmp_path,
+            _COMPUTED
+            + f"arrivals: {{a: {{gap: 1, max_events: {literal}, spawn: t}}}}\n"
+            "tasks:\n  t: {payload: {}}\n",
+        )
+
+        with pytest.raises(BlueprintError, match="max_events"):
+            SimulationContext.from_yaml(path)

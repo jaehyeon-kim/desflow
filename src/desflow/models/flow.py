@@ -47,6 +47,9 @@ class Entity:
     last_ended: Optional[Dict[str, Any]] = field(
         default=None, repr=False, compare=False
     )
+    # The loop of an entity that runs more than once (an arrival with `count`), which
+    # keeps the values for its key until the loop and its runs have ended
+    loop: Optional[Any] = field(default=None, repr=False, compare=False)
 
     @property
     def left(self) -> bool:

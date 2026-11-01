@@ -34,7 +34,8 @@ from desflow.core.flow import Router, Transfer, Wait, as_given, make_scope
 from desflow.resources.resource import QueueFull
 from desflow.models.flow import Entity, Upstream
 from desflow.utils import suggestion
-from desflow.values.models import has_generator
+from desflow.values.check import names_read
+from desflow.values.models import _Gen, has_generator
 from desflow.values.runtime import RunStopped
 from desflow.values.template import BoundPayload, Template
 
@@ -67,6 +68,17 @@ class TaskFailed(Exception):
 
 # What a wait or a get returns when the task's patience ran out first
 _RENEGED = object()
+
+
+class _NoRecord:
+    """What the body of a task with `payload: null` returns: the task finishes and
+    publishes no record."""
+
+    def __repr__(self) -> str:
+        return "NO_RECORD"
+
+
+NO_RECORD = _NoRecord()
 
 # The service still owed, in seconds, at or below which a resumed task has none left
 _NO_TIME_LEFT = 1e-9
@@ -105,6 +117,7 @@ class TaskSpec:
         on_balk: Optional[str] = None,
         service_time: Any = None,
         key_field: Optional[str] = None,
+        key: Any = None,
         attribute_changes: Optional[Dict[str, Any]] = None,
         resources: Optional[List[str]] = None,
         keep: Optional[List[str]] = None,
@@ -129,6 +142,8 @@ class TaskSpec:
         self.finish_vars: Dict[str, Any] = dict(finish_vars or {})
         self.service_id = service_id
         self.key_field = key_field
+        # One record key for every record of an instance, drawn at its first record
+        self.key = key
         # Every resource it holds, acquired in this order; resource_id is the first
         self.resources: List[str] = list(
             resources or ([resource_id] if resource_id else [])
@@ -177,7 +192,9 @@ class TaskSpec:
             Expression(fail, names=ANY_NAME) if isinstance(fail, str) else None
         )
         self.service_time_of = (
-            Expression(service_time) if isinstance(service_time, str) else None
+            Expression(service_time, names=ANY_NAME)
+            if isinstance(service_time, str)
+            else None
         )
         # Waits for a unit or an item, so it queues
         self.queues = (
@@ -188,6 +205,13 @@ class TaskSpec:
         # Set when the function is decorated
         self.user_func: Callable[..., Any] = lambda *args, **kwargs: None
         self.declared: Any = {}
+
+    @property
+    def service_reads(self) -> List[str]:
+        """The vars the service time reads, which are given a value when it is."""
+        return sorted(
+            names_read(self.service_time_of or self.service_time) & set(self.var_names)
+        )
 
     @property
     def var_names(self) -> List[str]:
@@ -220,6 +244,7 @@ class TaskSpec:
             found.append(("interrupt", self.interrupt_where))
         if self.wait is not None:
             found.extend(("wait", e) for e in self.wait.conditions)
+            found.extend(("wait", e) for e in self.wait.time_expressions)
         return found
 
 
@@ -290,6 +315,7 @@ class TaskRun:
         self._vars: Dict[str, Any] = {}
         self._finish: Dict[str, Any] = {}
         self._once_made = self._vars_made = False
+        self._instance_key: Optional[str] = None
         # An instance whose task needs an end event (for `running`, `subscribe`, a
         # `fire from`, or its own `on:` actions) gets one, defused so its failure
         # stops the run only through the task process.
@@ -321,6 +347,8 @@ class TaskRun:
             lifecycle: True for `queued` and `started`, which a plain-output sink
                 does not receive.
         """
+        if key is None and self.spec.key is not None:
+            key = self._record_key()
         self.env.publish_event(
             self.entity.key,
             value,
@@ -329,6 +357,24 @@ class TaskRun:
             key=key,
             lifecycle=lifecycle,
         )
+
+    def _record_key(self) -> str:
+        """The record key of this instance: the task's `key`, drawn at its first
+        record and kept, as text.
+
+        Raises:
+            ValueError: If the key is not an integer or text.
+        """
+        if self._instance_key is None:
+            self._ensure_once()
+            made = self.context.values.evaluate(self.spec.key, self.scope())
+            if isinstance(made, bool) or not isinstance(made, (int, str)):
+                raise ValueError(
+                    f"task '{self.spec.name}' key gave {made!r}, which is not an "
+                    f"integer or text"
+                )
+            self._instance_key = str(made)
+        return self._instance_key
 
     def _payload_key(self, payload: Any) -> Any:
         """Returns the record key `key_field` takes from the payload, or None.
@@ -390,6 +436,7 @@ class TaskRun:
             },
             resources=self.context._resources_map,
             names=self._names(),
+            entity=self.entity.key,
         )
 
     # ----------------------------------------------------------- generated values
@@ -768,6 +815,7 @@ class TaskRun:
             break
 
         payload: Any = None
+        silent = False  # `payload: null`: the task publishes no finished record
         rank = self._rank() if self.spec.resources else None
         remaining: Optional[float] = None  # service still owed, when interrupted
         started = got_item = put_done = served = no_time_left = False
@@ -864,6 +912,8 @@ class TaskRun:
                         payload = spec.user_func(
                             self.task_id, *self.args, **self._extra()
                         )
+                        if payload is NO_RECORD:
+                            payload, silent = None, True
                     except Exception as error:  # noqa: BLE001: a task's failure
                         failure = f"{type(error).__name__}: {error}"
                         self._fail_error = error
@@ -909,7 +959,8 @@ class TaskRun:
                         put_done = True
                     failure = self._failure(payload)
                 if failure is None:
-                    self.publish(payload, key=self._payload_key(payload))
+                    if not silent:
+                        self.publish(payload, key=self._payload_key(payload))
                     stats.task_finished(spec.name, self.task_id)
                     # A stop condition, such as `t >= 300`, is checked after every
                     # finished task as well as after every change of state
@@ -1222,15 +1273,19 @@ class TaskRun:
             sampler = self.context.sampler
             assert sampler is not None  # a run is under way
             return sampler.sample(config)
+        if spec.service_reads:
+            # A var the service time reads is given its value now, and the payload
+            # reads the same value
+            self._ensure_vars()
         return self._place(spec.service_time_of or spec.service_time, "service_time")
 
     def _place(self, value: Any, key: str) -> Union[int, float]:
-        """Evaluates a time place: a number as it is, a function of the entity, or
-        text read as an expression over the entity's names.
+        """Evaluates a time place: a number as it is, text read as an expression over
+        the entity's names, a generator, or a function of the entity.
 
         Args:
-            value: A number, the `Expression` of a text, or a function of the
-                entity.
+            value: A number, the `Expression` of a text, a generator, or a function
+                of the entity.
             key: The task key the value was written under, for the message.
 
         Returns:
@@ -1238,9 +1293,12 @@ class TaskRun:
 
         Raises:
             TypeError: If the value is not a number of seconds, or a boolean.
+            ValueError: If the seconds are negative.
         """
         if isinstance(value, Expression):
             value = value.evaluate(self.scope())
+        elif isinstance(value, _Gen):
+            value = self.context.values.evaluate(value, self.scope())
         elif callable(value):
             value = value(self.entity)
         if isinstance(value, bool) or not isinstance(value, numbers.Real):
@@ -1248,15 +1306,27 @@ class TaskRun:
                 f"task '{self.spec.name}' {key} gave {value!r}, which is not a number "
                 f"of seconds"
             )
+        if value < 0:
+            raise ValueError(
+                f"task '{self.spec.name}' {key} gave {value!r}, which is below 0"
+            )
         return value
 
     def _patience(self) -> Union[int, float]:
         spec = self.spec
+        if isinstance(spec.patience, _Gen):
+            return self._place(spec.patience, "patience")
         if spec.patience_of is not None:
-            return as_given(spec.patience_of.evaluate(self.scope()))
-        if callable(spec.patience):
-            return as_given(spec.patience(self.task_id, self.entity.attributes))
-        return as_given(spec.patience)
+            given = as_given(spec.patience_of.evaluate(self.scope()))
+        elif callable(spec.patience):
+            given = as_given(spec.patience(self.task_id, self.entity.attributes))
+        else:
+            return as_given(spec.patience)
+        if given < 0:
+            raise ValueError(
+                f"task '{spec.name}' patience gave {given!r}, which is below 0"
+            )
+        return given
 
     def _rank(self) -> Any:
         spec = self.spec
@@ -1451,6 +1521,11 @@ class TaskRun:
                 event = child
             elif node.kind == "timeout":
                 seconds, timeout_value = node.target
+                if not isinstance(seconds, numbers.Real):
+                    # Read as the event is made, before its value, as the arguments
+                    # of `env.timeout(delay, value)` are
+                    self._ensure_once()
+                    seconds = self._place(seconds, "timeout")
                 if has_generator(timeout_value):
                     # Read as the event is made, as SimPy reads a timeout's value;
                     # only the vars_once exist before the task starts

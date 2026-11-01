@@ -3,6 +3,7 @@
 from typing import Dict, List, Tuple
 
 from desflow.config import MIN_DELAY
+from desflow.explain import features
 from desflow.explain.models import VERIFY_HINT, ArrivalResult, Graph, Node
 
 
@@ -49,8 +50,20 @@ def arrival_results(graph: Graph) -> List[ArrivalResult]:
         if node.kind != "arrival":
             continue
         if node.distribution is None:
+            what = (
+                "computed gaps"
+                if features.COMPUTED_GAPS in node.features
+                else "replayed rows"
+            )
+            results.append(ArrivalResult(name=node.label, reason=what + VERIFY_HINT))
+            continue
+        if features.LIMITED_ARRIVALS in node.features:
             results.append(
-                ArrivalResult(name=node.label, reason="replayed rows" + VERIFY_HINT)
+                ArrivalResult(
+                    name=node.label,
+                    reason="count, keys, key or max_events change how many entities "
+                    "arrive" + VERIFY_HINT,
+                )
             )
             continue
         mean, variance = moments(node.distribution)

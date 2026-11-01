@@ -21,12 +21,6 @@
 # A batch that removes a gap deletes its id from `gaps` and from every construct.
 
 gaps:
-  V1:
-    text: "A service time computed from the entity, an item, shared state or the time has no YAML key. The Builder's `service_time=` takes a function of the entity."
-    form: computed
-  V2:
-    text: "A `wait` timeout computed for each entity has no key."
-    form: computed
   V7:
     text: "An expression cannot read a name deeper than two parts, the upstream payload in `next`, an interrupt or preemption cause, which requests hold a resource, or the priority of an item taken."
     form: computed
@@ -39,14 +33,8 @@ gaps:
   V12:
     text: "A store item cannot be put back after a get, cannot be a number or a text, and has no nested `item.` fields."
     form: computed
-  A1:
-    text: "A fixed number of arrivals has no YAML key."
-    form: arrivals
   A3:
     text: "Arrivals in groups of a size drawn from an unbounded distribution have no key."
-    form: arrivals
-  A4:
-    text: "An arrival rate that depends on the time has no key."
     form: arrivals
   A5:
     text: "A flow cannot turn one source off and on."
@@ -107,9 +95,6 @@ gaps:
     form: whole-flow
 
 unattached:
-  V10:
-    text: "routing weights that come from an attribute or from the state of the model"
-    python: "a payload function draws the route with weights from `attr.w`, and `next.when` reads it"
   B1:
     text: "a failure clock that runs on busy time only"
     python: "a `processes` entry counts the busy time and calls the task `repair` when it reaches the limit"
@@ -122,7 +107,7 @@ constructs:
   - {id: SP-E1, area: Environment, simpy: "`Environment(initial_time)`"}
   - {id: SP-E2, area: Environment, simpy: "`Environment.now`"}
   - {id: SP-E3, area: Environment, simpy: "`Environment.active_process`", gaps: [M6]}
-  - {id: SP-E4, area: Environment, simpy: "`env.process(...)` without `yield`", gaps: [A1, A3, A4, A5, A7]}
+  - {id: SP-E4, area: Environment, simpy: "`env.process(...)` without `yield`", gaps: [A3, A5, A7]}
   - {id: SP-E5, area: Environment, simpy: "`Environment.schedule(event, priority, delay)`"}
   - {id: SP-E6, area: Environment, simpy: "`URGENT` and `NORMAL` event priorities"}
   - {id: SP-E7, area: Environment, simpy: "Events at one time run in the order they were scheduled", gaps: [M4]}
@@ -145,8 +130,8 @@ constructs:
   - {id: SP-V6, area: Events and Timeout, simpy: "`Event.defused`", gaps: [M3]}
   - {id: SP-V7, area: Events and Timeout, simpy: "A failed event nobody handles stops the run"}
   - {id: SP-V8, area: Events and Timeout, simpy: "`Event.triggered`, `processed`, `ok` and `value`"}
-  - {id: SP-V9, area: Events and Timeout, simpy: "`a & b` and `a | b`", gaps: [V2, T10]}
-  - {id: SP-V10, area: Events and Timeout, simpy: "`Timeout(delay)`", gaps: [V1]}
+  - {id: SP-V9, area: Events and Timeout, simpy: "`a & b` and `a | b`", gaps: [T10]}
+  - {id: SP-V10, area: Events and Timeout, simpy: "`Timeout(delay)`"}
   - {id: SP-V11, area: Events and Timeout, simpy: "`Timeout(delay, value)`"}
   # Processes
   - {id: SP-P1, area: Processes, simpy: "Start a process and wait for it", gaps: [V9]}

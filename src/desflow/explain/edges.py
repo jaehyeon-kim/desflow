@@ -132,7 +132,10 @@ def task_edges(spec: "TaskSpec", nodes: List[Node], edges: List[Edge]) -> bool:
         edges.append(Edge(source=task, target=node_id("task", target), kind="next"))
     # when rules with no default, a failure without on_fail, or no rule at all end
     # some flows
-    ends = router._default is None or (spec.fail is not None and spec.on_fail is None)
+    # Weights read when the task finishes name every route, and none ends the flow
+    ends = (router._default is None and not router.computed) or (
+        spec.fail is not None and spec.on_fail is None
+    )
     if ends:
         edges.append(Edge(source=task, target=EXIT, kind="next"))
     return ends

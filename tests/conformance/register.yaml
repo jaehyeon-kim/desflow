@@ -32,7 +32,7 @@
   operation: Timed wait
   description: "A task waits a set or sampled time, such as the time packing takes, before it goes on."
   simpy: "`simpy.events.Timeout`"
-  yaml: a task with `service` and no `resource`
+  yaml: a task with `service` or `service_time` and no `resource`
   builder: "`@app.task(service_id=...)` with no resource"
   low_level: "`yield env.timeout(delay)`"
   checks:
@@ -42,6 +42,10 @@
     - tests/conformance/test_c1_timed_wait.py::test_integer_literals_stay_integers
     - tests/conformance/test_builder_additions.py::test_builder_service_time
     - tests/conformance/test_builder_additions.py::test_builder_service_time_refuses_what_it_cannot_run
+    - tests/conformance/test_yaml_only.py::test_v1_a_service_time_computed_for_each_entity_on_one_unit
+    - tests/conformance/test_yaml_only.py::test_v1_a_service_time_of_zero_takes_no_time
+    - tests/conformance/test_yaml_only.py::test_v1_an_interrupt_during_the_service_time
+    - tests/conformance/test_yaml_only.py::test_v1_a_negative_service_time_fails_the_run
     - tests/conformance/test_c1_timed_wait.py::test_a_constant_arrival_keeps_integer_times
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_single_branch_wait_goes_on_in_the_step_its_event_is_processed
   page: user-guide/tasks-and-processes/index.md#a-timed-step
@@ -84,6 +88,8 @@
     - tests/conformance/test_c1_process_interaction.py::test_c1_a_process_that_waits_for_a_flow_wakes_when_the_flow_ends
     - tests/conformance/test_c1_process_interaction.py::test_c1_a_next_chain_of_5000_tasks_runs_without_nesting_generators
     - tests/conformance/test_c1_process_interaction.py::test_c1_a_long_next_loop_keeps_no_finished_instances
+    - tests/conformance/test_yaml_only.py::test_v10_weights_from_an_expression_make_one_draw_each
+    - tests/conformance/test_yaml_only.py::test_v10_weights_that_add_up_to_nothing_or_below_0_fail_the_run
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
@@ -161,6 +167,9 @@
   checks:
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_one_event
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_one_event_two_at_one_instant
+    - tests/conformance/test_yaml_only.py::test_v2_a_wait_timeout_computed_for_each_entity
+    - tests/conformance/test_yaml_only.py::test_v2_an_interrupt_while_the_computed_timeout_runs
+    - tests/conformance/test_yaml_only.py::test_v2_a_negative_timeout_fails_the_run
   page: how-to/modelling/wait-for-one-or-all.md#wait-for-the-first
   differences: "Losing signal, timeout and condition branches are dropped when the wait ends; losing child flows keep running, as SimPy leaves processes running. A request branch not yet granted when the wait ends is cancelled; a SimPy `with` block held over the rest of the task leaves it queued."
 
@@ -770,6 +779,8 @@
     - tests/conformance/test_c7_patience.py::test_c7_patience_that_evaluates_to_text_is_read_as_a_number
     - tests/conformance/test_c7_patience.py::test_patience_first_at_a_tie_reneges
     - tests/conformance/test_c7_patience.py::test_child_that_reneged_reports_simpy_value
+    - tests/conformance/test_yaml_only.py::test_ex_1_bank_renege_prints_the_lines_of_the_simpy_program
+    - tests/conformance/test_yaml_only.py::test_ex_1_bank_renege_runs_with_its_own_draws
     - tests/conformance/test_c7_patience.py::test_patience_does_not_beat_a_timeout_branch_processed_first
     - tests/conformance/test_c7_patience.py::test_patience_first_at_a_tie_reneges_a_get
     - tests/conformance/test_c7_patience.py::test_patience_first_at_a_tie_reneges_a_request_asked_again
@@ -975,6 +986,14 @@
     - tests/conformance/test_c1_processes.py::test_c1_start_a_process_without_waiting_for_it
     - tests/conformance/test_c1_processes.py::test_c1_start_a_process_without_waiting_for_it_drain
     - tests/conformance/test_builder_additions.py::test_builder_spawn_count
+    - tests/conformance/test_yaml_only.py::test_a1_a_fixed_number_of_arrivals
+    - tests/conformance/test_yaml_only.py::test_a1_a_computed_count_must_be_a_whole_number
+    - tests/conformance/test_yaml_only.py::test_a1_count_and_keys_make_entities_that_start_the_task_again
+    - tests/conformance/test_yaml_only.py::test_a1_a_drain_during_a_gap_or_a_stagger_ends_the_entities
+    - tests/conformance/test_yaml_only.py::test_a1_a_drain_during_a_gap_of_a_source_with_max_events
+    - tests/conformance/test_yaml_only.py::test_a4_a_gap_computed_from_the_time
+    - tests/conformance/test_yaml_only.py::test_a4_a_drain_during_a_computed_gap_ends_the_sources
+    - tests/conformance/test_yaml_only.py::test_a4_a_negative_gap_fails_the_run
   page: user-guide/tasks-and-processes/signals-and-waiting.md#start-a-flow-without-waiting
 
 - id: C6

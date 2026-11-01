@@ -9,6 +9,8 @@ fails when the file is loaded rather than during the run.
 
 import inspect
 import keyword
+import numbers
+import re
 from datetime import datetime, timedelta
 from types import UnionType
 from typing import (
@@ -65,7 +67,7 @@ from desflow.models.params import DistributionConfig
 from desflow.resources.container import ContainerBase, check_container_type
 from desflow.resources.resource import ResourceBase, check_resource_type
 from desflow.resources.store import StoreBase, check_store_type
-from desflow.values.models import GENERATORS, Payload, Value, _Gen
+from desflow.values.models import GENERATORS, Generator, Payload, Value, _Gen
 from desflow.utils import suggestion, time_to_seconds
 
 # The names an egress `when` takes instead of a `!python` function.
@@ -82,6 +84,89 @@ def _seconds(value: Union[int, float, str]) -> Union[int, float]:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return value
     raise ValueError("expected seconds or a duration such as '10 min'")
+
+
+def _place_kind(value: Any) -> str:
+    """Which branch of a time or count place a value is: a generator (a `_Gen` or a
+    mapping with `gen`), or a plain number or text."""
+    if isinstance(value, _Gen) or (isinstance(value, Mapping) and "gen" in value):
+        return "<gen>"
+    return "<plain>"
+
+
+# A place that takes a time: seconds, a duration such as `5 min`, an expression, or a
+# `{gen: ...}` generator. A mapping with `gen` is always checked as a generator, so a
+# misspelt argument is reported and not passed on as another form.
+TimePlace = Annotated[
+    Union[
+        Annotated[Generator, Tag("<gen>")],
+        Annotated[Union[int, float, str], Tag("<plain>")],
+    ],
+    Discriminator(_place_kind),
+]
+
+# A place that takes a whole number: an integer (not a float, and not true or false),
+# an expression, or a generator.
+CountPlace = Annotated[
+    Union[
+        Annotated[Generator, Tag("<gen>")],
+        Annotated[Union[StrictInt, str], Tag("<plain>")],
+    ],
+    Discriminator(_place_kind),
+]
+
+
+# Text that is only a number, so a name such as `inf` stays an expression
+_PLAIN_NUMBER = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
+
+
+def _duration_text(value: Any) -> Any:
+    """A time place as the runtime reads it: a duration in text becomes seconds, and
+    other text stays an expression, checked here so a mistake is reported at load."""
+    if isinstance(value, str):
+        try:
+            return time_to_seconds(value)
+        except ValueError:
+            pass
+        if _PLAIN_NUMBER.fullmatch(value.strip()):
+            return float(value)  # a number in text, such as '-1'
+    return value
+
+
+def _refuse_boolean(value: Any, what: Optional[str]) -> None:
+    """Refuses true and false in a time place, which pydantic would read as 1 and 0."""
+    if isinstance(value, bool):
+        raise ValueError(
+            f"{what} must be a number of seconds, a duration or an expression, "
+            f"got {value!r}"
+        )
+
+
+def _check_time_place(value: Any, what: str, run_scope: bool = False) -> None:
+    """Refuses a negative number and text that is not an expression.
+
+    Args:
+        value: The place as validated.
+        what: The key, for the message.
+        run_scope: Whether the place reads the run only, so `attr` is refused.
+    """
+    if isinstance(value, str):
+        _check_run_text(value, what, run_scope)
+    elif isinstance(value, numbers.Real) and not float(value) >= 0:
+        raise ValueError(f"{what} must be 0 or more, got {value!r}")
+
+
+def _check_run_text(text: str, what: str, run_scope: bool) -> None:
+    try:
+        parsed = Expression(text, names=ANY_NAME)
+    except ValueError as exc:
+        raise ValueError(f"{what}: {exc}") from None
+    outside = parsed.outside_run() if run_scope else None
+    if outside:
+        raise ValueError(
+            f"{what} '{text}' reads {outside}, but this place reads the run (level, "
+            f"users, queue, signal, registry and t), not the entity or a task"
+        )
 
 
 _DATETIME = TypeAdapter(datetime)
@@ -274,24 +359,137 @@ class Arrival(Distribution):
     An `attributes` value is a constant or a `{gen: ...}` generator, drawn once for each
     entity when it starts, in the order the entities are made. A mapping with a `gen`
     key is a generator; `{gen: literal, value: ...}` keeps a mapping as data.
+
+    The gaps come from exactly one of `dist`, `replay` or `gap`. `gap` is a number of
+    seconds, a duration such as `5 min`, an expression or a generator, read at the
+    start of each gap, so a gap may read `registry[...]`, `level.<name>` and `t`.
+    `first_at` is the simulation time of the first arrival, which waits for it in place
+    of a gap; the gaps after it follow. A time already past arrives at once.
+    `max_events` is how many times the arrival starts its task, in all: the arrival
+    stops after the last, and its last start draws no further gap. A start whose key
+    belongs to an entity of the arrival that is still running is skipped with a
+    warning and counts as one.
+
+    `count` makes that many entities, each with a loop of its own: it starts its task
+    after each gap, `first_at` is the time of its first start, and `max_events` is how
+    many times each entity starts. `keys` is a list of keys instead, one entity for
+    each, and gives the number. `stagger` is the time between the starts of two
+    entities, read after each one. `key` is a value place read once for each entity,
+    for its key; `vars` are named values read once for each entity before its
+    attributes and key, which read them as bare names. Every one of these places reads
+    the run only: `attr` is refused in them, because the entity has none yet. `count`
+    and `max_events` are keys of a blueprint, with no argument of `add_arrival`.
+    `count`, `keys`, `first_at` and `stagger` do not apply to a replay. `count`,
+    `keys`, `max_events` and `stagger` set how the arrival starts its task, so each
+    needs `spawn`; `stagger` also needs `count` or `keys`. `key`, `vars`, `gap` and
+    `first_at` are read by `wait_for_arrival` too, so an arrival without `spawn` may
+    carry them.
     """
 
     dist: Optional[str] = None  # type: ignore[assignment]
     replay: Optional[Replay] = None
+    gap: Optional[TimePlace] = None
+    first_at: Optional[Union[int, float]] = None
+    count: Optional[CountPlace] = None
+    keys: Optional[List[Union[StrictInt, str]]] = None
+    key: Value = None
+    vars: Dict[str, Value] = Field(default_factory=dict)
+    stagger: TimePlace = 0
+    max_events: Optional[CountPlace] = None
     spawn: Optional[str] = None
     attributes: Dict[str, Value] = Field(default_factory=dict)
 
+    @field_validator("gap", "stagger", mode="before")
+    @classmethod
+    def _place_duration(cls, value: Any, info: ValidationInfo) -> Any:
+        _refuse_boolean(value, info.field_name)
+        return _duration_text(value)
+
+    @field_validator("first_at", mode="before")
+    @classmethod
+    def _first_at_time(cls, value: Any) -> Any:
+        return None if value is None else _seconds(value)
+
     @model_validator(mode="after")
     def _distribution_in_range(self) -> "Arrival":
-        if (self.dist is None) == (self.replay is None):
-            raise ValueError("an arrival takes a dist or a replay, not both or neither")
-        if self.replay is not None and self.parameters():
+        given = [
+            name
+            for name, value in (
+                ("dist", self.dist),
+                ("replay", self.replay),
+                ("gap", self.gap),
+            )
+            if value is not None
+        ]
+        if len(given) != 1:
             raise ValueError(
-                "a replayed arrival takes no distribution parameters; remove them, "
-                "or the replay"
+                "an arrival takes exactly one of dist, replay or gap"
+                + (f", not {' and '.join(given)}" if given else ", got none")
+            )
+        if self.dist is None and self.parameters():
+            raise ValueError(
+                f"an arrival with {given[0]} takes no distribution parameters; "
+                f"remove them, or the {given[0]}"
             )
         if self.dist is not None:
             self.config()
+        if self.keys is not None and self.key is not None:
+            raise ValueError("an arrival takes key or keys, not both")
+        if self.keys is not None and self.count is not None:
+            raise ValueError(
+                "keys gives the number of entities, so count is not needed"
+            )
+        if self.keys is not None and len(set(map(str, self.keys))) != len(self.keys):
+            raise ValueError("keys lists each key once")
+        if self.keys is not None and not self.keys:
+            raise ValueError("keys needs at least one key")
+        if self.spawn is None:
+            for name in ("count", "keys", "max_events", "stagger"):
+                if name in self.model_fields_set:
+                    raise ValueError(
+                        f"{name} sets how an arrival starts its task, so it needs "
+                        f"spawn; an arrival without spawn is read by "
+                        f"wait_for_arrival, which uses gap, first_at, key and vars"
+                    )
+        if (
+            "stagger" in self.model_fields_set
+            and self.count is None
+            and self.keys is None
+            and self.replay is None
+        ):
+            raise ValueError(
+                "stagger is the time between the starts of two entities, so it "
+                "needs count or keys"
+            )
+        if self.replay is not None:
+            for name in ("count", "keys", "first_at"):
+                if getattr(self, name) is not None:
+                    raise ValueError(
+                        f"{name} does not apply to a replay, whose rows give the "
+                        f"times and the number of entities"
+                    )
+            if self.stagger != 0:
+                raise ValueError("stagger does not apply to a replay")
+        for name in ("gap", "stagger"):
+            _check_time_place(getattr(self, name), name, run_scope=True)
+        for name in ("count", "max_events"):
+            value = getattr(self, name)
+            if isinstance(value, str):
+                _check_run_text(value, name, True)
+            elif isinstance(value, int) and value < 0:
+                raise ValueError(f"{name} must be 0 or more, got {value!r}")
+        if self.first_at is not None and not self.first_at >= 0:
+            raise ValueError(f"first_at must be 0 or more, got {self.first_at!r}")
+        for name, var in self.vars.items():
+            if not name.isidentifier() or keyword.iskeyword(name):
+                raise ValueError(
+                    f"vars: '{name}' is not a name an expression can read; use "
+                    "letters, digits and _, not starting with a digit"
+                )
+            if name in RESERVED_NAMES:
+                raise ValueError(
+                    f"vars: '{name}' is a name an expression already uses; pick another"
+                )
         return self
 
 
@@ -477,7 +675,24 @@ class Next(_Model):
 
     when: List[Rule] = Field(default_factory=list)
     default: Optional[str] = None
-    weights: Optional[Dict[str, float]] = None
+    weights: Optional[Dict[str, Union[float, str]]] = None
+
+    @field_validator("weights", mode="before")
+    @classmethod
+    def _numeric_text(cls, value: Any) -> Any:
+        """Text a number can be read from is that number, as it was before text was
+        allowed; other text is an expression read when the task finishes."""
+        if not isinstance(value, Mapping):
+            return value
+        read: Dict[Any, Any] = {}
+        for name, weight in value.items():
+            if isinstance(weight, str):
+                try:
+                    weight = float(weight)
+                except ValueError:
+                    pass
+            read[name] = weight
+        return read
 
     @model_validator(mode="after")
     def _one_form(self) -> "Next":
@@ -677,17 +892,34 @@ class TimeoutAfter(_Model):
     """A `wait` timeout with a value: `{after: 40 s, value: ...}`, as SimPy's
     `env.timeout(delay, value)` carries a value the waiter receives. The value is a
     constant or a `{gen: ...}` generator evaluated when the wait starts, so it may read
-    `vars_once` names but no `vars`."""
+    `vars_once` names but no `vars`. `after` is a time place: seconds, a duration, an
+    expression or a generator, read when the wait starts."""
 
-    after: Union[int, float, str]
+    after: TimePlace
     value: Value = None
 
 
-class TimeoutWait(_Model):
-    """A `wait` branch of a number of seconds, a duration such as `30 s`, or
-    `{after, value}` with a value the waiter receives."""
+def _timeout_kind(value: Any) -> str:
+    if isinstance(value, TimeoutAfter):
+        return "<after>"
+    if isinstance(value, Mapping) and "gen" not in value:
+        return "<after>"
+    return _place_kind(value)
 
-    timeout: Union[int, float, str, TimeoutAfter]
+
+class TimeoutWait(_Model):
+    """A `wait` branch of a time place: a number of seconds, a duration such as
+    `30 s`, an expression, a `{gen: ...}` generator, or `{after, value}` with a value
+    the waiter receives. An expression or a generator is read when the wait starts."""
+
+    timeout: Annotated[
+        Union[
+            Annotated[Generator, Tag("<gen>")],
+            Annotated[Union[int, float, str], Tag("<plain>")],
+            Annotated[TimeoutAfter, Tag("<after>")],
+        ],
+        Discriminator(_timeout_kind),
+    ]
 
 
 class ConditionWait(_Model):
@@ -755,6 +987,32 @@ AllWait.model_rebuild()
 AtLeastWait.model_rebuild()
 
 
+def _generators_as_zero(raw: Any) -> Any:
+    """`raw`, a wait branch as written, with each `{gen: ...}` timeout or `after`
+    replaced by 0, so `Wait` checks the rest of the branch; the generator itself is
+    checked by the typed union.
+
+    Args:
+        raw: The branch as written.
+    """
+    if not isinstance(raw, Mapping):
+        return raw
+    timeout = raw.get("timeout")
+    if isinstance(timeout, Mapping):
+        if "gen" in timeout:
+            return {**raw, "timeout": 0}
+        if isinstance(timeout.get("after"), Mapping) and "gen" in timeout["after"]:
+            return {**raw, "timeout": {**timeout, "after": 0}}
+        return raw
+    out = dict(raw)
+    for key in ("any", "all", "of"):
+        if isinstance(raw.get(key), Mapping):
+            out[key] = {
+                name: _generators_as_zero(branch) for name, branch in raw[key].items()
+            }
+    return out
+
+
 def _with_typed_values(raw: Any, typed: Any) -> Any:
     """`raw`, a wait branch as written, with each timeout `value` replaced by the
     validated one, so a generator in it is a generator and not a mapping.
@@ -766,9 +1024,16 @@ def _with_typed_values(raw: Any, typed: Any) -> Any:
     if not isinstance(raw, Mapping):
         return raw
     if "timeout" in raw and isinstance(raw["timeout"], Mapping):
-        if "value" not in raw["timeout"]:
-            return raw
-        return {"timeout": {**raw["timeout"], "value": typed.timeout.value}}
+        if "gen" in raw["timeout"]:
+            return {"timeout": typed.timeout}
+        after = raw["timeout"].get("after")
+        typed_after = typed.timeout.after
+        out = dict(raw["timeout"])
+        if isinstance(after, Mapping) and isinstance(typed_after, _Gen):
+            out["after"] = typed_after
+        if "value" in out:
+            out["value"] = typed.timeout.value
+        return {"timeout": out}
     for key in ("any", "all"):
         if key in raw and isinstance(raw[key], Mapping):
             inner = getattr(typed, key)
@@ -803,17 +1068,29 @@ class Task(_Model):
     `time_to_seconds` accepts as a duration, and other text as an expression.
 
     `payload` is the value of the `finished` event: a mapping, or a `!python`
-    function called as `payload(task_id, context)`. `id_field` adds the task id to a
+    function called as `payload(task_id, context)`. `payload: null` publishes no
+    `finished` record and the task runs its other steps; a store `put` on such a task
+    is refused, because the put carries the payload. `id_field` adds the task id to a
     mapping payload under that key, `key_field` names the payload field whose value
     becomes the key of the finished event, and so the Kafka message key (the
     `queued` and `started` records keep the entity's key; a payload without the
     field fails the run), `item_field` adds the item its store `get` took,
-    and `attributes` adds the named entity attributes. A task with a `service` and no `resource` is a timed step; one with
+    and `attributes` adds the named entity attributes. `key` is a value place for the
+    key of the task's records, drawn once for each instance at its first record and
+    written as text; it replaces `key_field`, and the two are not given together. A
+    task with a `service` and no `resource` is a timed step; one with
     neither, and no `get`, emits its payload as soon as it is spawned.
 
+    `service_time` is the task's own time, in place of a `service`, and the two are
+    not given together: seconds, a duration such as `30 s`, an expression, or a
+    `{gen: ...}` generator, read after the task has its resource and, for a `get`, its
+    item. It may read `vars_once` and `vars` as bare names, and `item.<field>` after a
+    store get. A result below 0 fails the run. A task with a `resource` needs a
+    `service` or a `service_time`.
+
     `priority` is a number or an expression such as `attr.priority`, for a resource
-    whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or
-    an expression; `balk` is a condition checked before the task joins the queue.
+    whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s`, an
+    expression or a generator; `balk` is a condition checked before the task joins the queue.
     `resource` is one resource or a list, acquired in the order listed; `keep` hands
     units to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and
     `interrupt` interrupts the running instances of a task when this one finishes.
@@ -821,7 +1098,8 @@ class Task(_Model):
     condition, or any or all of several. `signal` names a signal the task fires
     when it finishes. `fail` is a condition checked after the service: when it holds
     the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or
-    container. `next` is a task name, `when` rules or `weights`. `set` gives the
+    container. `next` is a task name, `when` rules or `weights`, whose values are numbers
+    or expressions read when the task finishes, with one draw for the choice. `set` gives the
     entity attribute values when the task finishes.
 
     A value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a
@@ -829,18 +1107,19 @@ class Task(_Model):
     mapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`,
     `one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`,
     `sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`,
-    `subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `param`,
-    `repeat`, `literal`, `object`, `call` and `row`; `null_rate`, `unique`, `omit_rate`
+    `subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `entity`,
+    `param`, `repeat`, `literal`, `object`, `call` and `row`; `null_rate`, `unique`, `omit_rate`
     and `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a
     mapping; `set` values and the `cause` of an interrupt are evaluated when the task
     finishes or interrupts. `vars_once` names are drawn once for each entity and task,
     at the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in
     order, once for each instance of the task: when it starts if `on_start` is given,
-    otherwise after the service, just before the payload. A var reads the vars above it
+    otherwise after the service, just before the payload; a `service_time` that reads
+    a var draws it first. `{gen: entity}` gives the entity's key, in a task only. A var reads the vars above it
     with `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are
     published as one event record when the task starts. `finish_vars` are drawn after
     the service and may read the vars. A bare var name also reads in `put`, `fail` and
-    `next.when`. A var name is an identifier, not a name an expression already uses,
+    `next.when`, but not in `next.weights`, which read the entity and the run. A var name is an identifier, not a name an expression already uses,
     and is in one of the three groups only. Every generator node draws from its own
     stream of the run's seed, so adding a node does not change the draws of the others.
 
@@ -854,27 +1133,31 @@ class Task(_Model):
     """
 
     service: Optional[str] = None
+    service_time: Optional[TimePlace] = None
     resource: Optional[Union[str, List[str]]] = None
-    payload: Annotated[
-        Union[
-            Annotated[Payload, Tag("<value>")],
-            Annotated[Callable[..., Any], Tag("<python>")],
-        ],
-        Discriminator(
-            _payload_form,
-            custom_error_type="payload_kind",
-            custom_error_message=(
-                "a payload is a mapping, a generator that gives a mapping, or a "
-                "!python function"
+    payload: Optional[
+        Annotated[
+            Union[
+                Annotated[Payload, Tag("<value>")],
+                Annotated[Callable[..., Any], Tag("<python>")],
+            ],
+            Discriminator(
+                _payload_form,
+                custom_error_type="payload_kind",
+                custom_error_message=(
+                    "a payload is a mapping, a generator that gives a mapping, a "
+                    "!python function, or null for no record"
+                ),
             ),
-        ),
+        ]
     ]
     id_field: Optional[str] = None
+    key: Value = None
     key_field: Optional[str] = None
     item_field: Optional[str] = None
     attributes: List[str] = Field(default_factory=list)
     priority: Optional[Union[int, float, str]] = None
-    patience: Optional[Union[int, float, str]] = None
+    patience: Optional[TimePlace] = None
     balk: Optional[str] = None
     get: Optional[TransferStep] = None
     put: Optional[TransferStep] = None
@@ -959,7 +1242,7 @@ class Task(_Model):
         # runtime and `build.py` read the same value as before the union was typed.
         if value is None:
             return None
-        Wait(value)
+        Wait(_generators_as_zero(value))
         return _with_typed_values(value, handler(value))
 
     @field_validator("fail")
@@ -969,21 +1252,42 @@ class Task(_Model):
             Expression(value, names=ANY_NAME)
         return value
 
-    @field_validator("patience", mode="before")
+    @field_validator("patience", "service_time", mode="before")
     @classmethod
-    def _patience_duration(cls, value: Any) -> Any:
-        """Reads a duration such as `30 s`; any other text is an expression."""
-        if isinstance(value, str):
-            try:
-                return time_to_seconds(value)
-            except ValueError:
-                return value
-        return value
+    def _patience_duration(cls, value: Any, info: ValidationInfo) -> Any:
+        """Reads a duration such as `30 s`; any other text is an expression. A boolean
+        is refused for `service_time`; a `patience` of `true` loaded before."""
+        if info.field_name == "service_time":
+            _refuse_boolean(value, "service_time")
+        return _duration_text(value)
 
     @model_validator(mode="after")
     def _resource_needs_a_service(self) -> "Task":
-        if self.resource is not None and self.service is None:
-            raise ValueError("a task with a resource needs a service")
+        if self.service is not None and self.service_time is not None:
+            raise ValueError(
+                "a task takes a service or a service_time, not both: service_time "
+                "is the task's own time"
+            )
+        if (
+            self.resource is not None
+            and self.service is None
+            and self.service_time is None
+        ):
+            raise ValueError("a task with a resource needs a service or a service_time")
+        if self.payload is None and self.put is not None and self.put.store is not None:
+            raise ValueError(
+                "payload: null publishes no record, so there is no payload for a "
+                "store put to carry"
+            )
+        if self.payload is None and self.key_field is not None:
+            raise ValueError(
+                "key_field names a payload field, and payload: null gives no payload"
+            )
+        if self.key is not None and self.key_field is not None:
+            raise ValueError(
+                "key and key_field both set the key of the finished record; use one"
+            )
+        _check_time_place(self.service_time, "service_time")
         if (
             self.priority is not None
             and self.resource is None

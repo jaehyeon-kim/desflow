@@ -1113,6 +1113,27 @@ class Attr(_Gen):
             raise self.fail(f"attribute '{self.name}': {exc.args[0]}") from None
 
 
+class Entity(_Gen):
+    """`entity`: the key of the entity the task runs for, such as `sensor-1`. It is
+    given only inside a task, so an arrival's `attributes`, `vars` and `key` refuse it."""
+
+    gen: Literal["entity"]
+
+    def evaluate(self, run: "ValueRuntime", scope: Scope) -> Any:
+        """The value of this generator.
+
+        Args:
+            run: The value runtime, which holds the generator's random stream.
+            scope: What the expressions here read.
+
+        Returns:
+            Any: The entity's key.
+        """
+        if scope.entity is None:
+            raise self.fail("there is no entity here; entity is read inside a task")
+        return scope.entity
+
+
 class Param(_Gen):
     """`param`: the live registry value at `path` (a full registry path, such as
     `Shop.variables.error_rate`) at the moment of the call, or the `field` key of a
@@ -1310,6 +1331,7 @@ _KINDS = (
     Expr,
     Var,
     Attr,
+    Entity,
     Param,
     Repeat,
     Literal_,
@@ -1347,6 +1369,7 @@ Generator = Annotated[
         Expr,
         Var,
         Attr,
+        Entity,
         Param,
         Repeat,
         Literal_,

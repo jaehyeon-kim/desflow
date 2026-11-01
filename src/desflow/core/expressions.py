@@ -242,6 +242,8 @@ class Scope:
         record: The record an egress `when` is offered, read as `record.stream_type`,
             `record.key`, `record.task` and `record.value.<field>`.
         names: The bare names: a task's vars, and the names of an `expr` generator.
+        entity: The key of the entity the task runs for, which `gen: entity` gives;
+            None where no task runs.
     """
 
     payload: Mapping[str, Any] = field(default_factory=dict)
@@ -256,6 +258,7 @@ class Scope:
     process: Mapping[str, Any] = field(default_factory=dict)
     record: Optional[Mapping[str, Any]] = None
     names: Mapping[str, Any] = field(default_factory=dict)
+    entity: Optional[str] = None
 
 
 class AnyName:
@@ -350,6 +353,27 @@ class Expression:
             self.references[key]
             for key in ("putters", "getters", "queue", "users", "count", "items")
         )
+
+    def outside_run(self, names: bool = True) -> Optional[str]:
+        """Names the sources the expression reads that a place reading the run only
+        cannot: the entity's `attr` and `has`, `payload`, `item`, a `wait` branch,
+        `process` and, unless `names` is False, a bare name.
+
+        Args:
+            names: Whether a bare name counts, as it does where no var is readable.
+
+        Returns:
+            Optional[str]: The sources, such as `attr, payload`; None when it reads
+            none of them.
+        """
+        found = [
+            kind
+            for kind in ("attr", "payload", "item", "wait", "process")
+            if self.references[kind] or (kind == "attr" and self.references["has"])
+        ]
+        if names and self.references["name"]:
+            found.append("the name " + ", ".join(sorted(self.references["name"])))
+        return ", ".join(found) if found else None
 
     def evaluate(self, scope: Scope) -> Any:
         """

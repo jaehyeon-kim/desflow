@@ -121,6 +121,10 @@ File order is creation order: arrivals are made in the order they are written, t
 
 An `attributes` value is a constant or a `{gen: ...}` generator, drawn once for each entity when it starts, in the order the entities are made. A mapping with a `gen` key is a generator; `{gen: literal, value: ...}` keeps a mapping as data.
 
+The gaps come from exactly one of `dist`, `replay` or `gap`. `gap` is a number of seconds, a duration such as `5 min`, an expression or a generator, read at the start of each gap, so a gap may read `registry[...]`, `level.<name>` and `t`. `first_at` is the simulation time of the first arrival, which waits for it in place of a gap; the gaps after it follow. A time already past arrives at once. `max_events` is how many times the arrival starts its task, in all: the arrival stops after the last, and its last start draws no further gap. A start whose key belongs to an entity of the arrival that is still running is skipped with a warning and counts as one.
+
+`count` makes that many entities, each with a loop of its own: it starts its task after each gap, `first_at` is the time of its first start, and `max_events` is how many times each entity starts. `keys` is a list of keys instead, one entity for each, and gives the number. `stagger` is the time between the starts of two entities, read after each one. `key` is a value place read once for each entity, for its key; `vars` are named values read once for each entity before its attributes and key, which read them as bare names. Every one of these places reads the run only: `attr` is refused in them, because the entity has none yet. `count` and `max_events` are keys of a blueprint, with no argument of `add_arrival`. `count`, `keys`, `first_at` and `stagger` do not apply to a replay. `count`, `keys`, `max_events` and `stagger` set how the arrival starts its task, so each needs `spawn`; `stagger` also needs `count` or `keys`. `key`, `vars`, `gap` and `first_at` are read by `wait_for_arrival` too, so an arrival without `spawn` may carry them.
+
 | Key | Type | Default |
 |---|---|---|
 | `dist` | text | none |
@@ -139,6 +143,14 @@ An `attributes` value is a constant or a `{gen: ...}` generator, drawn once for 
 | `counts` | list of number | none |
 | `p` | integer or number | none |
 | `replay` | [Replay](#replay) | none |
+| `gap` | Generator or integer or number or text or Duration or expression | none |
+| `first_at` | integer or number or Duration | none |
+| `count` | Generator or integer or text | none |
+| `keys` | list of integer or text | none |
+| `key` | Value | none |
+| `vars` | mapping of names to Value |  |
+| `stagger` | Generator or integer or number or text or Duration or expression | `0` |
+| `max_events` | Generator or integer or text | none |
 | `spawn` | text | none |
 | `attributes` | mapping of names to Value |  |
 
@@ -224,25 +236,29 @@ A `tasks` entry, built with `SimulationContext.task`.
 
 Text in a value place stays text. A time place reads a number as seconds, text `time_to_seconds` accepts as a duration, and other text as an expression.
 
-`payload` is the value of the `finished` event: a mapping, or a `!python` function called as `payload(task_id, context)`. `id_field` adds the task id to a mapping payload under that key, `key_field` names the payload field whose value becomes the key of the finished event, and so the Kafka message key (the `queued` and `started` records keep the entity's key; a payload without the field fails the run), `item_field` adds the item its store `get` took, and `attributes` adds the named entity attributes. A task with a `service` and no `resource` is a timed step; one with neither, and no `get`, emits its payload as soon as it is spawned.
+`payload` is the value of the `finished` event: a mapping, or a `!python` function called as `payload(task_id, context)`. `payload: null` publishes no `finished` record and the task runs its other steps; a store `put` on such a task is refused, because the put carries the payload. `id_field` adds the task id to a mapping payload under that key, `key_field` names the payload field whose value becomes the key of the finished event, and so the Kafka message key (the `queued` and `started` records keep the entity's key; a payload without the field fails the run), `item_field` adds the item its store `get` took, and `attributes` adds the named entity attributes. `key` is a value place for the key of the task's records, drawn once for each instance at its first record and written as text; it replaces `key_field`, and the two are not given together. A task with a `service` and no `resource` is a timed step; one with neither, and no `get`, emits its payload as soon as it is spawned.
 
-`priority` is a number or an expression such as `attr.priority`, for a resource whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or an expression; `balk` is a condition checked before the task joins the queue. `resource` is one resource or a list, acquired in the order listed; `keep` hands units to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and `interrupt` interrupts the running instances of a task when this one finishes. `wait` is what the task waits for first: a signal, a child task, a timeout or a condition, or any or all of several. `signal` names a signal the task fires when it finishes. `fail` is a condition checked after the service: when it holds the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or container. `next` is a task name, `when` rules or `weights`. `set` gives the entity attribute values when the task finishes.
+`service_time` is the task's own time, in place of a `service`, and the two are not given together: seconds, a duration such as `30 s`, an expression, or a `{gen: ...}` generator, read after the task has its resource and, for a `get`, its item. It may read `vars_once` and `vars` as bare names, and `item.<field>` after a store get. A result below 0 fails the run. A task with a `resource` needs a `service` or a `service_time`.
 
-A value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a mapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a mapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`, `one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`, `sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`, `subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `param`, `repeat`, `literal`, `object`, `call` and `row`; `null_rate`, `unique`, `omit_rate` and `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a mapping; `set` values and the `cause` of an interrupt are evaluated when the task finishes or interrupts. `vars_once` names are drawn once for each entity and task, at the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in order, once for each instance of the task: when it starts if `on_start` is given, otherwise after the service, just before the payload. A var reads the vars above it with `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are published as one event record when the task starts. `finish_vars` are drawn after the service and may read the vars. A bare var name also reads in `put`, `fail` and `next.when`. A var name is an identifier, not a name an expression already uses, and is in one of the three groups only. Every generator node draws from its own stream of the run's seed, so adding a node does not change the draws of the others.
+`priority` is a number or an expression such as `attr.priority`, for a resource whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s`, an expression or a generator; `balk` is a condition checked before the task joins the queue. `resource` is one resource or a list, acquired in the order listed; `keep` hands units to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and `interrupt` interrupts the running instances of a task when this one finishes. `wait` is what the task waits for first: a signal, a child task, a timeout or a condition, or any or all of several. `signal` names a signal the task fires when it finishes. `fail` is a condition checked after the service: when it holds the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or container. `next` is a task name, `when` rules or `weights`, whose values are numbers or expressions read when the task finishes, with one draw for the choice. `set` gives the entity attribute values when the task finishes.
+
+A value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a mapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a mapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`, `one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`, `sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`, `subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `entity`, `param`, `repeat`, `literal`, `object`, `call` and `row`; `null_rate`, `unique`, `omit_rate` and `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a mapping; `set` values and the `cause` of an interrupt are evaluated when the task finishes or interrupts. `vars_once` names are drawn once for each entity and task, at the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in order, once for each instance of the task: when it starts if `on_start` is given, otherwise after the service, just before the payload; a `service_time` that reads a var draws it first. `{gen: entity}` gives the entity's key, in a task only. A var reads the vars above it with `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are published as one event record when the task starts. `finish_vars` are drawn after the service and may read the vars. A bare var name also reads in `put`, `fail` and `next.when`, but not in `next.weights`, which read the entity and the run. A var name is an identifier, not a name an expression already uses, and is in one of the three groups only. Every generator node draws from its own stream of the run's seed, so adding a node does not change the draws of the others.
 
 An expression uses Python's arithmetic: `/` gives a float, and `//` rounds down and gives an integer for two integers. `and` and `or` stop at the first operand that decides the result and do not absorb an error: an operand that cannot be evaluated fails the expression. `**` raises to a power (an integer power above 10000 is refused), `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `exp`, `log`, `log10`, `sin`, `cos` and `tan` are calls on numbers, and `has(attr.x)` is true when the entity has the attribute `x`.
 
 | Key | Type | Default |
 |---|---|---|
 | `service` | text | none |
+| `service_time` | Generator or integer or number or text or Duration or expression | none |
 | `resource` | text or list of text | none |
 | `payload` | Payload or !python reference | required |
 | `id_field` | text | none |
+| `key` | Value | none |
 | `key_field` | text | none |
 | `item_field` | text | none |
 | `attributes` | list of text |  |
 | `priority` | integer or number or text | none |
-| `patience` | integer or number or text or Duration or expression | none |
+| `patience` | Generator or integer or number or text or Duration or expression | none |
 | `balk` | text | none |
 | `get` | [TransferStep](#transferstep) | none |
 | `put` | [TransferStep](#transferstep) | none |
@@ -289,7 +305,7 @@ A task's `next`: `when` rules with an optional `default`, or `weights`.
 |---|---|---|
 | `when` | list of [Rule](#rule) |  |
 | `default` | text | none |
-| `weights` | mapping of names to number | none |
+| `weights` | mapping of names to number or text | none |
 
 ### Rule
 
@@ -318,19 +334,19 @@ A `wait` branch for a child flow: it starts `task` for the same entity.
 
 ### TimeoutWait
 
-A `wait` branch of a number of seconds, a duration such as `30 s`, or `{after, value}` with a value the waiter receives.
+A `wait` branch of a time place: a number of seconds, a duration such as `30 s`, an expression, a `{gen: ...}` generator, or `{after, value}` with a value the waiter receives. An expression or a generator is read when the wait starts.
 
 | Key | Type | Default |
 |---|---|---|
-| `timeout` | integer or number or text or [TimeoutAfter](#timeoutafter) | required |
+| `timeout` | Generator or integer or number or text or [TimeoutAfter](#timeoutafter) | required |
 
 ### TimeoutAfter
 
-A `wait` timeout with a value: `{after: 40 s, value: ...}`, as SimPy's `env.timeout(delay, value)` carries a value the waiter receives. The value is a constant or a `{gen: ...}` generator evaluated when the wait starts, so it may read `vars_once` names but no `vars`.
+A `wait` timeout with a value: `{after: 40 s, value: ...}`, as SimPy's `env.timeout(delay, value)` carries a value the waiter receives. The value is a constant or a `{gen: ...}` generator evaluated when the wait starts, so it may read `vars_once` names but no `vars`. `after` is a time place: seconds, a duration, an expression or a generator, read when the wait starts.
 
 | Key | Type | Default |
 |---|---|---|
-| `after` | integer or number or text | required |
+| `after` | Generator or integer or number or text | required |
 | `value` | Value | none |
 
 ### ConditionWait
@@ -664,6 +680,18 @@ A value place takes a constant or a generator: a mapping with a `gen` key that n
 | `omit_when` | text | none |
 | `args` | list of Value | required |
 | `decimals` | integer | none |
+| `gen` | text | required |
+
+### Entity
+
+`entity`: the key of the entity the task runs for, such as `sensor-1`. It is given only inside a task, so an arrival's `attributes`, `vars` and `key` refuse it.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
 | `gen` | text | required |
 
 ### Expr

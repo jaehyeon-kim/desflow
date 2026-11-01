@@ -356,7 +356,10 @@ class ValueRuntime:
         return made
 
     def scope_of(
-        self, entity: Any = None, names: Optional[Dict[str, Any]] = None
+        self,
+        entity: Any = None,
+        names: Optional[Dict[str, Any]] = None,
+        keyed: bool = False,
     ) -> Scope:
         """The scope generators read outside a task: the registry, the clock, and the
         attributes of `entity` when given.
@@ -364,6 +367,8 @@ class ValueRuntime:
         Args:
             entity: The entity whose attributes are read, or None.
             names: Bare names to add, by name.
+            keyed: Whether `gen: entity` gives the key of `entity`. The places that
+                make an entity's key and attributes leave it off.
         """
         from desflow.core.flow import make_scope
 
@@ -376,6 +381,7 @@ class ValueRuntime:
             signals=None if context is None else context._signals,
             resources=None if context is None else context._resources_map,
             names=names,
+            entity=entity.key if keyed and entity is not None else None,
         )
 
     def value(self, spec: Any, entity: Any = None) -> Any:
@@ -394,7 +400,7 @@ class ValueRuntime:
             spec = generator_adapter().validate_python(spec)
         self._free += 1
         bind(spec, ("value", self._free), overwrite=False)
-        return self.evaluate(spec, self.scope_of(entity))
+        return self.evaluate(spec, self.scope_of(entity, keyed=True))
 
     def render(
         self,
@@ -415,7 +421,7 @@ class ValueRuntime:
             extras: Fields written over the result.
             attributes: Names of entity attributes written over the result, read now.
         """
-        scope = scope or self.scope_of(entity)
+        scope = scope or self.scope_of(entity, keyed=True)
         known = dict(scope.names)
         key = (
             f"template:{template.key}",

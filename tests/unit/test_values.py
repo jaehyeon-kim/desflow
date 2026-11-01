@@ -1017,6 +1017,10 @@ def test_add_and_subtract_evaluate_a_generator_argument_once(tmp_path):
     ]
 
 
+@pytest.mark.skipif(
+    not hasattr(__import__("time"), "tzset"),
+    reason="Only Unix can change the machine's zone during a process",
+)
 def test_add_reads_a_time_without_a_zone_in_the_run_zone(tmp_path, monkeypatch):
     import os
     import time

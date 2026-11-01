@@ -148,6 +148,8 @@ INPUT_FORMS: Dict[Tuple[str, str], Any] = {
     ("SpawnAction", "_after_duration"): DURATION,
     ("FireAction", "_after_duration"): DURATION,
     ("Task", "_patience_duration"): PATIENCE,
+    ("Arrival", "_place_duration"): PATIENCE,
+    ("Arrival", "_first_at_time"): DURATION,
     ("Stats", "_parse_interval"): DURATION,
     ("ScenarioStep", "_parse_at"): DURATION,
     ("Drain", "_parse_limit"): DURATION,
@@ -160,6 +162,7 @@ INPUT_FORMS: Dict[Tuple[str, str], Any] = {
     ("Blueprint", "_bare_functions"): PROCESS_REFS,
     # Narrowing validators and the wait parser, which returns the value unchanged
     ("TransferStep", "_priority_is_a_literal"): None,
+    ("Next", "_numeric_text"): None,
     ("Task", "_wait_parses"): None,
     ("EgressConnector", "_known_name"): None,
     # An `on:` value that is a mapping with no `gen` is data, as the Value type says
@@ -336,6 +339,11 @@ def _generators(schema: Dict[str, Any]) -> None:
         ),
         **union,
     }
+    # A time or count place writes the kinds out again; point it at the shared list
+    for name, node in list(defs.items()):
+        if name != "Generator":
+            defs[name] = _use_generator(node, union)
+    schema["properties"] = _use_generator(schema["properties"], union)
     has_gen = {"type": "object", "required": ["gen"]}
     defs["Value"] = {
         "description": (
@@ -364,6 +372,22 @@ def _generators(schema: Dict[str, Any]) -> None:
         "if": has_gen,
         "then": {"$ref": "#/$defs/Generator"},
         "else": {"type": "object", "additionalProperties": {"$ref": "#/$defs/Value"}},
+    }
+
+
+def _use_generator(node: Any, union: Dict[str, Any]) -> Any:
+    """Replaces every written-out copy of the generator kinds with a `$ref`."""
+    if isinstance(node, list):
+        return [_use_generator(item, union) for item in node]
+    if not isinstance(node, dict):
+        return node
+    if {k: v for k, v in node.items() if k != "discriminator"} == union:
+        return {"$ref": "#/$defs/Generator"}
+    return {
+        key: value
+        if key in ("default", "enum", "const")
+        else _use_generator(value, union)
+        for key, value in node.items()
     }
 
 

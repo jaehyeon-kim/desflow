@@ -250,8 +250,11 @@ def test_every_gap_is_used_defined_and_linked_to_a_form():
     # Batch 3 of 1.0.0 removes L1, L2 and V6
     for gap in ("L1", "L2", "V6"):
         assert gap not in data["gaps"]
+    # Batch 5 of 1.0.0 removes V1, V2, A1 and A4, and the plain-Python entry V10
+    for gap in ("V1", "V2", "A1", "A4", "V10"):
+        assert gap not in data["gaps"] and gap not in data["unattached"]
     # A gap with only part of its row planned names no release
-    for gap in ("V1", "I6", "M3"):
+    for gap in ("I6", "M3"):
         assert "fixed" not in data["gaps"][gap]
     # No release in 0.30.0 to 0.32.0 plans H9, M6, I10 and M7, so the page keeps
     # their process forms
@@ -264,11 +267,11 @@ def test_every_gap_is_used_defined_and_linked_to_a_form():
 
 
 def test_gaps_that_belong_to_no_feature_are_named_on_the_page():
-    """V10, B1 and B3 are written in plain Python by a SimPy program, so no
+    """B1 and B3 are written in plain Python by a SimPy program, so no
     feature row holds them; a paragraph names each with its `!python` form."""
     data = gen_pages.constructs()
     page = gen_pages.compatibility_page()
-    assert list(data["unattached"]) == ["V10", "B1", "B3"]
+    assert list(data["unattached"]) == ["B1", "B3"]
     used = {g for c in data["constructs"] for g in c.get("gaps", [])}
     for gap, info in data["unattached"].items():
         assert gap not in used and gap not in data["gaps"]
