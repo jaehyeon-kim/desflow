@@ -1,6 +1,6 @@
 name: Platforms
 
-# The 1.0 build runs the unit and conformance tests on the other platforms on each
+# The 1.0 build runs the unit and conformance tests on Linux, Windows and macOS on each
 # push to its branch, because pipeline.yml runs only on main and on pull requests.
 on:
   push:
@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -36,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
