@@ -16,6 +16,7 @@ from desflow.connectors.egress.base import (
     drop_reserved_keys,
     group_rows,
     warn_skipped,
+    write_error,
     rows_table,
     to_schema,
     widen_schema,
@@ -520,7 +521,7 @@ class ParquetStorageEgress(BaseEgress):
                 # One batch that cannot be written does not stop the sink
                 logger.error(
                     f"Parquet Writer: could not write {len(records)} rows to "
-                    f"{target_path}: {exc}"
+                    f"{target_path}: {write_error(exc, records, self.schemas.get(target_path))}"
                 )
                 continue
             self.schemas[target_path] = schema

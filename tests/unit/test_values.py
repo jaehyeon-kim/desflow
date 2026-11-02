@@ -1126,6 +1126,180 @@ def test_a_row_stop_ends_the_run_in_segments_and_in_a_child_task(tmp_path):
     assert ("u", 5.0) not in events(anyof, [0.0, 1.0])
 
 
+@pytest.mark.parametrize(
+    ("task", "expected"),
+    [
+        ("payload: {v: {gen: expr, expr: 'attr[\"class\"]'}}", [{"v": 3}]),
+        (
+            "set: {x: {gen: expr, expr: 'attr[\"class\"] * 2'}}\n"
+            "payload: {v: 1}\nnext: u",
+            [{"v": 1}, {"x": 6}],
+        ),
+        (
+            "vars: {c: {gen: expr, expr: 'attr[\"class\"]'}}\n"
+            "payload: {v: {gen: var, name: c}}",
+            [{"v": 3}],
+        ),
+        (
+            "payload: {v: 1}\n"
+            "next: {when: [{condition: 'attr[\"class\"] == 3', task: u}], default: w}",
+            [{"v": 1}, {"x": 6}],
+        ),
+        ("service_time: 'attr[\"class\"]'\npayload: {v: 1}", [{"v": 1}]),
+        ("fail: 'attr[\"class\"] == 3'\npayload: {v: 1}", "failed"),
+    ],
+    ids=["payload", "set", "vars", "next.when", "service_time", "fail"],
+)
+def test_an_attribute_named_by_an_index_is_read_in_every_expression_place(
+    tmp_path, task, expected
+):
+    """`attr["class"]` reads the attribute `class` in a generator, a `set`, a var, a
+    condition, a service time and a failure test, and `desflow check` loads it."""
+    text = (
+        HEAD % 1
+        + "arrivals: {a: {initial: 1, spawn: t, attributes: {class: 3}}}\n"
+        + "tasks:\n  t:\n"
+        + textwrap.indent(task, "    ")
+        + "\n  u: {payload: {x: {gen: expr, expr: 'attr[\"class\"] * 2'}}}\n"
+        + "  w: {payload: {x: 0}}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {})
+    if expected == "failed":
+        assert 'attr["class"] == 3' in str(outcome.error)
+        return
+    assert outcome.error is None, outcome.error
+    found = [
+        r["value"]
+        for r in outcome.records
+        if r["stream_type"] == "event" and "status" not in r["value"]
+    ]
+    assert found == expected
+
+
+ROW_STOP = "{gen: row, file: rows.csv, order: sequential, on_end: stop}"
+
+
+@pytest.mark.parametrize(
+    ("arrival", "run_key", "expected"),
+    [
+        ("gap: 1, attributes: {r: ROW}", "until: 20", [1.0, 2.0]),
+        (
+            "gap: 1, vars: {r: ROW}, attributes: {k: {gen: var, name: r}}",
+            "until: 20",
+            [1.0, 2.0],
+        ),
+        (
+            "gap: 1, key: {gen: format, template: k, names: {r: ROW}}",
+            "until: 20",
+            [1.0, 2.0],
+        ),
+        (
+            "gap: {gen: expr, expr: \"r['k']\", names: {r: ROW}}",
+            "until: 20",
+            [1.0, 3.0],
+        ),
+        (
+            "gap: 1, group: {gen: expr, expr: \"r['k']\", names: {r: ROW}}",
+            "until: 20",
+            [1.0, 2.0, 2.0],
+        ),
+        (
+            "gap: 100, first_at: 1, count: 3, stagger: 1, attributes: {r: ROW}",
+            "until: 20",
+            [1.0, 1.0],
+        ),
+        ("initial: 3, gap: 1, attributes: {r: ROW}", "until: 20", []),
+        ("gap: 1, attributes: {r: ROW}", "until: 20, drain: true", [1.0, 2.0]),
+        (
+            "gap: 1, attributes: {r: ROW}",
+            "segments: [{until: 5}, {until: 20}]",
+            [1.0, 2.0],
+        ),
+        ("gap: 1, attributes: {r: ROW}", "until: 20, steps: true", [1.0, 2.0]),
+    ],
+    ids=[
+        "attributes",
+        "vars",
+        "key",
+        "gap",
+        "group",
+        "count",
+        "initial",
+        "drain",
+        "segments",
+        "steps",
+    ],
+)
+def test_a_row_stop_ends_the_run_where_an_arrival_draws_it(
+    tmp_path, arrival, run_key, expected
+):
+    """The rows run out at the third draw, in a place of an arrival that no task
+    catches: the run ends there, with no error and no entity of that draw."""
+    tmp_path.joinpath("rows.csv").write_text("k\n1\n2\n")
+    text = (
+        HEAD % 1
+        + f"arrivals: {{a: {{spawn: t, {arrival.replace('ROW', ROW_STOP)}}}}}\n"
+        + "tasks: {t: {payload: {x: 1}}}\n"
+        + f"run: {{{run_key}}}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, outcome.error
+    found = [
+        r["sim_ts"]
+        for r in outcome.records
+        if r["stream_type"] == "event" and r["value"].get("x") == 1
+    ]
+    assert found == expected
+
+
+def test_a_row_stop_in_an_arrival_ends_run_advance_and_step(tmp_path):
+    """The three ways to drive a context, `run`, `advance` and `step`, each end the
+    run at the stop and leave it ended, with no error."""
+    tmp_path.joinpath("rows.csv").write_text("k\n1\n2\n")
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        HEAD % 1
+        + f"arrivals: {{a: {{gap: 1, spawn: t, attributes: {{r: {ROW_STOP}}}}}}}\n"
+        + "tasks: {t: {payload: {x: 1}}}\n"
+    )
+
+    def started() -> Any:
+        app: Any = SimulationContext.from_yaml(path)
+        app.recorder = RecordingEgress()
+        app.add_egress(app.recorder)
+        app.start(until=20)
+        return app
+
+    def times(app: Any) -> List[float]:
+        return [
+            r["sim_ts"] for r in app.recorder.records if r["stream_type"] == "event"
+        ]
+
+    app = started()
+    assert app.finish() is None
+    assert times(app) == [1.0, 2.0]
+
+    app = started()
+    assert app.advance(10) is None
+    with pytest.raises(RuntimeError, match="the run ended"):
+        app.advance(15)
+    assert app.finish() is None
+    assert times(app) == [1.0, 2.0]
+
+    app = started()
+    for _ in range(50):
+        if app.peek() == float("inf"):
+            break
+        app.step()
+    assert app.peek() == float("inf")
+    with pytest.raises(RuntimeError, match="the run ended"):
+        app.step()
+    with pytest.raises(RuntimeError, match="the run ended"):
+        app.advance(15)
+    app.close()
+    assert times(app) == [1.0, 2.0]
+
+
 def test_vars_once_is_evaluated_at_the_first_event_before_the_service(tmp_path):
     body = """
         service: s5
@@ -2646,3 +2820,356 @@ def test_aggregate_of_no_rows_is_zero_for_sum_and_count_and_a_named_error_otherw
         assert [p["x"] for p in payloads(outcome, "read")] == [expected] * 3
     else:
         assert expected in str(outcome.error)
+
+
+# --- a `row` generator in a Builder or Low-level place ----------------------------
+
+BUILDER_ROW = {
+    "gen": "row",
+    "file": "rows.csv",
+    "order": "sequential",
+    "on_end": "stop",
+}
+
+
+def _row(file: str = "rows.csv") -> Any:
+    from desflow.values import generator
+
+    return generator({**BUILDER_ROW, "file": file})
+
+
+def _task(app: Any, **options: Any) -> None:
+    @app.task(name="t", **options)
+    def t(task_id):
+        return {"x": 1}
+
+
+def _by_arrival(app: Any, file: str) -> None:
+    app.add_arrival("a", "constant", value=1, spawn="t", attributes={"r": _row(file)})
+    _task(app)
+
+
+def _by_replay(app: Any, file: str) -> None:
+    rows = [{"time": 1}, {"time": 2}, {"time": 3}]
+    app.add_arrival_replay("a", rows, spawn="t", attributes={"r": _row(file)})
+    _task(app)
+
+
+def _by_initial(app: Any, file: str) -> None:
+    app.add_initial_arrival("a", 3, spawn="t", attributes={"r": _row(file)})
+    _task(app)
+
+
+def _by_group(app: Any, file: str) -> None:
+    from desflow.values import generator
+
+    group = generator(
+        {
+            "gen": "expr",
+            "expr": "r['k']",
+            "names": {"r": {**BUILDER_ROW, "file": file}},
+        }
+    )
+    app.add_arrival("a", "constant", value=1, spawn="t", group=group)
+    _task(app)
+
+
+def _by_scenario(app: Any, file: str) -> None:
+    app.add_arrival("a", "constant", value=1, spawn="t")
+    _task(app)
+    row = _row(file)
+    app.add_scenario([{"at": at, "record": {"d": row}} for at in (1, 2, 3)])
+    app.add_egress(RecordingEgress(), when="labels")
+
+
+def _by_signal(app: Any, file: str) -> None:
+    app.add_signal("z", once=False, on=[{"fire": {"signal": "y", "value": _row(file)}}])
+    app.add_signal("y", once=False)
+    app.add_arrival("a", "constant", value=1, spawn="t")
+    _task(app, on=[{"fire": {"signal": "z"}}])
+
+
+def _by_task(place: str) -> Any:
+    def build(app: Any, file: str) -> None:
+        app.add_arrival("a", "constant", value=1, spawn="t")
+        value = _row(file) if place == "set" else {**BUILDER_ROW, "file": file}
+        _task(app, **{place: {"v": value}})
+
+    return build
+
+
+def _by_template(place: str) -> Any:
+    def build(app: Any, file: str) -> None:
+        app.add_arrival("a", "constant", value=1, spawn="t")
+        row = {**BUILDER_ROW, "file": file}
+        template = {
+            "payload": Template({"x": row}, name="p"),
+            "vars": Template({"x": 1}, vars={"v": row}, name="v"),
+            "vars_once": Template({"x": 1}, vars_once={"v": row}, name="o"),
+        }[place]
+
+        @app.task(name="t")
+        def t(task_id):
+            return template
+
+    return build
+
+
+def _by_spawn(app: Any, file: str) -> None:
+    app.add_arrival("a", "constant", value=1, spawn="t")
+
+    @app.task(name="u")
+    def u(task_id):
+        return {"y": 1}
+
+    _task(app, spawn={"task": "u", "args": {"v": _row(file)}})
+
+
+BUILDER_ROW_SITES = {
+    "arrival attributes": (_by_arrival, 3.0),
+    "replay attributes": (_by_replay, 3.0),
+    "initial arrival attributes": (_by_initial, 0.0),
+    "arrival group": (_by_group, 3.0),
+    "scenario record": (_by_scenario, 3.0),
+    "signal fire value": (_by_signal, 3.0),
+    "task set": (_by_task("set"), 3.0),
+    "task vars": (_by_task("vars"), 3.0),
+    "task vars_once": (_by_task("vars_once"), 3.0),
+    "task on_start": (_by_task("on_start"), 3.0),
+    "task finish_vars": (_by_task("finish_vars"), 3.0),
+    "task set_args": (_by_task("set_args"), 3.0),
+    "task spawn args": (_by_spawn, 3.0),
+    "template payload": (_by_template("payload"), 3.0),
+    "template vars": (_by_template("vars"), 3.0),
+    "template vars_once": (_by_template("vars_once"), 3.0),
+}
+
+
+@pytest.mark.parametrize("site", sorted(BUILDER_ROW_SITES))
+def test_a_row_in_a_builder_place_is_read_and_its_stop_ends_the_run(
+    tmp_path, monkeypatch, site
+):
+    """A `row` written in a script is read from the working directory when its place
+    is added, and `on_end: stop` ends the run at the draw after the last row, as in a
+    blueprint."""
+    monkeypatch.chdir(tmp_path)
+    tmp_path.joinpath("rows.csv").write_text("k\n1\n2\n")
+    build, ends = BUILDER_ROW_SITES[site]
+    app = SimulationContext(sim_id="B", factor=0, random_seed=1)
+    build(app, "rows.csv")
+    app.run(until=20)
+    assert app.env.now == ends
+
+
+@pytest.mark.parametrize(
+    "site",
+    ["arrival attributes", "template payload"],
+    ids=["a place added to the context", "a Template"],
+)
+def test_a_row_file_that_is_missing_is_refused_where_a_builder_place_is_added(
+    tmp_path, monkeypatch, site
+):
+    """Every place of the context reaches one check in `_bind_values`, and a
+    `Template` has its own, so one case for each."""
+    monkeypatch.chdir(tmp_path)
+    build, _ = BUILDER_ROW_SITES[site]
+    app = SimulationContext(sim_id="B", factor=0, random_seed=1)
+    with pytest.raises(ValueError, match=r"nofile\.csv does not exist"):
+        build(app, "nofile.csv")
+
+
+def test_a_row_in_a_store_item_gives_its_row_to_the_task_that_gets_it(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    tmp_path.joinpath("rows.csv").write_text("k\n7\n")
+    app = SimulationContext(sim_id="B", factor=0, random_seed=1)
+    app.add_store("s", items=[_row()])
+    app.add_arrival("a", "constant", value=1, spawn="t")
+    seen: List[Any] = []
+
+    @app.task(name="t", get={"store": "s"})
+    def t(task_id, item):
+        seen.append(item)
+        return {"x": 1}
+
+    app.run(until=2)
+    assert seen == [{"k": 7}]
+    with pytest.raises(ValueError, match=r"nofile\.csv does not exist"):
+        SimulationContext(sim_id="C").add_store("s", items=[_row("nofile.csv")])
+
+
+@pytest.mark.parametrize(
+    ("task", "last"),
+    [
+        ("payload: {x: 1}, put: {store: s, item: ROW}", 2.0),
+        ("payload: {x: 1}, spawn: {task: u, args: {v: ROW}}", 3.0),
+        ("payload: {x: 1}, wait: {task: u, args: {v: ROW}}", 3.0),
+    ],
+    ids=["put item", "spawn args", "wait task args"],
+)
+def test_a_row_in_a_task_place_that_is_not_a_value_is_read_and_ends_the_run(
+    tmp_path, task, last
+):
+    """A `put` item, the `args` of a `spawn` and the `args` of a `wait` on a task are
+    checked with the other places: the file is read, a missing one is a load error, and
+    `on_end: stop` ends the run at the third draw. The last record is then at 2 for the
+    `put`, which draws before it publishes."""
+    tmp_path.joinpath("rows.csv").write_text("k\n1\n2\n")
+    text = (
+        HEAD % 1
+        + "stores: {s: {}}\narrivals: {a: {gap: 1, spawn: t}}\n"
+        + f"tasks: {{t: {{{task}}}, u: {{payload: {{y: 1}}}}}}\n"
+        + "run: {until: 20}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text.replace("ROW", ROW_STOP), {})
+    assert outcome.error is None, outcome.error
+    assert max(r["sim_ts"] for r in outcome.records) == last
+    missing = text.replace("ROW", ROW_STOP.replace("rows.csv", "nofile.csv"))
+    with pytest.raises(BlueprintError, match=r"nofile\.csv does not exist"):
+        run_yaml_text(tmp_path, missing, {})
+
+
+def test_each_generator_in_a_spawn_has_its_own_place(tmp_path):
+    """The generators of a task's `spawn` count and `args` are named for their place,
+    so two `row` generators there do not share one position in their rows."""
+    from desflow.blueprint.build import load_blueprint
+
+    tmp_path.joinpath("rows.csv").write_text("k\n1\n2\n")
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        HEAD % 1
+        + "arrivals: {a: {gap: 1, spawn: t}}\n"
+        + "tasks: {t: {payload: {x: 1}, spawn: {task: u, args: {v: ROW, w: ROW}}}, "
+        "u: {payload: {y: 1}}}\n".replace("ROW", ROW_STOP)
+    )
+    args = load_blueprint(path).blueprint.tasks["t"].spawn.args
+    assert (args["v"]._path, args["w"]._path) == (
+        "tasks.t.spawn.args.v",
+        "tasks.t.spawn.args.w",
+    )
+
+
+def test_a_group_generator_draws_the_same_in_the_builder_and_in_a_blueprint(tmp_path):
+    """The generator of a `group` is named for its place by both interfaces, so one
+    seed gives the same number of entities."""
+    from desflow.values import generator
+
+    app = SimulationContext(sim_id="V", factor=0, random_seed=1)
+    recorder = RecordingEgress()
+    app.add_egress(recorder)
+    app.add_arrival(
+        "a",
+        "constant",
+        value=1,
+        spawn="t",
+        group=generator({"gen": "integer", "bounds": [1, 5]}),
+    )
+    _task(app)
+    app.run(until=4)
+    events = [r for r in recorder.records if r["stream_type"] == "event"]
+
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        HEAD % 1 + "arrivals: {a: {dist: constant, value: 1, spawn: t, "
+        "group: {gen: integer, bounds: [1, 5]}}}\n"
+        "tasks: {t: {payload: {x: 1}}}\nrun: {until: 4}\n"
+    )
+    outcome = run_yaml_text(tmp_path, path.read_text(), {})
+    blueprint = [r for r in outcome.records if r["stream_type"] == "event"]
+    assert len(events) == len(blueprint)
+
+
+def test_a_row_in_the_gap_of_a_blueprint_arrival_is_read_and_ends_the_run(tmp_path):
+    """A `row` nested in an arrival's `gap` is read with the other places of the
+    blueprint, and its stop ends the run at the draw after the last row."""
+    tmp_path.joinpath("rows.csv").write_text("k\n1\n2\n")
+    gap = "{gen: expr, expr: \"r['k']\", names: {r: " + ROW_STOP + "}}"
+    text = (
+        HEAD % 1
+        + f"arrivals: {{a: {{gap: {gap}, spawn: t}}}}\n"
+        + "tasks: {t: {payload: {x: 1}}}\nrun: {until: 20}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, outcome.error
+    times = [
+        r["sim_ts"]
+        for r in outcome.records
+        if r["stream_type"] == "event" and r["value"].get("x") == 1
+    ]
+    assert times == [1.0, 3.0]
+
+
+def test_a_builder_row_added_to_a_loaded_blueprint_is_read_from_the_working_dir(
+    tmp_path, monkeypatch
+):
+    """After `from_yaml` the context reads a `row` at the call that adds it, as a
+    script's own context does, relative to the working directory."""
+    folder = tmp_path / "model"
+    folder.mkdir()
+    folder.joinpath("rows.csv").write_text("k\n1\n")
+    tmp_path.joinpath("rows.csv").write_text("k\n7\n")
+    path = folder / "model.yaml"
+    path.write_text(
+        HEAD % 1
+        + "arrivals: {a: {gap: 1, spawn: t}}\n"
+        + "tasks: {t: {payload: {x: 1}}}\n"
+        + f"stores: {{s: {{items: [{ROW_STOP}]}}}}\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    app = SimulationContext.from_yaml(path)
+    assert app._rows_deferred is False
+
+    app.add_store("st", items=[_row()])
+    app.run(until=2)
+    with pytest.raises(ValueError, match=r"nofile\.csv does not exist"):
+        app.add_store("other", items=[_row("nofile.csv")])
+
+
+STOPPED_RUNS = {
+    "arrival place": (
+        "arrivals: {a: {gap: 1, spawn: t, attributes: {r: ROW}}, b: {gap: 1, spawn: u}}\n"
+        "tasks: {t: {payload: {x: 1}}, u: {payload: {y: 1}}}\n"
+    ),
+    "task place": (
+        "arrivals: {a: {gap: 1, spawn: t}, b: {gap: 1, spawn: u}}\n"
+        "tasks: {t: {set: {r: ROW}, payload: {x: 1}}, u: {payload: {y: 1}}}\n"
+    ),
+    "run.segments": (
+        "arrivals: {a: {gap: 1, spawn: t}, b: {gap: 1, spawn: u}}\n"
+        "tasks: {t: {payload: {x: 1}}, u: {payload: {y: 1}}}\n"
+        "run: {segments: [{until: 2}, {until: 4}]}\n"
+    ),
+}
+
+
+@pytest.mark.parametrize("place", sorted(STOPPED_RUNS))
+def test_step_and_peek_after_a_stop_do_not_run_the_model_on(
+    tmp_path, monkeypatch, place
+):
+    """Once a `row` stop or the last entry of `run.segments` has ended the run,
+    `step()` raises as `advance()` does, `peek()` is infinity, and a loop that steps
+    while `peek()` is below a time ends."""
+    monkeypatch.chdir(tmp_path)
+    tmp_path.joinpath("rows.csv").write_text("k\n1\n2\n")
+    path = tmp_path / "model.yaml"
+    path.write_text(HEAD % 1 + STOPPED_RUNS[place].replace("ROW", ROW_STOP))
+    app = SimulationContext.from_yaml(path)
+    if place == "run.segments":
+        app.start()
+        app.finish()
+    else:
+        app.start(until=100)
+        app.advance(50)
+    ended = app.env.now
+    assert app._stopped and app.peek() == float("inf")
+
+    if place != "run.segments":  # finish() has closed that run
+        with pytest.raises(RuntimeError, match=f"the run ended at {ended:g}"):
+            app.advance(ended + 10)
+    for _ in range(3):
+        with pytest.raises(RuntimeError, match=f"the run ended at {ended:g}"):
+            app.step()
+    while app.peek() < 20:
+        app.step()
+    assert app.env.now == ended

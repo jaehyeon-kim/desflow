@@ -48,6 +48,26 @@ def test_allowed_forms_evaluate(scope, text, expected):
     assert Expression(text).evaluate(scope) == expected
 
 
+def test_an_attribute_written_as_an_index_is_the_same_read(scope):
+    """`attr["class"]` reads an attribute whose name Python refuses as a word, and
+    gives the same value and the same reference as `attr.priority`."""
+    scope.attributes["class"] = 3
+    scope.attributes["my key"] = 4
+    expression = Expression('attr["class"] * 2 + attr["my key"] + attr["priority"]')
+    assert expression.evaluate(scope) == 11
+    assert expression.references["attr"] == {"class", "my key", "priority"}
+    assert Expression('has(attr["class"])').evaluate(scope) is True
+    assert Expression('[attr["class"]][0]').evaluate(scope) == 3
+    with pytest.raises(ValueError, match="the entity has no attribute 'nope'"):
+        Expression('attr["nope"]').evaluate(scope)
+
+
+@pytest.mark.parametrize("text", ["attr[0]", "attr[payload.total]", 'payload["total"]'])
+def test_only_a_text_index_on_attr_is_a_read(text):
+    with pytest.raises(ValueError, match="'attr'|'payload'"):
+        Expression(text)
+
+
 @pytest.mark.parametrize(
     "text,fragment",
     [

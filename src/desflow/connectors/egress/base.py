@@ -2,7 +2,7 @@ import logging
 import queue
 from collections import Counter
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +111,128 @@ def flatten_record(record: dict) -> dict:
     row = {key: item for key, item in record.items() if key != "value"}
     row.update(value)
     return row
+
+
+def _is_integer(value: Any) -> bool:
+    """Whether `value` is an integer and not a boolean."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+_READING_TIMES = ("now", "peek")
+_READING_PATHS = ("system.simulation.step", "system.simulation.segment")
+
+
+def as_doubles(record: dict) -> dict:
+    """
+    Returns a row with the integers of the fields that were floats at 0.28.0 as floats.
+
+    A number keeps its written type in a record, so a statistic such as `capacity` or
+    `level`, the `usage_since` of a `preempted` event, and the `now` and `peek` of a
+    `run.steps` or `run.segments` reading are integers when their inputs are. A table
+    whose columns come from its first batch would then fix the telemetry `value`, the
+    `usage_since` or a time as an integer, and a later fraction would not fit. The
+    schema a sink infers therefore reads the `value` of a telemetry row when it is a
+    number, the `now` and `peek` of the `system.simulation.step` and
+    `system.simulation.segment` readings, and the `usage_since` of a `preempted` row
+    (flat or inside `value`) as doubles. The row is copied, because every egress
+    provider receives the same dictionary objects.
+
+    Args:
+        record (dict): A row of a table.
+
+    Returns:
+        dict: A copy with those fields as floats, or the row itself when it has none
+            to change.
+    """
+    value = record.get("value")
+    if record.get("stream_type") == "telemetry":
+        if _is_integer(value):
+            return {**record, "value": float(cast(int, value))}
+        if (
+            isinstance(value, dict)
+            and record.get("path_id") in _READING_PATHS
+            and any(_is_integer(value.get(key)) for key in _READING_TIMES)
+        ):
+            return {
+                **record,
+                "value": {
+                    **value,
+                    **{
+                        key: float(value[key])
+                        for key in _READING_TIMES
+                        if _is_integer(value.get(key))
+                    },
+                },
+            }
+        return record
+    if record.get("status") == "preempted" and _is_integer(record.get("usage_since")):
+        return {**record, "usage_since": float(record["usage_since"])}
+    if (
+        isinstance(value, dict)
+        and value.get("status") == "preempted"
+        and _is_integer(value.get("usage_since"))
+    ):
+        return {
+            **record,
+            "value": {**value, "usage_since": float(value["usage_since"])},
+        }
+    return record
+
+
+def _conversion_errors() -> tuple:
+    """The Arrow errors that a value which does not fit a column raises."""
+    import pyarrow as pa
+
+    return (pa.ArrowInvalid, pa.ArrowTypeError, pa.ArrowNotImplementedError)
+
+
+def write_error(exc: Exception, records: List[dict], known: Any = None) -> str:
+    """
+    Returns the text of a write error, with the cause when it is a mix of statistics
+    and mappings.
+
+    A table or a file has one type for its `value` column. A statistic gives a number,
+    and an event or a `run.steps` or `run.segments` reading gives a mapping, so a
+    router that sends both to one destination makes the second kind unwritable. The
+    hint is added only to an Arrow conversion error, when the rows of the batch that
+    hold a `value` that is not null hold both a number and a mapping, or hold one kind
+    that is not the kind (a mapping or not) of the `value` column already written.
+    Any other error, or a batch with no such value, gets no hint.
+
+    Args:
+        exc (Exception): The error.
+        records (List[dict]): The rows that were not written.
+        known (Any): The Arrow schema already written for the destination, or None.
+
+    Returns:
+        str: The error text, with a hint when the cause is the mix.
+    """
+    text = str(exc).rstrip(".")
+    if not isinstance(exc, _conversion_errors()):
+        return text
+    values = [
+        record["value"]
+        for record in records
+        if isinstance(record, dict)
+        and record.get("stream_type") in ("telemetry", "event")
+        and record.get("value") is not None
+    ]
+    if not values:
+        return text
+    mapping = [isinstance(value, dict) for value in values]
+    mixed = any(mapping) and not all(mapping)
+    if not mixed and known is not None and "value" in known.names:
+        import pyarrow as pa
+
+        written = pa.types.is_struct(known.field("value").type)
+        mixed = written != all(mapping)
+    if mixed:
+        text += (
+            ". A statistic has a number as its value, and an event or a step or "
+            "segment reading has a mapping, and one table or file cannot hold both, "
+            "so route them to different tables or paths"
+        )
+    return text
 
 
 def default_row(data: Any) -> Optional[dict]:
@@ -266,6 +388,9 @@ def rows_table(records: List[dict], pa: Any) -> Any:
 
     `pa.Table.from_pylist` takes its columns from the first row only, so a key that
     first appears in a later row would be dropped. A row without a column holds null.
+    The `value` of a telemetry row and the `usage_since` of a `preempted` row are
+    doubles even when the number is an integer (see `as_doubles`), so a table fixed
+    from the first batch takes a later fraction.
 
     Args:
         records (List[dict]): The rows of one destination.
@@ -274,6 +399,7 @@ def rows_table(records: List[dict], pa: Any) -> Any:
     Returns:
         Any: The `pyarrow.Table`, its columns in the order they first appear.
     """
+    records = [as_doubles(record) for record in records]
     columns = dict.fromkeys(key for record in records for key in record)
     return pa.Table.from_pydict(
         {column: [record.get(column) for record in records] for column in columns}

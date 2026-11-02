@@ -71,6 +71,8 @@ def generator(spec: Any) -> Any:
     Pass the result where a builder method takes a value, such as `attributes` of
     `add_arrival`, `items` of `add_store`, `set` of a scenario step, or the `value`
     of an `on` action. The place gives it its random sequence when it is added.
+    A `row` is read from the working directory when the place is added, and a missing
+    file raises `ValueError` there.
 
     Args:
         spec: The generator as a mapping.

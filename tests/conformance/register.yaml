@@ -92,6 +92,7 @@
     - tests/conformance/test_yaml_only.py::test_v10_weights_that_add_up_to_nothing_or_below_0_fail_the_run
     - tests/conformance/test_yaml_only.py::test_v9_args_of_a_task_started_by_wait
     - tests/conformance/test_yaml_only.py::test_v9_args_on_a_spawn_are_read_for_each_child
+    - tests/conformance/test_generator_streams.py::test_group_spawn_count_and_spawn_args_draws_are_fixed_by_the_seed
     - tests/conformance/test_yaml_only.py::test_on_entries_read_the_names_of_their_task
     - tests/conformance/test_yaml_only.py::test_a_wait_on_running_ends_when_the_instances_end
     - tests/conformance/test_yaml_only.py::test_y6_set_args_and_arg_are_local_to_each_process

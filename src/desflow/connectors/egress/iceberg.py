@@ -10,6 +10,7 @@ from desflow.connectors.egress.base import (
     drop_reserved_keys,
     group_rows,
     warn_skipped,
+    write_error,
     parse_iso_columns,
     rows_table,
 )
@@ -94,6 +95,65 @@ def _time_columns(schema: Any, pa: Any) -> Dict[str, str]:
         elif pa.types.is_date(field.type):
             columns[field.name] = "date"
     return columns
+
+
+def _truncates(value: Any, kind: Any, pa: Any) -> bool:
+    """
+    Tells whether converting `value` to the Arrow type `kind` would drop a fraction.
+
+    `pa.Table.from_pylist` with a schema turns 15.5 into 15 for an integer column
+    and raises nothing. It looks inside a struct and a list for the same case.
+
+    Args:
+        value (Any): A Python value of a row.
+        kind (Any): The `pyarrow.DataType` of its column.
+        pa (Any): Injected reference to the `pyarrow` module.
+
+    Returns:
+        bool: True when `value` is a float with a fraction, or not finite, for an
+            integer type.
+    """
+    if isinstance(value, float) and pa.types.is_integer(kind):
+        return not value.is_integer()
+    if isinstance(value, dict) and pa.types.is_struct(kind):
+        return any(
+            _truncates(item, kind.field(name).type, pa)
+            for name, item in value.items()
+            if kind.get_field_index(name) >= 0
+        )
+    if isinstance(value, list) and (
+        pa.types.is_list(kind) or pa.types.is_large_list(kind)
+    ):
+        return any(_truncates(item, kind.value_type, pa) for item in value)
+    return False
+
+
+def _rows_to_table(records: list, schema: Any, pa: Any) -> Any:
+    """
+    Builds the Arrow table of a table's rows in the table's schema.
+
+    Args:
+        records (list): The rows of one table.
+        schema (Any): The table's PyArrow schema.
+        pa (Any): Injected reference to the `pyarrow` module.
+
+    Returns:
+        Any: The `pyarrow.Table`.
+
+    Raises:
+        ValueError: A float with a fraction would go into an integer column. The
+            caller logs it as a batch that could not be written, so no value is
+            truncated.
+    """
+    for field in schema:
+        for number, record in enumerate(records, start=1):
+            if _truncates(record.get(field.name), field.type, pa):
+                raise ValueError(
+                    f"row {number} holds {record[field.name]!r} for the "
+                    f"{field.type} column '{field.name}', which would lose "
+                    f"its fraction"
+                )
+    return pa.Table.from_pylist(records, schema=schema)
 
 
 class IcebergStorageEgress(BaseEgress):
@@ -428,7 +488,7 @@ class IcebergStorageEgress(BaseEgress):
                     # One batch the table refuses does not stop the sink
                     logger.error(
                         f"Iceberg Writer: could not write {len(records)} rows to "
-                        f"{identifier}: {exc}"
+                        f"{identifier}: {write_error(exc, records, self.schemas.get(identifier))}"
                     )
                     continue
                 written += 1
@@ -457,12 +517,10 @@ class IcebergStorageEgress(BaseEgress):
         )
         if keys:
             latest = {tuple(r[k] for k in keys): r for r in records}
-            df = pa.Table.from_pylist(
-                list(latest.values()), schema=self.schemas[identifier]
-            )
+            df = _rows_to_table(list(latest.values()), self.schemas[identifier], pa)
             table.upsert(df, join_cols=keys)
         else:
-            table.append(pa.Table.from_pylist(records, schema=self.schemas[identifier]))
+            table.append(_rows_to_table(records, self.schemas[identifier], pa))
 
     def _resolve_table(self, identifier: str, records: list, pa: Any) -> Any:
         """

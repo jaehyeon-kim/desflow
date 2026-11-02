@@ -1311,6 +1311,37 @@ def test_segments_run_in_every_replication(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
+    ("run", "last_event"),
+    [
+        ("segments: [{until: 3}, {until: 6}]\n", 5.0),
+        ("segments: [{until: 3}, {}]\n", 51.0),
+        ("until: 20\nsegments: [{until: 3}, {until: 6}]\n", 19.0),
+    ],
+    ids=[
+        "ends at the last until",
+        "an empty entry runs to the end",
+        "run.until ends it",
+    ],
+)
+def test_segments_with_no_run_until_end_at_the_last_stop(tmp_path, run, last_event):
+    """A list of segments is a SimPy program that stops calling `env.run`: with an
+    arrival of 50 events and no `run.until`, the run ends at the last `until` (the last
+    event is at 5 for an `until` of 6). A last entry `{}` runs to the end, and a
+    `run.until` ends the run there."""
+    text = SEGMENTED.split("run:")[0].replace(
+        "arrivals: {a: {replay: {path: a.csv}, spawn: ticking}}",
+        "arrivals: {a: {gap: 1, max_events: 50, spawn: ticking}}",
+    )
+    path = write(tmp_path, text + "run:\n" + textwrap.indent(run, "  "))
+    capture = _Capture()
+    app = SimulationContext.from_yaml(path)
+    app.add_egress(capture)
+    app.run()
+    events = [r["sim_ts"] for r in capture.records if r["stream_type"] == "event"]
+    assert max(events) == last_event
+
+
+@pytest.mark.parametrize(
     "segments,stop",
     [
         ("  - {until: 2}\n  - {until: 4, look: looking}\n  - {until: 6}\n", 4),
@@ -2325,6 +2356,19 @@ def test_initial_alone_needs_no_dist(tmp_path):
         )
 
 
+@pytest.mark.parametrize("initial", ["1.0", "'1'", "true", "-1"])
+def test_initial_takes_a_whole_number_of_0_or_more(tmp_path, initial):
+    """`initial` is a count, so a float, text, a boolean or a negative number is
+    refused at load, as `group` and `count` refuse them."""
+    text = (
+        _COMPUTED
+        + f"arrivals: {{a: {{initial: {initial}, spawn: t}}}}\n"
+        + "tasks:\n  t: {payload: {}}\n"
+    )
+    with pytest.raises(BlueprintError, match="arrivals.a.initial"):
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
 def test_source_that_starts_off(tmp_path):
     """`active: false` starts a source off; `activate` from a task turns it on, and a
     name in `activate` that is no arrival is refused."""
@@ -2363,6 +2407,11 @@ _PLACES = {
     "on value": "payload: {}, on: [{path: S.variables.v, value: {gen: expr, expr: '%s'}}]",
     "spawn args": "payload: {}, spawn: {task: u, args: {k: {gen: expr, expr: '%s'}}}",
     "wait args": "payload: {}, wait: {task: u, args: {k: {gen: expr, expr: '%s'}}}",
+    "vars_once": "payload: {}, vars_once: {k: {gen: expr, expr: '%s'}}",
+    "vars": "payload: {}, vars: {k: {gen: expr, expr: '%s'}}",
+    "finish_vars": "payload: {}, finish_vars: {k: {gen: expr, expr: '%s'}}",
+    "interrupt": "payload: {}, interrupt: {task: u, cause: {gen: expr, expr: '%s'}}",
+    "key": "payload: {}, key: {gen: expr, expr: '%s'}",
 }
 
 
@@ -2372,6 +2421,7 @@ def _places_blueprint(place, expression):
         "resources: {m: {current_cap: 1}}\n"
         "stores: {s: {}}\n"
         "variables: {v: 0}\n"
+        "signals: {z: {}}\n"
         "arrivals: {a: {gap: 1, spawn: t}}\n"
         "tasks:\n"
         f"  t: {{{_PLACES[place] % expression}}}\n"
@@ -2379,41 +2429,120 @@ def _places_blueprint(place, expression):
     )
 
 
-@pytest.mark.parametrize("place", sorted(_PLACES))
+_REFUSED_NAMES = [
+    ("cause.by", "on_interrupt_next edge"),
+    ("item", "the item a store get took"),
+    ("item_priority", "the item a store get took"),
+    ("item.n", "item.<field> reads the item"),
+    ("done_count", "done_count is read in the when"),
+    ("running(nosuch)", "running\\(nosuch\\) names no task"),
+    ("len(held(nosuch))", "held\\(nosuch\\) names no resource"),
+    ("len(waiting(nosuch))", "waiting\\(nosuch\\) names no resource"),
+    ("len(putting(nosuch))", "putting\\(nosuch\\) names no store or container"),
+    ("len(getting(nosuch))", "getting\\(nosuch\\) names no store or container"),
+    ("users.nosuch", "users.nosuch names no resource"),
+    ("queue.nosuch", "queue.nosuch names no resource"),
+    ("level.nosuch", "level.nosuch names no store or container"),
+    ("signal.nosuch.count", "signal.nosuch names no signal"),
+    ("signal.nosuch.processed", "signal.nosuch names no signal"),
+    ("count(nosuch)", "count\\(nosuch\\) names no store"),
+    ('registry["S.variables.nosuch"]', "is not a registry path"),
+    ("wait.nosuch.done", "wait.nosuch is not a branch"),
+]
+# The names of the run are handled by one check, so the whole list runs in one place.
+# `users` tests that walk and `registry` tests the walk of `_check_registry_reads`, in
+# every place
+_REFUSED_CASES = (
+    [("payload", e, m) for e, m in _REFUSED_NAMES]
+    + [
+        (place, "users.nosuch", "users.nosuch names no resource")
+        for place in sorted(_PLACES)
+        if place != "payload"
+    ]
+    + [
+        (place, 'registry["S.variables.nosuch"]', "is not a registry path")
+        for place in sorted(_PLACES)
+        if place != "payload"
+    ]
+)
+
+
 @pytest.mark.parametrize(
-    "expression, message",
-    [
-        ("cause.by", "on_interrupt_next edge"),
-        ("item", "the item a store get took"),
-        ("item_priority", "the item a store get took"),
-        ("item.n", "item.<field> reads the item"),
-        ("done_count", "done_count is read in the when"),
-        ("running(nosuch)", "running\\(nosuch\\) names no task"),
-        ("len(held(nosuch))", "held\\(nosuch\\) names no resource"),
-        ("len(waiting(nosuch))", "waiting\\(nosuch\\) names no resource"),
-        ("len(putting(nosuch))", "putting\\(nosuch\\) names no store or container"),
-        ("len(getting(nosuch))", "getting\\(nosuch\\) names no store or container"),
-    ],
+    "place, expression, message",
+    _REFUSED_CASES,
+    ids=[f"{place}-{expression}" for place, expression, _ in _REFUSED_CASES],
 )
 def test_names_are_refused_in_every_generator_place(
     tmp_path, place, expression, message
 ):
-    """A generator reads `cause`, `item`, `item_priority`, `done_count` and the names in
-    `held`, `waiting`, `putting`, `getting` and `running` under the rules of a plain
-    expression place, in `payload`, `set`, `set_args`, `on_start`, `put.item`, an `on:`
-    value, a `spawn` `args` and a wait `args`."""
+    """A generator reads `cause`, `item`, `item_priority`, `done_count`, the names in
+    `held`, `waiting`, `putting`, `getting` and `running`, and a resource, store,
+    container, signal or registry name under the rules of a plain expression place, in
+    `payload`, `set`, `set_args`, `on_start`, `put.item`, an `on:` value, a `spawn`
+    `args`, a wait `args`, the vars, an `interrupt` cause and a `key`."""
     path = write(tmp_path, _places_blueprint(place, expression))
 
     with pytest.raises(BlueprintError, match=message):
         SimulationContext.from_yaml(path)
 
 
-@pytest.mark.parametrize("place", sorted(_PLACES))
-def test_names_that_exist_load_in_every_generator_place(tmp_path, place):
-    for expression in ("len(held(m))", "running(u)", "len(putting(s))"):
+_EXISTING_NAMES = (
+    "len(held(m))",
+    "running(u)",
+    "len(putting(s))",
+    "users.m + queue.m + level.s",
+    "signal.z.count + signal.z.processed + count(s)",
+    'registry["S.variables.v"]',
+)
+
+
+@pytest.mark.parametrize(
+    "place, expressions",
+    [("payload", _EXISTING_NAMES)]
+    + [(p, _EXISTING_NAMES[:1]) for p in sorted(_PLACES) if p != "payload"],
+)
+def test_names_that_exist_load_in_every_generator_place(tmp_path, place, expressions):
+    for expression in expressions:
         SimulationContext.from_yaml(
             write(tmp_path, _places_blueprint(place, expression))
         )
+
+
+_OUTSIDE_CASES = [
+    ("attributes", "users.nosuch", "users.nosuch names no resource"),
+    ("attributes", "signal.nosuch.processed", "signal.nosuch names no signal"),
+    ("attributes", 'registry["S.variables.nosuch"]', "is not a registry path"),
+    ("scenario record", "users.nosuch", "users.nosuch names no resource"),
+    ("store items", "users.nosuch", "users.nosuch names no resource"),
+]
+
+
+@pytest.mark.parametrize(
+    "place, expression, message",
+    _OUTSIDE_CASES,
+    ids=[f"{place}-{expression}" for place, expression, _ in _OUTSIDE_CASES],
+)
+def test_names_are_refused_in_a_generator_outside_a_task(
+    tmp_path, place, expression, message
+):
+    """An arrival's `attributes`, a scenario `record` and a store's `items` refuse an
+    unknown name at load, as `next.when` does, not when the run reaches them."""
+    generator = "{gen: expr, expr: '%s'}" % expression
+    top = {
+        "attributes": f"arrivals: {{a: {{gap: 1, spawn: t, attributes: {{k: {generator}}}}}}}\n",
+        "scenario record": "arrivals: {a: {gap: 1, spawn: t}}\n"
+        f"scenario: [{{at: 1, record: {{k: {generator}}}}}]\n",
+        "store items": "arrivals: {a: {gap: 1, spawn: t}}\n"
+        f"stores: {{s: {{items: [{generator}]}}}}\n",
+    }[place]
+    text = (
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "resources: {m: {current_cap: 1}}\nvariables: {v: 0}\n"
+        + top
+        + "tasks:\n  t: {payload: {}}\n"
+    )
+    with pytest.raises(BlueprintError, match=message):
+        SimulationContext.from_yaml(write(tmp_path, text))
 
 
 @pytest.mark.parametrize(

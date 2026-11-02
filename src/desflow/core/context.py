@@ -63,8 +63,15 @@ from desflow.core.breakdowns import run_breakdowns
 from desflow.core.replay import UNITS, Row, read_trace
 from desflow.core.scenario import apply_step, check_step, run_scenario
 from desflow.values.models import _Gen, has_generator, values_adapter
-from desflow.values.runtime import DEFAULT_HISTORY, ValueRuntime
-from desflow.values.check import lookup_cycle, looked_up, task_value_problems
+from desflow.values.runtime import DEFAULT_HISTORY, RunStopped, ValueRuntime
+from desflow.values.check import (
+    generators_in,
+    load_rows,
+    lookup_cycle,
+    looked_up,
+    task_value_problems,
+)
+from desflow.values.models import Row as RowGenerator
 from desflow.values.template import bind as bind_values
 from desflow.models.params import (
     BreakdownConfig,
@@ -309,6 +316,9 @@ class SimulationContext:
         # and the tasks whose last payload `previous` reads
         self._gates: Dict[str, Set[str]] = {}
         self._row_targets: Set[str] = set()
+        # Whether a `row` file is read when the generator is added (a builder script,
+        # from the working directory) or later by the blueprint, from its own folder
+        self._rows_deferred = False
         self._previous_users: Set[str] = set()
         self._signal_names: List[str] = []
         self._signal_once: Dict[str, bool] = {}
@@ -819,7 +829,7 @@ class SimulationContext:
                 f"priority store '{name}' starts with (priority, item) pairs; give "
                 f"each item as a pair, such as (1, item)"
             )
-        bind_values(start, ("stores", name, "items"), overwrite=False)
+        self._bind_values(start, ("stores", name, "items"), overwrite=False)
         self._store_items[name] = start
         self._stores_config[name] = CapacityConfig(
             current_cap=_within_max("store", name, current_cap, max_cap),
@@ -853,7 +863,7 @@ class SimulationContext:
         """
         checked = [check_step(step) for step in steps]
         for index, step in enumerate(checked, len(self._scenario_steps)):
-            bind_values(step, ("scenario", index), overwrite=False)
+            self._bind_values(step, ("scenario", index), overwrite=False)
         if not self._scenario_steps:
             self.add_process(self._run_scenario)
         self._scenario_steps.extend(checked)
@@ -1120,7 +1130,9 @@ class SimulationContext:
             )
         }
         self._arrivals_config[name] = _distribution(dist, params)
-        bind_values(attributes or {}, ("arrivals", name, "attributes"), overwrite=False)
+        self._bind_values(
+            attributes or {}, ("arrivals", name, "attributes"), overwrite=False
+        )
         self._arrival_entities[name] = (dict(attributes or {}), key)
         if first_at is not None:
             if (
@@ -1130,6 +1142,8 @@ class SimulationContext:
             ):
                 raise ValueError(f"first_at is a time of 0 or more, got {first_at!r}")
         plan = _source_plan(spawn, group, active, off_mode, initial)
+        if plan is not None:
+            self._bind_values(plan.group, ("arrivals", name, "group"), overwrite=False)
         if first_at is not None:
             plan = plan or ArrivalPlan()
             plan.first_at = first_at
@@ -1151,7 +1165,9 @@ class SimulationContext:
     ) -> "SimulationContext":
         """Registers an arrival whose gap is an expression or a generator, read at
         the start of each gap, in place of a distribution. A blueprint's `gap`."""
-        bind_values(attributes or {}, ("arrivals", name, "attributes"), overwrite=False)
+        self._bind_values(
+            attributes or {}, ("arrivals", name, "attributes"), overwrite=False
+        )
         self._arrival_entities[name] = (dict(attributes or {}), None)
         self._arrival_plans[name] = ArrivalPlan(gap=gap, first_at=first_at)
         self._add_spawn(name, spawn)
@@ -1185,7 +1201,9 @@ class SimulationContext:
         """
         if isinstance(initial, bool) or not isinstance(initial, int) or initial < 1:
             raise ValueError(f"initial is a whole number above 0, got {initial!r}")
-        bind_values(attributes or {}, ("arrivals", name, "attributes"), overwrite=False)
+        self._bind_values(
+            attributes or {}, ("arrivals", name, "attributes"), overwrite=False
+        )
         self._arrival_entities[name] = (dict(attributes or {}), None)
         self._arrival_plans[name] = ArrivalPlan(initial=initial, sourceless=True)
         self._add_spawn(name, spawn)
@@ -1708,6 +1726,10 @@ class SimulationContext:
                 **spec_kwargs,
             )
             spec.user_func = user_func
+            if not self._rows_deferred:
+                self._bind_values(
+                    spec.spawn, ("tasks", task_name, "spawn"), overwrite=False
+                )
             self.note_values(
                 task_name,
                 *(getattr(spec, field) for field in generated),
@@ -1720,7 +1742,7 @@ class SimulationContext:
                 spec.key,
             )
             for field in (*generated, "attribute_changes", "on", "interrupt"):
-                bind_values(
+                self._bind_values(
                     getattr(spec, field),
                     (
                         "tasks",
@@ -1730,25 +1752,25 @@ class SimulationContext:
                     overwrite=False,
                 )
             for field in ("service_time", "patience", "key"):
-                bind_values(
+                self._bind_values(
                     getattr(spec, field), ("tasks", task_name, field), overwrite=False
                 )
             if spec.wait is not None:
                 for node in spec.wait.branches.values():
                     if node.kind == "task" and node.args:
-                        bind_values(
+                        self._bind_values(
                             node.args,
                             ("tasks", task_name, "wait", node.name, "args"),
                             overwrite=False,
                         )
                     if node.kind == "timeout":
                         seconds, value = node.target
-                        bind_values(
+                        self._bind_values(
                             seconds,
                             ("tasks", task_name, "wait", node.name, "timeout"),
                             overwrite=False,
                         )
-                        bind_values(
+                        self._bind_values(
                             value,
                             ("tasks", task_name, "wait", node.name),
                             overwrite=False,
@@ -1783,6 +1805,27 @@ class SimulationContext:
             return wrapper
 
         return decorator
+
+    def _bind_values(
+        self, node: Any, path: Tuple[Any, ...], *, overwrite: bool = True
+    ) -> None:
+        """Gives the generators of a place their position, and reads the file of each
+        `row` among them, from the working directory. A blueprint reads the files
+        itself, from its own folder, after it has built the context.
+
+        Raises:
+            ValueError: If a `row` file is missing or cannot be used.
+        """
+        bind_values(node, path, overwrite=overwrite)
+        if self._rows_deferred:
+            return
+        problems = []
+        for _, row in generators_in(node, (RowGenerator,)):
+            problem = load_rows(row, Path.cwd())
+            if problem is not None:
+                problems.append(f"{row._path}.file: {problem}")
+        if problems:
+            raise ValueError("; ".join(problems))
 
     def note_values(self, task: Optional[str], *places: Any) -> None:
         """Notes what the values of a place read from other records, so the run keeps
@@ -2033,6 +2076,9 @@ class SimulationContext:
         self._replays[name] = dict(
             source=source, time=time, unit=unit, fields=fields, on_invalid=on_invalid
         )
+        self._bind_values(
+            attributes or {}, ("arrivals", name, "attributes"), overwrite=False
+        )
         self._arrival_entities[name] = (dict(attributes or {}), key)
         plan = _source_plan(spawn, 1, active, off_mode, 0)
         if plan is not None:
@@ -2149,7 +2195,10 @@ class SimulationContext:
             entity = self._new_entity(
                 arrival, self._arrival_entities.get(arrival), generate=False
             )
-            self._make_entity(entity)
+            try:
+                self._make_entity(entity)
+            except RunStopped:
+                return  # a `row` with on_end: stop ended the run before it began
             self._start(task, entity, None)
 
     def _generate_when_due(
@@ -2723,7 +2772,9 @@ class SimulationContext:
             self._signal_names.append(name)
         self._signal_once[name] = once
         self._signal_on[name] = [_parse_on_action(entry) for entry in on or []]
-        bind_values(self._signal_on[name], ("signals", name, "on"), overwrite=False)
+        self._bind_values(
+            self._signal_on[name], ("signals", name, "on"), overwrite=False
+        )
         return self
 
     def signal(self, name: str) -> Signal:
@@ -3059,9 +3110,12 @@ class SimulationContext:
                 f"until ({at}) must be greater than the current simulation time"
             )
         if self._end is None:
-            return env.run(
-                until=until if self._until is None else min(until, self._until)
-            )
+            try:
+                return env.run(
+                    until=until if self._until is None else min(until, self._until)
+                )
+            except RunStopped:
+                return None  # a `row` with on_end: stop ended the run
         segment = simpy.Event(env)
         segment._ok, segment._value = True, None
         env.schedule(segment, simpy.events.URGENT, until - env.now)
@@ -3094,12 +3148,15 @@ class SimulationContext:
         after each.
 
         A segment ends at its `until`, at its `stop`, or, for `{}`, at the end of the
-        run. A segment after the run's own end does not run. `look` names a task whose
-        new entity runs its zero-time steps once the segment has stopped, ahead of the
-        events at the stop time.
+        run. A segment after the run's own end does not run. A list with no `run.until`
+        whose last entry has an `until` or a `stop` ends the run there, as a SimPy
+        program that stops calling `env.run` does; `{}` as the last entry runs to the
+        end. `look` names a task whose new entity runs its zero-time steps once the
+        segment has stopped, ahead of the events at the stop time.
         """
         env = self.env
-        for index, entry in enumerate(self._segment_entries(segments)):
+        entries = self._segment_entries(segments)
+        for index, entry in enumerate(entries):
             if self._run_ended():
                 break
             if entry.get("sync"):
@@ -3115,6 +3172,9 @@ class SimulationContext:
             self._publish_reading("system.simulation.segment", {"index": index})
             if entry.get("until") is None and entry.get("stop") is None:
                 break
+        else:
+            if entries and self._until is None and isinstance(segments, list):
+                self._stopped = True
 
     def _run_to_end(self) -> None:
         """Runs a started run to its own end, which `finish()` then finds reached."""
@@ -3164,6 +3224,10 @@ class SimulationContext:
         previous, env._until_none = env._until_none, self._until is None
         try:
             return env.run(until=until)
+        except RunStopped:
+            # A `row` with on_end: stop used its last row where no task ran: an
+            # arrival's attributes, vars or key. _stop_run() ended the run.
+            return None
         finally:
             env._until_none = previous
 
@@ -3339,6 +3403,7 @@ class SimulationContext:
         self._sample_seen = 0
         self._env = None
         self.started = False
+        self._stopped = False
 
         logger.info(f"Building SimulationContext for '{self.sim_id}'...")
         try:
@@ -3543,7 +3608,6 @@ class SimulationContext:
 
         self._until = until
         self._end_done = False
-        self._stopped = False
         self._limit_event = None
         self._end = self._end_event(until, stop, drain)
         self._closed = False
@@ -3556,8 +3620,10 @@ class SimulationContext:
 
     def _stop_run(self) -> None:
         """Ends the run at the current time: the events already due run no further,
-        `finish()` returns at once and a later `advance()` raises, as at the end of a
-        run. A `row` generator with `on_end: stop` calls it when its rows run out."""
+        `finish()` returns at once, and a later `advance()` or `step()` raises and
+        `peek()` gives infinity.
+
+        A `row` generator with `on_end: stop` calls it when its rows run out."""
         env = self._env
         if env is None or self._stopped:
             return
@@ -3575,12 +3641,19 @@ class SimulationContext:
         reading or a flush timer, run in the same call and are not counted.
 
         Raises:
-            RuntimeError: If the run has not started.
+            RuntimeError: If the run has not started, or it was ended by a `row` with
+                `on_end: stop` or by the last entry of `run.segments`, as `advance()`
+                raises (`close()` it, or `start()` a new run).
             simpy.core.EmptySchedule: If no model event is left.
         """
+        env = self.env
+        if self._stopped:
+            raise RuntimeError(
+                f"the run ended at {env.now:g}; close() it, or start() a new run"
+            )
         try:
-            self.env.step()
-        except StopSimulation:
+            env.step()
+        except (StopSimulation, RunStopped):
             pass  # _stop_run() ended the run
         self._moved = True
 
@@ -3589,12 +3662,14 @@ class SimulationContext:
         Returns the time of the next model event of a started run, or infinity if none.
 
         The events of desflow's own, such as a statistics reading or a flush timer,
-        are not counted.
+        are not counted. It is infinity once a `row` with `on_end: stop` or the last
+        entry of `run.segments` has ended the run, because `step()` runs no more.
 
         Raises:
             RuntimeError: If the run has not started.
         """
-        return self.env.peek()
+        env = self.env
+        return math.inf if self._stopped else env.peek()
 
     def close(self) -> None:
         """

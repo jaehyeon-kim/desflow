@@ -1,0 +1,33 @@
+# Seeded draws of the generators in a `group`, a `spawn` count and `spawn` args.
+#
+# Each generator draws from a stream named for its place (arrivals.orders.group,
+# tasks.pack.spawn.count, tasks.pack.spawn.args.u), so a seed gives the same numbers in
+# a blueprint and in the Builder. `test_generator_streams.py` asserts the numbers.
+
+simulation:
+  sim_id: Streams
+  factor: 0
+  random_seed: 1
+
+arrivals:
+  orders:
+    dist: constant
+    value: 1
+    spawn: pack
+    group: {gen: integer, bounds: [1, 3]}
+
+tasks:
+  pack:
+    spawn:
+      task: courier
+      count: {gen: integer, bounds: [1, 3]}
+      args:
+        u: {gen: uniform, low: 0, high: 1}
+        n: {gen: normal, mean: 0, std: 1}
+    payload: {status: packed}
+  courier:
+    payload:
+      u: {gen: expr, expr: arg.u}
+      n: {gen: expr, expr: arg.n}
+
+run: {until: 3}

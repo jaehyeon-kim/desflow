@@ -106,7 +106,12 @@ class EntityLoop:
 
     def release(self, context: "SimulationContext", key: Any) -> None:
         """Forgets the values kept for the entity's key once it holds the key no
-        longer, so a later entity with the same key starts with none."""
+        longer, so a later entity with the same key starts with none.
+
+        Args:
+            context: The context that keeps the values.
+            key: The entity's key.
+        """
         if self.admitted and not self.running:
             context.values.forget(key)
 
@@ -140,7 +145,11 @@ def whole(value: Any, what: str) -> int:
 
 
 def defuse_stopped(event: Any) -> None:
-    """Marks an arrival loop ended by `stop_arrivals` as handled, and nothing else."""
+    """Marks an arrival loop ended by `stop_arrivals` as handled, and nothing else.
+
+    Args:
+        event: The arrival process that ended.
+    """
     value = getattr(event, "_value", None)
     if (
         not event.ok
@@ -195,6 +204,15 @@ def source(
     arrival that falls while the source is off starts nobody, counts toward no limit
     and takes no key number. With `off_mode: restart` the pending arrival is dropped
     when the source goes off, and a source that is on starts a full new gap.
+
+    Args:
+        context: The context the arrival belongs to.
+        arrival: The arrival's name.
+        task: The task each entity starts.
+        plan: The arrival's settings.
+
+    Yields:
+        Any: The events the loop waits for.
     """
     limit = _limit(context, arrival, plan)
     attempts = 0
@@ -229,6 +247,15 @@ def start_entities(
     """Starts the loops of an arrival with `count` or `keys`, `stagger` apart.
 
     Each loop is an arrival process of its own, so a drain stops them with the rest.
+
+    Args:
+        context: The context the arrival belongs to.
+        arrival: The arrival's name.
+        task: The task each entity starts.
+        plan: The arrival's settings.
+
+    Yields:
+        Any: The events the loop waits for.
     """
     if plan.keys is not None:
         number = len(plan.keys)
@@ -260,6 +287,16 @@ def entity_loop(
 
     The first run starts at `first_at` when the plan has one, otherwise after a gap.
     Each run is a flow of its own, with the entity's key and attributes.
+
+    Args:
+        context: The context the arrival belongs to.
+        arrival: The arrival's name.
+        task: The task the entity starts.
+        plan: The arrival's settings.
+        index: The entity's place among the arrival's entities.
+
+    Yields:
+        Any: The events the loop waits for.
     """
     env = context.env
     entity = context._new_entity(arrival, context._arrival_entities.get(arrival), False)

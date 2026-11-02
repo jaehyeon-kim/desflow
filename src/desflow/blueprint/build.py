@@ -57,6 +57,7 @@ from desflow.values.check import (
     check_value,
     children,
     generators_in,
+    load_rows,
     lookup_cycle,
     task_value_problems,
 )
@@ -65,6 +66,7 @@ from desflow.values.models import (
     Expr,
     Lookup,
     Previous,
+    Row,
     Upstream,
     When,
     _Gen,
@@ -326,10 +328,11 @@ def _check_generator_places(
     """Checks the `expr` and `when` text of every generator a task holds, in `payload`,
     `set`, `set_args`, the vars, `on_start`, `put.item`, `spawn`, `interrupt`, `on` and
     `wait`: the rules of `scope_problem` (`cause`, `item`, `item_priority` and
-    `done_count`) and that the resource, store, container and task names of `held`,
-    `waiting`, `putting`, `getting` and `running` exist."""
+    `done_count`), that every signal, store, container, resource and task name an
+    expression reads exists, and that a `wait.<branch>` is a branch of the task."""
     takes_item = task.get is not None and task.get.store is not None and task.get.wait
     var_names = {*task.vars_once, *task.vars, *task.finish_vars}
+    branches = set(Wait(task.wait).branches) if task.wait else set()
     places: List[Tuple[str, Any, Tuple[Any, ...], bool]] = [
         # (key, value, location, evaluated after the task's own waiting get)
         (
@@ -380,31 +383,12 @@ def _check_generator_places(
                     )
             if problem:
                 raise source.error(path, f"'{text}' in task '{name}': {problem}")
-            _check_state_names(read, blueprint, source, path)
-
-
-def _check_state_names(
-    expression: Expression,
-    blueprint: Blueprint,
-    source: SourceMap,
-    location: Tuple[Union[str, int], ...],
-) -> None:
-    """Checks that the names in `held`, `waiting`, `putting`, `getting` and `running`
-    exist."""
-    holders = [*blueprint.stores, *blueprint.containers]
-    for kind, known, section, noun in (
-        ("held", blueprint.resources, "resources", "resource"),
-        ("waiting", blueprint.resources, "resources", "resource"),
-        ("putting", holders, "stores or containers", "store or container"),
-        ("getting", holders, "stores or containers", "store or container"),
-        ("running", blueprint.tasks, "tasks", "task"),
-    ):
-        for target in expression.references[kind]:
-            if target not in known:
+            _check_run_names(read, blueprint, source, path)
+            for branch in sorted(read.references["wait"] - branches):
                 raise source.error(
-                    location,
-                    f"{kind}({target}) names no {noun}"
-                    + (suggestion(target, known) or f"; add it under {section}"),
+                    path,
+                    f"'{text}' in task '{name}': wait.{branch} is not a branch of "
+                    f"this task's wait" + suggestion(branch, branches),
                 )
 
 
@@ -1128,8 +1112,8 @@ def _arrival_expressions(
     blueprint: Blueprint,
 ) -> Iterator[Tuple[Expression, Tuple[Any, ...]]]:
     """Every expression in the run places of an arrival, parsed: the text of `gap`,
-    `stagger`, `count` and `max_events`, and the `expr`, `when` and `omit_when` of any
-    generator in those places, `vars` and `key`. Text that does not parse is left to
+    `stagger`, `count`, `max_events` and `group`, and the `expr`, `when` and `omit_when`
+    of any generator in those places, `vars`, `key` and `attributes`. Text that does not parse is left to
     the checks that report it."""
 
     for name, arrival in blueprint.arrivals.items():
@@ -1143,6 +1127,7 @@ def _arrival_expressions(
                 found += _generator_texts(value, where + (key,))
         found += _generator_texts(arrival.key, where + ("key",))
         found += _generator_texts(arrival.vars, where + ("vars",))
+        found += _generator_texts(arrival.attributes, where + ("attributes",))
         for text, path in found:
             try:
                 yield Expression(text, names=ANY_NAME), path
@@ -1151,11 +1136,27 @@ def _arrival_expressions(
 
 
 def _check_arrival_places(blueprint: Blueprint, source: SourceMap) -> None:
-    """Checks the names the run places of an arrival read: every `level`, `signal`,
-    `users`, `queue`, `putters`, `getters`, `count` and `items` name must exist, as
-    in a `stop` condition."""
+    """Checks the names the run places of an arrival and the value places outside a
+    task (a store's `items`, a signal's `on`, a scenario step) read: every `level`,
+    `signal`, `users`, `queue`, `putters`, `getters`, `count` and `items` name must
+    exist, as in a `stop` condition."""
     for expression, where in _arrival_expressions(blueprint):
         _check_run_names(expression, blueprint, source, where)
+    for location, value in _value_sites(blueprint):
+        for expression, where in _parsed_texts(value, location):
+            _check_run_names(expression, blueprint, source, where)
+
+
+def _parsed_texts(
+    value: Any, location: Tuple[Any, ...]
+) -> Iterator[Tuple[Expression, Tuple[Any, ...]]]:
+    """The expressions of the generators in a value, parsed, with where each is
+    written. Text that does not parse is left to the checks that report it."""
+    for text, path in _generator_texts(value, location):
+        try:
+            yield Expression(text, names=ANY_NAME), path
+        except ValueError:
+            continue
 
 
 def _check_run_names(
@@ -1347,9 +1348,28 @@ def _whole(value: Optional[float]) -> Optional[float]:
 def _build_context(
     blueprint: Blueprint, source: SourceMap, preview: Optional[Preview] = None
 ) -> SimulationContext:
-    """Makes the builder calls a Python script would make, in the same order."""
-    context = SimulationContext(**blueprint.simulation.model_dump(exclude_unset=True))
+    """Makes the builder calls a Python script would make, in the same order.
 
+    The context does not read the `row` files while it is built, because
+    `_check_values` reads them from the blueprint's folder. A Builder call on the
+    finished context reads them from the working directory again.
+    """
+    context = SimulationContext(**blueprint.simulation.model_dump(exclude_unset=True))
+    context._rows_deferred = True
+    try:
+        _add_to_context(context, blueprint, source, preview)
+    finally:
+        context._rows_deferred = False
+    return context
+
+
+def _add_to_context(
+    context: SimulationContext,
+    blueprint: Blueprint,
+    source: SourceMap,
+    preview: Optional[Preview] = None,
+) -> None:
+    """Makes the builder calls of a blueprint on `context`, in file order."""
     for index, ingress in enumerate(blueprint.ingress):
         if preview is None or preview.sample is None:
             provider = _connector(ingress.type, ingress.config, INGRESS_TYPES)
@@ -1555,8 +1575,6 @@ def _build_context(
             ]
         )
 
-    return context
-
 
 def _time_place(value: Any) -> Any:
     """A time or count place as the run reads it: text is an `Expression`."""
@@ -1649,7 +1667,7 @@ def _value_sites(blueprint: Blueprint) -> Iterator[Tuple[Tuple[Any, ...], Any]]:
 
 
 # The arrival places that read the run only, and those that read the arrival's vars
-_ARRIVAL_RUN_PLACES = ("gap", "count", "stagger", "max_events")
+_ARRIVAL_RUN_PLACES = ("gap", "count", "stagger", "max_events", "group")
 
 
 def _arrival_sites(
@@ -1684,6 +1702,7 @@ def _bind_values(blueprint: Blueprint, source: SourceMap) -> None:
             "interrupt",
             "on",
             "wait",
+            "spawn",
             "service_time",
             "patience",
             "key",
@@ -1770,6 +1789,13 @@ def _check_values(
             registry=registry,
         ):
             problems.append((where, text))
+    # A place `check_value` does not walk (a spawn's `count` and `args`, a `put` item,
+    # the `args` of a `wait` on a task) still holds `row` files to read
+    for location, value, _task in _task_sites(blueprint):
+        for inner, node in generators_in(value, (Row,)):
+            problem = load_rows(node, base_dir)
+            if problem is not None and problem not in {text for _, text in problems}:
+                problems.append((location + inner + ("file",), problem))
     problems += _check_relationships(blueprint)
     if problems:
         raise BlueprintError(
@@ -2120,6 +2146,10 @@ def _check_registry_reads(
         for pair in _expressions(name, task)
     ]
     found += list(_arrival_expressions(blueprint))
+    for location, value, _owner in _task_sites(blueprint):
+        found += list(_parsed_texts(value, location))
+    for location, value in _value_sites(blueprint):
+        found += list(_parsed_texts(value, location))
     for expression, location in found:
         for path in expression.references["registry"]:
             try:

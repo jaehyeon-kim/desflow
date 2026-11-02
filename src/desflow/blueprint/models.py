@@ -414,7 +414,7 @@ class Arrival(Distribution):
     group: CountPlace = 1
     active: bool = True
     off_mode: Literal["drop", "restart"] = "drop"
-    initial: int = Field(default=0, ge=0)
+    initial: StrictInt = Field(default=0, ge=0)
 
     @field_validator("gap", "stagger", mode="before")
     @classmethod
@@ -1797,7 +1797,10 @@ class Run(_Model):
     `RunSegment`, or `{every: <time>}` for equal parts up to `until`. `steps: true`
     publishes `system.simulation.step`, `{step, now, peek}`, after each model event, as
     a loop of `env.step()` and `env.peek()` reads them. `sync: true` calls `env.sync()`
-    as the run starts. A run with no `until` ends when no model event is left.
+    as the run starts. A run with no `until` ends when no model event is left, except
+    that a list of segments with no `until` whose last entry has an `until` or a
+    `stop` ends there, as a SimPy program that stops calling `env.run` does; a last
+    entry `{}` runs to the end.
     """
 
     until: Optional[Union[int, float]] = Field(default=None, gt=0)

@@ -13,7 +13,7 @@ operand that cannot be evaluated fails the expression. Each name carries its sou
 | Name | Value |
 |---|---|
 | `payload.total` | the field `total` of the upstream payload |
-| `attr.priority` | the entity's attribute `priority` |
+| `attr.priority`, `attr["class"]` | the entity's attribute `priority`; the index form reads a name that is not a Python word, such as `class` |
 | `level.stock` | the level of the store or container `stock` |
 | `users.packers` | how many units of the resource `packers` are held |
 | `queue.packers` | how many requests wait for the resource `packers` |
@@ -361,6 +361,39 @@ def _chain(node: ast.AST) -> Tuple[Optional[ast.AST], List[str]]:
     return current, parts
 
 
+class _AttrIndexes(ast.NodeTransformer):
+    """Rewrites `attr["<name>"]` as the read `attr.<name>`, so an attribute whose name
+    Python's parser refuses as a word, such as `class`, can be read."""
+
+    def visit_Subscript(self, node: ast.Subscript) -> ast.AST:  # noqa: N802
+        self.generic_visit(node)
+        if (
+            isinstance(node.value, ast.Name)
+            and node.value.id == "attr"
+            and isinstance(node.slice, ast.Constant)
+            and isinstance(node.slice.value, str)
+        ):
+            return ast.copy_location(
+                ast.Attribute(node.value, node.slice.value, ast.Load()), node
+            )
+        return node
+
+
+def _attr_indexes_as_reads(tree: ast.Expression) -> ast.Expression:
+    """The tree with each `attr["<name>"]` written as `attr.<name>`; a tree that
+    binds the name `attr` in a comprehension is left as it is."""
+    bound = {
+        node.id
+        for clause in ast.walk(tree)
+        if isinstance(clause, ast.comprehension)
+        for node in ast.walk(clause.target)
+        if isinstance(node, ast.Name)
+    }
+    if "attr" in bound:
+        return tree
+    return ast.fix_missing_locations(_AttrIndexes().visit(tree))
+
+
 def _field(value: Any, name: str, what: str = "the value") -> Any:
     """The field `name` of a mapping, for a dotted read."""
     if not isinstance(value, Mapping) or name not in value:
@@ -493,6 +526,7 @@ class Expression:
             tree = ast.parse(text.strip(), mode="eval")
         except SyntaxError as exc:
             raise ValueError(f"'{text}' is not a valid expression: {exc.msg}") from None
+        tree = _attr_indexes_as_reads(tree)
         self.references: Dict[str, Set[str]] = {
             "payload": set(),
             "attr": set(),

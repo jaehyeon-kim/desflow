@@ -818,3 +818,360 @@ def test_a_schemas_only_entry_counts_an_event_with_no_table(caplog):
 
     assert catalog.tables["sim.t"].appended[0].to_pylist() == [{"n": 2}]
     assert "1 had no __table__" in caplog.text
+
+
+def _telemetry(value):
+    return {"stream_type": "telemetry", "path_id": "tank.level", "value": value}
+
+
+@pytest.mark.parametrize(
+    "batches",
+    [[[15], [15.5], [16.25]], [[15, 16, 17], [15.5, 16.25]]],
+    ids=["batches of one row", "batches of several rows"],
+)
+def test_telemetry_value_is_a_double_when_an_integer_comes_first(tmp_path, batches):
+    """A statistic that is an integer first, such as a capacity of 15, does not fix
+    the column as an integer: a later fraction is kept, not truncated."""
+    from pyiceberg.catalog import load_catalog
+
+    properties = {
+        "type": "sql",
+        "uri": f"sqlite:///{tmp_path}/catalog.db",
+        "warehouse": f"file://{tmp_path}/warehouse",
+    }
+    egress = IcebergStorageEgress(
+        catalog={"name": "local", **properties}, table_router=lambda d: "sim.telemetry"
+    )
+
+    for batch in batches:
+        egress._write_batch([_telemetry(v) for v in batch], pa)
+
+    table = load_catalog("local", **properties).load_table("sim.telemetry")
+    column = table.scan().to_arrow().column("value")
+    assert column.type == pa.float64()
+    assert sorted(column.to_pylist()) == sorted(float(v) for b in batches for v in b)
+
+
+def _preempted(since, nested):
+    row = {"status": "preempted", "resource": "m", "usage_since": since}
+    if nested:
+        return {"stream_type": "event", "key": "a-1", "task": "t", "value": row}
+    return {"stream_type": "event", "key": "a-1", "task": "t", **row}
+
+
+@pytest.mark.parametrize("nested", [False, True], ids=["flat row", "router row"])
+def test_usage_since_is_a_double_when_an_integer_comes_first(nested):
+    """The time a preempted unit was granted is an integer when the clock is, and
+    a later grant at 3.5 is not truncated, flat or inside `value`."""
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(
+        catalog=catalog,
+        **(
+            {"table_router": lambda d: "sim.e"}
+            if nested
+            else {"default_table": "sim.e"}
+        ),
+    )
+
+    egress._write_batch([_preempted(3, nested)], pa)
+    egress._write_batch([_preempted(3.5, nested)], pa)
+
+    rows = [r for df in catalog.tables["sim.e"].appended for r in df.to_pylist()]
+    found = [(r["value"] if nested else r)["usage_since"] for r in rows]
+    assert found == [3.0, 3.5]
+
+
+def test_the_integers_are_copied_not_changed_in_place():
+    """Every sink receives the same record objects, so another sink still reads 15
+    and 3."""
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(catalog=catalog, table_router=lambda d: "sim.t")
+    record, preempted = _telemetry(15), _preempted(3, True)
+
+    egress._write_batch([record, preempted], pa)
+
+    assert type(record["value"]) is int and record["value"] == 15
+    assert type(preempted["value"]["usage_since"]) is int
+
+
+def test_a_fraction_for_an_integer_column_is_a_lost_batch_not_a_truncation(caplog):
+    """A table fixed with an integer column refuses a later 15.5 and logs the batch,
+    in a column, a struct and a list; a float with no fraction still goes in."""
+    catalog = FakeCatalog()
+    pinned = pa.schema(
+        [
+            ("n", pa.int64()),
+            ("s", pa.struct([("a", pa.int64())])),
+            ("l", pa.list_(pa.int64())),
+        ]
+    )
+    egress = IcebergStorageEgress(
+        catalog=catalog, default_table="sim.t", schemas={"sim.t": pinned}
+    )
+    egress._write_batch(
+        [{"stream_type": "event", "n": 15.0, "s": {"a": 2.0}, "l": [3.0]}], pa
+    )
+    table = catalog.tables["sim.t"]
+    assert table.appended[0].to_pylist() == [{"n": 15, "s": {"a": 2}, "l": [3]}]
+
+    for field, bad in [("n", 15.5), ("s", {"a": 2.5}), ("l", [3, 3.5])]:
+        record = {"stream_type": "event", "n": 1, "s": {"a": 1}, "l": [1]}
+        record[field] = bad
+        with caplog.at_level("ERROR"):
+            egress._write_batch([record], pa)
+        assert f"column '{field}'" in caplog.text
+
+    assert len(table.appended) == 1
+    assert caplog.text.count("could not write 1 rows to sim.t") == 3
+
+
+READING_RUNS = {
+    "steps": "{until: 5, steps: true}",
+    "segments": "{until: 5, segments: [{until: 1}, {until: 2.5}, {until: 4}]}",
+}
+READING_ROWS = {"steps": 26, "segments": 3}
+
+
+@pytest.mark.parametrize("sink", ["iceberg", "parquet"])
+@pytest.mark.parametrize("kind", sorted(READING_RUNS))
+def test_run_steps_and_segments_readings_are_written_whole(tmp_path, sink, kind):
+    """A real model with `run.steps` or `run.segments`, with its telemetry routed to
+    one destination of its own: every reading is written, and `now` and `peek` are
+    doubles in the schema, because the first reading is at time 0 or 1 and a later one
+    is at a fraction."""
+    pq = pytest.importorskip("pyarrow.parquet")
+    from desflow import SimulationContext
+
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "containers: {tank: {level: 15, current_cap: 100, max_cap: 100}}\n"
+        "arrivals: {a: {gap: 0.5, max_events: 6, spawn: t}}\n"
+        "tasks: {t: {put: {container: tank, amount: 0.5}, payload: {v: 1}}}\n"
+        f"run: {READING_RUNS[kind]}\n"
+    )
+    context = SimulationContext.from_yaml(path)
+
+    def readings(record):
+        return record.get("stream_type") == "telemetry"
+
+    if sink == "iceberg":
+        properties = {
+            "type": "sql",
+            "uri": f"sqlite:///{tmp_path}/catalog.db",
+            "warehouse": f"file://{tmp_path}/warehouse",
+        }
+        egress = IcebergStorageEgress(
+            catalog={"name": "local", **properties},
+            table_router=lambda d: "sim.telemetry" if readings(d) else None,
+        )
+    else:
+        from desflow.connectors.egress.storage import ParquetStorageEgress
+
+        egress = ParquetStorageEgress(
+            path_router=lambda d: (
+                str(tmp_path / "telemetry" / "t.parquet") if readings(d) else None
+            )
+        )
+    context.add_egress(egress, batch_size=1)
+    context.run()
+
+    if sink == "iceberg":
+        from pyiceberg.catalog import load_catalog
+
+        table = load_catalog("local", **properties).load_table("sim.telemetry")
+        rows = table.scan().to_arrow()
+    else:
+        rows = pq.read_table(str(tmp_path / "telemetry"))
+    value = rows.schema.field("value").type
+    assert {value.field("now").type, value.field("peek").type} == {pa.float64()}
+    assert rows.num_rows == READING_ROWS[kind]
+
+
+HINT = "route them to different tables or paths"
+
+
+def test_the_hint_is_added_only_for_a_mix_of_a_number_and_a_mapping():
+    from desflow.connectors.egress.base import write_error
+
+    statistic = {"stream_type": "telemetry", "value": 3}
+    reading = {"stream_type": "telemetry", "value": {"now": 1.0}}
+    event = {"stream_type": "event", "value": {"a": 1}}
+    empty = {"stream_type": "telemetry", "value": None}
+    struct = pa.schema([("value", pa.struct([("now", pa.float64())]))])
+    number = pa.schema([("value", pa.float64())])
+    bad = pa.ArrowInvalid("bad")
+    # A conversion error, and the rows of one batch hold both kinds
+    mixed = write_error(bad, [statistic, reading])
+    assert mixed.startswith("bad. ") and HINT in mixed
+    assert "an event or a step or segment reading has a mapping" in mixed
+    # An event and a statistic mix as a reading and a statistic do
+    assert HINT in write_error(bad, [statistic, event])
+    # A number against a struct column, and a mapping against a column that is not
+    assert HINT in write_error(bad, [statistic], struct)
+    assert HINT in write_error(bad, [reading], number)
+    assert HINT in write_error(bad, [event], number)
+    # An error that is not a conversion gets none, however mixed the rows are
+    assert write_error(PermissionError("denied"), [statistic, reading]) == "denied"
+    assert write_error(ValueError("lost"), [statistic, reading], struct) == "lost"
+    assert write_error(PermissionError("denied"), [statistic], struct) == "denied"
+    # Rows of one kind that agree with the written column, or with no column yet
+    assert write_error(bad, [reading], struct) == "bad"
+    assert write_error(bad, [statistic], number) == "bad"
+    assert write_error(bad, [statistic]) == "bad"
+    # A null fits any column, so it counts for neither kind
+    assert write_error(bad, [empty, reading]) == "bad"
+    assert write_error(bad, [empty], struct) == "bad"
+    assert write_error(bad, [empty, statistic], number) == "bad"
+    # Rows that carry neither telemetry nor an event
+    assert write_error(bad, [{"value": 3}, {"value": {"a": 1}}], struct) == "bad"
+
+
+def test_a_conversion_error_on_another_field_of_telemetry_gets_no_hint(
+    tmp_path, caplog
+):
+    """Two readings that agree on `value` and differ on another field are refused by
+    Arrow, and the logged error does not blame the mix."""
+    from pyarrow import fs
+
+    from desflow.connectors.egress.storage import ParquetStorageEgress
+
+    egress = ParquetStorageEgress(path_router=lambda d: str(tmp_path / "t.parquet"))
+    egress.filesystem = fs.LocalFileSystem()
+    pq = pytest.importorskip("pyarrow.parquet")
+    first = {"stream_type": "telemetry", "value": {"now": 1.0}, "extra": {"a": 1}}
+    second = {"stream_type": "telemetry", "value": {"now": 2.0}, "extra": 5}
+    with caplog.at_level("ERROR"):
+        egress._write_batch([first], pa, pq)
+        assert caplog.text == ""
+        egress._write_batch([second], pa, pq)
+    assert "could not write 1 rows" in caplog.text
+    assert HINT not in caplog.text
+
+
+@pytest.mark.parametrize("sink", ["iceberg", "parquet"])
+def test_a_statistic_after_a_reading_in_one_destination_is_logged_with_its_cause(
+    tmp_path, caplog, sink
+):
+    """A router that sends both to one table or file loses the statistic's batch, and
+    the logged error says why."""
+    pq = pytest.importorskip("pyarrow.parquet")
+    reading = {
+        "stream_type": "telemetry",
+        "path": "system.simulation.step",
+        "value": {"step": 1, "now": 0.5, "peek": 1.0},
+    }
+    statistic = {"stream_type": "telemetry", "path": "level", "value": 3}
+    if sink == "iceberg":
+        egress = IcebergStorageEgress(
+            catalog={
+                "name": "local",
+                "type": "sql",
+                "uri": f"sqlite:///{tmp_path}/catalog.db",
+                "warehouse": f"file://{tmp_path}/warehouse",
+            },
+            table_router=lambda d: "sim.telemetry",
+        )
+        writes = (egress._write_batch, (pa,))
+    else:
+        from desflow.connectors.egress.storage import ParquetStorageEgress
+
+        egress = ParquetStorageEgress(path_router=lambda d: str(tmp_path / "t.parquet"))
+        writes = (egress._write_batch, (pa, pq))
+    if sink == "parquet":
+        from pyarrow import fs
+
+        egress.filesystem = fs.LocalFileSystem()
+    with caplog.at_level("ERROR"):
+        writes[0]([reading], *writes[1])
+        assert caplog.text == ""
+        writes[0]([statistic], *writes[1])
+    assert "could not write 1 rows" in caplog.text
+    assert HINT in caplog.text
+
+
+def _hint_sink(sink, tmp_path):
+    pq = pytest.importorskip("pyarrow.parquet")
+    if sink == "iceberg":
+        egress = IcebergStorageEgress(
+            catalog={
+                "name": "local",
+                "type": "sql",
+                "uri": f"sqlite:///{tmp_path}/catalog.db",
+                "warehouse": f"file://{tmp_path}/warehouse",
+            },
+            table_router=lambda d: "sim.telemetry",
+        )
+        return egress, (pa,)
+    from pyarrow import fs
+
+    from desflow.connectors.egress.storage import ParquetStorageEgress
+
+    egress = ParquetStorageEgress(path_router=lambda d: str(tmp_path / "t.parquet"))
+    egress.filesystem = fs.LocalFileSystem()
+    return egress, (pa, pq)
+
+
+EVENT_ROW = {"stream_type": "event", "path": "Shop.sold", "value": {"qty": 1}}
+STATISTIC_ROW = {"stream_type": "telemetry", "path": "level", "value": 3}
+
+
+@pytest.mark.parametrize("sink", ["iceberg", "parquet"])
+def test_a_statistic_after_an_event_is_logged_with_a_hint_that_names_the_event(
+    tmp_path, caplog, sink
+):
+    egress, args = _hint_sink(sink, tmp_path)
+    with caplog.at_level("ERROR"):
+        egress._write_batch([EVENT_ROW], *args)
+        assert caplog.text == ""
+        egress._write_batch([STATISTIC_ROW], *args)
+    assert "could not write 1 rows" in caplog.text
+    assert "an event or a step or segment reading has a mapping" in caplog.text
+
+
+def test_an_event_and_a_statistic_in_one_batch_are_logged_with_the_hint(
+    tmp_path, caplog
+):
+    egress, args = _hint_sink("iceberg", tmp_path)
+    with caplog.at_level("ERROR"):
+        egress._write_batch([STATISTIC_ROW, EVENT_ROW], *args)
+    assert "could not write 2 rows" in caplog.text
+    assert HINT in caplog.text
+
+
+def test_a_null_value_with_a_conversion_error_on_another_field_gets_no_hint(
+    tmp_path, caplog
+):
+    egress, args = _hint_sink("parquet", tmp_path)
+    reading = {"stream_type": "telemetry", "value": {"now": 1.0}, "x": [1]}
+    null = {"stream_type": "telemetry", "value": None, "x": 5}
+    with caplog.at_level("ERROR"):
+        egress._write_batch([reading], *args)
+        assert caplog.text == ""
+        egress._write_batch([null], *args)
+    assert "could not write 1 rows" in caplog.text
+    assert HINT not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("path_id", "doubled"),
+    [
+        ("system.simulation.step", True),
+        ("system.simulation.segment", True),
+        ("Shop.my_metric", False),
+    ],
+)
+def test_only_a_step_or_segment_reading_has_its_times_as_doubles(path_id, doubled):
+    from desflow.connectors.egress.base import as_doubles
+
+    record = {
+        "stream_type": "telemetry",
+        "path_id": path_id,
+        "value": {"other": 1, "now": 3, "peek": 4},
+    }
+    value = as_doubles(record)["value"]
+    assert value == (
+        {"other": 1, "now": 3.0, "peek": 4.0} if doubled else record["value"]
+    )
+    assert type(value["now"]) is (float if doubled else int)
+    assert type(value["other"]) is int

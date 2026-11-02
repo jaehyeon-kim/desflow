@@ -569,6 +569,51 @@ def test_an_integer_column_widens_to_float(tmp_path: Path):
     assert sorted(values) == [1.0, 1.5]
 
 
+@pytest.mark.parametrize(
+    "batches",
+    [[[15], [15.5], [16.25]], [[15, 16, 17], [15.5, 16.25]]],
+    ids=["batches of one row", "batches of several rows"],
+)
+def test_parquet_telemetry_value_is_a_double_in_every_file(tmp_path: Path, batches):
+    """An integer statistic first does not write an int64 file: the folder reads as
+    one table whatever the order of its files, and keeps a later fraction."""
+    egress = ParquetStorageEgress(path_router=lambda data: str(tmp_path / "t.parquet"))
+    egress.filesystem = fs.LocalFileSystem()
+    record = {"stream_type": "telemetry", "path_id": "tank.level"}
+
+    for batch in batches:
+        rows = [dict(record, value=v) for v in batch]
+        assert egress._write_batch(rows, pa, pq) == 1
+
+    files = list(tmp_path.glob("t_*.parquet"))
+    assert len(files) == len(batches)
+    assert {pq.read_schema(f).field("value").type for f in files} == {pa.float64()}
+    values = pq.read_table(tmp_path).column("value").to_pylist()
+    assert sorted(values) == sorted(float(v) for b in batches for v in b)
+
+
+def test_parquet_usage_since_is_a_double_in_every_file(tmp_path: Path):
+    """The time a preempted unit was granted is an integer when the clock is: the
+    first file is a double too, so the folder reads as one table."""
+    egress = ParquetStorageEgress(default_path=str(tmp_path / "e.parquet"))
+    egress.filesystem = fs.LocalFileSystem()
+    row = {"stream_type": "event", "key": "a-1", "task": "t", "value": {}}
+    status = {"status": "preempted", "resource": "m"}
+
+    for since in (3, 3.5):
+        record = dict(row, value=dict(status, usage_since=since))
+        assert egress._write_batch([record], pa, pq) == 1
+
+    files = list(tmp_path.glob("e_*.parquet"))
+    assert {pq.read_schema(f).field("usage_since").type for f in files} == {
+        pa.float64()
+    }
+    assert sorted(pq.read_table(tmp_path).column("usage_since").to_pylist()) == [
+        3.0,
+        3.5,
+    ]
+
+
 def test_a_file_sink_without_pyarrow_says_so_at_error(tmp_path: Path, caplog):
     """Without pyarrow, JsonlStorageEgress stops at once; the run logs why at ERROR,
     with the install hint, rather than only that the queues stopped draining."""
