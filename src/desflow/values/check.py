@@ -64,6 +64,8 @@ TASK_VALUE_PLACES: Tuple[Tuple[str, bool], ...] = (
     ("interrupt", True),
     ("resume", True),
     ("on", True),
+    ("listen", False),
+    ("fail_reason", True),
     ("wait", False),
     ("open", False),
     ("service_time", True),
@@ -633,7 +635,7 @@ def task_value_problems(
     Args:
         vars_once, vars, on_start, finish_vars: The task's keys of those names.
         others: The values read after the vars, by the key they are written under:
-            `payload`, `set`, `interrupt`, `on`.
+            `payload`, `set`, `interrupt`, `on`, `listen` and `fail_reason`.
         wait_values: The values read before the vars have a value, by their path
             inside the task: a wait timeout's delay and value, a patience and a key.
         service_time: The task's `service_time` when it is a generator. It may read

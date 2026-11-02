@@ -1,0 +1,6 @@
+# case ST-X04: the same with the callback defusing it.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+signals: {ev: {once: true, defused: true}}
+arrivals: {a: {initial: 1, spawn: fail_it}}
+tasks: {fail_it: {payload: {event_type: fail}, on: [{fire: {signal: ev, fail: true, value: ""}}]}}
+run: {until: 1, on_unhandled_failure: stop}

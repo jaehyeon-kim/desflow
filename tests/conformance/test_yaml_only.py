@@ -30,11 +30,13 @@ from tests.conformance.yaml_only.programs import (
     batch6,
     batch8,
     batch9,
+    batch11,
     cv_032_034_steps,
     cv_040_segments,
     known8,
     known9,
     known10,
+    known11,
     v1_service_time,
     v2_timeout,
     v3_values,
@@ -3137,3 +3139,542 @@ def test_trace_publishes_each_event_the_run_processes_as_simpy_steps_it(tmp_path
     assert [(t, p, c) for t, p, c in produced if c != "Event"] == [
         (round(t, 3), p, c) for t, p, c in wanted if c != "Event"
     ]
+
+
+# ------------------------------------------------ Batch 11: computed sets and events
+
+
+def _rows_i(tmp_path, n, name="a", at=0):
+    """A replay of `n` entities at one instant, with the attribute `i` from 0."""
+    _csv(tmp_path, name, ["time", "i"], [(at, i) for i in range(n)])
+
+
+Y1_ROUND_ROBIN = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {desk: {family: true, members: 3, current_cap: 1}}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: job}
+tasks:
+  job:
+    resource: {of: desk, key: "attr.i % 3"}
+    service_time: 2
+    payload: {e: done, x: {gen: expr, expr: "[users.desk[0], queue.desk[0]]"}}
+run: {until: 500}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y1_members_made_from_a_number_serve_in_turn(tmp_path, n):
+    """Y1 `members: 3`: three resources of one unit exist when the run starts, and the
+    entity `i` uses the one at `i % 3`, as a list of `Resource` objects does."""
+    _rows_i(tmp_path, n)
+    _same(tmp_path, Y1_ROUND_ROBIN, batch11.round_robin(n))
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y1_a_member_is_made_at_its_first_use_with_the_capacity_of_its_creator(
+    tmp_path, n
+):
+    """Y1: no member exists at the start. The first entity of a key makes the member with
+    a capacity read from its attributes, a second user of the key finds that capacity,
+    and a read of a key that does not exist gives 0 and makes nothing."""
+    _rows_i(tmp_path, n)
+    text = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {desk: {family: true, current_cap: "attr.i + 1"}}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: job}
+tasks:
+  job:
+    resource: {of: desk, key: "attr.i % 2"}
+    service_time: 2
+    payload: {e: done, x: {gen: expr, expr: "[users.desk[attr.i % 2], queue.desk[attr.i % 2], users.desk[7], members(desk)]"}}
+run: {until: 500}
+"""
+    _same(tmp_path, text, batch11.per_entity(n))
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y1_a_store_family_is_made_at_its_first_put(tmp_path, n):
+    """Y1 stores: a store for each key, made at time 3, when the first entity puts."""
+    _rows_i(tmp_path, n)
+    text = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+stores: {q: {family: true}}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: wait3}
+tasks:
+  wait3: {wait: {timeout: 3}, payload: {e: begin}, next: put_it}
+  put_it: {put: {store: {of: q, key: "attr.i % 2"}, item: {gen: expr, expr: "attr.i"}}, payload: {e: put}, next: wait10}
+  wait10: {wait: {timeout: 10}, payload: {e: waited}, next: get_it}
+  get_it: {get: {store: {of: q, key: "attr.i % 2"}}, payload: {e: got, x: {gen: expr, expr: "[item, sorted(members(q))]"}}}
+run: {until: 500}
+"""
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    found = [m for m in _trace(outcome.records) if m[2] == "got"]
+    assert found == _expect(batch11.stores(n))
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y1_a_container_family_starts_each_member_at_its_level(tmp_path, n):
+    """Y1 containers: the level is text, read once when the member is made."""
+    _rows_i(tmp_path, n)
+    text = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+containers: {c: {family: true, level: "10 * (attr.i + 1)", current_cap: 1000}}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: take}
+tasks:
+  take: {get: {container: {of: c, key: "attr.i % 2"}, amount: 4}, payload: {e: took, x: {gen: expr, expr: "[level.c[attr.i % 2], members(c)]"}}}
+run: {until: 500}
+"""
+    _same(tmp_path, text, batch11.containers(n))
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y1_a_signal_family_wakes_the_waiter_of_its_key(tmp_path, n):
+    """Y1 signals: a waiter resumes when the signal of its key fires, and a flow that
+    waits after the firing resumes at once, as a triggered event does."""
+    _rows_i(tmp_path, n)
+    text = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+signals: {reply: {family: true, once: true}}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: wait_for}
+  f: {replay: {path: f.csv}, spawn: fire}
+  l: {replay: {path: l.csv}, spawn: later}
+tasks:
+  wait_for: {wait: {signal: {of: reply, key: "attr.i"}}, payload: {e: heard, x: {gen: expr, expr: "wait.reply.value.v"}}}
+  fire: {wait: {timeout: 1}, payload: {v: {gen: expr, expr: "attr.i"}}, signal: {of: reply, key: "attr.i"}}
+  later: {wait: {timeout: 2}, payload: {e: late_start}, next: late_wait}
+  late_wait: {wait: {signal: {of: reply, key: "attr.i"}}, payload: {e: late, x: {gen: expr, expr: "wait.reply.value.v"}}}
+run: {until: 500}
+"""
+    _rows_i(tmp_path, n, "f")
+    _rows_i(tmp_path, n, "l")
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    got = sorted(
+        (m[0], m[2], m[3]) for m in _trace(outcome.records) if m[2] in ("heard", "late")
+    )
+    expected = sorted((t, label, v) for t, _, label, v in _expect(batch11.signals(n)))
+    assert got == expected
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y2_the_member_with_the_lowest_value_is_taken_at_the_step(tmp_path, n):
+    """Y2 `lowest`: the pick and the request are one step, so two entities at one instant
+    pick in turn and the second sees the first's request."""
+    _rows_i(tmp_path, n)
+    text = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {desk: {family: true, members: 2, current_cap: 1}}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: job}
+tasks:
+  job:
+    resource: {of: desk, lowest: "member.queue + member.users"}
+    service_time: 2
+    payload: {e: done, x: {gen: expr, expr: "0 if process.key in [h.entity for h in held(desk[0])] else 1"}}
+run: {until: 500}
+"""
+    _same(tmp_path, text, batch11.lowest(n))
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y2_a_list_of_names_takes_the_one_the_key_gives(tmp_path, n):
+    """Y2 `of: [left, right]`: `key` gives one of the declared names."""
+    _rows_i(tmp_path, n)
+    text = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {left: {current_cap: 1}, right: {current_cap: 1}}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: job}
+tasks:
+  job:
+    resource: {of: [left, right], key: "['left', 'right'][attr.i % 2]"}
+    service_time: 2
+    payload: {e: done, x: {gen: expr, expr: "['left', 'right'][0 if process.key in [h.entity for h in held(left)] else 1]"}}
+run: {until: 500}
+"""
+    _same(tmp_path, text, batch11.by_name(n))
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize(
+    "delays,group,wait_group",
+    [
+        ([3, 1, 2], "all", "all"),
+        ([3, 1, 2], "any", "any"),
+        ([1, 1, 2], "any", "any"),
+        ([], "all", "all"),
+        ([], "any", "any"),
+        ([3, 1, 2], "at_least_2", "{at_least: 2}"),
+        ([], "at_least_2", "{at_least: 2}"),
+    ],
+)
+def test_y3_each_timeout_of_a_list_under_every_group(
+    tmp_path, n, delays, group, wait_group
+):
+    """Y3: one timeout for each element of a list, under `all`, `any` and `at_least`, the
+    ties of two timeouts at one instant, and an empty list that is done at once."""
+    _rows_i(tmp_path, n)
+    text = f"""
+simulation: {{sim_id: S, factor: 0, random_seed: 42}}
+arrivals:
+  a: {{replay: {{path: a.csv}}, spawn: job}}
+tasks:
+  job:
+    wait: {{each: {delays}, group: {wait_group}, branch: {{timeout: {{after: "each.value", value: {{gen: expr, expr: "each.value * 10"}}}}}}}}
+    payload: {{e: done, x: {{gen: expr, expr: "[wait.each.values, wait.each.flags]"}}}}
+run: {{until: 500}}
+"""
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    assert _trace(outcome.records) == _expect(batch11.each_timeouts(n, delays, group))
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y3_a_when_group_is_done_when_its_expression_holds(tmp_path, n):
+    """Y3 `group: {when: ...}`: the wait is done when `done_count >= 2` holds, which for
+    three timeouts is what `at_least: 2` gives."""
+    _rows_i(tmp_path, n)
+    text = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: job}
+tasks:
+  job:
+    wait: {each: [3, 1, 2], group: {when: "done_count >= 2"}, branch: {timeout: {after: "each.value", value: {gen: expr, expr: "each.value * 10"}}}}
+    payload: {e: done, x: {gen: expr, expr: "[wait.each.values, wait.each.flags]"}}
+run: {until: 500}
+"""
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    assert _trace(outcome.records) == _expect(
+        batch11.each_timeouts(n, [3, 1, 2], "at_least_2")
+    )
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("count", [0, 1, 3])
+def test_y3_each_child_flow_of_a_number_returns_its_value(tmp_path, n, count):
+    """Y3: a child flow for each index of a number, in order, each waited for under
+    `all`; the values are in element order, with the arguments `each.index` gives."""
+    _rows_i(tmp_path, n)
+    text = f"""
+simulation: {{sim_id: S, factor: 0, random_seed: 42}}
+arrivals:
+  a: {{replay: {{path: a.csv}}, spawn: job}}
+tasks:
+  job:
+    wait: {{each: {count}, branch: {{task: child, args: {{j: {{gen: expr, expr: each.index}}}}}}}}
+    payload: {{e: done, x: {{gen: expr, expr: "wait.each.values"}}}}
+  child:
+    wait: {{timeout: "{count} - arg.j"}}
+    payload: {{r: {{gen: expr, expr: "arg.j * 2"}}}}
+run: {{until: 500}}
+"""
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    found = _trace(outcome.records)
+    expected = _expect(batch11.each_children(n, count))
+    assert [(m[0], m[1], m[2]) for m in found] == [(t, k, e) for t, k, e, _ in expected]
+    assert [[v["r"] for v in m[3]] for m in found] == [x for _, _, _, x in expected]
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y3_each_request_of_a_computed_number_keeps_the_first_unit(tmp_path, n):
+    """Y3: a request for each of three resources under `any`: the first granted is
+    kept to the task's end, and the others leave their queues, as in SimPy."""
+    _rows_i(tmp_path, n)
+    text = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {r: {family: true, members: 3, current_cap: 1}}
+arrivals:
+  h: {replay: {path: h.csv}, spawn: hold}
+  a: {replay: {path: a.csv}, spawn: wait_half}
+tasks:
+  hold: {resource: {of: r, key: "attr.i"}, service_time: "3 - attr.i", payload: {e: held}}
+  wait_half: {wait: {timeout: 0.5}, payload: {e: half}, next: job}
+  job:
+    wait: {each: 3, group: any, branch: {request: {of: r, key: each.index}}}
+    payload: {e: done, x: {gen: expr, expr: "[wait.each.flags, [queue.r[0], queue.r[1], queue.r[2]]]"}}
+run: {until: 500}
+"""
+    _csv(tmp_path, "h", ["time", "i"], [(0, j) for j in range(3)])
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    found = [m for m in _trace(outcome.records) if m[2] == "done"]
+    expected = _expect(batch11.each_requests(n, 3))
+    assert [(m[0], m[1], m[3]) for m in found] == [(t, k, x) for t, k, _, x in expected]
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y4_an_opened_each_of_requests_is_named_one_by_one_by_its_index(tmp_path, n):
+    """Y4 with Y3's `each`: a request for each of three members is opened under one name,
+    a wait names the last by `index`, `cancel` of the name cancels each in order and
+    leaves the granted one, `handle.pool.flags` reads which are done, and `release`
+    names one unit by `index`."""
+    _rows_i(tmp_path, n)
+    text = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {r: {family: true, members: 3, current_cap: 1}}
+arrivals:
+  h: {replay: {path: h.csv}, spawn: hold}
+  a: {replay: {path: a.csv}, spawn: begin}
+tasks:
+  hold: {resource: {of: r, key: "attr.i"}, service_time: "3 - attr.i", payload: {e: held}}
+  begin: {wait: {timeout: 0.5}, payload: {e: half}, next: opener}
+  opener: {open: {pool: {each: 3, branch: {request: {of: r, key: each.index}}}}, payload: {e: opened}, next: waiter}
+  waiter: {wait: {handle: pool, index: 2}, payload: {e: got}, next: closer}
+  closer:
+    cancel: {handle: pool}
+    payload: {e: done, x: {gen: expr, expr: "[handle.pool.flags, [queue.r[0], queue.r[1], queue.r[2]]]"}}
+    release: {handle: pool, index: 2}
+run: {until: 500}
+"""
+    _csv(tmp_path, "h", ["time", "i"], [(0, j) for j in range(3)])
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    found = [m for m in _trace(outcome.records) if m[2] == "done"]
+    expected = _expect(batch11.open_requests(n))
+    assert [(m[0], m[1], m[3]) for m in found] == [(t, k, x) for t, k, _, x in expected]
+
+
+# --------------------------------------------- Batch 11: the known cases that run now
+
+KNOWN11: Dict[str, Tuple[str, str, Dict[str, str]]] = {
+    # row: (document of known11/, program, files of the document)
+    "DS-Y1": ("ds_y1", "DS_Y1", {}),
+    "DS-Y2": ("ds_y2", "DS_Y2", {}),
+    "DS-Y3": ("ds_y3", "DS_Y3", {}),
+    "ST-U07": ("st_u07", "ST_U07", {}),
+    "ST-U08": ("st_u08", "ST_U08", {}),
+    "ST-U09": ("st_u09", "ST_U09", {}),
+    "P64": ("p64", "P64", {}),
+    "CV-074": ("cv_074", "CV_074", {}),
+    "CV-083": ("cv_083", "CV_083", {}),
+    "EX-7b": ("ex_7b", "EX_7b", {}),
+    "EX-4": ("ex_4", "EX_4", {}),
+    "GD-V2": ("gd_v2", "GD_V2", {}),
+    "ST-C06": ("st_c06", "ST_C06", {}),
+    "ST-C09": ("st_c09", "ST_C09", {}),
+    "ST-U03": ("st_u03", "ST_U03", {}),
+    "ST-V02": ("st_v02", "ST_V02", {}),
+    "ST-X03": ("st_x03", "ST_X03", {}),
+    "ST-X04": ("st_x04", "ST_X04", {}),
+    "ST-X05": ("st_x05", "ST_X05", {}),
+    "P78": ("p78", "P78", {}),
+    "DS-M3": ("ds_m3", "DS_M3", {}),
+    "DS-Y9": ("ds_y9", "DS_Y9", {}),
+    "DS-Y10": ("ds_y10", "DS_Y10", {}),
+    "DS-Y11": ("ds_y11", "DS_Y11", {}),
+    "CV-014": ("cv_014", "CV_014", {}),
+    "CV-112": ("cv_112", "CV_112", {}),
+}
+KNOWN11_SHARED = {
+    # row: the row whose document and program it runs in, the same form with the same
+    # assertions
+    "CV-121": "DS-Y1",
+    "CV-122": "DS-Y1",
+    "CV-125": "DS-Y1",
+    "CV-129": "DS-Y2",
+    "CV-022": "DS-Y3",
+    "CV-118": "DS-Y3",
+    "CV-120": "DS-Y3",
+    "ST-C07": "ST-C06",
+    "ST-C08": "ST-C06",
+    "CV-006": "DS-Y9",
+    "CV-009": "DS-Y9",
+    "CV-010": "DS-Y9",
+    "CV-012": "DS-Y11",
+    "CV-013": "DS-Y11",
+    "CV-031": "DS-Y10",
+}
+# row: the test that runs it, where it is not a document of known11/ with a SimPy program
+KNOWN11_OTHER = {
+    "CV-124": "tests/conformance/test_yaml_only.py::test_y1_a_member_is_made_at_its_first_use_with_the_capacity_of_its_creator",
+    "CV-126": "tests/conformance/test_yaml_only.py::test_y1_a_member_is_made_at_its_first_use_with_the_capacity_of_its_creator",
+    "CV-134": "tests/conformance/test_yaml_only.py::test_y4_an_opened_each_of_requests_is_named_one_by_one_by_its_index",
+    "BT-AQ6": "tests/benchtop/test_each.py::test_each_hour_has_seven_forecasts_and_a_reading",
+    "BT-AQ7": "tests/benchtop/test_each.py::test_each_hour_has_seven_forecasts_and_a_reading",
+    "BT-LD9": "tests/benchtop/test_each.py::test_an_order_has_one_row_for_each_item_and_each_item_is_a_different_product",
+    "BT-LD10": "tests/benchtop/test_each.py::test_an_order_has_one_row_for_each_item_and_each_item_is_a_different_product",
+    "BT-LD12": "tests/benchtop/test_each.py::test_an_order_no_picker_takes_in_time_is_cancelled_with_each_of_its_items",
+    "BT-WL4": "tests/benchtop/test_each.py::test_a_request_is_made_for_each_serving_service",
+    "DX-1": "tests/unit/test_families.py::test_an_order_of_one_to_five_items_with_a_total_needs_no_python",
+}
+# The 50 rows of the Batch 11 design, and BT-LD12 (a part-1 row outside the 50). The rows
+# from GD-V2 on use fire.fail, defused, fail_reason, fire.priority, listen or `when`.
+BATCH_11_ROWS = (
+    "EX-4 EX-7b ST-U07 ST-U08 ST-U09 P64 DS-Y1 DS-Y2 DS-Y3 CV-022 CV-074 CV-083 CV-118 "
+    "CV-120 CV-121 CV-122 CV-124 CV-125 CV-126 CV-129 CV-134 BT-AQ6 BT-AQ7 BT-LD9 "
+    "BT-LD10 BT-WL4 DX-1 BT-LD12 GD-V2 ST-C06 ST-C07 ST-C08 ST-C09 ST-U03 ST-V02 "
+    "ST-X03 ST-X04 ST-X05 P78 DS-M3 DS-Y9 DS-Y10 DS-Y11 CV-006 CV-009 CV-010 CV-012 "
+    "CV-013 CV-014 CV-031 CV-112"
+).split()
+
+
+@pytest.mark.parametrize("row", sorted(KNOWN11))
+def test_known_case_of_batch_11_runs_as_its_simpy_program(tmp_path, row):
+    """Each known case of Batch 11 that its keys allow runs from its blueprint (no
+    `!python`) and gives the records of the SimPy program written from the original:
+    the same times, keys, tasks and payloads."""
+    outcome, error = _known_compare(known11, KNOWN11, "known11", tmp_path, row)
+    assert (outcome.error is None) == (error is None), (outcome.error, error)
+
+
+@pytest.mark.parametrize("size", [1, 3, 10])
+@pytest.mark.parametrize("row", sorted(KNOWN11))
+def test_known_case_of_batch_11_runs_at_other_sizes(tmp_path, row, size):
+    """As the base run, with `size` entities in the first arrival that starts a number
+    of them at once, in the document and in the program (the rows whose program takes
+    a size)."""
+    if not _known_sized(known11, KNOWN11, row):
+        pytest.skip("the program has no arrival with `initial`")
+    _known_compare(known11, KNOWN11, "known11", tmp_path, row, size)
+
+
+Y9_WAITERS = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+signals: {ev: {once: true}}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: w}
+  d: {initial: 1, spawn: drive}
+tasks:
+  w: {wait: {signal: ev}, on_fail: caught, payload: {e: fine}}
+  caught: {payload: {e: caught, x: {gen: expr, expr: "upstream.reason"}}}
+  drive: {wait: {timeout: 1}, payload: null, on: [{fire: {signal: ev, fail: true, value: boom}}]}
+run: {until: 500}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y9_a_failed_signal_fails_each_waiter_with_its_reason(tmp_path, n):
+    """Y9 `fire.fail`: the waiters of a one-shot signal fail with the reason, and each
+    catches it with `on_fail`, as the waiters of a failed event do."""
+    _rows_i(tmp_path, n)
+    outcome = run_yaml_text(tmp_path, Y9_WAITERS, {})
+    assert outcome.error is None, repr(outcome.error)
+    got = [m for m in _trace(outcome.records) if m[2] in ("caught", "fine")]
+    assert got == _expect(batch11.y9_waiters_fail(n))
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y9_a_computed_fail_reason_is_read_when_the_task_fails(tmp_path, n):
+    """Y9 `fail_reason` as a generator: it is read for each failure, with the entity's
+    attributes, so each entity's reason is its own."""
+    _rows_i(tmp_path, n)
+    text = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: w}
+tasks:
+  w: {wait: {timeout: 1}, fail: "True", fail_reason: {gen: expr, expr: "'bad-' + str(attr.i)"}, on_fail: caught, payload: {e: unreachable}}
+  caught: {payload: {e: caught, x: {gen: expr, expr: "upstream.reason"}}}
+run: {until: 500}
+"""
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    got = [m for m in _trace(outcome.records) if m[2] == "caught"]
+    assert got == _expect(batch11.y9_computed_reason(n))
+
+
+def test_y9_a_defused_fire_ends_the_run_with_no_error_where_a_plain_one_stops_it(
+    tmp_path,
+):
+    """Y9 `fire.defused`: a one-shot signal's failure with no waiter raises from `run()`
+    as SimPy's failed event does (the plain case is ST-X03, and the signal's own
+    `defused` is ST-X04), and `defused: true` on the firing ends the run with no error."""
+    text = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+signals: {ev: {once: true}}
+arrivals:
+  d: {initial: 1, spawn: drive}
+tasks:
+  drive: {wait: {timeout: 1}, payload: null, on: [{fire: {signal: ev, fail: true, value: boom, defused: true}}]}
+run: {until: 500}
+"""
+    assert batch11.y9_unhandled(True)[1] is None
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    assert "boom" in str(batch11.y9_unhandled(False)[1])
+    plain = text.replace(", defused: true", "")
+    outcome = run_yaml_text(tmp_path, plain, {})
+    assert outcome.error is not None and "boom" in str(outcome.error)
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y10_events_at_one_time_run_by_priority_then_by_creation(tmp_path, n):
+    """Y10 `fire.priority`: three signals fired at 1 with the priorities 2, 1 (also the
+    default) and 0 wake their waiters in the order 0, 1, 2, whatever order they were
+    fired in, as `env.schedule(event, priority)` orders them."""
+    for name in "abc":
+        _rows_i(tmp_path, n, name)
+    text = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+signals: {a: {once: true}, b: {once: true}, c: {once: true}}
+arrivals:
+  wa: {replay: {path: a.csv}, spawn: hear_a}
+  wb: {replay: {path: b.csv}, spawn: hear_b}
+  wc: {replay: {path: c.csv}, spawn: hear_c}
+  d: {initial: 1, spawn: drive}
+tasks:
+  hear_a: {wait: {signal: a}, payload: {e: heard}}
+  hear_b: {wait: {signal: b}, payload: {e: heard}}
+  hear_c: {wait: {signal: c}, payload: {e: heard}}
+  drive:
+    wait: {timeout: 1}
+    payload: null
+    on: [{fire: {signal: a, priority: 2}}, {fire: {signal: b, priority: 1}}, {fire: {signal: c, priority: 0}}]
+run: {until: 500}
+"""
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    assert _trace(outcome.records) == _expect(batch11.y10_priorities(n))
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y11_a_listen_runs_when_the_event_fires_and_its_when_decides_each_entry(
+    tmp_path, n
+):
+    """Y11 `listen` and `when`: each entity attaches a listener when its task starts,
+    before its own wait; the listener runs in attach order with the waiters, and an
+    entry whose `when` is false does nothing."""
+    _rows_i(tmp_path, n)
+    text = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+variables: {count: 0}
+signals: {go: {once: true}}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: l}
+  d: {initial: 1, spawn: drive}
+tasks:
+  l:
+    listen: {signal: go, on: [{when: "attr.i % 2 == 0", path: S.variables.count, value: {gen: expr, expr: "registry['S.variables.count'] + 1"}}]}
+    wait: {signal: go}
+    payload: {e: woke, x: {gen: expr, expr: "registry['S.variables.count']"}}
+    next: report
+  report: {wait: {timeout: 1}, payload: {e: report, x: {gen: expr, expr: "registry['S.variables.count']"}}}
+  drive: {wait: {timeout: 2}, payload: null, on: [{fire: {signal: go}}]}
+run: {until: 500}
+"""
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    assert _trace(outcome.records) == _expect(batch11.y11_listen(n))
+
+
+def test_every_known_case_of_batch_11_runs_or_shares_or_has_its_own_test():
+    """The 51 rows (the 50 of the design, and BT-LD12) are each a case, share the document
+    of a case that has the same form, or run in a test of their own, and every such test
+    is in its file."""
+    assert len(BATCH_11_ROWS) == 51
+    assert set(KNOWN11_SHARED.values()) <= set(KNOWN11)
+    sets = [set(KNOWN11), set(KNOWN11_SHARED), set(KNOWN11_OTHER)]
+    assert sum(len(s) for s in sets) == len(set().union(*sets))
+    assert sorted(set().union(*sets)) == sorted(BATCH_11_ROWS)
+    for test in KNOWN11_OTHER.values():
+        path, _, name = test.partition("::")
+        assert f"def {name}(" in (Path(__file__).parents[2] / path).read_text()

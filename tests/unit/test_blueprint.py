@@ -2738,3 +2738,369 @@ def test_readings_match_the_docs_packers_report(tmp_path):
         )
     assert streams[0] == streams[1]
     assert any(r.get("path_id") == "Shop.waiting_per_packer" for r in streams[0])
+
+
+FAMILIES = """\
+simulation: {sim_id: S, factor: 0, random_seed: 1}
+resources:
+  desk: {family: true, members: 2}
+  plain: {current_cap: 1}
+stores: {q: {family: true}}
+signals: {reply: {family: true}}
+arrivals:
+  a: {dist: constant, value: 1, spawn: t, max_events: 1}
+tasks:
+  t:
+    resource: {of: desk, key: "1"}
+    service_time: 1
+    payload: {e: x}
+run: {until: 10}
+"""
+
+
+@pytest.mark.parametrize(
+    "old,new,fragment",
+    [
+        (
+            'resource: {of: desk, key: "1"}',
+            "resource: desk",
+            "names the family 'desk'",
+        ),
+        (
+            'resource: {of: desk, key: "1"}',
+            'resource: {of: plain, key: "1"}',
+            "'plain', which is not a family",
+        ),
+        (
+            'resource: {of: desk, key: "1"}',
+            'resource: {of: nope, key: "1"}',
+            "uses resource 'nope'",
+        ),
+        (
+            'resource: {of: desk, key: "1"}',
+            "resource: {of: desk}",
+            "key or lowest",
+        ),
+        (
+            'resource: {of: desk, key: "1"}',
+            'resource: {of: desk, key: "1", lowest: "member.users"}',
+            "key or lowest",
+        ),
+        (
+            'resource: {of: desk, key: "1"}',
+            "resource: {of: [plain, desk], key: \"['plain', 'x'][0]\"}",
+            "lists 'desk', which is a family",
+        ),
+        (
+            'resource: {of: desk, key: "1"}',
+            "resource: {of: [plain, nope], key: \"['plain', 'x'][0]\"}",
+            "lists 'nope', which is not a declared resource",
+        ),
+        (
+            'resource: {of: desk, key: "1"}',
+            'resource: {of: desk, key: "1"}\n    keep: [desk]',
+            "keep",
+        ),
+        (
+            "plain: {current_cap: 1}",
+            "plain: {current_cap: 1, members: 2}",
+            "members needs family: true",
+        ),
+        (
+            "plain: {current_cap: 1}",
+            'plain: {current_cap: "attr.i"}',
+            "text in a family",
+        ),
+        (
+            "desk: {family: true, members: 2}",
+            'desk: {family: true, members: 2, current_cap: "attr.i"}',
+            "family with members reads the run",
+        ),
+        (
+            "desk: {family: true, members: 2}",
+            'desk: {family: true, members: 2}\n  "desk[3]": {}',
+            "starts with the name of the family 'desk' and a bracket",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x, x: {gen: expr, expr: "users.desk"}}',
+            "reads users.desk of a family",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x, x: {gen: expr, expr: "users.plain[0]"}}',
+            "'plain' is not a family",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    put: {store: q, item: 1}",
+            "names the family 'q'",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    signal: reply",
+            "names the family 'reply'",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    wait: {each: {gen: lookup, task: nosuch, path: n}, branch: {timeout: 1}}",
+            "tasks.t.wait.each.task: lookup names task 'nosuch'",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    open: {p: {each: {gen: lookup, task: nosuch, path: n}, branch: {timeout: 1}}}",
+            "tasks.t.open.p.each.task: lookup names task 'nosuch'",
+        ),
+        (
+            "desk: {family: true, members: 2}",
+            "desk: {family: true, members: {gen: lookup, task: nosuch, path: n}}",
+            "resources.desk.members.task: lookup names task 'nosuch'",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x}\n    release: {of: nope, key: "1"}',
+            "nope",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    wait: {each: 2, group: {at_least: 0}, branch: {timeout: 1}}",
+            "at_least",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    wait: {each: 2, branch: {any: {a: {timeout: 1}}}}",
+            "an each branch makes one event for each element, so it is one of signal, task, timeout, request, get, put, handle, got an any branch",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    open: {p: {request: plain}}\n    cancel: {handle: p, index: 0}",
+            "an index needs an each group",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    open: {p: {each: 2, branch: {timeout: 1}}}\n    cancel: p",
+            "'p' is opened as an each timeout in task 't', and cancel needs",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    wait: {each: 2.0, branch: {timeout: 1}}",
+            "each is a whole number of 0 or more, got 2.0",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    subscribe: {each: 2, branch: {timeout: 1}}",
+            "subscribe does not take an each branch",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x}\n    wait: {each: 2, group: {when: "wait.each.flags[1]"}, branch: {timeout: 1}}',
+            "the when of an each group reads done_count",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    seize: {resource: {of: desk, key: each.index}}",
+            "are read in the branch of a wait or an open with each",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x}\n    wait: {each: 2, branch: {timeout: 1}}\n    on: [{when: "each.index == 0", path: S.variables.v, value: 1}]',
+            "each.index is read only in the branch of an each",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x}\n    wait: {each: 2, branch: {timeout: 1}}\n    fail: "1 > 5"\n    fail_reason: {gen: expr, expr: "each.index"}',
+            "each.index is read only in the branch of an each",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x}\n    wait: {each: 2, group: {when: "done_count >= 1 and each.index == 0"}, branch: {timeout: 1}}',
+            "each.index is read only in the branch of an each",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x}\n    wait: {each: 2, group: {at_least: "each.index + 1"}, branch: {timeout: 1}}',
+            "each.index is read only in the branch of an each",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    wait: {each: 2, branch: {timeout: 1}}\n    listen: {signal: {of: reply, key: each.index}, on: []}",
+            "each.index is read only in the branch of an each",
+        ),
+    ],
+)
+def test_family_refusals_name_the_place(tmp_path, old, new, fragment):
+    """Each wrong use of a family, a reference or `each` is refused when the file loads,
+    and the message names the task and the key."""
+    text = FAMILIES.replace(old, new)
+    path = write(tmp_path, text)
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    assert fragment in str(error.value), str(error.value)
+
+
+EVENTS = FAMILIES.replace(
+    "signals: {reply: {family: true}}", "signals: {reply: {once: true}}"
+)
+
+
+@pytest.mark.parametrize(
+    "extra,fragment",
+    [
+        ("listen: {on: []}", "tasks.t.listen: Value error, listen takes exactly one"),
+        (
+            "listen: {signal: reply, handle: h, on: []}",
+            "tasks.t.listen: Value error, listen takes exactly one",
+        ),
+        (
+            "listen: {signal: reply, index: 0, on: []}",
+            "tasks.t.listen: Value error, listen index picks an element of a handle",
+        ),
+        (
+            "listen: {signal: nosuch, on: [{fire: {signal: reply}}]}",
+            "task 't' listens to signal 'nosuch', which is not defined under signals",
+        ),
+        (
+            "listen: {handle: nosuch, on: [{fire: {signal: reply}}]}",
+            "task 't': listen names 'nosuch', which no task opens",
+        ),
+        (
+            "on: [{when: 'attr.i +', fire: {signal: reply}}]",
+            "tasks.t.on.0.when: Value error, 'attr.i +' is not a valid expression",
+        ),
+        (
+            "on: [{fire: {signal: reply, fail: true, from: x}}]",
+            "tasks.t.on.0.fire: Value error, fail: true fails the signal with the value",
+        ),
+        (
+            "on: [{fire: {signal: reply, defused: true}}]",
+            "tasks.t.on.0.fire: Value error, defused is for a failure, so it needs fail: true",
+        ),
+        (
+            "on: [{fire: {signal: reply, urgent: true, priority: 0}}]",
+            "tasks.t.on.0.fire: Value error, urgent is priority 0",
+        ),
+        (
+            "on: [{fire: {signal: reply, priority: 0.5}}]",
+            "tasks.t.on.0.fire.priority: Input should be a valid integer",
+        ),
+        (
+            "on: [{fire: {signal: reply, priority: true}}]",
+            "tasks.t.on.0.fire.priority: Input should be a valid integer",
+        ),
+        (
+            "fail_reason: {gen: expr, expr: 'attr.i'}",
+            "tasks.t: Value error, fail_reason needs a fail condition",
+        ),
+        (
+            "fail: \"True\"\n    fail_reason: {gen: expr, expr: 'attr.i +'}",
+            "tasks.t.fail_reason.expr: Value error, 'attr.i +' is not a valid expression",
+        ),
+        (
+            'fail: "True"\n    fail_reason: {gen: lookup, task: nosuch, path: n}',
+            "tasks.t.fail_reason.task: lookup names task 'nosuch'",
+        ),
+        (
+            "listen: {signal: reply, on: [{path: S.variables.x, value: {gen: lookup, task: nosuch, path: n}}]}",
+            "tasks.t.listen.on.0.value.task: lookup names task 'nosuch'",
+        ),
+        (
+            "listen: {signal: reply, on: [{fire: {signal: reply, value: {gen: lookup, task: nosuch, path: n}}}]}",
+            "tasks.t.listen.on.0.fire.value.task: lookup names task 'nosuch'",
+        ),
+        (
+            "release: {of: plain, key: '1'}",
+            "task 't': release names 'plain', which is not a family of resources",
+        ),
+        (
+            "release: {of: nope, key: '1'}",
+            "task 't': release names 'nope', which is not a family of resources",
+        ),
+    ],
+)
+def test_events_refusals_name_the_place(tmp_path, extra, fragment):
+    """Y9 to Y11: a `fire` that fails, is defused or has a priority, a `listen`, a `when`
+    on an `on:` entry and a computed `fail_reason`, written wrongly, are refused when the
+    file loads, with the task and the key named. A `release` that names a reference to
+    something that is not a family is refused by the reference check alone."""
+    path = write(
+        tmp_path, EVENTS.replace("payload: {e: x}", "payload: {e: x}\n    " + extra)
+    )
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    assert fragment in str(error.value), str(error.value)
+
+
+@pytest.mark.parametrize(
+    "when,fragment",
+    [
+        ("signal.zz.value == 1", "signal.zz names no signal under signals"),
+        (
+            "registry['S.variables.nope'] == 1",
+            'registry["S.variables.nope"] is not a registry path',
+        ),
+        ("wait.zz.ok", "a signal's on entries run with no wait"),
+    ],
+)
+def test_a_when_on_the_on_of_a_signal_is_checked_at_load(tmp_path, when, fragment):
+    """Y11: the names a `when` reads are checked when the file loads in a signal's own
+    `on`, as in a task's `on` and a `listen`."""
+    text = EVENTS.replace(
+        "signals: {reply: {once: true}}",
+        f'signals: {{reply: {{once: true, on: [{{when: "{when}", fire: {{signal: reply}}}}]}}}}',
+    )
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(write(tmp_path, text))
+    assert fragment in str(error.value), str(error.value)
+
+
+def test_a_family_read_in_the_when_of_a_signal_names_the_place_and_its_line(tmp_path):
+    """A `users.plain[0]` in the `when` of a signal's `on` is refused with the place
+    named once ("reads" is not repeated) and the line of the signal in the file."""
+    text = EVENTS.replace(
+        "signals: {reply: {once: true}}",
+        'signals: {reply: {once: true, on: [{when: "users.plain[0] > 1", fire: {signal: reply}}]}}',
+    )
+    path = write(tmp_path, text)
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    line = next(
+        n for n, row in enumerate(text.splitlines(), 1) if row.startswith("signals:")
+    )
+    assert (
+        f"{path}:{line}: signal 'reply' on entry 0 when reads users.plain[...], "
+        "but 'plain' is not a family" in str(error.value)
+    ), str(error.value)
+
+
+def test_a_value_on_the_on_of_a_signal_cannot_read_a_wait(tmp_path):
+    """A signal's `on` entries run with no wait in scope, so a generator `value` that
+    reads `wait.<branch>` is refused when the file loads, as its `when` is."""
+    text = EVENTS.replace(
+        "signals: {reply: {once: true}}",
+        'signals: {reply: {once: true, on: [{fire: {signal: reply, value: {gen: expr, expr: "wait.zz.ok"}}}]}}',
+    )
+    with pytest.raises(BlueprintError, match="a signal's on entries run with no wait"):
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
+def test_a_when_on_the_on_of_a_task_reads_the_item_of_its_get_as_its_value_does(
+    tmp_path,
+):
+    """A task's `on` runs after its `get`, so its `when` may read `item.` as the
+    `value` beside it does."""
+    text = EVENTS.replace("stores: {q: {family: true}}", "stores: {q: {}}").replace(
+        "payload: {e: x}",
+        'payload: {e: x}\n    get: {store: q}\n    on: [{when: "item.x == 1", fire: {signal: reply}}]',
+    )
+    SimulationContext.from_yaml(write(tmp_path, text))
+
+
+def test_a_listen_entry_cannot_read_the_item_of_a_get(tmp_path):
+    """Y11 and V12: a `listen` attaches at step 6, before the task's `get` at step 11, so
+    an entry of it that reads `item.` is refused when the file loads, as for an `open`."""
+    text = EVENTS.replace("stores: {q: {family: true}}", "stores: {q: {}}").replace(
+        "payload: {e: x}",
+        'payload: {e: x}\n    get: {store: q}\n    listen: {signal: reply, on: [{fire: {signal: reply, value: {gen: expr, expr: "item.x"}}}]}',
+    )
+    with pytest.raises(BlueprintError, match="item"):
+        SimulationContext.from_yaml(write(tmp_path, text))

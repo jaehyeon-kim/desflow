@@ -1,0 +1,8 @@
+# case ST-V02: test_fail: the parent creates a child that waits for an event; the parent fails it at 5 with ValueError('ohai'); the child catches the failure.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+signals: {ev: {once: true}}
+arrivals: {p: {initial: 1, spawn: parent}}
+tasks:
+  child: {wait: {signal: ev}, on_fail: caught, payload: {event_type: fine}}
+  caught: {payload: {event_type: caught, reason: {gen: expr, expr: "upstream.reason"}}}
+  parent: {spawn: {task: child}, service_time: 5, payload: {event_type: parent}, on: [{fire: {signal: ev, fail: true, value: ohai}}]}

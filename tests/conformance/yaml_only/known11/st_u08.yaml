@@ -1,0 +1,5 @@
+# case ST-U08: test_all_of_generator: the same all_of over a generator of ten timeouts 0 to 9; the values are 0 to 9 in order.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: pem, attributes: {delays: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}}}
+tasks:
+  pem: {wait: {each: "attr.delays", group: all, branch: {timeout: {after: "each.value", value: {gen: expr, expr: "each.value"}}}}, payload: {event_type: all_done, at: {gen: expr, expr: t}, values: {gen: expr, expr: "wait.each.values"}}}

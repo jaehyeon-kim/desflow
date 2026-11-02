@@ -433,6 +433,9 @@
               },
               {
                 "$ref": "#/$defs/SuspendWait"
+              },
+              {
+                "$ref": "#/$defs/EachWait"
               }
             ]
           },
@@ -493,6 +496,9 @@
               },
               {
                 "$ref": "#/$defs/SuspendWait"
+              },
+              {
+                "$ref": "#/$defs/EachWait"
               }
             ]
           },
@@ -1074,6 +1080,30 @@
       "title": "Arrival",
       "type": "object"
     },
+    "AtLeastGroup": {
+      "additionalProperties": false,
+      "description": "The `group` of an `each` wait done when at least `at_least` elements are, a\nwhole number or an expression read when the wait starts.",
+      "properties": {
+        "at_least": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        }
+      },
+      "required": [
+        "at_least"
+      ],
+      "title": "AtLeastGroup",
+      "type": "object"
+    },
     "AtLeastWait": {
       "additionalProperties": false,
       "description": "A `wait` done when at least `at_least` of its named branches are.",
@@ -1132,6 +1162,9 @@
               },
               {
                 "$ref": "#/$defs/SuspendWait"
+              },
+              {
+                "$ref": "#/$defs/EachWait"
               }
             ]
           },
@@ -1720,7 +1753,7 @@
     },
     "Container": {
       "additionalProperties": false,
-      "description": "A `containers` entry: its capacity, the largest level, its starting level and\nthe class it is built from.\n\n`current_cap` defaults to `max_cap`, and with neither the container has no limit;\n`.inf` is no limit too. `max_cap` defaults to `current_cap`. `type` is a\n`!python` subclass of `ContainerBase`. `get_queue` and `put_queue` rank the waiting\ngets and puts by an expression, as a resource's `queue` ranks its requests; they are\nnot allowed with `type`.",
+      "description": "A `containers` entry: its capacity, the largest level, its starting level and\nthe class it is built from.\n\n`current_cap` defaults to `max_cap`, and with neither the container has no limit;\n`.inf` is no limit too. `max_cap` defaults to `current_cap`. `type` is a\n`!python` subclass of `ContainerBase`. `get_queue` and `put_queue` rank the waiting\ngets and puts by an expression, as a resource's `queue` ranks its requests; they are\nnot allowed with `type`. With `family: true` the entry is a family of containers, as\nfor a resource, and `current_cap`, `max_cap` and `level` may be expression text.",
       "properties": {
         "current_cap": {
           "anyOf": [
@@ -1729,6 +1762,9 @@
             },
             {
               "type": "number"
+            },
+            {
+              "type": "string"
             },
             {
               "type": "null"
@@ -1748,6 +1784,9 @@
               "type": "number"
             },
             {
+              "type": "string"
+            },
+            {
               "type": "null"
             },
             {
@@ -1763,6 +1802,9 @@
             },
             {
               "type": "number"
+            },
+            {
+              "type": "string"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -1796,6 +1838,45 @@
           "anyOf": [
             {
               "$ref": "#/$defs/QueueRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "family": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "members": {
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Generator"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/Placeholder"
+                    }
+                  ]
+                }
+              ]
             },
             {
               "type": "null"
@@ -2230,6 +2311,112 @@
       "title": "Drain",
       "type": "object"
     },
+    "EachWait": {
+      "additionalProperties": false,
+      "description": "A `wait` on a computed number of events: `branch` is made once for each element\nof `each`, in order, when the wait starts. `each` is a whole number, a list, an\nexpression or a generator, read once. Inside `branch`, `each.index` is the place\nfrom 0 and `each.value` is the element, or the index when `each` is a number.\n`group` is `all` (the default), `any`, `{at_least: n}` or `{when: expression}`. An\nempty `each` is done at once. `wait.<name>.values` and `.flags` are lists in element\norder.",
+      "properties": {
+        "each": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Generator"
+            },
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "items": {},
+                  "type": "array"
+                },
+                {
+                  "$ref": "#/$defs/Placeholder"
+                }
+              ]
+            }
+          ]
+        },
+        "group": {
+          "anyOf": [
+            {
+              "enum": [
+                "all",
+                "any"
+              ],
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/AtLeastGroup"
+            },
+            {
+              "$ref": "#/$defs/WhenGroup"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": "all"
+        },
+        "branch": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SignalWait"
+            },
+            {
+              "$ref": "#/$defs/TaskWait"
+            },
+            {
+              "$ref": "#/$defs/TimeoutWait"
+            },
+            {
+              "$ref": "#/$defs/ConditionWait"
+            },
+            {
+              "$ref": "#/$defs/AnyWait"
+            },
+            {
+              "$ref": "#/$defs/AllWait"
+            },
+            {
+              "$ref": "#/$defs/AtLeastWait"
+            },
+            {
+              "$ref": "#/$defs/WhenWait"
+            },
+            {
+              "$ref": "#/$defs/RequestWait"
+            },
+            {
+              "$ref": "#/$defs/GetWait"
+            },
+            {
+              "$ref": "#/$defs/PutWait"
+            },
+            {
+              "$ref": "#/$defs/RunningWait"
+            },
+            {
+              "$ref": "#/$defs/HandleWait"
+            },
+            {
+              "$ref": "#/$defs/SuspendWait"
+            },
+            {
+              "$ref": "#/$defs/EachWait"
+            }
+          ]
+        }
+      },
+      "required": [
+        "each",
+        "branch"
+      ],
+      "title": "EachWait",
+      "type": "object"
+    },
     "EgressConnector": {
       "additionalProperties": false,
       "description": "An `egress` entry, with the per-provider options of `add_egress`.\n\n`when` is `history`, `live`, `events`, `telemetry`, `labels`, `trace`, a mapping\n`{expr: ...}` or a `!python` function taking one record. `history` sends the\nrecords stamped before `simulation.go_live_at`, and `live` sends the records\nstamped at or after it. `events` sends the event records and `telemetry` the\ntelemetry records. `labels` sends the ground-truth records of scenario steps\nwith a `record`, and nothing else. `trace` sends the records of `stats.trace`,\none for each event the environment processes, and nothing else; no other entry\nreceives them.\n\n`envelope: false` makes the entry plain output: the sink writes each event's\nvalue without the record around it (`stream_type`, `sim_ts`, `timestamp`, `key`,\n`task` and `instance`), and it receives no telemetry record and no `queued` or\n`started` record of a task. A Kafka or Redis sink sends a value that is not a\nmapping as JSON. A storage or PostgreSQL sink skips it, with one warning. The\nmessage key of Kafka stays the record's key, and a `topic_router` still receives\nthe whole record. Ground-truth records of a `when: labels` entry are not\naffected.",
@@ -2650,10 +2837,17 @@
     },
     "FireAction": {
       "additionalProperties": false,
-      "description": "An `on:` fire action: fire `signal` with a `value` (a constant, or a\n`{gen: ...}` generator evaluated when the action runs; a mapping with no `gen`\nkey is data, and a generator nested in it is stored as written), or with the\noutcome `from` copies from a signal or a task. `urgent` and `after` fire a\none-shot signal ahead of the other events at its time, or later, as SimPy's\n`env.schedule(event, priority, delay)` does.",
+      "description": "An `on:` fire action: fire `signal` with a `value` (a constant, or a\n`{gen: ...}` generator evaluated when the action runs; a mapping with no `gen`\nkey is data, and a generator nested in it is stored as written), or with the\noutcome `from` copies from a signal or a task. `urgent` runs the\nfiring ahead of the other events at its time, `priority` orders it among them (the\nlowest number first), and `after` delays it, as SimPy's\n`env.schedule(event, priority, delay)` does. All three need a one-shot signal.\n`urgent` is priority 0, `priority` is an integer that is 1 when it is left out, and\nthe two are not given together.\n\n`fail: true` fails the signal in place of firing it, as `Event.fail` does, and\n`value` is the reason; the task that fired goes on. `defused: true` is for a failure\nthat no waiter handles: it does not stop the run, as `event.defused = True` does\n(`signals.<name>.defused` does the same for every failure of a signal).",
       "properties": {
         "signal": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Ref"
+            }
+          ]
         },
         "value": {
           "$ref": "#/$defs/Value",
@@ -2702,6 +2896,42 @@
             }
           ],
           "default": null
+        },
+        "priority": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "fail": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "defused": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
         }
       },
       "required": [
@@ -2907,10 +3137,27 @@
     },
     "HandleRef": {
       "additionalProperties": false,
-      "description": "The name of an opened event, as `{handle: <name>}`.",
+      "description": "The name of an opened event, as `{handle: <name>}`, or one element of an opened\n`each` group, as `{handle: <name>, index: <expression>}`.",
       "properties": {
         "handle": {
           "type": "string"
+        },
+        "index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -2921,10 +3168,27 @@
     },
     "HandleWait": {
       "additionalProperties": false,
-      "description": "A `wait` branch for an event that `open` made: `handle` is the name it was\nopened under. A handle already processed gives its value at once, and a handle\nwaited for through an interrupt under `resume` or `restart` is the same event\nafter it, with its first end and its place in the queue.",
+      "description": "A `wait` branch for an event that `open` made: `handle` is the name it was\nopened under. A handle already processed gives its value at once, and a handle\nwaited for through an interrupt under `resume` or `restart` is the same event\nafter it, with its first end and its place in the queue. `index` names one element\nof an opened `each` group; it is read when the wait starts.",
       "properties": {
         "handle": {
           "type": "string"
+        },
+        "index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -3078,6 +3342,23 @@
           ],
           "default": null
         },
+        "index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
         "where": {
           "anyOf": [
             {
@@ -3095,6 +3376,62 @@
         }
       },
       "title": "InterruptAction",
+      "type": "object"
+    },
+    "ListenSpec": {
+      "additionalProperties": false,
+      "description": "A task's `listen`: callbacks added to an event, as `event.callbacks.append(f)`\ndoes, when the task starts, after its `open` and before it waits.\n\nExactly one of `signal` and `handle` names the event: a signal, or a member of a\nfamily of signals `{of: <family>, key: <expression>}`, takes the callbacks on its next\nfiring; a `handle` is an event the flow opened, and `index` picks one element of an\nopened `each` group. `on` lists the entries to run, each read in the scope of the\nentity that listens. They run once, on the next firing of the signal or the event of\nthe handle, in the order the callbacks were added: before the waiters added later and\nafter the ones added earlier. To go on listening, a flow listens again. A signal\nwhose firing was processed already, or an event that was processed, takes no\ncallback, which fails the task as `event.callbacks.append` raising does.",
+      "properties": {
+        "signal": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Ref"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "on": {
+          "items": {
+            "$ref": "#/$defs/OnEntry"
+          },
+          "type": "array"
+        }
+      },
+      "title": "ListenSpec",
       "type": "object"
     },
     "Literal_": {
@@ -4009,7 +4346,7 @@
     },
     "OnEntry": {
       "additionalProperties": false,
-      "description": "One entry of an `on:` list: exactly one of a fire, spawn, interrupt or resume\naction, or a `path` with a `value` as a scenario step sets a registry value. A `value` is a\nconstant or a `{gen: ...}` generator evaluated when the entry runs; a mapping with no\n`gen` key is data, and a generator nested in it is stored as written.",
+      "description": "One entry of an `on:` list: exactly one of a fire, spawn, interrupt or resume\naction, or a `path` with a `value` as a scenario step sets a registry value. A `value` is a\nconstant or a `{gen: ...}` generator evaluated when the entry runs; a mapping with no\n`gen` key is data, and a generator nested in it is stored as written. `when` is an\nexpression read when the entry would run: a false result skips the entry, and one that\nfails is a run failure.",
       "properties": {
         "fire": {
           "anyOf": [
@@ -4102,6 +4439,17 @@
         },
         "value": {
           "$ref": "#/$defs/Value",
+          "default": null
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null
         }
       },
@@ -4564,6 +4912,58 @@
       "title": "QueueRule",
       "type": "object"
     },
+    "Ref": {
+      "additionalProperties": false,
+      "description": "A name a task computes, where a task names a resource, a store, a container or a\nsignal: `{of: <family>, key: <expression>}` is the member of a family that `key`\ngives, made when it is first used, and `{of: <family>, lowest: <expression>}` is\nthe member whose value is the lowest, `lowest` being read once for each member as\n`member.key`, `member.users`, `member.queue`, `member.level`, `member.count`,\n`member.putters` and `member.getters`. `of` may be a list of declared names, and\n`key` then gives one of them. A reference takes `key` or `lowest`, not both.",
+      "properties": {
+        "of": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "lowest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "of"
+      ],
+      "title": "Ref",
+      "type": "object"
+    },
     "ReleaseSpec": {
       "additionalProperties": false,
       "description": "A `release` with options: `{handle: <name>}` frees the unit of that opened\nrequest, and `{resource, task, where}` frees the units of `resource` that the\ninstances of `task` hold, however they asked (`resource`, `seize`, `open` or a\n`request` in a wait) and whichever flow they are in, oldest grant first; `where`\nis read in the instance's scope, and without it every holder of that task is\nfreed. The holder is not told. A resource name alone frees the oldest unit of it\nthat the flow holds.",
@@ -4579,10 +4979,30 @@
           ],
           "default": null
         },
+        "index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
         "resource": {
           "anyOf": [
             {
               "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Ref"
             },
             {
               "type": "null"
@@ -4774,7 +5194,14 @@
       "description": "A `request` of a `wait` or an `open` with options: the `resource`, a `priority`\n(a number or an expression read as the request is made) and a `preempt` flag (true\nor false, or an expression). With a mapping, the task's `priority` and `preempt` do\nnot apply to this request: a key it leaves out is SimPy's default, priority 0 and\npreempt true. With a name they do.",
       "properties": {
         "resource": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Ref"
+            }
+          ]
         },
         "priority": {
           "anyOf": [
@@ -4830,6 +5257,9 @@
               "type": "string"
             },
             {
+              "$ref": "#/$defs/Ref"
+            },
+            {
               "$ref": "#/$defs/RequestSpec"
             }
           ]
@@ -4843,7 +5273,7 @@
     },
     "Resource": {
       "additionalProperties": false,
-      "description": "A `resources` entry: its capacity, the order its queue is served in, whether\na request of a lower priority value preempts a user, how many requests may wait,\nthe class it is built from, and how it breaks down.\n\n`current_cap` defaults to 1 and `max_cap` to `current_cap`, so `{}` is a\nresource of one unit. `.inf` makes a resource with no limit. `type` is a\n`!python` subclass of `ResourceBase`. `queue` is `fifo`, `lifo`, `priority`, or a\n`{rank, ties}` rule that ranks each request by an expression; `preempt` is true or\nfalse, or a `{when, victim}` rule, and needs `queue: priority` or a rank.\n`queue_limit` is also the registry path `<sim_id>.resources.<name>.queue_limit`,\nso a scenario, an `on:` entry or an ingress message can change it: the new limit\napplies from the next request and removes nobody who waits, and `null` is no limit.",
+      "description": "A `resources` entry: its capacity, the order its queue is served in, whether\na request of a lower priority value preempts a user, how many requests may wait,\nthe class it is built from, and how it breaks down.\n\n`current_cap` defaults to 1 and `max_cap` to `current_cap`, so `{}` is a\nresource of one unit. `.inf` makes a resource with no limit. `type` is a\n`!python` subclass of `ResourceBase`. `queue` is `fifo`, `lifo`, `priority`, or a\n`{rank, ties}` rule that ranks each request by an expression; `preempt` is true or\nfalse, or a `{when, victim}` rule, and needs `queue: priority` or a rank.\n`queue_limit` is also the registry path `<sim_id>.resources.<name>.queue_limit`,\nso a scenario, an `on:` entry or an ingress message can change it: the new limit\napplies from the next request and removes nobody who waits, and `null` is no limit.\n\n`family: true` makes the entry a family: one resource for each key, made from this\nentry. `members` is a count place read once when the run is built, for the keys 0\nto n - 1; without it the family starts empty. A task names a member with `{of:\n<family>, key: <expression>}`, and a member is made at its first use. In a family,\n`current_cap` and `max_cap` may be expression text, read once when a member is made.",
       "properties": {
         "current_cap": {
           "anyOf": [
@@ -4852,6 +5282,9 @@
             },
             {
               "type": "number"
+            },
+            {
+              "type": "string"
             },
             {
               "type": "null"
@@ -4869,6 +5302,9 @@
             },
             {
               "type": "number"
+            },
+            {
+              "type": "string"
             },
             {
               "type": "null"
@@ -4933,6 +5369,45 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Breakdown"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "family": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "members": {
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Generator"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/Placeholder"
+                    }
+                  ]
+                }
+              ]
             },
             {
               "type": "null"
@@ -5192,9 +5667,7 @@
         "stop": {
           "anyOf": [
             {
-              "additionalProperties": {
-                "type": "string"
-              },
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -5305,9 +5778,7 @@
         "stop": {
           "anyOf": [
             {
-              "additionalProperties": {
-                "type": "string"
-              },
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -5743,7 +6214,14 @@
       "description": "A `seize` with options: the `resource`, a `priority` (a number or an expression\nread as the request is made), a `preempt` flag (true or false, or an expression),\nand a `patience`, which is the task's patience for the time it waits for the unit.\n`priority` and `preempt` default to the task's. A task gives its `patience` on the\ntask or here, not both.",
       "properties": {
         "resource": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Ref"
+            }
+          ]
         },
         "priority": {
           "anyOf": [
@@ -5951,7 +6429,7 @@
     },
     "SignalSpec": {
       "additionalProperties": false,
-      "description": "A `signals` entry in the mapping form: `{closing: {once: true, on: [...]}}`.\n\nA signal fires once, as SimPy's `Event` does, unless it says `once: false`, which\nre-arms it after each firing. `on` lists actions run when the signal fires, as a\ntask's `on` lists actions run when it ends.",
+      "description": "A `signals` entry in the mapping form: `{closing: {once: true, on: [...]}}`.\n\nA signal fires once, as SimPy's `Event` does, unless it says `once: false`, which\nre-arms it after each firing. `on` lists actions run when the signal fires, as a\ntask's `on` lists actions run when it ends. `defused: true` makes every failure of\nthe signal that no waiter handles go unraised, as a callback's `event.defused = True`\ndoes; without it, a one-shot signal's failure with no waiter stops the run under\n`on_unhandled_failure: stop`. `family: true` makes the entry a family\nof signals, one for each key, as for a resource; `members` makes the keys 0 to n - 1\nwhen the run is built.",
       "properties": {
         "once": {
           "default": true,
@@ -5969,6 +6447,56 @@
             "$ref": "#/$defs/OnEntry"
           },
           "type": "array"
+        },
+        "defused": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "family": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "members": {
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Generator"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/Placeholder"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "title": "SignalSpec",
@@ -5976,10 +6504,17 @@
     },
     "SignalWait": {
       "additionalProperties": false,
-      "description": "A `wait` branch for a signal's next firing.",
+      "description": "A `wait` branch for a signal's next firing, or for a member of a family of\nsignals, `{signal: {of: <family>, key: <expression>}}`.",
       "properties": {
         "signal": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Ref"
+            }
+          ]
         }
       },
       "required": [
@@ -6293,7 +6828,7 @@
     },
     "Store": {
       "additionalProperties": false,
-      "description": "A `stores` entry: how many items it holds, whether it serves by priority, the\nitems it holds when the run starts, and the class it is built from.\n\n`current_cap` defaults to `max_cap`, and with neither the store has no limit;\n`.inf` is no limit too. `max_cap` defaults to `current_cap`. A capacity is a whole\nnumber or `.inf`. `items` are returned in the order given; a priority store's\nitems are `[priority, item]` pairs. `type` is a `!python` subclass of `StoreBase`,\nwhich sets its own order, so it cannot be given with `priority`. An item is a\nconstant or a `{gen: ...}` generator, drawn once when the run starts.\n`get_queue` and `put_queue` rank the waiting gets and puts by an expression, as a\nresource's `queue` ranks its requests; `priority` still ranks the items. They are\nnot allowed with `type`.",
+      "description": "A `stores` entry: how many items it holds, whether it serves by priority, the\nitems it holds when the run starts, and the class it is built from.\n\n`current_cap` defaults to `max_cap`, and with neither the store has no limit;\n`.inf` is no limit too. `max_cap` defaults to `current_cap`. A capacity is a whole\nnumber or `.inf`. `items` are returned in the order given; a priority store's\nitems are `[priority, item]` pairs. `type` is a `!python` subclass of `StoreBase`,\nwhich sets its own order, so it cannot be given with `priority`. An item is a\nconstant or a `{gen: ...}` generator, drawn once when the run starts.\n`get_queue` and `put_queue` rank the waiting gets and puts by an expression, as a\nresource's `queue` ranks its requests; `priority` still ranks the items. They are\nnot allowed with `type`. With `family: true` the entry is a family of stores, as for\na resource, each member made with the `items` given.",
       "properties": {
         "current_cap": {
           "anyOf": [
@@ -6302,6 +6837,9 @@
             },
             {
               "type": "number"
+            },
+            {
+              "type": "string"
             },
             {
               "type": "null"
@@ -6319,6 +6857,9 @@
             },
             {
               "type": "number"
+            },
+            {
+              "type": "string"
             },
             {
               "type": "null"
@@ -6372,6 +6913,45 @@
           "anyOf": [
             {
               "$ref": "#/$defs/QueueRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "family": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "members": {
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Generator"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/Placeholder"
+                    }
+                  ]
+                }
+              ]
             },
             {
               "type": "null"
@@ -6655,7 +7235,7 @@
     },
     "Task": {
       "additionalProperties": false,
-      "description": "A `tasks` entry, built with `SimulationContext.task`.\n\nText in a value place stays text. A time place reads a number as seconds, text\n`time_to_seconds` accepts as a duration, and other text as an expression.\n\n`payload` is the value of the `finished` event: a mapping, or a `!python`\nfunction called as `payload(task_id, context)`. `payload: null` publishes no\n`finished` record and the task runs its other steps; a store `put` on such a task\nis refused, because the put carries the payload. `id_field` adds the task id to a\nmapping payload under that key, `key_field` names the payload field whose value\nbecomes the key of the finished event, and so the Kafka message key (the\n`queued` and `started` records keep the entity's key; a payload without the\nfield fails the run), `item_field` adds the item its store `get` took,\nand `attributes` adds the named entity attributes. `key` is a value place for the\nkey of the task's records, drawn once for each instance at its first record and\nwritten as text; it replaces `key_field`, and the two are not given together. A\ntask with a `service` and no `resource` is a timed step; one with\nneither, and no `get`, emits its payload as soon as it is spawned.\n\n`service_time` is the task's own time, in place of a `service`, and the two are\nnot given together: seconds, a duration such as `30 s`, an expression, or a\n`{gen: ...}` generator, read after the task has its resource and, for a `get`, its\nitem. It may read `vars_once` and `vars` as bare names, and `item.<field>` after a\nstore get. A result below 0 fails the run. A task with a `resource` needs a\n`service` or a `service_time`.\n\n`priority` is a number or an expression such as `attr.priority`, for a resource\nwhose `queue` is `priority`. `patience` is seconds, a duration such as `30 s`, an\nexpression or a generator; `balk` is a condition checked before the task joins the queue.\n`resource` is one resource or a list, acquired in the order listed; `keep` hands\nunits to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and\n`interrupt` interrupts the running instances of a task when this one finishes.\n`wait` is what the task waits for first: a signal, a child task, a timeout or a\ncondition, or any or all of several. `signal` names a signal the task fires\nwhen it finishes. `fail` is a condition checked after the service: when it holds\nthe task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or\ncontainer. `next` is a task name, `when` rules or `weights`, whose values are numbers\nor expressions read when the task finishes, with one draw for the choice. `set` gives the\nentity attribute values when the task finishes. `set_args` writes this process's own\nlocal names, read as `arg.<name>` by this task and by the tasks that follow in the\nsame flow (not by a child flow, which has its own). It is read after `set`, so a\npayload reads the value from before the write. A parent passes names to a child with\n`args` on a `task` branch of its `wait`, or on a `spawn`; a read of a name that was\nneither passed nor written is a run failure. `activate` and `deactivate` turn the\nsources of the named arrivals on and off when the task finishes, after `set_args`.\n`cause.<name>` reads why the task was interrupted, in a task that an\n`on_interrupt_next` edge reaches: `by`, `usage_since` and `resource` after a\npreemption, `value` after an `interrupt`, and `left`, the service time that was\nleft. `upstream.<field>` is the payload of the task that routed here, `item` is the\nwhole item a store get took, and it lasts through the `next` chain.\n\n`on_interrupt_run` names a task that runs as a child flow of the same entity after\neach interrupt or preemption the task meets under `resume` or `restart`, and the\ntask then goes on with the time left, or a new time under `restart`, as a\nSimPy loop `try: yield env.timeout(left) except Interrupt: yield from repair()`\ndoes. The child runs in the task's process. An interrupt that arrives while it\nruns reaches the child at its next wait and follows the child's own\n`on_interrupt`. The child reads `cause.<name>` as a task reached by\n`on_interrupt_next` does. It is refused with `abandon`, with a `resource` and with\na request in the `wait`, because it is for work that holds no unit of its own. A\nchild that fails fails the task.\n`on_renege` and `on_balk` name the task an instance goes to after it reneges (its\n`patience` ran out) or balks (its `balk` condition holds, or the line of its\nresource, `seize` or `open` is full), in place of the end of its flow. The\ninstance still publishes `reneged` or `balked`, and that task reads the record as\n`upstream.status`. `on_fail` needs no `fail`: a failed `wait`, a failed child flow,\na step that raises and an expression that cannot be evaluated go to it, and it reads\nthe failure as `upstream.status` and `upstream.reason`. An interrupt is not a\nfailure, and `on_fail` does not see it. `suspend` and `resume` are described on\ntheir models.\n\n`open` names branches that start at once and are not waited for, so a later step\ncan wait for, cancel, release or interrupt them by name. A branch of `open` is a\n`timeout`, `request`, `get`, `put`, `task` or `signal`, or an `any` or `all` group\nof `timeout`, `task`, `signal` and `handle` branches. The other kinds a `wait` takes\n(`condition`, `running`, `at_least`, `when`) are refused at load, as is a\n`request`, `get` or `put` inside a group.\n\nThe cause of an interrupt, the holders of a resource and the entries of a queue are\nlists and mappings an expression reads: `held(m)` and `waiting(m)` for a resource,\n`putting(s)` and `getting(s)` for a store or container, `running(task)` and\n`running(task, condition)`, `peek()`, `process.key` and `process.flow_name`,\n`signal.<name>.processed`, and in the `when` of a wait group `done_count`.\n\nA value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a\nmapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a\nmapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`,\n`one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`,\n`sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`,\n`subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `entity`,\n`param`, `repeat`, `literal`, `object`, `call`, `row`, `lookup`, `previous`,\n`upstream` and `aggregate`; `null_rate`, `unique`, `omit_rate`\nand `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a\nmapping; `set` values and the `cause` of an interrupt are evaluated when the task\nfinishes or interrupts. `vars_once` names are drawn once for each entity and task,\nat the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in\norder, once for each instance of the task: when it starts if `on_start` is given,\notherwise after the service, just before the payload; a `service_time` that reads\na var draws it first. `{gen: entity}` gives the entity's key, in a task only. A var reads the vars above it\nwith `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are\npublished as one event record when the task starts. `finish_vars` are drawn after\nthe service and may read the vars. A bare var name also reads in `put`, `fail` and\n`next.when`, but not in `next.weights`, which read the entity and the run. A var name is an identifier, not a name an expression already uses,\nand is in one of the three groups only. Every generator node draws from its own\nstream of the run's seed, so adding a node does not change the draws of the others.\n\nA task keeps its last `history` finished payloads (default 1,000,000) when a\n`lookup` or `aggregate` in the file names it, or when `history` is written. A task\nthat looks up another does not start before the other has a row: an arrival's start\nis dropped, and one INFO line says how long the task waited in simulation time. A\ntask reached by `next` that has no row to look up ends its flow in the same way.\n`previous` reads the last finished payload of the same task on the same stream: the\narrival, or the entity for an arrival with `count` or `keys`. `upstream` reads the\npayload of the task that routed here, in a task reached by `next`. `aggregate` is\n`mean`, `sum`, `min`, `max` or `count` over the last rows of a task that `where`, an\nexpression over the row's fields, keeps.\n\nAn expression uses Python's arithmetic: `/` gives a float, and `//` rounds down\nand gives an integer for two integers. `and` and `or` stop at the first operand\nthat decides the result and do not absorb an error: an operand that cannot be\nevaluated fails the expression. `**` raises to a power (an integer power above\n10000 is refused), `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `exp`,\n`log`, `log10`, `sin`, `cos` and `tan` are calls on numbers, and `has(attr.x)` is\ntrue when the entity has the attribute `x`.\n\nAn expression also reads a process's local names `arg.<name>`, the interrupt that\nreached the task as `cause.<name>`, the payload of the task that routed here as\n`upstream.<field>` (at any depth), `process.key` and `process.flow_name`, the\nbare `item` and `item_priority` after a store get, and `signal.<name>.processed`.\n`held(<resource>)`, `waiting(<resource>)`, `putting(<store or container>)` and\n`getting(<store or container>)` give lists of mappings (with `entity`, and `rank`,\n`time`, `preempt`, `key` and `since` for a resource, `item` for a store put and\n`amount` for a container); `running(<task>[, <condition>])` counts the instances\nof a task, and `peek()` is the time of the next event. Lists `[1, 2]`, mappings\n`{'a': 1}`, one-clause comprehensions `[x * 2 for x in list if x > 1]`,\nsubscripts and slices, `is None`, `in`, and dotted reads at any depth work on\nthem. The functions `len`, `sum`, `sorted`, `range`, `any`, `all`, `str`, `int`,\n`float`, `bool`, `get_key(mapping, key, default)`, `set_key(mapping, key, value)`\nand `drop_key(mapping, key)` work on lists and mappings; `min` and `max` take a\nlist. `set_key` and `drop_key` give a new mapping. A reading makes at most\n1,000,000 items, and `%` on text is refused.",
+      "description": "A `tasks` entry, built with `SimulationContext.task`.\n\nText in a value place stays text. A time place reads a number as seconds, text\n`time_to_seconds` accepts as a duration, and other text as an expression.\n\n`payload` is the value of the `finished` event: a mapping, or a `!python`\nfunction called as `payload(task_id, context)`. `payload: null` publishes no\n`finished` record and the task runs its other steps; a store `put` on such a task\nis refused, because the put carries the payload. `id_field` adds the task id to a\nmapping payload under that key, `key_field` names the payload field whose value\nbecomes the key of the finished event, and so the Kafka message key (the\n`queued` and `started` records keep the entity's key; a payload without the\nfield fails the run), `item_field` adds the item its store `get` took,\nand `attributes` adds the named entity attributes. `key` is a value place for the\nkey of the task's records, drawn once for each instance at its first record and\nwritten as text; it replaces `key_field`, and the two are not given together. A\ntask with a `service` and no `resource` is a timed step; one with\nneither, and no `get`, emits its payload as soon as it is spawned.\n\n`service_time` is the task's own time, in place of a `service`, and the two are\nnot given together: seconds, a duration such as `30 s`, an expression, or a\n`{gen: ...}` generator, read after the task has its resource and, for a `get`, its\nitem. It may read `vars_once` and `vars` as bare names, and `item.<field>` after a\nstore get. A result below 0 fails the run. A task with a `resource` needs a\n`service` or a `service_time`.\n\n`priority` is a number or an expression such as `attr.priority`, for a resource\nwhose `queue` is `priority`. `patience` is seconds, a duration such as `30 s`, an\nexpression or a generator; `balk` is a condition checked before the task joins the queue.\n`resource` is one resource or a list, acquired in the order listed; `keep` hands\nunits to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and\n`interrupt` interrupts the running instances of a task when this one finishes.\n`wait` is what the task waits for first: a signal, a child task, a timeout or a\ncondition, or any or all of several. `signal` names a signal the task fires\nwhen it finishes. `fail` is a condition checked after the service: when it holds\nthe task publishes `failed` with `fail_reason`, and goes to `on_fail`. `fail_reason`\nis text, or a `{gen: ...}` generator read in the step the failure happens, and it\nis the `reason` of the record, of the failed `signal` and of `upstream.reason`. `get`\nand `put` take from and add to a store or container. `next` is a task name, `when` rules or `weights`, whose values are numbers\nor expressions read when the task finishes, with one draw for the choice. `set` gives the\nentity attribute values when the task finishes. `set_args` writes this process's own\nlocal names, read as `arg.<name>` by this task and by the tasks that follow in the\nsame flow (not by a child flow, which has its own). It is read after `set`, so a\npayload reads the value from before the write. A parent passes names to a child with\n`args` on a `task` branch of its `wait`, or on a `spawn`; a read of a name that was\nneither passed nor written is a run failure. `activate` and `deactivate` turn the\nsources of the named arrivals on and off when the task finishes, after `set_args`.\n`cause.<name>` reads why the task was interrupted, in a task that an\n`on_interrupt_next` edge reaches: `by`, `usage_since` and `resource` after a\npreemption, `value` after an `interrupt`, and `left`, the service time that was\nleft. `upstream.<field>` is the payload of the task that routed here, `item` is the\nwhole item a store get took, and it lasts through the `next` chain.\n\n`on_interrupt_run` names a task that runs as a child flow of the same entity after\neach interrupt or preemption the task meets under `resume` or `restart`, and the\ntask then goes on with the time left, or a new time under `restart`, as a\nSimPy loop `try: yield env.timeout(left) except Interrupt: yield from repair()`\ndoes. The child runs in the task's process. An interrupt that arrives while it\nruns reaches the child at its next wait and follows the child's own\n`on_interrupt`. The child reads `cause.<name>` as a task reached by\n`on_interrupt_next` does. It is refused with `abandon`, with a `resource` and with\na request in the `wait`, because it is for work that holds no unit of its own. A\nchild that fails fails the task.\n`on_renege` and `on_balk` name the task an instance goes to after it reneges (its\n`patience` ran out) or balks (its `balk` condition holds, or the line of its\nresource, `seize` or `open` is full), in place of the end of its flow. The\ninstance still publishes `reneged` or `balked`, and that task reads the record as\n`upstream.status`. `on_fail` needs no `fail`: a failed `wait`, a failed child flow,\na step that raises and an expression that cannot be evaluated go to it, and it reads\nthe failure as `upstream.status` and `upstream.reason`. An interrupt is not a\nfailure, and `on_fail` does not see it. `suspend` and `resume` are described on\ntheir models.\n\n`open` names branches that start at once and are not waited for, so a later step\ncan wait for, cancel, release or interrupt them by name. A branch of `open` is a\n`timeout`, `request`, `get`, `put`, `task` or `signal`, or an `any` or `all` group\nof `timeout`, `task`, `signal` and `handle` branches. The other kinds a `wait` takes\n(`condition`, `running`, `at_least`, `when`) are refused at load, as is a\n`request`, `get` or `put` inside a group.\n\n`listen` adds callbacks to a signal or to an opened name when the task starts, after\n`open` and before `wait`: its `on` entries run on the next firing of the event, in\nthe order the callbacks were added, as `event.callbacks.append(f)` does. An `on`\nentry of a task, a signal or a `listen` may carry a `when` expression that skips the\nentry when it is false.\n\nThe cause of an interrupt, the holders of a resource and the entries of a queue are\nlists and mappings an expression reads: `held(m)` and `waiting(m)` for a resource,\n`putting(s)` and `getting(s)` for a store or container, `running(task)` and\n`running(task, condition)`, `peek()`, `process.key` and `process.flow_name`,\n`signal.<name>.processed`, and in the `when` of a wait group `done_count`.\n\nA value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a\nmapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a\nmapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`,\n`one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`,\n`sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`,\n`subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `entity`,\n`param`, `repeat`, `literal`, `object`, `call`, `row`, `lookup`, `previous`,\n`upstream` and `aggregate`; `null_rate`, `unique`, `omit_rate`\nand `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a\nmapping; `set` values and the `cause` of an interrupt are evaluated when the task\nfinishes or interrupts. `vars_once` names are drawn once for each entity and task,\nat the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in\norder, once for each instance of the task: when it starts if `on_start` is given,\notherwise after the service, just before the payload; a `service_time` that reads\na var draws it first. `{gen: entity}` gives the entity's key, in a task only. A var reads the vars above it\nwith `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are\npublished as one event record when the task starts. `finish_vars` are drawn after\nthe service and may read the vars. A bare var name also reads in `put`, `fail` and\n`next.when`, but not in `next.weights`, which read the entity and the run. A var name is an identifier, not a name an expression already uses,\nand is in one of the three groups only. Every generator node draws from its own\nstream of the run's seed, so adding a node does not change the draws of the others.\n\nA task keeps its last `history` finished payloads (default 1,000,000) when a\n`lookup` or `aggregate` in the file names it, or when `history` is written. A task\nthat looks up another does not start before the other has a row: an arrival's start\nis dropped, and one INFO line says how long the task waited in simulation time. A\ntask reached by `next` that has no row to look up ends its flow in the same way.\n`previous` reads the last finished payload of the same task on the same stream: the\narrival, or the entity for an arrival with `count` or `keys`. `upstream` reads the\npayload of the task that routed here, in a task reached by `next`. `aggregate` is\n`mean`, `sum`, `min`, `max` or `count` over the last rows of a task that `where`, an\nexpression over the row's fields, keeps.\n\nAn expression uses Python's arithmetic: `/` gives a float, and `//` rounds down\nand gives an integer for two integers. `and` and `or` stop at the first operand\nthat decides the result and do not absorb an error: an operand that cannot be\nevaluated fails the expression. `**` raises to a power (an integer power above\n10000 is refused), `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `exp`,\n`log`, `log10`, `sin`, `cos` and `tan` are calls on numbers, and `has(attr.x)` is\ntrue when the entity has the attribute `x`.\n\nAn expression also reads a process's local names `arg.<name>`, the interrupt that\nreached the task as `cause.<name>`, the payload of the task that routed here as\n`upstream.<field>` (at any depth), `process.key` and `process.flow_name`, the\nbare `item` and `item_priority` after a store get, and `signal.<name>.processed`.\n`held(<resource>)`, `waiting(<resource>)`, `putting(<store or container>)` and\n`getting(<store or container>)` give lists of mappings (with `entity`, and `rank`,\n`time`, `preempt`, `key` and `since` for a resource, `item` for a store put and\n`amount` for a container); `running(<task>[, <condition>])` counts the instances\nof a task, and `peek()` is the time of the next event. Lists `[1, 2]`, mappings\n`{'a': 1}`, one-clause comprehensions `[x * 2 for x in list if x > 1]`,\nsubscripts and slices, `is None`, `in`, and dotted reads at any depth work on\nthem. The functions `len`, `sum`, `sorted`, `range`, `any`, `all`, `str`, `int`,\n`float`, `bool`, `get_key(mapping, key, default)`, `set_key(mapping, key, value)`\nand `drop_key(mapping, key)` work on lists and mappings; `min` and `max` take a\nlist. `set_key` and `drop_key` give a new mapping. A reading makes at most\n1,000,000 items, and `%` on text is refused.",
       "properties": {
         "service": {
           "anyOf": [
@@ -6710,8 +7290,18 @@
               "type": "string"
             },
             {
+              "$ref": "#/$defs/Ref"
+            },
+            {
               "items": {
-                "type": "string"
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/Ref"
+                  }
+                ]
               },
               "type": "array"
             },
@@ -7015,6 +7605,9 @@
               "$ref": "#/$defs/SuspendWait"
             },
             {
+              "$ref": "#/$defs/EachWait"
+            },
+            {
               "type": "null"
             }
           ],
@@ -7063,10 +7656,24 @@
                   },
                   {
                     "$ref": "#/$defs/HandleWait"
+                  },
+                  {
+                    "$ref": "#/$defs/EachWait"
                   }
                 ]
               },
               "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "listen": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ListenSpec"
             },
             {
               "type": "null"
@@ -7108,6 +7715,9 @@
               "type": "string"
             },
             {
+              "$ref": "#/$defs/Ref"
+            },
+            {
               "$ref": "#/$defs/ReleaseSpec"
             },
             {
@@ -7120,6 +7730,9 @@
           "anyOf": [
             {
               "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Ref"
             },
             {
               "type": "null"
@@ -7139,14 +7752,7 @@
           "default": null
         },
         "fail_reason": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "$ref": "#/$defs/Value",
           "default": null
         },
         "on_fail": {
@@ -7468,6 +8074,9 @@
               "type": "string"
             },
             {
+              "$ref": "#/$defs/Ref"
+            },
+            {
               "type": "null"
             }
           ],
@@ -7477,6 +8086,9 @@
           "anyOf": [
             {
               "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Ref"
             },
             {
               "type": "null"
@@ -8241,6 +8853,20 @@
       "title": "WhenExpr",
       "type": "object"
     },
+    "WhenGroup": {
+      "additionalProperties": false,
+      "description": "The `group` of an `each` wait done when the expression `when` holds, read as\nfor a `when` wait, with `done_count` and `wait.<name>.values` and `.flags`.",
+      "properties": {
+        "when": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "when"
+      ],
+      "title": "WhenGroup",
+      "type": "object"
+    },
     "WhenWait": {
       "additionalProperties": false,
       "description": "A `wait` done when the expression `when` holds. It is read each time a branch of\n`of` is processed, and once at the start for a branch already processed, as SimPy's\n`Condition(env, evaluate, events)` does. It reads `wait.<branch>.done`, `.ok` and\n`.value` of the branches and `done_count`. A branch that fails fails the wait, and an\nempty `of` succeeds at once.",
@@ -8292,6 +8918,9 @@
               },
               {
                 "$ref": "#/$defs/SuspendWait"
+              },
+              {
+                "$ref": "#/$defs/EachWait"
               }
             ]
           },

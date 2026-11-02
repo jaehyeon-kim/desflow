@@ -90,6 +90,7 @@ def task_features(context: "SimulationContext", spec: "TaskSpec") -> List[str]:
         "batch",
         "seize",
         "open",
+        "listen",
         "release",
         "cancel",
     ):

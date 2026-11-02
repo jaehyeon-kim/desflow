@@ -678,17 +678,29 @@ class SimulationRegistry:
 
         # Register Breakdowns: each resource's time to failure and repair time
         for name, breakdown in param.breakdowns.items():
-            for part in ("time_to_failure", "repair"):
-                path = f"{prefix}.breakdown.{name}.{part}"
-                dist_config = getattr(breakdown, part)
-                self._configs[path] = dist_config
-                self._register_dist(path, dist_config)
+            self.register_breakdown(prefix, name, breakdown)
 
         # Register Custom Variables
         self._configs[f"{prefix}.variables"] = param.variables
         for name, value in param.variables.items():
             path = f"{prefix}.variables.{name}"
             self._values[path] = DynamicValue(self.env, path, value)
+
+    def register_breakdown(self, sim_id: str, name: str, breakdown: Any):
+        """
+        Registers a resource's time to failure and repair time.
+
+        Args:
+            sim_id (str): The simulation ID.
+            name (str): The resource's name, which for a member of a family is its
+                bracketed name such as `desk[3]`.
+            breakdown (Any): The breakdown, with `time_to_failure` and `repair`.
+        """
+        for part in ("time_to_failure", "repair"):
+            path = f"{sim_id}.breakdown.{name}.{part}"
+            dist_config = getattr(breakdown, part)
+            self._configs[path] = dist_config
+            self._register_dist(path, dist_config)
 
     def register_resource(self, sim_id: str, name: str, cap_config: CapacityConfig):
         """

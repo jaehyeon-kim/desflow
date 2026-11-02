@@ -1,0 +1,7 @@
+# case CV-014: a callback on a Timeout: a fixed moment is fire.after; the Timeout object itself is an opened timeout handle with a listen. The prototype's `later` task does not read the variable the callback writes. This document reads it, so the comparison shows that the callback ran before the waiter resumed.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+variables: {seen: 0}
+arrivals: {a: {initial: 1, spawn: begin}}
+tasks:
+  begin: {open: {t: {timeout: {after: 2, value: v}}}, listen: {handle: t, on: [{path: C.variables.seen, value: 1}]}, payload: {event_type: begin}, next: later}
+  later: {wait: {handle: t}, payload: {event_type: later, value: {gen: expr, expr: "wait.t.value"}, seen: {gen: expr, expr: "registry['C.variables.seen']"}}}

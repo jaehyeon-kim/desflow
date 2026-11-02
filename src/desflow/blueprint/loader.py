@@ -282,7 +282,8 @@ _STR_TAG = "tag:yaml.org,2002:str"
 def _keep_on_keys(
     root: yaml.Node, includes: Dict[yaml.Node, str], at: Optional[str] = None
 ) -> None:
-    """Keeps the key `on` a string in task, signal and experiment check mappings.
+    """Keeps the key `on` a string in task, signal and experiment check mappings, and in
+    the `listen` mapping of a task.
 
     YAML 1.1 reads the bare word `on` as the boolean True, so a task's or a signal's
     `on:` actions and an experiment check's `on` were refused with "Keys should be
@@ -305,7 +306,7 @@ def _keep_on_keys(
 
     def retag(node: yaml.Node) -> None:
         if isinstance(node, yaml.MappingNode):
-            for key, _ in node.value:
+            for key, value in node.value:
                 if (
                     isinstance(key, yaml.ScalarNode)
                     and key.tag == _BOOL_TAG
@@ -313,6 +314,13 @@ def _keep_on_keys(
                 ):
                     key.tag = _STR_TAG
                     key.value = "on"
+                if (
+                    isinstance(key, yaml.ScalarNode)
+                    and key.value == "listen"
+                    and isinstance(value, yaml.MappingNode)
+                ):
+                    # The `on` of a task's `listen` is an `on:` list as well
+                    retag(value)
 
     def item(node: yaml.Node) -> None:
         retag(node)

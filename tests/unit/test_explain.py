@@ -174,6 +174,10 @@ def test_when_rules_make_the_split_unknown():
         ({"subscribe": {"signal": "done"}}, "subscribe"),
         ({"interrupt": {"task": "pack"}}, "interrupt"),
         ({"on": [{"path": "Shop.variables.x", "value": 1}]}, "on actions"),
+        (
+            {"listen": {"signal": "done", "on": [{"spawn": {"task": "pack"}}]}},
+            "listen",
+        ),
     ],
 )
 def test_a_task_feature_makes_the_wait_unsupported(task, feature):

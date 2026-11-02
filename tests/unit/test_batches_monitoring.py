@@ -1098,8 +1098,10 @@ def test_a_member_served_by_a_closed_batch_does_not_renege_while_the_service_run
 
 @pytest.mark.parametrize("factor", [0, 0.01])
 def test_the_trace_is_the_same_paced_and_unpaced(tmp_path, factor):
-    """The unpaced loop and the paced one both publish the trace."""
-    text = monitored().replace("factor: 0", f"factor: {factor}")
+    """The unpaced loop and the paced one both publish the trace. The paced run is
+    not strict, so a slow machine does not stop it for falling behind the wall
+    clock."""
+    text = monitored().replace("factor: 0", f"factor: {factor}, strict: false")
     trace, _ = trace_records(load(tmp_path, text))
     wanted, _ = trace_records(load(tmp_path, monitored()))
     key = lambda r: (r["sim_ts"], r["value"]["priority"], r["value"]["event"])  # noqa: E731

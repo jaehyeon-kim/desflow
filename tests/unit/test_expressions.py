@@ -1,5 +1,6 @@
 """Conditions and amounts: what the whitelist allows, what it refuses, and the names."""
 
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -88,7 +89,7 @@ def test_only_a_text_index_on_attr_is_a_read(text):
         ("[x for x in t for y in t]", "more than one clause"),
         ("[t for t in attr.l]", "the loop name 't'"),
         ("attr.l[0:1:2:3]", "not a valid expression"),
-        ("users.machine[0]", "an index on users.machine, which is a number"),
+        ("users.machine[1:]", "an index on users.machine, which is a number"),
         ("level.stock.x", "a level read is a number"),
         ("f'{t}'", "JoinedStr"),
         ("(y := 1)", "NamedExpr"),
@@ -140,6 +141,9 @@ def test_references_name_each_source():
         "putting": set(),
         "getting": set(),
         "running": set(),
+        "members": set(),
+        "each": set(),
+        "member": set(),
         "flag": set(),
         "loop": set(),
     }
@@ -648,3 +652,135 @@ def test_a_loop_name_reaches_the_condition_of_running():
 
 def test_the_loop_names_are_listed_in_the_references():
     assert Expression("[v for v in [1]]").references["loop"] == {"v"}
+
+
+# ------------------------------------------------------------- Batch 11: family names
+
+
+@pytest.mark.parametrize(
+    "text,source,name",
+    [
+        ("users.desk[attr.k]", "users", "desk"),
+        ("queue.desk[attr.k + 1]", "queue", "desk"),
+        ("level.c[0]", "level", "c"),
+        ("putters.c[attr.k]", "putters", "c"),
+        ("getters.c[attr.k]", "getters", "c"),
+        ("count(q[attr.k])", "count", "q"),
+        ("items(q[attr.k])", "items", "q"),
+        ("held(desk[attr.k])", "held", "desk"),
+        ("waiting(desk[attr.k])", "waiting", "desk"),
+        ("signal.reply[attr.k].count", "signal", "reply"),
+    ],
+)
+def test_a_family_member_read_records_the_family_and_the_index(text, source, name):
+    """Y1: each index name parses, and the expression records that the family is read by
+    an index and not as a plain name."""
+    read = Expression(text, names=ANY_NAME)
+    assert (source, name) in read.indexed
+    assert (source, name) not in read.plain
+
+
+@pytest.mark.parametrize(
+    "text,source,name",
+    [
+        ("users.desk", "users", "desk"),
+        ("queue.desk + 1", "queue", "desk"),
+        ("level.c", "level", "c"),
+    ],
+)
+def test_a_family_read_with_no_index_is_recorded_as_plain(text, source, name):
+    """Y1: a read of a name with no index is recorded, so the load can refuse it when
+    the name is a family."""
+    read = Expression(text, names=ANY_NAME)
+    assert (source, name) in read.plain
+    assert (source, name) not in read.indexed
+
+
+def test_members_lists_the_keys_in_creation_order_and_reads_nothing_else():
+    """Y1: `members(desk)` is the keys of the family made so far, in order."""
+    from desflow.core.families import Family
+
+    family = Family("desk", "resource")
+    family.keys.extend([2, "a.b", 0])
+    scope = Scope(families={"desk": family})
+    assert Expression("members(desk)").evaluate(scope) == [2, "a.b", 0]
+    assert Expression("len(members(desk))").evaluate(scope) == 3
+    assert Expression("members(desk)").references["members"] == {"desk"}
+
+
+def test_a_member_that_does_not_exist_gives_what_a_new_member_gives():
+    """Y1: a read of a key not yet made gives 0 for a count and makes no member."""
+    from desflow.core.families import Family
+
+    family = Family("desk", "resource")
+    scope = Scope(families={"desk": family})
+    assert Expression("users.desk[7]", names=ANY_NAME).evaluate(scope) == 0
+    assert Expression("queue.desk['x']", names=ANY_NAME).evaluate(scope) == 0
+    assert family.keys == []
+
+
+@pytest.mark.parametrize("key", [True, False, 3])
+def test_a_key_is_an_integer_or_text_and_a_boolean_is_one_or_zero(key):
+    """Y1: `true` is the member 1 and `false` the member 0, because a `dict` holds
+    `True` and `1` as one key."""
+    from desflow.core.families import member_name
+
+    assert member_name("desk", key) == f"desk[{int(key)!r}]"
+    assert member_name("desk", "3") == "desk['3']"
+    assert member_name("desk", "a.b") == "desk['a.b']"
+
+
+@pytest.mark.parametrize("key", [1.5, None, (1, 2)])
+def test_a_key_that_is_not_an_integer_or_text_is_refused(key):
+    from desflow.core.families import member_name
+
+    with pytest.raises(TypeError, match=re.escape("an integer or text")):
+        member_name("desk", key)
+
+
+def test_a_numpy_integer_is_a_key():
+    import numpy as np
+
+    from desflow.core.families import member_name
+
+    assert member_name("desk", np.int64(4)) == "desk[4]"
+
+
+def test_a_registry_path_with_a_bracket_is_one_part():
+    """Y1: a dot inside a bracket does not split a registry path."""
+    from desflow.core.families import member_path, split_path
+
+    path = "S.resources.desk['a.b'].current_cap"
+    assert split_path(path) == ["S", "resources", "desk['a.b']", "current_cap"]
+    assert split_path("S.resources.desk[3].current_cap")[2] == "desk[3]"
+    assert split_path("S.variables.n") == ["S", "variables", "n"]
+
+    class _Family:
+        kind = "resource"
+
+    assert member_path(path, {"desk": _Family()}) == ("desk", "current_cap")
+    assert member_path(path, {"other": _Family()}) is None
+
+
+@pytest.mark.parametrize(
+    "text,message",
+    [
+        ("member.users", "only the lowest of a reference"),
+        ("each.index", None),
+    ],
+)
+def test_member_and_each_names_parse_only_where_they_are_read(text, message):
+    """Y2 and Y3: `member.*` is read in a `lowest` and `each.*` in a branch of an `each`
+    wait, so a plain expression refuses `member.*` and records `each.*`."""
+    if message is None:
+        assert Expression(text, names=ANY_NAME).references["each"] == {"index"}
+        return
+    with pytest.raises(ValueError, match=re.escape(message)):
+        Expression(text, names=ANY_NAME)
+
+
+def test_a_lowest_reads_the_member_names():
+    read = Expression("member.queue + member.users + member.key", member=True)
+    assert read.references["member"] == {"queue", "users", "key"}
+    with pytest.raises(ValueError, match=re.escape("member.nothing")):
+        Expression("member.nothing", member=True)

@@ -195,6 +195,14 @@
   checks:
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_all_events
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_all_events_with_a_failing_branch
+    - tests/conformance/test_yaml_only.py::test_y3_each_timeout_of_a_list_under_every_group
+    - tests/conformance/test_yaml_only.py::test_y3_a_when_group_is_done_when_its_expression_holds
+    - tests/conformance/test_yaml_only.py::test_y3_each_child_flow_of_a_number_returns_its_value
+    - tests/conformance/test_yaml_only.py::test_y3_each_request_of_a_computed_number_keeps_the_first_unit
+    - tests/conformance/test_yaml_only.py::test_y4_an_opened_each_of_requests_is_named_one_by_one_by_its_index
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_11_runs_as_its_simpy_program
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_11_runs_at_other_sizes
+    - tests/conformance/test_yaml_only.py::test_every_known_case_of_batch_11_runs_or_shares_or_has_its_own_test
   page: how-to/modelling/wait-for-one-or-all.md#wait-for-all
 
 - id: C3
@@ -772,6 +780,13 @@
   low_level: "`CapacityConfig(current_cap=2, ...)`"
   checks:
     - tests/conformance/test_c6_initial_state.py::test_c6_initial_resources
+    - tests/conformance/test_yaml_only.py::test_y1_members_made_from_a_number_serve_in_turn
+    - tests/conformance/test_yaml_only.py::test_y1_a_member_is_made_at_its_first_use_with_the_capacity_of_its_creator
+    - tests/conformance/test_yaml_only.py::test_y1_a_store_family_is_made_at_its_first_put
+    - tests/conformance/test_yaml_only.py::test_y1_a_container_family_starts_each_member_at_its_level
+    - tests/conformance/test_yaml_only.py::test_y1_a_signal_family_wakes_the_waiter_of_its_key
+    - tests/conformance/test_yaml_only.py::test_y2_the_member_with_the_lowest_value_is_taken_at_the_step
+    - tests/conformance/test_yaml_only.py::test_y2_a_list_of_names_takes_the_one_the_key_gives
   page: user-guide/time-and-pacing/run-length.md#initial-time
 
 - id: C6
@@ -1100,12 +1115,13 @@
   operation: Urgent and normal event priorities
   description: "An urgent event is processed before the normal events at its time, as SimPy's `URGENT` and `NORMAL` order them; `urgent: true` on a `fire` action resumes the waiters first."
   simpy: "`events.URGENT`, `events.NORMAL`"
-  yaml: "`fire: {signal: s, urgent: true}` on a signal with `once: true`"
-  builder: "`{\"fire\": {\"signal\": \"s\", \"urgent\": True}}` in `on=`, or `simpy.events.URGENT` in `context.env.schedule`"
+  yaml: "`fire: {signal: s, urgent: true}` or `fire: {signal: s, priority: 2}` on a signal with `once: true`"
+  builder: "`{\"fire\": {\"signal\": \"s\", \"urgent\": True}}` in `on=` (`\"priority\": 2` for another priority), or `simpy.events.URGENT` in `context.env.schedule`"
   low_level: "`env.schedule(event, URGENT)`"
   checks:
     - tests/conformance/test_c6_environment.py::test_c6_fire_with_urgent_and_after
     - tests/conformance/test_c6_environment.py::test_c6_fire_urgent_and_after_need_a_one_shot_signal
+    - tests/conformance/test_yaml_only.py::test_y10_events_at_one_time_run_by_priority_then_by_creation
   page: user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens
 
 - id: C6
@@ -1213,7 +1229,7 @@
   operation: Actions when an event happens
   description: "An `on:` list runs actions when a signal fires or a task ends: fire a signal (copying another outcome), spawn a flow, interrupt a task, or set a value, as SimPy's callbacks, `trigger` and defused failures."
   simpy: "`events.Event.callbacks`, `events.Event.trigger`, `events.Event.defused`"
-  yaml: "`on: [{fire: {signal, from}}, {spawn: {...}}]` on a task or a signal"
+  yaml: "`on: [{fire: {signal, from}}, {spawn: {...}}]` on a task or a signal, `fire` with `fail`, `defused` and `priority`, `when` on an entry, and `listen` on a task for a callback added during the run"
   builder: "`on=[...]` on `@app.task` and `add_signal`"
   low_level: "`event.callbacks.append(fn)`, `ev.trigger(other)`, `ev.defused = True`"
   checks:
@@ -1221,6 +1237,10 @@
     - tests/conformance/test_c1_events.py::test_c1_trigger_from_another_event
     - tests/conformance/test_c1_events.py::test_c1_trigger_from_another_event_failure
     - tests/conformance/test_c1_events.py::test_c1_defused_failure
+    - tests/conformance/test_yaml_only.py::test_y9_a_defused_fire_ends_the_run_with_no_error_where_a_plain_one_stops_it
+    - tests/conformance/test_yaml_only.py::test_y9_a_failed_signal_fails_each_waiter_with_its_reason
+    - tests/conformance/test_yaml_only.py::test_y9_a_computed_fail_reason_is_read_when_the_task_fails
+    - tests/conformance/test_yaml_only.py::test_y11_a_listen_runs_when_the_event_fires_and_its_when_decides_each_entry
     - tests/conformance/test_c1_events.py::test_c1_drain_waits_for_an_on_spawn
     - tests/conformance/test_c1_events.py::test_c1_drain_waits_for_a_signals_on_actions
     - tests/conformance/test_c1_events.py::test_c1_drain_waits_through_a_balking_next

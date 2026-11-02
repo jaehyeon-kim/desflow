@@ -1,0 +1,17 @@
+# Part 2 of Batch 11: each arrival that started one entity at time 0 (`first_at: 0` with `max_events: 1`) is written with `initial`, which starts the same entity at the same instant, so the sized runs can change its size.
+# Design Y9: fail an event, a computed reason, and a failure nobody waits for. Source: research/yaml-only/programs/Y9.py waiter(False) and defused(True) and child_raises(3), written as one task that fails with a computed reason and its `on_fail` handler, as the program writes it in one process (the other three scenarios are not in this row).
+simulation: {sim_id: Y9, factor: 0, random_seed: 42}
+signals: {ev: {once: true}, dv: {once: true, defused: true}}
+arrivals:
+  w: {initial: 1, spawn: w}
+  f: {initial: 1, spawn: f, attributes: {n: 7}}
+  d: {initial: 1, spawn: d}
+  c: {initial: 1, spawn: c, attributes: {n: 3}}
+tasks:
+  w: {wait: {signal: ev}, on_fail: caught, payload: {event_type: value}}
+  caught: {payload: {event_type: caught, why: {gen: expr, expr: "upstream.reason"}, at: {gen: expr, expr: t}}}
+  f: {wait: {timeout: 1}, payload: null, on: [{fire: {signal: ev, fail: true, value: {gen: format, template: "bad {n}", names: {n: {gen: attr, name: n}}}}}]}
+  d: {wait: {timeout: 1}, payload: {event_type: failer_goes_on}, on: [{fire: {signal: dv, fail: true, value: x}}], next: d_end}
+  d_end: {wait: {timeout: 1}, payload: {event_type: failer_ended}}
+  c: {wait: {timeout: 1}, fail: "True", fail_reason: {gen: format, template: "missing {n}", names: {n: {gen: attr, name: n}}}, on_fail: c_caught, payload: {event_type: c}}
+  c_caught: {payload: {event_type: caught, why: {gen: expr, expr: "upstream.reason"}, at: {gen: expr, expr: t}}}

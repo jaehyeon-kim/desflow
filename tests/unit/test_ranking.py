@@ -969,6 +969,28 @@ run: {{until: 3}}
         SimulationContext.from_yaml(path)
 
 
+def test_a_limit_written_by_a_listen_entry_lets_a_task_end_before_its_vars_have_a_value(
+    tmp_path,
+):
+    """The `path` actions of a `listen` count as writes: a task of a resource whose
+    `queue_limit` a listen entry writes can balk, so its `on:` cannot read a var."""
+    text = """
+simulation: {sim_id: S, factor: 0}
+resources: {m: {current_cap: 1}}
+variables: {z: 0}
+signals: {go: {once: true}}
+arrivals: {j: {dist: constant, value: 1, spawn: job}}
+tasks:
+  job: {resource: m, service_time: 1, vars: {v: 1}, on: [{path: S.variables.z, value: {gen: var, name: v}}], payload: {e: 1}}
+  watcher: {listen: {signal: go, on: [{path: S.resources.m.queue_limit, value: 2}]}, payload: {e: 1}}
+run: {until: 3}
+"""
+    path = tmp_path / "model.yaml"
+    path.write_text(text)
+    with pytest.raises(BlueprintError, match="is not a var that has a value here"):
+        SimulationContext.from_yaml(path)
+
+
 @pytest.mark.parametrize("form", ["resource", "seize", "open"])
 @pytest.mark.parametrize(
     "limit,scenario,refused",

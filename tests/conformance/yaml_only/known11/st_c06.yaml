@@ -1,0 +1,13 @@
+# case ST-C06: test_nested_cond_with_error, test_cond_with_error, test_cond_with_nested_error (ST-C06, C07, C08), one after the other. A failing child inside a condition fails the waiting task.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: stage_1}}
+tasks:
+  stage_1: {wait: {all: {x: {task: explode_1}, t: {timeout: 1}}}, on_fail: caught_1, payload: {event_type: unreachable}}
+  caught_1: {payload: {event_type: caught, reason: {gen: expr, expr: "upstream.reason"}}, next: stage_2}
+  explode_1: {service_time: 1, fail: "True", fail_reason: Onoes!, payload: {event_type: child}}
+  stage_2: {wait: {any: {x: {task: explode_2}, t: {timeout: 1}}}, on_fail: caught_2, payload: {event_type: unreachable}}
+  caught_2: {payload: {event_type: caught, reason: {gen: expr, expr: "upstream.reason"}}, next: stage_3}
+  explode_2: {service_time: 0, fail: "True", fail_reason: "Onoes, failed after 0!", payload: {event_type: child}}
+  stage_3: {wait: {any: {both: {all: {x: {task: explode_3}, t: {timeout: 1}}}, t2: {timeout: 1}}}, on_fail: caught_3, payload: {event_type: unreachable}}
+  caught_3: {payload: {event_type: caught, reason: {gen: expr, expr: "upstream.reason"}}}
+  explode_3: {service_time: 0, fail: "True", fail_reason: "Onoes, failed after 0!", payload: {event_type: child}}

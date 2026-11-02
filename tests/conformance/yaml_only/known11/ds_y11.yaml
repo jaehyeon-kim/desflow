@@ -1,0 +1,23 @@
+# Part 2 of Batch 11: each arrival that started one entity at time 0 (`first_at: 0` with `max_events: 1`) is written with `initial`, which starts the same entity at the same instant, so the sized runs can change its size.
+# Design Y11: a callback added during the run, and a condition in a callback. Source: research/yaml-only/programs/Y11.py order() (a first waiter, a callback attached at 1, a late waiter at 1.5, the event fired at 2 with 5), conditional(2) (a callback attached before the event adds its value to a counter) and conditional(0) (no callback). The callback of order() is a write to a variable that the late waiter reads, which shows the callback ran before the late waiter. The after-processed and timeout-callback scenarios are not in this row.
+simulation: {sim_id: Y11, factor: 0, random_seed: 42}
+variables: {cb: 0, n2: 0, n0: 0}
+signals: {ev: {once: true}, d2: {once: true}, d0: {once: true}}
+arrivals:
+  fw: {initial: 1, spawn: first_waiter}
+  at: {initial: 1, spawn: attach}
+  fi: {initial: 1, spawn: fire}
+  lw: {initial: 1, spawn: late}
+  p2: {initial: 1, spawn: cond2}
+  p0: {initial: 1, spawn: cond0}
+tasks:
+  first_waiter: {wait: {signal: ev}, payload: {event_type: first_waiter, value: {gen: expr, expr: "signal.ev.value"}, cb: {gen: expr, expr: "registry['Y11.variables.cb']"}, now: {gen: expr, expr: t}}}
+  attach: {wait: {timeout: 1}, payload: null, next: attach2}
+  attach2: {payload: null, listen: {signal: ev, on: [{path: Y11.variables.cb, value: {gen: expr, expr: "signal.ev.value"}}]}}
+  fire: {wait: {timeout: 2}, payload: null, on: [{fire: {signal: ev, value: 5}}]}
+  late: {wait: {timeout: 1.5}, payload: null, next: late_wait}
+  late_wait: {wait: {signal: ev}, payload: {event_type: late_waiter, value: {gen: expr, expr: "signal.ev.value"}, cb: {gen: expr, expr: "registry['Y11.variables.cb']"}, now: {gen: expr, expr: t}}}
+  cond2: {listen: {signal: d2, on: [{path: Y11.variables.n2, value: {gen: expr, expr: "registry['Y11.variables.n2'] + signal.d2.value"}}]}, wait: {timeout: 1}, payload: null, on: [{fire: {signal: d2, value: 3}}], next: cond2_end}
+  cond2_end: {wait: {timeout: 1}, payload: {event_type: n, n: {gen: expr, expr: "registry['Y11.variables.n2']"}}}
+  cond0: {wait: {timeout: 1}, payload: null, on: [{fire: {signal: d0, value: 3}}], next: cond0_end}
+  cond0_end: {wait: {timeout: 1}, payload: {event_type: n, n: {gen: expr, expr: "registry['Y11.variables.n0']"}}}

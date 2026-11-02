@@ -13,6 +13,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple, Uni
 import numpy as np
 
 from desflow.core.expressions import ANY_NAME, Expression, Scope, boolean_word
+from desflow.core.families import Reference, name_of
 from desflow.models.flow import Upstream, payload_of
 
 NextSpec = Union[None, str, Mapping[str, Any], Callable[[Upstream], Optional[str]]]
@@ -42,6 +43,9 @@ def make_scope(
     request: Optional[Mapping[str, Any]] = None,
     holder: Optional[Mapping[str, Any]] = None,
     batch: Optional[Mapping[str, Any]] = None,
+    each: Optional[Mapping[str, Any]] = None,
+    member: Optional[Mapping[str, Any]] = None,
+    families: Optional[Mapping[str, Any]] = None,
 ) -> Scope:
     """
     Builds what an expression's names read.
@@ -71,6 +75,11 @@ def make_scope(
         request: The request a preempt rule tests, for `request`.
         holder: The user whose unit it would take, for `holder`.
         batch: The open batch a `close_when` tests, for `batch.size` and `batch.age`.
+        each: The element an `each` branch is made for, for `each.index` and
+            `each.value`.
+        member: The member a `lowest` reads, for `member.<name>`.
+        families: The declared families by name, for `members()` and the reads of a
+            member that does not exist yet.
 
     Returns:
         Scope: The scope.
@@ -101,6 +110,9 @@ def make_scope(
         request=request,
         holder=holder,
         batch=batch,
+        each=each,
+        member=member,
+        families=families or {},
     )
 
 
@@ -361,8 +373,9 @@ class Transfer:
     dropped.
 
     Attributes:
-        container (Optional[str]): The container's name.
-        store (Optional[str]): The store's name.
+        container (Optional[str]): The container's name, or a `Reference` to a member
+            of a family of containers.
+        store (Optional[str]): The store's name, or a `Reference`.
         amount: The amount, for a container.
         wait (bool): False for a put the task does not wait for.
     """
@@ -381,8 +394,9 @@ class Transfer:
         Checks the transfer.
 
         Args:
-            container: The container's name.
-            store: The store's name, instead of a container.
+            container: The container's name, or a reference `{"of": family, "key":
+                expression}`.
+            store: The store's name, instead of a container, or a reference.
             amount: For a container, a number, an expression or a function.
             priority: For a put into a priority store, any value SimPy can order: a
                 number, a string, a tuple, or an expression or function that
@@ -413,6 +427,10 @@ class Transfer:
         if not isinstance(wait, bool):
             raise ValueError(f"wait must be true or false, got {wait!r}")
         self.wait = wait
+        if container is not None:
+            container = name_of(container, "container")
+        if store is not None:
+            store = name_of(store, "store")
         if (container is None) == (store is None):
             raise ValueError("a get or put names one container or one store")
         if store is not None and amount != 1.0:
@@ -520,7 +538,13 @@ class Transfer:
                 self._filter_expression,
             )
             if expression is not None
-        ]
+        ] + self.reference_expressions
+
+    @property
+    def reference_expressions(self) -> List[Expression]:
+        """The parsed `key` or `lowest` of a reference the transfer names."""
+        target = self.store if self.store is not None else self.container
+        return list(target.expressions) if isinstance(target, Reference) else []
 
     def filter_for(
         self, scope: Scope, entity: Any = None
@@ -589,6 +613,9 @@ WAIT_KINDS = (
     "suspend",
 )
 
+# What an `each` branch may be: the leaves that make one event of their own
+EACH_LEAVES = ("signal", "task", "timeout", "request", "get", "put", "handle")
+
 # Group kinds: a branch that holds named child branches.
 GROUP_KINDS = ("any", "all", "at_least", "when")
 
@@ -607,6 +634,11 @@ class WaitNode:
         "args",
         "predicate",
         "options",
+        "each",
+        "group",
+        "template",
+        "index",
+        "element",
     )
 
     def __init__(
@@ -630,11 +662,26 @@ class WaitNode:
         self.predicate = predicate
         # The priority and preempt flag of a `request` leaf written as a mapping
         self.options: Optional["RequestOptions"] = None
+        # An `each` node: the elements (a number, a list, an `Expression` or a
+        # generator), how the group is done (`all`, `any`, `at_least` or `when`, with
+        # its count or condition), and the branch made once for each element
+        self.each: Any = None
+        self.group: Tuple[str, Any] = ("all", None)
+        self.template: Optional["WaitNode"] = None
+        # The expression that names one element of an `each` group, on a `handle` leaf
+        self.index: Optional[Expression] = None
+        # The element an `each` leaf is made for, as {"index", "value"}, else None
+        self.element: Optional[Dict[str, Any]] = None
 
     @property
     def is_group(self) -> bool:
         """True for a group node (`any`, `all` or `at_least`), False for a leaf."""
         return self.kind in GROUP_KINDS
+
+    @property
+    def is_each(self) -> bool:
+        """True for an `each` node: a group of one branch made for each element."""
+        return self.kind == "each"
 
 
 class Wait:
@@ -693,16 +740,32 @@ class Wait:
                 f"wait takes one branch, or any or all of named branches, got {spec!r}"
             )
         self.branches: Dict[str, WaitNode] = {}
+        # Every node, the branch an `each` makes included, which has no name of its own
+        self.all_nodes: List[WaitNode] = []
         self.root = self._node(spec, None)
         self.mode = self.root.kind if self.root.is_group else "any"
 
-    def _node(self, spec: Any, name: Optional[str]) -> WaitNode:
+    def _node(self, spec: Any, name: Optional[str], register: bool = True) -> WaitNode:
         """Parses one branch spec, a leaf or a group, under branch name `name` (None
-        at the top of a single-branch wait), and registers every named node."""
+        at the top of a single-branch wait), and registers every named node unless
+        `register` is False, for the branch an `each` makes."""
         if not isinstance(spec, Mapping):
             raise ValueError(f"a wait branch is a mapping, got {spec!r}")
         keys = set(spec)
-        if "when" in keys:
+        if "each" in keys and "branch" in keys:
+            node = self._each(spec, name)
+        elif "handle" in keys and "index" in keys:
+            if keys != {"handle", "index"} or not isinstance(spec["handle"], str):
+                raise ValueError(
+                    f"a wait handle branch takes handle and index, got {spec!r}"
+                )
+            node = WaitNode(
+                name if name is not None else spec["handle"],
+                "handle",
+                target=spec["handle"],
+            )
+            node.index = _index_expression(spec["index"], "a wait handle")
+        elif "when" in keys:
             node = self._when(spec, name)
         elif "at_least" in keys:
             node = self._at_least(spec, name)
@@ -725,7 +788,12 @@ class Wait:
                 args = spec["args"]
                 spec = {"task": spec["task"]}
             options = None
-            if isinstance(spec.get("request"), Mapping):
+            if isinstance(spec.get("request"), Mapping) and "of" in spec["request"]:
+                try:
+                    spec = {"request": name_of(spec["request"], "a wait request")}
+                except ValueError as error:
+                    raise ValueError(str(error)) from None
+            elif isinstance(spec.get("request"), Mapping):
                 options = RequestOptions(spec["request"])
                 options.mapping = True
                 spec = {"request": options.resource}
@@ -740,12 +808,38 @@ class Wait:
                 node_name = kind
             node = WaitNode(node_name, kind, target=target, args=args)
             node.options = options
-        if node.name is not None:
+        self.all_nodes.append(node)
+        if node.name is not None and register:
             if node.name in self.branches:
                 raise ValueError(
                     f"wait branch name '{node.name}' is used more than once"
                 )
             self.branches[node.name] = node
+        return node
+
+    def _each(self, spec: Mapping[str, Any], name: Optional[str]) -> WaitNode:
+        """Parses an `{each, group, branch}` node: one branch made for each element."""
+        extra = set(spec) - {"each", "group", "branch"}
+        if extra:
+            raise ValueError(
+                f"each takes each, group and branch, not {', '.join(sorted(extra))}"
+            )
+        node = WaitNode(name if name is not None else "each", "each")
+        node.each = _each_elements(spec["each"])
+        node.group = _each_group(spec.get("group", "all"))
+        if node.group[0] == "when" and node.group[1].references["wait"]:
+            raise ValueError(
+                "the when of an each group reads done_count; its elements are not "
+                "named wait branches yet, so wait.<name> cannot be read in it"
+            )
+        template = self._node(spec["branch"], None, register=False)
+        if template.kind not in EACH_LEAVES:
+            raise ValueError(
+                f"an each branch makes one event for each element, so it is one of "
+                f"{', '.join(EACH_LEAVES)}, got {article(template.kind)} {template.kind} branch"
+            )
+        template.name = node.name
+        node.template = template
         return node
 
     def _children(self, kind: str, members: Any) -> List[WaitNode]:
@@ -795,19 +889,25 @@ class Wait:
         Returns:
             Set[str]: The names the leaves of that kind name.
         """
-        running = {
-            n.target["task"] for n in self.branches.values() if n.kind == "running"
-        }
+        running = {n.target["task"] for n in self.all_nodes if n.kind == "running"}
         if kind == "running":
             return running
-        found = {n.target for n in self.branches.values() if n.kind == kind}
+        found = {n.target for n in self.all_nodes if n.kind == kind}
         return found | running if kind == "task" else found
+
+    def indexed_handles(self) -> Set[str]:
+        """The names the wait's `handle` leaves read with an `index`."""
+        return {
+            n.target
+            for n in self.all_nodes
+            if n.kind == "handle" and n.index is not None
+        }
 
     def requests(self) -> List[str]:
         """Returns the resources the wait's `request` leaves name, in the order the
         wait lists them, each once."""
         found: List[str] = []
-        for node in self.branches.values():
+        for node in self.all_nodes:
             if node.kind == "request" and node.target not in found:
                 found.append(node.target)
         return found
@@ -817,7 +917,7 @@ class Wait:
         in the order the wait lists them, each once. A leaf written as a mapping
         takes no `priority` or `preempt` of the task, so it is not counted."""
         found: List[str] = []
-        for node in self.branches.values():
+        for node in self.all_nodes:
             if (
                 node.kind == "request"
                 and node.options is None
@@ -843,6 +943,10 @@ class Wait:
 
         def walk(node: WaitNode) -> Tuple[List[str], List[str]]:
             """The node's requests, and those it can hold before it is done."""
+            if node.is_each:
+                template = node.template
+                assert template is not None
+                return ([template.target] if template.kind == "request" else []), []
             if not node.is_group:
                 return ([node.target] if node.kind == "request" else []), []
             found = [walk(child) for child in node.children]
@@ -864,12 +968,46 @@ class Wait:
     @property
     def conditions(self) -> List[Expression]:
         """The parsed conditions of the `condition` leaves."""
-        return [n.target for n in self.branches.values() if n.kind == "condition"]
+        return [n.target for n in self.all_nodes if n.kind == "condition"]
 
     @property
     def predicates(self) -> List[Expression]:
         """The parsed conditions of the `when` groups, read as branches are processed."""
-        return [n.predicate for n in self.branches.values() if n.predicate is not None]
+        return [n.predicate for n in self.all_nodes if n.predicate is not None] + [
+            n.group[1] for n in self.all_nodes if n.is_each and n.group[0] == "when"
+        ]
+
+    @property
+    def group_expressions(self) -> List[Expression]:
+        """The parsed `each` and `at_least` of the `each` nodes, read outside the
+        branch: they cannot read `each.index` or `each.value`."""
+        return [
+            part
+            for node in self.all_nodes
+            if node.is_each
+            for part in (
+                node.each,
+                node.group[1] if node.group[0] == "at_least" else None,
+            )
+            if isinstance(part, Expression)
+        ]
+
+    @property
+    def reference_expressions(self) -> List[Expression]:
+        """The parsed `key` or `lowest` of every reference a leaf of the wait names:
+        a signal, a request, a store or a container."""
+        found: List[Expression] = []
+        for node in self.all_nodes:
+            target = node.target
+            if node.index is not None:
+                found.append(node.index)
+            if node.kind == "request" and node.options is not None:
+                continue
+            if isinstance(target, Transfer):
+                found.extend(target.reference_expressions)
+            elif isinstance(target, Reference):
+                found.extend(target.expressions)
+        return found
 
     @property
     def request_expressions(self) -> List[Expression]:
@@ -877,19 +1015,29 @@ class Wait:
         leaves written as mappings, read when the request is made."""
         return [
             e
-            for n in self.branches.values()
+            for n in self.all_nodes
             if n.options is not None
             for e in n.options.expressions
         ]
 
     @property
     def time_expressions(self) -> List[Expression]:
-        """The parsed expressions of the `timeout` leaves, read when the wait starts."""
-        return [
+        """The parsed expressions of the `timeout` leaves, and the `each` and
+        `at_least` of the `each` nodes, read when the wait starts."""
+        found = [
             n.target[0]
-            for n in self.branches.values()
+            for n in self.all_nodes
             if n.kind == "timeout" and isinstance(n.target[0], Expression)
         ]
+        for node in self.all_nodes:
+            if node.is_each:
+                for part in (
+                    node.each,
+                    node.group[1] if node.group[0] == "at_least" else None,
+                ):
+                    if isinstance(part, Expression):
+                        found.append(part)
+        return found
 
 
 def as_given(value: Any) -> Union[int, float]:
@@ -1033,13 +1181,80 @@ def _wait_branch(branch: Any) -> Tuple[str, Any]:
             "where": Expression(where) if where is not None else None,
             "whole_flow": whole,
         }
+    if kind == "signal" and isinstance(target, Mapping):
+        try:
+            target = name_of(target, "a wait signal branch")
+        except ValueError as error:
+            raise ValueError(str(error)) from None
     if not isinstance(target, str):
         raise ValueError(f"a wait {kind} branch names a {kind}, got {target!r}")
     return kind, target
 
 
+def _index_expression(value: Any, what: str) -> Expression:
+    """The expression of an `index`: an integer or text, parsed."""
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise ValueError(f"{what} index is an integer or an expression, got {value!r}")
+    return Expression(str(value))
+
+
+def article(word: str) -> str:
+    """`a` or `an` for the word, as the message names a kind of branch.
+
+    Args:
+        word: The word the article goes before.
+
+    Returns:
+        str: `an` before a vowel, else `a`.
+    """
+    return "an" if word[:1].lower() in "aeiou" else "a"
+
+
+def _each_elements(value: Any) -> Any:
+    """The `each` of a wait: a number, a list, an expression text or a generator."""
+    from desflow.values.models import _Gen
+
+    if isinstance(value, bool):
+        raise ValueError(f"each is a count, a list or an expression, got {value!r}")
+    if isinstance(value, float):
+        raise ValueError(f"each is a whole number of 0 or more, got {value!r}")
+    if isinstance(value, numbers.Real):
+        count = int(float(value))
+        if value < 0 or count != value:
+            raise ValueError(f"each is a whole number of 0 or more, got {value!r}")
+        return count
+    if isinstance(value, str):
+        return Expression(value)
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    if isinstance(value, _Gen) or callable(value):
+        return value
+    raise ValueError(
+        f"each is a count, a list, an expression or a generator, got {value!r}"
+    )
+
+
+def _each_group(value: Any) -> Tuple[str, Any]:
+    """The `group` of an `each` as its kind and its count or condition."""
+    if value in ("all", "any"):
+        return (value, None)
+    if isinstance(value, Mapping) and len(value) == 1:
+        ((kind, arg),) = value.items()
+        if kind == "at_least":
+            if isinstance(arg, bool) or not isinstance(arg, (int, str)):
+                raise ValueError(f"group at_least is a count, got {arg!r}")
+            if isinstance(arg, int) and arg < 1:
+                raise ValueError(f"group at_least is 1 or more, got {arg!r}")
+            return (kind, Expression(arg) if isinstance(arg, str) else arg)
+        if kind == "when" and isinstance(arg, str):
+            return (kind, Expression(arg))
+    raise ValueError(
+        f"group is all, any, {{at_least: n}} or {{when: expression}}, got {value!r}"
+    )
+
+
 # The kinds of branch an `open` makes, and those that a group of an `open` may hold
-OPEN_LEAVES = ("timeout", "request", "get", "put", "task", "signal")
+OPEN_LEAVES = ("timeout", "request", "get", "put", "task", "signal", "each")
 OPEN_GROUP_LEAVES = ("timeout", "task", "signal", "handle")
 
 
@@ -1088,6 +1303,20 @@ class Open:
 
     def _check(self, name: str, node: WaitNode, in_group: bool) -> None:
         """Refuses a branch kind `open` does not make, in a group or at the top."""
+        if node.is_each:
+            if in_group:
+                raise ValueError(
+                    f"open '{name}' has an each branch: open takes it under its own "
+                    f"name, not inside a group"
+                )
+            template = node.template
+            assert template is not None
+            if template.kind not in OPEN_LEAVES:
+                raise ValueError(
+                    f"open '{name}' has an each of {template.kind} branches: open "
+                    f"takes {', '.join(OPEN_LEAVES[:-1])}"
+                )
+            return
         if node.is_group:
             if node.kind not in ("any", "all"):
                 raise ValueError(
@@ -1115,6 +1344,30 @@ class Open:
         order, each once."""
         return self.wait.plain_requests()
 
+    def opened_as(self, name: str) -> str:
+        """What a name opens as for the load checks: its kind, or `each <kind>` for an
+        `each` group of that kind.
+
+        Args:
+            name: An opened name.
+
+        Returns:
+            str: The kind, such as `request` or `each task`.
+        """
+        node = self.nodes[name]
+        if node.is_each:
+            assert node.template is not None
+            return f"each {node.template.kind}"
+        return node.kind
+
+    def indexed_handles(self) -> Set[str]:
+        """The names the open branches read with an `index`."""
+        return {
+            n.target
+            for n in self.wait.all_nodes
+            if n.kind == "handle" and n.index is not None
+        }
+
     def kind_of(self, name: str) -> str:
         """What the name opens.
 
@@ -1140,9 +1393,14 @@ class Open:
 
     @property
     def expressions(self) -> List[Expression]:
-        """The parsed expressions of the open `timeout` branches and of the `priority`
-        and `preempt` of the open `request` branches."""
-        return [*self.wait.time_expressions, *self.wait.request_expressions]
+        """The parsed expressions of the open `timeout` and `each` branches, of the
+        `priority` and `preempt` of the open `request` branches, and of the references
+        and indexes the branches hold."""
+        return [
+            *self.wait.time_expressions,
+            *self.wait.request_expressions,
+            *self.wait.reference_expressions,
+        ]
 
 
 class RequestOptions:
@@ -1182,12 +1440,17 @@ class RequestOptions:
                 f"got {spec!r}"
             )
         extra = set(spec) - {"resource", *options}
+        if "resource" in spec and not extra:
+            try:
+                spec = {**spec, "resource": name_of(spec["resource"], what)}
+            except ValueError as error:
+                raise ValueError(f"{what}: {error}") from None
         if extra or not isinstance(spec.get("resource"), str):
             raise ValueError(
                 f"{what} takes a resource and, optionally, "
                 f"{', '.join(options[:-1])} and {options[-1]}, got {dict(spec)!r}"
             )
-        self.resource: str = spec["resource"]
+        self.resource: Union[str, Reference] = spec["resource"]
         priority = spec.get("priority")
         if isinstance(priority, bool) or not (
             priority is None
@@ -1212,7 +1475,10 @@ class RequestOptions:
     @property
     def expressions(self) -> List[Expression]:
         """The parsed expressions of the priority and the preempt flag."""
-        return [e for e in (self.priority, self.preempt) if isinstance(e, Expression)]
+        found = [e for e in (self.priority, self.preempt) if isinstance(e, Expression)]
+        if isinstance(self.resource, Reference):
+            found.extend(self.resource.expressions)
+        return found
 
 
 class Seize(RequestOptions):
@@ -1251,7 +1517,8 @@ class Release:
 
     Three forms: `<resource>` frees the oldest unit of that resource the flow
     holds from a `seize` or an `open`, and does nothing when it holds none;
-    `{handle: <name>}` frees the unit of that opened request; `{resource, task,
+    `{handle: <name>}` frees the unit of that opened request, `{handle: <name>,
+    index: <expression>}` the unit of one element of an opened `each`; `{resource, task,
     where}` frees the units of that resource that instances of `task` hold, however
     they asked (`resource`, `seize`, `open`, or a `request` in a wait) and whichever
     flow they are in, narrowed by `where` in the instance's scope.
@@ -1259,6 +1526,8 @@ class Release:
     Attributes:
         resource (Optional[str]): The resource of the first and third forms.
         handle (Optional[str]): The name of the second form.
+        index (Optional[Expression]): The element of an `each` the second form frees,
+            or None for the whole name.
         task (Optional[str]): The task of the third form.
         where (Optional[Expression]): The condition of the third form.
     """
@@ -1275,6 +1544,7 @@ class Release:
         """
         self.resource: Optional[str] = None
         self.handle: Optional[str] = None
+        self.index: Optional[Expression] = None
         self.task: Optional[str] = None
         self.where: Optional[Expression] = None
         if isinstance(spec, str):
@@ -1285,16 +1555,23 @@ class Release:
                 f"release is a resource name, {{handle: name}} or {{resource, task, "
                 f"where}}, got {spec!r}"
             )
+        if "of" in spec:
+            # A member of a family, `{of: <family>, key: <expression>}`
+            self.resource = name_of(spec, "release")
+            return
         keys = set(spec)
-        if keys == {"handle"} and isinstance(spec["handle"], str):
+        if keys <= {"handle", "index"} and isinstance(spec.get("handle"), str):
             self.handle = spec["handle"]
+            if "index" in spec:
+                self.index = _index_expression(spec["index"], "release")
         elif (
             {"resource", "task"} <= keys
             and keys <= {"resource", "task", "where"}
-            and isinstance(spec["resource"], str)
             and isinstance(spec["task"], str)
+            and isinstance(spec["resource"], (str, Mapping))
         ):
-            self.resource, self.task = spec["resource"], spec["task"]
+            self.resource = name_of(spec["resource"], "release")
+            self.task = spec["task"]
             if spec.get("where") is not None:
                 self.where = Expression(spec["where"])
         else:
@@ -1306,4 +1583,77 @@ class Release:
     @property
     def expressions(self) -> List[Expression]:
         """The parsed `where` condition, if any."""
-        return [] if self.where is None else [self.where]
+        found = [] if self.where is None else [self.where]
+        if self.index is not None:
+            found.append(self.index)
+        if isinstance(self.resource, Reference):
+            found.extend(self.resource.expressions)
+        return found
+
+
+class Listen:
+    """
+    One `listen`: callbacks a task adds to an event when it starts, as
+    `event.callbacks.append(f)` does.
+
+    The event is a signal, or a member of a family of signals, or an event the flow
+    opened under a name, or one element of an opened `each` group. The callbacks are the
+    entries of the listen's own `on` list, which take the form of a task's `on` entries,
+    run on the next firing of the event.
+
+    Attributes:
+        signal (Union[str, Reference, None]): The signal, or the reference to a member.
+        handle (Optional[str]): The name of an opened event.
+        index (Optional[Expression]): The element of an `each` group a handle names, or
+            None for the whole name.
+        on (List[Dict[str, Any]]): The entries to run, as `on:` actions normalized.
+    """
+
+    def __init__(self, spec: Mapping[str, Any], on: List[Dict[str, Any]]):
+        """
+        Checks the form.
+
+        Args:
+            spec: A mapping with exactly one of `signal` and `handle`, an optional
+                `index` with a `handle`, and `on`.
+            on: The entries of `spec["on"]`, already normalized by the caller.
+
+        Raises:
+            ValueError: If the form is malformed.
+        """
+        if not isinstance(spec, Mapping):
+            raise ValueError(
+                f"listen is {{signal: ..., on: [...]}} or {{handle: ..., on: [...]}}, "
+                f"got {spec!r}"
+            )
+        extra = set(spec) - {"signal", "handle", "index", "on"}
+        if extra:
+            raise ValueError(
+                f"listen takes signal or handle, index and on, not "
+                f"{', '.join(sorted(map(str, extra)))}"
+            )
+        if (spec.get("signal") is None) == (spec.get("handle") is None):
+            raise ValueError("listen takes exactly one of signal and handle")
+        self.signal: Union[str, Reference, None] = None
+        self.handle: Optional[str] = None
+        self.index: Optional[Expression] = None
+        if spec.get("signal") is not None:
+            self.signal = name_of(spec["signal"], "a listen's signal")
+        else:
+            if not isinstance(spec["handle"], str):
+                raise ValueError(f"a listen's handle is a name, got {spec['handle']!r}")
+            self.handle = spec["handle"]
+        if spec.get("index") is not None:
+            if self.handle is None:
+                raise ValueError("listen index picks an element of a handle")
+            self.index = _index_expression(spec["index"], "listen")
+        self.on = list(on)
+
+    @property
+    def expressions(self) -> List[Expression]:
+        """The parsed `index`, the reference's expressions and each entry's `when`."""
+        found = [] if self.index is None else [self.index]
+        if isinstance(self.signal, Reference):
+            found.extend(self.signal.expressions)
+        found.extend(a["when"] for a in self.on if a.get("when") is not None)
+        return found

@@ -34,15 +34,19 @@ A `resources` entry: its capacity, the order its queue is served in, whether a r
 
 `current_cap` defaults to 1 and `max_cap` to `current_cap`, so `{}` is a resource of one unit. `.inf` makes a resource with no limit. `type` is a `!python` subclass of `ResourceBase`. `queue` is `fifo`, `lifo`, `priority`, or a `{rank, ties}` rule that ranks each request by an expression; `preempt` is true or false, or a `{when, victim}` rule, and needs `queue: priority` or a rank. `queue_limit` is also the registry path `<sim_id>.resources.<name>.queue_limit`, so a scenario, an `on:` entry or an ingress message can change it: the new limit applies from the next request and removes nobody who waits, and `null` is no limit.
 
+`family: true` makes the entry a family: one resource for each key, made from this entry. `members` is a count place read once when the run is built, for the keys 0 to n - 1; without it the family starts empty. A task names a member with `{of: <family>, key: <expression>}`, and a member is made at its first use. In a family, `current_cap` and `max_cap` may be expression text, read once when a member is made.
+
 | Key | Type | Default |
 |---|---|---|
-| `current_cap` | integer or number | none |
-| `max_cap` | integer or number | none |
+| `current_cap` | integer or number or text | none |
+| `max_cap` | integer or number or text | none |
 | `queue` | text or [QueueRule](#queuerule) | `"fifo"` |
 | `preempt` | boolean or [PreemptRule](#preemptrule) | `false` |
 | `queue_limit` | integer | none |
 | `type` | !python reference | none |
 | `breakdown` | [Breakdown](#breakdown) | none |
+| `family` | boolean | `false` |
+| `members` | Generator or integer or text | none |
 
 ### QueueRule
 
@@ -79,16 +83,18 @@ Type: mapping of names to [Container](#containers). Optional.
 
 A `containers` entry: its capacity, the largest level, its starting level and the class it is built from.
 
-`current_cap` defaults to `max_cap`, and with neither the container has no limit; `.inf` is no limit too. `max_cap` defaults to `current_cap`. `type` is a `!python` subclass of `ContainerBase`. `get_queue` and `put_queue` rank the waiting gets and puts by an expression, as a resource's `queue` ranks its requests; they are not allowed with `type`.
+`current_cap` defaults to `max_cap`, and with neither the container has no limit; `.inf` is no limit too. `max_cap` defaults to `current_cap`. `type` is a `!python` subclass of `ContainerBase`. `get_queue` and `put_queue` rank the waiting gets and puts by an expression, as a resource's `queue` ranks its requests; they are not allowed with `type`. With `family: true` the entry is a family of containers, as for a resource, and `current_cap`, `max_cap` and `level` may be expression text.
 
 | Key | Type | Default |
 |---|---|---|
-| `current_cap` | integer or number | none |
-| `max_cap` | integer or number | none |
-| `level` | integer or number | `0` |
+| `current_cap` | integer or number or text | none |
+| `max_cap` | integer or number or text | none |
+| `level` | integer or number or text | `0` |
 | `type` | !python reference | none |
 | `get_queue` | [QueueRule](#queuerule) | none |
 | `put_queue` | [QueueRule](#queuerule) | none |
+| `family` | boolean | `false` |
+| `members` | Generator or integer or text | none |
 
 ## stores
 
@@ -96,17 +102,19 @@ Type: mapping of names to [Store](#stores). Optional.
 
 A `stores` entry: how many items it holds, whether it serves by priority, the items it holds when the run starts, and the class it is built from.
 
-`current_cap` defaults to `max_cap`, and with neither the store has no limit; `.inf` is no limit too. `max_cap` defaults to `current_cap`. A capacity is a whole number or `.inf`. `items` are returned in the order given; a priority store's items are `[priority, item]` pairs. `type` is a `!python` subclass of `StoreBase`, which sets its own order, so it cannot be given with `priority`. An item is a constant or a `{gen: ...}` generator, drawn once when the run starts. `get_queue` and `put_queue` rank the waiting gets and puts by an expression, as a resource's `queue` ranks its requests; `priority` still ranks the items. They are not allowed with `type`.
+`current_cap` defaults to `max_cap`, and with neither the store has no limit; `.inf` is no limit too. `max_cap` defaults to `current_cap`. A capacity is a whole number or `.inf`. `items` are returned in the order given; a priority store's items are `[priority, item]` pairs. `type` is a `!python` subclass of `StoreBase`, which sets its own order, so it cannot be given with `priority`. An item is a constant or a `{gen: ...}` generator, drawn once when the run starts. `get_queue` and `put_queue` rank the waiting gets and puts by an expression, as a resource's `queue` ranks its requests; `priority` still ranks the items. They are not allowed with `type`. With `family: true` the entry is a family of stores, as for a resource, each member made with the `items` given.
 
 | Key | Type | Default |
 |---|---|---|
-| `current_cap` | integer or number | none |
-| `max_cap` | integer or number | none |
+| `current_cap` | integer or number or text | none |
+| `max_cap` | integer or number or text | none |
 | `priority` | boolean | `false` |
 | `items` | list of Value |  |
 | `type` | !python reference | none |
 | `get_queue` | [QueueRule](#queuerule) | none |
 | `put_queue` | [QueueRule](#queuerule) | none |
+| `family` | boolean | `false` |
+| `members` | Generator or integer or text | none |
 
 ## services
 
@@ -207,16 +215,19 @@ Type: mapping of names to [SignalSpec](#signals) or list of names. Optional.
 
 A `signals` entry in the mapping form: `{closing: {once: true, on: [...]}}`.
 
-A signal fires once, as SimPy's `Event` does, unless it says `once: false`, which re-arms it after each firing. `on` lists actions run when the signal fires, as a task's `on` lists actions run when it ends.
+A signal fires once, as SimPy's `Event` does, unless it says `once: false`, which re-arms it after each firing. `on` lists actions run when the signal fires, as a task's `on` lists actions run when it ends. `defused: true` makes every failure of the signal that no waiter handles go unraised, as a callback's `event.defused = True` does; without it, a one-shot signal's failure with no waiter stops the run under `on_unhandled_failure: stop`. `family: true` makes the entry a family of signals, one for each key, as for a resource; `members` makes the keys 0 to n - 1 when the run is built.
 
 | Key | Type | Default |
 |---|---|---|
 | `once` | boolean | `true` |
 | `on` | list of [OnEntry](#onentry) |  |
+| `defused` | boolean | `false` |
+| `family` | boolean | `false` |
+| `members` | Generator or integer or text | none |
 
 ### OnEntry
 
-One entry of an `on:` list: exactly one of a fire, spawn, interrupt or resume action, or a `path` with a `value` as a scenario step sets a registry value. A `value` is a constant or a `{gen: ...}` generator evaluated when the entry runs; a mapping with no `gen` key is data, and a generator nested in it is stored as written.
+One entry of an `on:` list: exactly one of a fire, spawn, interrupt or resume action, or a `path` with a `value` as a scenario step sets a registry value. A `value` is a constant or a `{gen: ...}` generator evaluated when the entry runs; a mapping with no `gen` key is data, and a generator nested in it is stored as written. `when` is an expression read when the entry would run: a false result skips the entry, and one that fails is a run failure.
 
 | Key | Type | Default |
 |---|---|---|
@@ -228,18 +239,34 @@ One entry of an `on:` list: exactly one of a fire, spawn, interrupt or resume ac
 | `deactivate` | text or list of text | none |
 | `path` | text | none |
 | `value` | Value | none |
+| `when` | text | none |
 
 ### FireAction
 
-An `on:` fire action: fire `signal` with a `value` (a constant, or a `{gen: ...}` generator evaluated when the action runs; a mapping with no `gen` key is data, and a generator nested in it is stored as written), or with the outcome `from` copies from a signal or a task. `urgent` and `after` fire a one-shot signal ahead of the other events at its time, or later, as SimPy's `env.schedule(event, priority, delay)` does.
+An `on:` fire action: fire `signal` with a `value` (a constant, or a `{gen: ...}` generator evaluated when the action runs; a mapping with no `gen` key is data, and a generator nested in it is stored as written), or with the outcome `from` copies from a signal or a task. `urgent` runs the firing ahead of the other events at its time, `priority` orders it among them (the lowest number first), and `after` delays it, as SimPy's `env.schedule(event, priority, delay)` does. All three need a one-shot signal. `urgent` is priority 0, `priority` is an integer that is 1 when it is left out, and the two are not given together.
+
+`fail: true` fails the signal in place of firing it, as `Event.fail` does, and `value` is the reason; the task that fired goes on. `defused: true` is for a failure that no waiter handles: it does not stop the run, as `event.defused = True` does (`signals.<name>.defused` does the same for every failure of a signal).
 
 | Key | Type | Default |
 |---|---|---|
-| `signal` | text | required |
+| `signal` | text or [Ref](#ref) | required |
 | `value` | Value | none |
 | `from` | text | none |
 | `urgent` | boolean | `false` |
 | `after` | integer or number or Duration | none |
+| `priority` | integer | none |
+| `fail` | boolean | `false` |
+| `defused` | boolean | `false` |
+
+### Ref
+
+A name a task computes, where a task names a resource, a store, a container or a signal: `{of: <family>, key: <expression>}` is the member of a family that `key` gives, made when it is first used, and `{of: <family>, lowest: <expression>}` is the member whose value is the lowest, `lowest` being read once for each member as `member.key`, `member.users`, `member.queue`, `member.level`, `member.count`, `member.putters` and `member.getters`. `of` may be a list of declared names, and `key` then gives one of them. A reference takes `key` or `lowest`, not both.
+
+| Key | Type | Default |
+|---|---|---|
+| `of` | text or list of text | required |
+| `key` | text or integer | none |
+| `lowest` | text | none |
 
 ### SpawnAction
 
@@ -261,6 +288,7 @@ An `interrupt` on a task or a scenario step: interrupt every running instance of
 |---|---|---|
 | `task` | text | none |
 | `handle` | text | none |
+| `index` | integer or text | none |
 | `where` | text | none |
 | `cause` | Value | none |
 
@@ -287,11 +315,13 @@ Text in a value place stays text. A time place reads a number as seconds, text `
 
 `service_time` is the task's own time, in place of a `service`, and the two are not given together: seconds, a duration such as `30 s`, an expression, or a `{gen: ...}` generator, read after the task has its resource and, for a `get`, its item. It may read `vars_once` and `vars` as bare names, and `item.<field>` after a store get. A result below 0 fails the run. A task with a `resource` needs a `service` or a `service_time`.
 
-`priority` is a number or an expression such as `attr.priority`, for a resource whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s`, an expression or a generator; `balk` is a condition checked before the task joins the queue. `resource` is one resource or a list, acquired in the order listed; `keep` hands units to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and `interrupt` interrupts the running instances of a task when this one finishes. `wait` is what the task waits for first: a signal, a child task, a timeout or a condition, or any or all of several. `signal` names a signal the task fires when it finishes. `fail` is a condition checked after the service: when it holds the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or container. `next` is a task name, `when` rules or `weights`, whose values are numbers or expressions read when the task finishes, with one draw for the choice. `set` gives the entity attribute values when the task finishes. `set_args` writes this process's own local names, read as `arg.<name>` by this task and by the tasks that follow in the same flow (not by a child flow, which has its own). It is read after `set`, so a payload reads the value from before the write. A parent passes names to a child with `args` on a `task` branch of its `wait`, or on a `spawn`; a read of a name that was neither passed nor written is a run failure. `activate` and `deactivate` turn the sources of the named arrivals on and off when the task finishes, after `set_args`. `cause.<name>` reads why the task was interrupted, in a task that an `on_interrupt_next` edge reaches: `by`, `usage_since` and `resource` after a preemption, `value` after an `interrupt`, and `left`, the service time that was left. `upstream.<field>` is the payload of the task that routed here, `item` is the whole item a store get took, and it lasts through the `next` chain.
+`priority` is a number or an expression such as `attr.priority`, for a resource whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s`, an expression or a generator; `balk` is a condition checked before the task joins the queue. `resource` is one resource or a list, acquired in the order listed; `keep` hands units to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and `interrupt` interrupts the running instances of a task when this one finishes. `wait` is what the task waits for first: a signal, a child task, a timeout or a condition, or any or all of several. `signal` names a signal the task fires when it finishes. `fail` is a condition checked after the service: when it holds the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `fail_reason` is text, or a `{gen: ...}` generator read in the step the failure happens, and it is the `reason` of the record, of the failed `signal` and of `upstream.reason`. `get` and `put` take from and add to a store or container. `next` is a task name, `when` rules or `weights`, whose values are numbers or expressions read when the task finishes, with one draw for the choice. `set` gives the entity attribute values when the task finishes. `set_args` writes this process's own local names, read as `arg.<name>` by this task and by the tasks that follow in the same flow (not by a child flow, which has its own). It is read after `set`, so a payload reads the value from before the write. A parent passes names to a child with `args` on a `task` branch of its `wait`, or on a `spawn`; a read of a name that was neither passed nor written is a run failure. `activate` and `deactivate` turn the sources of the named arrivals on and off when the task finishes, after `set_args`. `cause.<name>` reads why the task was interrupted, in a task that an `on_interrupt_next` edge reaches: `by`, `usage_since` and `resource` after a preemption, `value` after an `interrupt`, and `left`, the service time that was left. `upstream.<field>` is the payload of the task that routed here, `item` is the whole item a store get took, and it lasts through the `next` chain.
 
 `on_interrupt_run` names a task that runs as a child flow of the same entity after each interrupt or preemption the task meets under `resume` or `restart`, and the task then goes on with the time left, or a new time under `restart`, as a SimPy loop `try: yield env.timeout(left) except Interrupt: yield from repair()` does. The child runs in the task's process. An interrupt that arrives while it runs reaches the child at its next wait and follows the child's own `on_interrupt`. The child reads `cause.<name>` as a task reached by `on_interrupt_next` does. It is refused with `abandon`, with a `resource` and with a request in the `wait`, because it is for work that holds no unit of its own. A child that fails fails the task. `on_renege` and `on_balk` name the task an instance goes to after it reneges (its `patience` ran out) or balks (its `balk` condition holds, or the line of its resource, `seize` or `open` is full), in place of the end of its flow. The instance still publishes `reneged` or `balked`, and that task reads the record as `upstream.status`. `on_fail` needs no `fail`: a failed `wait`, a failed child flow, a step that raises and an expression that cannot be evaluated go to it, and it reads the failure as `upstream.status` and `upstream.reason`. An interrupt is not a failure, and `on_fail` does not see it. `suspend` and `resume` are described on their models.
 
 `open` names branches that start at once and are not waited for, so a later step can wait for, cancel, release or interrupt them by name. A branch of `open` is a `timeout`, `request`, `get`, `put`, `task` or `signal`, or an `any` or `all` group of `timeout`, `task`, `signal` and `handle` branches. The other kinds a `wait` takes (`condition`, `running`, `at_least`, `when`) are refused at load, as is a `request`, `get` or `put` inside a group.
+
+`listen` adds callbacks to a signal or to an opened name when the task starts, after `open` and before `wait`: its `on` entries run on the next firing of the event, in the order the callbacks were added, as `event.callbacks.append(f)` does. An `on` entry of a task, a signal or a `listen` may carry a `when` expression that skips the entry when it is false.
 
 The cause of an interrupt, the holders of a resource and the entries of a queue are lists and mappings an expression reads: `held(m)` and `waiting(m)` for a resource, `putting(s)` and `getting(s)` for a store or container, `running(task)` and `running(task, condition)`, `peek()`, `process.key` and `process.flow_name`, `signal.<name>.processed`, and in the `when` of a wait group `done_count`.
 
@@ -307,7 +337,7 @@ An expression also reads a process's local names `arg.<name>`, the interrupt tha
 |---|---|---|
 | `service` | text | none |
 | `service_time` | Generator or integer or number or text or Duration or expression | none |
-| `resource` | text or list of text | none |
+| `resource` | text or [Ref](#ref) or list of text or [Ref](#ref) | none |
 | `payload` | Payload or !python reference | required |
 | `id_field` | text | none |
 | `key` | Value | none |
@@ -329,14 +359,15 @@ An expression also reads a process's local names `arg.<name>`, the interrupt tha
 | `on_start` | mapping of names to Value |  |
 | `finish_vars` | mapping of names to Value |  |
 | `history` | integer | `1000000` |
-| `wait` | [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) | none |
-| `open` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) | none |
+| `wait` | [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) or [EachWait](#eachwait) | none |
+| `open` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [EachWait](#eachwait) | none |
+| `listen` | [ListenSpec](#listenspec) | none |
 | `cancel` | text or [HandleRef](#handleref) | none |
 | `seize` | text or [SeizeSpec](#seizespec) | none |
-| `release` | text or [ReleaseSpec](#releasespec) | none |
-| `signal` | text | none |
+| `release` | text or [Ref](#ref) or [ReleaseSpec](#releasespec) | none |
+| `signal` | text or [Ref](#ref) | none |
 | `fail` | text | none |
-| `fail_reason` | text | none |
+| `fail_reason` | Value | none |
 | `on_fail` | text | none |
 | `on_renege` | text | none |
 | `on_balk` | text | none |
@@ -360,8 +391,8 @@ A task's `get` or `put`: one `container` with an `amount`, or one `store`.
 
 | Key | Type | Default |
 |---|---|---|
-| `container` | text | none |
-| `store` | text | none |
+| `container` | text or [Ref](#ref) | none |
+| `store` | text or [Ref](#ref) | none |
 | `amount` | integer or number or text | `1.0` |
 | `priority` | None | `0.0` |
 | `filter` | text | none |
@@ -389,11 +420,11 @@ A `next.when` entry: a condition and the task it leads to.
 
 ### SignalWait
 
-A `wait` branch for a signal's next firing.
+A `wait` branch for a signal's next firing, or for a member of a family of signals, `{signal: {of: <family>, key: <expression>}}`.
 
 | Key | Type | Default |
 |---|---|---|
-| `signal` | text | required |
+| `signal` | text or [Ref](#ref) | required |
 
 ### TaskWait
 
@@ -435,7 +466,7 @@ A `wait` done when the first of its named branches is.
 
 | Key | Type | Default |
 |---|---|---|
-| `any` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) | required |
+| `any` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) or [EachWait](#eachwait) | required |
 
 ### AllWait
 
@@ -443,7 +474,7 @@ A `wait` done when every one of its named branches is.
 
 | Key | Type | Default |
 |---|---|---|
-| `all` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) | required |
+| `all` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) or [EachWait](#eachwait) | required |
 
 ### AtLeastWait
 
@@ -452,7 +483,7 @@ A `wait` done when at least `at_least` of its named branches are.
 | Key | Type | Default |
 |---|---|---|
 | `at_least` | integer | required |
-| `of` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) | required |
+| `of` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) or [EachWait](#eachwait) | required |
 
 ### WhenWait
 
@@ -461,7 +492,7 @@ A `wait` done when the expression `when` holds. It is read each time a branch of
 | Key | Type | Default |
 |---|---|---|
 | `when` | text | required |
-| `of` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) | required |
+| `of` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) or [EachWait](#eachwait) | required |
 
 ### RequestWait
 
@@ -469,7 +500,7 @@ A `wait` branch for a resource unit: the task holds it if it wins.
 
 | Key | Type | Default |
 |---|---|---|
-| `request` | text or [RequestSpec](#requestspec) | required |
+| `request` | text or [Ref](#ref) or [RequestSpec](#requestspec) | required |
 
 ### RequestSpec
 
@@ -477,7 +508,7 @@ A `request` of a `wait` or an `open` with options: the `resource`, a `priority` 
 
 | Key | Type | Default |
 |---|---|---|
-| `resource` | text | required |
+| `resource` | text or [Ref](#ref) | required |
 | `priority` | integer or number or text | none |
 | `preempt` | boolean or text | none |
 
@@ -517,11 +548,12 @@ A `running` wait branch target: the task whose running instances to wait for, na
 
 ### HandleWait
 
-A `wait` branch for an event that `open` made: `handle` is the name it was opened under. A handle already processed gives its value at once, and a handle waited for through an interrupt under `resume` or `restart` is the same event after it, with its first end and its place in the queue.
+A `wait` branch for an event that `open` made: `handle` is the name it was opened under. A handle already processed gives its value at once, and a handle waited for through an interrupt under `resume` or `restart` is the same event after it, with its first end and its place in the queue. `index` names one element of an opened `each` group; it is read when the wait starts.
 
 | Key | Type | Default |
 |---|---|---|
 | `handle` | text | required |
+| `index` | integer or text | none |
 
 ### SuspendWait
 
@@ -531,13 +563,53 @@ A `wait` branch that suspends the instance until a `resume` of another task wake
 |---|---|---|
 | `suspend` | boolean | required |
 
+### EachWait
+
+A `wait` on a computed number of events: `branch` is made once for each element of `each`, in order, when the wait starts. `each` is a whole number, a list, an expression or a generator, read once. Inside `branch`, `each.index` is the place from 0 and `each.value` is the element, or the index when `each` is a number. `group` is `all` (the default), `any`, `{at_least: n}` or `{when: expression}`. An empty `each` is done at once. `wait.<name>.values` and `.flags` are lists in element order.
+
+| Key | Type | Default |
+|---|---|---|
+| `each` | Generator or integer or text or list of any value | required |
+| `group` | `all` or `any` or [AtLeastGroup](#atleastgroup) or [WhenGroup](#whengroup) | `"all"` |
+| `branch` | [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) or [EachWait](#eachwait) | required |
+
+### AtLeastGroup
+
+The `group` of an `each` wait done when at least `at_least` elements are, a whole number or an expression read when the wait starts.
+
+| Key | Type | Default |
+|---|---|---|
+| `at_least` | integer or text | required |
+
+### WhenGroup
+
+The `group` of an `each` wait done when the expression `when` holds, read as for a `when` wait, with `done_count` and `wait.<name>.values` and `.flags`.
+
+| Key | Type | Default |
+|---|---|---|
+| `when` | text | required |
+
+### ListenSpec
+
+A task's `listen`: callbacks added to an event, as `event.callbacks.append(f)` does, when the task starts, after its `open` and before it waits.
+
+Exactly one of `signal` and `handle` names the event: a signal, or a member of a family of signals `{of: <family>, key: <expression>}`, takes the callbacks on its next firing; a `handle` is an event the flow opened, and `index` picks one element of an opened `each` group. `on` lists the entries to run, each read in the scope of the entity that listens. They run once, on the next firing of the signal or the event of the handle, in the order the callbacks were added: before the waiters added later and after the ones added earlier. To go on listening, a flow listens again. A signal whose firing was processed already, or an event that was processed, takes no callback, which fails the task as `event.callbacks.append` raising does.
+
+| Key | Type | Default |
+|---|---|---|
+| `signal` | text or [Ref](#ref) | none |
+| `handle` | text | none |
+| `index` | integer or text | none |
+| `on` | list of [OnEntry](#onentry) |  |
+
 ### HandleRef
 
-The name of an opened event, as `{handle: <name>}`.
+The name of an opened event, as `{handle: <name>}`, or one element of an opened `each` group, as `{handle: <name>, index: <expression>}`.
 
 | Key | Type | Default |
 |---|---|---|
 | `handle` | text | required |
+| `index` | integer or text | none |
 
 ### SeizeSpec
 
@@ -545,7 +617,7 @@ A `seize` with options: the `resource`, a `priority` (a number or an expression 
 
 | Key | Type | Default |
 |---|---|---|
-| `resource` | text | required |
+| `resource` | text or [Ref](#ref) | required |
 | `priority` | integer or number or text | none |
 | `preempt` | boolean or text | none |
 | `patience` | Generator or integer or number or text or Duration or expression | none |
@@ -557,7 +629,8 @@ A `release` with options: `{handle: <name>}` frees the unit of that opened reque
 | Key | Type | Default |
 |---|---|---|
 | `handle` | text | none |
-| `resource` | text | none |
+| `index` | integer or text | none |
+| `resource` | text or [Ref](#ref) | none |
 | `task` | text | none |
 | `where` | text | none |
 
@@ -701,7 +774,7 @@ The `run` section.
 |---|---|---|
 | `until` | integer or number or Duration | none |
 | `before` | list of !python reference |  |
-| `stop` | mapping of names to text | none |
+| `stop` | mapping | none |
 | `drain` | boolean or [Drain](#drain) | `false` |
 | `on_unhandled_failure` | `stop` or `continue` | `"stop"` |
 | `segments` | list of [RunSegment](#runsegment) or [SegmentEvery](#segmentevery) | none |
@@ -725,7 +798,7 @@ An entry has at most one of `until` and `stop`; `{}` runs to the end. After the 
 | Key | Type | Default |
 |---|---|---|
 | `until` | integer or number or text or Duration | none |
-| `stop` | mapping of names to text | none |
+| `stop` | mapping | none |
 | `look` | text | none |
 | `sync` | boolean | `false` |
 

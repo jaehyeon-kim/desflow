@@ -293,11 +293,14 @@ _MEMBERSHIP = (ast.In, ast.NotIn)
 # The names of a record in an egress `when`: the record's own fields, then `value.<field>`
 _RECORD = ("stream_type", "key", "task")
 # Names of more than one part, by their first word, with the parts each takes
+MEMBER_FIELDS = ("key", "users", "queue", "level", "count", "putters", "getters")
 _PARTS = {
-    "wait": ("done", "ok", "value"),
+    "wait": ("done", "ok", "value", "values", "flags"),
     "signal": ("count", "ok", "value", "processed"),
-    "handle": ("triggered", "processed", "ok", "value", "alive"),
+    "handle": ("triggered", "processed", "ok", "value", "alive", "values", "flags"),
 }
+# The names of the element an `each` branch is made for, read as `each.<name>`
+_EACH_FIELDS = ("index", "value")
 # The fields of the request and of the holder a preempt rule reads, `holder.attr.<name>`
 # being the holder's entity attributes
 _REQUEST_FIELDS = ("rank", "time", "preempt", "key")
@@ -313,6 +316,7 @@ _STATE_CALLS = {
     "getting": (1, 1),
     "peek": (0, 0),
     "running": (1, 2),
+    "members": (1, 1),
 }
 
 
@@ -395,6 +399,11 @@ def _read_nested(scope: "Scope", source: str, parts: List[str]) -> Any:
     if source == "wait":
         if name not in scope.waits:
             raise KeyError(f"the task has no wait branch '{name}'")
+        if part not in scope.waits[name]:
+            raise KeyError(
+                f"wait.{name}.{part} is read on a branch made with each, and "
+                f"'{name}' is not one"
+            )
         value = scope.waits[name][part]
     else:
         if name not in scope.signals:
@@ -523,6 +532,13 @@ class Scope:
             `request.time`, `request.preempt` and `request.key`; None elsewhere.
         holder: The user whose unit it would take, read as `holder.rank`, `.time`,
             `.preempt`, `.key`, `.since` and `holder.attr.<name>`; None elsewhere.
+        batch: The open batch a `close_when` tests; None elsewhere.
+        each: The element an `each` branch is made for, read as `each.index` and
+            `each.value`; None elsewhere.
+        member: The member a `lowest` is read for, read as `member.<name>`; None
+            elsewhere.
+        families: The declared families by name, which `members()` and a read of a
+            member that does not exist yet use.
     """
 
     payload: Mapping[str, Any] = field(default_factory=dict)
@@ -552,6 +568,9 @@ class Scope:
     request: Optional[Mapping[str, Any]] = None
     holder: Optional[Mapping[str, Any]] = None
     batch: Optional[Mapping[str, Any]] = None
+    each: Optional[Mapping[str, Any]] = None
+    member: Optional[Mapping[str, Any]] = None
+    families: Mapping[str, Any] = field(default_factory=dict)
 
 
 class AnyName:
@@ -588,6 +607,7 @@ class Expression:
         names: Optional[Container[str]] = None,
         rule: bool = False,
         batch: bool = False,
+        member: bool = False,
     ):
         """
         Parses and checks an expression.
@@ -605,6 +625,9 @@ class Expression:
             batch: True for a batch's `close_when`, which also reads `batch.size` (how
                 many members the batch holds) and `batch.age` (the seconds since its
                 first member joined).
+            member: True for the `lowest` of a reference, which also reads
+                `member.key`, `member.users`, `member.queue`, `member.level`,
+                `member.count`, `member.putters` and `member.getters`.
 
         Raises:
             ValueError: If it is not valid Python or uses anything outside the
@@ -617,6 +640,11 @@ class Expression:
         self._names = names
         self._rule = rule
         self._batch = batch
+        self._member = member
+        # The reads of a family by index, such as `users.desk[attr.k]`, and the reads
+        # with no index, as (source, name), so a loader can match them to the families
+        self.indexed: Set[Tuple[str, str]] = set()
+        self.plain: Set[Tuple[str, str]] = set()
         try:
             tree = ast.parse(text.strip(), mode="eval")
         except SyntaxError as exc:
@@ -649,6 +677,9 @@ class Expression:
             "putting": set(),
             "getting": set(),
             "running": set(),
+            "members": set(),
+            "each": set(),
+            "member": set(),
             "flag": set(),
             "loop": set(),
         }
@@ -708,6 +739,8 @@ class Expression:
                 "arg",
                 "cause",
                 "upstream",
+                "each",
+                "member",
             )
             if self.references[kind] or (kind == "attr" and self.references["has"])
         ]
@@ -827,6 +860,18 @@ class Expression:
                 and parts
                 and base.id in _NUMBERS
                 and len(parts) == 1
+                and not isinstance(index, ast.Slice)
+            ):
+                # `users.desk[attr.k]`: a member of a family
+                self.references[base.id].add(parts[0])
+                self.indexed.add((base.id, parts[0]))
+                self._check(index, True)
+                return
+            if (
+                isinstance(base, ast.Name)
+                and parts
+                and base.id in _NUMBERS
+                and len(parts) == 1
             ):
                 raise self._refuse(
                     f"an index on {base.id}.{parts[0]}, which is a number"
@@ -931,6 +976,8 @@ class Expression:
         """Checks a dotted read: a name with its parts, or a field of a mapping that a
         call, an index or a loop name gives."""
         base, parts = _chain(node)
+        if isinstance(base, ast.Subscript) and self._indexed_signal(base, parts):
+            return
         if not isinstance(base, ast.Name):
             if any(part.startswith("__") for part in parts):
                 raise self._refuse("a name that starts with two underscores")
@@ -969,6 +1016,26 @@ class Expression:
         if base.id in ("request", "holder"):
             self._check_rule_read(base.id, parts)
             return
+        if base.id == "each":
+            if len(parts) != 1 or parts[0] not in _EACH_FIELDS:
+                raise self._refuse(
+                    f"'each.{'.'.join(parts)}' (write each.{', each.'.join(_EACH_FIELDS)})"
+                )
+            self.references["each"].add(parts[0])
+            return
+        if base.id == "member":
+            if not self._member:
+                raise self._refuse(
+                    f"the name 'member.{'.'.join(parts)}', which only the lowest of a "
+                    f"reference reads"
+                )
+            if len(parts) != 1 or parts[0] not in MEMBER_FIELDS:
+                raise self._refuse(
+                    f"'member.{'.'.join(parts)}' (write member."
+                    f"{', member.'.join(MEMBER_FIELDS)})"
+                )
+            self.references["member"].add(parts[0])
+            return
         if base.id == "batch":
             self._check_batch_read(parts)
             return
@@ -995,6 +1062,8 @@ class Expression:
                     f"{', .'.join(parts_allowed)}, or .value.<field>)"
                 )
             self.references[source].add(nested_parts[0])
+            if source == "signal":
+                self.plain.add(("signal", nested_parts[0]))
             return
         if base.id in _PREFIXES:
             if any(part.startswith("__") for part in parts):
@@ -1006,12 +1075,38 @@ class Expression:
             source = base.id
             if source == "item" and self._in_call:
                 source = "store_item"
+            if source in _NUMBERS:
+                self.plain.add((source, parts[0]))
             self.references[source].add(parts[0])
             return
         raise self._refuse(
             "an attribute that is not payload., attr., level., users., queue., "
             "putters., getters., item., arg., cause., upstream. or process."
         )
+
+    def _indexed_signal(self, base: ast.Subscript, parts: List[str]) -> bool:
+        """Checks `signal.<family>[<key>].<part>`, a read of a member of a family of
+        signals. Returns False when the subscript is not on a `signal.<name>`."""
+        inner, names = _chain(base.value)
+        if not (
+            isinstance(inner, ast.Name) and inner.id == "signal" and len(names) == 1
+        ):
+            return False
+        if (
+            not parts
+            or parts[0] not in _PARTS["signal"]
+            or len(parts) > (99 if parts[0] == "value" else 1)
+            or any(part.startswith("__") for part in parts)
+            or isinstance(base.slice, ast.Slice)
+        ):
+            raise self._refuse(
+                f"'signal.{names[0]}[...].{'.'.join(parts)}' (write signal.<name>[<key>]."
+                f"{', .'.join(_PARTS['signal'])}, or .value.<field>)"
+            )
+        self._check(base.slice, True)
+        self.references["signal"].add(names[0])
+        self.indexed.add(("signal", names[0]))
+        return True
 
     def _check_rule_read(self, source: str, parts: List[str]) -> None:
         """Checks `request.<field>`, `holder.<field>` or `holder.attr.<name>`, which only
@@ -1082,9 +1177,23 @@ class Expression:
         if name == "peek":
             return
         first = node.args[0]
+        if (
+            name != "running"
+            and name != "members"
+            and isinstance(first, ast.Subscript)
+            and isinstance(first.value, ast.Name)
+            and first.value.id not in self._local
+            and not isinstance(first.slice, ast.Slice)
+        ):
+            self._check(first.slice, True)
+            self.references[name].add(first.value.id)
+            self.indexed.add((name, first.value.id))
+            return
         if not isinstance(first, ast.Name) or first.id in self._local:
             raise self._refuse(f"{name}() of anything but a bare name")
         self.references[name].add(first.id)
+        if name != "running":
+            self.plain.add((name, first.id))
         if count == 2:
             # The condition is read in each instance's scope, so what it reads of the
             # instance does not make the place one that needs an entity
@@ -1092,10 +1201,14 @@ class Expression:
                 self.references,
                 {key: set() for key in self.references},
             )
+            before = (self.indexed, self.plain)
+            self.indexed, self.plain = set(), set()
             try:
                 self._check(node.args[1], False)
             finally:
                 inner, self.references = self.references, outer
+                inner_indexed, inner_plain = self.indexed, self.plain
+                self.indexed, self.plain = before
             for key in (
                 "level",
                 "users",
@@ -1111,8 +1224,11 @@ class Expression:
                 "putting",
                 "getting",
                 "running",
+                "members",
             ):
                 self.references[key] |= inner[key]
+            self.indexed |= inner_indexed
+            self.plain |= inner_plain
 
     def _check_has(self, node: ast.Call) -> None:
         """Checks `has(attr.<name>)`."""
@@ -1161,9 +1277,20 @@ class Expression:
                 f"{name}(<store>, {'<condition>' if name == 'count' else 'item.<field>'}))"
             )
         store = node.args[0]
-        if not isinstance(store, ast.Name):
+        if (
+            isinstance(store, ast.Subscript)
+            and isinstance(store.value, ast.Name)
+            and store.value.id not in self._local
+            and not isinstance(store.slice, ast.Slice)
+        ):
+            self._check(store.slice, True)
+            self.references[name].add(store.value.id)
+            self.indexed.add((name, store.value.id))
+        elif not isinstance(store, ast.Name):
             raise self._refuse(f"{name}() of anything but a bare store name")
-        self.references[name].add(store.id)
+        else:
+            self.references[name].add(store.id)
+            self.plain.add((name, store.id))
         if len(node.args) == 1:
             return
         second = node.args[1]
@@ -1191,8 +1318,13 @@ class Expression:
         if name in _FUNCTIONS:
             function = _FUNCTIONS[name][0]
             return function(*(self._value(a, scope) for a in node.args))
-        store = node.args[0].id  # type: ignore[attr-defined]
+        store = self._target(node.args[0], scope)
         holder = scope.levels.get(store)
+        if holder is None and self._blank_of(node.args[0], scope) is not None:
+            held: List[Any] = []
+            if len(node.args) == 1:
+                return 0 if name == "count" else held
+            return 0 if name == "count" else held
         if holder is None or not hasattr(holder, "putters_waiting"):
             raise KeyError(f"no store is called '{store}'")
         if not hasattr(holder, "items"):
@@ -1215,7 +1347,12 @@ class Expression:
             if scope.peek is None:
                 raise KeyError("peek() needs a running simulation")
             return scope.peek()
-        target = node.args[0].id  # type: ignore[attr-defined]
+        if name == "members":
+            family = scope.families.get(node.args[0].id)  # type: ignore[attr-defined]
+            if family is None:
+                raise KeyError(f"'{node.args[0].id}' is not a family")  # type: ignore[attr-defined]
+            return list(family.keys)
+        target = self._target(node.args[0], scope)
         if name == "running":
             if scope.instances is None:
                 raise KeyError("running() needs a running simulation")
@@ -1229,16 +1366,88 @@ class Expression:
             )
         if name in ("held", "waiting"):
             if target not in scope.resources:
+                if self._blank_of(node.args[0], scope) is not None:
+                    return []
                 raise KeyError(f"no resource is called '{target}'")
             resource = scope.resources[target]
             if name == "held":
                 return [_request_entry(r, True) for r in resource.users]
             return [_request_entry(r, False) for r in resource.queue]
         holder = scope.levels.get(target)
+        if holder is None and self._blank_of(node.args[0], scope) is not None:
+            return []
         if holder is None or not hasattr(holder, "putters_waiting"):
             raise KeyError(f"no store or container is called '{target}'")
         events = holder.put_queue if name == "putting" else holder.get_queue
         return [_transfer_entry(e, name == "putting", holder) for e in events]
+
+    def _read_signal_member(
+        self, name: str, key: Any, parts: List[str], scope: Scope
+    ) -> Any:
+        """`signal.<family>[<key>].<part>`: the member's value, or what a signal that
+        has not fired gives when the member is not made yet."""
+        from desflow.core.families import member_name
+
+        full = member_name(name, key)
+        signal = scope.signals.get(full)
+        if signal is None:
+            family = scope.families.get(name)
+            if family is None:
+                raise KeyError(f"no signal is called '{full}'")
+            value = family.blank(parts[0], scope)
+        else:
+            value = getattr(signal, parts[0])
+        for field_name in parts[1:]:
+            if not isinstance(value, Mapping) or field_name not in value:
+                raise KeyError(
+                    f"the value of signal.{full} has no field '{field_name}'"
+                )
+            value = value[field_name]
+        return value
+
+    def _target(self, node: ast.AST, scope: Scope) -> str:
+        """The name a bare or indexed argument of a call reads: `q`, or the member
+        `q['k']` of a family `q[<key>]` makes."""
+        from desflow.core.families import member_name
+
+        if isinstance(node, ast.Subscript):
+            return member_name(
+                node.value.id,  # type: ignore[attr-defined]
+                self._value(node.slice, scope),  # type: ignore[attr-defined]
+            )
+        return node.id  # type: ignore[attr-defined]
+
+    def _blank_of(self, node: ast.AST, scope: Scope) -> Optional[Any]:
+        """The family a member read names, when the member does not exist yet, so the
+        read gives what a new member would; None for a plain name or a name that is not
+        a family."""
+        if not isinstance(node, ast.Subscript):
+            return None
+        return scope.families.get(node.value.id)  # type: ignore[attr-defined]
+
+    def _read_member(self, source: str, name: str, key: Any, scope: Scope) -> Any:
+        """`users.<name>[<key>]` and the other reads of one member of a family: the
+        member's value, or what a new member gives when it is not made yet."""
+        from desflow.core.families import member_name
+
+        full = member_name(name, key)
+        if source in ("users", "queue"):
+            where, what = scope.resources, "resource"
+        else:
+            where, what = scope.levels, "store or container"
+        holder = where.get(full)
+        if holder is None:
+            family = scope.families.get(name)
+            if family is None:
+                raise KeyError(f"no {what} is called '{full}'")
+            return family.blank(source, scope)
+        if source == "users":
+            return len(holder.users)
+        if source == "queue":
+            return len(holder.queue)
+        if source == "level":
+            return holder.level
+        return holder.putters_waiting if source == "putters" else holder.getters_waiting
 
     def _index(self, node: ast.AST, scope: Scope) -> Any:
         """The index of a subscript: a value, or a slice."""
@@ -1283,6 +1492,17 @@ class Expression:
                 if scope.registry is None:
                     raise KeyError("there is no registry to read")
                 return scope.registry.get(node.slice.value).value  # type: ignore[attr-defined]
+            held_base, held_parts = _chain(node.value)
+            if (
+                isinstance(held_base, ast.Name)
+                and held_base.id in _NUMBERS
+                and len(held_parts) == 1
+                and not isinstance(node.slice, ast.Slice)
+                and held_base.id not in scope.loops
+            ):
+                return self._read_member(
+                    held_base.id, held_parts[0], self._value(node.slice, scope), scope
+                )
             base = self._value(node.value, scope)
             index = self._index(node.slice, scope)
             if isinstance(base, Mapping) and not isinstance(index, slice):
@@ -1357,8 +1577,22 @@ class Expression:
     def _attribute(self, node: ast.Attribute, scope: Scope) -> Any:
         """The value of a dotted read."""
         base, parts = _chain(node)
+        if isinstance(base, ast.Subscript):
+            inner, names = _chain(base.value)
+            if isinstance(inner, ast.Name) and inner.id == "signal" and len(names) == 1:
+                return self._read_signal_member(
+                    names[0], self._value(base.slice, scope), parts, scope
+                )
         if not isinstance(base, ast.Name):
             return _field(self._value(node.value, scope), node.attr)
+        if base.id == "each" and base.id not in scope.loops:
+            if scope.each is None:
+                raise KeyError("each is read in the branch of an each wait or open")
+            return scope.each[parts[0]]
+        if base.id == "member" and base.id not in scope.loops:
+            if scope.member is None:
+                raise KeyError("member is read in the lowest of a reference")
+            return scope.member[parts[0]]
         record = _record_parts(node)
         if record is not None:
             row = scope.record or {}

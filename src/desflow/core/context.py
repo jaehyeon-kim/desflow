@@ -58,6 +58,7 @@ from desflow.core.arrivals import (
 )
 from desflow.core.flow import (
     NextSpec,
+    Listen,
     Open,
     Release,
     Router,
@@ -66,7 +67,17 @@ from desflow.core.flow import (
     Wait,
     make_scope,
 )
-from desflow.core.signals import Signal
+from desflow.core.families import (
+    SECTIONS as _FAMILY_SECTIONS,
+    Family,
+    Reference,
+    family_part,
+    member_name,
+    member_path,
+    name_of,
+    normal_key,
+)
+from desflow.core.signals import Signal, event_priority, timing_problem
 from desflow.core.task import (
     Batch,
     TaskRun,
@@ -76,6 +87,7 @@ from desflow.core.task import (
     batch_mismatch_text,
     check_acquisition_order,
     flow_sets,
+    family_problem,
     handle_problem,
     scope_problem,
     whole_flow_problems,
@@ -371,9 +383,14 @@ class SimulationContext:
         self._previous_users: Set[str] = set()
         self._signal_names: List[str] = []
         self._signal_once: Dict[str, bool] = {}
+        # Whether each signal's failures are defused, as `event.defused = True` does
+        self._signal_defused: Dict[str, bool] = {}
         # Each signal's `on:` actions, in normalized form, run when it fires
         self._signal_on: Dict[str, List[Dict[str, Any]]] = {}
         self._signals: Dict[str, Signal] = {}
+        # The declared families, by name, whose entries in the sections above are the
+        # template each member is made from
+        self._families: Dict[str, Family] = {}
         # Tasks whose instances need an end event, filled by _check_tasks: those a
         # `running` branch or `subscribe` names (_tracked), those a `fire from`
         # copies (_copied), and every task with `on:` actions (_ended, the union)
@@ -737,6 +754,8 @@ class SimulationContext:
         preempt: Union[bool, Mapping[str, Any]] = False,
         queue_limit: Optional[int] = None,
         type: Optional[Type[ResourceBase]] = None,
+        family: bool = False,
+        members: Any = None,
     ) -> "SimulationContext":
         """
         Registers a discrete logical resource capable of processing tasks.
@@ -782,12 +801,21 @@ class SimulationContext:
                 next request and removes nobody who waits.
             type: A subclass of `ResourceBase` to build the resource from, such as
                 one that overrides `_do_put`. Defaults to `DynamicResource`.
+            family: When True, the entry is a family: a set of resources, one for each
+                key, made from this entry. A task names a member with `{"of": name,
+                "key": "<expression>"}` where it names a resource, and a member is made
+                at its first use. `current_cap` and `max_cap` may then be text, read
+                once when the member is made.
+            members: With `family`, how many members exist when the run starts, with
+                the keys 0 to n - 1: a whole number, an expression text, or a
+                generator, read once when the run is built. None starts the family
+                empty.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If `queue` is not one of the three orders or a rank mapping,
+            ValueError: If `family` is not set and `members` is given, `queue` is not one of the three orders or a rank mapping,
                 `preempt` is set without `queue="priority"` or a rank, a rank or
                 a preempt rule is malformed or reads what it cannot, `current_cap` or
                 `max_cap` is not a whole number or infinity, only `max_cap` is given
@@ -795,6 +823,9 @@ class SimulationContext:
                 `queue_limit` is negative or is set on a `type` with its own
                 `PutQueue`.
         """
+        (current_cap, max_cap), texts = _family_fields(
+            "resource", name, family, members, current_cap=current_cap, max_cap=max_cap
+        )
         rank = None
         if isinstance(queue, Mapping):
             rank = _queue_rule(queue, f"resource '{name}' queue")
@@ -842,17 +873,20 @@ class SimulationContext:
         self._resource_queues[name] = queue
         self._resource_queue_limits[name] = queue_limit
         self._resource_types[name] = type
+        self._set_family("resource", name, family, members, texts)
         return self
 
     def add_container(
         self,
         name: str,
-        current_cap: Optional[float] = None,
-        max_cap: Optional[float] = None,
-        level: float = 0.0,
+        current_cap: Union[float, str, None] = None,
+        max_cap: Union[float, str, None] = None,
+        level: Union[float, str] = 0.0,
         type: Optional[Type[ContainerBase]] = None,
         get_queue: Optional[Mapping[str, Any]] = None,
         put_queue: Optional[Mapping[str, Any]] = None,
+        family: bool = False,
+        members: Any = None,
     ) -> "SimulationContext":
         """
         Registers a container: an amount that tasks take from and add to, such as stock.
@@ -882,26 +916,41 @@ class SimulationContext:
                 head that cannot be met holds back the gets behind it, as in SimPy.
                 Not allowed with `type`.
             put_queue: As `get_queue`, for the waiting puts.
+            family: When True, the entry is a family of containers, as for
+                `add_resource`. `current_cap`, `max_cap` and `level` may then be text,
+                read once when the member is made.
+            members: With `family`, how many members exist when the run starts, as
+                for `add_resource`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If a store already has this name, `type` is not a
+            ValueError: If `family` is not set and `members` is given, a store already has this name, `type` is not a
                 subclass of `ContainerBase`, or `get_queue` or `put_queue` is
                 malformed, reads what it cannot or is given with `type`.
         """
         if name in self._stores_config:
             raise ValueError(f"'{name}' is already a store")
-        check_container_type(type)
-        config = ContainerConfig(
-            current_cap=_within_max("container", name, current_cap, max_cap),
+        (cap, top, start), texts = _family_fields(
+            "container",
+            name,
+            family,
+            members,
+            current_cap=current_cap,
             max_cap=max_cap,
             level=level,
+        )
+        check_container_type(type)
+        config = ContainerConfig(
+            current_cap=_within_max("container", name, cap, top),
+            max_cap=top,
+            level=start,
         )
         self._set_holder_ranks("container", name, get_queue, put_queue, type)
         self._container_types[name] = type
         self._containers_config[name] = config
+        self._set_family("container", name, family, members, texts, start=start)
         return self
 
     def add_store(
@@ -914,6 +963,8 @@ class SimulationContext:
         type: Optional[Type[StoreBase]] = None,
         get_queue: Optional[Mapping[str, Any]] = None,
         put_queue: Optional[Mapping[str, Any]] = None,
+        family: bool = False,
+        members: Any = None,
     ) -> "SimulationContext":
         """
         Registers a store: a place that holds items, which tasks put and get.
@@ -945,12 +996,17 @@ class SimulationContext:
                 waiters and not items: `priority` still ranks the items. Not allowed
                 with `type`.
             put_queue: As `get_queue`, for the waiting puts.
+            family: When True, the entry is a family of stores, as for
+                `add_resource`, each member made with the `items` given. `current_cap`
+                and `max_cap` may then be text, read once when the member is made.
+            members: With `family`, how many members exist when the run starts, as
+                for `add_resource`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If a container already has this name, a capacity is not a
+            ValueError: If `family` is not set and `members` is given, a container already has this name, a capacity is not a
                 whole number or infinity, there are more items than `current_cap`,
                 a priority store's item is not a pair, `type` is not a subclass
                 of `StoreBase` or is given with `priority`, or `get_queue` or
@@ -959,6 +1015,9 @@ class SimulationContext:
         """
         if name in self._containers_config:
             raise ValueError(f"'{name}' is already a container")
+        (current_cap, max_cap), texts = _family_fields(
+            "store", name, family, members, current_cap=current_cap, max_cap=max_cap
+        )
         check_store_type(type, priority)
         for field, value in (("current_cap", current_cap), ("max_cap", max_cap)):
             if value is not None and not _whole_or_unlimited(value):
@@ -992,7 +1051,28 @@ class SimulationContext:
         self._stores_config[name] = config
         self._store_priority[name] = priority
         self._store_types[name] = type
+        self._set_family("store", name, family, members, texts)
         return self
+
+    def _set_family(
+        self,
+        kind: str,
+        name: str,
+        family: bool,
+        members: Any,
+        texts: Mapping[str, str],
+        start: Any = 0,
+    ) -> None:
+        """Keeps or drops the family of an entry that `add_resource`, `add_store`,
+        `add_container` or `add_signal` registered, as it was written."""
+        if not family:
+            self._families.pop(name, None)
+            return
+        if isinstance(members, str):
+            members = Expression(members)
+        made = Family(name, kind, members, texts)
+        made.starting_level = start
+        self._families[name] = made
 
     def _set_holder_ranks(
         self,
@@ -1528,7 +1608,7 @@ class SimulationContext:
     def task(
         self,
         service_id: Optional[str] = None,
-        resource_id: Union[str, List[str], None] = None,
+        resource_id: Union[str, Mapping[str, Any], List[Any], None] = None,
         *,
         name: Optional[str] = None,
         priority: Union[
@@ -1542,12 +1622,13 @@ class SimulationContext:
         balk: Optional[str] = None,
         wait: Optional[Mapping[str, Any]] = None,
         open: Optional[Mapping[str, Any]] = None,
+        listen: Optional[Mapping[str, Any]] = None,
         cancel: Union[str, Mapping[str, Any], None] = None,
         seize: Union[str, Mapping[str, Any], None] = None,
         release: Union[str, Mapping[str, Any], None] = None,
-        signal: Optional[str] = None,
+        signal: Union[str, Mapping[str, Any], None] = None,
         fail: Union[str, Callable[[Any, Any], bool], None] = None,
-        fail_reason: Optional[str] = None,
+        fail_reason: Any = None,
         on_fail: Optional[str] = None,
         on_renege: Optional[str] = None,
         on_balk: Optional[str] = None,
@@ -1629,6 +1710,8 @@ class SimulationContext:
                 records no `path_id`. An interrupt under `restart` reads it again.
             resource_id: The resource the task holds while it works, or a list of
                 them, acquired in the order listed while the earlier ones are held.
+                A member of a family is `{"of": family, "key": expression}` or
+                `{"of": family, "lowest": expression}`.
             name: The task's name in records, statistics and `next` rules. Defaults
                 to the function's name.
             priority: For a resource whose queue order is `priority`, lowest first: a
@@ -1673,6 +1756,15 @@ class SimulationContext:
                 tasks after it in the flow and the child flows it starts. A request
                 keeps its place in the line and publishes `queued` when it is made and
                 `started` when it is granted. Opening a name again replaces it.
+            listen: Callbacks added to an event when the task starts, after its
+                `open` and before its `wait`: `{"signal": name, "on": [...]}` (a
+                member of a family is `{"of": family, "key": expression}`), or
+                `{"handle": name, "on": [...]}` for an opened event, with `"index"` to
+                pick one element of an opened `each` group. The `on` entries are those
+                of a task's `on`. They run once, on the next firing of the event, after
+                the callbacks and waiters added before. Listening to a signal whose
+                firing was processed already, or to an event that was processed, fails
+                the task, as `event.callbacks.append` raises.
             cancel: The name of an opened request, get or put, taken out of its line
                 (`"slot"` or `{"handle": "slot"}`). A granted one is left as it is.
                 A second cancel of one that left the line fails the run.
@@ -1690,13 +1782,16 @@ class SimulationContext:
                 `{"resource": ..., "task": ..., "where": ...}` (the units of that
                 resource that instances of that task hold, whichever flow they are in).
             signal: A signal, added with `add_signal`, that the task fires with its
-                finished payload, or fails with its reason when it fails.
+                finished payload, or fails with its reason when it fails. A member of
+                a family is `{"of": family, "key": expression}`.
             fail: A condition checked after the service, such as
                 `"payload.defect == 1"`, where `payload` is the task's own payload,
                 or a function of the task id and the payload. When it holds, the
                 task publishes `failed` instead of its payload.
-            fail_reason: The `reason` a failure publishes. Defaults to the `fail`
-                condition's text.
+            fail_reason: The `reason` a failure publishes: text, or a generator
+                from `desflow.values.generator` read in the step the failure happens
+                (it may read `payload.`). Defaults to the `fail` condition's text.
+                A reason that is None is the condition's text.
             on_fail: The task a failed instance goes to. Without it, a failure ends
                 the entity's flow. A function that raises fails the task the same
                 way, with the error as the reason, and goes to `on_fail`; so
@@ -1804,16 +1899,28 @@ class SimulationContext:
                 return {"status": "packed"}
             ```
         """
-        resources = (
-            []
-            if resource_id is None
-            else [resource_id]
-            if isinstance(resource_id, str)
-            else list(resource_id)
-        )
+        resources = [
+            name_of(found, "resource_id")
+            for found in (
+                []
+                if resource_id is None
+                else [resource_id]
+                if isinstance(resource_id, (str, Mapping))
+                else list(resource_id)
+            )
+        ]
         # `set` is a parameter here, so the sets are written as literals
-        if len({*resources}) != len(resources):
+        plain = [found for found in resources if not isinstance(found, Reference)]
+        if len({*plain}) != len(plain):
             raise ValueError("a task lists each resource once")
+        if any(isinstance(found, Reference) for found in resources) and (
+            {*(keep or [])}
+            & {*(found for found in resources if isinstance(found, Reference))}
+        ):
+            raise ValueError(
+                "keep hands a unit to the next task, so it names a resource and not a "
+                "computed member"
+            )
         if not {*(keep or [])} <= {*resources}:
             raise ValueError(
                 "keep names resources the task holds; list only resources in its "
@@ -1865,7 +1972,11 @@ class SimulationContext:
                     )
         if interrupt is not None:
             interrupt = dict(interrupt)
-            unknown = {*interrupt} - {"task", "handle", "where", "cause"}
+            unknown = {*interrupt} - {"task", "handle", "where", "cause", "index"}
+            if interrupt.get("index") is not None:
+                if interrupt.get("handle") is None:
+                    raise ValueError("interrupt takes an index with a handle only")
+                interrupt["index"] = Expression(str(interrupt["index"]))
             if (interrupt.get("task") is None) == (interrupt.get("handle") is None):
                 raise ValueError(
                     "interrupt takes a task or a handle, and an optional where and "
@@ -1885,11 +1996,15 @@ class SimulationContext:
                 interrupt.setdefault("task", None)
             if interrupt.get("where") is not None:
                 Expression(interrupt["where"])
+        cancel_index = None
         if isinstance(cancel, Mapping):
-            if list(cancel) != ["handle"]:
+            if "handle" not in cancel or not {*cancel} <= {"handle", "index"}:
                 raise ValueError(
-                    f"cancel is a name or {{handle: name}}, got {cancel!r}"
+                    f"cancel is a name or {{handle: name, index: expression}}, got "
+                    f"{cancel!r}"
                 )
+            if cancel.get("index") is not None:
+                cancel_index = Expression(str(cancel["index"]))
             cancel = cancel["handle"]
         if cancel is not None and not isinstance(cancel, str):
             raise ValueError(f"cancel is a name or {{handle: name}}, got {cancel!r}")
@@ -2013,7 +2128,9 @@ class SimulationContext:
             seize=seized,
             release=released,
             open=opened,
+            listen=None if listen is None else _parse_listen(listen),
             cancel=cancel,
+            cancel_index=cancel_index,
             signal=signal,
             fail=fail,
             fail_reason=fail_reason,
@@ -2682,13 +2799,16 @@ class SimulationContext:
         actions of its tasks' and signals' `on:` lists."""
         paths = {step["path"] for step in self._scenario_steps if step.get("path")}
         actions = [
-            action for spec in self._task_specs.values() for action in spec.on
+            action
+            for spec in self._task_specs.values()
+            for action in [*spec.on, *(spec.listen.on if spec.listen else [])]
         ] + [action for found in self._signal_on.values() for action in found]
         return paths | {a["path"] for a in actions if isinstance(a.get("path"), str)}
 
     def _rule_expressions(self) -> List[Tuple[str, Expression]]:
-        """The `queue` ranks, `preempt` rules, store and container ranks and telemetry
-        readings, each with the place it is written for a message."""
+        """The `queue` ranks, `preempt` rules, store and container ranks, telemetry
+        readings and the `when` of a signal's `on` entries, each with the place it is
+        written for a message."""
         found: List[Tuple[str, Expression]] = []
         for name, (rank, _ties) in self._resource_rank.items():
             found.append((f"resource '{name}' queue rank", rank))
@@ -2701,6 +2821,18 @@ class SimulationContext:
         for parsed in self._readings:
             for name, expression in parsed.items():
                 found.append((f"telemetry reading '{name}'", expression))
+        for name, actions in self._signal_on.items():
+            for index, action in enumerate(actions):
+                if action.get("when") is not None:
+                    found.append(
+                        (f"signal '{name}' on entry {index} when", action["when"])
+                    )
+                for _where, generator in generators_in(action, (Expr,)):
+                    try:
+                        read = Expression(generator.expr, names=ANY_NAME)
+                    except ValueError:
+                        continue
+                    found.append((f"signal '{name}' on entry {index} value", read))
         return found
 
     def _check_rule_names(
@@ -2712,6 +2844,11 @@ class SimulationContext:
         Raises:
             ValueError: Naming the place and the name, for the first that does not.
         """
+        for branch in sorted(expression.references["wait"]):
+            raise ValueError(
+                f"{place} reads wait.{branch}, where no wait is in scope; a signal's "
+                f"on entries run with no wait in scope"
+            )
         for kind in ("users", "queue", "held", "waiting"):
             for resource in expression.references[kind]:
                 if resource not in self._resources_config:
@@ -2743,6 +2880,8 @@ class SimulationContext:
                     f"{place} reads running({target}), but no task is called '{target}'"
                 )
         for path in expression.references["registry"]:
+            if member_path(path, self._families) is not None:
+                continue
             try:
                 self._scratch_registry().get(path)
             except KeyError:
@@ -2758,10 +2897,11 @@ class SimulationContext:
             if (name, direction) in self._holder_ranks
         }
 
-    def _rank_holder(self, holder: Any) -> None:
-        """Gives a built store or container the rank expressions its tasks read."""
+    def _rank_holder(self, holder: Any, source: Optional[str] = None) -> None:
+        """Gives a built store or container the rank expressions its tasks read;
+        `source` is the family a member is made from."""
         for direction in ("get", "put"):
-            rule = self._holder_ranks.get((holder.obj_id, direction))
+            rule = self._holder_ranks.get((source or holder.obj_id, direction))
             if rule is not None:
                 setattr(holder, f"{direction}_rank_of", rule[0])
 
@@ -2781,6 +2921,7 @@ class SimulationContext:
                 levels=self._levels(),
                 resources=self._resources_map,
                 signals=self._signals,
+                families=self._families,
                 request=_rule_row(request),
                 holder=_rule_row(holder),
             )
@@ -2795,6 +2936,268 @@ class SimulationContext:
             when=None if when is None else lambda r, h: bool(read(when, r, h)),
             victim=None if victim is None else lambda r, h: read(victim, r, h),
         )
+
+    def _new_resource(
+        self, res_id: str, source: Optional[str] = None, config: Any = None
+    ) -> ResourceBase:
+        """Builds a resource and registers it by name.
+
+        Args:
+            res_id: The name it is built and registered under.
+            source: The entry whose settings it takes, when it is a member of a
+                family; `res_id` otherwise.
+            config: The capacity of a member, already registered; None for an entry.
+
+        Returns:
+            ResourceBase: The resource.
+        """
+        origin = source or res_id
+        resource_type = self._resource_types.get(origin) or DynamicResource
+        rank = self._resource_rank.get(origin)
+        rule = self._resource_rule.get(origin)
+        options: Dict[str, Any] = {}
+        if self._resource_queue_limits.get(origin) is not None:
+            options["queue_limit"] = self._resource_queue_limits[origin]
+        if rank is not None and rank[1] != "fifo":
+            options["ties"] = rank[1]
+        resource = resource_type(
+            self._env,
+            self.sim_id,
+            res_id,
+            queue=self._resource_queues[origin],
+            preempt=(
+                self._preemption(res_id, *rule)
+                if rule is not None
+                else self._resource_preempt.get(origin, False)
+            ),
+            **options,
+        )
+        if rank is not None:
+            setattr(resource, "rank_of", rank[0])
+        self._resources_map[res_id] = resource
+        return resource
+
+    def _new_store(self, store_id: str, source: Optional[str] = None) -> DynamicStore:
+        """Builds a store and registers it by name; `source` is the family it is a
+        member of."""
+        origin = source or store_id
+        store = DynamicStore(
+            self._env,
+            self.sim_id,
+            store_id,
+            priority=self._store_priority.get(origin, False),
+            items=self._starting_items(origin),
+            type=self._store_types.get(origin),
+            **self._holder_ties(origin),
+        )
+        self._stores_map[store_id] = store
+        self._rank_holder(store, origin)
+        return store
+
+    def _new_container(
+        self, container_id: str, source: Optional[str] = None
+    ) -> DynamicContainer:
+        """Builds a container and registers it by name; `source` is the family it is
+        a member of."""
+        origin = source or container_id
+        container = DynamicContainer(
+            self._env,
+            self.sim_id,
+            container_id,
+            type=self._container_types.get(origin),
+            **self._holder_ties(origin),
+        )
+        self._containers_map[container_id] = container
+        self._rank_holder(container, origin)
+        return container
+
+    def _start_breakdown(self, res_id: str, breakdown: BreakdownConfig) -> None:
+        """Starts the process that breaks the resource down and repairs it."""
+        assert self._env is not None and self.sampler is not None
+        self._env.process(
+            run_breakdowns(
+                self._env,
+                self._resources_map[res_id],
+                self.sampler,
+                work=breakdown.work,
+                clock=breakdown.clock,
+            )
+        )
+
+    def _holders_of(self, family: Family) -> Dict[str, Any]:
+        """The map a family's members are kept in."""
+        holders: Dict[str, Dict[str, Any]] = {
+            "resource": self._resources_map,  # type: ignore[dict-item]
+            "store": self._stores_map,  # type: ignore[dict-item]
+            "container": self._containers_map,  # type: ignore[dict-item]
+            "signal": self._signals,  # type: ignore[dict-item]
+        }
+        return holders[family.kind]
+
+    def _start_members(self) -> None:
+        """Makes the members `members` asks for, in family order, keys 0 to n - 1, in
+        run scope."""
+        for family in self._families.values():
+            if family.members is None:
+                continue
+            count = whole(
+                self._arrival_value(family.members),
+                f"{_FAMILY_SECTIONS[family.kind]}.{family.name}.members",
+            )
+            scope = self.values.scope_of()
+            for key in range(max(count, 0)):
+                self._open_member(family, key, scope)
+
+    def _open_member(self, family: Family, key: Any, scope: Optional[Scope]) -> str:
+        """Gives the name of a family's member, making the member when this is the
+        first use of its key. The member lasts to the end of the run.
+
+        Args:
+            family: The family.
+            key: The member's key, an integer or text; a boolean is 1 or 0.
+            scope: What a capacity written as text reads. A family with `members`
+                reads the run scope for every member.
+
+        Returns:
+            str: The member's name, such as `desk[3]`.
+
+        Raises:
+            TypeError: If `key` is not an integer or text.
+            ValueError: If a capacity written as text gives an unusable value.
+        """
+        key = normal_key(key)
+        name = member_name(family.name, key)
+        holders = self._holders_of(family)
+        if name in holders:
+            return name
+        base = family.name
+        if family.kind == "signal":
+            self._signal_once[name] = self._signal_once.get(base, True)
+            self._signal_defused[name] = self._signal_defused.get(base, False)
+            self._signal_on[name] = self._signal_on.get(base, [])
+            signal = Signal(
+                self._env,
+                name,
+                once=self._signal_once[name],
+                defused=self._signal_defused[name],
+            )
+            if self._signal_on[name]:
+                signal.attach([functools.partial(self._signal_fired, name)])
+            self._signals[name] = signal
+            family.keys.append(key)
+            return name
+        if family.members is not None or scope is None:
+            scope = self.values.scope_of()
+        config = copy.deepcopy(
+            {
+                "resource": self._resources_config,
+                "store": self._stores_config,
+                "container": self._containers_config,
+            }[family.kind][base]
+        )
+        for field, expression in family.expressions.items():
+            found = expression.evaluate(scope)
+            where = f"{_FAMILY_SECTIONS[family.kind]}.{base}.{field} for {name}"
+            if isinstance(found, bool) or not isinstance(found, numbers.Real):
+                raise TypeError(f"{where} gave {found!r}, which is not a number")
+            if (
+                field != "level"
+                and family.kind != "container"
+                and not _whole_or_unlimited(found)
+            ):
+                raise ValueError(f"{where} gave {found!r}, not a whole number")
+            setattr(config, field, found)
+        if config.current_cap is not None and config.max_cap is not None:
+            config.current_cap = _within_max(
+                family.kind, name, config.current_cap, config.max_cap
+            )
+        assert self._env is not None
+        registry = self._env.registry
+        if family.kind == "resource":
+            registry.register_resource(self.sim_id, name, config)
+            self._new_resource(name, base, config)
+            breakdown = self._breakdowns_config.get(base)
+            if breakdown is not None:
+                found_breakdown = copy.deepcopy(breakdown)
+                registry.register_breakdown(self.sim_id, name, found_breakdown)
+                self._start_breakdown(name, found_breakdown)
+        elif family.kind == "store":
+            registry.register_store(self.sim_id, name, config)
+            self._new_store(name, base)
+        else:
+            registry.register_container(self.sim_id, name, config)
+            self._new_container(name, base)
+        family.keys.append(key)
+        return name
+
+    def _open_reference(self, reference: Reference, scope: Scope) -> str:
+        """The name a reference gives now: the member of its `key`, made when it is
+        new, or the member with the lowest `lowest`. A key and a lowest are read once.
+
+        Args:
+            reference: The reference.
+            scope: What its expression reads: the step of the reference.
+
+        Returns:
+            str: The name of the resource, store, container or signal.
+
+        Raises:
+            KeyError: If `key` gives a name that `of` does not list.
+            ValueError: If the family has no member to pick from.
+            TypeError: If `key` is not an integer or text.
+        """
+        if reference.listed:
+            chosen = reference.key_expression.evaluate(scope)  # type: ignore[union-attr]
+            if chosen not in reference.names:
+                raise KeyError(
+                    f"the key of {reference.mapping()} gave {chosen!r}, which is not "
+                    f"one of {list(reference.names)}"
+                )
+            return str(chosen)
+        family = self._families[str(reference.of)]
+        if reference.key_expression is not None:
+            return self._open_member(
+                family, reference.key_expression.evaluate(scope), scope
+            )
+        if not family.keys:
+            raise ValueError(
+                f"{reference.mapping()} has no member to pick from: the family is empty"
+            )
+        best: Any = None
+        found: Any = None
+        for key in list(family.keys):
+            value = reference.lowest_expression.evaluate(  # type: ignore[union-attr]
+                replace(scope, member=self._member_row(family, key))
+            )
+            if best is None or value < best:
+                best, found = value, key
+        return self._open_member(family, found, scope)
+
+    def _origin(self, name: str) -> str:
+        """The entry whose settings a store or container takes: the family of a member,
+        or the name itself."""
+        base = family_part(name)
+        return base if "[" in name and base in self._families else name
+
+    def _member_row(self, family: Family, key: Any) -> Dict[str, Any]:
+        """What `member.<name>` reads for one member."""
+        name = member_name(family.name, key)
+        row: Dict[str, Any] = {"key": key}
+        if family.kind == "resource":
+            resource = self._resources_map[name]
+            row.update(users=len(resource.users), queue=len(resource.queue))
+        elif family.kind == "signal":
+            signal = self._signals[name]
+            row.update(count=signal.count)
+        else:
+            holder = self._levels()[name]
+            row.update(
+                level=getattr(holder, "level", None),
+                count=len(getattr(holder, "items", [])),
+                putters=len(holder.put_queue),
+                getters=len(holder.get_queue),
+            )
+        return row
 
     def _levels(self) -> Dict[str, Any]:
         """Stores and containers by name, which `level.<name>` reads."""
@@ -3140,6 +3543,8 @@ class SimulationContext:
         entity: Optional[Entity],
         urgent: bool = False,
         after: Optional[float] = None,
+        priority: Optional[int] = None,
+        defused: bool = False,
     ) -> None:
         """Fires or fails a signal through one path, counting its `on:` actions
         against `entity` so a drain waits for them.
@@ -3148,8 +3553,9 @@ class SimulationContext:
         left, 1 is added to `entity.ends_pending` and the entity is stored on the
         pending event, so the signal's last callback counts it back out.
 
-        A firing with `urgent` or `after` is for a one-shot signal and is scheduled
-        with that priority and delay. With `after` it is not counted against
+        A firing with `urgent`, `after` or a `priority` is for a one-shot signal and is
+        scheduled with that priority and delay. `defused` is for a failure nobody waits
+        for. With `after` it is not counted against
         `entity`, because the entity may leave before the signal fires, so a drain
         can end before the signal's `on:` actions run.
         """
@@ -3165,9 +3571,15 @@ class SimulationContext:
             entity.ends_pending += 1
             pending._desflow_entity = entity  # type: ignore[attr-defined]
         if ok:
-            signal.fire(value, urgent=urgent, after=after or 0.0)
+            signal.fire(value, urgent=urgent, after=after or 0.0, priority=priority)
         else:
-            signal.fail(value, urgent=urgent, after=after or 0.0)
+            signal.fail(
+                value,
+                urgent=urgent,
+                after=after or 0.0,
+                priority=priority,
+                defused=defused,
+            )
 
     def _signal_fired(self, name: str, event: Any) -> None:
         """The signal's last `on:` callback: runs its actions, then counts the firing
@@ -3197,11 +3609,19 @@ class SimulationContext:
         """Runs one `on:` action: fire a signal, spawn a new entity, interrupt a
         task, or set a registry value. `owner` labels the action for a warning,
         `entity` is the entity it runs for, and `upstream` is what a spawn hands on.
+        An entry with `when` runs only when its expression is true in the entity's
+        scope, which is read before any value is evaluated.
         A value that holds a generator is evaluated first, over the entity's
         attributes and, for a task's action, the task's `scope`: its vars, `arg`, `item`,
         `upstream`, `process` and the rest.
         """
-        needs_scope = "spawn" not in action and has_generator(action)
+        needs_scope = action.get("when") is not None or (
+            "spawn" not in action
+            and (
+                has_generator(action)
+                or isinstance(action.get("fire", {}).get("signal"), Reference)
+            )
+        )
         if scope is None and needs_scope:
             from desflow.core.flow import make_scope
 
@@ -3214,13 +3634,19 @@ class SimulationContext:
                 self._levels(),
                 signals=self._signals,
                 resources=self._resources_map,
+                families=self._families,
                 names=names,
                 entity=None if entity is None else entity.key,
                 peek=self._env.peek,
                 instances=self._instance_scopes,
             )
+        when = action.get("when")
+        if when is not None:
+            assert scope is not None
+            if not when.evaluate(scope):
+                return
         # A spawn reads its count and its args itself, once for each child
-        if needs_scope and scope is not None:
+        if needs_scope and scope is not None and "spawn" not in action:
             action = self.values.evaluate(action, scope)
         if "fire" in action:
             spec = action["fire"]
@@ -3235,13 +3661,19 @@ class SimulationContext:
                 )
                 return
             ok, value = copied
+            target = spec["signal"]
+            if isinstance(target, Reference):
+                assert scope is not None
+                target = self._open_reference(target, scope)
             self._fire_signal(
-                spec["signal"],
+                target,
                 ok,
                 value,
                 entity,
                 urgent=spec.get("urgent", False),
                 after=spec.get("after"),
+                priority=spec.get("priority"),
+                defused=spec.get("defused", False),
             )
         elif "spawn" in action:
             self._spawn_children(action["spawn"], entity, upstream, scope)
@@ -3316,12 +3748,13 @@ class SimulationContext:
     def _copy_outcome(
         self, fire: Dict[str, Any], entity: Optional[Entity]
     ) -> Optional[Tuple[bool, Any]]:
-        """The outcome a `fire` action fires with: its literal `value`, or the
-        outcome `from` copies from a signal or a task. None when there is nothing to
-        copy (a signal not fired, a task with no ended instance, or no entity)."""
+        """The outcome a `fire` action fires with: its literal `value`, as a success or,
+        with `fail`, as the reason of a failure, or the outcome `from` copies from a
+        signal or a task. None when there is nothing to copy (a signal not fired, a task
+        with no ended instance, or no entity)."""
         source = fire["from"]
         if source is None:
-            return True, fire["value"]
+            return not fire.get("fail", False), fire["value"]
         if source in self._signals:
             signal = self._signals[source]
             if signal.ok is None:
@@ -3344,6 +3777,9 @@ class SimulationContext:
         name: str,
         once: bool = True,
         on: Optional[List[Mapping[str, Any]]] = None,
+        family: bool = False,
+        members: Any = None,
+        defused: bool = False,
     ) -> "SimulationContext":
         """
         Declares a signal that tasks fire and wait for.
@@ -3360,13 +3796,36 @@ class SimulationContext:
                 after each firing, and a wait after a firing waits for the next.
             on: Actions run when the signal fires, each a mapping with one of `fire`,
                 `spawn`, `interrupt` or `path`, as a task's `on` takes them.
+            family: When True, the entry is a family of signals, one for each key,
+                made from this entry. A task names a member with `{"of": name, "key":
+                "<expression>"}` where it names a signal, and a member is made at its
+                first use.
+            members: With `family`, how many members exist when the run starts, with
+                the keys 0 to n - 1: a whole number, an expression text, or a
+                generator, read once when the run is built. None starts the family
+                empty.
+            defused: When True, a failure of the signal that no waiter handles does
+                not stop the run, as a callback's `event.defused = True` does.
+                Without it, a one-shot signal's failure with no waiter stops the run
+                under `on_unhandled_failure: stop`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If `members` is given without `family`, or `defused` is not
+                True or False.
         """
+        _family_fields("signal", name, family, members)
+        if not isinstance(defused, bool):
+            raise ValueError(
+                f"signal '{name}': defused is true or false, got {defused!r}"
+            )
+        self._set_family("signal", name, family, members, {})
         if name not in self._signal_names:
             self._signal_names.append(name)
         self._signal_once[name] = once
+        self._signal_defused[name] = defused
         self._signal_on[name] = [_parse_on_action(entry) for entry in on or []]
         self._bind_values(
             self._signal_on[name], ("signals", name, "on"), overwrite=False
@@ -3455,14 +3914,21 @@ class SimulationContext:
         """
         return SimParameter(
             sim_id=self.sim_id,
-            resources=self._resources_config,
-            containers=self._containers_config,
-            stores=self._stores_config,
-            breakdowns=self._breakdowns_config,
+            resources=self._without_families(self._resources_config),
+            containers=self._without_families(self._containers_config),
+            stores=self._without_families(self._stores_config),
+            breakdowns=self._without_families(self._breakdowns_config),
             service=self._services_config,
             arrival=self._arrivals_config,
             variables=self._variables_config,
         )
+
+    def _without_families(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """The entries of a section that are not families: a family's entry is the
+        template of its members and has no paths of its own."""
+        if not self._families:
+            return config
+        return {k: v for k, v in config.items() if k not in self._families}
 
     def _scratch_registry(self, isolated: bool = False) -> SimulationRegistry:
         """Builds a registry with the paths a run registers, on a plain SimPy clock.
@@ -4102,11 +4568,19 @@ class SimulationContext:
             self._env.stats.configure(self.sim_id, level, self._stats_interval)
         self._env.stats.on_change = self._stats_on_change and level != "none"
         self._signals = {
-            name: Signal(self._env, name, once=self._signal_once.get(name, True))
+            name: Signal(
+                self._env,
+                name,
+                once=self._signal_once.get(name, True),
+                defused=self._signal_defused.get(name, False),
+            )
             for name in self._signal_names
+            if name not in self._families
         }
+        for family in self._families.values():
+            family.keys = []
         for name, actions in self._signal_on.items():
-            if actions:
+            if actions and name not in self._families:
                 self._signals[name].attach(
                     [functools.partial(self._signal_fired, name)]
                 )
@@ -4156,60 +4630,24 @@ class SimulationContext:
         )
 
         # Hydrate Physical SimPy Resources
+        for holders in (self._resources_map, self._stores_map, self._containers_map):
+            for old in [
+                n for n in holders if "[" in n and family_part(n) in self._families
+            ]:
+                del holders[old]
         for res_id in self._resources_config.keys():
-            resource_type = self._resource_types.get(res_id) or DynamicResource
-            rank = self._resource_rank.get(res_id)
-            rule = self._resource_rule.get(res_id)
-            options: Dict[str, Any] = {}
-            if self._resource_queue_limits.get(res_id) is not None:
-                options["queue_limit"] = self._resource_queue_limits[res_id]
-            if rank is not None and rank[1] != "fifo":
-                options["ties"] = rank[1]
-            resource = resource_type(
-                self._env,
-                self.sim_id,
-                res_id,
-                queue=self._resource_queues[res_id],
-                preempt=(
-                    self._preemption(res_id, *rule)
-                    if rule is not None
-                    else self._resource_preempt.get(res_id, False)
-                ),
-                **options,
-            )
-            if rank is not None:
-                setattr(resource, "rank_of", rank[0])
-            self._resources_map[res_id] = resource
+            if res_id not in self._families:
+                self._new_resource(res_id)
         for store_id in self._stores_config:
-            self._stores_map[store_id] = DynamicStore(
-                self._env,
-                self.sim_id,
-                store_id,
-                priority=self._store_priority.get(store_id, False),
-                items=self._starting_items(store_id),
-                type=self._store_types.get(store_id),
-                **self._holder_ties(store_id),
-            )
-            self._rank_holder(self._stores_map[store_id])
+            if store_id not in self._families:
+                self._new_store(store_id)
         for container_id in self._containers_config:
-            self._containers_map[container_id] = DynamicContainer(
-                self._env,
-                self.sim_id,
-                container_id,
-                type=self._container_types.get(container_id),
-                **self._holder_ties(container_id),
-            )
-            self._rank_holder(self._containers_map[container_id])
+            if container_id not in self._families:
+                self._new_container(container_id)
         for res_id, breakdown in self._breakdowns_config.items():
-            self._env.process(
-                run_breakdowns(
-                    self._env,
-                    self._resources_map[res_id],
-                    self.sampler,
-                    work=breakdown.work,
-                    clock=breakdown.clock,
-                )
-            )
+            if res_id not in self._families:
+                self._start_breakdown(res_id, breakdown)
+        self._start_members()
 
         # Boot Registered Daemon Generators
         self._arrival_processes = []
@@ -4404,6 +4842,10 @@ class SimulationContext:
             )
         ((kind, target),) = stop.items()
         if kind == "signal":
+            target = name_of(target, "a stop signal")
+            if isinstance(target, Reference):
+                # Read once, in run scope, as the run starts
+                target = self._open_reference(target, self.values.scope_of())
             if target not in self._signals:
                 raise ValueError(
                     f"stop names signal '{target}', "
@@ -4423,6 +4865,7 @@ class SimulationContext:
                 self._levels(),
                 signals=self._signals,
                 resources=self._resources_map,
+                families=self._families,
             )
             if not event.triggered and condition.evaluate(scope):
                 event.succeed(True)
@@ -4518,13 +4961,15 @@ class SimulationContext:
                         )
                     )
                 fire = action["fire"]
-                if (fire.get("urgent") or fire.get("after") is not None) and not (
-                    self._signal_once.get(signal, True)
-                ):
-                    raise ValueError(
-                        "`urgent` and `after` need a one-shot signal (`once=True`); "
-                        "a re-arming signal fires now"
-                    )
+                problem = timing_problem(
+                    fire.get("urgent", False),
+                    fire.get("after"),
+                    fire.get("priority"),
+                    self._signal_once.get(signal, True),
+                    "`once=True`",
+                )
+                if problem is not None:
+                    raise ValueError(problem)
                 if fire["from"] is not None:
                     check_from(fire["from"], owner)
 
@@ -4566,9 +5011,10 @@ class SimulationContext:
                 has_on.add(name)
             if spec.spawn is not None:
                 check_spawn(name, owner, spec.spawn["task"])
-            for action in spec.on:
+            listened = [] if spec.listen is None else spec.listen.on
+            for action in [*spec.on, *listened]:
                 check_action(name, action, owner)
-            for source in fire_sources(spec.on):
+            for source in fire_sources([*spec.on, *listened]):
                 if source in self._task_specs:
                     self._copied.add(source)
 
@@ -4630,6 +5076,119 @@ class SimulationContext:
         if found is not None:
             raise ValueError(batch_mismatch_text(*found))
 
+    def _declared_names(self) -> Dict[str, Dict[str, Any]]:
+        """The declared names of each kind, a family's entry included."""
+        return {
+            "resource": self._resources_config,
+            "store": self._stores_config,
+            "container": self._containers_config,
+            "signal": {name: None for name in self._signal_names},
+        }
+
+    _FAMILY_READ_SOURCES = (
+        "users",
+        "queue",
+        "held",
+        "waiting",
+        "level",
+        "putters",
+        "getters",
+        "putting",
+        "getting",
+        "count",
+        "items",
+        "signal",
+    )
+
+    def family_read_problem(self, expression: Expression) -> Optional[str]:
+        """What is wrong with the way an expression reads families, or None: a family
+        read without an index, or an index on a name that is no family.
+
+        Args:
+            expression: The parsed expression.
+
+        Returns:
+            Optional[str]: The reason, naming the read.
+        """
+        for source, name in sorted(expression.plain):
+            if name in self._families and source in self._FAMILY_READ_SOURCES:
+                return (
+                    f"reads {source}.{name} of a family; read one member with "
+                    f"{source}.{name}[<key>], or list the keys with members({name})"
+                )
+        for source, name in sorted(expression.indexed):
+            if name not in self._families:
+                return (
+                    f"reads {source}.{name}[...], but '{name}' is not a family; add "
+                    f"family: true to its entry"
+                )
+        return None
+
+    def _family_read_problem(self) -> Optional[Tuple[str, str, str]]:
+        """The first expression of a task, a generator or a rule that reads a family
+        wrongly.
+
+        Returns:
+            Optional[Tuple[str, str, str]]: The task, the key and the message, or None.
+        """
+        for task, spec in self._task_specs.items():
+            for key, expression in spec.expressions:
+                found = self.family_read_problem(expression)
+                if found is not None:
+                    return task, key, found
+            for key, _where, _after, place in task_value_places(
+                lambda key: _builder_value(spec, key)
+            ):
+                for _where, generator in generators_in(place, (_Gen,)):
+                    for text in _generator_expressions(generator):
+                        try:
+                            read = Expression(text, names=ANY_NAME)
+                        except ValueError:
+                            continue
+                        found = self.family_read_problem(read)
+                        if found is not None:
+                            return task, key, found
+        for place, expression in self._rule_expressions():
+            found = self.family_read_problem(expression)
+            if found is not None:
+                return place, "", found
+        return None
+
+    def _check_families(self) -> None:
+        """Checks that every place naming a family uses a reference, a reference's `of`
+        is a family of the right kind, a list names declared entries, and no entry is
+        named as a member.
+
+        Raises:
+            ValueError: Naming the task and the key.
+        """
+        found = (
+            family_problem(
+                self._task_specs,
+                self._families,
+                self._declared_names(),
+                self._signal_on,
+            )
+            or self._family_read_problem()
+        )
+        if found is not None:
+            holder, key, message = found
+            if not key:
+                raise ValueError(f"{holder} {message}")
+            label = holder if holder.startswith("signals.") else f"task '{holder}'"
+            raise ValueError(f"{label}: {key} {message}")
+        for kind, names in self._declared_names().items():
+            for name in names:
+                if name in self._families:
+                    continue
+                for family in self._families:
+                    if name.startswith(f"{family}["):
+                        raise ValueError(
+                            f"{_FAMILY_SECTIONS[kind]}.{name} starts with the name of "
+                            f"the family '{family}' and a bracket; the members of a "
+                            f"family are named that way, so no declared entry may be"
+                        )
+
     def _check_tasks(self, overrides: Optional[Mapping[str, Any]] = None) -> None:
         """Checks what each task names, before the clock or any connector starts.
 
@@ -4640,6 +5199,7 @@ class SimulationContext:
         self._build_end_sets()
         self._check_batches()
         self._check_lookups()
+        self._check_families()
         if self._scenario_steps:
             known = self._scratch_registry(isolated=True)
             for path, value in (overrides or {}).items():
@@ -4652,7 +5212,10 @@ class SimulationContext:
             # In the order run_scenario applies them, so a value that is valid only
             # after an earlier step loads as it runs
             for step in sorted(self._scenario_steps, key=lambda step: step["at"]):
-                if step.get("path") is not None:
+                if (
+                    step.get("path") is not None
+                    and member_path(str(step["path"]), self._families) is None
+                ):
                     try:
                         known.get(step["path"])
                     except KeyError:
@@ -4704,8 +5267,10 @@ class SimulationContext:
         opens: Dict[str, List[Tuple[str, str]]] = {}
         for name, spec in self._task_specs.items():
             if spec.open is not None:
-                for handle, node in spec.open.nodes.items():
-                    opens.setdefault(handle, []).append((name, node.kind))
+                for handle in spec.open.nodes:
+                    opens.setdefault(handle, []).append(
+                        (name, spec.open.opened_as(handle))
+                    )
         uses: List[Tuple[str, str, str, str]] = []
         for name, spec in self._task_specs.items():
             if spec.wait is not None:
@@ -4718,12 +5283,34 @@ class SimulationContext:
                     (name, "open", h, "any")
                     for h in sorted(spec.open.targets("handle"))
                 ]
+            if spec.wait is not None:
+                uses += [
+                    (name, "wait", h, "element")
+                    for h in sorted(spec.wait.indexed_handles())
+                ]
+            if spec.open is not None:
+                uses += [
+                    (name, "open", h, "element")
+                    for h in sorted(spec.open.indexed_handles())
+                ]
             if spec.cancel is not None:
                 uses.append((name, "cancel", spec.cancel, "line"))
+                if spec.cancel_index is not None:
+                    uses.append((name, "cancel", spec.cancel, "element"))
             if spec.release is not None and spec.release.handle is not None:
                 uses.append((name, "release", spec.release.handle, "unit"))
+                if spec.release.index is not None:
+                    uses.append((name, "release", spec.release.handle, "element"))
+            if spec.listen is not None and spec.listen.handle is not None:
+                uses.append((name, "listen", spec.listen.handle, "any"))
+                if spec.listen.index is not None:
+                    uses.append((name, "listen", spec.listen.handle, "element"))
             if spec.interrupt is not None and spec.interrupt.get("handle") is not None:
                 uses.append((name, "interrupt", spec.interrupt["handle"], "child"))
+                if spec.interrupt.get("index") is not None:
+                    uses.append(
+                        (name, "interrupt", spec.interrupt["handle"], "element")
+                    )
             for key, expression in spec.expressions:
                 uses += [
                     (name, key, h, "any")
@@ -5009,6 +5596,8 @@ class SimulationContext:
                 signals |= spec.open.targets("signal")
             if spec.signal is not None:
                 signals.add(spec.signal)
+            if spec.listen is not None and spec.listen.signal is not None:
+                signals.add(spec.listen.signal)
             expressions = [expression for _key, expression in spec.expressions]
             for expression in expressions:
                 signals |= expression.references["signal"]
@@ -5036,6 +5625,8 @@ class SimulationContext:
                     later_item=name in after_get_tasks,
                     cause_ok=name in cause_targets,
                     in_when=key == "wait_when",
+                    has_each=spec.has_each,
+                    each_here=key in ("wait", "open", "subscribe"),
                 )
                 if problem:
                     raise ValueError(
@@ -5116,6 +5707,8 @@ class SimulationContext:
                     "set": spec.attribute_changes,
                     "interrupt": spec.interrupt or {},
                     "on": spec.on,
+                    "fail_reason": spec.fail_reason,
+                    "listen": [] if spec.listen is None else spec.listen.on,
                 },
                 wait_values={
                     **{
@@ -5201,6 +5794,8 @@ class SimulationContext:
                                 )
                             )
                 for path in expression.references["registry"]:
+                    if member_path(path, self._families) is not None:
+                        continue
                     if registry is None:
                         # The paths the run will register, built by the same code
                         registry = self._scratch_registry()
@@ -5315,6 +5910,8 @@ def _builder_value(spec: Any, key: str) -> Any:
         return spec.attribute_changes
     if key == "put.item":
         return spec.put.item if spec.put is not None else None
+    if key == "listen":
+        return None if spec.listen is None else spec.listen.on
     if key.startswith("batch."):
         return None if spec.batch is None else getattr(spec.batch, key[6:])
     if key in ("wait", "open"):
@@ -5369,6 +5966,58 @@ def _holding(spec: TaskSpec) -> Holding:
     )
 
 
+def _family_fields(
+    kind: str,
+    name: str,
+    family: bool,
+    members: Any,
+    **fields: Any,
+) -> Tuple[Tuple[Any, ...], Dict[str, str]]:
+    """Checks the `family` and `members` of an entry and takes out the capacities
+    written as text, which only a family accepts.
+
+    Args:
+        kind: `resource`, `store`, `container` or `signal`.
+        name: The entry's name.
+        family: The entry's `family`.
+        members: The entry's `members`.
+        **fields: The capacities `current_cap`, `max_cap` and `level` as given.
+
+    Returns:
+        Tuple[Tuple[Any, ...], Dict[str, str]]: The values in the order given, with a
+            text replaced by None, and the texts by field.
+
+    Raises:
+        ValueError: If `members` is given without `family`, or is not a whole number,
+            text or generator.
+    """
+    where = f"{_FAMILY_SECTIONS[kind]}.{name}"
+    if not isinstance(family, bool):
+        raise ValueError(f"{where}.family is true or false, got {family!r}")
+    if members is not None:
+        if not family:
+            raise ValueError(f"{where}.members needs family: true")
+        from desflow.values.models import _Gen
+
+        if isinstance(members, bool) or not (
+            isinstance(members, (numbers.Integral, str, _Gen)) or callable(members)
+        ):
+            raise ValueError(
+                f"{where}.members is a whole number, an expression or a generator, "
+                f"got {members!r}"
+            )
+        if isinstance(members, numbers.Integral) and members < 0:
+            raise ValueError(f"{where}.members is 0 or more, got {members!r}")
+    texts: Dict[str, str] = {}
+    values: List[Any] = []
+    for field, value in fields.items():
+        if isinstance(value, str) and family:
+            texts[field] = value
+            value = None
+        values.append(value)
+    return tuple(values), texts
+
+
 def _whole_or_unlimited(value: Any) -> bool:
     """Whether a store capacity is a whole number or positive infinity."""
     if isinstance(value, (str, bytes)):
@@ -5410,6 +6059,7 @@ def _check_end(until: Any, stop: Any, drain: Any, signals: List[str]) -> None:
         )
     ((kind, target),) = stop.items()
     if kind == "signal":
+        target = name_of(target, "a stop signal")
         if target not in signals:
             raise ValueError(
                 f"stop names signal '{target}', "
@@ -5569,52 +6219,93 @@ def _arrival_list(value: Union[str, List[str], None]) -> List[str]:
     return names
 
 
+_ON_ACTIONS = (
+    "fire",
+    "spawn",
+    "interrupt",
+    "resume",
+    "activate",
+    "deactivate",
+    "path",
+)
+
+
 def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
     """Checks one `on:` action and returns it normalized: `{fire: {signal, value,
-    from}}`, `{spawn: {task, after}}`, `{interrupt: {...}}` or `{path, value}`."""
+    from, urgent, after, priority, fail, defused}}`, `{spawn: {task, after}}`,
+    `{interrupt: {...}}` or `{path, value}`, with `when`, the parsed expression, when
+    the entry has one."""
+    found = _parse_action(entry)
+    when = entry.get("when")
+    if when is not None:
+        if not isinstance(when, str):
+            raise ValueError(f"an on: entry's when is an expression, got {when!r}")
+        found["when"] = Expression(when)
+    return found
+
+
+def _parse_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
+    """Checks the action of one `on:` entry and returns it normalized, without its
+    `when`."""
     if not isinstance(entry, Mapping):
         raise ValueError(f"an on: action is a mapping, got {entry!r}")
-    present = [
-        k
-        for k in (
-            "fire",
-            "spawn",
-            "interrupt",
-            "resume",
-            "activate",
-            "deactivate",
-            "path",
-        )
-        if entry.get(k) is not None
-    ]
+    present = [k for k in _ON_ACTIONS if entry.get(k) is not None]
     if len(present) != 1:
         raise ValueError(
             "an on: action takes exactly one of fire, spawn, interrupt, resume, "
             "activate, deactivate or path"
         )
+    unknown = set(entry) - {*_ON_ACTIONS, "value", "when"}
+    if unknown:
+        raise ValueError(
+            f"an on: action takes {', '.join(_ON_ACTIONS)}, value and when, not "
+            f"{', '.join(sorted(map(str, unknown)))}"
+        )
     kind = present[0]
     if kind == "fire":
         fire = dict(entry["fire"])
-        signal = fire.get("signal")
-        if not isinstance(signal, str):
-            raise ValueError(f"a fire action names a signal, got {signal!r}")
+        try:
+            signal = name_of(fire.get("signal"), "a fire action's signal")
+        except ValueError as error:
+            raise ValueError(str(error)) from None
         value, source = fire.get("value"), fire.get("from")
         if value is not None and source is not None:
             raise ValueError("a fire action takes value or from, not both")
         urgent, after = fire.get("urgent", False), fire.get("after")
         if not isinstance(urgent, bool):
             raise ValueError(f"a fire urgent is true or false, got {urgent!r}")
+        priority = event_priority(fire.get("priority"), urgent)
+        fail, defused = fire.get("fail", False), fire.get("defused", False)
+        for word, flag in (("fail", fail), ("defused", defused)):
+            if not isinstance(flag, bool):
+                raise ValueError(f"a fire {word} is true or false, got {flag!r}")
+        if fail and source is not None:
+            raise ValueError(
+                "fail: true fails the signal with the value as the reason, and from "
+                "copies an outcome, so a fire action takes one of them"
+            )
+        if defused and not fail:
+            raise ValueError("defused is for a failure, so it needs fail: true")
         if isinstance(after, str):
             after = time_to_seconds(after)
         if isinstance(after, bool):
             raise ValueError(f"a fire after is seconds or a duration, got {after!r}")
         if after is not None and not after > 0:
             raise ValueError(f"a fire after is more than 0, got {after:g}")
-        extra = set(fire) - {"signal", "value", "from", "urgent", "after"}
+        extra = set(fire) - {
+            "signal",
+            "value",
+            "from",
+            "urgent",
+            "after",
+            "priority",
+            "fail",
+            "defused",
+        }
         if extra:
             raise ValueError(
-                f"a fire action takes signal, value, from, urgent and after, "
-                f"not {', '.join(sorted(extra))}"
+                f"a fire action takes signal, value, from, urgent, after, priority, "
+                f"fail and defused, not {', '.join(sorted(extra))}"
             )
         return {
             "fire": {
@@ -5623,6 +6314,9 @@ def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
                 "from": source,
                 "urgent": urgent,
                 "after": after,
+                "priority": priority,
+                "fail": fail,
+                "defused": defused,
             }
         }
     if kind == "spawn":
@@ -5641,6 +6335,19 @@ def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
     if kind == "resume":
         return {"resume": _parse_resume(entry["resume"])}
     return {"path": entry["path"], "value": entry.get("value")}
+
+
+def _parse_listen(spec: Mapping[str, Any]) -> Listen:
+    """Checks a `listen` key and returns it, with its `on` entries normalized."""
+    if not isinstance(spec, Mapping):
+        raise ValueError(
+            f"listen is {{signal: ..., on: [...]}} or {{handle: ..., on: [...]}}, "
+            f"got {spec!r}"
+        )
+    entries = spec.get("on") or []
+    if not isinstance(entries, (list, tuple)):
+        raise ValueError(f"listen on is a list of on: entries, got {entries!r}")
+    return Listen(spec, [_parse_on_action(entry) for entry in entries])
 
 
 def _parse_batch(spec: Mapping[str, Any]) -> Batch:

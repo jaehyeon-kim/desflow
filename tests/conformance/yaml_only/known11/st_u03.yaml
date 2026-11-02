@@ -1,0 +1,9 @@
+# case ST-U03: test_subscribe_terminated_proc: subscribe_at on a process that ended at 1, called at 2, raises RuntimeError, which the test catches. In the blueprint the parent tests signal.done.count == 0 before it listens, which the existing form allows, so nothing raises and nothing is recorded, as in the test. The prototype's one-shot `done` is fired again by a second child at size 3 and stops the run, so this document writes `once: false`.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+signals: {done: {once: false}}
+arrivals: {c: {initial: 1, spawn: child}, p: {initial: 1, spawn: parent}}
+tasks:
+  child: {service_time: 1, signal: done, payload: {event_type: child_done}}
+  parent: {service_time: 2, payload: {event_type: parent}, next: {when: [{condition: "signal.done.count == 0", task: late}]}}
+  late: {listen: {signal: done}, payload: {event_type: late}}
+run: {on_unhandled_failure: stop}

@@ -1,0 +1,11 @@
+# Part 2 of Batch 11: each arrival that started one entity at time 0 is written with `initial`, which starts the same entity at the same instant, so the sized runs can change its size.
+# Design M3: handle a failed wait with on_fail and no fail condition (the wait is failed at 1 with the value "event").
+simulation: {sim_id: M3, factor: 0, random_seed: 42}
+signals: {may_fail: {once: true}}
+arrivals:
+  a: {initial: 1, spawn: t}
+  b: {dist: constant, value: 1, spawn: breaker, max_events: 1}
+tasks:
+  t: {wait: {signal: may_fail}, on_fail: handle, payload: {event_type: fine}}
+  handle: {payload: {event_type: handled, reason: {gen: expr, expr: "upstream.reason"}}}
+  breaker: {payload: {event_type: break}, on: [{fire: {signal: may_fail, fail: true, value: event}}]}

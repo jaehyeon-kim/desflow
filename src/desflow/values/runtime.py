@@ -408,6 +408,7 @@ class ValueRuntime:
             context._levels() if context is not None else None,
             signals=None if context is None else context._signals,
             resources=None if context is None else context._resources_map,
+            families=None if context is None else context._families,
             names=names,
             entity=entity.key if keyed and entity is not None else None,
             peek=self.env.peek,

@@ -9,6 +9,7 @@ waits for the next.
 """
 
 import logging
+import operator
 from typing import Any, Callable, List, Optional
 
 from simpy import Environment, Event
@@ -36,6 +37,65 @@ class SignalFailed(Exception):
         return f"signal '{self.signal}' failed: {self.reason}"
 
 
+def event_priority(priority: Any, urgent: bool = False) -> Optional[int]:
+    """The priority a firing asks for, as a whole number.
+
+    Args:
+        priority: A whole number, a NumPy integer included, or None for the default.
+        urgent: Whether the firing is urgent, which is priority 0, so it takes no
+            priority of its own.
+
+    Returns:
+        Optional[int]: The priority, or None when none was given.
+
+    Raises:
+        TypeError: If `priority` is a boolean or not a whole number.
+        ValueError: If `urgent` is given with a priority.
+    """
+    if priority is None:
+        return None
+    if isinstance(priority, bool):
+        raise TypeError(f"a priority is a whole number, got {priority!r}")
+    try:
+        found = operator.index(priority)
+    except TypeError:
+        raise TypeError(f"a priority is a whole number, got {priority!r}") from None
+    if urgent:
+        raise ValueError("urgent is priority 0, so a firing takes urgent or priority")
+    return found
+
+
+def timing_problem(
+    urgent: bool, after: Any, priority: Optional[int], once: bool, once_text: str
+) -> Optional[str]:
+    """Why a firing cannot ask for `urgent`, `after` or a priority, or None when it can.
+
+    Args:
+        urgent: Whether the firing is urgent.
+        after: Seconds from now, or None for now.
+        priority: The priority asked for, or None. A signal that re-arms refuses any
+            number, as it refuses `urgent` and `after`.
+        once: Whether the signal fires once.
+        once_text: How the caller writes `once: true`, for the message.
+
+    Returns:
+        Optional[str]: The message, or None.
+    """
+    if once:
+        return None
+    if urgent or after:
+        return (
+            f"`urgent` and `after` need a one-shot signal ({once_text}); "
+            "a re-arming signal fires now"
+        )
+    if priority is not None:
+        return (
+            f"`priority` needs a one-shot signal ({once_text}); "
+            "a re-arming signal fires now"
+        )
+    return None
+
+
 class Signal:
     """
     A named event that fires once, or many times with `once=False`, each firing waking
@@ -47,9 +107,17 @@ class Signal:
         count (int): How many times it has fired or failed.
         ok (Optional[bool]): Whether the last firing succeeded; None before the first.
         value (Any): The value of the last firing, or the failure reason.
+        defused (bool): Whether every failure of the signal is defused, as a callback's
+            `event.defused = True` does.
     """
 
-    def __init__(self, env: Environment, name: str = "signal", once: bool = True):
+    def __init__(
+        self,
+        env: Environment,
+        name: str = "signal",
+        once: bool = True,
+        defused: bool = False,
+    ):
         """
         Creates a signal that has not fired yet.
 
@@ -60,10 +128,13 @@ class Signal:
                 does: it does not re-arm, so a wait after the firing resumes at once,
                 and a second firing is refused. When False it is replaced by a fresh
                 event after each firing, so it can fire again.
+            defused: When True, a failure with no waiter does not stop the run, as
+                a callback that sets `event.defused = True` does for each failure.
         """
         self.env = env
         self.name = name
         self.once = once
+        self.defused = defused
         self.count = 0
         self.ok: Optional[bool] = None
         self.value: Any = None
@@ -103,7 +174,13 @@ class Signal:
         """
         return self._event
 
-    def fire(self, value: Any = None, urgent: bool = False, after: float = 0.0) -> None:
+    def fire(
+        self,
+        value: Any = None,
+        urgent: bool = False,
+        after: float = 0.0,
+        priority: Optional[int] = None,
+    ) -> None:
         """
         Fires the signal: every waiter resumes with `value`.
 
@@ -115,12 +192,20 @@ class Signal:
             after: Simulation seconds from now at which the waiters resume. The
                 signal counts as fired now, so a second firing is refused. Needs a
                 one-shot signal.
+            priority: A whole number, 1 when left out, the priority the firing is
+                scheduled with: an event at one time runs by priority, lowest first,
+                and then in the order it was scheduled, as
+                `env.schedule(event, priority=...)` orders it. 0 is what `urgent`
+                gives. Needs a one-shot signal, and is not given with `urgent`.
 
         Raises:
-            ValueError: If `urgent` or `after` is given to a signal that re-arms,
-                or `after` is negative.
+            ValueError: If `urgent`, `after` or a `priority` other than 1 is given to a
+                signal that re-arms, `after` is negative, or `urgent` and `priority` are
+                both given.
+            TypeError: If `priority` is not a whole number.
         """
-        self._check_timing(urgent, after)
+        priority = event_priority(priority, urgent)
+        self._check_timing(urgent, after, priority)
         if self.once and self.count >= 1:
             # A one-shot signal fires once. A second firing is SimPy's RuntimeError
             # under `stop`; under `continue` it is dropped with a log line.
@@ -137,8 +222,8 @@ class Signal:
         if self.once:
             self._fired = self._event
             # Keep the triggered event, so a later wait resumes at once.
-            if urgent or after:
-                self._schedule(True, value, urgent, after)
+            if urgent or after or priority not in (None, NORMAL):
+                self._schedule(True, value, urgent, after, priority)
             else:
                 self._event.succeed(value)
         else:
@@ -149,22 +234,36 @@ class Signal:
             event.succeed(value)
         self._notify()
 
-    def fail(self, reason: Any, urgent: bool = False, after: float = 0.0) -> None:
+    def fail(
+        self,
+        reason: Any,
+        urgent: bool = False,
+        after: float = 0.0,
+        priority: Optional[int] = None,
+        defused: bool = False,
+    ) -> None:
         """
         Fails the signal: every waiter receives `SignalFailed` with the reason.
 
-        A failure nobody waits for is not an error: the event is defused, so the run
-        goes on.
+        A failure of a signal that re-arms is always defused, and a failure that nobody
+        waits for does not stop the run then. A one-shot signal's failure with no waiter
+        is left to stop the run under `on_unhandled_failure: stop`, as SimPy's failed
+        event does, unless `defused` is given or the signal is defused.
 
         Args:
             reason: Why it failed, such as a task's failure reason.
             urgent: As for `fire()`.
             after: As for `fire()`.
+            priority: As for `fire()`.
+            defused: When True, this failure does not stop the run if nobody waits for
+                it, as `event.defused = True` does.
 
         Raises:
             ValueError: As for `fire()`.
+            TypeError: As for `fire()`.
         """
-        self._check_timing(urgent, after)
+        priority = event_priority(priority, urgent)
+        self._check_timing(urgent, after, priority)
         if self.once and self.count >= 1:
             if getattr(self.env, "on_unhandled_failure", "stop") == "stop":
                 raise RuntimeError(f"signal '{self.name}' is one-shot and has fired")
@@ -186,32 +285,49 @@ class Signal:
         # A re-arming signal's failure is always defused, so a firing nobody waits
         # for is not an error. A one-shot signal's failure is defused only under
         # `continue`; under `stop` it is left to stop the run, as SimPy's event does.
-        if not self.once or getattr(self.env, "on_unhandled_failure", "stop") == (
-            "continue"
+        if (
+            not self.once
+            or defused
+            or self.defused
+            or getattr(self.env, "on_unhandled_failure", "stop") == "continue"
         ):
             event.defused = True
-        if urgent or after:
-            self._schedule(False, SignalFailed(self.name, reason), urgent, after)
+        if urgent or after or priority not in (None, NORMAL):
+            self._schedule(
+                False, SignalFailed(self.name, reason), urgent, after, priority
+            )
         else:
             event.fail(SignalFailed(self.name, reason))
         self._notify()
 
-    def _check_timing(self, urgent: bool, after: float) -> None:
-        """Refuses `urgent` or `after` for a signal that re-arms, or a negative `after`."""
-        if (urgent or after) and not self.once:
-            raise ValueError(
-                "`urgent` and `after` need a one-shot signal (`once=True`); "
-                "a re-arming signal fires now"
-            )
+    def _check_timing(
+        self, urgent: bool, after: float, priority: Optional[int] = None
+    ) -> None:
+        """Refuses `urgent`, `after` or a `priority` other than 1 for a signal that
+        re-arms, or a negative `after`."""
+        problem = timing_problem(urgent, after, priority, self.once, "`once=True`")
+        if problem is not None:
+            raise ValueError(problem)
         if after < 0:
             raise ValueError(f"after must be 0 or more, got {after:g}")
 
-    def _schedule(self, ok: bool, value: Any, urgent: bool, after: float) -> None:
+    def _schedule(
+        self,
+        ok: bool,
+        value: Any,
+        urgent: bool,
+        after: float,
+        priority: Optional[int] = None,
+    ) -> None:
         """Triggers the one-shot event with a priority and a delay, as
         `env.schedule(event, priority, delay)` does after `succeed()` or `fail()`."""
         event = self._event
         event._ok, event._value = ok, value
-        self.env.schedule(event, URGENT if urgent else NORMAL, after)
+        if urgent:
+            priority = URGENT
+        elif priority is None:
+            priority = NORMAL
+        self.env.schedule(event, priority, after)
 
     def _notify(self) -> None:
         notify = getattr(self.env, "notify_change", None)

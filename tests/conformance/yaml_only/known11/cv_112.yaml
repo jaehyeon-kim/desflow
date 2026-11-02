@@ -1,0 +1,8 @@
+# case CV-112: except by exception type: next.when on the failure reason. The prototype drew the kind at random. This document fixes it (KeyError, ValueError, ValueError, repeating) as programs/known11.py does, and starts the entities at time 0 so the sized runs can change their number.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 3, spawn: step, attributes: {i: {gen: sequence, start: 0}}}}
+tasks:
+  step: {fail: "True", fail_reason: {gen: expr, expr: "['KeyError', 'ValueError', 'ValueError'][attr.i % 3]"}, on_fail: handle, payload: {event_type: step}}
+  handle: {payload: {event_type: handled}, next: {when: [{condition: "upstream.reason == 'KeyError'", task: key_handler}], default: other_handler}}
+  key_handler: {payload: {event_type: key_error}}
+  other_handler: {payload: {event_type: other}}

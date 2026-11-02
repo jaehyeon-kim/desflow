@@ -1,0 +1,9 @@
+# case ST-X05: a process waits on the failing event and handles it.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+signals: {ev: {once: true}}
+arrivals: {w: {initial: 1, spawn: pem}, f: {initial: 1, spawn: fail_it}}
+tasks:
+  pem: {wait: {signal: ev}, on_fail: caught, payload: {event_type: should_not_finish}}
+  caught: {payload: {event_type: caught}}
+  fail_it: {payload: {event_type: fail}, on: [{fire: {signal: ev, fail: true, value: ""}}]}
+run: {until: 1, on_unhandled_failure: stop}

@@ -174,6 +174,7 @@ INPUT_FORMS: Dict[Tuple[str, str], Any] = {
     ("EgressConnector", "_known_name"): None,
     # An `on:` value that is a mapping with no `gen` is data, as the Value type says
     ("_generator_or_data", "_value_form"): None,
+    ("_capacity_text", "_capacity_numbers"): None,
 }
 
 _OUTSIDE = ("default", "description", "title")

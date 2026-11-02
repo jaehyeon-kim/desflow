@@ -25,6 +25,7 @@ from typing import (
     Dict,
     List,
     Optional,
+    Set,
     Tuple,
     Union,
 )
@@ -36,6 +37,7 @@ from simpy.resources.resource import Preempted
 
 from desflow.core.expressions import ANY_NAME, Expression, Scope, boolean_word
 from desflow.core.flow import (
+    Listen,
     Open,
     Release,
     RequestOptions,
@@ -43,6 +45,8 @@ from desflow.core.flow import (
     Seize,
     Transfer,
     Wait,
+    WaitNode,
+    article,
     as_given,
     make_scope,
 )
@@ -50,6 +54,8 @@ from desflow.resources.resource import QueueFull
 from desflow.models.flow import Entity, Upstream, payload_of
 from desflow.utils import suggestion
 from desflow.values.check import names_read
+from desflow.core.arrivals import whole
+from desflow.core.families import Reference, name_of, references
 from desflow.values.models import _Gen, has_generator
 from desflow.values.runtime import RunStopped, stream_of
 from desflow.values.template import BoundPayload, Template
@@ -102,7 +108,7 @@ class Handle:
             same name, and the new request replaces the event here.
     """
 
-    __slots__ = ("kind", "event", "value_of", "members")
+    __slots__ = ("kind", "event", "value_of", "members", "items")
 
     def __init__(self, kind: str, event: Any):
         self.kind = kind
@@ -111,19 +117,34 @@ class Handle:
         # group, its leaves' events by name
         self.value_of: Optional[Callable[[Any], Any]] = None
         self.members: Optional[Dict[str, Any]] = None
+        # For an `each` group, the handle of each element, in order
+        self.items: Optional[List["Handle"]] = None
 
     def read(self, name: str, part: str) -> Any:
         """The part of the event `handle.<name>.<part>` reads.
 
         Args:
             name: The name, for the message.
-            part: `triggered`, `processed`, `ok`, `value` or `alive`.
+            part: `triggered`, `processed`, `ok`, `value` or `alive`, and `values` or
+                `flags` for an `each` group.
 
         Raises:
             KeyError: If `alive` is read on an event that is not a child flow, or `ok`
                 or `value` before the event happened, as SimPy's `Event.value` raises.
         """
         event = self.event
+        if part in ("values", "flags"):
+            if self.items is None:
+                raise KeyError(
+                    f"handle.{name}.{part} is read on a {self.kind}, and only an "
+                    f"each group has {part}"
+                )
+            if part == "flags":
+                return [item.event.processed for item in self.items]
+            return [
+                item.read(name, "value") if item.event.processed else None
+                for item in self.items
+            ]
         if part == "triggered":
             return event.triggered
         if part == "processed":
@@ -418,7 +439,7 @@ class TaskSpec:
         wait: Optional[Wait] = None,
         signal: Optional[str] = None,
         fail: Any = None,
-        fail_reason: Optional[str] = None,
+        fail_reason: Any = None,
         on_fail: Optional[str] = None,
         on_renege: Optional[str] = None,
         on_balk: Optional[str] = None,
@@ -447,9 +468,11 @@ class TaskSpec:
         release: Optional[Release] = None,
         open: Optional[Open] = None,
         cancel: Optional[str] = None,
+        cancel_index: Optional[Expression] = None,
         on_interrupt_run: Optional[str] = None,
         resume: Optional[Dict[str, Any]] = None,
         batch: Optional[Batch] = None,
+        listen: Optional[Listen] = None,
     ):
         self.name = name
         # Members wait together and are served by one run of the resource and service
@@ -463,7 +486,11 @@ class TaskSpec:
         self.seize = seize
         self.release = release
         self.open = open
+        # The callbacks added to a signal or an opened name when the task starts
+        self.listen = listen
         self.cancel = cancel
+        # The expression that picks one element when `cancel` names an `each` group
+        self.cancel_index = cancel_index
         # How many finished payloads the task keeps for `lookup` and `aggregate`; None
         # leaves it to whether any lookup names the task
         self.history = history
@@ -483,9 +510,10 @@ class TaskSpec:
         # One record key for every record of an instance, drawn at its first record
         self.key = key
         # Every resource it holds, acquired in this order; resource_id is the first
-        self.resources: List[str] = list(
-            resources or ([resource_id] if resource_id else [])
-        )
+        self.resources: List[Union[str, Reference]] = [
+            name_of(r, "resource")
+            for r in (resources or ([resource_id] if resource_id else []))
+        ]
         self.resource_id = self.resources[0] if self.resources else None
         self.keep: List[str] = list(keep or [])
         preempt = boolean_word(preempt)
@@ -510,7 +538,9 @@ class TaskSpec:
         self.patience = patience
         self.balk = balk
         self.wait = wait
-        self.signal = signal
+        self.signal: Union[str, Reference, None] = (
+            None if signal is None else name_of(signal, "signal")
+        )
         self.fail = fail
         self.fail_reason = fail_reason
         self.on_fail = on_fail
@@ -552,6 +582,17 @@ class TaskSpec:
         self.declared: Any = {}
 
     @property
+    def has_each(self) -> bool:
+        """bool: Whether the task has a `wait` or an `open` with an `each` node."""
+        for wait in (self.wait, self.subscribe, getattr(self.open, "wait", None)):
+            if wait is None:
+                continue
+            for node in wait.all_nodes:
+                if node.is_each:
+                    return True
+        return False
+
+    @property
     def service_reads(self) -> List[str]:
         """The vars the service time reads, which are given a value when it is."""
         return sorted(
@@ -588,14 +629,31 @@ class TaskSpec:
         found.extend(("next", e) for e in self.router.conditions)
         if self.batch is not None:
             found.extend(("batch", e) for e in self.batch.expressions)
+        for reference in references(self.resources, self.signal):
+            found.extend(
+                (
+                    "signal" if reference is self.signal else "resource",
+                    e,
+                )
+                for e in reference.expressions
+            )
+        if self.subscribe is not None:
+            found.extend(("subscribe", e) for e in self.subscribe.reference_expressions)
         if self.seize is not None:
             found.extend(("seize", e) for e in self.seize.expressions)
         if self.open is not None:
             found.extend(("open", e) for e in self.open.expressions)
+        if self.listen is not None:
+            found.extend(("listen", e) for e in self.listen.expressions)
+        found.extend(("on", a["when"]) for a in self.on if a.get("when") is not None)
         if self.release is not None:
             found.extend(("release", e) for e in self.release.expressions)
         if self.interrupt_where is not None:
             found.append(("interrupt", self.interrupt_where))
+        if self.interrupt is not None and self.interrupt.get("index") is not None:
+            found.append(("interrupt", self.interrupt["index"]))
+        if self.cancel_index is not None:
+            found.append(("cancel", self.cancel_index))
         if self.resume is not None:
             for part in ("where", "limit"):
                 if isinstance(self.resume.get(part), Expression):
@@ -604,7 +662,9 @@ class TaskSpec:
             found.extend(("wait", e) for e in self.wait.conditions)
             found.extend(("wait", e) for e in self.wait.time_expressions)
             found.extend(("wait", e) for e in self.wait.request_expressions)
+            found.extend(("wait", e) for e in self.wait.reference_expressions)
             found.extend(("wait_when", e) for e in self.wait.predicates)
+            found.extend(("wait_group", e) for e in self.wait.group_expressions)
         return found
 
 
@@ -677,6 +737,7 @@ class TaskRun:
         self._children: Dict[str, Any] = {}
         # The exception a task function raised, to chain the TaskFailed it causes
         self._fail_error: Optional[BaseException] = None
+        self._first_resource: Optional[str] = None  # the first `resource`, read once
         # Units won by a `request` wait branch, held through the service and given
         # back when the task ends, as a `resource:` unit is
         self._wait_held: List[Any] = []
@@ -686,6 +747,16 @@ class TaskRun:
         # The live `request`, `get` and `put` branch events of the current wait, kept
         # so a resume reuses them and a renege or an abandon cancels them
         self._wait_events: Dict[str, Any] = {}
+        # The names of the requests a restart kept, whose leaf is compared once with
+        # the resource it now asks for; and the element a `handle` leaf with an
+        # `index` resolved on its first build, kept across a resume and a restart
+        self._restart_kept: Set[str] = set()
+        self._leaf_elements: Dict[str, Handle] = {}
+        # The wait's tree with each `each` node made into a group of one leaf for each
+        # element, and its leaves by name, kept for a resume; the element an `each`
+        # leaf is being made for, which `each.index` and `each.value` read
+        self._expansion: Optional[Tuple[Any, Dict[str, Any]]] = None
+        self._each_scope: Optional[Dict[str, Any]] = None
         # The patience still to use, and when the current wait began
         self._patience_left: Optional[float] = None
         # When a single `timeout` wait began and its length, for `cause.left`
@@ -839,6 +910,8 @@ class TaskRun:
                 "flow_name": self.flow_name,
             },
             resources=self.context._resources_map,
+            families=self.context._families,
+            each=self._each_scope,
             names=self._names(),
             entity=self.entity.key,
             args=self.arg_values,
@@ -1077,6 +1150,13 @@ class TaskRun:
             return selected[0].ended.value
         return {run.task_id: run.ended.value for run in selected}
 
+    def _named(self, name: Union[str, Reference]) -> str:
+        """The name a resource, store, container or signal place gives now: the name
+        itself, or the member a reference picks, read in the step of the place."""
+        if isinstance(name, Reference):
+            return self.context._open_reference(name, self.scope())
+        return name
+
     def _subscribe_event(self, wait: Wait) -> Any:
         """The event a `subscribe:` key subscribes the instance to: a child flow for
         a task branch, a signal's firing, or the running instances of a task."""
@@ -1091,7 +1171,7 @@ class TaskRun:
                 kwargs=self.kwargs,
             )
         if node.kind == "signal":
-            return self.context._signals[node.target].wait()
+            return self.context._signals[self._named(node.target)].wait()
         if node.kind == "running":
             return self._running_event(node)
         raise ValueError(f"subscribe does not take a {node.kind} branch")
@@ -1213,7 +1293,9 @@ class TaskRun:
         """
         spec = self.spec
         if spec.signal is not None and not self._signalled:
-            self.context._fire_signal(spec.signal, False, failure, self.entity)
+            self.context._fire_signal(
+                self._named(spec.signal), False, failure, self.entity
+            )
         failed = Upstream(
             self.task_id,
             self.entity.key,
@@ -1348,7 +1430,9 @@ class TaskRun:
             # full line is known now and the task balks before it queues, as in SimPy
             # it would when the request raised. A `seize` waits first, an `open` adds
             # requests to the line, and a `cancel` takes one out.
-            first = self.context._resources_map[spec.resources[0]]
+            # A reference is read once here, and the request below uses that member
+            self._first_resource = self._named(spec.resources[0])
+            first = self.context._resources_map[self._first_resource]
             limit = first._line_limit()
             if limit is not None and len(first.queue) >= limit:
                 self._release_kept(own=self.child)
@@ -1375,7 +1459,10 @@ class TaskRun:
                 self._patience_left = self._patience()
 
         if failure is None and (
-            spec.open is not None or spec.cancel is not None or spec.seize is not None
+            spec.open is not None
+            or spec.listen is not None
+            or spec.cancel is not None
+            or spec.seize is not None
         ):
             try:
                 holding = yield from self._holding_steps()
@@ -1416,9 +1503,11 @@ class TaskRun:
                 if self._interrupted(interrupt):
                     if spec.on_interrupt == "restart":
                         self._children = {}  # a restart starts its child flows again
-                        self._cancel_wait_events(
-                            keep_granted=True
-                        )  # and re-makes its wait branches
+                        # a granted request is kept by the names of the expansion, so
+                        # the events are cancelled before it is made again
+                        self._cancel_wait_events(keep_granted=True)
+                        self._restart_kept = set(self._wait_events)
+                        self._expansion = None  # and re-makes its wait branches
                     try:
                         yield from self._interrupt_flow(interrupt, timeout_left)
                     except _HandlerFailed as stopped:
@@ -1522,9 +1611,13 @@ class TaskRun:
                 for at, resource in enumerate(spec.resources):
                     if at in slots or no_time_left or self._batch_served:
                         continue
+                    if at == 0 and self._first_resource is not None:
+                        resource = self._first_resource
+                    else:
+                        resource = self._named(resource)
                     self._target = f"resource.{resource}"
+                    here = self.context._resources_map[resource]
                     try:
-                        here = self.context._resources_map[resource]
                         request = here.request(
                             self._rank_on(here, None, rank), preempt=may_preempt
                         )
@@ -1533,7 +1626,7 @@ class TaskRun:
                     except QueueFull:
                         self._release(held)
                         self._release_kept(own=self.child)
-                        self._balk_full(self.context._resources_map[resource])
+                        self._balk_full(here)
                         return None
                     held.append(request)
                     slots[at] = request
@@ -1732,13 +1825,17 @@ class TaskRun:
             return self._fail(failure)
 
         if spec.signal is not None:
-            self.context._fire_signal(spec.signal, True, payload, self.entity)
+            self.context._fire_signal(
+                self._named(spec.signal), True, payload, self.entity
+            )
             self._signalled = True
         if spec.interrupt is not None:
             cause = spec.interrupt.get("cause")
             cause = self._generated(cause) if spec.cause_generated else cause
             if spec.interrupt.get("handle") is not None:
-                self._interrupt_child(spec.interrupt["handle"], cause)
+                self._interrupt_child(
+                    spec.interrupt["handle"], cause, spec.interrupt.get("index")
+                )
             else:
                 self.context.interrupt(
                     spec.interrupt["task"],
@@ -2234,7 +2331,7 @@ class TaskRun:
         self._awaiting = []
 
     def _holding_steps(self):
-        """Steps 5, 7 and 8 of the task's keys: `open`, `cancel` and `seize`.
+        """Steps 5 to 8 of the task's keys: `open`, `listen`, `cancel` and `seize`.
 
         Returns:
             None when they are done, `_LEFT` when the task balked or reneged, or the
@@ -2247,11 +2344,13 @@ class TaskRun:
                 self._release_kept(own=self.child)
                 self._balk_full(full)
                 return _LEFT
+        if spec.listen is not None:
+            self._listen_step()
         if spec.cancel is not None:
             self._cancel_step()
         if spec.seize is not None:
             seize = spec.seize
-            resource = self.context._resources_map[seize.resource]
+            resource = self.context._resources_map[self._named(seize.resource)]
             try:
                 request = self._ask(
                     resource, self._rank_on(resource, seize), self._preempt(seize)
@@ -2263,6 +2362,51 @@ class TaskRun:
             self._awaiting.append(request)
             return (yield from self._acquire())
         return None
+
+    def _listen_step(self) -> None:
+        """Step 6: adds the callback of `listen` to the event it names, behind the
+        callbacks and waiters that are already on it, as `ev.callbacks.append(f)` does.
+
+        Raises:
+            RuntimeError: If the event was processed already, which takes no callback.
+            KeyError: If no event is open under the name of a `handle`.
+            ValueError: If an `index` is used on a name that is no `each` group.
+            IndexError: If the `index` is outside the elements.
+        """
+        listen = self.spec.listen
+        assert listen is not None
+        if listen.signal is not None:
+            name = self._named(listen.signal)
+            event = self.context._signals[name].wait()
+            what = f"signal '{name}'"
+        else:
+            handle = self._handle(str(listen.handle), "listen")
+            if listen.index is not None:
+                handle = self._element(
+                    handle, str(listen.handle), listen.index, "listen"
+                )
+            event = handle.event
+            what = f"the event '{listen.handle}'"
+        if event.callbacks is None:
+            raise RuntimeError(
+                f"task '{self.spec.name}' listen: {what} was processed already, so "
+                f"it takes no callback"
+            )
+        event.callbacks.append(self._listened)
+
+    def _listened(self, _event: Event) -> None:
+        """The callback of `listen`: runs its `on` entries for the entity that
+        listens, in that entity's scope as it is now."""
+        assert self.spec.listen is not None
+        for action in self.spec.listen.on:
+            self.context._run_on_action(
+                action,
+                f"the listen of task '{self.spec.name}'",
+                self.entity,
+                self.upstream,
+                names=self._names(),
+                scope=self.scope(),
+            )
 
     def _acquire(self):
         """Waits until every `seize` request of this instance is granted, after asking
@@ -2338,42 +2482,166 @@ class TaskRun:
         """
         table = self._table()  # a child flow started below reads the names that follow
         for name, node in self.spec.open.nodes.items():  # type: ignore[union-attr]
-            if node.kind == "request":
-                resource = self.context._resources_map[node.target]
-                handle = Handle("request", None)
-                try:
-                    request = self._ask(
-                        resource,
-                        self._rank_on(resource, node.options),
-                        self._preempt(node.options),
-                        handle,
-                    )
-                except QueueFull:
-                    return resource
-                handle.event = request
-                self.publish(self.status("queued"), lifecycle=True)
-                request.callbacks.append(self._started_later)
-            elif node.kind in ("get", "put"):
-                payload = (
-                    self.upstream.payload
-                    if node.kind == "put" and self.upstream is not None
-                    else None
-                )
-                event = self._transfer_event(node.target, node.kind, payload)
-                handle = Handle(node.kind, event)
-                if node.kind == "get":
-                    handle.value_of = functools.partial(
-                        self._transfer_value, node.target, "get"
-                    )
-                    self.publish(self.status("queued"), lifecycle=True)
-                    event.callbacks.append(self._started_later)
+            if node.is_each:
+                handle, full = self._open_each(node)
             else:
-                members: Dict[str, Any] = {}
-                handle = Handle(node.kind, self._open_event(node, members))
-                if node.is_group:
-                    handle.members = members
+                handle, full = self._open_one(node)
+            if full is not None:
+                return full
             table[name] = handle
         return None
+
+    def _open_one(self, node: Any) -> Tuple[Optional[Handle], Any]:
+        """Makes the event of one opened leaf or group of leaves.
+
+        Returns:
+            The handle and None, or None and the resource whose full line made the
+            task balk.
+        """
+        if node.kind == "request":
+            resource = self.context._resources_map[self._named(node.target)]
+            handle = Handle("request", None)
+            try:
+                request = self._ask(
+                    resource,
+                    self._rank_on(resource, node.options),
+                    self._preempt(node.options),
+                    handle,
+                )
+            except QueueFull:
+                return None, resource
+            handle.event = request
+            self.publish(self.status("queued"), lifecycle=True)
+            request.callbacks.append(self._started_later)
+        elif node.kind in ("get", "put"):
+            payload = (
+                self.upstream.payload
+                if node.kind == "put" and self.upstream is not None
+                else None
+            )
+            event = self._transfer_event(node.target, node.kind, payload)
+            handle = Handle(node.kind, event)
+            if node.kind == "get":
+                handle.value_of = functools.partial(
+                    self._transfer_value, node.target, "get"
+                )
+                self.publish(self.status("queued"), lifecycle=True)
+                event.callbacks.append(self._started_later)
+        else:
+            members: Dict[str, Any] = {}
+            handle = Handle(node.kind, self._open_event(node, members))
+            if node.is_group:
+                handle.members = members
+        return handle, None
+
+    def _open_each(self, node: Any) -> Tuple[Optional[Handle], Any]:
+        """Makes the events of an opened `each`, one for each element in order, and the
+        group's event under its `group` rule.
+
+        Returns:
+            The group's handle, which holds the handle of each element, and None; or
+            None and the resource whose full line made the task balk.
+        """
+        group = self._each_group(node, {})
+        items: List[Handle] = []
+        built: Dict[int, Any] = {}
+        for leaf in group.children:
+            previous, self._each_scope = self._each_scope, leaf.element
+            try:
+                handle, full = self._open_one(leaf)
+            finally:
+                self._each_scope = previous
+            if full is not None:
+                return None, full
+            assert handle is not None
+            items.append(handle)
+            built[id(leaf)] = handle.event
+        handle = Handle(
+            "each", self._group_event(group, [h.event for h in items], built)
+        )
+        handle.items = items
+        return handle, None
+
+    def _each_values(self, node: Any) -> List[Any]:
+        """The elements of an `each`, read once as the wait or the `open` starts: a
+        number n gives 0 to n - 1, and a list or an expression's list gives its
+        values."""
+        scope = self.scope()
+        place = node.each
+        if isinstance(place, Expression):
+            place = place.evaluate(scope)
+        elif isinstance(place, _Gen) or callable(place):
+            self._ensure_once()
+            place = self._generated(place)
+        if isinstance(place, (list, tuple, range)):
+            return list(place)
+        count = whole(place, f"each of '{node.name}'")
+        return list(range(max(count, 0)))
+
+    def _each_group(self, node: Any, nodes: Dict[str, Any]) -> Any:
+        """The group of leaves an `each` node makes now: one leaf for each element,
+        named `<name>[<index>]`, that reads its `each.index` and `each.value`.
+
+        Args:
+            node: The `each` node.
+            nodes: Receives each leaf by name.
+
+        Returns:
+            WaitNode: A group of the `each`'s `group` kind, named as the node.
+        """
+        template = node.template
+        values = self._each_values(node)
+        leaves = []
+        for index, value in enumerate(values):
+            leaf = WaitNode(
+                f"{node.name}[{index}]",
+                template.kind,
+                target=template.target,
+                args=template.args,
+            )
+            leaf.options = template.options
+            leaf.index = template.index
+            leaf.element = {"index": index, "value": value}
+            leaves.append(leaf)
+            nodes[str(leaf.name)] = leaf
+        kind, argument = node.group
+        count = 0
+        predicate = None
+        if kind == "at_least":
+            wanted = whole(
+                argument.evaluate(self.scope())
+                if isinstance(argument, Expression)
+                else argument,
+                f"at_least of each '{node.name}'",
+            )
+            if not leaves:
+                wanted = 0  # an empty each succeeds at once under every group
+            elif wanted < 1:
+                raise ValueError(f"at_least of each '{node.name}' gave {wanted}")
+            if wanted > len(leaves):
+                raise ValueError(
+                    f"at_least of each '{node.name}' gave {wanted}, which is above "
+                    f"the {len(leaves)} events it waits for"
+                )
+            count = wanted
+        elif kind == "when":
+            predicate = argument
+        return WaitNode(
+            node.name, kind, children=leaves, count=count, predicate=predicate
+        )
+
+    def _group_event(self, node: Any, members: List[Any], built: Dict[int, Any]) -> Any:
+        """The SimPy condition of a group node over the events of its children."""
+        env = self.env
+        if node.kind == "any":
+            return env.any_of(members)
+        if node.kind == "all":
+            return env.all_of(members)
+        if node.kind == "when":
+            return Condition(
+                env, lambda evs, c, n=node: self._holds(n, c, built), members
+            )
+        return Condition(env, lambda evs, c, n=node.count: c >= n, members)
 
     def _started_later(self, event: Any) -> None:
         """Publishes `started` for an opened request or get, as it is granted."""
@@ -2393,9 +2661,9 @@ class TaskRun:
         if node.kind == "timeout":
             event = self._timeout_event(node)
         elif node.kind == "signal":
-            event = self.context._signals[node.target].wait()
+            event = self.context._signals[self._named(node.target)].wait()
         elif node.kind == "handle":
-            event = self._handle(node.target, "open").event
+            event = self._handle_event(node, "open")
         else:
             event = self.context._start(
                 node.target,
@@ -2418,6 +2686,17 @@ class TaskRun:
         cancelled before is a run failure, as SimPy's second `cancel` raises."""
         name = self.spec.cancel
         handle = self._handle(str(name), "cancel")
+        if self.spec.cancel_index is not None:
+            handle = self._element(handle, str(name), self.spec.cancel_index, "cancel")
+        elif handle.items is not None:
+            for element in list(handle.items):
+                self._cancel_handle(str(name), element)
+            return
+        self._cancel_handle(str(name), handle)
+
+    def _cancel_handle(self, name: str, handle: Handle) -> None:
+        """Removes one opened request, get or put from its line; the name is for the
+        messages."""
         if handle.kind not in ("request", "get", "put"):
             raise ValueError(
                 f"task '{self.spec.name}' cancel: '{name}' was opened as a "
@@ -2440,14 +2719,23 @@ class TaskRun:
         assert release is not None
         if release.handle is not None:
             handle = self._handle(release.handle, "release")
-            if handle.kind != "request":
-                raise ValueError(
-                    f"task '{self.spec.name}' release: '{release.handle}' was opened "
-                    f"as a {handle.kind}, which holds no unit"
-                )
-            self._give_back(handle.event)
+            found = [handle]
+            if release.index is not None:
+                found = [
+                    self._element(handle, release.handle, release.index, "release")
+                ]
+            elif handle.items is not None:
+                found = list(handle.items)
+            for one in found:
+                if one.kind != "request":
+                    raise ValueError(
+                        f"task '{self.spec.name}' release: '{release.handle}' was "
+                        f"opened as a {one.kind}, which holds no unit"
+                    )
+                self._give_back(one.event)
             return
-        name = str(release.resource)
+        assert release.resource is not None
+        name = self._named(release.resource)
         if release.task is None:
             # The oldest unit of that resource this flow holds
             held = [
@@ -2539,6 +2827,8 @@ class TaskRun:
                 request.resource.release(request)
         self._lost_requests = []
         self._cancel_wait_events()
+        self._leaf_elements = {}
+        self._expansion = None
 
     def _cancel_wait_events(self, keep_granted: bool = False) -> None:
         """Cancels every live request, get or put wait-branch event, giving back a
@@ -2551,6 +2841,8 @@ class TaskRun:
                 held, and the wait that is made again reuses the request.
         """
         branches = self.spec.wait.branches if self.spec.wait is not None else {}
+        if self._expansion is not None:
+            branches = self._expansion[1]
         kept: Dict[str, Any] = {}
         for name, event in self._wait_events.items():
             node = branches.get(name)
@@ -2567,6 +2859,17 @@ class TaskRun:
             if granted:
                 event.resource.release(event)
         self._wait_events = kept
+
+    def _drop_wait_event(self, event: Any) -> None:
+        """Cancels a wait-branch event, giving back the unit a request already won."""
+        granted = (
+            hasattr(event, "resource")
+            and event.triggered
+            and event in event.resource.users
+        )
+        event.cancel()
+        if granted:
+            event.resource.release(event)
 
     def _release_kept(self, lost_only: bool = False, own: bool = False) -> None:
         """Gives back the units the task before kept for this one; with `lost_only`,
@@ -2690,7 +2993,7 @@ class TaskRun:
                     break
                 run, run._following = run._following, None  # type: ignore[assignment]
         except Exception as error:  # the child's failure
-            reason = getattr(error, "reason", None) or str(error)
+            reason = _reason_of(error)
             self._fail_error = error
             self._raised = True
             self.publish(self.status("failed", reason=reason))
@@ -2868,14 +3171,15 @@ class TaskRun:
             self.context._entity_left(self.entity)
 
     def _failure(self, payload: Any) -> Any:
-        """The reason the task fails after its service, or None when it does not."""
+        """The reason the task fails after its service, or None when it does not: its
+        `fail_reason` (text, or a generator read now), or the text of its `fail`."""
         spec = self.spec
         if spec.fail is None:
             return None
+        handed = Upstream(
+            self.task_id, self.entity.key, self.entity.attributes, payload
+        )
         if spec.fail_of is not None:
-            handed = Upstream(
-                self.task_id, self.entity.key, self.entity.attributes, payload
-            )
             failed = spec.fail_of.evaluate(self.scope(handed))
             text = spec.fail_of.text
         else:
@@ -2883,7 +3187,17 @@ class TaskRun:
             text = getattr(spec.fail, "__name__", "fail")
         if not failed:
             return None
-        return spec.fail_reason if spec.fail_reason is not None else text
+        if spec.fail_reason is None:
+            return text
+        if not has_generator(spec.fail_reason):
+            return spec.fail_reason
+        try:
+            reason = self.context.values.evaluate(spec.fail_reason, self.scope(handed))
+        except Exception as error:  # a reason that cannot be made fails the task
+            self._fail_error = error
+            self._raised = True
+            return f"{type(error).__name__}: {error}"
+        return text if reason is None else reason
 
     def _follow(
         self, task: str, handed: Upstream, cause: Optional[Dict[str, Any]] = None
@@ -2948,7 +3262,8 @@ class TaskRun:
         makes it this way to put it in the wait's condition; `_transfer` then waits."""
         context, scope = self.context, self.scope()
         if transfer.store is not None:
-            store = context._stores_map[transfer.store]
+            held_name = self._named(transfer.store)
+            store = context._stores_map[held_name]
             ranked = self._queue_rank(store, direction, scope)
             if direction == "get":
                 event = store.get(transfer.filter_for(scope, self.entity), **ranked)
@@ -2956,13 +3271,14 @@ class TaskRun:
                 if transfer.item is not None:
                     # The item of a `put`, read as the put is made
                     payload = self._generated(transfer.item)
-                if context._store_priority.get(transfer.store):
+                if context._store_priority.get(context._origin(held_name)):
                     rank = transfer.priority_for(self.task_id, self.upstream, scope)
                     event = store.put(store.wrap(payload, rank), **ranked)
                 else:
                     event = store.put(payload, **ranked)
         else:
-            container = context._containers_map[transfer.target]
+            held_name = self._named(transfer.target)
+            container = context._containers_map[held_name]
             amount = transfer.amount_for(self.task_id, self.upstream, scope)
             ranked = self._queue_rank(container, direction, scope)
             event = (
@@ -2970,8 +3286,9 @@ class TaskRun:
                 if direction == "get"
                 else container.put(amount, **ranked)
             )
-        # Who is waiting, for `putting()` and `getting()`
+        # Who is waiting, for `putting()` and `getting()`, and which holder it is for
         event.entity_key = self.entity.key
+        event.holder_name = held_name
         return event
 
     def _queue_rank(self, holder: Any, direction: str, scope: Scope) -> Dict[str, Any]:
@@ -2992,7 +3309,8 @@ class TaskRun:
         """The value a finished get or put event gives the task: the item a get took,
         unwrapped from a priority store's wrapper, or None for a put."""
         if direction == "get" and transfer.store is not None:
-            if self.context._store_priority.get(transfer.store):
+            name = getattr(event, "holder_name", transfer.store)
+            if self.context._store_priority.get(self.context._origin(name)):
                 self._taken_priority = event.value.priority
                 return event.value.item
             return event.value
@@ -3006,31 +3324,34 @@ class TaskRun:
         """
         env, wait = self.env, self.spec.wait
         assert wait is not None
-        self._target = self._target_label(wait.root)
+        try:
+            root, branches = self._expanded(wait)
+        except QueueFull as error:
+            return str(error)
+        self._target = self._target_label(root)
         events: Dict[str, Any] = {}
         built: Dict[int, Any] = {}
         stop_watching: List[Callable[[], None]] = []
         self._single_timeout = None
 
         def build(node: Any) -> Any:
-            """Builds the SimPy event for a node, nesting groups as SimPy conditions."""
+            """Builds the SimPy event for a node, nesting groups as SimPy conditions,
+            with the element an `each` leaf is made for in `each.index`."""
+            previous, self._each_scope = (
+                self._each_scope,
+                (node.element if node.element is not None else self._each_scope),
+            )
+            try:
+                return build_node(node)
+            finally:
+                self._each_scope = previous
+
+        def build_node(node: Any) -> Any:
             if node.is_group:
                 members = [build(child) for child in node.children]
-                if node.kind == "any":
-                    event: Any = env.any_of(members)
-                elif node.kind == "all":
-                    event = env.all_of(members)
-                elif node.kind == "when":
-                    event = Condition(
-                        env,
-                        lambda evs, c, n=node: self._holds(n, c, built),
-                        members,
-                    )
-                else:
-                    count = node.count
-                    event = Condition(env, lambda evs, c, n=count: c >= n, members)
+                event: Any = self._group_event(node, members, built)
             elif node.kind == "signal":
-                event = self.context._signals[node.target].wait()
+                event = self.context._signals[self._named(node.target)].wait()
             elif node.kind == "task":
                 # A wait resumed after an interrupt waits again for the child flow it
                 # started, as a SimPy process yields the same process again
@@ -3054,18 +3375,28 @@ class TaskRun:
                 event = child
             elif node.kind == "timeout":
                 event = self._timeout_event(node)
-                if node is wait.root:
+                if node is root:
                     self._single_timeout = (env.now, event._delay)
             elif node.kind == "handle":
                 # The event `open` made, whatever has happened to it since: the same
                 # event again after an interrupt, with its first end
-                event = self._handle(node.target, "wait").event
+                event = self._handle_event(node, "wait")
             elif node.kind == "request":
                 # Kept across a resume, as a `task` branch's child flow is, so the
                 # task does not queue a second request each time it waits again.
                 event = self._wait_events.get(node.name)
+                if event is not None and node.name in self._restart_kept:
+                    # A restart reads the leaf again: a unit kept for a leaf that now
+                    # asks for another resource is given back. A resume reads nothing
+                    # again, so the request keeps its place.
+                    if (
+                        event.resource
+                        is not self.context._resources_map[self._named(node.target)]
+                    ):
+                        self._drop_wait_event(event)
+                        event = None
                 if event is None:
-                    resource = self.context._resources_map[node.target]
+                    resource = self.context._resources_map[self._named(node.target)]
                     rank = self._rank_on(resource, node.options)
                     may_preempt = self._preempt(node.options)
                     event = resource.request(rank, preempt=may_preempt)
@@ -3118,7 +3449,11 @@ class TaskRun:
             return won >= node.count
 
         try:
-            root_event = build(wait.root)
+            root_event = build(root)
+            for name in [n for n in self._wait_events if n not in events]:
+                # A request kept across a restart whose leaf `each` no longer makes
+                self._drop_wait_event(self._wait_events.pop(name))
+            self._restart_kept = set()
         except QueueFull as error:
             # A request branch met a full line: the branches already built are
             # cancelled, and the wait fails with SimPy's message.
@@ -3136,7 +3471,7 @@ class TaskRun:
         except Interrupt:
             raise
         except Exception as error:  # a branch failed
-            failure = getattr(error, "reason", None) or str(error)
+            failure = _reason_of(error)
         finally:
             # Losing condition branches stop checking; losing child flows keep
             # running, as SimPy leaves processes running.
@@ -3151,11 +3486,11 @@ class TaskRun:
         # processed, the wait has lost the tie. It still succeeds when its leaves
         # processed by then satisfy it.
         tie = failure is None and not joined.processed
-        if tie and not done_at_tie(wait.root):
+        if tie and not done_at_tie(root):
             return _RENEGED
         # Named nodes are recorded children before parents (the parse registers a
         # group after its children), so a group reads its children's recorded values.
-        for name, node in wait.branches.items():
+        for name, node in branches.items():
             event = events[name]
             if tie:
                 done = done_at_tie(node)
@@ -3195,15 +3530,112 @@ class TaskRun:
                 "ok": (event.ok if event.triggered else True) if done else None,
                 "value": value,
             }
+            if node.template is not None:
+                # An `each` group: its elements' values and flags in order
+                leaves = [self.waits[str(child.name)] for child in node.children]
+                self.waits[name]["values"] = [
+                    found["value"] if found["done"] else None for found in leaves
+                ]
+                self.waits[name]["flags"] = [bool(found["done"]) for found in leaves]
         # The wait resolved: a won request is now tracked in `_wait_held`, and losing
         # branches are cancelled, so the per-branch events need no more tracking.
         self._wait_events = {}
+        self._leaf_elements = {}
+        self._expansion = None
         return failure
 
-    def _interrupt_child(self, name: str, cause: Any) -> None:
+    def _expanded(self, wait: Wait) -> Tuple[Any, Dict[str, Any]]:
+        """The wait's tree with each `each` node made into a group of one leaf for each
+        element, and every named node of it, children before their parents. It is made
+        when the wait starts and kept for a resume, so the elements are read once.
+
+        Args:
+            wait: The task's wait.
+
+        Returns:
+            Tuple[WaitNode, Dict[str, WaitNode]]: The root and the named nodes.
+        """
+        if self._expansion is not None:
+            return self._expansion
+        named: Dict[str, Any] = {}
+
+        def walk(node: Any) -> Any:
+            if node.is_each:
+                found = self._each_group(node, named)
+                found.template = node.template
+            elif node.is_group:
+                found = WaitNode(
+                    node.name,
+                    node.kind,
+                    children=[walk(child) for child in node.children],
+                    count=node.count,
+                    predicate=node.predicate,
+                )
+            else:
+                found = node
+            if found.name is not None:
+                named[found.name] = found
+            return found
+
+        expanded = (walk(wait.root), named)
+        self._expansion = expanded
+        return expanded
+
+    def _handle_event(self, node: Any, key: str) -> Any:
+        """The event of the handle a `handle` leaf names: the group's, or the one of
+        the element its `index` gives, read now."""
+        handle = self._handle(node.target, key)
+        if node.index is None:
+            return handle.event
+        if node.name is None or key != "wait":
+            return self._element(handle, node.target, node.index, key).event
+        # The element is resolved on the first build and kept by the leaf's name, so a
+        # resume or a restart waits for the same event (Y4)
+        if node.name not in self._leaf_elements:
+            self._leaf_elements[node.name] = self._element(
+                handle, node.target, node.index, key
+            )
+        return self._leaf_elements[node.name].event
+
+    def _element(
+        self, handle: Handle, name: str, index: Expression, key: str
+    ) -> Handle:
+        """The handle of one element of an `each` group, by an index read now.
+
+        Raises:
+            ValueError: If the name is not an `each` group.
+            IndexError: If the index is outside its elements.
+        """
+        if handle.items is None:
+            raise ValueError(
+                f"task '{self.spec.name}' {key}: '{name}' was opened as a "
+                f"{handle.kind}, and only an each group has elements"
+            )
+        found = whole(index.evaluate(self.scope()), f"the index of '{name}' in {key}")
+        if not -len(handle.items) <= found < len(handle.items):
+            raise IndexError(
+                f"task '{self.spec.name}' {key}: index {found} is outside the "
+                f"{len(handle.items)} elements of '{name}'"
+            )
+        return handle.items[found]
+
+    def _interrupt_child(
+        self, name: str, cause: Any, index: Optional[Expression] = None
+    ) -> None:
         """Interrupts the child flow a name was opened as, as `process.interrupt(cause)`
-        does; a flow that has ended is a run failure, as it is in SimPy."""
+        does; a flow that has ended is a run failure, as it is in SimPy. For an `each`
+        group of child flows, `index` picks one, and none interrupts each in order."""
         handle = self._handle(name, "interrupt")
+        if index is not None:
+            handle = self._element(handle, name, index, "interrupt")
+        elif handle.items is not None:
+            for element in list(handle.items):
+                self._interrupt_handle(name, element, cause)
+            return
+        self._interrupt_handle(name, handle, cause)
+
+    def _interrupt_handle(self, name: str, handle: Handle, cause: Any) -> None:
+        """Interrupts one child flow."""
         if handle.kind != "task":
             raise ValueError(
                 f"task '{self.spec.name}' interrupt: '{name}' was opened as a "
@@ -3385,6 +3817,8 @@ def scope_problem(
     later_item: bool,
     cause_ok: bool,
     in_when: bool,
+    has_each: bool = True,
+    each_here: bool = True,
 ) -> Optional[str]:
     """What an expression reads that no earlier step of its task gives, or None.
 
@@ -3395,10 +3829,21 @@ def scope_problem(
         later_item: Whether the task is reached after a waiting store get by a route.
         cause_ok: Whether an `on_interrupt_next` or `on_interrupt_run` edge reaches the task.
         in_when: Whether the place is the `when` of a wait group.
+        has_each: Whether the task has a `wait` or an `open` with `each`, which
+            `each.index` and `each.value` need.
+        each_here: Whether the place is in the branch of an `each` (a leaf, its
+            `args`), the only place that reads `each.index` and `each.value`.
 
     Returns:
         Optional[str]: The reason the place cannot read the name, or None when it can.
     """
+    if expression.references["each"] and not has_each:
+        return (
+            "each.index and each.value are read in the branch of a wait or an open "
+            "with each"
+        )
+    if expression.references["each"] and not each_here:
+        return "each.index is read only in the branch of an each"
     flags = expression.references["flag"]
     if (flags & {"item", "item_priority"}) and not (own_item or later_item):
         return (
@@ -3422,6 +3867,13 @@ def _cause(interrupt: Interrupt) -> Any:
     if isinstance(cause, Preempted):
         return f"preempted on {cause.resource.obj_id}"
     return cause
+
+
+def _reason_of(error: BaseException) -> Any:
+    """The reason a failure carries: its `reason` as it was given, which may be empty
+    or 0, or the error's text when it has none."""
+    reason = getattr(error, "reason", None)
+    return str(error) if reason is None else reason
 
 
 def _branch_value(event: Any) -> Any:
@@ -3457,6 +3909,9 @@ def check_acquisition_order(
     because the wait would queue behind the unit it keeps: the same model written
     another way runs.
 
+    A computed member (`{of, key}` or `{of, lowest}`) is left out, because the member
+    is not known before the run.
+
     Args:
         resources: Each task's `resource` list, in the order it acquires them.
         handoffs: Each task's `keep` list and the tasks its `next` can lead to.
@@ -3471,6 +3926,10 @@ def check_acquisition_order(
     """
     waits = waits or {}
     holds = holds or {}
+    resources = {
+        task: [r for r in listed if not isinstance(r, Reference)]
+        for task, listed in resources.items()
+    }
     before: Dict[Tuple[str, str], str] = {}
     together: Dict[Tuple[str, str], str] = {}
     warnings: List[str] = []
@@ -3510,16 +3969,25 @@ def check_acquisition_order(
 
     def requested(task: str) -> List[str]:
         wait = waits.get(task)
-        return wait.requests() if wait is not None else []
+        return (
+            [r for r in wait.requests() if not isinstance(r, Reference)]
+            if wait is not None
+            else []
+        )
 
     def seized(task: str) -> List[str]:
         holding = holds.get(task)
-        return [] if holding is None or holding.seize is None else [holding.seize]
+        if holding is None or holding.seize is None:
+            return []
+        return [] if isinstance(holding.seize, Reference) else [holding.seize]
 
     for task, wait in waits.items():
         if wait is not None:
             for first, second in wait.requests_together():
-                note_together(first, second, task)
+                if not isinstance(first, Reference) and not isinstance(
+                    second, Reference
+                ):
+                    note_together(first, second, task)
     for task, listed in resources.items():
         own = seized(task)
         acquired = [*own, *requested(task), *listed]
@@ -3555,13 +4023,15 @@ def check_acquisition_order(
                             f"task '{task}' holding '{first}' from a seize",
                         )
             now = set(held)
-            if holding.seize is not None:
+            if holding.seize is not None and not isinstance(holding.seize, Reference):
                 now.add(holding.seize)
-            if holding.release is not None:
+            if holding.release is not None and not isinstance(
+                holding.release, Reference
+            ):
                 now.discard(holding.release)
             stack.extend((target, frozenset(now)) for target in holding.following)
     for task, (keep, following) in handoffs.items():
-        for kept in keep:
+        for kept in [k for k in keep if not isinstance(k, Reference)]:
             for after in following:
                 if kept in requested(after):
                     raise ValueError(
@@ -3593,6 +4063,129 @@ class Holding:
         self.following = set(following)
 
 
+def _name_places(spec: "TaskSpec") -> List[Tuple[str, str, Any]]:
+    """Every place of a task that names a resource, store, container or signal, as
+    (key, kind, name), where the name may be a `Reference`."""
+    found: List[Tuple[str, str, Any]] = [
+        ("resource", "resource", name) for name in spec.resources
+    ]
+    found += [("keep", "resource", name) for name in spec.keep]
+    if spec.seize is not None:
+        found.append(("seize", "resource", spec.seize.resource))
+    if (
+        spec.release is not None
+        and spec.release.resource is not None
+        and spec.release.handle is None
+    ):
+        found.append(("release", "resource", spec.release.resource))
+    for key, transfer in (("get", spec.get), ("put", spec.put)):
+        if transfer is not None:
+            found.append(
+                (key, "store", transfer.store)
+                if transfer.store is not None
+                else (key, "container", transfer.container)
+            )
+    if spec.signal is not None:
+        found.append(("signal", "signal", spec.signal))
+    waits = [("wait", spec.wait), ("subscribe", spec.subscribe)]
+    if spec.open is not None:
+        waits.append(("open", spec.open.wait))
+    for key, wait in waits:
+        if wait is None:
+            continue
+        for node in wait.all_nodes:
+            if node.kind in ("request", "signal"):
+                found.append(
+                    (key, node.kind.replace("request", "resource"), node.target)
+                )
+            elif node.kind in ("get", "put"):
+                transfer = node.target
+                found.append(
+                    (key, "store", transfer.store)
+                    if transfer.store is not None
+                    else (key, "container", transfer.container)
+                )
+    for action in spec.on:
+        if "fire" in action:
+            found.append(("on", "signal", action["fire"]["signal"]))
+    if spec.listen is not None:
+        if spec.listen.signal is not None:
+            found.append(("listen", "signal", spec.listen.signal))
+        for action in spec.listen.on:
+            if "fire" in action:
+                found.append(("listen", "signal", action["fire"]["signal"]))
+    return found
+
+
+def family_problem(
+    specs: Mapping[str, "TaskSpec"],
+    families: Mapping[str, Any],
+    declared: Mapping[str, Mapping[str, Any]],
+    signal_actions: Optional[Mapping[str, List[Dict[str, Any]]]] = None,
+) -> Optional[Tuple[str, str, str]]:
+    """The first place that names a family wrongly, or None.
+
+    A family is named by a reference `{of: <family>, key: ...}`, never by its bare name;
+    a reference's `of` is a family of the kind the place takes, or a list of declared
+    names that are no family.
+
+    Args:
+        specs: The tasks, by name.
+        families: The declared families, by name, each with its `kind`.
+        declared: For each kind (`resource`, `store`, `container`, `signal`), the
+            declared names.
+        signal_actions: The `on:` actions of each signal, by signal name.
+
+    Returns:
+        Optional[Tuple[str, str, str]]: The task (or `signals.<name>`), the key and
+        the message, or None.
+    """
+    places = {name: _name_places(spec) for name, spec in specs.items()}
+    for signal, actions in (signal_actions or {}).items():
+        places[f"signals.{signal}"] = [
+            ("on", "signal", a["fire"]["signal"]) for a in actions if "fire" in a
+        ]
+    for task, found in places.items():
+        for key, kind, name in found:
+            if isinstance(name, Reference):
+                problem = _reference_problem(name, kind, families, declared)
+            elif name in families and families[name].kind == kind:
+                problem = (
+                    f"names the family '{name}', which is named by a reference: "
+                    f"{{of: {name}, key: <expression>}}"
+                )
+            else:
+                problem = None
+            if problem is not None:
+                return task, key, problem
+    return None
+
+
+def _reference_problem(
+    name: Reference, kind: str, families: Mapping[str, Any], declared: Mapping[str, Any]
+) -> Optional[str]:
+    """What is wrong with a reference in a place that takes `kind`, or None."""
+    if name.listed:
+        for each in name.names:
+            if each in families:
+                return (
+                    f"lists '{each}', which is a family; a list names declared "
+                    f"{kind}s that are not families"
+                )
+            if each not in declared.get(kind, ()):
+                return f"lists '{each}', which is not a declared {kind}"
+        if name.key is None:
+            return "lists names, so it takes key and not lowest"
+        return None
+    family = families.get(str(name.of))
+    if family is None or family.kind != kind:
+        return (
+            f"names '{name.of}', which is not a family of {kind}s; add family: true "
+            f"to its entry"
+        )
+    return None
+
+
 # What each use of an opened name needs the name to have been opened as
 _HANDLE_NEEDS = {
     "line": (
@@ -3612,11 +4205,11 @@ def handle_problem(
 
     Args:
         opens: For each name, the task that opens it and what it opens as (`timeout`,
-            `request`, `get`, `put`, `task`, `signal`, `any` or `all`), once for each
-            task that opens it.
+            `request`, `get`, `put`, `task`, `signal`, `any` or `all`, or `each` and the
+            kind of an `each` group), once for each task that opens it.
         uses: Each use as (task, key, name, need). `need` is `any` for a read or a
-            wait, `line` for a `cancel`, `unit` for a `release` and `child` for an
-            `interrupt`.
+            wait, `line` for a `cancel`, `unit` for a `release`, `child` for an
+            `interrupt` and `element` for a use with an `index`.
 
     Returns:
         Optional[Tuple[str, str, str]]: The task, the key and a message that names the
@@ -3630,14 +4223,23 @@ def handle_problem(
                 f"names '{name}', which no task opens"
                 + (suggestion(name, opens) or "; open it with open"),
             )
-        if need in _HANDLE_NEEDS:
-            kinds, words = _HANDLE_NEEDS[need]
+        if need == "element":
             for opener, kind in opens[name]:
-                if kind not in kinds:
+                if not kind.startswith("each "):
                     return (
                         task,
                         key,
-                        f"'{name}' is opened as a {kind} in task '{opener}', and "
+                        f"'{name}' is opened as {article(kind)} {kind} in task '{opener}', and an "
+                        f"index needs an each group, the only name that has elements",
+                    )
+        elif need in _HANDLE_NEEDS:
+            kinds, words = _HANDLE_NEEDS[need]
+            for opener, kind in opens[name]:
+                if kind.removeprefix("each ") not in kinds:
+                    return (
+                        task,
+                        key,
+                        f"'{name}' is opened as {article(kind)} {kind} in task '{opener}', and "
                         f"{key} needs {words}",
                     )
     return None

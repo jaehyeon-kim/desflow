@@ -22,6 +22,7 @@ from typing import (
     Literal,
     Mapping,
     Optional,
+    Tuple,
     Type,
     Union,
     get_args,
@@ -70,6 +71,7 @@ from desflow.core.environment import (
     in_zone,
     resolve_zone,
 )
+from desflow.core.families import Reference
 from desflow.core.flow import Open, Release, Router, Transfer, Wait
 from desflow.models.params import DistributionConfig
 from desflow.resources.base import check_ties
@@ -614,6 +616,62 @@ class PreemptRule(_Model):
         return value
 
 
+def _capacity_text(value: Any) -> Any:
+    """A capacity written as text that is only a number (as `${NAME}` gives) is that
+    number; any other text stays, for a family to read as an expression."""
+    if isinstance(value, str) and _PLAIN_NUMBER.fullmatch(value.strip()):
+        number = float(value)
+        return int(number) if number.is_integer() and "." not in value else number
+    return value
+
+
+class Ref(_Model):
+    """A name a task computes, where a task names a resource, a store, a container or a
+    signal: `{of: <family>, key: <expression>}` is the member of a family that `key`
+    gives, made when it is first used, and `{of: <family>, lowest: <expression>}` is
+    the member whose value is the lowest, `lowest` being read once for each member as
+    `member.key`, `member.users`, `member.queue`, `member.level`, `member.count`,
+    `member.putters` and `member.getters`. `of` may be a list of declared names, and
+    `key` then gives one of them. A reference takes `key` or `lowest`, not both.
+    """
+
+    of: Union[str, List[str]]
+    key: Optional[Union[str, int]] = None
+    lowest: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _form(self) -> "Ref":
+        self.name()
+        return self
+
+    def name(self) -> Reference:
+        """The `Reference` the builder and the run take."""
+        return Reference(self.of, self.key, self.lowest)
+
+    def _first(self) -> str:
+        return self.of if isinstance(self.of, str) else self.of[0]
+
+    def __str__(self) -> str:
+        return self._first()
+
+    def __hash__(self) -> int:
+        return hash(self._first())
+
+    def __eq__(self, other: object) -> bool:
+        """A reference equals the name it starts with, so a check that looks a name up
+        in a section finds the declared entry, as it does for a `Reference`."""
+        if isinstance(other, str):
+            return other == self._first()
+        if isinstance(other, Ref):
+            return self.model_dump() == other.model_dump()
+        return NotImplemented
+
+
+def _name(value: Any) -> Any:
+    """A name place as the builder takes it: a name, or the `Reference` of a `Ref`."""
+    return value.name() if isinstance(value, Ref) else value
+
+
 class Resource(_Model):
     """A `resources` entry: its capacity, the order its queue is served in, whether
     a request of a lower priority value preempts a user, how many requests may wait,
@@ -627,15 +685,32 @@ class Resource(_Model):
     `queue_limit` is also the registry path `<sim_id>.resources.<name>.queue_limit`,
     so a scenario, an `on:` entry or an ingress message can change it: the new limit
     applies from the next request and removes nobody who waits, and `null` is no limit.
+
+    `family: true` makes the entry a family: one resource for each key, made from this
+    entry. `members` is a count place read once when the run is built, for the keys 0
+    to n - 1; without it the family starts empty. A task names a member with `{of:
+    <family>, key: <expression>}`, and a member is made at its first use. In a family,
+    `current_cap` and `max_cap` may be expression text, read once when a member is made.
     """
 
-    current_cap: Optional[Union[int, float]] = None
-    max_cap: Optional[Union[int, float]] = None
+    current_cap: Optional[Union[int, float, str]] = None
+    max_cap: Optional[Union[int, float, str]] = None
     queue: Union[str, QueueRule] = DEFAULT_QUEUE_ORDER
     preempt: Union[bool, PreemptRule] = False
     queue_limit: Optional[int] = None
     type: Optional[Type[ResourceBase]] = None
     breakdown: Optional[Breakdown] = None
+    family: bool = False
+    members: Optional[CountPlace] = None
+
+    _capacity_numbers = field_validator("current_cap", "max_cap", mode="before")(
+        _capacity_text
+    )
+
+    @model_validator(mode="after")
+    def _family_form(self) -> "Resource":
+        _check_family(self, ("current_cap", "max_cap"))
+        return self
 
     @model_validator(mode="after")
     def _preempt_needs_priority(self) -> "Resource":
@@ -650,7 +725,11 @@ class Resource(_Model):
 
     @model_validator(mode="after")
     def _capacity_and_queue_fit(self) -> "Resource":
-        if self.current_cap is None and self.max_cap is not None and self.max_cap < 1:
+        if (
+            self.current_cap is None
+            and isinstance(self.max_cap, (int, float))
+            and self.max_cap < 1
+        ):
             raise ValueError(
                 f"max_cap {self.max_cap} is below 1, the default current_cap; give "
                 f"current_cap {self.max_cap} or less"
@@ -669,9 +748,48 @@ class Resource(_Model):
         return value
 
 
-def _room(current_cap: Optional[float], max_cap: Optional[float]) -> float:
+def _check_family(model: Any, fields: Any) -> None:
+    """Checks the `family` and `members` of an entry, and that only a family has text
+    for a capacity.
+
+    Args:
+        model: The `Resource`, `Store`, `Container` or `SignalSpec`.
+        fields: The capacity fields of the entry that may be text in a family.
+
+    Raises:
+        ValueError: If `members` is given without `family`, is below 0, or a capacity
+            is text in an entry that is not a family.
+    """
+    if model.members is not None and not model.family:
+        raise ValueError("members needs family: true")
+    if isinstance(model.members, int) and model.members < 0:
+        raise ValueError(f"members is 0 or more, got {model.members}")
+    if isinstance(model.members, str):
+        Expression(model.members)
+    for name in fields:
+        value = getattr(model, name)
+        if isinstance(value, str):
+            if not model.family:
+                raise ValueError(
+                    f"{name} is a number, or text in a family: add family: true, or "
+                    f"give a number"
+                )
+            parsed = Expression(value)
+            outside = parsed.outside_run() if model.members is not None else None
+            if outside:
+                raise ValueError(
+                    f"{name} '{value}' reads {outside}, but a family with members "
+                    f"reads the run for every member, so it reads level, users, queue, "
+                    f"signal, registry and t, not an entity"
+                )
+
+
+def _room(current_cap: Any, max_cap: Any) -> float:
     """The capacity a store or container starts with, as the registry resolves it: a
-    missing `current_cap` is the `max_cap`, and with neither there is no limit."""
+    missing `current_cap` is the `max_cap`, and with neither there is no limit. A
+    capacity written as text, in a family, has no limit here."""
+    if isinstance(current_cap, str) or isinstance(max_cap, str):
+        return float("inf")
     if current_cap is None:
         current_cap = max_cap if max_cap is not None else float("inf")
     if max_cap is None:
@@ -691,16 +809,28 @@ class Store(_Model):
     constant or a `{gen: ...}` generator, drawn once when the run starts.
     `get_queue` and `put_queue` rank the waiting gets and puts by an expression, as a
     resource's `queue` ranks its requests; `priority` still ranks the items. They are
-    not allowed with `type`.
+    not allowed with `type`. With `family: true` the entry is a family of stores, as for
+    a resource, each member made with the `items` given.
     """
 
-    current_cap: Optional[Union[int, float]] = None
-    max_cap: Optional[Union[int, float]] = None
+    current_cap: Optional[Union[int, float, str]] = None
+    max_cap: Optional[Union[int, float, str]] = None
     priority: bool = False
     items: List[Value] = Field(default_factory=list)
     type: Optional[Type[StoreBase]] = None
     get_queue: Optional[QueueRule] = None
     put_queue: Optional[QueueRule] = None
+    family: bool = False
+    members: Optional[CountPlace] = None
+
+    _capacity_numbers = field_validator("current_cap", "max_cap", mode="before")(
+        _capacity_text
+    )
+
+    @model_validator(mode="after")
+    def _family_form(self) -> "Store":
+        _check_family(self, ("current_cap", "max_cap"))
+        return self
 
     @model_validator(mode="after")
     def _items_fit(self) -> "Store":
@@ -733,16 +863,28 @@ class Container(_Model):
     `.inf` is no limit too. `max_cap` defaults to `current_cap`. `type` is a
     `!python` subclass of `ContainerBase`. `get_queue` and `put_queue` rank the waiting
     gets and puts by an expression, as a resource's `queue` ranks its requests; they are
-    not allowed with `type`.
+    not allowed with `type`. With `family: true` the entry is a family of containers, as
+    for a resource, and `current_cap`, `max_cap` and `level` may be expression text.
     """
 
-    current_cap: Optional[Union[int, float]] = None
-    max_cap: Optional[Union[int, float]] = None
+    current_cap: Optional[Union[int, float, str]] = None
+    max_cap: Optional[Union[int, float, str]] = None
     # An int stays an int, as simpy.Container keeps it
-    level: Union[int, float] = 0
+    level: Union[int, float, str] = 0
     type: Optional[Type[ContainerBase]] = None
     get_queue: Optional[QueueRule] = None
     put_queue: Optional[QueueRule] = None
+    family: bool = False
+    members: Optional[CountPlace] = None
+
+    _capacity_numbers = field_validator(
+        "current_cap", "max_cap", "level", mode="before"
+    )(_capacity_text)
+
+    @model_validator(mode="after")
+    def _family_form(self) -> "Container":
+        _check_family(self, ("current_cap", "max_cap", "level"))
+        return self
 
     @model_validator(mode="after")
     def _type_fits(self) -> "Container":
@@ -781,8 +923,8 @@ class TransferStep(_Model):
     `item: {gen: expr, expr: item}` puts it back.
     """
 
-    container: Optional[str] = None
-    store: Optional[str] = None
+    container: Optional[Union[str, Ref]] = None
+    store: Optional[Union[str, Ref]] = None
     amount: Union[int, float, str] = 1.0
     priority: Any = 0.0
     filter: Optional[str] = None
@@ -806,8 +948,8 @@ class TransferStep(_Model):
     def transfer(self) -> Transfer:
         """The `Transfer` the builder takes."""
         return Transfer(
-            container=self.container,
-            store=self.store,
+            container=_name(self.container),
+            store=_name(self.store),
             amount=self.amount,
             priority=self.priority,
             filter=self.filter,
@@ -888,11 +1030,16 @@ class InterruptAction(_Model):
 
     task: Optional[str] = None
     handle: Optional[str] = None
+    index: Optional[Union[StrictInt, str]] = None
     where: Optional[str] = None
     cause: Value = None
 
     @model_validator(mode="after")
     def _task_or_handle(self) -> "InterruptAction":
+        if self.index is not None and self.handle is None:
+            raise ValueError("interrupt takes an index with a handle only")
+        if isinstance(self.index, str):
+            Expression(self.index)
         if self.task is None and self.handle is None:
             raise ValueError("interrupt names a task or a handle, and has neither")
         if self.task is not None and self.handle is not None:
@@ -915,6 +1062,8 @@ class InterruptAction(_Model):
         found = {"task": self.task, "where": self.where, "cause": self.cause}
         if self.handle is not None:
             found["handle"] = self.handle
+        if self.index is not None:
+            found["index"] = self.index
         return found
 
 
@@ -1079,15 +1228,27 @@ class FireAction(_Model):
     """An `on:` fire action: fire `signal` with a `value` (a constant, or a
     `{gen: ...}` generator evaluated when the action runs; a mapping with no `gen`
     key is data, and a generator nested in it is stored as written), or with the
-    outcome `from` copies from a signal or a task. `urgent` and `after` fire a
-    one-shot signal ahead of the other events at its time, or later, as SimPy's
-    `env.schedule(event, priority, delay)` does."""
+    outcome `from` copies from a signal or a task. `urgent` runs the
+    firing ahead of the other events at its time, `priority` orders it among them (the
+    lowest number first), and `after` delays it, as SimPy's
+    `env.schedule(event, priority, delay)` does. All three need a one-shot signal.
+    `urgent` is priority 0, `priority` is an integer that is 1 when it is left out, and
+    the two are not given together.
 
-    signal: str
+    `fail: true` fails the signal in place of firing it, as `Event.fail` does, and
+    `value` is the reason; the task that fired goes on. `defused: true` is for a failure
+    that no waiter handles: it does not stop the run, as `event.defused = True` does
+    (`signals.<name>.defused` does the same for every failure of a signal).
+    """
+
+    signal: Union[str, Ref]
     value: Value = None
     from_: Optional[str] = Field(default=None, alias="from")
     urgent: bool = False
     after: Optional[Union[int, float, str]] = None
+    priority: Optional[StrictInt] = None
+    fail: bool = False
+    defused: bool = False
 
     _value_form = field_validator("value", mode="wrap")(_generator_or_data)
 
@@ -1109,6 +1270,15 @@ class FireAction(_Model):
     def _value_or_from(self) -> "FireAction":
         if self.value is not None and self.from_ is not None:
             raise ValueError("a fire action takes value or from, not both")
+        if self.fail and self.from_ is not None:
+            raise ValueError(
+                "fail: true fails the signal with the value as the reason, and from "
+                "copies an outcome, so a fire action takes one of them"
+            )
+        if self.defused and not self.fail:
+            raise ValueError("defused is for a failure, so it needs fail: true")
+        if self.priority is not None and self.urgent:
+            raise ValueError("urgent is priority 0, so a fire takes urgent or priority")
         return self
 
 
@@ -1116,7 +1286,9 @@ class OnEntry(_Model):
     """One entry of an `on:` list: exactly one of a fire, spawn, interrupt or resume
     action, or a `path` with a `value` as a scenario step sets a registry value. A `value` is a
     constant or a `{gen: ...}` generator evaluated when the entry runs; a mapping with no
-    `gen` key is data, and a generator nested in it is stored as written."""
+    `gen` key is data, and a generator nested in it is stored as written. `when` is an
+    expression read when the entry would run: a false result skips the entry, and one that
+    fails is a run failure."""
 
     fire: Optional[FireAction] = None
     spawn: Optional[SpawnAction] = None
@@ -1126,8 +1298,16 @@ class OnEntry(_Model):
     deactivate: Optional[Union[str, List[str]]] = None
     path: Optional[str] = None
     value: Value = None
+    when: Optional[str] = None
 
     _value_form = field_validator("value", mode="wrap")(_generator_or_data)
+
+    @field_validator("when")
+    @classmethod
+    def _when_parses(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None:
+            Expression(value)
+        return value
 
     @model_validator(mode="after")
     def _one_action(self) -> "OnEntry":
@@ -1160,14 +1340,24 @@ class OnEntry(_Model):
 
     def entry(self) -> Dict[str, Any]:
         """The normalized mapping the builder and the runtime take."""
+        found = self._action()
+        if self.when is not None:
+            found["when"] = self.when
+        return found
+
+    def _action(self) -> Dict[str, Any]:
+        """The mapping of the action alone."""
         if self.fire is not None:
             return {
                 "fire": {
-                    "signal": self.fire.signal,
+                    "signal": _name(self.fire.signal),
                     "value": self.fire.value,
                     "from": self.fire.from_,
                     "urgent": self.fire.urgent,
                     "after": self.fire.after,
+                    "priority": self.fire.priority,
+                    "fail": self.fire.fail,
+                    "defused": self.fire.defused,
                 }
             }
         if self.spawn is not None:
@@ -1211,9 +1401,10 @@ class RunningWait(_Model):
 
 
 class SignalWait(_Model):
-    """A `wait` branch for a signal's next firing."""
+    """A `wait` branch for a signal's next firing, or for a member of a family of
+    signals, `{signal: {of: <family>, key: <expression>}}`."""
 
-    signal: str
+    signal: Union[str, Ref]
 
 
 class TaskWait(_Model):
@@ -1303,7 +1494,7 @@ class RequestSpec(_Model):
     not apply to this request: a key it leaves out is SimPy's default, priority 0 and
     preempt true. With a name they do."""
 
-    resource: str
+    resource: Union[str, Ref]
     priority: Optional[Union[int, float, str]] = None
     preempt: Optional[Union[bool, str]] = None
 
@@ -1324,16 +1515,25 @@ class RequestSpec(_Model):
 class RequestWait(_Model):
     """A `wait` branch for a resource unit: the task holds it if it wins."""
 
-    request: Union[str, RequestSpec]
+    request: Union[str, Ref, RequestSpec]
 
 
 class HandleWait(_Model):
     """A `wait` branch for an event that `open` made: `handle` is the name it was
     opened under. A handle already processed gives its value at once, and a handle
     waited for through an interrupt under `resume` or `restart` is the same event
-    after it, with its first end and its place in the queue."""
+    after it, with its first end and its place in the queue. `index` names one element
+    of an opened `each` group; it is read when the wait starts."""
 
     handle: str
+    index: Optional[Union[StrictInt, str]] = None
+
+    @field_validator("index")
+    @classmethod
+    def _index_parses(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            Expression(value)
+        return value
 
 
 class SuspendWait(_Model):
@@ -1359,6 +1559,59 @@ class PutWait(_Model):
     put: TransferStep
 
 
+class AtLeastGroup(_Model):
+    """The `group` of an `each` wait done when at least `at_least` elements are, a
+    whole number or an expression read when the wait starts."""
+
+    at_least: Union[StrictInt, str]
+
+    @field_validator("at_least")
+    @classmethod
+    def _count_parses(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            Expression(value)
+        elif value < 1:
+            raise ValueError(f"at_least is 1 or more, got {value}")
+        return value
+
+
+class WhenGroup(_Model):
+    """The `group` of an `each` wait done when the expression `when` holds, read as
+    for a `when` wait, with `done_count` and `wait.<name>.values` and `.flags`."""
+
+    when: str
+
+    @field_validator("when")
+    @classmethod
+    def _when_parses(cls, value: Any) -> Any:
+        Expression(value)
+        return value
+
+
+# A place that takes a whole number or a list: for the `each` of a wait
+EachPlace = Annotated[
+    Union[
+        Annotated[Generator, Tag("<gen>")],
+        Annotated[Union[StrictInt, str, List[Any]], Tag("<plain>")],
+    ],
+    Discriminator(_place_kind),
+]
+
+
+class EachWait(_Model):
+    """A `wait` on a computed number of events: `branch` is made once for each element
+    of `each`, in order, when the wait starts. `each` is a whole number, a list, an
+    expression or a generator, read once. Inside `branch`, `each.index` is the place
+    from 0 and `each.value` is the element, or the index when `each` is a number.
+    `group` is `all` (the default), `any`, `{at_least: n}` or `{when: expression}`. An
+    empty `each` is done at once. `wait.<name>.values` and `.flags` are lists in element
+    order."""
+
+    each: EachPlace
+    group: Union[Literal["all", "any"], AtLeastGroup, WhenGroup] = "all"
+    branch: "WaitBranch"
+
+
 # The kinds a 0.23.0 wait takes. A plain union, no discriminator: each model
 # accepts only its own key under extra="forbid", so exactly one matches a valid
 # mapping, on every Pydantic from 2.6.0.
@@ -1377,6 +1630,7 @@ WaitBranch = Union[
     RunningWait,
     HandleWait,
     SuspendWait,
+    EachWait,
 ]
 
 # What an `open` branch is written as: every wait branch but `suspend`, which a
@@ -1395,9 +1649,11 @@ OpenBranch = Union[
     PutWait,
     RunningWait,
     HandleWait,
+    EachWait,
 ]
 
 AnyWait.model_rebuild()
+EachWait.model_rebuild()
 AllWait.model_rebuild()
 AtLeastWait.model_rebuild()
 WhenWait.model_rebuild()
@@ -1413,6 +1669,12 @@ def _generators_as_zero(raw: Any) -> Any:
     """
     if not isinstance(raw, Mapping):
         return raw
+    if "each" in raw and "branch" in raw:
+        found = dict(raw)
+        if isinstance(raw["each"], Mapping):
+            found["each"] = 0
+        found["branch"] = _generators_as_zero(raw["branch"])
+        return found
     request = raw.get("request")
     if isinstance(request, Mapping) and isinstance(request.get("preempt"), str):
         # A boolean word is a boolean, as in the typed model
@@ -1444,6 +1706,11 @@ def _with_typed_values(raw: Any, typed: Any) -> Any:
     """
     if not isinstance(raw, Mapping):
         return raw
+    if "each" in raw and "branch" in raw:
+        found = dict(raw)
+        found["each"] = typed.each
+        found["branch"] = _with_typed_values(raw["branch"], typed.branch)
+        return found
     if "timeout" in raw and isinstance(raw["timeout"], Mapping):
         if "gen" in raw["timeout"]:
             return {"timeout": typed.timeout}
@@ -1490,7 +1757,7 @@ class SeizeSpec(_Model):
     `priority` and `preempt` default to the task's. A task gives its `patience` on the
     task or here, not both."""
 
-    resource: str
+    resource: Union[str, Ref]
     priority: Optional[Union[int, float, str]] = None
     preempt: Optional[Union[bool, str]] = None
     patience: Optional[TimePlace] = None
@@ -1525,7 +1792,8 @@ class ReleaseSpec(_Model):
     that the flow holds."""
 
     handle: Optional[str] = None
-    resource: Optional[str] = None
+    index: Optional[Union[StrictInt, str]] = None
+    resource: Optional[Union[str, Ref]] = None
     task: Optional[str] = None
     where: Optional[str] = None
 
@@ -1537,17 +1805,78 @@ class ReleaseSpec(_Model):
     def action(self) -> Dict[str, Any]:
         """The mapping the builder's `release` takes."""
         if self.handle is not None:
-            return {"handle": self.handle}
-        found: Dict[str, Any] = {"resource": self.resource, "task": self.task}
+            found: Dict[str, Any] = {"handle": self.handle}
+            if self.index is not None:
+                found["index"] = self.index
+            if self.resource is not None or self.task is not None:
+                found["resource"] = _name(self.resource)
+            return found
+        found = {"resource": _name(self.resource), "task": self.task}
         if self.where is not None:
             found["where"] = self.where
         return found
 
 
 class HandleRef(_Model):
-    """The name of an opened event, as `{handle: <name>}`."""
+    """The name of an opened event, as `{handle: <name>}`, or one element of an opened
+    `each` group, as `{handle: <name>, index: <expression>}`."""
 
     handle: str
+    index: Optional[Union[StrictInt, str]] = None
+
+    @field_validator("index")
+    @classmethod
+    def _index_parses(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            Expression(value)
+        return value
+
+
+class ListenSpec(_Model):
+    """A task's `listen`: callbacks added to an event, as `event.callbacks.append(f)`
+    does, when the task starts, after its `open` and before it waits.
+
+    Exactly one of `signal` and `handle` names the event: a signal, or a member of a
+    family of signals `{of: <family>, key: <expression>}`, takes the callbacks on its next
+    firing; a `handle` is an event the flow opened, and `index` picks one element of an
+    opened `each` group. `on` lists the entries to run, each read in the scope of the
+    entity that listens. They run once, on the next firing of the signal or the event of
+    the handle, in the order the callbacks were added: before the waiters added later and
+    after the ones added earlier. To go on listening, a flow listens again. A signal
+    whose firing was processed already, or an event that was processed, takes no
+    callback, which fails the task as `event.callbacks.append` raising does.
+    """
+
+    signal: Optional[Union[str, Ref]] = None
+    handle: Optional[str] = None
+    index: Optional[Union[StrictInt, str]] = None
+    on: List[OnEntry] = Field(default_factory=list)
+
+    @field_validator("index")
+    @classmethod
+    def _index_parses(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            Expression(value)
+        return value
+
+    def mapping(self) -> Dict[str, Any]:
+        """The mapping `SimulationContext.task(listen=...)` takes."""
+        found: Dict[str, Any] = {"on": [entry.entry() for entry in self.on]}
+        if self.signal is not None:
+            found["signal"] = _name(self.signal)
+        if self.handle is not None:
+            found["handle"] = self.handle
+        if self.index is not None:
+            found["index"] = self.index
+        return found
+
+    @model_validator(mode="after")
+    def _one_event(self) -> "ListenSpec":
+        if (self.signal is None) == (self.handle is None):
+            raise ValueError("listen takes exactly one of signal and handle")
+        if self.index is not None and self.handle is None:
+            raise ValueError("listen index picks an element of a handle")
+        return self
 
 
 def _payload_form(value: Any) -> str:
@@ -1593,8 +1922,10 @@ class Task(_Model):
     `wait` is what the task waits for first: a signal, a child task, a timeout or a
     condition, or any or all of several. `signal` names a signal the task fires
     when it finishes. `fail` is a condition checked after the service: when it holds
-    the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or
-    container. `next` is a task name, `when` rules or `weights`, whose values are numbers
+    the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `fail_reason`
+    is text, or a `{gen: ...}` generator read in the step the failure happens, and it
+    is the `reason` of the record, of the failed `signal` and of `upstream.reason`. `get`
+    and `put` take from and add to a store or container. `next` is a task name, `when` rules or `weights`, whose values are numbers
     or expressions read when the task finishes, with one draw for the choice. `set` gives the
     entity attribute values when the task finishes. `set_args` writes this process's own
     local names, read as `arg.<name>` by this task and by the tasks that follow in the
@@ -1635,6 +1966,12 @@ class Task(_Model):
     of `timeout`, `task`, `signal` and `handle` branches. The other kinds a `wait` takes
     (`condition`, `running`, `at_least`, `when`) are refused at load, as is a
     `request`, `get` or `put` inside a group.
+
+    `listen` adds callbacks to a signal or to an opened name when the task starts, after
+    `open` and before `wait`: its `on` entries run on the next firing of the event, in
+    the order the callbacks were added, as `event.callbacks.append(f)` does. An `on`
+    entry of a task, a signal or a `listen` may carry a `when` expression that skips the
+    entry when it is false.
 
     The cause of an interrupt, the holders of a resource and the entries of a queue are
     lists and mappings an expression reads: `held(m)` and `waiting(m)` for a resource,
@@ -1703,7 +2040,7 @@ class Task(_Model):
 
     service: Optional[str] = None
     service_time: Optional[TimePlace] = None
-    resource: Optional[Union[str, List[str]]] = None
+    resource: Optional[Union[str, Ref, List[Union[str, Ref]]]] = None
     payload: Optional[
         Annotated[
             Union[
@@ -1747,12 +2084,13 @@ class Task(_Model):
     history: StrictInt = Field(default=1_000_000, ge=1)
     wait: Optional[WaitBranch] = None
     open: Optional[Dict[str, OpenBranch]] = None
+    listen: Optional[ListenSpec] = None
     cancel: Optional[Union[str, HandleRef]] = None
     seize: Optional[Union[str, SeizeSpec]] = None
-    release: Optional[Union[str, ReleaseSpec]] = None
-    signal: Optional[str] = None
+    release: Optional[Union[str, Ref, ReleaseSpec]] = None
+    signal: Optional[Union[str, Ref]] = None
     fail: Optional[str] = None
-    fail_reason: Optional[str] = None
+    fail_reason: Value = None
     on_fail: Optional[str] = None
     on_renege: Optional[str] = None
     on_balk: Optional[str] = None
@@ -1772,16 +2110,29 @@ class Task(_Model):
     @classmethod
     def _subscribe_parses(cls, value: Any) -> Any:
         if value is not None:
-            Wait(value)
+            if any(node.is_each for node in Wait(value).all_nodes):
+                raise ValueError("subscribe does not take an each branch")
         return value
 
     def resources(self) -> List[str]:
-        """The resources the task holds, in the order it acquires them."""
+        """The resources the task holds, in the order it acquires them; a computed
+        member is a `Reference`, whose text is the first name it can take."""
         if self.resource is None:
             return []
-        return (
-            [self.resource] if isinstance(self.resource, str) else list(self.resource)
+        found = (
+            [self.resource]
+            if isinstance(self.resource, (str, Ref))
+            else list(self.resource)
         )
+        return [_name(item) for item in found]
+
+    def on_lists(self) -> List[Tuple[Tuple[str, ...], List[OnEntry]]]:
+        """Every list of `on:` entries the task holds, with where it is written below
+        the task: its own `on`, and the `on` of its `listen`."""
+        found: List[Tuple[Tuple[str, ...], List[OnEntry]]] = [(("on",), self.on)]
+        if self.listen is not None:
+            found.append((("listen", "on"), self.listen.on))
+        return found
 
     def wait_requests(self) -> List[str]:
         """The resources the task's wait requests, in the order the wait lists them."""
@@ -1798,14 +2149,25 @@ class Task(_Model):
 
     @model_validator(mode="after")
     def _keep_and_policy(self) -> "Task":
+        computed = [r for r in self.resources() if isinstance(r, Reference)]
+        plain = [r for r in self.resources() if not isinstance(r, Reference)]
+        if set(self.keep) & {str(r) for r in computed}:
+            raise ValueError(
+                "keep hands a unit to the next task, so it names a resource and not a "
+                "computed member"
+            )
         if not set(self.keep) <= set(self.resources()):
             raise ValueError(
                 "keep names resources the task holds; list only resources in its "
                 "resource"
             )
-        if len(set(self.resources())) != len(self.resources()):
+        if len(set(plain)) != len(plain):
             raise ValueError("a task lists each resource once")
-        both = [name for name in self.wait_requests() if name in self.resources()]
+        both = [
+            name
+            for name in self.wait_requests()
+            if not isinstance(name, Reference) and name in plain
+        ]
         if both:
             raise ValueError(
                 f"a task holds each resource once, but resource '{both[0]}' is both "
@@ -1869,7 +2231,9 @@ class Task(_Model):
         """The resource the task's `seize` asks for, as a list of at most one."""
         if self.seize is None:
             return []
-        return [self.seize if isinstance(self.seize, str) else self.seize.resource]
+        return [
+            _name(self.seize if isinstance(self.seize, str) else self.seize.resource)
+        ]
 
     @field_validator("fail")
     @classmethod
@@ -1909,7 +2273,7 @@ class Task(_Model):
     def _holding_keys(self) -> "Task":
         """Checks `release`, `cancel` and `seize`, and gives the task the patience its
         `seize` states, so one patience covers every wait of the task."""
-        if self.release is not None and not isinstance(self.release, str):
+        if isinstance(self.release, ReleaseSpec):
             Release(self.release.action())
         if isinstance(self.seize, SeizeSpec) and self.seize.patience is not None:
             if self.patience is not None:
@@ -2310,6 +2674,9 @@ def _check_stop(value: Any) -> Any:
         raise ValueError("stop takes {signal: name} or {condition: ...}")
     if "condition" in value:
         Expression(value["condition"])
+    if isinstance(value.get("signal"), Mapping):
+        name_of_stop = Ref.model_validate(value["signal"])
+        value = {**value, "signal": name_of_stop.name().mapping()}
     return value
 
 
@@ -2325,7 +2692,7 @@ class RunSegment(_Model):
     """
 
     until: Optional[Union[int, float, str]] = None
-    stop: Optional[Dict[str, str]] = None
+    stop: Optional[Dict[str, Any]] = None
     look: Optional[str] = None
     sync: bool = False
 
@@ -2382,7 +2749,7 @@ class Run(_Model):
 
     until: Optional[Union[int, float]] = Field(default=None, gt=0)
     before: List[Callable[[], Any]] = Field(default_factory=list)
-    stop: Optional[Dict[str, str]] = None
+    stop: Optional[Dict[str, Any]] = None
     drain: Union[bool, Drain] = False
     on_unhandled_failure: Literal["stop", "continue"] = "stop"
     segments: Optional[Union[List[RunSegment], SegmentEvery]] = None
@@ -2417,11 +2784,24 @@ class SignalSpec(_Model):
 
     A signal fires once, as SimPy's `Event` does, unless it says `once: false`, which
     re-arms it after each firing. `on` lists actions run when the signal fires, as a
-    task's `on` lists actions run when it ends.
+    task's `on` lists actions run when it ends. `defused: true` makes every failure of
+    the signal that no waiter handles go unraised, as a callback's `event.defused = True`
+    does; without it, a one-shot signal's failure with no waiter stops the run under
+    `on_unhandled_failure: stop`. `family: true` makes the entry a family
+    of signals, one for each key, as for a resource; `members` makes the keys 0 to n - 1
+    when the run is built.
     """
 
     once: bool = True
     on: List[OnEntry] = Field(default_factory=list)
+    defused: bool = False
+    family: bool = False
+    members: Optional[CountPlace] = None
+
+    @model_validator(mode="after")
+    def _family_form(self) -> "SignalSpec":
+        _check_family(self, ())
+        return self
 
 
 class ExpectedWithin(_Model):
