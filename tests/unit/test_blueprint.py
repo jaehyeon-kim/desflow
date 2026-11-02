@@ -2279,3 +2279,202 @@ def test_count_place_refuses_a_float_literal(tmp_path):
 
         with pytest.raises(BlueprintError, match="max_events"):
             SimulationContext.from_yaml(path)
+
+
+def test_cause_refused_where_no_edge_reaches(tmp_path):
+    """`cause.*` is read only by a task that an `on_interrupt_next` edge reaches; a task
+    that a plain `next` reaches is refused where it is written, with the task named."""
+    body = (
+        "resources: {m: {current_cap: 1}}\n"
+        "arrivals: {a: {gap: 1, spawn: use}}\n"
+        "tasks:\n"
+        "  use: {resource: m, service_time: 1, payload: {}, on_interrupt: abandon, "
+        "on_interrupt_next: lost, next: plain}\n"
+        "  lost: {payload: {by: {gen: expr, expr: cause.by}}}\n"
+        "  plain: {payload: {by: {gen: expr, expr: cause.by}}}\n"
+    )
+
+    with pytest.raises(BlueprintError, match="task .plain."):
+        SimulationContext.from_yaml(write(tmp_path, _COMPUTED + body))
+
+    fixed = body.replace(", next: plain", "").replace(
+        "  plain: {payload: {by: {gen: expr, expr: cause.by}}}\n", ""
+    )
+    SimulationContext.from_yaml(write(tmp_path, _COMPUTED + fixed, "ok.yaml"))
+
+
+def test_initial_alone_needs_no_dist(tmp_path):
+    """An arrival with `initial` and nothing else that makes entities needs no `dist`,
+    `replay` or `gap`; it starts that many entities before the run."""
+    records = _computed_records(
+        tmp_path,
+        "arrivals: {a: {initial: 2, spawn: t}}\n"
+        "tasks:\n  t: {payload: {e: ran}}\n"
+        "run: {until: 1}\n",
+    )
+
+    assert [r["key"] for r in records] == ["a-1", "a-2"]
+
+    with pytest.raises(BlueprintError, match="arrivals.a"):
+        SimulationContext.from_yaml(
+            write(
+                tmp_path,
+                _COMPUTED + "arrivals: {a: {spawn: t}}\ntasks:\n  t: {payload: {}}\n",
+                "bare.yaml",
+            )
+        )
+
+
+def test_source_that_starts_off(tmp_path):
+    """`active: false` starts a source off; `activate` from a task turns it on, and a
+    name in `activate` that is no arrival is refused."""
+    records = _computed_records(
+        tmp_path,
+        "arrivals:\n"
+        "  src: {gap: 1, spawn: t, active: false}\n"
+        "  ctl: {gap: 2.5, spawn: go, max_events: 1}\n"
+        "tasks:\n"
+        "  t: {payload: {e: t}}\n"
+        "  go: {payload: {e: go}, activate: src}\n"
+        "run: {until: 5}\n",
+    )
+
+    assert [r["sim_ts"] for r in records if r["task"] == "t"][:2] == [3.0, 4.0]
+    assert [r["sim_ts"] for r in records if r["task"] == "go"] == [2.5]
+
+    with pytest.raises(BlueprintError, match="nothing"):
+        SimulationContext.from_yaml(
+            write(
+                tmp_path,
+                _COMPUTED + "arrivals: {src: {gap: 1, spawn: t}}\n"
+                "tasks:\n  t: {payload: {}, activate: nothing}\n",
+                "bad.yaml",
+            )
+        )
+
+
+_PLACES = {
+    # place -> a task body that reads EXPR there
+    "payload": "payload: {e: {gen: expr, expr: '%s'}}",
+    "set": "payload: {}, set: {k: {gen: expr, expr: '%s'}}",
+    "set_args": "payload: {}, set_args: {k: {gen: expr, expr: '%s'}}",
+    "on_start": "payload: {}, on_start: {k: {gen: expr, expr: '%s'}}",
+    "put.item": "payload: {}, put: {store: s, item: {gen: expr, expr: '%s'}}",
+    "on value": "payload: {}, on: [{path: S.variables.v, value: {gen: expr, expr: '%s'}}]",
+    "spawn args": "payload: {}, spawn: {task: u, args: {k: {gen: expr, expr: '%s'}}}",
+    "wait args": "payload: {}, wait: {task: u, args: {k: {gen: expr, expr: '%s'}}}",
+}
+
+
+def _places_blueprint(place, expression):
+    return (
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "resources: {m: {current_cap: 1}}\n"
+        "stores: {s: {}}\n"
+        "variables: {v: 0}\n"
+        "arrivals: {a: {gap: 1, spawn: t}}\n"
+        "tasks:\n"
+        f"  t: {{{_PLACES[place] % expression}}}\n"
+        "  u: {payload: {}}\n"
+    )
+
+
+@pytest.mark.parametrize("place", sorted(_PLACES))
+@pytest.mark.parametrize(
+    "expression, message",
+    [
+        ("cause.by", "on_interrupt_next edge"),
+        ("item", "the item a store get took"),
+        ("item_priority", "the item a store get took"),
+        ("item.n", "item.<field> reads the item"),
+        ("done_count", "done_count is read in the when"),
+        ("running(nosuch)", "running\\(nosuch\\) names no task"),
+        ("len(held(nosuch))", "held\\(nosuch\\) names no resource"),
+        ("len(waiting(nosuch))", "waiting\\(nosuch\\) names no resource"),
+        ("len(putting(nosuch))", "putting\\(nosuch\\) names no store or container"),
+        ("len(getting(nosuch))", "getting\\(nosuch\\) names no store or container"),
+    ],
+)
+def test_names_are_refused_in_every_generator_place(
+    tmp_path, place, expression, message
+):
+    """A generator reads `cause`, `item`, `item_priority`, `done_count` and the names in
+    `held`, `waiting`, `putting`, `getting` and `running` under the rules of a plain
+    expression place, in `payload`, `set`, `set_args`, `on_start`, `put.item`, an `on:`
+    value, a `spawn` `args` and a wait `args`."""
+    path = write(tmp_path, _places_blueprint(place, expression))
+
+    with pytest.raises(BlueprintError, match=message):
+        SimulationContext.from_yaml(path)
+
+
+@pytest.mark.parametrize("place", sorted(_PLACES))
+def test_names_that_exist_load_in_every_generator_place(tmp_path, place):
+    for expression in ("len(held(m))", "running(u)", "len(putting(s))"):
+        SimulationContext.from_yaml(
+            write(tmp_path, _places_blueprint(place, expression))
+        )
+
+
+@pytest.mark.parametrize(
+    "where",
+    [
+        "tasks:\n  t: {payload: {}, on: [{activate: nosuch}]}\n",
+        "tasks:\n  t: {payload: {}, on: [{deactivate: nosuch}]}\n",
+        "tasks:\n  t: {payload: {}}\nsignals: {z: {on: [{activate: nosuch}]}}\n",
+        "tasks:\n  t: {payload: {}}\nsignals: {z: {on: [{deactivate: [a, nosuch]}]}}\n",
+        "tasks:\n  t: {payload: {}, activate: nosuch}\n",
+    ],
+)
+def test_activate_and_deactivate_name_an_arrival_wherever_they_are_written(
+    tmp_path, where
+):
+    path = write(
+        tmp_path,
+        _COMPUTED + "arrivals: {a: {gap: 1, spawn: t}}\n" + where,
+    )
+
+    with pytest.raises(BlueprintError, match="nosuch"):
+        SimulationContext.from_yaml(path)
+
+
+def test_activate_refuses_an_arrival_with_no_spawn(tmp_path):
+    path = write(
+        tmp_path,
+        _COMPUTED + "arrivals: {a: {gap: 1}}\n"
+        "tasks:\n  t: {payload: {}, activate: a}\n",
+    )
+
+    with pytest.raises(BlueprintError, match="has no spawn"):
+        SimulationContext.from_yaml(path)
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["group: 3", "max_events: 3", "off_mode: restart", "active: false", "first_at: 3"],
+)
+def test_initial_alone_refuses_keys_it_would_ignore(tmp_path, key):
+    path = write(
+        tmp_path,
+        _COMPUTED + f"arrivals: {{a: {{initial: 1, spawn: t, {key}}}}}\n"
+        "tasks:\n  t: {payload: {}}\n",
+    )
+
+    with pytest.raises(BlueprintError, match="no source"):
+        SimulationContext.from_yaml(path)
+
+
+def test_a_loop_name_may_not_be_a_var(tmp_path):
+    """Y5: the loop name of a comprehension is not a var of the task, in a plain place
+    and in a generator."""
+    for place in (
+        "vars: {x: 1}, payload: {}, next: {when: [{condition: '[x for x in [1, 2]] == 1', task: u}]}",
+        "vars: {x: 1}, payload: {y: {gen: expr, expr: '[x for x in [1, 2]]'}}",
+    ):
+        path = write(
+            tmp_path,
+            _COMPUTED + "arrivals: {a: {gap: 1, spawn: t}}\n"
+            f"tasks:\n  t: {{{place}}}\n  u: {{payload: {{}}}}\n",
+        )
+        with pytest.raises(BlueprintError, match="loop name 'x'"):
+            SimulationContext.from_yaml(path)

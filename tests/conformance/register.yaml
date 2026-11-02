@@ -90,6 +90,11 @@
     - tests/conformance/test_c1_process_interaction.py::test_c1_a_long_next_loop_keeps_no_finished_instances
     - tests/conformance/test_yaml_only.py::test_v10_weights_from_an_expression_make_one_draw_each
     - tests/conformance/test_yaml_only.py::test_v10_weights_that_add_up_to_nothing_or_below_0_fail_the_run
+    - tests/conformance/test_yaml_only.py::test_v9_args_of_a_task_started_by_wait
+    - tests/conformance/test_yaml_only.py::test_v9_args_on_a_spawn_are_read_for_each_child
+    - tests/conformance/test_yaml_only.py::test_on_entries_read_the_names_of_their_task
+    - tests/conformance/test_yaml_only.py::test_a_wait_on_running_ends_when_the_instances_end
+    - tests/conformance/test_yaml_only.py::test_y6_set_args_and_arg_are_local_to_each_process
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
@@ -170,6 +175,7 @@
     - tests/conformance/test_yaml_only.py::test_v2_a_wait_timeout_computed_for_each_entity
     - tests/conformance/test_yaml_only.py::test_v2_an_interrupt_while_the_computed_timeout_runs
     - tests/conformance/test_yaml_only.py::test_v2_a_negative_timeout_fails_the_run
+    - tests/conformance/test_yaml_only.py::test_m4_initial_entities_start_before_the_run
   page: how-to/modelling/wait-for-one-or-all.md#wait-for-the-first
   differences: "Losing signal, timeout and condition branches are dropped when the wait ends; losing child flows keep running, as SimPy leaves processes running. A request branch not yet granted when the wait ends is cancelled; a SimPy `with` block held over the rest of the task leaves it queued."
 
@@ -225,6 +231,10 @@
     - tests/conformance/test_c3_interrupts.py::test_c3_an_error_outside_the_function_gives_back_a_kept_unit_in_a_child_flow
     - tests/conformance/test_c3_interrupts.py::test_c3_a_child_flow_that_ends_does_not_give_back_a_unit_its_sibling_keeps
     - tests/conformance/test_c1_process_interaction.py::test_c1_an_interrupt_cause_is_read_in_the_next_task
+    - tests/conformance/test_yaml_only.py::test_v7_cause_names_the_preempter_and_the_time_left
+    - tests/conformance/test_yaml_only.py::test_v7_a_holder_preempted_at_its_grant_has_its_whole_time_left
+    - tests/conformance/test_yaml_only.py::test_v7_cause_left_of_a_single_timeout_wait
+    - tests/conformance/test_yaml_only.py::test_p37_preemption_with_resume_and_restart
   page: learn/shop-logic/interruptions.md#resume-restart-or-abandon
 
 - id: C3
@@ -352,6 +362,9 @@
     - tests/conformance/test_c4_resources.py::test_c4_count_queue_and_users
     - tests/conformance/test_c4_resources.py::test_c4_users_and_queue_in_conditions
     - tests/conformance/test_c4_resources.py::test_c4_a_condition_is_not_checked_between_the_steps_of_one_call
+    - tests/conformance/test_yaml_only.py::test_st_r11_users_and_queue_read_by_look
+    - tests/conformance/test_yaml_only.py::test_y7_running_waiting_held_peek_and_list_forms
+    - tests/conformance/test_yaml_only.py::test_y5_list_mapping_and_function_forms
   page: user-guide/resources/index.md#read-the-queue-and-users
   differences: "A `lifo` queue serves the newest request first, which SimPy has no counterpart of."
 
@@ -434,6 +447,7 @@
   checks:
     - tests/conformance/test_c5_bounded.py::test_c5_bounded_store_put
     - tests/conformance/test_c5_inventory.py::test_c5_a_default_put_goes_on_in_the_step_the_put_event_is_processed
+    - tests/conformance/test_yaml_only.py::test_v12_put_item_and_the_bare_item_name
   page: user-guide/model-parts/stores-and-containers.md#take-and-add
 
 - id: C5
@@ -722,6 +736,7 @@
     - tests/conformance/test_c6_initial_state.py::test_c6_initial_inventory
     - tests/conformance/test_low_level_surface.py::test_items_setter
     - tests/conformance/test_low_level_surface.py::test_items_setter_serves_a_waiting_get_at_the_next_put
+    - tests/conformance/test_yaml_only.py::test_st_r17_container_queues_read_by_look
   page: user-guide/model-parts/stores-and-containers.md#start-with-items-and-serve-by-priority
 
 - id: C6
@@ -855,6 +870,7 @@
     - tests/conformance/test_c6_end_conditions.py::test_c6_step_one_event
     - tests/conformance/test_c6_run_control.py::test_step_count_equals_simpy
     - tests/conformance/test_yaml_only.py::test_cv_032_and_cv_034_run_steps_reads_peek_and_step
+    - tests/conformance/test_yaml_only.py::test_gd_e3_peek_and_step_in_a_loop
   page: user-guide/time-and-pacing/run-length.md#step-and-peek
   differences: "`run.steps` publishes the step count and the clock after each step of a run; stepping a model by hand is for a script, which steps the context from `from_yaml` as it steps a builder context."
 
@@ -972,6 +988,7 @@
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_target_across_a_next_chain
     - tests/conformance/test_c1_process_interaction.py::test_c1_active_process_is_the_same_process_across_a_next_chain
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_target_during_a_single_branch_wait_is_the_event_waited_on
+    - tests/conformance/test_yaml_only.py::test_m6_flow_name_is_the_first_task_of_the_process
   page: user-guide/tasks-and-processes/processes.md#how-it-works
 
 - id: C1
@@ -986,6 +1003,11 @@
     - tests/conformance/test_c1_processes.py::test_c1_start_a_process_without_waiting_for_it
     - tests/conformance/test_c1_processes.py::test_c1_start_a_process_without_waiting_for_it_drain
     - tests/conformance/test_builder_additions.py::test_builder_spawn_count
+    - tests/conformance/test_builder_additions.py::test_builder_spawn_copy_attributes_and_a_computed_count
+    - tests/conformance/test_builder_additions.py::test_builder_deactivate_and_activate_turn_sources_off_and_on
+    - tests/conformance/test_builder_additions.py::test_builder_put_item_and_set_args_reach_later_steps
+    - tests/conformance/test_builder_additions.py::test_builder_spawn_args_reach_each_child
+    - tests/conformance/test_builder_additions.py::test_builder_group_active_off_mode_and_initial
     - tests/conformance/test_yaml_only.py::test_a1_a_fixed_number_of_arrivals
     - tests/conformance/test_yaml_only.py::test_a1_a_computed_count_must_be_a_whole_number
     - tests/conformance/test_yaml_only.py::test_a1_count_and_keys_make_entities_that_start_the_task_again
@@ -994,6 +1016,13 @@
     - tests/conformance/test_yaml_only.py::test_a4_a_gap_computed_from_the_time
     - tests/conformance/test_yaml_only.py::test_a4_a_drain_during_a_computed_gap_ends_the_sources
     - tests/conformance/test_yaml_only.py::test_a4_a_negative_gap_fails_the_run
+    - tests/conformance/test_yaml_only.py::test_a3_group_starts_a_drawn_number_of_members
+    - tests/conformance/test_yaml_only.py::test_a5_off_mode_drop_loses_the_arrivals_while_off
+    - tests/conformance/test_yaml_only.py::test_a5_off_mode_restart_starts_a_whole_gap_when_on
+    - tests/conformance/test_yaml_only.py::test_a7_spawn_count_and_copy_attributes
+    - tests/conformance/test_yaml_only.py::test_a7_spawn_count_reads_the_names_of_the_process
+    - tests/conformance/test_yaml_only.py::test_a5_a_source_with_count_or_keys_obeys_active_and_deactivate
+    - tests/conformance/test_yaml_only.py::test_a3_a_group_of_zero_draws_no_attribute
   page: user-guide/tasks-and-processes/signals-and-waiting.md#start-a-flow-without-waiting
 
 - id: C6
@@ -1109,6 +1138,7 @@
   checks:
     - tests/conformance/test_c6_pacing.py::test_c6_sync_catches_up
     - tests/conformance/test_yaml_only.py::test_cv_099_run_sync_calls_sync_where_it_is_asked
+    - tests/conformance/test_yaml_only.py::test_st_rt6_sync_is_called_as_the_run_starts
   page: user-guide/time-and-pacing/clocks-and-pacing.md#strict-pacing
 
 - id: C1
@@ -1234,6 +1264,8 @@
     - tests/conformance/test_c2_conditions.py::test_c2_custom_rule_equal_to_the_branch_count_is_all
     - tests/conformance/test_c2_conditions.py::test_c2_custom_rule_two_at_one_instant
     - tests/conformance/test_c2_conditions.py::test_c2_custom_rule_with_a_failing_member
+    - tests/conformance/test_yaml_only.py::test_v11_wait_when_over_the_events_done
+    - tests/conformance/test_yaml_only.py::test_v11_a_when_group_cancels_the_requests_that_lose
   page: how-to/modelling/wait-for-one-or-all.md#at-least-some-of-them
 
 - id: C2

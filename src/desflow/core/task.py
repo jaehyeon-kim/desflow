@@ -14,6 +14,7 @@ from __future__ import annotations
 import functools
 import numbers
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -32,7 +33,7 @@ from simpy.resources.resource import Preempted
 from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.core.flow import Router, Transfer, Wait, as_given, make_scope
 from desflow.resources.resource import QueueFull
-from desflow.models.flow import Entity, Upstream
+from desflow.models.flow import Entity, Upstream, payload_of
 from desflow.utils import suggestion
 from desflow.values.check import names_read
 from desflow.values.models import _Gen, has_generator
@@ -132,8 +133,16 @@ class TaskSpec:
         vars_once: Optional[Dict[str, Any]] = None,
         on_start: Optional[Dict[str, Any]] = None,
         finish_vars: Optional[Dict[str, Any]] = None,
+        set_args: Optional[Dict[str, Any]] = None,
+        activate: Optional[List[str]] = None,
+        deactivate: Optional[List[str]] = None,
     ):
         self.name = name
+        # Names written in this process's own locals, after `set`, read as `arg.<name>`
+        self.set_args: Dict[str, Any] = dict(set_args or {})
+        # The arrivals whose source the task turns on and off when it finishes
+        self.activate: List[str] = list(activate or [])
+        self.deactivate: List[str] = list(deactivate or [])
         # The named values and the started record, each a mapping of generators; the
         # values may be validated `Value`s or plain data
         self.vars: Dict[str, Any] = dict(vars or {})
@@ -245,6 +254,7 @@ class TaskSpec:
         if self.wait is not None:
             found.extend(("wait", e) for e in self.wait.conditions)
             found.extend(("wait", e) for e in self.wait.time_expressions)
+            found.extend(("wait_when", e) for e in self.wait.predicates)
         return found
 
 
@@ -261,6 +271,7 @@ class TaskRun:
         args: Tuple[Any, ...],
         kwargs: Dict[str, Any],
         child: bool = False,
+        arg_values: Optional[Dict[str, Any]] = None,
     ):
         self.context = context
         self.spec = spec
@@ -273,6 +284,17 @@ class TaskRun:
         self.child = child
         self.env = context.env
         self.item: Any = None
+        # The priority of the item a priority store gave, which lasts with the item
+        self.item_priority: Any = None
+        self._taken_priority: Any = None
+        # The process's local names, read as `arg.<name>`: what a parent passed and
+        # what `set_args` wrote. They are one dictionary for the whole flow, so the
+        # next task of the flow shares it; None until one is passed or written
+        self.arg_values: Optional[Dict[str, Any]] = arg_values
+        # Why the task was reached by an `on_interrupt_next` edge, read as `cause.`
+        self.cause_values: Optional[Dict[str, Any]] = None
+        # The first task of the flow this process runs, read as `process.flow_name`
+        self.flow_name: str = spec.name
         self.waits: Dict[str, Dict[str, Any]] = {}
         self.process: Any = None
         # Whether the context lists this instance as running, which `reach` does from
@@ -300,6 +322,8 @@ class TaskRun:
         self._wait_events: Dict[str, Any] = {}
         # The patience still to use, and when the current wait began
         self._patience_left: Optional[float] = None
+        # When a single `timeout` wait began and its length, for `cause.left`
+        self._single_timeout: Optional[Tuple[float, float]] = None
         self._patience_since: Optional[float] = None
         # What the instance waits on now, read as `process.target`; None once ended
         self._target: Optional[str] = None
@@ -433,10 +457,18 @@ class TaskRun:
                 "name": self.spec.name,
                 "instance": self.task_id,
                 "target": self._target,
+                "key": self.entity.key,
+                "flow_name": self.flow_name,
             },
             resources=self.context._resources_map,
             names=self._names(),
             entity=self.entity.key,
+            args=self.arg_values,
+            cause=self.cause_values,
+            upstream_payload=payload_of(self.upstream),
+            item_priority=self.item_priority,
+            peek=self.env.peek,
+            instances=self.context._instance_scopes,
         )
 
     # ----------------------------------------------------------- generated values
@@ -606,6 +638,7 @@ class TaskRun:
             self.entity,
             self.outcome,
             names=self._names(),
+            scope=self.scope(),
         )
 
     def _running_event(self, node: Any) -> Any:
@@ -744,6 +777,10 @@ class TaskRun:
         running = self.context._running.get(self.spec.name, [])
         if self in running:
             running.remove(self)
+            # A wait on `running(task)` reads the count again now it has changed
+            notify = getattr(self.env, "notify_change", None)
+            if notify is not None:
+                notify()
 
     def _run(self):
         spec, env, stats = self.spec, self.env, self.env.stats
@@ -798,12 +835,20 @@ class TaskRun:
                 self._waited()
             except Interrupt as interrupt:
                 self._waited()
+                timeout_left = (
+                    None
+                    if self._single_timeout is None
+                    else max(
+                        self._single_timeout[1] - (env.now - self._single_timeout[0]),
+                        0.0,
+                    )
+                )
                 if self._interrupted(interrupt):
                     if spec.on_interrupt == "restart":
                         self._children = {}  # a restart starts its child flows again
                         self._cancel_wait_events()  # and re-makes its wait branches
                     continue  # resume or restart: wait again
-                return self._abandon(interrupt)
+                return self._abandon(interrupt, timeout_left)
             if outcome is _RENEGED:
                 self._renege()
                 return None
@@ -838,6 +883,7 @@ class TaskRun:
                             fresh = won.resource.request(
                                 self._rank(), preempt=spec.preempt
                             )
+                            fresh.entity_key = self.entity.key
                         except QueueFull:
                             self._release(held)
                             self._release_kept(own=self.child)
@@ -865,6 +911,7 @@ class TaskRun:
                         request = self.context._resources_map[resource].request(
                             rank, preempt=spec.preempt
                         )
+                        request.entity_key = self.entity.key
                     except QueueFull:
                         self._release(held)
                         self._release_kept(own=self.child)
@@ -899,6 +946,7 @@ class TaskRun:
                         self._renege()
                         return None
                     self.item, got_item = got, True
+                    self.item_priority = self._taken_priority
                 if not started:
                     started = True
                     if spec.timed:
@@ -970,6 +1018,7 @@ class TaskRun:
                     stats.task_failed(spec.name, self.task_id)
             except Interrupt as interrupt:
                 self._waited()
+                all_granted = bool(held) and all(r.triggered for r in held)
                 if spec.on_interrupt == "abandon":
                     self._release(held)
                 else:
@@ -981,6 +1030,25 @@ class TaskRun:
                 for request in self._wait_held:
                     if not request.triggered:
                         request.cancel()
+                # The service time that was left when the interrupt came, for
+                # `cause.left`; None when nothing was being served
+                left = (
+                    remaining - (env.now - service_from)
+                    if service_from is not None and remaining is not None
+                    else None
+                )
+                if (
+                    left is None
+                    and spec.has_service
+                    and not served
+                    and remaining is None
+                    and spec.on_interrupt == "abandon"
+                    and spec.on_interrupt_next is not None
+                    and all_granted
+                ):
+                    # Taken off the unit at the instant it was granted, before the
+                    # service began: the whole time is left
+                    left = remaining = self._service()
                 if service_from is not None and remaining is not None:
                     # resume serves what is left; restart draws a new service time
                     if spec.on_interrupt == "resume":
@@ -994,7 +1062,7 @@ class TaskRun:
                         remaining = None
                 if self._interrupted(interrupt):
                     continue
-                return self._abandon(interrupt)
+                return self._abandon(interrupt, left)
             except Exception:
                 # Any other error gives the units back before it goes on, as a
                 # `with` block does, so a child flow whose failure is handled
@@ -1061,12 +1129,24 @@ class TaskRun:
                 Upstream(
                     self.task_id, self.entity.key, self.entity.attributes, payload
                 ),
+                self.scope(),
             )
         self.entity.attributes.update(
             self._generated(spec.attribute_changes)
             if spec.set_generated
             else spec.attribute_changes
         )
+        if spec.set_args:
+            # Written in this process's own names, after `set`
+            if self.arg_values is None:
+                self.arg_values = {}
+            self.arg_values.update(
+                self.context.values.evaluate(spec.set_args, self.scope())
+            )
+        if spec.activate:
+            self.context._set_arrivals(spec.activate, True)
+        if spec.deactivate:
+            self.context._set_arrivals(spec.deactivate, False)
         handed = Upstream(
             self.task_id, self.entity.key, self.entity.attributes, payload
         )
@@ -1218,8 +1298,9 @@ class TaskRun:
         stats.task_interrupted(spec.name, self.task_id, preempted=preempted)
         return spec.on_interrupt != "abandon"
 
-    def _abandon(self, interrupt: Interrupt) -> None:
-        """Ends the task after an interrupt with `on_interrupt: abandon`."""
+    def _abandon(self, interrupt: Interrupt, left: Optional[float] = None) -> None:
+        """Ends the task after an interrupt with `on_interrupt: abandon`. `left` is
+        the service time that was left, for `cause.left`."""
         spec, stats = self.spec, self.env.stats
         self._end_wait()
         stats.task_dropped(spec.name, self.task_id)
@@ -1232,7 +1313,9 @@ class TaskRun:
         )
         if spec.on_interrupt_next is not None:
             self._set_ended(handed, ok=True, result=None)
-            self._follow(spec.on_interrupt_next, handed)
+            self._follow(
+                spec.on_interrupt_next, handed, self._cause_values(interrupt, left)
+            )
             return
         if self.child:
             # In a child flow with no on_interrupt_next, the end event fails with
@@ -1245,6 +1328,24 @@ class TaskRun:
             raise TaskFailed(spec.name, f"interrupted: {_cause(interrupt)}")
         self._set_ended(handed, ok=True, result=None)
         self._end_flow("ended")
+
+    def _cause_values(
+        self, interrupt: Interrupt, left: Optional[float]
+    ) -> Dict[str, Any]:
+        """What `cause.<name>` reads in the task an `on_interrupt_next` edge reaches:
+        for a preemption `by`, `usage_since` and `resource`, for an interrupt its
+        `value`, and `left` where the task was serving."""
+        cause = interrupt.cause
+        values: Dict[str, Any] = {}
+        if isinstance(cause, Preempted):
+            values["by"] = self.context._entity_key_of(cause.by)
+            values["usage_since"] = cause.usage_since
+            values["resource"] = cause.resource.obj_id
+        else:
+            values["value"] = cause
+        if left is not None:
+            values["left"] = left
+        return values
 
     # ----------------------------------------------------------------- helpers
 
@@ -1412,15 +1513,18 @@ class TaskRun:
             return None
         return spec.fail_reason if spec.fail_reason is not None else text
 
-    def _follow(self, task: str, handed: Upstream) -> None:
-        """Makes the next instance, which `run` runs in the same process."""
+    def _follow(
+        self, task: str, handed: Upstream, cause: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """Makes the next instance, which `run` runs in the same process. `cause` is
+        what an interrupt that led here gives `cause.<name>`."""
         context = self.context
         if task not in context._tasks:
             raise ValueError(
                 f"task '{self.spec.name}' routes to '{task}', which is not a task"
                 + suggestion(task, context._tasks)
             )
-        self._following = TaskRun(
+        following = TaskRun(
             context,
             context._task_specs[task],
             context.next_instance(task),
@@ -1429,7 +1533,14 @@ class TaskRun:
             self.args,
             self.kwargs,
             child=self.child,
+            arg_values=self.arg_values,
         )
+        # The flow is one process: its first task's name, the item it took and the
+        # local names it wrote go on with it, as Python locals do
+        following.flow_name = self.flow_name
+        following.item, following.item_priority = self.item, self.item_priority
+        following.cause_values = cause
+        self._following = following
 
     def _transfer(
         self, transfer: Transfer, direction: str, payload: Any, deadline: Any
@@ -1460,20 +1571,32 @@ class TaskRun:
         if transfer.store is not None:
             store = context._stores_map[transfer.store]
             if direction == "get":
-                return store.get(transfer.filter_for(scope, self.entity))
-            if context._store_priority.get(transfer.store):
-                rank = transfer.priority_for(self.task_id, self.upstream, scope)
-                return store.put(store.wrap(payload, rank))
-            return store.put(payload)
-        container = context._containers_map[transfer.target]
-        amount = transfer.amount_for(self.task_id, self.upstream, scope)
-        return container.get(amount) if direction == "get" else container.put(amount)
+                event = store.get(transfer.filter_for(scope, self.entity))
+            else:
+                if transfer.item is not None:
+                    # The item of a `put`, read as the put is made
+                    payload = self._generated(transfer.item)
+                if context._store_priority.get(transfer.store):
+                    rank = transfer.priority_for(self.task_id, self.upstream, scope)
+                    event = store.put(store.wrap(payload, rank))
+                else:
+                    event = store.put(payload)
+        else:
+            container = context._containers_map[transfer.target]
+            amount = transfer.amount_for(self.task_id, self.upstream, scope)
+            event = (
+                container.get(amount) if direction == "get" else container.put(amount)
+            )
+        # Who is waiting, for `putting()` and `getting()`
+        event.entity_key = self.entity.key
+        return event
 
     def _transfer_value(self, transfer: Transfer, direction: str, event: Any) -> Any:
         """The value a finished get or put event gives the task: the item a get took,
         unwrapped from a priority store's wrapper, or None for a put."""
         if direction == "get" and transfer.store is not None:
             if self.context._store_priority.get(transfer.store):
+                self._taken_priority = event.value.priority
                 return event.value.item
             return event.value
         return None
@@ -1490,6 +1613,7 @@ class TaskRun:
         events: Dict[str, Any] = {}
         built: Dict[int, Any] = {}
         stop_watching: List[Callable[[], None]] = []
+        self._single_timeout = None
 
         def build(node: Any) -> Any:
             """Builds the SimPy event for a node, nesting groups as SimPy conditions."""
@@ -1499,6 +1623,12 @@ class TaskRun:
                     event: Any = env.any_of(members)
                 elif node.kind == "all":
                     event = env.all_of(members)
+                elif node.kind == "when":
+                    event = Condition(
+                        env,
+                        lambda evs, c, n=node: self._holds(n, c, built),
+                        members,
+                    )
                 else:
                     count = node.count
                     event = Condition(env, lambda evs, c, n=count: c >= n, members)
@@ -1516,6 +1646,11 @@ class TaskRun:
                         child=True,
                         args=self.args,
                         kwargs=self.kwargs,
+                        arg_values=(
+                            None
+                            if node.args is None
+                            else self._generated(dict(node.args))
+                        ),
                     )
                     self._children[node.name] = child
                 event = child
@@ -1532,6 +1667,8 @@ class TaskRun:
                     self._ensure_once()
                     timeout_value = self._generated(timeout_value)
                 event = env.timeout(seconds, timeout_value)
+                if node is wait.root:
+                    self._single_timeout = (env.now, seconds)
             elif node.kind == "request":
                 # Kept across a resume, as a `task` branch's child flow is, so the
                 # task does not queue a second request each time it waits again.
@@ -1539,6 +1676,7 @@ class TaskRun:
                 if event is None:
                     resource = self.context._resources_map[node.target]
                     event = resource.request(self._rank(), preempt=self.spec.preempt)
+                    event.entity_key = self.entity.key
                     self._wait_events[node.name] = event
             elif node.kind in ("get", "put"):
                 event = self._wait_events.get(node.name)
@@ -1573,6 +1711,8 @@ class TaskRun:
                 return won > 0 or not node.children
             if node.kind == "all":
                 return won == len(node.children)
+            if node.kind == "when":
+                return self._holds(node, won, built, tie=done_at_tie)
             return won >= node.count
 
         try:
@@ -1653,6 +1793,39 @@ class TaskRun:
         self._wait_events = {}
         return failure
 
+    def _holds(
+        self,
+        node: Any,
+        done_count: int,
+        built: Dict[int, Any],
+        tie: Optional[Callable[[Any], bool]] = None,
+    ) -> bool:
+        """Whether a `when` group's condition holds now. It reads each named branch
+        under the group as `wait.<branch>.done`, `.ok` and `.value`, and `done_count`.
+        A branch is done when its event is processed, or with `tie` when `tie(branch)`
+        says so."""
+        waits: Dict[str, Dict[str, Any]] = {}
+
+        def walk(group: Any) -> None:
+            for child in group.children:
+                event = built.get(id(child))
+                if event is None:
+                    continue
+                done = tie(child) if tie is not None else event.processed
+                if child.name is not None:
+                    waits[child.name] = {
+                        "done": done,
+                        "ok": (event.ok if event.triggered else True) if done else None,
+                        "value": _branch_value(event) if done else None,
+                    }
+                if child.is_group:
+                    walk(child)
+
+        walk(node)
+        scope = replace(self.scope(), waits=waits, done_count=done_count)
+        result = node.predicate.evaluate(scope)
+        return bool(result)
+
     def _group_value(self, node: Any) -> dict:
         """What `wait.<group>.value` reads: a flat map of every done leaf under the
         group, nested groups included whether or not they are done themselves, as
@@ -1702,6 +1875,68 @@ class TaskRun:
         if not event.triggered:
             env.watch_changes(check, queues=condition.reads_queues)
         return event, stop
+
+
+def flow_sets(
+    routes: Mapping[str, Any],
+    getters: Any,
+    interrupt_targets: Any,
+) -> Tuple[set, set]:
+    """The tasks that read what an earlier task of the flow left.
+
+    Args:
+        routes: The tasks each task can lead to by `next`, `on_fail`, `on_renege`,
+            `on_balk` and `on_interrupt_next`, by task name.
+        getters: The tasks that take an item with a waiting store `get`.
+        interrupt_targets: The tasks an `on_interrupt_next` edge reaches.
+
+    Returns:
+        Tuple[set, set]: The tasks reached after a waiting store get, which read
+            `item` and `item_priority`, and the tasks an interrupt edge reaches,
+            which read `cause.<name>`.
+    """
+    after_get: set = set()
+    pending = list(getters)
+    while pending:
+        for target in routes.get(pending.pop(), ()):
+            if target not in after_get:
+                after_get.add(target)
+                pending.append(target)
+    return after_get, set(interrupt_targets)
+
+
+def scope_problem(
+    expression: Expression,
+    own_item: bool,
+    later_item: bool,
+    cause_ok: bool,
+    in_when: bool,
+) -> Optional[str]:
+    """What an expression reads that no earlier step of its task gives, or None.
+
+    Args:
+        expression: The expression.
+        own_item: Whether the place is evaluated after the task's own waiting store
+            get, or is that get's filter.
+        later_item: Whether the task is reached after a waiting store get by a route.
+        cause_ok: Whether an `on_interrupt_next` edge reaches the task.
+        in_when: Whether the place is the `when` of a wait group.
+
+    Returns:
+        Optional[str]: The reason the place cannot read the name, or None when it can.
+    """
+    flags = expression.references["flag"]
+    if (flags & {"item", "item_priority"}) and not (own_item or later_item):
+        return (
+            "item and item_priority read the item a store get took, so they are read "
+            "in the get's filter, in the places evaluated after a task's own get, "
+            "and in the tasks that follow one"
+        )
+    if "done_count" in flags and not in_when:
+        return "done_count is read in the when of a wait group"
+    if expression.references["cause"] and not cause_ok:
+        return "cause.<name> is read in a task that an on_interrupt_next edge reaches"
+    return None
 
 
 def _cause(interrupt: Interrupt) -> Any:

@@ -619,3 +619,41 @@ def test_run_replications_of_a_blueprint_with_no_statistics_rows(tmp_path):
     result = CliRunner().invoke(cli, ["run", str(path), "--replications", "2"])
     assert result.exit_code == 0, result.output
     assert "measure" in result.output and "Seed 1" in result.output
+
+
+BATCH_6 = """\
+simulation: {sim_id: R, factor: 0, random_seed: 3}
+resources: {m: {current_cap: 1}}
+arrivals:
+  boot: {initial: 2, spawn: work}
+  g: {dist: exponential, rate: 1, spawn: work, group: {gen: sample, dist: poisson, mean: 2}, active: false}
+  src: {dist: constant, value: 1, spawn: work, off_mode: restart}
+  ctl: {gap: 5, max_events: 1, spawn: turn}
+tasks:
+  work: {resource: m, service_time: 0.5, payload: {e: w}, spawn: {task: kid, count: 1, copy_attributes: true}}
+  kid: {payload: {e: kid}}
+  turn: {payload: {e: turn}, activate: g, deactivate: src}
+run: {until: 20}
+"""
+
+
+def test_sources_that_turn_on_and_off_repeat_with_one_seed(tmp_path):
+    """Initial entities, a group source, `activate`, `deactivate` and a spawn count
+    draw from the replication's seed only: one seed gives the same values twice."""
+    path = tmp_path / "batch6.yaml"
+    path.write_text(BATCH_6, encoding="utf-8")
+    measures = ["flows.g.started", "flows.kid.started", "flows.src.started"]
+    first = replicate(path, 3, seed=5, until=20, measures=measures)
+    again = replicate(path, 3, seed=5, until=20, measures=measures)
+    assert first.values == again.values
+    assert any(v for row in first.values.values() for v in row)
+
+
+def test_a_sample_run_prints_the_events_of_the_new_sources(tmp_path):
+    """`desflow run --sample` runs a model with initial entities and a spawn count,
+    unpaced, and prints the first events."""
+    path = tmp_path / "batch6.yaml"
+    path.write_text(BATCH_6.replace("factor: 0", "factor: 1"), encoding="utf-8")
+    result = CliRunner().invoke(cli, ["run", str(path), "--sample", "4"])
+    assert result.exit_code == 0, result.output
+    assert '"key":"boot-1"' in result.output and '"key":"boot-2"' in result.output

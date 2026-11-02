@@ -38,7 +38,7 @@ from desflow.config import (
     STATS_LEVELS,
 )
 from desflow.core.environment import DynamicRealtimeEnvironment, resolve_zone
-from desflow.core.expressions import Expression
+from desflow.core.expressions import Expression, Scope
 from desflow.core.arrivals import (
     ARRIVALS_STOPPED as _ARRIVALS_STOPPED,
     ArrivalPlan,
@@ -48,7 +48,13 @@ from desflow.core.arrivals import (
 )
 from desflow.core.flow import NextSpec, Router, Transfer, Wait, make_scope
 from desflow.core.signals import Signal
-from desflow.core.task import TaskRun, TaskSpec, check_acquisition_order
+from desflow.core.task import (
+    TaskRun,
+    TaskSpec,
+    check_acquisition_order,
+    flow_sets,
+    scope_problem,
+)
 from desflow.core.registry import ParamChange, ParamRejected, SimulationRegistry
 from desflow.core.sampler import Sampler
 from desflow.models.flow import Entity, Upstream
@@ -332,7 +338,11 @@ class SimulationContext:
         self._resources_map: Dict[str, ResourceBase] = {}
         self._stores_map: Dict[str, DynamicStore] = {}
         self._containers_map: Dict[str, DynamicContainer] = {}
-        self._entity_counters: Dict[str, "itertools.count[int]"] = {}
+        self._entity_counters: Dict[str, _Counter] = {}
+        # Whether each arrival's source is on, and the event a restarting source waits
+        # on for a change
+        self._arrival_on: Dict[str, bool] = {}
+        self._arrival_changed: Dict[str, simpy.Event] = {}
         self._instance_counters: Dict[str, "itertools.count[int]"] = {}
         self._startup_loops: List[Tuple[Callable, Optional[str]]] = []
         # The functions add_process started, which explain shows as opaque nodes
@@ -1026,6 +1036,10 @@ class SimulationContext:
         key: Optional[Callable[[int], str]] = None,
         spawn: Optional[str] = None,
         first_at: Optional[float] = None,
+        group: Any = 1,
+        active: bool = True,
+        off_mode: str = "drop",
+        initial: int = 0,
     ) -> "SimulationContext":
         """
         Registers a statistical distribution defining the inter-arrival times of entities.
@@ -1060,6 +1074,18 @@ class SimulationContext:
             first_at: The simulation time of the first arrival, which the first
                 `wait_for_arrival` waits for in place of a gap. The gaps after it
                 come from the distribution. A time already past arrives at once.
+            group: How many entities one arrival starts, with `spawn`: a whole number,
+                an expression such as `"int(t / 5)"` or a generator, read at each
+                arrival after the gap. 0 or less starts nobody and takes no key
+                number.
+            active: False starts the source off, with `spawn`. A task's `activate`
+                turns it on.
+            off_mode: With `spawn`, `"drop"` (the default): an arrival that falls
+                while the source is off starts nobody. `"restart"`: turning the
+                source off drops the pending arrival, and turning it on starts a
+                whole new gap.
+            initial: With `spawn`, how many entities exist, in creation order, when
+                the run starts, before any gap passes.
 
         Returns:
             SimulationContext: The current instance for method chaining.
@@ -1067,12 +1093,24 @@ class SimulationContext:
         Raises:
             ValueError: If the family is unknown, or a parameter is missing, out of
                 range or not one the family takes, or `first_at` is below 0 or not a
-                number. A `spawn` naming no task is refused when the run starts.
+                number, or `off_mode`, `active`, `group` or `initial` is malformed or
+                given with no `spawn`. A `spawn` naming no task is refused when the
+                run starts.
         """
         params = {
             k: v
             for k, v in locals().items()
-            if k not in ("attributes", "key", "spawn", "first_at")
+            if k
+            not in (
+                "attributes",
+                "key",
+                "spawn",
+                "first_at",
+                "group",
+                "active",
+                "off_mode",
+                "initial",
+            )
         }
         self._arrivals_config[name] = _distribution(dist, params)
         bind_values(attributes or {}, ("arrivals", name, "attributes"), overwrite=False)
@@ -1084,7 +1122,12 @@ class SimulationContext:
                 or not first_at >= 0
             ):
                 raise ValueError(f"first_at is a time of 0 or more, got {first_at!r}")
-            self._arrival_plans[name] = ArrivalPlan(first_at=first_at)
+        plan = _source_plan(spawn, group, active, off_mode, initial)
+        if first_at is not None:
+            plan = plan or ArrivalPlan()
+            plan.first_at = first_at
+        if plan is not None:
+            self._arrival_plans[name] = plan
         else:
             self._arrival_plans.pop(name, None)  # a second call replaces the first
         self._add_spawn(name, spawn)
@@ -1104,6 +1147,40 @@ class SimulationContext:
         bind_values(attributes or {}, ("arrivals", name, "attributes"), overwrite=False)
         self._arrival_entities[name] = (dict(attributes or {}), None)
         self._arrival_plans[name] = ArrivalPlan(gap=gap, first_at=first_at)
+        self._add_spawn(name, spawn)
+        return self
+
+    def add_initial_arrival(
+        self,
+        name: str,
+        initial: int,
+        *,
+        spawn: str,
+        attributes: Optional[Mapping[str, Any]] = None,
+    ) -> "SimulationContext":
+        """
+        Registers an arrival that has only `initial` entities and no source: `initial`
+        entities exist when the run starts, in creation order, before any step runs,
+        each keyed `<name>-n`, and each starts `spawn`. A blueprint's arrival with
+        `initial` alone.
+
+        Args:
+            name: The arrival's name.
+            initial: How many entities, 1 or more.
+            spawn: The task each entity starts.
+            attributes: The attributes each entity starts with.
+
+        Returns:
+            SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If `initial` is not a whole number above 0.
+        """
+        if isinstance(initial, bool) or not isinstance(initial, int) or initial < 1:
+            raise ValueError(f"initial is a whole number above 0, got {initial!r}")
+        bind_values(attributes or {}, ("arrivals", name, "attributes"), overwrite=False)
+        self._arrival_entities[name] = (dict(attributes or {}), None)
+        self._arrival_plans[name] = ArrivalPlan(initial=initial, sourceless=True)
         self._add_spawn(name, spawn)
         return self
 
@@ -1272,6 +1349,9 @@ class SimulationContext:
         vars_once: Optional[Mapping[str, Any]] = None,
         on_start: Optional[Mapping[str, Any]] = None,
         finish_vars: Optional[Mapping[str, Any]] = None,
+        set_args: Optional[Mapping[str, Any]] = None,
+        activate: Union[str, List[str], None] = None,
+        deactivate: Union[str, List[str], None] = None,
     ) -> Callable:
         """
         Transforms a standard Python function into an event-driven SimPy task.
@@ -1418,6 +1498,13 @@ class SimulationContext:
                 after `started`.
             finish_vars: Named values evaluated after `vars` and before the payload,
                 which can read the vars.
+            activate: The arrival, or arrivals, whose source the task turns on when it
+                finishes, after `set_args`.
+            deactivate: The same, turning the source off. A source already in that
+                state is left as it is.
+            set_args: Names written in this process's own locals after `set`, read in
+                expressions as `arg.<name>`. A child flow has its own names, and the
+                `next` chain of a flow shares them.
 
         Raises:
             ValueError: If a resource is given without a service, a priority without
@@ -1563,12 +1650,15 @@ class SimulationContext:
             spawn=None if spawn is None else _parse_spawn(spawn),
             subscribe=None if subscribe is None else Wait(subscribe),
             on=[_parse_on_action(entry) for entry in on or []],
+            activate=_arrival_list(activate),
+            deactivate=_arrival_list(deactivate),
         )
         generated = {
             "vars": vars,
             "vars_once": vars_once,
             "on_start": on_start,
             "finish_vars": finish_vars,
+            "set_args": set_args,
         }
         for key, mapping in generated.items():
             # The values are generator mappings such as {"gen": "uuid"}; a mistake in
@@ -1609,6 +1699,12 @@ class SimulationContext:
                 )
             if spec.wait is not None:
                 for node in spec.wait.branches.values():
+                    if node.kind == "task" and node.args:
+                        bind_values(
+                            node.args,
+                            ("tasks", task_name, "wait", node.name, "args"),
+                            overwrite=False,
+                        )
                     if node.kind == "timeout":
                         seconds, value = node.target
                         bind_values(
@@ -1826,6 +1922,8 @@ class SimulationContext:
         attributes: Optional[Mapping[str, Any]] = None,
         key: Optional[Callable[[int], str]] = None,
         spawn: Optional[str] = None,
+        active: bool = True,
+        off_mode: str = "drop",
     ) -> "SimulationContext":
         """
         Registers an arrival taken from recorded rows instead of a distribution.
@@ -1853,6 +1951,8 @@ class SimulationContext:
                 same name replace them.
             key: A function of the entity's counter, from 1, returning its key.
             spawn: The task each row starts, as for `add_arrival`.
+            active: False starts the source off, as for `add_arrival`.
+            off_mode: `"drop"` or `"restart"`, as for `add_arrival`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
@@ -1871,6 +1971,11 @@ class SimulationContext:
             source=source, time=time, unit=unit, fields=fields, on_invalid=on_invalid
         )
         self._arrival_entities[name] = (dict(attributes or {}), key)
+        plan = _source_plan(spawn, 1, active, off_mode, 0)
+        if plan is not None:
+            self._arrival_plans[name] = plan
+        else:
+            self._arrival_plans.pop(name, None)
         self._add_spawn(name, spawn)
         return self
 
@@ -1902,8 +2007,8 @@ class SimulationContext:
         An attribute written as a generator is evaluated once, here, or with
         `generate=False` by `_generate_attributes`, which the caller runs when the
         entity's arrival is due. Until then the attribute is None."""
-        counter = self._entity_counters.setdefault(arrival, itertools.count(1))
-        number = next(counter)
+        counter = self._entity_counters.setdefault(arrival, _Counter())
+        number = counter.take()
         attributes, key = options if options is not None else ({}, None)
         entity = Entity(
             key=f"{arrival}-{number}" if key is None else key(number),
@@ -1931,6 +2036,59 @@ class SimulationContext:
                     value, self.values.scope_of(entity, names=names)
                 )
 
+    def _drop_arrival(
+        self, arrival: str, entity: Entity, pending: Optional[simpy.Event] = None
+    ) -> None:
+        """Drops an arrival that starts nobody: its entity is forgotten and the key
+        number it took is free for the next arrival, so a dropped arrival uses none.
+        `pending` is its event when that has not been processed yet, so its attributes
+        are not drawn when it is."""
+        if pending is not None:
+            pending.dropped = True  # type: ignore[attr-defined]
+        counter = self._entity_counters.get(arrival)
+        if counter is not None:
+            counter.give_back()
+
+    def _arrival_change(self, arrival: str) -> simpy.Event:
+        """The event that succeeds when the arrival's source is next turned on or
+        off, for a source with `off_mode: restart`."""
+        event = self._arrival_changed.get(arrival)
+        if event is None or event.triggered:
+            event = self._arrival_changed[arrival] = self.env.event()
+        return event
+
+    def _set_arrivals(self, names: Iterable[str], on: bool) -> None:
+        """Turns arrival sources on or off, as `activate` and `deactivate` do. A
+        source already in that state is left as it is.
+
+        Raises:
+            ValueError: If a name is not an arrival that has a task to spawn.
+        """
+        for name in names:
+            if name not in self._arrival_spawns:
+                raise ValueError(
+                    f"cannot {'activate' if on else 'deactivate'} '{name}', which "
+                    f"is not an arrival with a spawn"
+                    + suggestion(name, self._arrival_spawns)
+                )
+            if self._arrival_on.get(name, True) == on:
+                continue
+            self._arrival_on[name] = on
+            event = self._arrival_changed.pop(name, None)
+            if event is not None and not event.triggered:
+                event.succeed()
+
+    def _start_initial(self, arrival: str, plan: ArrivalPlan) -> None:
+        """Creates the `initial` entities of an arrival and starts the arrival's task
+        for each, in order, with the arrival's keys and attributes."""
+        task = self._arrival_spawns[arrival]
+        for _ in range(plan.initial):
+            entity = self._new_entity(
+                arrival, self._arrival_entities.get(arrival), generate=False
+            )
+            self._make_entity(entity)
+            self._start(task, entity, None)
+
     def _generate_when_due(
         self,
         event: simpy.Event,
@@ -1945,7 +2103,20 @@ class SimulationContext:
         plan = self._arrival_plans.get(entity.arrival)
         if (plan is not None and plan.makes_entities) or has_generator(options[0]):
             attributes = options[0]
-            event.callbacks.append(lambda _event: self._make_entity(entity, attributes))
+            arrival = entity.arrival
+
+            def make(_event: Any) -> None:
+                # An arrival that starts nobody draws nothing: the source is off, or
+                # a restarting source dropped it
+                if getattr(_event, "dropped", False):
+                    return
+                # A group reads its size first, and draws attributes for members only
+                if plan is not None and plan.group != 1:
+                    return
+                if self._arrival_on.get(arrival, True):
+                    self._make_entity(entity, attributes)
+
+            event.callbacks.append(make)
 
     def _entity_key_of(self, process: Any) -> Optional[str]:
         """The key of the entity whose task runs in `process`, as text; None for a
@@ -2170,11 +2341,13 @@ class SimulationContext:
         child: bool = False,
         args: Optional[Tuple[Any, ...]] = None,
         kwargs: Optional[Dict[str, Any]] = None,
+        arg_values: Optional[Dict[str, Any]] = None,
     ) -> simpy.Process:
         """Starts one instance of a task as a process, with its next instance id.
 
         `args` are the positional arguments after the task id; None gives the ones a
-        YAML task takes, the context, and none for a builder task.
+        YAML task takes, the context, and none for a builder task. `arg_values` are
+        the names the flow reads as `arg.<name>`.
         """
         spec = self._task_specs[task]
         run = TaskRun(
@@ -2186,6 +2359,7 @@ class SimulationContext:
             self._task_args if args is None else args,
             kwargs or {},
             child=child,
+            arg_values=arg_values,
         )
         generator = run.run()
         # SimPy names a process after its generator's __name__; name it after the
@@ -2199,22 +2373,35 @@ class SimulationContext:
             process.callbacks.append(_defuse)
         return process
 
+    def _instance_scopes(self, task: str) -> List[Any]:
+        """The scopes of the running instances of a task, for `running(task, ...)`."""
+        return [run.scope() for run in self._running.get(task, [])]
+
     def _spawn_children(
         self,
         spec: Mapping[str, Any],
         parent: Optional[Entity],
         upstream: Optional[Upstream],
+        scope: Optional[Scope] = None,
     ) -> None:
         """Starts the entities of a `spawn:` key or `on:` action: `count` of them, read
-        once before the first starts, each by `_spawn_entity`.
+        once before the first starts, each by `_spawn_entity`. The count and the `args`
+        read `scope`, the spawning task's names when it is given, and the run and the
+        parent's attributes otherwise; each child reads its `args` once.
 
         A count of 0 or less starts none, as `range` gives none. A function of the
         entity gives the count, and a result that is not a whole number (a boolean
         counts as 1) raises `TypeError`, as `range(2.0)` does.
         """
         count = spec["count"]
+        if scope is None:
+            scope = self.values.scope_of(parent)
         if callable(count):
             count = count(parent)
+        elif isinstance(count, Expression):
+            count = count.evaluate(scope)
+        elif isinstance(count, _Gen):
+            count = self.values.evaluate(count, scope)
         if isinstance(count, bool):
             count = int(count)
         try:
@@ -2224,8 +2411,16 @@ class SimulationContext:
                 f"the spawn count of task '{spec['task']}' gave {count!r}, which is "
                 f"not a whole number"
             ) from None
+        args = spec.get("args")
         for _ in range(count):
-            self._spawn_entity(spec["task"], parent, upstream, spec["after"])
+            self._spawn_entity(
+                spec["task"],
+                parent,
+                upstream,
+                spec["after"],
+                spec.get("copy_attributes", False),
+                None if args is None else self.values.evaluate(dict(args), scope),
+            )
 
     def _spawn_entity(
         self,
@@ -2233,6 +2428,8 @@ class SimulationContext:
         parent: Optional[Entity],
         upstream: Optional[Upstream],
         after: Optional[float],
+        copy_attributes: bool = False,
+        arg_values: Optional[Dict[str, Any]] = None,
     ) -> simpy.Process:
         """Starts `task` as the first task of a new entity, keyed `<task>-n`, with
         `parent` as its `spawned_by` and `attr.parent` the parent's key.
@@ -2244,7 +2441,9 @@ class SimulationContext:
         parent_key = parent.key if parent is not None else None
 
         def make() -> Any:
-            entity = self._new_entity(task, ({"parent": parent_key}, None))
+            # A copy is one level deep: a nested mapping stays shared with the parent
+            copied = dict(parent.attributes) if copy_attributes and parent else {}
+            entity = self._new_entity(task, ({**copied, "parent": parent_key}, None))
             entity.spawned_by = parent
             entity.entered = True
             self._entity_entered(entity)
@@ -2257,6 +2456,7 @@ class SimulationContext:
                 self._task_args,
                 {},
                 child=False,
+                arg_values=arg_values,
             )
             gen = run.run()
             gen.__name__ = task  # type: ignore[attr-defined]
@@ -2337,29 +2537,36 @@ class SimulationContext:
         entity: Optional[Entity],
         upstream: Optional[Upstream],
         names: Optional[Mapping[str, Any]] = None,
+        scope: Optional[Scope] = None,
     ) -> None:
         """Runs one `on:` action: fire a signal, spawn a new entity, interrupt a
         task, or set a registry value. `owner` labels the action for a warning,
         `entity` is the entity it runs for, and `upstream` is what a spawn hands on.
         A value that holds a generator is evaluated first, over the entity's
-        attributes and, for a task's action, the task's `names` (its vars).
+        attributes and, for a task's action, the task's `scope`: its vars, `arg`, `item`,
+        `upstream`, `process` and the rest.
         """
-        if has_generator(action):
+        needs_scope = "spawn" not in action and has_generator(action)
+        if scope is None and needs_scope:
             from desflow.core.flow import make_scope
 
-            action = self.values.evaluate(
-                action,
-                make_scope(
-                    upstream,
-                    {} if entity is None else entity.attributes,
-                    self._env,
-                    self._levels(),
-                    signals=self._signals,
-                    resources=self._resources_map,
-                    names=names,
-                    entity=None if entity is None else entity.key,
-                ),
+            assert self._env is not None
+
+            scope = make_scope(
+                upstream,
+                {} if entity is None else entity.attributes,
+                self._env,
+                self._levels(),
+                signals=self._signals,
+                resources=self._resources_map,
+                names=names,
+                entity=None if entity is None else entity.key,
+                peek=self._env.peek,
+                instances=self._instance_scopes,
             )
+        # A spawn reads its count and its args itself, once for each child
+        if needs_scope and scope is not None:
+            action = self.values.evaluate(action, scope)
         if "fire" in action:
             spec = action["fire"]
             copied = self._copy_outcome(spec, entity)
@@ -2382,7 +2589,11 @@ class SimulationContext:
                 after=spec.get("after"),
             )
         elif "spawn" in action:
-            self._spawn_children(action["spawn"], entity, upstream)
+            self._spawn_children(action["spawn"], entity, upstream, scope)
+        elif "activate" in action:
+            self._set_arrivals(action["activate"], True)
+        elif "deactivate" in action:
+            self._set_arrivals(action["deactivate"], False)
         elif "interrupt" in action:
             spec = action["interrupt"]
             where = spec.get("where")
@@ -3057,6 +3268,10 @@ class SimulationContext:
         self._draining = False
         self._running = {}
         self._entity_counters = {}
+        self._arrival_on = {
+            name: plan.active for name, plan in self._arrival_plans.items()
+        }
+        self._arrival_changed = {}
         self._instance_counters = {}
         self._sample_seen = 0
         self._env = None
@@ -3241,6 +3456,11 @@ class SimulationContext:
             if meta:
                 # Arrival loops require context injection
                 process = self._env.process(loop_func(self))
+                # An arrival's `initial` entities are created right after its source
+                # starts, so file order is creation order
+                plan = self._arrival_plans.get(meta)
+                if plan is not None and plan.initial:
+                    self._start_initial(meta, plan)
                 # Stopped by an interrupt when a drain starts, which ends the loop;
                 # any other error in the loop still stops the run, as in SimPy
                 process.callbacks.append(_defuse_arrivals_stopped)
@@ -3657,6 +3877,34 @@ class SimulationContext:
         )
         holders = {**self._stores_config, **self._containers_config}
         registry: Optional[SimulationRegistry] = None
+        after_get_tasks, cause_targets = flow_sets(
+            {
+                name: {
+                    *(spec.router.tasks or ()),
+                    *(
+                        target
+                        for target in (
+                            spec.on_fail,
+                            spec.on_renege,
+                            spec.on_balk,
+                            spec.on_interrupt_next,
+                        )
+                        if target is not None
+                    ),
+                }
+                for name, spec in self._task_specs.items()
+            },
+            [
+                name
+                for name, spec in self._task_specs.items()
+                if spec.get is not None and spec.get.store is not None and spec.get.wait
+            ],
+            [
+                spec.on_interrupt_next
+                for spec in self._task_specs.values()
+                if spec.on_interrupt_next
+            ],
+        )
         for name, spec in self._task_specs.items():
             for resource in spec.resources:
                 if resource not in self._resources_config:
@@ -3767,6 +4015,27 @@ class SimulationContext:
                     )
             branches = set(spec.wait.branches) if spec.wait else set()
             for key, expression in spec.expressions:
+                problem = scope_problem(
+                    expression,
+                    own_item=bool(
+                        spec.get is not None
+                        and spec.get.store is not None
+                        and (
+                            key == "get"
+                            or (
+                                spec.get.wait
+                                and key in ("put", "next", "fail", "service_time")
+                            )
+                        )
+                    ),
+                    later_item=name in after_get_tasks,
+                    cause_ok=name in cause_targets,
+                    in_when=key == "wait_when",
+                )
+                if problem:
+                    raise ValueError(
+                        f"task '{name}' reads '{expression.text}': {problem}"
+                    )
                 unknown = expression.references["wait"] - branches
                 # balk and patience are read before the wait starts
                 early = key in ("wait", "balk", "patience")
@@ -3787,7 +4056,11 @@ class SimulationContext:
                     and spec.get.wait
                     and key in ("put", "next", "fail", "service_time")
                 )
-                if expression.references["item"] and not (takes_item and after_get):
+                if (
+                    expression.references["item"]
+                    and not (takes_item and after_get)
+                    and name not in after_get_tasks
+                ):
                     raise ValueError(
                         f"task '{name}' reads item.<field> in '{expression.text}', "
                         f"but it has no store get before it"
@@ -3871,13 +4144,23 @@ class SimulationContext:
                             f"task '{name}' reads level.{level}, but no store or "
                             f"container is called '{level}'"
                         )
-                for kind in ("putters", "getters"):
+                for kind in ("putters", "getters", "putting", "getting"):
                     for holder in expression.references[kind]:
                         if holder not in holders:
                             raise ValueError(
-                                f"task '{name}' reads {kind}.{holder}, but no store "
+                                f"task '{name}' reads {kind}({holder}), but no store "
                                 f"or container is called '{holder}'"
+                                if kind in ("putting", "getting")
+                                else f"task '{name}' reads {kind}.{holder}, but no "
+                                f"store or container is called '{holder}'"
                             )
+                for target in expression.references["running"]:
+                    if target not in self._tasks:
+                        raise ValueError(
+                            f"task '{name}' reads running({target}), but no task is "
+                            f"called '{target}'"
+                            + _not_added(target, self._tasks, "@app.task()")
+                        )
                 for kind in ("count", "items"):
                     for store in expression.references[kind]:
                         if store not in self._stores_config:
@@ -3885,7 +4168,7 @@ class SimulationContext:
                                 f"task '{name}' reads {kind}({store}), but no store "
                                 f"is called '{store}'"
                             )
-                for kind in ("users", "queue"):
+                for kind in ("users", "queue", "held", "waiting"):
                     for resource in expression.references[kind]:
                         if resource not in self._resources_config:
                             raise ValueError(
@@ -3966,6 +4249,24 @@ def _not_added(name: str, added: Iterable[str], how: str) -> str:
     return "which is not added" + (suggestion(name, added) or f"; add it with {how}")
 
 
+class _Counter:
+    """The next number of an arrival's entities, which a dropped arrival gives back."""
+
+    __slots__ = ("last",)
+
+    def __init__(self) -> None:
+        self.last = 0
+
+    def take(self) -> int:
+        """The next number."""
+        self.last += 1
+        return self.last
+
+    def give_back(self) -> None:
+        """Frees the number taken last."""
+        self.last -= 1
+
+
 def _spawn_loop(arrival: str, task: str) -> Callable:
     """The arrival loop of an arrival with `spawn`: each entity starts `task`.
 
@@ -3978,7 +4279,12 @@ def _spawn_loop(arrival: str, task: str) -> Callable:
         if plan is None:
             while True:
                 entity = yield context.wait_for_arrival(arrival)
+                if not context._arrival_on.get(arrival, True):
+                    context._drop_arrival(arrival, entity)
+                    continue
                 context._start(task, entity, None)
+        elif plan.sourceless:
+            return
         elif plan.has_entities:
             yield from start_entities(context, arrival, task, plan)
         else:
@@ -3994,6 +4300,40 @@ def _defuse(event: Any) -> None:
         event.defused = True
 
 
+def _source_plan(
+    spawn: Optional[str],
+    group: Any = 1,
+    active: bool = True,
+    off_mode: str = "drop",
+    initial: int = 0,
+) -> Optional[ArrivalPlan]:
+    """The plan a Builder arrival has for `group`, `active`, `off_mode` and `initial`,
+    or None when it keeps all four defaults.
+
+    Raises:
+        ValueError: If one is malformed, or one is set with no `spawn`.
+    """
+    if isinstance(group, str):
+        group = Expression(group)
+    elif isinstance(group, bool) or not (
+        isinstance(group, (int, _Gen)) or callable(group)
+    ):
+        raise ValueError(
+            f"group is a whole number, an expression or a generator, got {group!r}"
+        )
+    if not isinstance(active, bool):
+        raise ValueError(f"active is true or false, got {active!r}")
+    if off_mode not in ("drop", "restart"):
+        raise ValueError(f"off_mode is 'drop' or 'restart', got {off_mode!r}")
+    if isinstance(initial, bool) or not isinstance(initial, int) or initial < 0:
+        raise ValueError(f"initial is a whole number of 0 or more, got {initial!r}")
+    if group == 1 and active and off_mode == "drop" and not initial:
+        return None
+    if spawn is None:
+        raise ValueError("group, active, off_mode and initial need a spawn")
+    return ArrivalPlan(group=group, active=active, off_mode=off_mode, initial=initial)
+
+
 def _parse_spawn(spec: Mapping[str, Any]) -> Dict[str, Any]:
     """Checks a `spawn:` key or spawn action and returns `{task, after, count}`.
 
@@ -4002,17 +4342,27 @@ def _parse_spawn(spec: Mapping[str, Any]) -> Dict[str, Any]:
     """
     if not isinstance(spec, Mapping):
         raise ValueError(f"a spawn is a mapping with a task, got {spec!r}")
-    extra = set(spec) - {"task", "after", "count"}
+    extra = set(spec) - {"task", "after", "count", "copy_attributes", "args"}
     if extra:
         raise ValueError(
-            f"a spawn takes task, after and count, not {', '.join(sorted(extra))}"
+            f"a spawn takes task, after, count, copy_attributes and args, not "
+            f"{', '.join(sorted(extra))}"
         )
+    args = spec.get("args")
+    if args is not None and not isinstance(args, Mapping):
+        raise ValueError(f"spawn args is a mapping of names to values, got {args!r}")
     count = spec.get("count", 1)
-    if not callable(count) and (isinstance(count, bool) or not isinstance(count, int)):
-        raise ValueError(
-            f"a spawn count is a whole number or a function of the entity, got "
-            f"{count!r}"
-        )
+    if isinstance(count, str):
+        count = Expression(count)
+    elif not callable(count) and not isinstance(count, _Gen):
+        if isinstance(count, bool) or not isinstance(count, int):
+            raise ValueError(
+                f"a spawn count is a whole number, an expression, a generator or a "
+                f"function of the entity, got {count!r}"
+            )
+    copy_attributes = spec.get("copy_attributes", False)
+    if not isinstance(copy_attributes, bool):
+        raise ValueError(f"copy_attributes is true or false, got {copy_attributes!r}")
     task = spec.get("task")
     if not isinstance(task, str):
         raise ValueError(f"a spawn names a task, got {task!r}")
@@ -4023,7 +4373,23 @@ def _parse_spawn(spec: Mapping[str, Any]) -> Dict[str, Any]:
         raise ValueError(f"a spawn after is seconds or a duration, got {after!r}")
     if after is not None and not after > 0:
         raise ValueError(f"a spawn after is more than 0, got {after:g}")
-    return {"task": task, "after": after, "count": count}
+    return {
+        "task": task,
+        "after": after,
+        "count": count,
+        "copy_attributes": copy_attributes,
+        "args": None if args is None else dict(args),
+    }
+
+
+def _arrival_list(value: Union[str, List[str], None]) -> List[str]:
+    """The arrival names of an `activate` or `deactivate`, as a list."""
+    if value is None:
+        return []
+    names = [value] if isinstance(value, str) else list(value)
+    if not all(isinstance(name, str) for name in names):
+        raise ValueError(f"activate and deactivate name arrivals, got {value!r}")
+    return names
 
 
 def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
@@ -4032,11 +4398,14 @@ def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
     if not isinstance(entry, Mapping):
         raise ValueError(f"an on: action is a mapping, got {entry!r}")
     present = [
-        k for k in ("fire", "spawn", "interrupt", "path") if entry.get(k) is not None
+        k
+        for k in ("fire", "spawn", "interrupt", "activate", "deactivate", "path")
+        if entry.get(k) is not None
     ]
     if len(present) != 1:
         raise ValueError(
-            "an on: action takes exactly one of fire, spawn, interrupt or path"
+            "an on: action takes exactly one of fire, spawn, interrupt, activate, "
+            "deactivate or path"
         )
     kind = present[0]
     if kind == "fire":
@@ -4073,6 +4442,8 @@ def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
         }
     if kind == "spawn":
         return {"spawn": _parse_spawn(entry["spawn"])}
+    if kind in ("activate", "deactivate"):
+        return {kind: _arrival_list(entry[kind])}
     if kind == "interrupt":
         action = dict(entry["interrupt"])
         if "task" not in action or set(action) - {"task", "where", "cause"}:

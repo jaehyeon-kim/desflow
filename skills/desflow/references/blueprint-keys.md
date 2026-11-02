@@ -123,6 +123,8 @@ An `attributes` value is a constant or a `{gen: ...}` generator, drawn once for 
 
 The gaps come from exactly one of `dist`, `replay` or `gap`. `gap` is a number of seconds, a duration such as `5 min`, an expression or a generator, read at the start of each gap, so a gap may read `registry[...]`, `level.<name>` and `t`. `first_at` is the simulation time of the first arrival, which waits for it in place of a gap; the gaps after it follow. A time already past arrives at once. `max_events` is how many times the arrival starts its task, in all: the arrival stops after the last, and its last start draws no further gap. A start whose key belongs to an entity of the arrival that is still running is skipped with a warning and counts as one.
 
+`group` is how many entities one arrival starts, a count place read once at each arrival, after the gap: 0 or less starts nobody and the next gap still runs, and a dropped or empty arrival uses no key number. `initial` creates that many entities when the run is built, after the arrival's source starts and in file order, with the arrival's keys, and an arrival with `initial` alone needs no `dist`, `replay` or `gap`. `active: false` makes a source that starts off, and a task or an `on:` entry turns it on or off with `activate` and `deactivate`. With `off_mode: drop`, the default, the clock keeps running and an arrival while off starts nobody. With `restart` the pending arrival is dropped when the source goes off and `activate` starts a full new gap. An action on a source already in that state does nothing, and an arrival that falls at the instant of an action whose event comes first is dropped.
+
 `count` makes that many entities, each with a loop of its own: it starts its task after each gap, `first_at` is the time of its first start, and `max_events` is how many times each entity starts. `keys` is a list of keys instead, one entity for each, and gives the number. `stagger` is the time between the starts of two entities, read after each one. `key` is a value place read once for each entity, for its key; `vars` are named values read once for each entity before its attributes and key, which read them as bare names. Every one of these places reads the run only: `attr` is refused in them, because the entity has none yet. `count` and `max_events` are keys of a blueprint, with no argument of `add_arrival`. `count`, `keys`, `first_at` and `stagger` do not apply to a replay. `count`, `keys`, `max_events` and `stagger` set how the arrival starts its task, so each needs `spawn`; `stagger` also needs `count` or `keys`. `key`, `vars`, `gap` and `first_at` are read by `wait_for_arrival` too, so an arrival without `spawn` may carry them.
 
 | Key | Type | Default |
@@ -153,6 +155,10 @@ The gaps come from exactly one of `dist`, `replay` or `gap`. `gap` is a number o
 | `max_events` | Generator or integer or text | none |
 | `spawn` | text | none |
 | `attributes` | mapping of names to Value |  |
+| `group` | Generator or integer or text | `1` |
+| `active` | boolean | `true` |
+| `off_mode` | `drop` or `restart` | `"drop"` |
+| `initial` | integer | `0` |
 
 ### Replay
 
@@ -194,6 +200,8 @@ One entry of an `on:` list: exactly one of a fire, spawn or interrupt action, or
 | `fire` | [FireAction](#fireaction) | none |
 | `spawn` | [SpawnAction](#spawnaction) | none |
 | `interrupt` | [InterruptAction](#interruptaction) | none |
+| `activate` | text or list of text | none |
+| `deactivate` | text or list of text | none |
 | `path` | text | none |
 | `value` | Value | none |
 
@@ -211,12 +219,15 @@ An `on:` fire action: fire `signal` with a `value` (a constant, or a `{gen: ...}
 
 ### SpawnAction
 
-A `spawn:` key or an `on:` spawn action: start `task` as a new entity, after an optional delay.
+A `spawn:` key or an `on:` spawn action: start `task` as a new entity, after an optional delay. `count` is how many entities one spawn starts: a whole number, an expression or a generator, read once in the parent's step (0 or less starts none, as `range` gives none). `copy_attributes: true` gives each child a copy of the parent's attributes, one level deep, so a nested mapping stays shared with the parent; `parent` is the parent's key as always. `args` gives each child its local names, read there as `arg.<name>`; each value is read in the parent's step, once for each child. `after` applies to each child.
 
 | Key | Type | Default |
 |---|---|---|
 | `task` | text | required |
 | `after` | integer or number or Duration | none |
+| `count` | Generator or integer or text | `1` |
+| `copy_attributes` | boolean | `false` |
+| `args` | mapping of names to Value | none |
 
 ### InterruptAction
 
@@ -240,11 +251,15 @@ Text in a value place stays text. A time place reads a number as seconds, text `
 
 `service_time` is the task's own time, in place of a `service`, and the two are not given together: seconds, a duration such as `30 s`, an expression, or a `{gen: ...}` generator, read after the task has its resource and, for a `get`, its item. It may read `vars_once` and `vars` as bare names, and `item.<field>` after a store get. A result below 0 fails the run. A task with a `resource` needs a `service` or a `service_time`.
 
-`priority` is a number or an expression such as `attr.priority`, for a resource whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s`, an expression or a generator; `balk` is a condition checked before the task joins the queue. `resource` is one resource or a list, acquired in the order listed; `keep` hands units to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and `interrupt` interrupts the running instances of a task when this one finishes. `wait` is what the task waits for first: a signal, a child task, a timeout or a condition, or any or all of several. `signal` names a signal the task fires when it finishes. `fail` is a condition checked after the service: when it holds the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or container. `next` is a task name, `when` rules or `weights`, whose values are numbers or expressions read when the task finishes, with one draw for the choice. `set` gives the entity attribute values when the task finishes.
+`priority` is a number or an expression such as `attr.priority`, for a resource whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s`, an expression or a generator; `balk` is a condition checked before the task joins the queue. `resource` is one resource or a list, acquired in the order listed; `keep` hands units to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and `interrupt` interrupts the running instances of a task when this one finishes. `wait` is what the task waits for first: a signal, a child task, a timeout or a condition, or any or all of several. `signal` names a signal the task fires when it finishes. `fail` is a condition checked after the service: when it holds the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or container. `next` is a task name, `when` rules or `weights`, whose values are numbers or expressions read when the task finishes, with one draw for the choice. `set` gives the entity attribute values when the task finishes. `set_args` writes this process's own local names, read as `arg.<name>` by this task and by the tasks that follow in the same flow (not by a child flow, which has its own). It is read after `set`, so a payload reads the value from before the write. A parent passes names to a child with `args` on a `task` branch of its `wait`, or on a `spawn`; a read of a name that was neither passed nor written is a run failure. `activate` and `deactivate` turn the sources of the named arrivals on and off when the task finishes, after `set_args`. `cause.<name>` reads why the task was interrupted, in a task that an `on_interrupt_next` edge reaches: `by`, `usage_since` and `resource` after a preemption, `value` after an `interrupt`, and `left`, the service time that was left. `upstream.<field>` is the payload of the task that routed here, `item` is the whole item a store get took, and it lasts through the `next` chain.
+
+The cause of an interrupt, the holders of a resource and the entries of a queue are lists and mappings an expression reads: `held(m)` and `waiting(m)` for a resource, `putting(s)` and `getting(s)` for a store or container, `running(task)` and `running(task, condition)`, `peek()`, `process.key` and `process.flow_name`, `signal.<name>.processed`, and in the `when` of a wait group `done_count`.
 
 A value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a mapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a mapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`, `one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`, `sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`, `subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `entity`, `param`, `repeat`, `literal`, `object`, `call` and `row`; `null_rate`, `unique`, `omit_rate` and `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a mapping; `set` values and the `cause` of an interrupt are evaluated when the task finishes or interrupts. `vars_once` names are drawn once for each entity and task, at the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in order, once for each instance of the task: when it starts if `on_start` is given, otherwise after the service, just before the payload; a `service_time` that reads a var draws it first. `{gen: entity}` gives the entity's key, in a task only. A var reads the vars above it with `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are published as one event record when the task starts. `finish_vars` are drawn after the service and may read the vars. A bare var name also reads in `put`, `fail` and `next.when`, but not in `next.weights`, which read the entity and the run. A var name is an identifier, not a name an expression already uses, and is in one of the three groups only. Every generator node draws from its own stream of the run's seed, so adding a node does not change the draws of the others.
 
 An expression uses Python's arithmetic: `/` gives a float, and `//` rounds down and gives an integer for two integers. `and` and `or` stop at the first operand that decides the result and do not absorb an error: an operand that cannot be evaluated fails the expression. `**` raises to a power (an integer power above 10000 is refused), `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `exp`, `log`, `log10`, `sin`, `cos` and `tan` are calls on numbers, and `has(attr.x)` is true when the entity has the attribute `x`.
+
+An expression also reads a process's local names `arg.<name>`, the interrupt that reached the task as `cause.<name>`, the payload of the task that routed here as `upstream.<field>` (at any depth), `process.key` and `process.flow_name`, the bare `item` and `item_priority` after a store get, and `signal.<name>.processed`. `held(<resource>)`, `waiting(<resource>)`, `putting(<store or container>)` and `getting(<store or container>)` give lists of mappings (with `entity`, and `rank`, `time`, `preempt`, `key` and `since` for a resource, `item` for a store put and `amount` for a container); `running(<task>[, <condition>])` counts the instances of a task, and `peek()` is the time of the next event. Lists `[1, 2]`, mappings `{'a': 1}`, one-clause comprehensions `[x * 2 for x in list if x > 1]`, subscripts and slices, `is None`, `in`, and dotted reads at any depth work on them. The functions `len`, `sum`, `sorted`, `range`, `any`, `all`, `str`, `int`, `float`, `bool`, `get_key(mapping, key, default)`, `set_key(mapping, key, value)` and `drop_key(mapping, key)` work on lists and mappings; `min` and `max` take a list. `set_key` and `drop_key` give a new mapping. A reading makes at most 1,000,000 items, and `%` on text is refused.
 
 | Key | Type | Default |
 |---|---|---|
@@ -264,11 +279,14 @@ An expression uses Python's arithmetic: `/` gives a float, and `//` rounds down 
 | `put` | [TransferStep](#transferstep) | none |
 | `next` | text or [Next](#next) | none |
 | `set` | mapping of names to Value |  |
+| `set_args` | mapping of names to Value |  |
+| `activate` | text or list of text | none |
+| `deactivate` | text or list of text | none |
 | `vars` | mapping of names to Value |  |
 | `vars_once` | mapping of names to Value |  |
 | `on_start` | mapping of names to Value |  |
 | `finish_vars` | mapping of names to Value |  |
-| `wait` | [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) | none |
+| `wait` | [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) | none |
 | `signal` | text | none |
 | `fail` | text | none |
 | `fail_reason` | text | none |
@@ -286,7 +304,7 @@ An expression uses Python's arithmetic: `/` gives a float, and `//` rounds down 
 
 A task's `get` or `put`: one `container` with an `amount`, or one `store`.
 
-`amount` is a number or an expression such as `payload.quantity`, and 1 when it is left out. `priority` is for a put into a priority store, lowest served first, and 0 when it is left out. Text is an expression such as `attr.priority`; any other value is used as written: a number, a list (which orders element by element, as a tuple does), a mapping, null, a date or a bool. `filter` is a condition for a store get, such as `item.size == attr.size`, where `item.<field>` reads the item offered: the get takes the oldest item that matches. `wait: false` makes the get or put and does not wait for it: the task goes on at once.
+`amount` is a number or an expression such as `payload.quantity`, and 1 when it is left out. `priority` is for a put into a priority store, lowest served first, and 0 when it is left out. Text is an expression such as `attr.priority`; any other value is used as written: a number, a list (which orders element by element, as a tuple does), a mapping, null, a date or a bool. `filter` is a condition for a store get, such as `item.size == attr.size`, where `item.<field>` reads the item offered: the get takes the oldest item that matches. `wait: false` makes the get or put and does not wait for it: the task goes on at once. `item` is for a store `put`: the value to put, a constant, text, a list, a mapping or a `{gen: ...}` generator read as the put is made; left out, the put adds the task's payload. The bare name `item` in `{gen: expr, expr: item}` is the whole item a get took, so `item: {gen: expr, expr: item}` puts it back.
 
 | Key | Type | Default |
 |---|---|---|
@@ -296,6 +314,7 @@ A task's `get` or `put`: one `container` with an `amount`, or one `store`.
 | `priority` | None | `0.0` |
 | `filter` | text | none |
 | `wait` | boolean | `true` |
+| `item` | Value | none |
 
 ### Next
 
@@ -326,11 +345,12 @@ A `wait` branch for a signal's next firing.
 
 ### TaskWait
 
-A `wait` branch for a child flow: it starts `task` for the same entity.
+A `wait` branch for a child flow: it starts `task` for the same entity. `args` are value places read in the parent's scope when the child starts, and the child flow reads them as `arg.<name>`; each child has its own, as a SimPy process has its own arguments.
 
 | Key | Type | Default |
 |---|---|---|
 | `task` | text | required |
+| `args` | mapping of names to Value | none |
 
 ### TimeoutWait
 
@@ -363,7 +383,7 @@ A `wait` done when the first of its named branches is.
 
 | Key | Type | Default |
 |---|---|---|
-| `any` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) | required |
+| `any` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) | required |
 
 ### AllWait
 
@@ -371,7 +391,7 @@ A `wait` done when every one of its named branches is.
 
 | Key | Type | Default |
 |---|---|---|
-| `all` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) | required |
+| `all` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) | required |
 
 ### AtLeastWait
 
@@ -380,7 +400,16 @@ A `wait` done when at least `at_least` of its named branches are.
 | Key | Type | Default |
 |---|---|---|
 | `at_least` | integer | required |
-| `of` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) | required |
+| `of` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) | required |
+
+### WhenWait
+
+A `wait` done when the expression `when` holds. It is read each time a branch of `of` is processed, and once at the start for a branch already processed, as SimPy's `Condition(env, evaluate, events)` does. It reads `wait.<branch>.done`, `.ok` and `.value` of the branches and `done_count`. A branch that fails fails the wait, and an empty `of` succeeds at once.
+
+| Key | Type | Default |
+|---|---|---|
+| `when` | text | required |
+| `of` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) | required |
 
 ### RequestWait
 

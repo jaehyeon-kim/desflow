@@ -52,30 +52,29 @@ def test_allowed_forms_evaluate(scope, text, expected):
     "text,fragment",
     [
         ("__import__('os')", "Call"),
-        ("payload.total.real", "attribute that is not"),
         ("os.system", "attribute that is not"),
         ("payload.__class__", "'__class__'"),
         ("total > 100", "the name 'total'"),
-        ("payload['total'] > 1", "an index other than"),
         ("registry[0]", "an index other than"),
         ("payload.total @ 2", "MatMult"),
         ("attr.flags & 1", "BitAnd"),
         ("~attr.flags", "Invert"),
-        ('payload.channel in "web"', "in or not in with anything but items("),
-        ("attr.x is None", "Is"),
+        ("attr.x is attr.y", "is or is not with anything but None"),
         ('payload.channel < "x"', "a string outside"),
         ('"web"', "a string outside"),
-        ("[1, 2]", "List"),
-        ("{'a': 1}", "Dict"),
+        ("{**attr.d}", "a ** inside a mapping"),
         ("(1, 2)", "Tuple"),
         ("lambda: 1", "Lambda"),
-        ("[x for x in t]", "ListComp"),
+        ("[x for x in t for y in t]", "more than one clause"),
+        ("[t for t in attr.l]", "the loop name 't'"),
+        ("attr.l[0:1:2:3]", "not a valid expression"),
+        ("users.machine[0]", "an index on users.machine, which is a number"),
+        ("level.stock.x", "a level read is a number"),
         ("f'{t}'", "JoinedStr"),
         ("(y := 1)", "NamedExpr"),
-        ("None", "the constant None"),
         ("payload.total >", "not a valid expression"),
         ("wait.restock", "wait.<name>.done, .ok, .value"),
-        ("wait.restock.value.qty.unit", "or .value.<field>"),
+        ("wait.restock.done.x", "or .value.<field>"),
         ("signal.restocked.done", "signal.<name>.count, .ok, .value"),
     ],
 )
@@ -111,6 +110,16 @@ def test_references_name_each_source():
         "registry": {"Shop.arrival.orders.rate"},
         "name": set(),
         "has": set(),
+        "arg": set(),
+        "cause": set(),
+        "upstream": set(),
+        "held": set(),
+        "waiting": set(),
+        "putting": set(),
+        "getting": set(),
+        "running": set(),
+        "flag": set(),
+        "loop": set(),
     }
 
 
@@ -218,7 +227,7 @@ def test_an_empty_store_counts_zero():
 @pytest.mark.parametrize(
     "text,fragment",
     [
-        ("sum(shelf)", "a Call other than count(<store>), items(<store>)"),
+        ("total(shelf)", "a Call other than count(<store>), items(<store>)"),
         ("count(shelf.x)", "of anything but a bare store name"),
         ("count(level.shelf)", "of anything but a bare store name"),
         ("count()", "count() with other arguments"),
@@ -230,10 +239,7 @@ def test_an_empty_store_counts_zero():
             "items(<store>, ...) with anything but item.<field>",
         ),
         ("count(shelf, count(shelf) > 1)", "count() inside count() or items()"),
-        ("1 in items(shelf) == True", "in or not in with anything but items("),
-        ("payload.x in payload.y", "in or not in with anything but items("),
-        ("payload.x in count(shelf)", "in or not in with anything but items("),
-        ('count(shelf, item.a == "x") + "y"', "a string outside"),
+        ('count(shelf, item.a == "x") < "y"', "a string outside"),
     ],
 )
 def test_count_and_items_take_a_bare_store_name_only(text, fragment):
@@ -344,7 +350,7 @@ def test_bare_names_read_the_scope_names(scope):
         ("(10**5000) ** 5000", "too large"),
         ("(10**200) ** 9000", "too large"),
         ("sqrt()", "sqrt() with other arguments"),
-        ("min(1)", "min() with other arguments"),
+        ("min()", "min() with other arguments"),
         ("round(1, 2, 3)", "round() with other arguments"),
         ("abs(x=1)", "abs() with other arguments"),
         ("has(payload.x)", "has() with anything but one attr.<name>"),
@@ -363,3 +369,260 @@ def test_powers_calls_and_has_are_refused_or_fail_with_the_expression(
 def test_a_math_error_fails_with_the_expression(scope):
     with pytest.raises(ValueError, match="cannot evaluate 'sqrt\\(-1\\)'"):
         Expression("sqrt(-1)").evaluate(scope)
+
+
+# Batch 6: names, lists, local values.
+
+
+def _request(entity, rank=0, time=None, since=None, key=None):
+    return SimpleNamespace(
+        entity_key=entity, priority=rank, time=time, usage_since=since, key=key
+    )
+
+
+def _lists_scope(**extra):
+    return Scope(
+        resources={
+            "m": SimpleNamespace(
+                users=[_request("a-1", 1, 0.0, 0.0)],
+                queue=[_request("a-2", 2, 1.5), _request("a-3", 3, 2.5)],
+            )
+        },
+        levels={
+            "box": SimpleNamespace(
+                level=0,
+                putters_waiting=1,
+                put_queue=[SimpleNamespace(entity_key="p-1", amount=3)],
+                get_queue=[SimpleNamespace(entity_key="g-1", amount=2)],
+            ),
+            "shelf": SimpleNamespace(
+                level=0,
+                putters_waiting=0,
+                items=[],
+                put_queue=[SimpleNamespace(entity_key="p-2", item={"id": 4})],
+                get_queue=[],
+            ),
+        },
+        **extra,
+    )
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("process.key", "a-1"),
+        ("process.flow_name", "first"),
+        ("arg.n + 1", 4),
+        ("arg.k", "z"),
+        ("cause.by", "high-1"),
+        ("cause.left", 7),
+        ("upstream.status", "failed"),
+        ("item", {"id": 9}),
+        ("item_priority", 2),
+        ("done_count", 1),
+        ("peek()", 6.5),
+        ("[h.entity for h in held(m)]", ["a-1"]),
+        ("held(m)[0].since", 0.0),
+        ("[w.rank for w in waiting(m)]", [2, 3]),
+        ("[w.time for w in waiting(m)]", [1.5, 2.5]),
+        ("len(waiting(m))", 2),
+        ("[p.amount for p in putting(box)]", [3]),
+        ("[g.amount for g in getting(box)]", [2]),
+        ("putting(shelf)[0].item.id", 4),
+        ("running(work)", 2),
+        ("running(work, process.instance == 1)", 1),
+        ("signal.go.processed", True),
+    ],
+)
+def test_batch_6_names_read_what_the_run_holds(text, expected):
+    work = [
+        Scope(process={"instance": 1}),
+        Scope(process={"instance": 2}),
+    ]
+    scope = _lists_scope(
+        entity="a-1",
+        process={"name": "second", "flow_name": "first", "key": "a-1"},
+        args={"n": 3, "k": "z"},
+        cause={"by": "high-1", "left": 7},
+        upstream={"status": "failed"},
+        item={"id": 9},
+        item_priority=2,
+        done_count=1,
+        peek=lambda: 6.5,
+        instances=lambda task: work,
+        signals={"go": SimpleNamespace(count=1, ok=True, value=None, processed=True)},
+    )
+    assert Expression(text).evaluate(scope) == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("[1, 2, 3]", [1, 2, 3]),
+        ("{'a': 1, 'b': t}", {"a": 1, "b": 30.0}),
+        ("[x * 2 for x in [1, 2, 3] if x > 1]", [4, 6]),
+        ("[1, 2, 3][1]", 2),
+        ("[1, 2, 3][::-1]", [3, 2, 1]),
+        ("[1, 2, 3][-1]", 3),
+        ("{'a': {'b': 5}}['a']['b']", 5),
+        ("sum([1, 2, 3])", 6),
+        ("sorted([3, 1, 2])", [1, 2, 3]),
+        ("max([4, 9])", 9),
+        ("min([4, 9])", 4),
+        ("any([False, True])", True),
+        ("all([])", True),
+        ("sum(range(4))", 6),
+        ("int(3.7) + float(2)", 5.0),
+        ("str(3) + 'x'", "3x"),
+        ("bool([])", False),
+        ("2 in [1, 2]", True),
+        ("'a' not in {'b': 1}", True),
+        ("attr.d is None", True),
+        ("attr.priority is not None", True),
+        ("get_key({'a': 1}, 'a', 0)", 1),
+        ("get_key({'a': 1}, 'z', 0)", 0),
+        ("set_key({'a': 1}, 'b', 2)", {"a": 1, "b": 2}),
+        ("drop_key({'a': 1, 'b': 2}, 'a')", {"b": 2}),
+        ("payload.items_list[0].id", 5),
+    ],
+)
+def test_batch_6_list_and_mapping_forms(text, expected):
+    scope = Scope(
+        now=30.0,
+        attributes={"priority": 1, "d": None},
+        payload={"items_list": [{"id": 5}]},
+    )
+    assert Expression(text).evaluate(scope) == expected
+
+
+def test_a_set_key_does_not_change_its_argument():
+    scope = Scope(attributes={"d": {"a": 1}})
+    assert Expression("set_key(attr.d, 'b', 2)").evaluate(scope) == {"a": 1, "b": 2}
+    assert scope.attributes["d"] == {"a": 1}
+
+
+def test_a_comprehension_loop_name_is_local_to_it():
+    scope = Scope(names={"x": 7})
+    assert Expression("[y for y in [1, 2]]", names={"x"}).evaluate(scope) == [1, 2]
+    assert Expression("[x + 1 for y in [1]]", names={"x"}).evaluate(scope) == [8]
+    with pytest.raises(ValueError, match="the loop name 'x'"):
+        Expression("[x for x in [1, 2]]", names={"x"})
+
+
+@pytest.mark.parametrize(
+    "text,fragment",
+    [
+        ("range(2000000)", "range"),
+        ("[1, 2][5]", "list index out of range"),
+        ("sum(5)", "sum"),
+        ("held(nothing)", "no resource is called 'nothing'"),
+        ("putting(nothing)", "no store or container is called 'nothing'"),
+        ("running(work)", "running() needs a running simulation"),
+        ("peek()", "peek() needs a running simulation"),
+        ("done_count", "done_count is read in the when of a wait"),
+        ("item_priority", "no get from a priority store has given an item"),
+    ],
+)
+def test_batch_6_forms_that_fail_name_the_expression(text, fragment):
+    scope = Scope()
+    with pytest.raises(Exception) as caught:
+        Expression(text).evaluate(scope)
+    assert fragment in str(caught.value)
+    assert text in str(caught.value) or fragment in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "text,key,name",
+    [
+        ("arg.n > 1", "arg", "n"),
+        ("cause.by == 'x'", "cause", "by"),
+        ("upstream.status", "upstream", "status"),
+        ("len(held(m))", "held", "m"),
+        ("len(waiting(m))", "waiting", "m"),
+        ("len(putting(box))", "putting", "box"),
+        ("len(getting(box))", "getting", "box"),
+        ("running(work)", "running", "work"),
+        ("done_count > 1", "flag", "done_count"),
+        ("item_priority", "flag", "item_priority"),
+        ("item", "flag", "item"),
+    ],
+)
+def test_batch_6_references_name_what_they_read(text, key, name):
+    assert name in Expression(text, names={"x"}).references[key]
+
+
+def test_numpy_numbers_work_where_a_number_is_read():
+    import numpy as np
+
+    scope = Scope(attributes={"n": np.int64(3), "f": np.float64(2.0)})
+    assert Expression("sum(range(attr.n))").evaluate(scope) == 3
+    assert Expression("[10, 20, 30, 40][attr.n]").evaluate(scope) == 40
+    assert Expression("len([0] * attr.n)").evaluate(scope) == 3
+    assert Expression("max(attr.n, 2)").evaluate(scope) == 3
+
+
+@pytest.mark.parametrize("text", ["[0] * 10000000000", "3000000 * [0, 1]"])
+def test_a_list_repeated_into_too_many_items_is_refused(text):
+    with pytest.raises(Exception, match="more than 1,000,000 items"):
+        Expression(text).evaluate(Scope())
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "('%20000000' + 'd') % 1",
+        "attr.k * 5000000",
+        "sum([[0] * 2000] * 2000, [])",
+        "len([[y for y in range(2000)] for x in range(2000)])",
+        "len([y for y in range(900000)] + [y for y in range(900000)])",
+        "len([0] * 600000 + [0] * 600000)",
+    ],
+)
+def test_work_that_grows_without_bound_is_refused(text):
+    """An expression makes at most 1,000,000 items in one reading, and text
+    formatting, a tuple repeated, and a list as the start of `sum` are refused."""
+    scope = Scope(attributes={"k": (1, 2, 3)})
+    with pytest.raises(ValueError):
+        Expression(text).evaluate(scope)
+
+
+def test_a_memory_error_is_a_named_failure(monkeypatch):
+    import ast
+
+    from desflow.core import expressions
+
+    def fail(*_):
+        raise MemoryError
+
+    monkeypatch.setitem(expressions._ARITHMETIC, ast.Mod, fail)
+    with pytest.raises(ValueError, match="cannot evaluate 't % 2'.*memory"):
+        Expression("t % 2").evaluate(Scope())
+
+
+def test_the_budget_of_one_reading_does_not_carry_to_the_next():
+    expression = Expression("len(range(600000))")
+    assert expression.evaluate(Scope()) == 600000
+    assert expression.evaluate(Scope()) == 600000
+
+
+def test_items_takes_a_chain_of_any_depth():
+    holder = SimpleNamespace(
+        level=0,
+        putters_waiting=0,
+        items=[{"a": {"b": 1}}, {"a": {"b": 2}}],
+    )
+    scope = Scope(levels={"s": holder})
+    assert Expression("items(s, item.a.b)").evaluate(scope) == [1, 2]
+    assert Expression("count(s, item.a.b > 1)").evaluate(scope) == 1
+
+
+def test_a_loop_name_reaches_the_condition_of_running():
+    work = [Scope(attributes={"id": 1}), Scope(attributes={"id": 2})]
+    scope = Scope(instances=lambda task: work)
+    assert Expression(
+        "[running(t, attr.id == x) for x in [1, 2, 3]]", names=ANY_NAME
+    ).evaluate(scope) == [1, 1, 0]
+
+
+def test_the_loop_names_are_listed_in_the_references():
+    assert Expression("[v for v in [1]]").references["loop"] == {"v"}

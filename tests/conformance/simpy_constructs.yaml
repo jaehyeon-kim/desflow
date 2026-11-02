@@ -21,27 +21,6 @@
 # A batch that removes a gap deletes its id from `gaps` and from every construct.
 
 gaps:
-  V7:
-    text: "An expression cannot read a name deeper than two parts, the upstream payload in `next`, an interrupt or preemption cause, which requests hold a resource, or the priority of an item taken."
-    form: computed
-  V9:
-    text: "A sub-process takes no arguments from a key."
-    form: sub-process
-  V11:
-    text: "A wait condition with a rule of its own has no key; `any`, `all` and `at_least` are the only groups."
-    form: computed
-  V12:
-    text: "A store item cannot be put back after a get, cannot be a number or a text, and has no nested `item.` fields."
-    form: computed
-  A3:
-    text: "Arrivals in groups of a size drawn from an unbounded distribution have no key."
-    form: arrivals
-  A5:
-    text: "A flow cannot turn one source off and on."
-    form: arrivals
-  A7:
-    text: "Splitting into a drawn number of entities, and children that inherit attributes, have no YAML key. A Builder `spawn` takes a `count`, a number or a function of the entity, and no attributes are inherited."
-    form: arrivals
   H1:
     text: "A priority or preemptive unit cannot be held across a drawn or computed step, or across several later steps, by keys alone."
     form: held
@@ -81,15 +60,9 @@ gaps:
   M3:
     text: "In YAML, `on_fail` needs a `fail` condition, so a failed wait is handled only with a dummy condition. The Builder's `on_fail` takes none."
     form: computed
-  M4:
-    text: "Several entities cannot start at one instant, in creation order, before any of them runs."
-    form: arrivals
   M5:
     text: "A custom resource type needs `type: !python` in YAML; the Builder takes the class in `type=`."
     key: "`type: !python` on the resource"
-  M6:
-    text: "`process.name` reads the running task, so it changes across `next`; a SimPy process keeps one name for its whole life, as a process in a `processes` entry does."
-    form: computed
   M7:
     text: "`wait: {running: ...}` goes on when the instance ends, not when its flow ends; a flow is one process, and SimPy's `yield process` goes on when the whole process ends."
     form: whole-flow
@@ -106,11 +79,11 @@ constructs:
   # Environment
   - {id: SP-E1, area: Environment, simpy: "`Environment(initial_time)`"}
   - {id: SP-E2, area: Environment, simpy: "`Environment.now`"}
-  - {id: SP-E3, area: Environment, simpy: "`Environment.active_process`", gaps: [M6]}
-  - {id: SP-E4, area: Environment, simpy: "`env.process(...)` without `yield`", gaps: [A3, A5, A7]}
+  - {id: SP-E3, area: Environment, simpy: "`Environment.active_process`"}
+  - {id: SP-E4, area: Environment, simpy: "`env.process(...)` without `yield`"}
   - {id: SP-E5, area: Environment, simpy: "`Environment.schedule(event, priority, delay)`"}
   - {id: SP-E6, area: Environment, simpy: "`URGENT` and `NORMAL` event priorities"}
-  - {id: SP-E7, area: Environment, simpy: "Events at one time run in the order they were scheduled", gaps: [M4]}
+  - {id: SP-E7, area: Environment, simpy: "Events at one time run in the order they were scheduled"}
   - {id: SP-E8, area: Environment, simpy: "`Environment.peek()`"}
   - {id: SP-E9, area: Environment, simpy: "`Environment.step()`"}
   - {id: SP-E10, area: Environment, simpy: "A step processes only the model's events"}
@@ -134,12 +107,12 @@ constructs:
   - {id: SP-V10, area: Events and Timeout, simpy: "`Timeout(delay)`"}
   - {id: SP-V11, area: Events and Timeout, simpy: "`Timeout(delay, value)`"}
   # Processes
-  - {id: SP-P1, area: Processes, simpy: "Start a process and wait for it", gaps: [V9]}
+  - {id: SP-P1, area: Processes, simpy: "Start a process and wait for it"}
   - {id: SP-P2, area: Processes, simpy: "A process's return value"}
   - {id: SP-P3, area: Processes, simpy: "An exception in a process reaches the process that waits for it", gaps: [M3]}
   - {id: SP-P4, area: Processes, simpy: "`Process.is_alive`"}
   - {id: SP-P5, area: Processes, simpy: "`Process.target`"}
-  - {id: SP-P6, area: Processes, simpy: "`Process.name`", gaps: [M6]}
+  - {id: SP-P6, area: Processes, simpy: "`Process.name`"}
   - {id: SP-P7, area: Processes, simpy: "Wait for a process that is already running", gaps: [M7]}
   - {id: SP-U1, area: Processes, simpy: "`start_delayed(env, generator, delay)`"}
   # Conditions
@@ -148,13 +121,13 @@ constructs:
   - {id: SP-C3, area: Conditions, simpy: "`ConditionValue`"}
   - {id: SP-C4, area: Conditions, simpy: "A member that fails fails the condition"}
   - {id: SP-C5, area: Conditions, simpy: "Nested and mixed conditions"}
-  - {id: SP-C6, area: Conditions, simpy: "`Condition(env, evaluate, events)` with a rule of your own", gaps: [V11]}
+  - {id: SP-C6, area: Conditions, simpy: "`Condition(env, evaluate, events)` with a rule of your own"}
   - {id: SP-C7, area: Conditions, simpy: "A condition over no events"}
   - {id: SP-C8, area: Conditions, simpy: "A request, get or put as a member of a condition"}
   # Interrupts
   - {id: SP-P8, area: Interrupts, simpy: "`Process.interrupt(cause)` while the process waits"}
   - {id: SP-P9, area: Interrupts, simpy: "An interrupt during a timeout", gaps: [I3]}
-  - {id: SP-P10, area: Interrupts, simpy: "`Interrupt` and `Interrupt.cause`", gaps: [V7]}
+  - {id: SP-P10, area: Interrupts, simpy: "`Interrupt` and `Interrupt.cause`"}
   - {id: SP-P11, area: Interrupts, simpy: "Several interrupts at one time arrive in order"}
   - {id: SP-P12, area: Interrupts, simpy: "A process waits again for the same event after an interrupt", gaps: [I10]}
   - {id: SP-U2, area: Interrupts, simpy: "`subscribe_at(event)`"}
@@ -165,12 +138,12 @@ constructs:
   - {id: SP-S3, area: Resources, simpy: "Capacity must be above 0"}
   - {id: SP-S4, area: Resources, simpy: "`Resource.count`"}
   - {id: SP-S5, area: Resources, simpy: "`Resource.queue`"}
-  - {id: SP-S6, area: Resources, simpy: "`Resource.users`", gaps: [V7]}
+  - {id: SP-S6, area: Resources, simpy: "`Resource.users`"}
   - {id: SP-S7, area: Resources, simpy: "`Request` as a context manager"}
   - {id: SP-S8, area: Resources, simpy: "`Request.cancel()` before the grant"}
   - {id: SP-S9, area: Resources, simpy: "`cancel()` after the grant", gaps: [H9]}
   - {id: SP-S10, area: Resources, simpy: "`Release` and `Release.request`"}
-  - {id: SP-S11, area: Resources, simpy: "`Request.usage_since`", gaps: [V7]}
+  - {id: SP-S11, area: Resources, simpy: "`Request.usage_since`"}
   - {id: SP-S12, area: Resources, simpy: "Hold several resources at once", gaps: [H1, H5]}
   - {id: SP-S13, area: Resources, simpy: "Reneging: `req | env.timeout(patience)`", gaps: [I6]}
   - {id: SP-S14, area: Resources, simpy: "Balking: a check before `request()`", gaps: [I6]}
@@ -179,7 +152,7 @@ constructs:
   - {id: SP-Q3, area: Resources, simpy: "Queue key `(priority, time, not preempt)`"}
   - {id: SP-Q4, area: Resources, simpy: "`PreemptiveResource` and `request(preempt=False)`", gaps: [H1]}
   - {id: SP-Q5, area: Resources, simpy: "The user to preempt is picked with `max`"}
-  - {id: SP-Q6, area: Resources, simpy: "`Preempted` cause: `by`, `usage_since`, `resource`", gaps: [V7]}
+  - {id: SP-Q6, area: Resources, simpy: "`Preempted` cause: `by`, `usage_since`, `resource`"}
   - {id: SP-Q7, area: Resources, simpy: "`SortedQueue(maxlen)`, a waiting line with a limit", gaps: [H8]}
   - {id: SP-Q8, area: Resources, simpy: "A subclass of `PreemptiveResource` or `Resource`", gaps: [M1, M5]}
   # Containers
@@ -189,15 +162,15 @@ constructs:
   - {id: SP-K4, area: Containers, simpy: "`Container.level`"}
   - {id: SP-K5, area: Containers, simpy: "Capacity defaults to infinity"}
   # Stores
-  - {id: SP-T1, area: Stores, simpy: "`Store.put(item)`", gaps: [V12]}
+  - {id: SP-T1, area: Stores, simpy: "`Store.put(item)`"}
   - {id: SP-T2, area: Stores, simpy: "`Store.get()`"}
   - {id: SP-T3, area: Stores, simpy: "One waiting get is granted per put at one time"}
   - {id: SP-T4, area: Stores, simpy: "A store that starts with items"}
   - {id: SP-T5, area: Stores, simpy: "`Store.items`"}
   - {id: SP-T6, area: Stores, simpy: "Capacity defaults to infinity"}
-  - {id: SP-T7, area: Stores, simpy: "`PriorityStore` and `PriorityItem`", gaps: [V7]}
+  - {id: SP-T7, area: Stores, simpy: "`PriorityStore` and `PriorityItem`"}
   - {id: SP-T8, area: Stores, simpy: "Priorities of any orderable type"}
-  - {id: SP-T9, area: Stores, simpy: "`FilterStore.get(filter)`", gaps: [V12]}
+  - {id: SP-T9, area: Stores, simpy: "`FilterStore.get(filter)`"}
   - {id: SP-B2, area: Stores, simpy: "`put_queue` and `get_queue`"}
   - {id: SP-B3, area: Stores, simpy: "`Put` and `Get` as context managers, and `cancel()`"}
   - {id: SP-B4, area: Stores, simpy: "Grant rules: waiting gets and puts are tried in queue order"}

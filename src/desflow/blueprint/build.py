@@ -21,6 +21,7 @@ from typing import (
     Mapping,
     NamedTuple,
     Optional,
+    Set,
     Tuple,
     Union,
 )
@@ -43,7 +44,12 @@ from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.core.arrivals import ArrivalPlan
 from desflow.core.flow import Wait
 from desflow.core.registry import ParamRejected
-from desflow.core.task import NO_RECORD, check_acquisition_order
+from desflow.core.task import (
+    NO_RECORD,
+    check_acquisition_order,
+    flow_sets,
+    scope_problem,
+)
 from desflow.core.context import SimulationContext
 from desflow.core.environment import in_zone, resolve_zone
 from desflow.utils import suggestion
@@ -294,8 +300,163 @@ def _without_classes(location: Tuple[Any, ...]) -> Tuple[Any, ...]:
     return tuple(part for part in location if part not in classes)
 
 
+def _check_generator_places(
+    blueprint: Blueprint,
+    name: str,
+    task: Any,
+    source: SourceMap,
+    reached_after_get: bool,
+    reached_by_interrupt: bool,
+) -> None:
+    """Checks the `expr` and `when` text of every generator a task holds, in `payload`,
+    `set`, `set_args`, the vars, `on_start`, `put.item`, `spawn`, `interrupt`, `on` and
+    `wait`: the rules of `scope_problem` (`cause`, `item`, `item_priority` and
+    `done_count`) and that the resource, store, container and task names of `held`,
+    `waiting`, `putting`, `getting` and `running` exist."""
+    takes_item = task.get is not None and task.get.store is not None and task.get.wait
+    var_names = {*task.vars_once, *task.vars, *task.finish_vars}
+    places: List[Tuple[str, Any, Tuple[Any, ...], bool]] = [
+        # (key, value, location, evaluated after the task's own waiting get)
+        (
+            "payload",
+            task.payload if not callable(task.payload) else {},
+            ("payload",),
+            True,
+        ),
+        ("set", task.set, ("set",), True),
+        ("set_args", task.set_args, ("set_args",), True),
+        ("vars_once", task.vars_once, ("vars_once",), False),
+        ("vars", task.vars, ("vars",), True),
+        ("finish_vars", task.finish_vars, ("finish_vars",), True),
+        ("on_start", task.on_start, ("on_start",), True),
+        ("spawn", task.spawn, ("spawn",), True),
+        ("interrupt", task.interrupt, ("interrupt",), True),
+        ("on", task.on, ("on",), True),
+        ("wait", task.wait, ("wait",), False),
+        ("key", task.key, ("key",), False),
+    ]
+    if task.put is not None:
+        places.append(("put", task.put.item, ("put", "item"), True))
+    for _key, value, where, after in places:
+        for text, path in _generator_texts(value, ("tasks", name) + where):
+            try:
+                read = Expression(text, names=ANY_NAME)
+            except ValueError:
+                continue
+            for loop in sorted(read.references["loop"] & var_names):
+                raise source.error(
+                    path,
+                    f"'{text}' in task '{name}': the loop name '{loop}' is a var of "
+                    "the task",
+                )
+            problem = scope_problem(
+                read,
+                own_item=bool(takes_item and after),
+                later_item=reached_after_get,
+                cause_ok=reached_by_interrupt,
+                in_when=False,
+            )
+            if problem is None and read.references["item"]:
+                if not (takes_item and after) and not reached_after_get:
+                    problem = (
+                        "item.<field> reads the item a store get took, so it is read "
+                        "in the get's filter, the places evaluated after a task's own "
+                        "get, and the tasks that follow one"
+                    )
+            if problem:
+                raise source.error(path, f"'{text}' in task '{name}': {problem}")
+            _check_state_names(read, blueprint, source, path)
+
+
+def _check_state_names(
+    expression: Expression,
+    blueprint: Blueprint,
+    source: SourceMap,
+    location: Tuple[Union[str, int], ...],
+) -> None:
+    """Checks that the names in `held`, `waiting`, `putting`, `getting` and `running`
+    exist."""
+    holders = [*blueprint.stores, *blueprint.containers]
+    for kind, known, section, noun in (
+        ("held", blueprint.resources, "resources", "resource"),
+        ("waiting", blueprint.resources, "resources", "resource"),
+        ("putting", holders, "stores or containers", "store or container"),
+        ("getting", holders, "stores or containers", "store or container"),
+        ("running", blueprint.tasks, "tasks", "task"),
+    ):
+        for target in expression.references[kind]:
+            if target not in known:
+                raise source.error(
+                    location,
+                    f"{kind}({target}) names no {noun}"
+                    + (suggestion(target, known) or f"; add it under {section}"),
+                )
+
+
+def _check_switches(blueprint: Blueprint, source: SourceMap) -> None:
+    """Checks that every name in an `activate` or `deactivate`, of a task, a task's
+    `on:` entry or a signal's `on:` entry, is an arrival that has a `spawn`."""
+
+    def check(names: Any, owner: str, location: Tuple[Union[str, int], ...]) -> None:
+        for arrival in [names] if isinstance(names, str) else list(names or []):
+            if arrival not in blueprint.arrivals:
+                raise source.error(
+                    location,
+                    f"{owner} switches '{arrival}', "
+                    + _undefined(arrival, blueprint.arrivals, "arrivals"),
+                )
+            if blueprint.arrivals[arrival].spawn is None:
+                raise source.error(
+                    location,
+                    f"{owner} switches arrival '{arrival}', which has no spawn, so "
+                    "it starts nothing to turn on or off",
+                )
+
+    for name, task in blueprint.tasks.items():
+        for key in ("activate", "deactivate"):
+            check(getattr(task, key), f"task '{name}'", ("tasks", name, key))
+        for index, entry in enumerate(task.on):
+            for key in ("activate", "deactivate"):
+                check(
+                    getattr(entry, key),
+                    f"the on: entry of task '{name}'",
+                    ("tasks", name, "on", index, key),
+                )
+    for name, signal in blueprint.signals.items():
+        for index, entry in enumerate(signal.on):
+            for key in ("activate", "deactivate"):
+                check(
+                    getattr(entry, key),
+                    f"the on: entry of signal '{name}'",
+                    ("signals", name, "on", index, key),
+                )
+
+
 def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
     """Checks that every name one section uses is defined in another."""
+    after_get_tasks, cause_targets = flow_sets(
+        {
+            name: {
+                *(target for target, _ in _routes(name, task)),
+                *(
+                    target
+                    for target in (
+                        task.on_interrupt_next,
+                        task.on_fail,
+                    )
+                    if target is not None
+                ),
+            }
+            for name, task in blueprint.tasks.items()
+        },
+        [
+            name
+            for name, task in blueprint.tasks.items()
+            if task.get is not None and task.get.store is not None and task.get.wait
+        ],
+        [t.on_interrupt_next for t in blueprint.tasks.values() if t.on_interrupt_next],
+    )
+    _check_switches(blueprint, source)
     for name in set(blueprint.stores) & set(blueprint.containers):
         raise source.error(
             ("stores", name),
@@ -399,12 +560,27 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 )
         branches = set(wait.branches) if wait else set()
         takes_item = task.get is not None and task.get.store is not None
+        reached_after_get = name in after_get_tasks
+        reached_by_interrupt = name in cause_targets
         var_names = {*task.vars_once, *task.vars, *task.finish_vars}
+        _check_generator_places(
+            blueprint,
+            name,
+            task,
+            source,
+            reached_after_get=name in after_get_tasks,
+            reached_by_interrupt=name in cause_targets,
+        )
         for expression, location in _expressions(name, task):
             # A var gets its value after the service, so only put, fail and next
             # (evaluated after it) read one as a bare name
             after = location[2] in ("put", "fail", "next")
             early_vars = {*task.vars_once, *task.vars}
+            for loop in sorted(expression.references["loop"] & var_names):
+                raise source.error(
+                    location,
+                    f"'{expression.text}': the loop name '{loop}' is a var of the task",
+                )
             for bare in sorted(expression.references["name"]):
                 if bare in var_names and after:
                     continue
@@ -442,12 +618,11 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                             or "; add it under signals"
                         ),
                     )
+            in_when = location[2:4] == ("wait", "when")
             for branch in expression.references["wait"]:
                 # balk and patience are read before the wait starts
-                if branch not in branches or location[2] in (
-                    "wait",
-                    "balk",
-                    "patience",
+                if branch not in branches or (
+                    location[2] in ("wait", "balk", "patience") and not in_when
                 ):
                     raise source.error(
                         location,
@@ -465,7 +640,20 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 and task.get is not None
                 and task.get.wait
             ) or location[2:4] == ("get", "filter")
-            if expression.references["item"] and not (takes_item and reads_item):
+            problem = scope_problem(
+                expression,
+                own_item=bool(takes_item and reads_item),
+                later_item=reached_after_get,
+                cause_ok=reached_by_interrupt,
+                in_when=in_when,
+            )
+            if problem:
+                raise source.error(location, f"'{expression.text}': {problem}")
+            if (
+                expression.references["item"]
+                and not (takes_item and reads_item)
+                and not reached_after_get
+            ):
                 raise source.error(
                     location,
                     "item.<field> reads the item a store get took, so it is "
@@ -899,6 +1087,22 @@ def _check_stop(
         )
 
 
+def _generator_texts(
+    value: Any, path: Tuple[Any, ...]
+) -> Iterator[Tuple[str, Tuple[Any, ...]]]:
+    """The `expr` and `when` texts of every generator in a value, and their
+    `omit_when`, with where each is written."""
+    if isinstance(value, _Gen):
+        if value.omit_when is not None:
+            yield value.omit_when, path + ("omit_when",)
+        if isinstance(value, Expr):
+            yield value.expr, path + ("expr",)
+        elif isinstance(value, When):
+            yield value.condition, path + ("condition",)
+    for item, item_path, _field in children(value, path):
+        yield from _generator_texts(item, item_path)
+
+
 def _arrival_expressions(
     blueprint: Blueprint,
 ) -> Iterator[Tuple[Expression, Tuple[Any, ...]]]:
@@ -906,19 +1110,6 @@ def _arrival_expressions(
     `stagger`, `count` and `max_events`, and the `expr`, `when` and `omit_when` of any
     generator in those places, `vars` and `key`. Text that does not parse is left to
     the checks that report it."""
-
-    def texts(
-        value: Any, path: Tuple[Any, ...]
-    ) -> Iterator[Tuple[str, Tuple[Any, ...]]]:
-        if isinstance(value, _Gen):
-            if value.omit_when is not None:
-                yield value.omit_when, path + ("omit_when",)
-            if isinstance(value, Expr):
-                yield value.expr, path + ("expr",)
-            elif isinstance(value, When):
-                yield value.condition, path + ("condition",)
-        for item, item_path, _field in children(value, path):
-            yield from texts(item, item_path)
 
     for name, arrival in blueprint.arrivals.items():
         where: Tuple[Any, ...] = ("arrivals", name)
@@ -928,9 +1119,9 @@ def _arrival_expressions(
             if isinstance(value, str):
                 found.append((value, where + (key,)))
             else:
-                found += texts(value, where + (key,))
-        found += texts(arrival.key, where + ("key",))
-        found += texts(arrival.vars, where + ("vars",))
+                found += _generator_texts(value, where + (key,))
+        found += _generator_texts(arrival.key, where + ("key",))
+        found += _generator_texts(arrival.vars, where + ("vars",))
         for text, path in found:
             try:
                 yield Expression(text, names=ANY_NAME), path
@@ -982,12 +1173,17 @@ def _check_resource_names(
     location: Tuple[Union[str, int], ...],
 ) -> None:
     """Checks that `users.<name>` and `queue.<name>` name a resource."""
-    for kind in ("users", "queue"):
+    for kind in ("users", "queue", "held", "waiting"):
         for name in expression.references[kind]:
             if name not in blueprint.resources:
                 raise source.error(
                     location,
-                    f"{kind}.{name} names no resource"
+                    (
+                        f"{kind}.{name}"
+                        if kind in ("users", "queue")
+                        else f"{kind}({name})"
+                    )
+                    + " names no resource"
                     + (
                         suggestion(name, blueprint.resources)
                         or "; add it under resources"
@@ -1004,17 +1200,29 @@ def _check_store_names(
     """Checks that `putters.<name>` and `getters.<name>` name a store or container, and
     that the name in `count(...)` and `items(...)` is a store."""
     holders = [*blueprint.stores, *blueprint.containers]
-    for kind in ("putters", "getters"):
+    for kind in ("putters", "getters", "putting", "getting"):
         for name in expression.references[kind]:
             if name not in holders:
                 raise source.error(
                     location,
-                    f"{kind}.{name} names no store or container"
+                    (
+                        f"{kind}.{name}"
+                        if kind in ("putters", "getters")
+                        else f"{kind}({name})"
+                    )
+                    + " names no store or container"
                     + (
                         suggestion(name, holders)
                         or "; add it under stores or containers"
                     ),
                 )
+    for name in expression.references["running"]:
+        if name not in blueprint.tasks:
+            raise source.error(
+                location,
+                f"running({name}) names no task"
+                + (suggestion(name, blueprint.tasks) or "; add it under tasks"),
+            )
     for kind in ("count", "items"):
         for name in expression.references[kind]:
             if name not in blueprint.stores:
@@ -1072,6 +1280,8 @@ def _expressions(
             found.append((condition, where + ("wait",)))
         for delay in wait.time_expressions:
             found.append((delay, where + ("wait",)))
+        for predicate in wait.predicates:
+            found.append((predicate, where + ("wait", "when")))
     for field in ("get", "put"):
         step = getattr(task, field)
         if step is None:
@@ -1206,6 +1416,7 @@ def _build_context(
     context._task_args = (context,)
     for name, dist in blueprint.services.items():
         context.add_service(name, dist.dist, **dist.parameters())
+    targeted = _targeted_arrivals(blueprint)
     for name, arrival in blueprint.arrivals.items():
         if arrival.replay is not None:
             replay = arrival.replay
@@ -1216,6 +1427,14 @@ def _build_context(
                 unit=replay.unit,
                 fields=replay.fields,
                 on_invalid=replay.on_invalid,
+                attributes=arrival.attributes,
+                spawn=arrival.spawn,
+            )
+        elif arrival.gap is None and arrival.dist is None:
+            assert arrival.spawn is not None  # the model refuses initial with no spawn
+            context.add_initial_arrival(
+                name,
+                arrival.initial,
                 attributes=arrival.attributes,
                 spawn=arrival.spawn,
             )
@@ -1235,7 +1454,7 @@ def _build_context(
                 spawn=arrival.spawn,
                 **arrival.parameters(),
             )
-        plan = _arrival_plan(arrival)
+        plan = _arrival_plan(arrival, name in targeted)
         if plan is not None:
             context._arrival_plans[name] = plan
 
@@ -1258,6 +1477,9 @@ def _build_context(
             put=None if task.put is None else task.put.transfer(),
             next=task.next_rules(),
             set=task.set,
+            set_args=task.set_args,
+            activate=task.activate,
+            deactivate=task.deactivate,
             vars=task.vars,
             vars_once=task.vars_once,
             on_start=task.on_start,
@@ -1268,11 +1490,7 @@ def _build_context(
             fail_reason=task.fail_reason,
             on_fail=task.on_fail,
             key_field=task.key_field,
-            spawn=(
-                None
-                if task.spawn is None
-                else {"task": task.spawn.task, "after": task.spawn.after}
-            ),
+            spawn=(None if task.spawn is None else task.spawn.action()),
             subscribe=task.subscribe,
             on=[entry.entry() for entry in task.on],
         )(_payload(task.payload, task.id_field, task.attributes, task.item_field, name))
@@ -1312,9 +1530,30 @@ def _time_place(value: Any) -> Any:
     return Expression(value) if isinstance(value, str) else value
 
 
-def _arrival_plan(arrival: Any) -> Optional[ArrivalPlan]:
+def _targeted_arrivals(blueprint: Blueprint) -> Set[str]:
+    """The arrivals an `activate` or `deactivate` of a task or an `on:` entry names."""
+    found: Set[str] = set()
+    owners = [*blueprint.tasks.values(), *blueprint.signals.values()]
+    for owner in owners:
+        for entry in getattr(owner, "on", []):
+            found.update(_arrival_names(entry.activate))
+            found.update(_arrival_names(entry.deactivate))
+        found.update(_arrival_names(getattr(owner, "activate", None)))
+        found.update(_arrival_names(getattr(owner, "deactivate", None)))
+    return found
+
+
+def _arrival_names(value: Any) -> List[str]:
+    """The names of an `activate` or `deactivate`, which is one name or a list."""
+    if value is None:
+        return []
+    return [value] if isinstance(value, str) else list(value)
+
+
+def _arrival_plan(arrival: Any, targeted: bool = False) -> Optional[ArrivalPlan]:
     """What an arrival does beyond drawing gaps from its distribution, or None when it
-    does nothing more."""
+    does nothing more. A `targeted` arrival, which an `activate` or `deactivate`
+    names, has a plan so its source can be switched."""
     if not (
         arrival.gap is not None
         or arrival.first_at is not None
@@ -1324,9 +1563,21 @@ def _arrival_plan(arrival: Any) -> Optional[ArrivalPlan]:
         or arrival.vars
         or arrival.stagger != 0
         or arrival.max_events is not None
+        or "group" in arrival.model_fields_set
+        or "active" in arrival.model_fields_set
+        or "off_mode" in arrival.model_fields_set
+        or arrival.initial
+        or targeted
     ):
         return None
     return ArrivalPlan(
+        group=_time_place(arrival.group),
+        active=arrival.active,
+        off_mode=arrival.off_mode,
+        initial=arrival.initial,
+        sourceless=arrival.gap is None
+        and arrival.dist is None
+        and arrival.replay is None,
         gap=None if arrival.gap is None else _time_place(arrival.gap),
         first_at=arrival.first_at,
         count=None if arrival.count is None else _time_place(arrival.count),
@@ -1387,9 +1638,12 @@ def _bind_values(blueprint: Blueprint, source: SourceMap) -> None:
     random sequence, and the file and line its failures name."""
     locate = _locator(source)
     for name, task in blueprint.tasks.items():
+        if task.put is not None and task.put.item is not None:
+            bind_values(task.put.item, ("tasks", name, "put", "item"), locate)
         for key in (
             "payload",
             "set",
+            "set_args",
             "vars",
             "vars_once",
             "on_start",
@@ -1427,6 +1681,7 @@ def _check_values(
             others={
                 "payload": task.payload if not callable(task.payload) else {},
                 "set": task.set,
+                "set_args": task.set_args,
                 "interrupt": task.interrupt,
                 "on": task.on,
             },

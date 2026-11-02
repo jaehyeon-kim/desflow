@@ -382,6 +382,8 @@ class ValueRuntime:
             resources=None if context is None else context._resources_map,
             names=names,
             entity=entity.key if keyed and entity is not None else None,
+            peek=self.env.peek,
+            instances=None if context is None else context._instance_scopes,
         )
 
     def value(self, spec: Any, entity: Any = None) -> Any:

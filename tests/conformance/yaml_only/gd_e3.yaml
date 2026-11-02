@@ -1,0 +1,7 @@
+# GD-E3: peek and step in a loop (environments.rst:96-98). `run.steps` publishes one
+# reading per model event. See test_yaml_only.py.
+simulation: {sim_id: E, factor: 0, random_seed: 42}
+services: {one: {dist: constant, value: 1}}
+arrivals: {a: {initial: 1, spawn: ticking}}
+tasks: {ticking: {service: one, payload: {event_type: tick}, next: ticking}}
+run: {until: 10, steps: true}

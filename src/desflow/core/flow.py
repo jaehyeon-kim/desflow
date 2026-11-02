@@ -31,6 +31,12 @@ def make_scope(
     resources: Optional[Mapping[str, Any]] = None,
     names: Optional[Mapping[str, Any]] = None,
     entity: Optional[str] = None,
+    args: Optional[Mapping[str, Any]] = None,
+    cause: Optional[Mapping[str, Any]] = None,
+    upstream_payload: Optional[Mapping[str, Any]] = None,
+    item_priority: Any = None,
+    peek: Optional[Callable[[], Any]] = None,
+    instances: Optional[Callable[[str], List[Scope]]] = None,
 ) -> Scope:
     """
     Builds what an expression's names read.
@@ -48,6 +54,13 @@ def make_scope(
         resources: Resources by name, for `users` and `queue`.
         names: The task's vars, for the bare names of an expression.
         entity: The key of the entity the task runs for, for `gen: entity`.
+        args: The process's local names, for `arg`.
+        cause: The cause of the interrupt that led here, for `cause`.
+        upstream_payload: The payload of the task that routed here, for `upstream`.
+        item_priority: The priority of the item a priority store gave.
+        peek: Gives the time of the next scheduled event, for `peek()`.
+        instances: Gives the scopes of the running instances of a task, for
+            `running()`.
 
     Returns:
         Scope: The scope.
@@ -67,6 +80,12 @@ def make_scope(
         process=process or {},
         names=names or {},
         entity=entity,
+        args=args,
+        cause=cause,
+        upstream=upstream_payload,
+        item_priority=item_priority,
+        peek=peek,
+        instances=instances,
     )
 
 
@@ -341,6 +360,7 @@ class Transfer:
         priority: Any = 0.0,
         filter: Union[str, Callable[[Any], bool], None] = None,
         wait: bool = True,
+        item: Any = None,
     ):
         """
         Checks the transfer.
@@ -365,6 +385,9 @@ class Transfer:
                 and waits while none does.
             wait: False for a put the task does not wait for (see above). Defaults
                 to True.
+            item: For a store put, the item to put: a constant, text, or a `{gen:
+                ...}` generator read when the put is made. None puts the task's
+                finished payload, as a SimPy `put(x)` of the task's own value does.
 
         Raises:
             ValueError: If not exactly one of container and store is given, an
@@ -383,10 +406,13 @@ class Transfer:
             raise ValueError("priority orders a store's items, so it needs a store")
         if container is not None and filter is not None:
             raise ValueError("a filter picks a store's item, so it needs a store")
+        if item is not None and store is None:
+            raise ValueError("item is the value a store put adds, so it needs a store")
         self.container = container
         self.store = store
         self.amount = amount
         self.priority = priority
+        self.item = item
         self._expression: Optional[Expression] = None
         if isinstance(amount, str):
             self._expression = Expression(amount, names=ANY_NAME)
@@ -437,6 +463,7 @@ class Transfer:
             "priority",
             "filter",
             "wait",
+            "item",
         }
         if unknown:
             raise ValueError(f"a get or put does not take {', '.join(sorted(unknown))}")
@@ -546,15 +573,15 @@ WAIT_KINDS = (
 )
 
 # Group kinds: a branch that holds named child branches.
-GROUP_KINDS = ("any", "all", "at_least")
+GROUP_KINDS = ("any", "all", "at_least", "when")
 
 
 class WaitNode:
     """One node of a parsed wait: a leaf, with a kind and a target, or a group, with
-    a mode (`any`, `all` or `at_least`), named child nodes, and a count for
-    `at_least`."""
+    a mode (`any`, `all`, `at_least` or `when`), named child nodes, a count for
+    `at_least` and a predicate for `when`."""
 
-    __slots__ = ("name", "kind", "target", "children", "count")
+    __slots__ = ("name", "kind", "target", "children", "count", "args", "predicate")
 
     def __init__(
         self,
@@ -563,12 +590,18 @@ class WaitNode:
         target: Any = None,
         children: Optional[List["WaitNode"]] = None,
         count: int = 0,
+        args: Optional[Mapping[str, Any]] = None,
+        predicate: Optional[Expression] = None,
     ):
         self.name = name
         self.kind = kind
         self.target = target
         self.children: List[WaitNode] = children if children is not None else []
         self.count = count
+        # The arguments a `task` leaf passes to its child flow, and the condition of
+        # a `when` group
+        self.args = args
+        self.predicate = predicate
 
     @property
     def is_group(self) -> bool:
@@ -590,6 +623,15 @@ class Wait:
       `AnyOf`;
     - `{"all": {name: branch, ...}}`: done when every branch is, as SimPy's `AllOf`;
     - `{"at_least": n, "of": {name: branch, ...}}`: done when `n` branches are;
+    - `{"when": "done_count == 1 and t < 5", "of": {name: branch, ...}}`: done when the
+      expression holds, as SimPy's `Condition(env, evaluate, events)` does. It is
+      read each time a branch's event is processed, and once at the start for a
+      branch already processed. It reads `wait.<branch>.done`, `.ok` and `.value` of
+      the group's branches and `done_count`. A branch that fails fails the wait; an
+      empty `of` succeeds at once;
+    - `{"task": "child", "args": {...}}`: a `task` branch whose child flow reads the
+      argument values as `arg.<name>`, read in the parent's scope when the child
+      starts;
     - a branch in a group may itself be a group, so waits nest.
 
     A `task` branch starts that task for the same entity and waits for its flow to
@@ -629,7 +671,9 @@ class Wait:
         if not isinstance(spec, Mapping):
             raise ValueError(f"a wait branch is a mapping, got {spec!r}")
         keys = set(spec)
-        if "at_least" in keys:
+        if "when" in keys:
+            node = self._when(spec, name)
+        elif "at_least" in keys:
             node = self._at_least(spec, name)
         elif "any" in keys or "all" in keys:
             if len(spec) != 1:
@@ -640,6 +684,15 @@ class Wait:
             kind = "any" if "any" in keys else "all"
             node = WaitNode(name, kind, children=self._children(kind, spec[kind]))
         else:
+            args = None
+            if "task" in keys and "args" in keys:
+                if len(spec) != 2 or not isinstance(spec["args"], Mapping):
+                    raise ValueError(
+                        "a wait task branch takes task and args, a mapping of "
+                        f"values, got {spec!r}"
+                    )
+                args = spec["args"]
+                spec = {"task": spec["task"]}
             kind, target = _wait_branch(spec)
             if name is not None:
                 node_name: Optional[str] = name
@@ -649,7 +702,7 @@ class Wait:
                 node_name = target["task"]
             else:
                 node_name = kind
-            node = WaitNode(node_name, kind, target=target)
+            node = WaitNode(node_name, kind, target=target, args=args)
         if node.name is not None:
             if node.name in self.branches:
                 raise ValueError(
@@ -663,6 +716,20 @@ class Wait:
         if not isinstance(members, Mapping):
             raise ValueError(f"wait.{kind} takes a mapping of named branches")
         return [self._node(branch, str(name)) for name, branch in members.items()]
+
+    def _when(self, spec: Mapping[str, Any], name: Optional[str]) -> WaitNode:
+        """Parses a `{when: <expression>, of: {...}}` group: done when the condition,
+        read each time a branch's event is processed, holds."""
+        extra = set(spec) - {"when", "of"}
+        if extra:
+            raise ValueError(f"when takes when and of, not {', '.join(sorted(extra))}")
+        text = spec["when"]
+        if not isinstance(text, str):
+            raise ValueError(f"when is an expression, got {text!r}")
+        children = self._children("when", spec.get("of", {}))
+        return WaitNode(
+            name, "when", children=children, predicate=Expression(text, names=None)
+        )
 
     def _at_least(self, spec: Mapping[str, Any], name: Optional[str]) -> WaitNode:
         """Parses an `{at_least: n, of: {...}}` group."""
@@ -747,6 +814,11 @@ class Wait:
     def conditions(self) -> List[Expression]:
         """The parsed conditions of the `condition` leaves."""
         return [n.target for n in self.branches.values() if n.kind == "condition"]
+
+    @property
+    def predicates(self) -> List[Expression]:
+        """The parsed conditions of the `when` groups, read as branches are processed."""
+        return [n.predicate for n in self.branches.values() if n.predicate is not None]
 
     @property
     def time_expressions(self) -> List[Expression]:

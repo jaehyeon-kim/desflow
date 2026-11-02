@@ -47,6 +47,14 @@ class ArrivalPlan:
         stagger: The time between the starts of two entities, read after each start.
         max_events: How many times the arrival starts its task: in all, or for each
             entity when the arrival has several.
+        group: How many entities one arrival starts: a whole number, an `Expression`
+            or a generator, read once at each arrival, after the gap.
+        active: Whether the source starts on.
+        off_mode: `drop`, where the clock runs while the source is off and an arrival
+            then starts nobody, or `restart`, where turning it off drops the pending
+            arrival and turning it on starts a full new gap.
+        initial: How many entities are created when the run is built.
+        sourceless: True for an arrival with `initial` alone, which draws no gaps.
     """
 
     gap: Any = None
@@ -57,6 +65,11 @@ class ArrivalPlan:
     vars: Dict[str, Any] = field(default_factory=dict)
     stagger: Any = 0
     max_events: Any = None
+    group: Any = 1
+    active: bool = True
+    off_mode: str = "drop"
+    initial: int = 0
+    sourceless: bool = False
 
     @property
     def has_entities(self) -> bool:
@@ -150,21 +163,64 @@ def _limit(
     return max(count, 0)
 
 
+def _members(
+    context: "SimulationContext", arrival: str, plan: ArrivalPlan, entity: Any
+) -> List[Any]:
+    """The entities one arrival starts: `entity` and the others of its `group`, made
+    now in order, each with the arrival's next key. An empty list when the group is 0
+    or less, which frees the key number `entity` took."""
+    if plan.group == 1:
+        return [entity]
+    size = whole(context._arrival_value(plan.group), f"arrival '{arrival}' group")
+    if size <= 0:
+        context._drop_arrival(arrival, entity)
+        return []
+    context._make_entity(entity)
+    members = [entity]
+    options = context._arrival_entities.get(arrival)
+    for _ in range(size - 1):
+        member = context._new_entity(arrival, options, generate=False)
+        context._make_entity(member)
+        members.append(member)
+    return members
+
+
 def source(
     context: "SimulationContext", arrival: str, task: str, plan: ArrivalPlan
 ) -> Generator[Any, Any, None]:
     """An arrival that starts a new entity at each gap, up to `max_events`.
 
     The loop ends in the step of the last start and draws no further gap. A start
-    whose key a running entity of the arrival has is skipped and counts as one.
+    whose key a running entity of the arrival has is skipped and counts as one. An
+    arrival that falls while the source is off starts nobody, counts toward no limit
+    and takes no key number. With `off_mode: restart` the pending arrival is dropped
+    when the source goes off, and a source that is on starts a full new gap.
     """
     limit = _limit(context, arrival, plan)
     attempts = 0
+    restart = plan.off_mode == "restart"
     while limit is None or attempts < limit:
-        entity = yield context.wait_for_arrival(arrival)
+        if restart:
+            while not context._arrival_on.get(arrival, True):
+                yield context._arrival_change(arrival)
+        due = context.wait_for_arrival(arrival)
+        if restart:
+            change = context._arrival_change(arrival)
+            yield due | change
+            if not due.processed:
+                # The source went off first: this arrival is dropped
+                context._drop_arrival(arrival, due._value, pending=due)
+                continue
+            entity = due.value
+        else:
+            entity = yield due
+        if not context._arrival_on.get(arrival, True):
+            context._drop_arrival(arrival, entity)
+            continue
         attempts += 1
-        if context._admit(arrival, entity, _not_left(entity)):
-            context._start(task, entity, None)
+        for member in _members(context, arrival, plan, entity):
+            if context._admit(arrival, member, _not_left(member)):
+                context._start(task, member, None)
 
 
 def start_entities(
@@ -210,14 +266,32 @@ def entity_loop(
     state = EntityLoop()
     entity.loop = state
     limit = _limit(context, arrival, plan)
+    restart = plan.off_mode == "restart"
     try:
         started = 0
+        timed = False  # whether a first gap or `first_at` has been waited for
         while limit is None or started < limit:
-            if started == 0 and plan.first_at is not None:
+            if restart:
+                while not context._arrival_on.get(arrival, True):
+                    yield context._arrival_change(arrival)
+            if not timed and plan.first_at is not None:
                 delay: Union[int, float] = max(plan.first_at - env.now, 0)
             else:
                 delay = context._gap(arrival)
-            yield env.timeout(delay)
+            timed = True
+            if restart:
+                change = context._arrival_change(arrival)
+                yield env.timeout(delay) | change
+                if change.processed:
+                    # The source went off first: this start is dropped, and the gap
+                    # starts again when the source is on
+                    continue
+            else:
+                yield env.timeout(delay)
+            if not context._arrival_on.get(arrival, True):
+                # An arrival that falls while the source is off starts nobody and
+                # counts toward no limit
+                continue
             if started == 0:
                 context._make_entity(entity, index=index)
                 if not context._admit(arrival, entity, _holds_key(state)):

@@ -70,6 +70,15 @@ class Signal:
         # Callbacks run when the signal fires, copied onto each new pending event
         self.callbacks: List[Callable[[Any], None]] = []
         self._event = env.event()
+        # The event of the latest firing, for `processed`
+        self._fired: Optional[Event] = None
+
+    @property
+    def processed(self) -> bool:
+        """bool: Whether the latest firing's event has been processed, as SimPy's
+        `event.processed`; False before any firing. It is `signal.<name>.processed` in
+        an expression."""
+        return self._fired is not None and self._fired.processed
 
     def attach(self, callbacks: List[Callable[[Any], None]]) -> None:
         """Keeps `callbacks` as the signal's `on:` callbacks and adds them to the
@@ -126,6 +135,7 @@ class Signal:
         self.count += 1
         self.ok, self.value = True, value
         if self.once:
+            self._fired = self._event
             # Keep the triggered event, so a later wait resumes at once.
             if urgent or after:
                 self._schedule(True, value, urgent, after)
@@ -133,6 +143,7 @@ class Signal:
                 self._event.succeed(value)
         else:
             event, self._event = self._event, self.env.event()
+            self._fired = event
             for callback in self.callbacks:
                 self._event.callbacks.append(callback)
             event.succeed(value)
@@ -171,6 +182,7 @@ class Signal:
             event, self._event = self._event, self.env.event()
             for callback in self.callbacks:
                 self._event.callbacks.append(callback)
+        self._fired = event
         # A re-arming signal's failure is always defused, so a firing nobody waits
         # for is not an error. A one-shot signal's failure is defused only under
         # `continue`; under `stop` it is left to stop the run, as SimPy's event does.

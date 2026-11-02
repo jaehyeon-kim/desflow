@@ -370,6 +370,19 @@ class Arrival(Distribution):
     belongs to an entity of the arrival that is still running is skipped with a
     warning and counts as one.
 
+    `group` is how many entities one arrival starts, a count place read once at each
+    arrival, after the gap: 0 or less starts nobody and the next gap still runs, and
+    a dropped or empty arrival uses no key number. `initial` creates that many entities
+    when the run is built, after the arrival's source starts and in file order, with the
+    arrival's keys, and an arrival with `initial` alone needs no `dist`, `replay` or
+    `gap`. `active: false` makes a source that starts off, and a task or an `on:` entry
+    turns it on or off with `activate` and `deactivate`. With `off_mode: drop`, the
+    default, the clock keeps running and an arrival while off starts nobody. With
+    `restart` the pending arrival is dropped when the source goes off and `activate`
+    starts a full new gap. An action on a source already in that state does nothing,
+    and an arrival that falls at the instant of an action whose event comes first is
+    dropped.
+
     `count` makes that many entities, each with a loop of its own: it starts its task
     after each gap, `first_at` is the time of its first start, and `max_events` is how
     many times each entity starts. `keys` is a list of keys instead, one entity for
@@ -398,6 +411,10 @@ class Arrival(Distribution):
     max_events: Optional[CountPlace] = None
     spawn: Optional[str] = None
     attributes: Dict[str, Value] = Field(default_factory=dict)
+    group: CountPlace = 1
+    active: bool = True
+    off_mode: Literal["drop", "restart"] = "drop"
+    initial: int = Field(default=0, ge=0)
 
     @field_validator("gap", "stagger", mode="before")
     @classmethod
@@ -421,15 +438,34 @@ class Arrival(Distribution):
             )
             if value is not None
         ]
-        if len(given) != 1:
+        if len(given) != 1 and not (not given and self.initial > 0):
             raise ValueError(
                 "an arrival takes exactly one of dist, replay or gap"
                 + (f", not {' and '.join(given)}" if given else ", got none")
+                + ("" if given else " (an arrival with initial alone needs none)")
             )
+        if not given:
+            for name in (
+                "group",
+                "active",
+                "off_mode",
+                "max_events",
+                "count",
+                "keys",
+                "stagger",
+                "first_at",
+            ):
+                if name in self.model_fields_set:
+                    raise ValueError(
+                        f"{name} sets how a source starts entities, and an arrival "
+                        "with initial alone has no source; add a dist, a replay or "
+                        "a gap, or remove it"
+                    )
         if self.dist is None and self.parameters():
             raise ValueError(
-                f"an arrival with {given[0]} takes no distribution parameters; "
-                f"remove them, or the {given[0]}"
+                f"an arrival with {given[0] if given else 'initial'} takes no "
+                f"distribution parameters; remove them, or the "
+                f"{given[0] if given else 'initial'}"
             )
         if self.dist is not None:
             self.config()
@@ -444,13 +480,29 @@ class Arrival(Distribution):
         if self.keys is not None and not self.keys:
             raise ValueError("keys needs at least one key")
         if self.spawn is None:
-            for name in ("count", "keys", "max_events", "stagger"):
+            for name in (
+                "count",
+                "keys",
+                "max_events",
+                "stagger",
+                "group",
+                "active",
+                "off_mode",
+                "initial",
+            ):
                 if name in self.model_fields_set:
                     raise ValueError(
                         f"{name} sets how an arrival starts its task, so it needs "
                         f"spawn; an arrival without spawn is read by "
                         f"wait_for_arrival, which uses gap, first_at, key and vars"
                     )
+        if "group" in self.model_fields_set and (
+            self.count is not None or self.keys is not None or self.replay is not None
+        ):
+            raise ValueError(
+                "group is how many entities one arrival starts, so it does not "
+                "apply with count, keys or a replay"
+            )
         if (
             "stagger" in self.model_fields_set
             and self.count is None
@@ -472,7 +524,7 @@ class Arrival(Distribution):
                 raise ValueError("stagger does not apply to a replay")
         for name in ("gap", "stagger"):
             _check_time_place(getattr(self, name), name, run_scope=True)
-        for name in ("count", "max_events"):
+        for name in ("count", "max_events", "group"):
             value = getattr(self, name)
             if isinstance(value, str):
                 _check_run_text(value, name, True)
@@ -613,6 +665,15 @@ class Container(_Model):
         return self
 
 
+def _generator_or_data(value: Any, handler: Any) -> Any:
+    """A validator for the `value` of an `on:` entry: a generator is parsed, and a
+    mapping with no `gen` key is data, kept as written even if a generator is nested in
+    it, so it is stored and not evaluated."""
+    if isinstance(value, Mapping) and "gen" not in value:
+        return value
+    return handler(value)
+
+
 class TransferStep(_Model):
     """A task's `get` or `put`: one `container` with an `amount`, or one `store`.
 
@@ -623,7 +684,11 @@ class TransferStep(_Model):
     element, as a tuple does), a mapping, null, a date or a bool. `filter` is a condition
     for a store get, such as `item.size == attr.size`, where `item.<field>` reads
     the item offered: the get takes the oldest item that matches. `wait: false` makes
-    the get or put and does not wait for it: the task goes on at once.
+    the get or put and does not wait for it: the task goes on at once. `item` is for a
+    store `put`: the value to put, a constant, text, a list, a mapping or a `{gen: ...}`
+    generator read as the put is made; left out, the put adds the task's payload. The
+    bare name `item` in `{gen: expr, expr: item}` is the whole item a get took, so
+    `item: {gen: expr, expr: item}` puts it back.
     """
 
     container: Optional[str] = None
@@ -632,6 +697,9 @@ class TransferStep(_Model):
     priority: Any = 0.0
     filter: Optional[str] = None
     wait: bool = True
+    item: Value = None
+
+    _value_form = field_validator("item", mode="wrap")(_generator_or_data)
 
     @field_validator("priority", mode="before")
     @classmethod
@@ -654,6 +722,7 @@ class TransferStep(_Model):
             priority=self.priority,
             filter=self.filter,
             wait=self.wait,
+            item=self.item,
         )
 
 
@@ -718,15 +787,6 @@ def _next_form(value: Any) -> str:
     return "name" if isinstance(value, str) else "rules"
 
 
-def _generator_or_data(value: Any, handler: Any) -> Any:
-    """A validator for the `value` of an `on:` entry: a generator is parsed, and a
-    mapping with no `gen` key is data, kept as written even if a generator is nested in
-    it, so it is stored and not evaluated."""
-    if isinstance(value, Mapping) and "gen" not in value:
-        return value
-    return handler(value)
-
-
 class InterruptAction(_Model):
     """An `interrupt` on a task or a scenario step: interrupt every running instance
     of `task` whose `where` condition holds, with `cause`, a constant or a
@@ -750,10 +810,19 @@ class InterruptAction(_Model):
 
 class SpawnAction(_Model):
     """A `spawn:` key or an `on:` spawn action: start `task` as a new entity, after
-    an optional delay."""
+    an optional delay. `count` is how many entities one spawn starts: a whole number,
+    an expression or a generator, read once in the parent's step (0 or less starts
+    none, as `range` gives none). `copy_attributes: true` gives each child a copy of the
+    parent's attributes, one level deep, so a nested mapping stays shared with the
+    parent; `parent` is the parent's key as always. `args` gives each child its local
+    names, read there as `arg.<name>`; each value is read in the parent's step, once for
+    each child. `after` applies to each child."""
 
     task: str
     after: Optional[Union[int, float, str]] = None
+    count: CountPlace = 1
+    copy_attributes: bool = False
+    args: Optional[Dict[str, Value]] = None
 
     @field_validator("after", mode="before")
     @classmethod
@@ -768,6 +837,30 @@ class SpawnAction(_Model):
         if value is not None and not value > 0:
             raise ValueError(f"a spawn after is more than 0, got {value:g}")
         return value
+
+    @field_validator("count")
+    @classmethod
+    def _count_reads_the_parent(cls, value: Any) -> Any:
+        if isinstance(value, int) and value < 0:
+            raise ValueError(f"a spawn count must be 0 or more, got {value!r}")
+        if isinstance(value, str):
+            Expression(value)
+        return value
+
+    def action(self) -> Dict[str, Any]:
+        """The mapping the builder takes."""
+        return {
+            "task": self.task,
+            "after": self.after,
+            "count": self.count,
+            "copy_attributes": self.copy_attributes,
+            "args": self.args,
+        }
+
+
+def _names(value: Union[str, List[str]]) -> List[str]:
+    """The arrival names of an `activate` or `deactivate`, as a list."""
+    return [value] if isinstance(value, str) else list(value)
 
 
 class FireAction(_Model):
@@ -816,6 +909,8 @@ class OnEntry(_Model):
     fire: Optional[FireAction] = None
     spawn: Optional[SpawnAction] = None
     interrupt: Optional[InterruptAction] = None
+    activate: Optional[Union[str, List[str]]] = None
+    deactivate: Optional[Union[str, List[str]]] = None
     path: Optional[str] = None
     value: Value = None
 
@@ -825,12 +920,13 @@ class OnEntry(_Model):
     def _one_action(self) -> "OnEntry":
         actions = [
             name
-            for name in ("fire", "spawn", "interrupt", "path")
+            for name in ("fire", "spawn", "interrupt", "activate", "deactivate", "path")
             if getattr(self, name) is not None
         ]
         if len(actions) != 1:
             raise ValueError(
-                "an on: entry takes exactly one of fire, spawn, interrupt or path"
+                "an on: entry takes exactly one of fire, spawn, interrupt, activate, "
+                "deactivate or path"
             )
         if self.value is not None and self.path is None and self.fire is None:
             raise ValueError("on: value belongs to a path or a fire action")
@@ -849,9 +945,13 @@ class OnEntry(_Model):
                 }
             }
         if self.spawn is not None:
-            return {"spawn": {"task": self.spawn.task, "after": self.spawn.after}}
+            return {"spawn": self.spawn.action()}
         if self.interrupt is not None:
             return {"interrupt": self.interrupt.action()}
+        if self.activate is not None:
+            return {"activate": _names(self.activate)}
+        if self.deactivate is not None:
+            return {"deactivate": _names(self.deactivate)}
         return {"path": self.path, "value": self.value}
 
 
@@ -883,9 +983,13 @@ class SignalWait(_Model):
 
 
 class TaskWait(_Model):
-    """A `wait` branch for a child flow: it starts `task` for the same entity."""
+    """A `wait` branch for a child flow: it starts `task` for the same entity. `args`
+    are value places read in the parent's scope when the child starts, and the child
+    flow reads them as `arg.<name>`; each child has its own, as a SimPy process has its
+    own arguments."""
 
     task: str
+    args: Optional[Dict[str, Value]] = None
 
 
 class TimeoutAfter(_Model):
@@ -947,6 +1051,17 @@ class AtLeastWait(_Model):
     of: "Dict[str, WaitBranch]"
 
 
+class WhenWait(_Model):
+    """A `wait` done when the expression `when` holds. It is read each time a branch of
+    `of` is processed, and once at the start for a branch already processed, as SimPy's
+    `Condition(env, evaluate, events)` does. It reads `wait.<branch>.done`, `.ok` and
+    `.value` of the branches and `done_count`. A branch that fails fails the wait, and an
+    empty `of` succeeds at once."""
+
+    when: str
+    of: "Dict[str, WaitBranch]"
+
+
 class RequestWait(_Model):
     """A `wait` branch for a resource unit: the task holds it if it wins."""
 
@@ -976,6 +1091,7 @@ WaitBranch = Union[
     AnyWait,
     AllWait,
     AtLeastWait,
+    WhenWait,
     RequestWait,
     GetWait,
     PutWait,
@@ -985,6 +1101,7 @@ WaitBranch = Union[
 AnyWait.model_rebuild()
 AllWait.model_rebuild()
 AtLeastWait.model_rebuild()
+WhenWait.model_rebuild()
 
 
 def _generators_as_zero(raw: Any) -> Any:
@@ -1043,6 +1160,8 @@ def _with_typed_values(raw: Any, typed: Any) -> Any:
                     for name, branch in raw[key].items()
                 }
             }
+    if "task" in raw and "args" in raw:
+        return {"task": raw["task"], "args": typed.args}
     if "of" in raw and isinstance(raw["of"], Mapping):
         return {
             **raw,
@@ -1100,7 +1219,24 @@ class Task(_Model):
     the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or
     container. `next` is a task name, `when` rules or `weights`, whose values are numbers
     or expressions read when the task finishes, with one draw for the choice. `set` gives the
-    entity attribute values when the task finishes.
+    entity attribute values when the task finishes. `set_args` writes this process's own
+    local names, read as `arg.<name>` by this task and by the tasks that follow in the
+    same flow (not by a child flow, which has its own). It is read after `set`, so a
+    payload reads the value from before the write. A parent passes names to a child with
+    `args` on a `task` branch of its `wait`, or on a `spawn`; a read of a name that was
+    neither passed nor written is a run failure. `activate` and `deactivate` turn the
+    sources of the named arrivals on and off when the task finishes, after `set_args`.
+    `cause.<name>` reads why the task was interrupted, in a task that an
+    `on_interrupt_next` edge reaches: `by`, `usage_since` and `resource` after a
+    preemption, `value` after an `interrupt`, and `left`, the service time that was
+    left. `upstream.<field>` is the payload of the task that routed here, `item` is the
+    whole item a store get took, and it lasts through the `next` chain.
+
+    The cause of an interrupt, the holders of a resource and the entries of a queue are
+    lists and mappings an expression reads: `held(m)` and `waiting(m)` for a resource,
+    `putting(s)` and `getting(s)` for a store or container, `running(task)` and
+    `running(task, condition)`, `peek()`, `process.key` and `process.flow_name`,
+    `signal.<name>.processed`, and in the `when` of a wait group `done_count`.
 
     A value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a
     mapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a
@@ -1130,6 +1266,23 @@ class Task(_Model):
     10000 is refused), `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `exp`,
     `log`, `log10`, `sin`, `cos` and `tan` are calls on numbers, and `has(attr.x)` is
     true when the entity has the attribute `x`.
+
+    An expression also reads a process's local names `arg.<name>`, the interrupt that
+    reached the task as `cause.<name>`, the payload of the task that routed here as
+    `upstream.<field>` (at any depth), `process.key` and `process.flow_name`, the
+    bare `item` and `item_priority` after a store get, and `signal.<name>.processed`.
+    `held(<resource>)`, `waiting(<resource>)`, `putting(<store or container>)` and
+    `getting(<store or container>)` give lists of mappings (with `entity`, and `rank`,
+    `time`, `preempt`, `key` and `since` for a resource, `item` for a store put and
+    `amount` for a container); `running(<task>[, <condition>])` counts the instances
+    of a task, and `peek()` is the time of the next event. Lists `[1, 2]`, mappings
+    `{'a': 1}`, one-clause comprehensions `[x * 2 for x in list if x > 1]`,
+    subscripts and slices, `is None`, `in`, and dotted reads at any depth work on
+    them. The functions `len`, `sum`, `sorted`, `range`, `any`, `all`, `str`, `int`,
+    `float`, `bool`, `get_key(mapping, key, default)`, `set_key(mapping, key, value)`
+    and `drop_key(mapping, key)` work on lists and mappings; `min` and `max` take a
+    list. `set_key` and `drop_key` give a new mapping. A reading makes at most
+    1,000,000 items, and `%` on text is refused.
     """
 
     service: Optional[str] = None
@@ -1168,6 +1321,9 @@ class Task(_Model):
         ]
     ] = None
     set: Dict[str, Value] = Field(default_factory=dict)
+    set_args: Dict[str, Value] = Field(default_factory=dict)
+    activate: Optional[Union[str, List[str]]] = None
+    deactivate: Optional[Union[str, List[str]]] = None
     vars: Dict[str, Value] = Field(default_factory=dict)
     vars_once: Dict[str, Value] = Field(default_factory=dict)
     on_start: Dict[str, Value] = Field(default_factory=dict)

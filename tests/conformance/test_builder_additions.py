@@ -1,4 +1,4 @@
-"""Builder forms that arrive in 1.0.0: V1, V6, A7, I6 and M3.
+"""Builder forms that arrive in 1.0.0: V1, V6, A5, A7, I6, M3, V12 and Y6.
 
 Each test runs a SimPy 4.1.2 program and the Builder model that does the same, and
 compares what happened and when. The counts of entities are 1, 3 and 10 where an
@@ -8,7 +8,8 @@ V6: a filter that names a parameter `entity` reads the entity, as a SimPy filter
 reads the process that asks. V1: the time a task takes comes from the entity. A7: a
 task starts a number of entities, the number computed. I6: a reneging or balking
 task goes to a task. M3: a task function that raises goes to the task `on_fail`
-names.
+names. A5: a task turns a source off and on. V12: a store put adds an item the put
+names. Y6: a task writes names that a later task reads.
 """
 
 import numpy as np
@@ -499,3 +500,201 @@ def test_builder_on_fail_catches_a_raise(count):
     assert done == expected
     assert {f"jobs-{n}" for n in range(1, count + 1) if n % 2 == 0} == set(failed)
     assert all(reason.startswith("ValueError: bad") for reason in failed.values())
+
+
+# ---------------------------------------------------------------------------
+# A7: spawn with copy_attributes; A5: activate and deactivate; V12 and Y6
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("count", SIZES)
+def test_builder_spawn_copy_attributes_and_a_computed_count(count):
+    """`copy_attributes` gives each child a shallow copy of the parent's attributes
+    with `parent` set to the parent's key; an expression count reads the parent."""
+
+    def run(spawn):
+        app = SimulationContext("A7", factor=0.0)
+
+        @app.task(name="parent", spawn=spawn)
+        def parent(task_id, entity):
+            return {}
+
+        @app.task(name="child")
+        def child(task_id, entity):
+            return {
+                "tag": entity.attributes.get("tag"),
+                "who": entity.attributes.get("parent"),
+            }
+
+        app.add_arrival_replay(
+            "p",
+            [{"time": 1.0, "tag": f"t{n}", "k": 2} for n in range(1, count + 1)],
+            spawn="parent",
+        )
+        return [
+            r["value"]
+            for r in run_builder(app, 5)
+            if r["stream_type"] == "event"
+            and r["task"] == "child"
+            and "tag" in r["value"]
+        ]
+
+    copied = run({"task": "child", "count": "attr.k", "copy_attributes": True})
+    assert sorted(v["tag"] for v in copied) == sorted(
+        f"t{n}" for n in range(1, count + 1) for _ in range(2)
+    )
+    assert {v["who"] for v in copied} == {f"p-{n}" for n in range(1, count + 1)}
+    plain = run({"task": "child", "count": "attr.k"})
+    assert len(plain) == 2 * count and {v["tag"] for v in plain} == {None}
+
+
+@pytest.mark.parametrize("count", SIZES)
+def test_builder_deactivate_and_activate_turn_sources_off_and_on(count):
+    """A task's `deactivate` at 2.5 stops the sources and its `activate` at 5.5
+    starts them again at the old rhythm, as a SimPy source that checks a flag does."""
+    app = SimulationContext("A5", factor=0.0)
+
+    @app.task(name="tick")
+    def tick(task_id, entity):
+        return {"e": "t"}
+
+    @app.task(name="stop", deactivate=[f"s{n}" for n in range(1, count + 1)])
+    def stop(task_id, entity):
+        return {"e": "stop"}
+
+    @app.task(name="go", activate=[f"s{n}" for n in range(1, count + 1)])
+    def go(task_id, entity):
+        return {"e": "go"}
+
+    for n in range(1, count + 1):
+        app.add_arrival(f"s{n}", "constant", value=1.0, spawn="tick")
+    app.add_arrival_replay("c1", [{"time": 2.5}], spawn="stop")
+    app.add_arrival_replay("c2", [{"time": 5.5}], spawn="go")
+    times = [
+        r["sim_ts"]
+        for r in run_builder(app, 7.5)
+        if r["stream_type"] == "event" and r["task"] == "tick" and "e" in r["value"]
+    ]
+    assert sorted(set(times)) == [1.0, 2.0, 6.0, 7.0]
+    assert times.count(1.0) == count
+
+
+def test_builder_put_item_and_set_args_reach_later_steps():
+    """A store put adds the item it names; `set_args` writes a name that the next task
+    of the flow reads as `arg.gap`."""
+    app = SimulationContext("V12", factor=0.0)
+    app.add_store("s")
+
+    @app.task(name="a", put={"store": "s", "item": 7}, set_args={"gap": 2.0}, next="b")
+    def a(task_id, entity):
+        return {}
+
+    @app.task(name="b", service_time="arg.gap")
+    def b(task_id, entity):
+        return {"done": True}
+
+    taken = []
+
+    @app.task(name="c", get={"store": "s"})
+    def c(task_id, entity, item):
+        taken.append(item)
+        return {}
+
+    app.add_arrival_replay("r", [{"time": 0.0}], spawn="a")
+    app.add_arrival_replay("r2", [{"time": 1.0}], spawn="c")
+    records = run_builder(app, 10)
+    assert taken == [7]
+    assert [
+        r["sim_ts"] for r in records if r["task"] == "b" and "done" in r["value"]
+    ] == [2.0]
+
+
+@pytest.mark.parametrize("count", SIZES)
+def test_builder_group_active_off_mode_and_initial(count):
+    """`add_arrival(group=, active=, off_mode=, initial=)` and `add_initial_arrival`:
+    a group source starts a computed number of entities, a source that starts off waits
+    for `activate`, `restart` starts a whole gap when it goes on, and initial entities
+    exist before the run."""
+
+    def run(**source):
+        app = SimulationContext("S14", factor=0.0)
+
+        @app.task(name="tick")
+        def tick(task_id, entity):
+            return {"e": "t"}
+
+        @app.task(name="go", activate="s")
+        def go(task_id, entity):
+            return {"e": "go"}
+
+        app.add_arrival("s", "constant", value=2.0, spawn="tick", **source)
+        app.add_arrival_replay("c", [{"time": 3.0}], spawn="go")
+        return [
+            (r["sim_ts"], r["key"])
+            for r in run_builder(app, 9)
+            if r["stream_type"] == "event" and r["task"] == "tick" and "e" in r["value"]
+        ]
+
+    assert [t for t, _ in run(active=False)] == [4.0, 6.0, 8.0]
+    assert [t for t, _ in run(active=False, off_mode="restart")] == [5.0, 7.0]
+    grouped = run(group=f"{count} * int(t / 2)")
+    assert len(grouped) == count * (1 + 2 + 3 + 4)
+    assert [k for _, k in grouped][:count] == [f"s-{n}" for n in range(1, count + 1)]
+    assert [k for _, k in run(initial=count)][:count] == [
+        f"s-{n}" for n in range(1, count + 1)
+    ]
+
+    app = SimulationContext("S14", factor=0.0)
+
+    @app.task(name="boot")
+    def boot(task_id, entity):
+        return {"e": "boot"}
+
+    app.add_initial_arrival("setup", count, spawn="boot")
+    records = run_builder(app, 1)
+    assert [r["key"] for r in records if "e" in r["value"]] == [
+        f"setup-{n}" for n in range(1, count + 1)
+    ]
+
+    for bad in (
+        {"group": 1.5},
+        {"off_mode": "later"},
+        {"active": "no"},
+        {"initial": -1},
+    ):
+        with pytest.raises(ValueError):
+            SimulationContext("S14").add_arrival(
+                "s", "constant", value=1.0, spawn="x", **bad
+            )
+    with pytest.raises(ValueError, match="need a spawn"):
+        SimulationContext("S14").add_arrival("s", "constant", value=1.0, group=2)
+
+
+@pytest.mark.parametrize("count", SIZES)
+def test_builder_spawn_args_reach_each_child(count):
+    """`spawn={"args": ...}` gives each child its names, read as `arg.<name>`; a
+    generator in it is read once for each child."""
+    from desflow.values import generator
+
+    app = SimulationContext("S1", factor=0.0)
+
+    @app.task(
+        name="parent",
+        spawn={
+            "task": "kid",
+            "count": 2,
+            "args": {"x": generator({"gen": "sequence", "start": 1})},
+        },
+    )
+    def parent(task_id, entity):
+        return {}
+
+    @app.task(name="kid", service_time="arg.x")
+    def kid(task_id, entity):
+        return {"done": True}
+
+    app.add_arrival_replay("p", [{"time": 0.0} for _ in range(count)], spawn="parent")
+    ends = sorted(
+        r["sim_ts"]
+        for r in run_builder(app, 3 * count)
+        if r["stream_type"] == "event" and r["task"] == "kid" and "done" in r["value"]
+    )
+    assert ends == [float(n) for n in range(1, 2 * count + 1)]
