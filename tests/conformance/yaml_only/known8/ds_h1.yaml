@@ -1,0 +1,11 @@
+# Design H1: a unit held across several steps (priority request, then two timed steps, then release); a waiter of lower priority takes it after.
+simulation: {sim_id: H1, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1, queue: priority, preempt: true}}
+arrivals:
+  job: {initial: 1, spawn: take}
+  other: {initial: 1, spawn: waiter}
+tasks:
+  take: {seize: {resource: m, priority: 5}, payload: {event_type: got}, next: a}
+  a: {service_time: 2, payload: {event_type: a}, next: b}
+  b: {service_time: 3, payload: {event_type: b}, release: m}
+  waiter: {seize: {resource: m, priority: 9, preempt: false}, payload: {event_type: waiter_granted}, release: m}

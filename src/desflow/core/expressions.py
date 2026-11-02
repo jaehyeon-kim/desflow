@@ -35,6 +35,7 @@ operand that cannot be evaluated fails the expression. Each name carries its sou
 | `peek()` | the time of the next scheduled event, infinity when none is left |
 | `done_count` | in the `when` of a `wait`, how many branches of the group are done |
 | `signal.restocked.processed` | whether the signal's firing has been processed |
+| `handle.slot.triggered`, `.processed`, `.ok`, `.value`, `.alive` | the event the task, or an earlier task of its flow, opened under the name `slot`: whether it has happened, whether it has been processed, whether it succeeded, its value (reading it before it happened is a run failure), and, for a child flow, whether the flow still runs |
 | `registry["Shop.arrival.orders.rate"]` | a registry value, by path |
 | `t` | the simulation time in seconds |
 | `has(attr.risk)` | whether the entity has the attribute `risk` |
@@ -46,6 +47,7 @@ import ast
 import math
 from numbers import Integral as _Integral
 from dataclasses import dataclass, field, replace
+from pydantic import TypeAdapter, ValidationError
 from simpy import PriorityItem
 from typing import (
     Any,
@@ -294,7 +296,12 @@ _RECORD = ("stream_type", "key", "task")
 _PARTS = {
     "wait": ("done", "ok", "value"),
     "signal": ("count", "ok", "value", "processed"),
+    "handle": ("triggered", "processed", "ok", "value", "alive"),
 }
+# The fields of the request and of the holder a preempt rule reads, `holder.attr.<name>`
+# being the holder's entity attributes
+_REQUEST_FIELDS = ("rank", "time", "preempt", "key")
+_HOLDER_FIELDS = (*_REQUEST_FIELDS, "since")
 # The calls that read the state of the run by a bare name, with the fewest and most
 # arguments each takes
 _STATE_CALLS = {
@@ -307,8 +314,54 @@ _STATE_CALLS = {
 }
 
 
+_BOOLEAN = TypeAdapter(bool)
+
+
+def boolean_word(value: Any) -> Any:
+    """A `preempt` as written: text that blueprint validation reads as a boolean
+    (`t`, `yes`, `off`, `1` and the like) is that boolean, and any other text stays
+    text, an expression read when the request is made.
+
+    Args:
+        value: The `preempt` as given.
+
+    Returns:
+        Any: A bool for a boolean word, else `value` unchanged.
+    """
+    if isinstance(value, str):
+        try:
+            return _BOOLEAN.validate_python(value)
+        except ValidationError:
+            return value
+    return value
+
+
+def rank_problem(expression: "Expression") -> Optional[str]:
+    """What a queue `rank` reads that no request site can give, or None.
+
+    A rank is read in the scope of whatever makes the request or the get or put,
+    before it waits, so it cannot read a `wait` branch, a handle or the item of a get.
+
+    Args:
+        expression: The parsed rank.
+
+    Returns:
+        Optional[str]: The reason it is refused, or None.
+    """
+    found = [
+        kind for kind in ("wait", "handle") if expression.references[kind]
+    ] + sorted(expression.references["flag"])
+    if found:
+        return (
+            f"'{expression.text}' reads {', '.join(found)}, which a request has not "
+            f"got when its rank is read"
+        )
+    return None
+
+
 def _nested(node: ast.Attribute) -> Optional[Tuple[str, List[str]]]:
-    """`wait.<branch>.<part>` or `signal.<name>.<part>` as its word and parts."""
+    """`wait.<branch>.<part>`, `signal.<name>.<part>` or `handle.<name>.<part>` as its
+    word and parts."""
     parts: List[str] = []
     current: ast.AST = node
     while isinstance(current, ast.Attribute):
@@ -333,8 +386,10 @@ def _record_parts(node: ast.Attribute) -> Optional[List[str]]:
 
 
 def _read_nested(scope: "Scope", source: str, parts: List[str]) -> Any:
-    """The value of a `wait.` or `signal.` name in a scope."""
+    """The value of a `wait.`, `signal.` or `handle.` name in a scope."""
     name, part = parts[0], parts[1]
+    if source == "handle":
+        return _read_handle(scope, name, part, parts[2:])
     if source == "wait":
         if name not in scope.waits:
             raise KeyError(f"the task has no wait branch '{name}'")
@@ -347,6 +402,25 @@ def _read_nested(scope: "Scope", source: str, parts: List[str]) -> Any:
     for field_name in parts[2:]:
         if not isinstance(value, Mapping) or field_name not in value:
             raise KeyError(f"the value of {source}.{name} has no field '{field_name}'")
+        value = value[field_name]
+    return value
+
+
+def _read_handle(scope: "Scope", name: str, part: str, fields: List[str]) -> Any:
+    """`handle.<name>.<part>`, and the fields of a `.value` that is a mapping.
+
+    Raises:
+        KeyError: If no event is open under the name, the part does not suit what it
+            was opened as (`alive` is for a task), or `.value` is read before the
+            event is triggered, as SimPy's `Event.value` raises.
+    """
+    handle = scope.handles(name) if scope.handles is not None else None
+    if handle is None:
+        raise KeyError(f"no event is open under the name '{name}'")
+    value = handle.read(name, part)
+    for field_name in fields:
+        if not isinstance(value, Mapping) or field_name not in value:
+            raise KeyError(f"the value of handle.{name} has no field '{field_name}'")
         value = value[field_name]
     return value
 
@@ -441,6 +515,12 @@ class Scope:
         has_item: Whether a get has given the task an item (it may be None).
         stream: The stream `previous` follows for the entity, or None where no task
             runs.
+        handles: Gives the event opened under a name, read as `handle.<name>.<part>`;
+            None where no task runs.
+        request: The request a preempt rule tests, read as `request.rank`,
+            `request.time`, `request.preempt` and `request.key`; None elsewhere.
+        holder: The user whose unit it would take, read as `holder.rank`, `.time`,
+            `.preempt`, `.key`, `.since` and `holder.attr.<name>`; None elsewhere.
     """
 
     payload: Mapping[str, Any] = field(default_factory=dict)
@@ -466,6 +546,9 @@ class Scope:
     instances: Optional[Callable[[str], List["Scope"]]] = None
     has_item: bool = False
     stream: Any = None
+    handles: Optional[Callable[[str], Any]] = None
+    request: Optional[Mapping[str, Any]] = None
+    holder: Optional[Mapping[str, Any]] = None
 
 
 class AnyName:
@@ -487,7 +570,7 @@ class Expression:
         text (str): The expression as written.
         references (Dict[str, Set[str]]): The names it reads, by source: `payload`,
             `attr`, `level`, `users`, `queue`, `putters`, `getters`, `item`, `wait`,
-            `signal`, `process`, `registry` and `name` (the bare names), so a loader
+            `signal`, `handle`, `process`, `registry` and `name` (the bare names), so a loader
             can check them in advance. `count` and `items` hold the store names the
             two functions read, and `store_item` the `item.<field>` names inside
             them, which read each item the store holds and not the item of a get.
@@ -500,6 +583,7 @@ class Expression:
         text: str,
         records: bool = False,
         names: Optional[Container[str]] = None,
+        rule: bool = False,
     ):
         """
         Parses and checks an expression.
@@ -512,6 +596,8 @@ class Expression:
             names: The bare names it may read, such as a task's vars. None refuses
                 every bare name but `t`; `ANY_NAME` accepts any, for a loader that
                 checks them against the vars afterwards.
+            rule: True for the `when` and `victim` of a preempt rule, which also read
+                `request.<field>` and `holder.<field>` and none of the entity's names.
 
         Raises:
             ValueError: If it is not valid Python or uses anything outside the
@@ -522,6 +608,7 @@ class Expression:
         self.text = text
         self._records = records
         self._names = names
+        self._rule = rule
         try:
             tree = ast.parse(text.strip(), mode="eval")
         except SyntaxError as exc:
@@ -541,6 +628,7 @@ class Expression:
             "item": set(),
             "wait": set(),
             "signal": set(),
+            "handle": set(),
             "process": set(),
             "registry": set(),
             "name": set(),
@@ -556,6 +644,8 @@ class Expression:
             "flag": set(),
             "loop": set(),
         }
+        # The `request.` and `holder.` reads of a preempt rule, such as `holder.rank`
+        self.rule_reads: Set[str] = set()
         # The names of the comprehensions being checked
         self._local: Set[str] = set()
         # The record names an egress `when` reads, such as `value.event_type`
@@ -605,6 +695,7 @@ class Expression:
                 "payload",
                 "item",
                 "wait",
+                "handle",
                 "process",
                 "arg",
                 "cause",
@@ -867,6 +958,9 @@ class Expression:
             if any(part.startswith("__") for part in parts):
                 raise self._refuse("a name that starts with two underscores")
             return
+        if base.id in ("request", "holder"):
+            self._check_rule_read(base.id, parts)
+            return
         if base.id == "process":
             if len(parts) != 1 or parts[0] not in _PROCESS:
                 raise self._refuse(
@@ -907,6 +1001,29 @@ class Expression:
             "an attribute that is not payload., attr., level., users., queue., "
             "putters., getters., item., arg., cause., upstream. or process."
         )
+
+    def _check_rule_read(self, source: str, parts: List[str]) -> None:
+        """Checks `request.<field>`, `holder.<field>` or `holder.attr.<name>`, which only
+        the `when` and `victim` of a preempt rule read."""
+        if not self._rule:
+            raise self._refuse(
+                f"the name '{source}.{'.'.join(parts)}', which only the when and "
+                f"victim of a preempt rule read"
+            )
+        fields = _REQUEST_FIELDS if source == "request" else _HOLDER_FIELDS
+        if source == "holder" and parts[0] == "attr":
+            if len(parts) != 2 or parts[1].startswith("__"):
+                raise self._refuse(
+                    "a read of holder.attr other than holder.attr.<name>"
+                )
+        elif len(parts) != 1 or parts[0] not in fields:
+            raise self._refuse(
+                f"'{source}.{'.'.join(parts)}' (write {source}."
+                f"{', '.join(fields)}"
+                + (" or holder.attr.<name>" if source == "holder" else "")
+                + ")"
+            )
+        self.rule_reads.add(f"{source}.{'.'.join(parts)}")
 
     def _check_call(self, node: ast.Call) -> None:
         """Checks a call: `count(<store>)` or `items(<store>)`, `has(attr.<name>)`, a
@@ -1201,6 +1318,18 @@ class Expression:
             return self._value(node.body, scope)
         return self._value(node.orelse, scope)
 
+    def _read_rule(self, source: str, parts: List[str], scope: Scope) -> Any:
+        """The value of `request.<field>`, `holder.<field>` or `holder.attr.<name>`."""
+        row = scope.request if source == "request" else scope.holder
+        if row is None:
+            raise KeyError(f"no request is being tested, so {source} has no value")
+        if parts[0] == "attr":
+            attributes = row.get("attr")
+            if not isinstance(attributes, Mapping) or parts[1] not in attributes:
+                raise KeyError(f"the holder has no attribute '{parts[1]}'")
+            return attributes[parts[1]]
+        return row[parts[0]]
+
     def _attribute(self, node: ast.Attribute, scope: Scope) -> Any:
         """The value of a dotted read."""
         base, parts = _chain(node)
@@ -1214,6 +1343,8 @@ class Expression:
             value = row.get("value")
             return value.get(record[1]) if isinstance(value, Mapping) else None
         source, first = base.id, parts[0]
+        if source in ("request", "holder"):
+            return self._read_rule(source, parts, scope)
         if source in scope.loops:
             value = scope.loops[source]
             for part in parts:

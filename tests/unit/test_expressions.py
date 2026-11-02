@@ -109,6 +109,7 @@ def test_references_name_each_source():
         "payload.total > 1 and attr.vip == 1 and level.stock > 0 "
         'and users.machine < 2 and queue.machine >= 1 and registry["Shop.arrival.orders.rate"] > 0 and item.size == 2 '
         "and wait.restock.value.qty > 0 and signal.restocked.count > 0 "
+        "and handle.slot.alive "
         "and putters.shelf > 0 and getters.shelf == 0 "
         'and count(shelf, item.area == "north") >= 1 and payload.sku in items(shelf, item.sku)'
     )
@@ -126,6 +127,7 @@ def test_references_name_each_source():
         "item": {"size"},
         "wait": {"restock"},
         "signal": {"restocked"},
+        "handle": {"slot"},
         "process": set(),
         "registry": {"Shop.arrival.orders.rate"},
         "name": set(),

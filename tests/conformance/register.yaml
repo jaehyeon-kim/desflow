@@ -177,6 +177,8 @@
     - tests/conformance/test_yaml_only.py::test_v2_an_interrupt_while_the_computed_timeout_runs
     - tests/conformance/test_yaml_only.py::test_v2_a_negative_timeout_fails_the_run
     - tests/conformance/test_yaml_only.py::test_m4_initial_entities_start_before_the_run
+    - tests/conformance/test_yaml_only.py::test_losing_timeout_can_be_waited_for_again
+    - tests/conformance/test_yaml_only.py::test_y4_a_child_reads_a_handle_of_its_parent_and_a_group_is_made_now
   page: how-to/modelling/wait-for-one-or-all.md#wait-for-the-first
   differences: "Losing signal, timeout and condition branches are dropped when the wait ends; losing child flows keep running, as SimPy leaves processes running. A request branch not yet granted when the wait ends is cancelled; a SimPy `with` block held over the rest of the task leaves it queued."
 
@@ -205,6 +207,8 @@
     - tests/conformance/test_c3_interrupts.py::test_c3_interrupt_while_waiting
     - tests/conformance/test_c3_interrupts.py::test_c3_an_interrupt_in_a_queue_keeps_the_unit_already_granted
     - tests/conformance/test_c3_interrupts.py::test_interrupt_reaches_an_instance_of_this_step
+    - tests/conformance/test_yaml_only.py::test_i10_a_wait_for_a_handle_goes_on_with_the_same_event_after_an_interrupt
+    - tests/conformance/test_yaml_only.py::test_y4_a_child_flow_is_a_handle_that_can_be_read_interrupted_and_waited_for
   page: learn/shop-logic/interruptions.md#interrupt-a-task
   differences: "A task's own `spawn:` and `interrupt:` keys run in a fixed order, interrupt first, so one task cannot interrupt the instance it spawns with them. List a `spawn` and then an `interrupt` in `on:`, which run in the order written, or use `context.spawn` and `context.interrupt`."
 
@@ -243,7 +247,7 @@
   operation: Priority preemption
   description: "A more urgent request takes a resource unit away from a less urgent user, who is interrupted."
   simpy: "`simpy.resources.resource.PreemptiveResource`"
-  yaml: "`resources.<name>.preempt: true` with `queue: priority`; `preempt: false` on a task opts out"
+  yaml: "`resources.<name>.preempt: true` with `queue: priority`; `preempt: false` on a task opts out, and `preempt` on a task, a `seize` or a `request` mapping can be an expression read for each request"
   builder: "`add_resource(..., queue=\"priority\", preempt=True)`"
   low_level: "`DynamicResource(..., queue=\"priority\", preempt=True)` and `request(priority, preempt=True)`"
   checks:
@@ -252,6 +256,10 @@
     - tests/conformance/test_c3_interrupts.py::test_c3_two_preemptions_at_one_instant
     - tests/conformance/test_c3_interrupts.py::test_c3_preemption_tie_between_users
     - tests/conformance/test_c3_interrupts.py::test_c3_priority_preemption_low_level
+    - tests/conformance/test_yaml_only.py::test_unit_states_preemption
+    - tests/conformance/test_yaml_only.py::test_a_seized_unit_that_a_preemption_takes_before_the_task_looked_is_asked_for_again
+    - tests/conformance/test_yaml_only.py::test_h1_preempting_a_unit_that_an_ended_flow_holds_fails_the_requesting_flow
+    - tests/conformance/test_yaml_only.py::test_y8_a_computed_preempt_flag_is_read_for_each_request
   page: user-guide/resources/priority-and-preemption.md#preemption
 
 - id: C3
@@ -279,6 +287,14 @@
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_ordinary_request_and_release
     - tests/conformance/test_low_level_surface.py::test_resource_put_and_get_exist_and_put_takes_a_unit
+    - tests/conformance/test_yaml_only.py::test_h6_release_frees_the_unit_another_flow_holds
+    - tests/conformance/test_yaml_only.py::test_unit_states_grant
+    - tests/conformance/test_yaml_only.py::test_unit_states_loss_in_any_and_release_of_a_queued_request
+    - tests/conformance/test_yaml_only.py::test_unit_states_release_of_held_and_of_ended_requests
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_8_runs_as_its_simpy_program
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_8_runs_at_other_sizes
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_8_document_equals_the_docs_snippet
+    - tests/conformance/test_yaml_only.py::test_every_known_case_of_batch_8_runs_in_a_document_that_a_case_runs
   page: user-guide/resources/index.md#declare-a-resource
 
 - id: C4
@@ -293,6 +309,10 @@
     - tests/conformance/test_c4_resources.py::test_c4_priority_resource_request
     - tests/conformance/test_c4_resources.py::test_c4_priority_request_with_mixed_preempt_flags
     - tests/conformance/test_yaml_only.py::test_v4_a_value_drawn_for_each_entity_orders_a_priority_queue
+    - tests/conformance/test_yaml_only.py::test_y8_a_request_mapping_gives_each_branch_its_own_priority
+    - tests/conformance/test_yaml_only.py::test_y8_a_request_mapping_that_names_no_priority_or_preempt_is_simpys_request
+    - tests/conformance/test_yaml_only.py::test_y8_a_request_mapping_beside_a_name_does_not_take_the_task_priority
+    - tests/conformance/test_yaml_only.py::test_y8_a_request_mapping_may_preempt_in_a_task_that_may_not
   page: user-guide/resources/priority-and-preemption.md#task-priority
   differences: Equal priorities are served first in, first out, as in SimPy; desflow also offers `fifo` and `lifo` queues, under which a request's priority is ignored.
 
@@ -307,6 +327,10 @@
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_cancel_before_a_grant
     - tests/conformance/test_c4_resources.py::test_c4_renege_ahead_of_a_preempting_request
+    - tests/conformance/test_yaml_only.py::test_unit_states_patience_end
+    - tests/conformance/test_yaml_only.py::test_unit_states_cancel_of_a_queued_request_and_release_after_it
+    - tests/conformance/test_yaml_only.py::test_unit_states_cancel_of_a_request_that_left_the_line_fails_the_run
+    - tests/conformance/test_yaml_only.py::test_y4_cancel_of_a_get_and_of_a_put_and_a_get_granted_before_the_cancel
   page: user-guide/resources/index.md#cancel-and-release
 
 - id: C4
@@ -314,11 +338,12 @@
   operation: Cancel after a grant
   description: "A task that already holds a unit stops early and gives the unit back."
   simpy: "`Request.cancel()` after the grant releases nothing; `Resource.release(request)` does"
-  yaml: "an interrupt with `on_interrupt: abandon` gives the unit back, as `release(request)` does"
+  yaml: "an interrupt with `on_interrupt: abandon` gives the unit back, as `release(request)` does; for a request made with `open`, `cancel` after the grant releases nothing, and `release: {handle: <name>}` does"
   builder: the same
   low_level: "`request.cancel()` releases nothing; `resource.release(request)`"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_cancel_after_a_grant
+    - tests/conformance/test_yaml_only.py::test_h9_a_cancel_after_the_grant_keeps_the_unit_until_the_release
   page: user-guide/resources/index.md#cancel-and-release
 
 - id: C4
@@ -326,8 +351,8 @@
   operation: Hold several resources
   description: "A task holds more than one resource at once, taken in a fixed order, and can hand them to the next task."
   simpy: nested requests, each held while the next is awaited
-  yaml: "`resource: [picker, bench]`, acquired in that order; `keep` hands units to the next task"
-  builder: "`@app.task(resource_id=[\"picker\", \"bench\"], keep=[...])`"
+  yaml: "`resource: [picker, bench]`, acquired in that order; `keep` hands units to the next task; `seize` keeps a unit across later tasks until `release`"
+  builder: "`@app.task(resource_id=[\"picker\", \"bench\"], keep=[...])`, or `seize=` and `release=`"
   low_level: nested `with` blocks
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_hold_several_resources
@@ -335,8 +360,12 @@
     - tests/conformance/test_c4_resources.py::test_keep_survives_a_child_flow
     - tests/conformance/test_c4_resources.py::test_keep_survives_a_child_that_abandons_or_balks
     - tests/conformance/test_c1_process_interaction.py::test_c1_a_preempted_kept_unit_interrupts_the_next_task_while_it_queues
+    - tests/conformance/test_yaml_only.py::test_h1_a_seized_unit_is_held_across_tasks_until_the_release
+    - tests/conformance/test_yaml_only.py::test_h5_opposite_orders_of_seize_load_with_a_warning_and_run_as_simpy
+    - tests/conformance/test_yaml_only.py::test_unit_states_task_end_and_flow_end
+    - tests/conformance/test_yaml_only.py::test_y4_an_opened_request_is_ahead_of_a_seize_of_the_same_resource
   page: user-guide/resources/several-resources.md#several-resources
-  differences: A model whose tasks acquire two resources in opposite orders is refused when it is built, because those tasks could each wait for ever; SimPy runs it. Two requests under one `all` wait are made together, so another task that acquires the two one after the other, in either order, is refused too.
+  differences: A model whose tasks acquire two resources in opposite orders gets a warning when it is built, because those tasks could each wait for ever; it runs as SimPy runs it. Two requests under one `all` wait are made together, so another task that acquires the two one after the other, in either order, gets the warning too. A task that keeps a unit for a task that requests it in its wait is refused, because the wait would queue behind the unit it keeps.
 
 - id: C4
   inventory: [SP-S2]
@@ -410,11 +439,12 @@
   operation: A waiting line with a limit
   description: "A resource refuses a request when a set number of requests wait already, and a task that is refused balks."
   simpy: "`resources.resource.SortedQueue(maxlen)`"
-  yaml: "`queue_limit: 5` on the resource"
+  yaml: "`queue_limit: 5` on the resource; a scenario step, an `on:` entry or an ingress message can write the registry path `<sim_id>.resources.<name>.queue_limit` during the run, with a whole number or `null` for no limit"
   builder: "`add_resource(..., queue_limit=5)`"
   low_level: "`DynamicResource(..., queue_limit=5)`: `request()` raises `RuntimeError`"
   checks:
     - tests/conformance/test_c7_patience.py::test_c7_queue_limit
+    - tests/conformance/test_yaml_only.py::test_h8_queue_limit_changes_during_the_run
     - tests/conformance/test_c7_patience.py::test_c7_queue_limit_on_the_second_of_two_resources
     - tests/conformance/test_c7_patience.py::test_c7_queue_limit_fails_a_request_wait_branch
     - tests/conformance/test_c7_patience.py::test_c7_a_type_with_its_own_queue_limit_balks_before_queued
@@ -430,11 +460,15 @@
   operation: Subclass a resource to change its rules
   description: "A resource of your own class changes when a request is granted, how the waiting line is kept and what a request or release does."
   simpy: "`resources.resource.PreemptiveResource`"
-  yaml: "`type: !python module.Class` on the resource"
-  builder: "`add_resource(..., type=Class)`"
+  yaml: "`type: !python module.Class` on the resource; for a queue order and a preemption rule, `queue: {rank, ties}` and `preempt: {when, victim}`"
+  builder: "`add_resource(..., type=Class)`, or `queue={...}` and `preempt={...}`"
   low_level: "a subclass of `ResourceBase`, built as `Class(env, sim_id, name)`"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_custom_resource_type
+    - tests/conformance/test_yaml_only.py::test_m5_default_queue_rule_runs_as_a_preemptive_resource
+    - tests/conformance/test_yaml_only.py::test_m5_ties_change_only_the_order_of_equal_ranks
+    - tests/conformance/test_yaml_only.py::test_m5_when_rule_decides_each_preemption
+    - tests/conformance/test_yaml_only.py::test_m5_victim_rule_picks_the_holder_with_the_largest_value
   page: user-guide/resources/custom-resource-types.md#custom-resource-types
 
 - id: C5
@@ -506,12 +540,15 @@
   operation: Priority item storage
   description: "Items in a store come out by priority, the lowest number first, instead of in the order they went in."
   simpy: "`simpy.resources.store.PriorityStore`"
-  yaml: "`stores.<name>.priority: true` and a `put` with `priority`"
+  yaml: "`stores.<name>.priority: true` and a `put` with `priority`; `get_queue` and `put_queue` of a store or container rank the waiting gets and puts by an expression"
   builder: "`add_store(..., priority=True)` and `put={\"store\": ..., \"priority\": ...}`"
   low_level: "`DynamicStore(..., priority=True)` with `simpy.PriorityItem`"
   checks:
     - tests/conformance/test_c5_priority_store.py::test_c5_priority_item_storage
     - tests/conformance/test_c5_priority_store.py::test_equal_priorities_follow_the_heap
+    - tests/conformance/test_yaml_only.py::test_y12_waiting_gets_of_a_store_follow_the_rank
+    - tests/conformance/test_yaml_only.py::test_y12_waiting_puts_of_a_store_follow_the_rank
+    - tests/conformance/test_yaml_only.py::test_y12_a_container_get_that_cannot_be_met_stops_the_scan
   page: user-guide/model-parts/stores-and-containers.md#start-with-items-and-serve-by-priority
 
 - id: C5
@@ -1236,6 +1273,7 @@
     - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_that_hands_on
     - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_that_it_spawned
     - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_abandoned_in_a_child_flow
+    - tests/conformance/test_yaml_only.py::test_m7_whole_flow_waits_for_the_flows_the_task_belongs_to
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C2

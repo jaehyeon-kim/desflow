@@ -1,0 +1,6 @@
+# Fixed draws: the ranks of the four getters are 3, 2, 1 and 0, the values programs/known8.py uses for the draws of the original.
+# case P76: salabim enter_sorted and enter_at_head: a queue ranked by a field, and an item placed at the head.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+stores: {q: {get_queue: {rank: "attr.rank", ties: lifo}}}
+arrivals: {g: {dist: constant, value: 0.5, spawn: want, max_events: 4, attributes: {rank: {gen: sequence, start: 3, step: -1, loop_after: 4}}}, p: {dist: constant, value: 2, spawn: supply, max_events: 4, first_at: 1}}
+tasks: {want: {get: {store: q}, payload: {event_type: got}}, supply: {put: {store: q}, payload: {event_type: supplied}}}

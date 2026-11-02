@@ -21,21 +21,6 @@
 # A batch that removes a gap deletes its id from `gaps` and from every construct.
 
 gaps:
-  H1:
-    text: "A priority or preemptive unit cannot be held across a drawn or computed step, or across several later steps, by keys alone."
-    form: held
-  H5:
-    text: "Two tasks that take the same resources in opposite orders are refused at build, even with spare capacity."
-    form: held
-  H6:
-    text: "A YAML task cannot release or hand on a unit that another entity holds."
-    form: held
-  H8:
-    text: "`queue_limit` cannot change while the run goes on."
-    form: held
-  H9:
-    text: "An interrupted task gives its unit back or repeats the same step; a SimPy process whose `cancel()` after the grant released nothing keeps the unit for other work until it releases it."
-    form: held
   I3:
     text: "After an interrupt, a flow cannot run and then resume the time left, for work that holds no resource."
     form: computed
@@ -45,13 +30,6 @@ gaps:
   I6:
     text: "Going on after a renege or a balk has no YAML key, and the Builder's `on_renege` and `on_balk` do it; a child flow that does it reports `ok: true` and no value, as a SimPy child that returns without a value does."
     form: computed
-  I10:
-    text: "After an interrupt, a task under `on_interrupt: resume` asks again: a `wait: {timeout: 5}` interrupted at 2 starts again and ends at 7, a timeout inside `any` starts again, and a queued request or a `get` goes to the back of its queue, so another waiter takes the unit or the item first. A SimPy process that yields the same event again keeps the first end of the timeout and its place in the queue."
-    form: wait-again
-  T10:
-    text: "A losing timeout branch is dropped when an `any` wait ends; SimPy can yield the same `Timeout` again."
-    form: computed
-    fixed: 0.31.0
   M1:
     text: "Readings at each change of a resource, and an event trace, need a `!python` resource type or environment."
     key: "`type: !python` on the resource, or `simulation.environment: !python`"
@@ -60,12 +38,6 @@ gaps:
   M3:
     text: "In YAML, `on_fail` needs a `fail` condition, so a failed wait is handled only with a dummy condition. The Builder's `on_fail` takes none."
     form: computed
-  M5:
-    text: "A custom resource type needs `type: !python` in YAML; the Builder takes the class in `type=`."
-    key: "`type: !python` on the resource"
-  M7:
-    text: "`wait: {running: ...}` goes on when the instance ends, not when its flow ends; a flow is one process, and SimPy's `yield process` goes on when the whole process ends."
-    form: whole-flow
 
 unattached:
   B1:
@@ -103,7 +75,7 @@ constructs:
   - {id: SP-V6, area: Events and Timeout, simpy: "`Event.defused`", gaps: [M3]}
   - {id: SP-V7, area: Events and Timeout, simpy: "A failed event nobody handles stops the run"}
   - {id: SP-V8, area: Events and Timeout, simpy: "`Event.triggered`, `processed`, `ok` and `value`"}
-  - {id: SP-V9, area: Events and Timeout, simpy: "`a & b` and `a | b`", gaps: [T10]}
+  - {id: SP-V9, area: Events and Timeout, simpy: "`a & b` and `a | b`"}
   - {id: SP-V10, area: Events and Timeout, simpy: "`Timeout(delay)`"}
   - {id: SP-V11, area: Events and Timeout, simpy: "`Timeout(delay, value)`"}
   # Processes
@@ -113,7 +85,7 @@ constructs:
   - {id: SP-P4, area: Processes, simpy: "`Process.is_alive`"}
   - {id: SP-P5, area: Processes, simpy: "`Process.target`"}
   - {id: SP-P6, area: Processes, simpy: "`Process.name`"}
-  - {id: SP-P7, area: Processes, simpy: "Wait for a process that is already running", gaps: [M7]}
+  - {id: SP-P7, area: Processes, simpy: "Wait for a process that is already running"}
   - {id: SP-U1, area: Processes, simpy: "`start_delayed(env, generator, delay)`"}
   # Conditions
   - {id: SP-C1, area: Conditions, simpy: "`AnyOf` and `env.any_of`"}
@@ -129,11 +101,11 @@ constructs:
   - {id: SP-P9, area: Interrupts, simpy: "An interrupt during a timeout", gaps: [I3]}
   - {id: SP-P10, area: Interrupts, simpy: "`Interrupt` and `Interrupt.cause`"}
   - {id: SP-P11, area: Interrupts, simpy: "Several interrupts at one time arrive in order"}
-  - {id: SP-P12, area: Interrupts, simpy: "A process waits again for the same event after an interrupt", gaps: [I10]}
+  - {id: SP-P12, area: Interrupts, simpy: "A process waits again for the same event after an interrupt"}
   - {id: SP-U2, area: Interrupts, simpy: "`subscribe_at(event)`"}
   # Resources
   - {id: SP-B1, area: Resources, simpy: "`capacity`"}
-  - {id: SP-S1, area: Resources, simpy: "`Resource.request()` and `release(request)`", gaps: [H6]}
+  - {id: SP-S1, area: Resources, simpy: "`Resource.request()` and `release(request)`"}
   - {id: SP-S2, area: Resources, simpy: "Capacity defaults to 1"}
   - {id: SP-S3, area: Resources, simpy: "Capacity must be above 0"}
   - {id: SP-S4, area: Resources, simpy: "`Resource.count`"}
@@ -141,20 +113,20 @@ constructs:
   - {id: SP-S6, area: Resources, simpy: "`Resource.users`"}
   - {id: SP-S7, area: Resources, simpy: "`Request` as a context manager"}
   - {id: SP-S8, area: Resources, simpy: "`Request.cancel()` before the grant"}
-  - {id: SP-S9, area: Resources, simpy: "`cancel()` after the grant", gaps: [H9]}
+  - {id: SP-S9, area: Resources, simpy: "`cancel()` after the grant"}
   - {id: SP-S10, area: Resources, simpy: "`Release` and `Release.request`"}
   - {id: SP-S11, area: Resources, simpy: "`Request.usage_since`"}
-  - {id: SP-S12, area: Resources, simpy: "Hold several resources at once", gaps: [H1, H5]}
+  - {id: SP-S12, area: Resources, simpy: "Hold several resources at once"}
   - {id: SP-S13, area: Resources, simpy: "Reneging: `req | env.timeout(patience)`", gaps: [I6]}
   - {id: SP-S14, area: Resources, simpy: "Balking: a check before `request()`", gaps: [I6]}
   - {id: SP-Q1, area: Resources, simpy: "`PriorityResource.request(priority)`"}
   - {id: SP-Q2, area: Resources, simpy: "Default request priority 0"}
   - {id: SP-Q3, area: Resources, simpy: "Queue key `(priority, time, not preempt)`"}
-  - {id: SP-Q4, area: Resources, simpy: "`PreemptiveResource` and `request(preempt=False)`", gaps: [H1]}
+  - {id: SP-Q4, area: Resources, simpy: "`PreemptiveResource` and `request(preempt=False)`"}
   - {id: SP-Q5, area: Resources, simpy: "The user to preempt is picked with `max`"}
   - {id: SP-Q6, area: Resources, simpy: "`Preempted` cause: `by`, `usage_since`, `resource`"}
-  - {id: SP-Q7, area: Resources, simpy: "`SortedQueue(maxlen)`, a waiting line with a limit", gaps: [H8]}
-  - {id: SP-Q8, area: Resources, simpy: "A subclass of `PreemptiveResource` or `Resource`", gaps: [M1, M5]}
+  - {id: SP-Q7, area: Resources, simpy: "`SortedQueue(maxlen)`, a waiting line with a limit"}
+  - {id: SP-Q8, area: Resources, simpy: "A subclass of `PreemptiveResource` or `Resource`", gaps: [M1]}
   # Containers
   - {id: SP-K1, area: Containers, simpy: "`Container.put(amount)`"}
   - {id: SP-K2, area: Containers, simpy: "`Container.get(amount)`"}

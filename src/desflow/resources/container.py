@@ -5,18 +5,27 @@ from simpy.resources.base import BoundClass
 from simpy.resources.container import ContainerGet, ContainerPut
 
 from desflow.core.internal import internal_process
-from desflow.resources.base import BaseDynamicResource, _CancelReports, _Notifier
+from desflow.resources.base import (
+    BaseDynamicResource,
+    RankedQueue,
+    _CancelReports,
+    _Notifier,
+    _Ranked,
+    check_ties,
+)
 
 
-class DynamicContainerPut(_CancelReports, ContainerPut):
+class DynamicContainerPut(_Ranked, _CancelReports, ContainerPut):
     """The put event of `ContainerBase`: SimPy's `ContainerPut`, whose `cancel()` also
-    reports the change of the queue length. Subclass it and set
+    reports the change of the queue length. Its `rank` keyword ranks it in a queue
+    that `DynamicContainer` was built to rank. Subclass it and set
     `put = BoundClass(MyPut)`."""
 
 
-class DynamicContainerGet(_CancelReports, ContainerGet):
+class DynamicContainerGet(_Ranked, _CancelReports, ContainerGet):
     """The get event of `ContainerBase`: SimPy's `ContainerGet`, whose `cancel()` also
-    reports the change of the queue length. Subclass it and set
+    reports the change of the queue length. Its `rank` keyword ranks it in a queue
+    that `DynamicContainer` was built to rank. Subclass it and set
     `get = BoundClass(MyGet)`."""
 
 
@@ -117,6 +126,8 @@ class DynamicContainer(BaseDynamicResource, Container):
         container_id: str,
         init: Optional[float] = None,
         type: Optional[Type[ContainerBase]] = None,
+        get_ties: Optional[str] = None,
+        put_ties: Optional[str] = None,
     ):
         """
         Initializes the DynamicContainer and binds its capacity to the registry.
@@ -131,12 +142,20 @@ class DynamicContainer(BaseDynamicResource, Container):
             type (Type[ContainerBase], optional): A subclass of `ContainerBase` to
                 build the container from, in place of the default; it is built as
                 `type(env, init=..., capacity=...)`. Defaults to None.
+            get_ties (str, optional): None, the default, keeps SimPy's queue of
+                waiting gets, first in, first out. `fifo` or `lifo` ranks them by the
+                `rank` each `get(rank=...)` is made with, lowest first, and serves
+                equal ranks oldest first or latest first. A get with no `rank` has
+                rank 0. Not allowed with `type`.
+            put_ties (str, optional): As `get_ties`, for the waiting puts.
 
         Raises:
-            ValueError: If `init` is above the capacity, or `type` is not a subclass
-                of `ContainerBase`.
+            ValueError: If `init` is above the capacity, `type` is not a subclass
+                of `ContainerBase`, or `get_ties` or `put_ties` is not `fifo` or
+                `lifo` or is given with `type`.
         """
         check_container_type(type)
+        check_ties(get_ties, put_ties, type)
         super().__init__(env, sim_id, container_id, "containers")
 
         self._level_val = env.registry.get(f"{sim_id}.containers.{container_id}.level")
@@ -162,8 +181,12 @@ class DynamicContainer(BaseDynamicResource, Container):
             env, init=start, capacity=initial_capacity or 1.0
         )
         self._container._on_change = self._level_changed
-        self.PutQueue = self._container.PutQueue
-        self.GetQueue = self._container.GetQueue
+        if get_ties is not None:
+            self._container.get_queue = RankedQueue(ties=get_ties)
+        if put_ties is not None:
+            self._container.put_queue = RankedQueue(ties=put_ties)
+        self.PutQueue = self._container.put_queue.__class__
+        self.GetQueue = self._container.get_queue.__class__
         self._container._capacity = initial_capacity
         self._level_val.track(self._container.level)
         internal_process(self.env, self._watch_level())

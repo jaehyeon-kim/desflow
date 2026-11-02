@@ -1,0 +1,13 @@
+# The run goes on after a child that nobody waits for ends with a failure (`on_unhandled_failure: continue`), as the SimPy program does when its interrupted process returns.
+# Design Y4: an event made now and used later through a local name.
+simulation: {sim_id: Y4, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}}
+arrivals: {a: {dist: constant, value: 1, spawn: begin, max_events: 2, first_at: 0}}
+tasks:
+  begin: {open: {slot: {request: m}, limit: {timeout: {after: 5, value: late}}, helper: {task: w}}, payload: {event_type: begin}, next: work}
+  work: {service_time: 1, payload: {event_type: work}, next: join}
+  join: {wait: {any: {got: {handle: slot}, out: {handle: limit}}}, payload: {event_type: join}, next: {when: [{condition: "handle.helper.alive", task: stop}], default: end}}
+  stop: {payload: {event_type: stop}, interrupt: {handle: helper, cause: stop}, next: end}
+  end: {cancel: slot, payload: {event_type: end}, release: {handle: slot}}
+  w: {service_time: 9, on_interrupt: abandon, payload: {event_type: w}}
+run: {on_unhandled_failure: continue}

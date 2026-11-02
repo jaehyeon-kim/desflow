@@ -6,7 +6,14 @@ from simpy import Environment, Event, FilterStore, PriorityItem, PriorityStore, 
 from simpy.resources.base import BoundClass
 from simpy.resources.store import FilterStoreGet, StoreGet, StorePut
 
-from desflow.resources.base import BaseDynamicResource, _CancelReports, _Notifier
+from desflow.resources.base import (
+    BaseDynamicResource,
+    RankedQueue,
+    _CancelReports,
+    check_ties,
+    _Notifier,
+    _Ranked,
+)
 
 
 def _whole(value: float) -> Union[int, float]:
@@ -14,19 +21,22 @@ def _whole(value: float) -> Union[int, float]:
     return value if math.isinf(value) else int(value)
 
 
-class DynamicStorePut(_CancelReports, StorePut):
+class DynamicStorePut(_Ranked, _CancelReports, StorePut):
     """The put event of `StoreBase`: SimPy's `StorePut`, whose `cancel()` also reports
-    the change of the queue length. Subclass it and set `put = BoundClass(MyPut)`."""
+    the change of the queue length. Its `rank` keyword ranks it in a queue that
+    `DynamicStore` was built to rank. Subclass it and set `put = BoundClass(MyPut)`."""
 
 
-class DynamicStoreGet(_CancelReports, StoreGet):
+class DynamicStoreGet(_Ranked, _CancelReports, StoreGet):
     """The get event of `StoreBase`: SimPy's `StoreGet`, whose `cancel()` also reports
-    the change of the queue length. Subclass it and set `get = BoundClass(MyGet)`."""
+    the change of the queue length. Its `rank` keyword ranks it in a queue that
+    `DynamicStore` was built to rank. Subclass it and set `get = BoundClass(MyGet)`."""
 
 
-class DynamicFilterStoreGet(_CancelReports, FilterStoreGet):
+class DynamicFilterStoreGet(_Ranked, _CancelReports, FilterStoreGet):
     """The get event of a filtered store: SimPy's `FilterStoreGet`, whose `cancel()`
-    also reports the change of the queue length."""
+    also reports the change of the queue length. It takes a `rank` keyword, as
+    `DynamicStoreGet` does."""
 
 
 class StoreBase(_Notifier, Store):
@@ -159,6 +169,8 @@ class DynamicStore(BaseDynamicResource, Store):
         priority: bool = False,
         items: Optional[Iterable[Any]] = None,
         type: Optional[Type[StoreBase]] = None,
+        get_ties: Optional[str] = None,
+        put_ties: Optional[str] = None,
     ):
         """
         Initializes the DynamicStore and binds its capacity to the registry.
@@ -177,13 +189,21 @@ class DynamicStore(BaseDynamicResource, Store):
             type (Type[StoreBase], optional): A subclass of `StoreBase` to build the
                 store from, in place of the default; it is built as
                 `type(env, capacity=...)`. Defaults to None, the default store.
+            get_ties (str, optional): None, the default, keeps SimPy's queue of
+                waiting gets, first in, first out. `fifo` or `lifo` ranks them by the
+                `rank` each `get(rank=...)` is made with, lowest first, and serves
+                equal ranks oldest first or latest first. A get with no `rank` has
+                rank 0. Not allowed with `type`.
+            put_ties (str, optional): As `get_ties`, for the waiting puts.
 
         Raises:
             ValueError: If there are more items than the capacity, a priority
                 store's item is not a `(priority, item)` pair, `type` is not a
-                subclass of `StoreBase`, or `type` is given with `priority`.
+                subclass of `StoreBase`, `type` is given with `priority`, or `get_ties`
+                or `put_ties` is not `fifo` or `lifo` or is given with `type`.
         """
         check_store_type(type, priority)
+        check_ties(get_ties, put_ties, type)
         super().__init__(env, sim_id, store_id, "stores")
 
         max_cap = _whole(self._max_cap_val.value)
@@ -199,8 +219,12 @@ class DynamicStore(BaseDynamicResource, Store):
         self._store = kind(env, capacity=initial_capacity or 1)
         self._store._on_change = self._changed
         self._store._capacity = initial_capacity
-        self.PutQueue = kind.PutQueue
-        self.GetQueue = kind.GetQueue
+        if get_ties is not None:
+            self._store.get_queue = RankedQueue(ties=get_ties)
+        if put_ties is not None:
+            self._store.put_queue = RankedQueue(ties=put_ties)
+        self.PutQueue = self._store.put_queue.__class__
+        self.GetQueue = self._store.get_queue.__class__
         start = list(items or [])
         if len(start) > initial_capacity:
             raise ValueError(

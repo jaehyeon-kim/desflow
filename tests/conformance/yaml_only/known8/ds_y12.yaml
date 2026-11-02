@@ -1,0 +1,42 @@
+# Each put of a store carries a payload, because a store put on a task with `payload: null` is refused; the program logs the same record after each put.
+# Design Y12: a rank on the waiting gets and puts of a store and a container. Source: research/yaml-only/programs/Y12.py gets([5, 1, 3]), gets([1, 1, 0]) (three getters at 0 with ranks, items a, b, c put one after another from 1), puts() (a store of one place; puts first rank 0, low rank 5, high rank 1; a taker at 1, 2 and 3) and blocked_head() (a container with ranked gets of 5 (rank 0) and 1 (rank 1), puts of 2 at 1 and 3 at 2), as independent groups.
+simulation: {sim_id: Y12, factor: 0, random_seed: 42}
+stores:
+  sA: {get_queue: {rank: "attr.rank", ties: fifo}}
+  sB: {get_queue: {rank: "attr.rank", ties: fifo}}
+  shelf: {current_cap: 1, put_queue: {rank: "attr.rank"}}
+containers: {c: {get_queue: {rank: "attr.rank"}, level: 0}}
+arrivals:
+  ga0: {dist: constant, value: 1, spawn: getA, max_events: 1, first_at: 0, attributes: {i: 0, rank: 5}}
+  ga1: {dist: constant, value: 1, spawn: getA, max_events: 1, first_at: 0, attributes: {i: 1, rank: 1}}
+  ga2: {dist: constant, value: 1, spawn: getA, max_events: 1, first_at: 0, attributes: {i: 2, rank: 3}}
+  pa: {dist: constant, value: 1, spawn: putA, max_events: 1, first_at: 0}
+  gb0: {dist: constant, value: 1, spawn: getB, max_events: 1, first_at: 0, attributes: {i: 0, rank: 1}}
+  gb1: {dist: constant, value: 1, spawn: getB, max_events: 1, first_at: 0, attributes: {i: 1, rank: 1}}
+  gb2: {dist: constant, value: 1, spawn: getB, max_events: 1, first_at: 0, attributes: {i: 2, rank: 0}}
+  pb: {dist: constant, value: 1, spawn: putB, max_events: 1, first_at: 0}
+  wf: {initial: 1, spawn: shelve, attributes: {rank: 0, name: first}}
+  wl: {initial: 1, spawn: shelve, attributes: {rank: 5, name: low}}
+  wh: {initial: 1, spawn: shelve, attributes: {rank: 1, name: high}}
+  tk: {dist: constant, value: 1, spawn: take, max_events: 3, first_at: 1}
+  cbig: {dist: constant, value: 1, spawn: cget, max_events: 1, first_at: 0, attributes: {rank: 0, amount: 5, name: "big, rank 0"}}
+  csmall: {dist: constant, value: 1, spawn: cget, max_events: 1, first_at: 0, attributes: {rank: 1, amount: 1, name: "small, rank 1"}}
+  cp: {dist: constant, value: 1, spawn: cput, max_events: 1, first_at: 0}
+tasks:
+  getA: {get: {store: sA}, payload: {event_type: got, i: {gen: attr, name: i}, item: {gen: expr, expr: item}}}
+  putA: {wait: {timeout: 1}, payload: null, next: putA1}
+  putA1: {put: {store: sA, item: a}, payload: {event_type: put}, next: putA2}
+  putA2: {put: {store: sA, item: b}, payload: {event_type: put}, next: putA3}
+  putA3: {put: {store: sA, item: c}, payload: {event_type: put}}
+  getB: {get: {store: sB}, payload: {event_type: got, i: {gen: attr, name: i}, item: {gen: expr, expr: item}}}
+  putB: {wait: {timeout: 1}, payload: null, next: putB1}
+  putB1: {put: {store: sB, item: a}, payload: {event_type: put}, next: putB2}
+  putB2: {put: {store: sB, item: b}, payload: {event_type: put}, next: putB3}
+  putB3: {put: {store: sB, item: c}, payload: {event_type: put}}
+  shelve: {put: {store: shelf, item: {gen: attr, name: name}}, payload: {event_type: in, name: {gen: attr, name: name}}}
+  take: {get: {store: shelf}, payload: {event_type: out, name: {gen: expr, expr: item}}}
+  cget: {get: {container: c, amount: "attr.amount"}, payload: {event_type: got, name: {gen: attr, name: name}, level: {gen: expr, expr: "level.c"}}}
+  cput: {wait: {timeout: 1}, payload: null, next: cput1}
+  cput1: {put: {container: c, amount: 2}, payload: null, next: cput2}
+  cput2: {wait: {timeout: 1}, payload: null, next: cput3}
+  cput3: {put: {container: c, amount: 3}, payload: null}

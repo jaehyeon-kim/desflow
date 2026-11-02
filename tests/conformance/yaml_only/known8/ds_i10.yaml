@@ -1,0 +1,9 @@
+# Register row I10: no new key. An opened event waited for through its handle under `resume` keeps its first end and its queue place.
+simulation: {sim_id: I10, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}}
+arrivals:
+  a: {initial: 1, spawn: waiter}
+  b: {dist: constant, value: 2, spawn: poke, max_events: 1}
+tasks:
+  waiter: {open: {limit: {timeout: 5}}, wait: {handle: limit}, on_interrupt: resume, payload: {event_type: ended}}
+  poke: {payload: {event_type: poke}, interrupt: {task: waiter, cause: x}}

@@ -30,7 +30,8 @@ def check_step(step: Mapping[str, Any]) -> dict:
 
     Raises:
         ValueError: If a key is unknown, `at` is missing or negative, a path has no
-            value, a value has no path, or the step does nothing.
+            value, a value has no path, the step does nothing, or an interrupt names
+            no task (a `handle` is the interrupt key of a task, not of a step).
     """
     unknown = set(step) - set(STEP_KEYS)
     if unknown:
@@ -52,6 +53,16 @@ def check_step(step: Mapping[str, Any]) -> dict:
     if not ({"path", "record", "interrupt"} & set(step)):
         raise ValueError(
             "a scenario step needs a path and value, a record or an interrupt"
+        )
+    action = step.get("interrupt")
+    if action is not None and (
+        not isinstance(action, Mapping) or action.get("task") is None
+    ):
+        raise ValueError(
+            "a scenario step interrupts a task; a handle is the interrupt key of "
+            "a task, which knows the names it opened"
+            if isinstance(action, Mapping) and action.get("handle") is not None
+            else "a scenario step's interrupt names the task to interrupt"
         )
     return {**step, "at": seconds}
 

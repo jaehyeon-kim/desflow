@@ -1,0 +1,10 @@
+# Fixed draws: the deadlines of the four jobs are 20, 17, 14 and 11, the values programs/known8.py uses for the draws.
+# case GD-RS11: a subclass of PreemptiveResource that changes the queue or preemption rule (resources.rst:317-320). See design M5.
+simulation: {sim_id: R, factor: 0, random_seed: 42}
+resources:
+  res:
+    current_cap: 1
+    queue: {rank: "attr.deadline - t", ties: fifo}
+    preempt: {when: "request.rank < holder.rank", victim: "holder.rank"}
+arrivals: {a: {dist: constant, value: 1, spawn: job, max_events: 4, first_at: 0, attributes: {deadline: {gen: sequence, start: 20, step: -3}}}}
+tasks: {job: {resource: res, service_time: 3, payload: {event_type: done}}}

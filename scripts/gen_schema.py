@@ -164,6 +164,11 @@ INPUT_FORMS: Dict[Tuple[str, str], Any] = {
     ("TransferStep", "_priority_is_a_literal"): None,
     ("Next", "_numeric_text"): None,
     ("Task", "_wait_parses"): None,
+    ("Task", "_open_parses"): None,
+    ("SeizeSpec", "_patience_duration"): PATIENCE,
+    ("SeizeSpec", "_preempt_words"): None,
+    ("RequestSpec", "_preempt_words"): None,
+    ("Task", "_preempt_words"): None,
     ("EgressConnector", "_known_name"): None,
     # An `on:` value that is a mapping with no `gen` is data, as the Value type says
     ("_generator_or_data", "_value_form"): None,

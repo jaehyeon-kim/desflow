@@ -380,7 +380,7 @@ def test_filters_and_patience_are_checked_before_the_run():
 
     with pytest.raises(ValueError, match="both ranks and filters"):
         app.run(until=1)
-    with pytest.raises(ValueError, match="needs a wait, a resource or a get"):
+    with pytest.raises(ValueError, match="needs a wait, a seize, a resource or a get"):
         app.task(name="idle", patience=5)
     with pytest.raises(ValueError, match="a put takes no filter"):
         app.task(name="drop", put={"store": "express", "filter": "item.size == 1"})
@@ -481,9 +481,10 @@ def _two_resources():
     )
 
 
-def test_resources_acquired_in_opposite_orders_are_refused():
+def test_resources_acquired_in_opposite_orders_are_warned_about(caplog):
     """Two tasks that each hold one resource while waiting for the other could wait
-    for ever, so the model is refused, also through a keep handoff."""
+    for ever, so the model gets a warning, also through a keep handoff, and runs as
+    SimPy runs it."""
     app = _two_resources()
 
     @app.task(service_id="s", resource_id=["picker", "bench"], name="a")
@@ -494,8 +495,11 @@ def test_resources_acquired_in_opposite_orders_are_refused():
     def b(task_id):
         return {}
 
-    with pytest.raises(ValueError, match="in one order everywhere"):
+    with caplog.at_level("WARNING"):
         app.run(until=1)
+    assert caplog.text.count("in one order everywhere") == 1
+    assert "task 'a' acquires 'picker' before 'bench'" in caplog.text
+    caplog.clear()
 
     handoff = _two_resources()
 
@@ -513,8 +517,9 @@ def test_resources_acquired_in_opposite_orders_are_refused():
     def e(task_id):
         return {}
 
-    with pytest.raises(ValueError, match="keeping it for 'c'"):
+    with caplog.at_level("WARNING"):
         handoff.run(until=1)
+    assert "task 'd' keeping it for 'c' acquires 'bench' before 'picker'" in caplog.text
 
 
 def test_a_kept_unit_is_released_once_the_next_task_starts():
@@ -1086,9 +1091,10 @@ def test_a_resource_in_the_wait_and_in_resource_is_refused():
         app.run(until=1)
 
 
-def test_a_wait_request_counts_in_the_acquisition_order():
-    """A wait request is acquired before the task's resources, so it is refused when
-    another task acquires the two in the opposite order, as two resource lists are."""
+def test_a_wait_request_counts_in_the_acquisition_order(caplog):
+    """A wait request is acquired before the task's resources, so it gets a warning
+    when another task acquires the two in the opposite order, as two resource lists
+    do."""
     app = _two_resources()
 
     @app.task(wait={"request": "picker"}, service_id="s", resource_id="bench", name="a")
@@ -1099,8 +1105,10 @@ def test_a_wait_request_counts_in_the_acquisition_order():
     def b(task_id):
         return {}
 
-    with pytest.raises(ValueError, match="in one order everywhere"):
+    with caplog.at_level("WARNING"):
         app.run(until=1)
+    assert "in one order everywhere" in caplog.text
+    caplog.clear()
 
     same = _two_resources()
 
@@ -1114,13 +1122,15 @@ def test_a_wait_request_counts_in_the_acquisition_order():
     def b_same(task_id):
         return {}
 
-    same.run(until=1)
+    with caplog.at_level("WARNING"):
+        same.run(until=1)
+    assert "in one order everywhere" not in caplog.text
 
 
-def test_requests_under_one_all_are_acquired_together():
+def test_requests_under_one_all_are_acquired_together(caplog):
     """Two requests under an `all` are made together, and either can be held while
-    the other is waited for, so a task that acquires the two in either order is
-    refused. A group branch of an `any` can hold a unit while the `any` waits for
+    the other is waited for, so a task that acquires the two in either order gets a
+    warning. A group branch of an `any` can hold a unit while the `any` waits for
     its other branches, so it pairs with them too. Single request branches of an
     `any` end it when one is granted and set no order."""
     waits = (
@@ -1144,8 +1154,10 @@ def test_requests_under_one_all_are_acquired_together():
             def b(task_id):
                 return {}
 
-            with pytest.raises(ValueError, match="together in its wait"):
+            caplog.clear()
+            with caplog.at_level("WARNING"):
                 app.run(until=1)
+            assert " together in its wait" in caplog.text
 
     either = _two_resources()
 
@@ -1165,7 +1177,10 @@ def test_requests_under_one_all_are_acquired_together():
     def b_any(task_id):
         return {}
 
-    either.run(until=1)
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        either.run(until=1)
+    assert "in one order everywhere" not in caplog.text
 
 
 def test_a_kept_resource_requested_in_the_next_wait_is_refused():
@@ -1213,7 +1228,9 @@ def test_a_priority_needs_a_resource_or_a_wait_request_on_a_priority_queue():
     with pytest.raises(ValueError, match="does not queue by priority"):
         fifo.run(until=1)
 
-    with pytest.raises(ValueError, match="needs a resource or a request in its wait"):
+    with pytest.raises(
+        ValueError, match="needs a resource, a seize or a request in its wait or open"
+    ):
         SimulationContext("TestSim").task(
             "s", wait={"timeout": 1}, priority=2, name="b"
         )

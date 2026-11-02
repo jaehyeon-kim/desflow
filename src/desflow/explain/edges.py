@@ -26,10 +26,12 @@ def node_id(kind: str, name: str) -> str:
 
 
 def used_resources(spec: "TaskSpec") -> List[str]:
-    """The resources a task holds: its own, then those its wait requests.
+    """The resources a task holds: its own, then those its wait requests, then the one
+    it seizes and those it opens a request for.
 
     A unit a `request` branch of the wait wins is held through the service, as a
-    unit of the task's own resource is, so it counts toward the resource's load.
+    unit of the task's own resource is, so it counts toward the resource's load. A
+    seized or opened unit is asked for by the task, so the task uses that resource.
 
     Args:
         spec: The task.
@@ -40,6 +42,10 @@ def used_resources(spec: "TaskSpec") -> List[str]:
     names = list(spec.resources)
     if spec.wait is not None:
         names += [r for r in spec.wait.requests() if r not in names]
+    if spec.seize is not None and spec.seize.resource not in names:
+        names.append(spec.seize.resource)
+    if spec.open is not None:
+        names += [r for r in spec.open.requests() if r not in names]
     return names
 
 

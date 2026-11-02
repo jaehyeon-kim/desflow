@@ -26,13 +26,17 @@ from typing import (
     Union,
 )
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from desflow.blueprint.loader import BlueprintError, SourceMap, read_document
 from desflow.blueprint.models import (
     Blueprint,
     BlueprintTest,
+    QueueRule,
+    ReleaseSpec,
+    Resource,
     Run,
+    SeizeSpec,
     SegmentEvery,
     TestsFile,
     WhenExpr,
@@ -42,18 +46,21 @@ from desflow.config import LABELS
 from desflow.connectors.egress.local import ConsoleEgress
 from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.core.arrivals import ArrivalPlan
-from desflow.core.flow import Wait
-from desflow.core.registry import ParamRejected
+from desflow.core.flow import Open, Wait
+from desflow.core.registry import ParamRejected, is_queue_limit, queue_limit_value
 from desflow.core.task import (
     NO_RECORD,
+    Holding,
     check_acquisition_order,
     flow_sets,
+    handle_problem,
     scope_problem,
 )
 from desflow.core.context import SimulationContext
 from desflow.core.environment import in_zone, resolve_zone
 from desflow.utils import suggestion
 from desflow.values.check import (
+    task_value_places,
     check_value,
     children,
     generators_in,
@@ -272,11 +279,13 @@ def read_tests_file(
 
 def _file_location(loc: Tuple[Any, ...]) -> Tuple[Any, ...]:
     """The keys of a Pydantic error location that the file has: the union tags
-    pydantic adds (`<gen>`, `<map>`, `name`, `rules`) and the kind after `<gen>` are
-    left out."""
+    pydantic adds (`<gen>`, `<map>`, `name`, `rules`, and `function-after[...]` for a
+    model that has an `after` validator) and the kind after `<gen>` are left out."""
     kept = []
     for index, part in enumerate(loc):
         if isinstance(part, str) and part.startswith("<") and part.endswith(">"):
+            continue
+        if isinstance(part, str) and part.startswith("function-after["):
             continue
         if index and loc[index - 1] == "<gen>":
             continue
@@ -325,37 +334,20 @@ def _check_generator_places(
     reached_after_get: bool,
     reached_by_interrupt: bool,
 ) -> None:
-    """Checks the `expr` and `when` text of every generator a task holds, in `payload`,
-    `set`, `set_args`, the vars, `on_start`, `put.item`, `spawn`, `interrupt`, `on` and
-    `wait`: the rules of `scope_problem` (`cause`, `item`, `item_priority` and
+    """Checks the `expr` and `when` text of every generator a task holds, in each place
+    of `TASK_VALUE_PLACES`: the rules of `scope_problem` (`cause`, `item`, `item_priority` and
     `done_count`), that every signal, store, container, resource and task name an
     expression reads exists, and that a `wait.<branch>` is a branch of the task."""
     takes_item = task.get is not None and task.get.store is not None and task.get.wait
     var_names = {*task.vars_once, *task.vars, *task.finish_vars}
     branches = set(Wait(task.wait).branches) if task.wait else set()
-    places: List[Tuple[str, Any, Tuple[Any, ...], bool]] = [
-        # (key, value, location, evaluated after the task's own waiting get)
-        (
-            "payload",
-            task.payload if not callable(task.payload) else {},
-            ("payload",),
-            True,
-        ),
-        ("set", task.set, ("set",), True),
-        ("set_args", task.set_args, ("set_args",), True),
-        ("vars_once", task.vars_once, ("vars_once",), False),
-        ("vars", task.vars, ("vars",), True),
-        ("finish_vars", task.finish_vars, ("finish_vars",), True),
-        ("on_start", task.on_start, ("on_start",), True),
-        ("spawn", task.spawn, ("spawn",), True),
-        ("interrupt", task.interrupt, ("interrupt",), True),
-        ("on", task.on, ("on",), True),
-        ("wait", task.wait, ("wait",), False),
-        ("key", task.key, ("key",), False),
-    ]
-    if task.put is not None:
-        places.append(("put", task.put.item, ("put", "item"), True))
-    for _key, value, where, after in places:
+
+    def value_of(key: str) -> Any:
+        if key == "payload" and callable(task.payload):
+            return {}
+        return _task_value(task, key)
+
+    for _key, where, after, value in task_value_places(value_of):
         for text, path in _generator_texts(value, ("tasks", name) + where):
             try:
                 read = Expression(text, names=ANY_NAME)
@@ -390,6 +382,46 @@ def _check_generator_places(
                     f"'{text}' in task '{name}': wait.{branch} is not a branch of "
                     f"this task's wait" + suggestion(branch, branches),
                 )
+
+
+def _check_handles(blueprint: Blueprint, source: SourceMap) -> None:
+    """Checks that every handle a task reads, waits for, cancels, releases or
+    interrupts is opened by some task, and opened as something that use makes sense
+    of: a cancel needs a request, get or put, a release a request, an interrupt a
+    task."""
+    opens: Dict[str, List[Tuple[str, str]]] = {}
+    for name, task in blueprint.tasks.items():
+        if task.open is not None:
+            for handle, node in Open(task.open).nodes.items():
+                opens.setdefault(handle, []).append((name, node.kind))
+    uses: List[Tuple[str, str, str, str]] = []
+    for name, task in blueprint.tasks.items():
+        if task.wait is not None:
+            uses += [
+                (name, "wait", h, "any")
+                for h in sorted(Wait(task.wait).targets("handle"))
+            ]
+        if task.open is not None:
+            uses += [
+                (name, "open", h, "any")
+                for h in sorted(Open(task.open).targets("handle"))
+            ]
+        if task.cancel is not None:
+            handle = task.cancel if isinstance(task.cancel, str) else task.cancel.handle
+            uses.append((name, "cancel", handle, "line"))
+        if isinstance(task.release, ReleaseSpec) and task.release.handle is not None:
+            uses.append((name, "release", task.release.handle, "unit"))
+        if task.interrupt is not None and task.interrupt.handle is not None:
+            uses.append((name, "interrupt", task.interrupt.handle, "child"))
+        for expression, location in _expressions(name, task):
+            uses += [
+                (name, str(location[2]), h, "any")
+                for h in sorted(expression.references["handle"])
+            ]
+    problem = handle_problem(opens, uses)
+    if problem is not None:
+        holder, key, message = problem
+        raise source.error(("tasks", holder, key), f"task '{holder}': {key} {message}")
 
 
 def _check_switches(blueprint: Blueprint, source: SourceMap) -> None:
@@ -429,6 +461,23 @@ def _check_switches(blueprint: Blueprint, source: SourceMap) -> None:
                     f"the on: entry of signal '{name}'",
                     ("signals", name, "on", index, key),
                 )
+
+
+def _no_priority(name: str, resource: Resource) -> str:
+    """Why a request for `resource` takes no `priority`, or an empty string when it
+    does: the resource does not queue by priority, or it ranks its queue by an
+    expression, which is the request's priority."""
+    if isinstance(resource.queue, QueueRule):
+        return (
+            f"resource '{name}' ranks its queue by queue.rank, which is every "
+            "request's priority; remove the priority"
+        )
+    if resource.queue != "priority":
+        return (
+            f"resource '{name}' does not set queue: priority; set it, or remove the "
+            "priority"
+        )
+    return ""
 
 
 def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
@@ -476,29 +525,88 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                     f"task '{name}' uses resource '{resource}', "
                     + _undefined(resource, blueprint.resources, "resources"),
                 )
-            if (
-                task.priority is not None
-                and blueprint.resources[resource].queue != "priority"
+            if task.priority is not None and _no_priority(
+                resource, blueprint.resources[resource]
             ):
                 raise source.error(
                     ("tasks", name, "priority"),
-                    f"task '{name}' has a priority, but resource '{resource}' "
-                    f"does not set queue: priority; set it, or remove the priority",
+                    f"task '{name}' has a priority, but "
+                    + _no_priority(resource, blueprint.resources[resource]),
                 )
-        for resource in task.wait_requests():
+        for key, resource in (
+            *(("seize", r) for r in task.seized()),
+            *(("open", r) for r in task.open_requests()),
+        ):
+            if resource not in blueprint.resources:
+                raise source.error(
+                    ("tasks", name, key),
+                    f"task '{name}' uses resource '{resource}', "
+                    + _undefined(resource, blueprint.resources, "resources"),
+                )
+        if (
+            task.release is not None
+            and not isinstance(task.release, str)
+            and task.release.resource is not None
+            and task.release.resource not in blueprint.resources
+        ):
+            raise source.error(
+                ("tasks", name, "release"),
+                f"task '{name}' uses resource '{task.release.resource}', "
+                + _undefined(task.release.resource, blueprint.resources, "resources"),
+            )
+        if isinstance(task.release, str) and task.release not in blueprint.resources:
+            raise source.error(
+                ("tasks", name, "release"),
+                f"task '{name}' releases '{task.release}', "
+                + _undefined(task.release, blueprint.resources, "resources"),
+            )
+        if (
+            isinstance(task.seize, SeizeSpec)
+            and task.seize.priority is not None
+            and task.seize.resource in blueprint.resources
+            and _no_priority(
+                task.seize.resource, blueprint.resources[task.seize.resource]
+            )
+        ):
+            raise source.error(
+                ("tasks", name, "seize", "priority"),
+                f"task '{name}' has a priority on its seize, but "
+                + _no_priority(
+                    task.seize.resource, blueprint.resources[task.seize.resource]
+                ),
+            )
+        for place, group in (
+            ("wait", None if task.wait is None else Wait(task.wait)),
+            ("open", None if task.open is None else Open(task.open).wait),
+        ):
+            for node in group.branches.values() if group else ():
+                if (
+                    node.options is not None
+                    and node.options.priority is not None
+                    and node.target in blueprint.resources
+                    and _no_priority(node.target, blueprint.resources[node.target])
+                ):
+                    raise source.error(
+                        ("tasks", name, place),
+                        f"task '{name}' has a priority on its request in its "
+                        f"{place}, but "
+                        + _no_priority(node.target, blueprint.resources[node.target]),
+                    )
+        for resource in [*task.wait_requests(), *task.seized(), *task.open_requests()]:
             if (
                 task.priority is not None
                 and resource in blueprint.resources
-                and blueprint.resources[resource].queue != "priority"
+                and _no_priority(resource, blueprint.resources[resource])
             ):
                 raise source.error(
                     ("tasks", name, "priority"),
-                    f"task '{name}' has a priority, but resource '{resource}' "
-                    f"does not set queue: priority; set it, or remove the priority",
+                    f"task '{name}' has a priority, but "
+                    + _no_priority(resource, blueprint.resources[resource]),
                 )
         for key, target in (
             ("on_interrupt_next", task.on_interrupt_next),
             ("interrupt", task.interrupt.task if task.interrupt else None),
+            ("release", getattr(task.release, "task", None)),
         ):
             if target is not None and target not in blueprint.tasks:
                 raise source.error(
@@ -537,6 +645,7 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                     + _undefined(target, blueprint.tasks, "tasks"),
                 )
         wait = None if task.wait is None else Wait(task.wait)
+        opened = None if task.open is None else Open(task.open)
         named = [
             ("task", "on_fail", task.on_fail),
             ("signal", "signal", task.signal),
@@ -548,6 +657,14 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 ("signal", "wait", target)
                 for target in sorted(wait.targets("signal") if wait else [])
             ),
+            *(
+                ("task", "open", target)
+                for target in sorted(opened.targets("task") if opened else [])
+            ),
+            *(
+                ("signal", "open", target)
+                for target in sorted(opened.targets("signal") if opened else [])
+            ),
         ]
         for kind, key, target in named:
             defined = blueprint.tasks if kind == "task" else blueprint.signals
@@ -557,6 +674,17 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                     f"task '{name}' names {kind} '{target}', "
                     + _undefined(target, defined, f"{kind}s"),
                 )
+        for node in opened.wait.branches.values() if opened else []:
+            if node.kind in ("get", "put"):
+                kind = "store" if node.target.store is not None else "container"
+                section = blueprint.stores if kind == "store" else blueprint.containers
+                if node.target.target not in section:
+                    raise source.error(
+                        ("tasks", name, "open"),
+                        f"task '{name}' opens a {node.kind} of {kind} "
+                        f"'{node.target.target}', "
+                        + _undefined(node.target.target, section, f"{kind}s"),
+                    )
         branches = set(wait.branches) if wait else set()
         takes_item = task.get is not None and task.get.store is not None
         reached_after_get = name in after_get_tasks
@@ -621,7 +749,8 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
             for branch in expression.references["wait"]:
                 # balk and patience are read before the wait starts
                 if branch not in branches or (
-                    location[2] in ("wait", "balk", "patience") and not in_when
+                    location[2] in ("wait", "balk", "patience", "open", "seize")
+                    and not in_when
                 ):
                     raise source.error(
                         location,
@@ -673,6 +802,8 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
             _check_resource_names(expression, blueprint, source, location)
             _check_store_names(expression, blueprint, source, location)
 
+    _check_handles(blueprint, source)
+
     _check_events(blueprint, source)
 
     _check_run(blueprint, source)
@@ -686,6 +817,30 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
             },
             {
                 name: Wait(task.wait) if task.wait is not None else None
+                for name, task in blueprint.tasks.items()
+            },
+            {
+                name: Holding(
+                    task.seized()[0] if task.seized() else None,
+                    task.release
+                    if isinstance(task.release, str)
+                    else (
+                        task.release.resource
+                        if task.release is not None and task.release.task is None
+                        else None
+                    ),
+                    {
+                        *(target for target, _ in _routes(name, task)),
+                        *(
+                            t
+                            for t in (
+                                task.on_fail,
+                                task.on_interrupt_next,
+                            )
+                            if t is not None
+                        ),
+                    },
+                )
                 for name, task in blueprint.tasks.items()
             },
         )
@@ -723,7 +878,11 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
         )
 
     for index, step in enumerate(blueprint.scenario):
-        if step.interrupt is not None and step.interrupt.task not in blueprint.tasks:
+        if (
+            step.interrupt is not None
+            and step.interrupt.task is not None
+            and step.interrupt.task not in blueprint.tasks
+        ):
             raise source.error(
                 ("scenario", index, "interrupt"),
                 f"the step interrupts task '{step.interrupt.task}', "
@@ -773,6 +932,8 @@ def _reach_from(blueprint: Blueprint, start: str) -> Tuple[Set[str], bool]:
         frontier.extend(n for n in (task.on_fail, task.on_interrupt_next) if n)
         if task.wait is not None:
             frontier.extend(Wait(task.wait).targets("task"))
+        if task.open is not None:
+            frontier.extend(Open(task.open).targets("task"))
         if task.subscribe is not None:
             frontier.extend(Wait(task.subscribe).targets("task"))
     return seen, unknown
@@ -907,7 +1068,11 @@ def _check_events(blueprint: Blueprint, source: SourceMap) -> None:
             location = ("tasks", name, "on", index)
             if entry.spawn is not None:
                 spawn_clash(entry.spawn.task, owner, location + ("spawn",))
-            if entry.interrupt is not None and entry.interrupt.task not in tasks:
+            if (
+                entry.interrupt is not None
+                and entry.interrupt.task is not None
+                and entry.interrupt.task not in tasks
+            ):
                 raise source.error(
                     location + ("interrupt",),
                     f"the on: action of {owner} interrupts task "
@@ -924,7 +1089,11 @@ def _check_events(blueprint: Blueprint, source: SourceMap) -> None:
             location = ("signals", name, "on", index)
             if entry.spawn is not None:
                 spawn_clash(entry.spawn.task, owner, location + ("spawn",))
-            if entry.interrupt is not None and entry.interrupt.task not in tasks:
+            if (
+                entry.interrupt is not None
+                and entry.interrupt.task is not None
+                and entry.interrupt.task not in tasks
+            ):
                 raise source.error(
                     location + ("interrupt",),
                     f"the on: action of {owner} interrupts task "
@@ -1135,12 +1304,42 @@ def _arrival_expressions(
                 continue
 
 
+def _rule_expressions(
+    blueprint: Blueprint,
+) -> Iterator[Tuple[Expression, Tuple[Union[str, int], ...]]]:
+    """The `rank` of every `queue`, `get_queue` and `put_queue`, and the `when` and
+    `victim` of every `preempt` rule, parsed, with where each is written."""
+    for name, resource in blueprint.resources.items():
+        if isinstance(resource.queue, QueueRule):
+            yield Expression(resource.queue.rank), ("resources", name, "queue", "rank")
+        if isinstance(resource.preempt, BaseModel):
+            for key in ("when", "victim"):
+                text = getattr(resource.preempt, key)
+                if text is not None:
+                    yield (
+                        Expression(text, rule=True),
+                        ("resources", name, "preempt", key),
+                    )
+    for section, holders in (
+        ("stores", blueprint.stores),
+        ("containers", blueprint.containers),
+    ):
+        for name, holder in holders.items():
+            for key in ("get_queue", "put_queue"):
+                rule = getattr(holder, key)
+                if rule is not None:
+                    yield Expression(rule.rank), (section, name, key, "rank")
+
+
 def _check_arrival_places(blueprint: Blueprint, source: SourceMap) -> None:
     """Checks the names the run places of an arrival and the value places outside a
     task (a store's `items`, a signal's `on`, a scenario step) read: every `level`,
     `signal`, `users`, `queue`, `putters`, `getters`, `count` and `items` name must
-    exist, as in a `stop` condition."""
+    exist, as in a `stop` condition. The rules of a `queue` and a `preempt` are such
+    places too."""
     for expression, where in _arrival_expressions(blueprint):
+        _check_run_names(expression, blueprint, source, where)
+    for expression, where in _rule_expressions(blueprint):
         _check_run_names(expression, blueprint, source, where)
     for location, value in _value_sites(blueprint):
         for expression, where in _parsed_texts(value, location):
@@ -1184,6 +1383,13 @@ def _check_run_names(
                     or "; add it under stores or containers"
                 ),
             )
+    opened = {name for task in blueprint.tasks.values() for name in task.handles()}
+    for handle in sorted(expression.references["handle"] - opened):
+        raise source.error(
+            where,
+            f"handle.{handle} names no handle, which no task opens"
+            + (suggestion(handle, opened) or "; open it with open"),
+        )
     _check_resource_names(expression, blueprint, source, where)
     _check_store_names(expression, blueprint, source, where)
 
@@ -1281,6 +1487,8 @@ def _expressions(
     found = []
     if isinstance(task.priority, str):
         found.append((Expression(task.priority), where + ("priority",)))
+    if isinstance(task.preempt, str):
+        found.append((Expression(task.preempt), where + ("preempt",)))
     if isinstance(task.patience, str):
         found.append((Expression(task.patience), where + ("patience",)))
     if isinstance(task.service_time, str):
@@ -1296,12 +1504,24 @@ def _expressions(
         found.append((Expression(task.fail, names=ANY_NAME), where + ("fail",)))
     if task.interrupt is not None and task.interrupt.where is not None:
         found.append((Expression(task.interrupt.where), where + ("interrupt", "where")))
+    if task.open is not None:
+        for delay in Open(task.open).expressions:
+            found.append((delay, where + ("open",)))
+    if isinstance(task.seize, SeizeSpec):
+        for value in (task.seize.priority, task.seize.preempt):
+            if isinstance(value, str) and not isinstance(value, bool):
+                found.append((Expression(value), where + ("seize",)))
+    if task.release is not None and not isinstance(task.release, str):
+        if task.release.where is not None:
+            found.append((Expression(task.release.where), where + ("release", "where")))
     if task.wait is not None:
         wait = Wait(task.wait)
         for condition in wait.conditions:
             found.append((condition, where + ("wait",)))
         for delay in wait.time_expressions:
             found.append((delay, where + ("wait",)))
+        for request in wait.request_expressions:
+            found.append((request, where + ("wait",)))
         for predicate in wait.predicates:
             found.append((predicate, where + ("wait", "when")))
     for field in ("get", "put"):
@@ -1412,8 +1632,8 @@ def _add_to_context(
             name,
             _whole(resource.current_cap),
             _whole(resource.max_cap),
-            queue=resource.queue,
-            preempt=resource.preempt,
+            queue=_rule_as_mapping(resource.queue),
+            preempt=_rule_as_mapping(resource.preempt),
             queue_limit=resource.queue_limit,
             type=resource.type,
         )
@@ -1438,6 +1658,8 @@ def _add_to_context(
             priority=store.priority,
             items=store.items,
             type=store.type,
+            get_queue=_rule_as_mapping(store.get_queue),
+            put_queue=_rule_as_mapping(store.put_queue),
         )
     for name, container in blueprint.containers.items():
         context.add_container(
@@ -1446,6 +1668,8 @@ def _add_to_context(
             container.max_cap,
             level=container.level,
             type=container.type,
+            get_queue=_rule_as_mapping(container.get_queue),
+            put_queue=_rule_as_mapping(container.put_queue),
         )
     for name, value in blueprint.variables.items():
         context.add_variable(name, value)
@@ -1527,6 +1751,22 @@ def _add_to_context(
             on_start=task.on_start,
             finish_vars=task.finish_vars,
             wait=task.wait,
+            open=task.open,
+            cancel=(
+                task.cancel.handle
+                if task.cancel is not None and not isinstance(task.cancel, str)
+                else task.cancel
+            ),
+            seize=(
+                task.seize
+                if task.seize is None or isinstance(task.seize, str)
+                else task.seize.model_dump(exclude_none=True, exclude={"patience"})
+            ),
+            release=(
+                task.release
+                if task.release is None or isinstance(task.release, str)
+                else task.release.action()
+            ),
             signal=task.signal,
             fail=task.fail,
             fail_reason=task.fail_reason,
@@ -1574,6 +1814,14 @@ def _add_to_context(
                 for step in blueprint.scenario
             ]
         )
+
+
+def _rule_as_mapping(value: Any) -> Any:
+    """A `queue`, `preempt`, `get_queue` or `put_queue` as the context reads it: a rule
+    model becomes its mapping, and a name or a boolean stays."""
+    return (
+        value.model_dump(exclude_none=True) if isinstance(value, BaseModel) else value
+    )
 
 
 def _time_place(value: Any) -> Any:
@@ -1684,30 +1932,22 @@ def _arrival_sites(
             yield where + (key,), getattr(arrival, key), False, True
 
 
+def _task_value(task: Any, key: str) -> Any:
+    """The value of one place of `TASK_VALUE_PLACES` in a blueprint task."""
+    if key == "put.item":
+        return task.put.item if task.put is not None else None
+    return getattr(task, key)
+
+
 def _bind_values(blueprint: Blueprint, source: SourceMap) -> None:
     """Gives every generator its place in the file: the dotted path that names its
     random sequence, and the file and line its failures name."""
     locate = _locator(source)
     for name, task in blueprint.tasks.items():
-        if task.put is not None and task.put.item is not None:
-            bind_values(task.put.item, ("tasks", name, "put", "item"), locate)
-        for key in (
-            "payload",
-            "set",
-            "set_args",
-            "vars",
-            "vars_once",
-            "on_start",
-            "finish_vars",
-            "interrupt",
-            "on",
-            "wait",
-            "spawn",
-            "service_time",
-            "patience",
-            "key",
+        for key, where, _after, value in task_value_places(
+            lambda key: _task_value(task, key)
         ):
-            bind_values(getattr(task, key), ("tasks", name, key), locate)
+            bind_values(value, ("tasks", name) + where, locate)
     for location, value in _value_sites(blueprint):
         bind_values(value, location, locate)
     for location, value, _vars, _run in _arrival_sites(blueprint):
@@ -1723,6 +1963,7 @@ def _check_values(
     registry = context._scratch_registry(isolated=True)
     services = set(blueprint.services)
     base_dir = source.path.parent
+    written = context._written_paths()
     problems: List[Tuple[Tuple[Any, ...], str]] = []
     for name, task in blueprint.tasks.items():
         found = task_value_problems(
@@ -1753,7 +1994,12 @@ def _check_values(
                 or task.on_interrupt == "abandon"
                 or any(
                     blueprint.resources[resource].queue_limit is not None
-                    for resource in task.resources()
+                    or context._limit_path(resource) in written
+                    for resource in (
+                        *task.resources(),
+                        *task.seized(),
+                        *task.open_requests(),
+                    )
                     if resource in blueprint.resources
                 )
             ),
@@ -2068,7 +2314,11 @@ def _check_scenario(
         if has_generator(step.value):
             # The value is known when the step is due, and checked then
             continue
-        if current is not None and not isinstance(step.value, type(current)):
+        if (
+            current is not None
+            and not is_queue_limit(step.path)
+            and not isinstance(step.value, type(current))
+        ):
             try:
                 type(current)(step.value)
             except (TypeError, ValueError):
@@ -2116,6 +2366,18 @@ def _warn_on_paths(
                     ),
                 )
                 continue
+            if is_queue_limit(entry.path) and not has_generator(entry.value):
+                try:
+                    queue_limit_value(entry.path, entry.value)
+                except ParamRejected as exc:
+                    logger.warning(
+                        "%s",
+                        source.error(
+                            (*where, "value"),
+                            f"{exc.reason}, so the registry ignores this value",
+                        ),
+                    )
+                continue
             if (
                 current is not None
                 and not has_generator(entry.value)
@@ -2146,6 +2408,7 @@ def _check_registry_reads(
         for pair in _expressions(name, task)
     ]
     found += list(_arrival_expressions(blueprint))
+    found += list(_rule_expressions(blueprint))
     for location, value, _owner in _task_sites(blueprint):
         found += list(_parsed_texts(value, location))
     for location, value in _value_sites(blueprint):

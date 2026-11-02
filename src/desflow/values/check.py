@@ -7,7 +7,18 @@ into errors with a file and line, and `SimulationContext.run` into `ValueError`s
 
 import string
 from pathlib import Path
-from typing import Any, Collection, Dict, Iterator, List, Mapping, Optional, Set, Tuple
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Set,
+    Tuple,
+)
 
 from pydantic import BaseModel
 
@@ -35,6 +46,44 @@ from desflow.values.models import (
 
 Problem = Tuple[Tuple[Any, ...], str]
 _FIELDS = ("null_rate", "unique", "omit_rate", "omit_when", "gen")
+
+
+# Every key of a task that holds a value (a generator, or a mapping of them), with
+# whether the value is evaluated after the task's own waiting get, so that it may
+# read `item.<field>`. The blueprint check and the Builder's `run()` check both read
+# this one list, so a place added here is checked in both.
+TASK_VALUE_PLACES: Tuple[Tuple[str, bool], ...] = (
+    ("payload", True),
+    ("set", True),
+    ("set_args", True),
+    ("vars_once", False),
+    ("vars", True),
+    ("finish_vars", True),
+    ("on_start", True),
+    ("spawn", True),
+    ("interrupt", True),
+    ("on", True),
+    ("wait", False),
+    ("open", False),
+    ("service_time", True),
+    ("patience", False),
+    ("key", False),
+    ("put.item", True),
+)
+
+
+def task_value_places(
+    read: Callable[[str], Any],
+) -> Iterator[Tuple[str, Tuple[str, ...], bool, Any]]:
+    """Every value place of a task: its key, its location below the task, whether it
+    is evaluated after the task's own get, and its value.
+
+    Args:
+        read: Gives the value of a place by its key (`put.item` for the item of a
+            `put`), or None when the task has none.
+    """
+    for key, after in TASK_VALUE_PLACES:
+        yield key, tuple(key.split(".")), after, read(key)
 
 
 def children(

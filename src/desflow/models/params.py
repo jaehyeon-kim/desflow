@@ -149,6 +149,25 @@ class CapacityConfig:
 
 
 @dataclass
+class ResourceConfig(CapacityConfig):
+    """
+    Configuration for a resource: its capacity and its waiting-line limit.
+
+    Attributes:
+        current_cap (Optional[Union[int, float]]): The currently active capacity.
+        max_cap (Optional[Union[int, float]]): The absolute physical maximum capacity.
+        queue_limit (Optional[int]): The most requests that may wait, or None for no
+            limit. It is the registry path `<sim_id>.resources.<name>.queue_limit`,
+            and a change to the path applies from the next request.
+        limit_path (bool): Whether the resource has that path. A resource built from
+            a class with its own `PutQueue` sets its own limit and has none.
+    """
+
+    queue_limit: Optional[int] = None
+    limit_path: bool = True
+
+
+@dataclass
 class ContainerConfig(CapacityConfig):
     """
     Configuration for a container: its capacity and the level it starts at.

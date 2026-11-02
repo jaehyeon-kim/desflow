@@ -1,6 +1,7 @@
 import copy
 import logging
 import math
+import numbers
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
@@ -42,6 +43,59 @@ def _stored_as_given(path: str, current: Any, new: Any) -> bool:
     if ".variables." in path and _is_number(new):
         return math.isfinite(new)
     return False
+
+
+def is_queue_limit(path: str) -> bool:
+    """Whether `path` is a resource's `queue_limit`, `<sim_id>.resources.<name>.queue_limit`.
+
+    Args:
+        path: A registry path.
+
+    Returns:
+        bool: True for a `queue_limit` path.
+    """
+    return ".resources." in path and path.endswith(".queue_limit")
+
+
+def queue_limit_value(path: str, value: Any) -> Optional[int]:
+    """The waiting-line limit a write to a `queue_limit` path means.
+
+    Args:
+        path: The path, for the message.
+        value: None for no limit, a whole number of 0 or more (a NumPy integer or a
+            whole float too), or text that is one.
+
+    Returns:
+        Optional[int]: The limit, or None for no limit.
+
+    Raises:
+        ParamRejected: If `value` is anything else, such as a negative number, a
+            fraction, `true` or text that is not a whole number.
+    """
+    number = value
+    if isinstance(value, str):
+        text = value.strip()
+        number = (
+            int(text)
+            if text.lstrip("+-").isascii() and text.lstrip("+-").isdigit()
+            else value
+        )
+    if value is None:
+        return None
+    if (
+        isinstance(number, bool)
+        or not isinstance(number, numbers.Real)
+        or not math.isfinite(number)
+        or number != int(number)  # type: ignore[call-overload]
+        or number < 0
+    ):
+        raise ParamRejected(
+            path,
+            value,
+            f"'{path}' is a whole number of 0 or more, or null for no limit, got "
+            f"{value!r}",
+        )
+    return int(number)
 
 
 def _infinite_capacity(path: str, value: Any) -> bool:
@@ -363,7 +417,10 @@ class SimulationRegistry:
         changes: List[ParamChange] = []
 
         # Type Validation & Casting
-        if current_val is not None and _infinite_capacity(path, new_value):
+        if is_queue_limit(path):
+            # A whole number or null, whether the limit is set now or not
+            validated_value = queue_limit_value(path, new_value)
+        elif current_val is not None and _infinite_capacity(path, new_value):
             # No limit: inf, or the text "inf", on a capacity path of any type
             validated_value = math.inf
         elif current_val is not None and _stored_as_given(path, current_val, new_value):
@@ -662,6 +719,20 @@ class SimulationRegistry:
         path = f"{sim_id}.resources.{name}"
         self._configs[path] = cap_config
         self._register_cap(path, cap_config)
+        if getattr(cap_config, "limit_path", True):
+            limit = getattr(cap_config, "queue_limit", None)
+            self._values[f"{path}.queue_limit"] = DynamicValue(
+                self.env, f"{path}.queue_limit", limit
+            )
+
+    def _forget(self, path: str) -> None:
+        """
+        Removes a path, if the registry has it.
+
+        Args:
+            path (str): The dot-notation path.
+        """
+        self._values.pop(path, None)
 
     def register_container(self, sim_id: str, name: str, cap_config: CapacityConfig):
         """

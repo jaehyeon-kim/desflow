@@ -237,10 +237,9 @@ def test_every_gap_is_used_defined_and_linked_to_a_form():
     for gap in ("S1", "S2", "S3", "S4", "S5"):
         assert gap not in data["gaps"]
     # The run and time rules (T1 to T8, T13 and T14) are removed by Batch 1 of 1.0.0;
-    # the T10 row ships in 0.31.0
+    # the T10 row is removed by Batch 8
     for number in (*range(1, 9), 13, 14):
         assert f"T{number}" not in data["gaps"]
-    assert data["gaps"]["T10"]["fixed"] == "0.31.0"
     # Batch 4 of 1.0.0 removes V3 and V4
     for gap in ("V3", "V4"):
         assert gap not in data["gaps"] and gap not in data["unattached"]
@@ -256,17 +255,16 @@ def test_every_gap_is_used_defined_and_linked_to_a_form():
     # Batch 6 of 1.0.0 removes V7, V9, V11, V12, A3, A5, A7, M4 and M6
     for gap in ("V7", "V9", "V11", "V12", "A3", "A5", "A7", "M4", "M6"):
         assert gap not in data["gaps"]
+    # Batch 8 of 1.0.0 removes H1, H5, H6, H8, H9, I10, T10, M5 and M7
+    for gap in ("H1", "H5", "H6", "H8", "H9", "I10", "T10", "M5", "M7"):
+        assert gap not in data["gaps"]
     # A gap with only part of its row planned names no release
     for gap in ("I6", "M3"):
-        assert "fixed" not in data["gaps"][gap]
-    # No release in 0.30.0 to 0.32.0 plans H9, I10 and M7, so the page keeps
-    # their process forms
-    for gap in ("H9", "I10", "M7"):
         assert "fixed" not in data["gaps"][gap]
     for gap, info in data["unattached"].items():
         assert "fixed" not in info, gap
     page = gen_pages.compatibility_page()
-    assert "Planned for 0.31.0" in page and "Fixed in" not in page
+    assert "Planned for" not in page and "Fixed in" not in page
 
 
 def test_gaps_that_belong_to_no_feature_are_named_on_the_page():
@@ -284,17 +282,16 @@ def test_gaps_that_belong_to_no_feature_are_named_on_the_page():
 
 def test_a_row_shown_native_has_no_gap_that_says_otherwise():
     """The constructs that the gap texts name carry those gaps, so they are not
-    shown native: a balk (I6), a held unit after `cancel()` (H9), a wait again after
-    an interrupt (I10) and a wait for a whole flow (M7)."""
+    shown native: a balk (I6) and a failed wait handled with no condition (M3)."""
     rows = {c["id"]: c.get("gaps", []) for c in gen_pages.constructs()["constructs"]}
     for construct, gap in (
         ("SP-S14", "I6"),
         ("SP-P3", "M3"),
-        ("SP-S9", "H9"),
-        ("SP-P12", "I10"),
-        ("SP-P7", "M7"),
     ):
         assert gap in rows[construct], (construct, gap)
+    # Batch 8 gives the rows of H1, H5, H6, H9, I10, T10 and M7 their native status
+    for construct in ("SP-S9", "SP-P12", "SP-P7", "SP-S1", "SP-S12", "SP-Q4", "SP-V9"):
+        assert rows[construct] == [], construct
     assert "V9" not in rows["SP-P2"]
     # A container's `level: 5` reads as an int, and the Low-level queue types and
     # event classes give SimPy's result, so these rows stay native

@@ -1,0 +1,10 @@
+# Design H8: a queue limit that changes during the run (1, then 2 from time 4); arrivals at 0, 1, 2 and 5, 6.
+simulation: {sim_id: H8, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1, queue_limit: 1}}
+services: {s: {dist: constant, value: 10}}
+arrivals:
+  early: {dist: constant, value: 1, spawn: job, max_events: 3, first_at: 0}
+  late: {dist: constant, value: 1, spawn: job, max_events: 2, first_at: 5}
+scenario: [{at: 4, path: H8.resources.m.queue_limit, value: 2}]
+tasks:
+  job: {resource: m, service: s, payload: {event_type: done}}

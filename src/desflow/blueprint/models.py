@@ -56,14 +56,21 @@ from desflow.core.distributions import (
     TIME_LIST_PARAMETERS,
     TIME_PARAMETERS,
 )
-from desflow.core.expressions import ANY_NAME, RESERVED_NAMES, Expression
+from desflow.core.expressions import (
+    ANY_NAME,
+    RESERVED_NAMES,
+    Expression,
+    boolean_word,
+    rank_problem,
+)
 from desflow.core.environment import (
     DynamicRealtimeEnvironment,
     in_zone,
     resolve_zone,
 )
-from desflow.core.flow import Router, Transfer, Wait
+from desflow.core.flow import Open, Release, Router, Transfer, Wait
 from desflow.models.params import DistributionConfig
+from desflow.resources.base import check_ties
 from desflow.resources.container import ContainerBase, check_container_type
 from desflow.resources.resource import ResourceBase, check_resource_type
 from desflow.resources.store import StoreBase, check_store_type
@@ -554,6 +561,53 @@ class Breakdown(_Model):
     work: Literal["interrupt", "finish"] = "interrupt"
 
 
+class QueueRule(_Model):
+    """A `queue` of a resource, or a `get_queue` or `put_queue` of a store or container,
+    written as a rank: `rank` is an expression read once as each request, get or put
+    is made, in the scope of the task that makes it, and the lowest rank is served
+    first. `ties` orders equal ranks: `fifo` (the default) serves the oldest first and
+    `lifo` the latest first. On a resource, `ties` orders the queue only: it changes
+    neither a request's key nor who preempts."""
+
+    rank: str
+    ties: Literal["fifo", "lifo"] = "fifo"
+
+    @field_validator("rank")
+    @classmethod
+    def _rank_parses(cls, value: str) -> str:
+        problem = rank_problem(Expression(value))
+        if problem:
+            raise ValueError(problem)
+        return value
+
+
+class PreemptRule(_Model):
+    """A `preempt` of a resource written as a rule. `when` is tested when a request
+    finds no free unit, and the request takes the unit if it holds. `victim` gives each
+    holder a value, and the holder with the highest value is the one `when` is tested
+    on, the first granted among equals. Both read `request.rank`, `request.time`,
+    `request.preempt` and `request.key`, and `holder.rank`, `holder.time`,
+    `holder.preempt`, `holder.key`, `holder.since` and `holder.attr.<name>`, and the run's
+    own names, `t`, `users.`, `queue.`, `level.` and `registry[...]`. With neither, the
+    rule is SimPy's: the holder whose key sorts last is taken when it sorts after the
+    request's."""
+
+    when: Optional[str] = None
+    victim: Optional[str] = None
+
+    @field_validator("when", "victim")
+    @classmethod
+    def _parses(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None:
+            outside = Expression(value, rule=True).outside_run()
+            if outside:
+                raise ValueError(
+                    f"'{value}' reads {outside}, which a preempt rule cannot: it "
+                    "reads request., holder., t and the run"
+                )
+        return value
+
+
 class Resource(_Model):
     """A `resources` entry: its capacity, the order its queue is served in, whether
     a request of a lower priority value preempts a user, how many requests may wait,
@@ -561,22 +615,30 @@ class Resource(_Model):
 
     `current_cap` defaults to 1 and `max_cap` to `current_cap`, so `{}` is a
     resource of one unit. `.inf` makes a resource with no limit. `type` is a
-    `!python` subclass of `ResourceBase`.
+    `!python` subclass of `ResourceBase`. `queue` is `fifo`, `lifo`, `priority`, or a
+    `{rank, ties}` rule that ranks each request by an expression; `preempt` is true or
+    false, or a `{when, victim}` rule, and needs `queue: priority` or a rank.
+    `queue_limit` is also the registry path `<sim_id>.resources.<name>.queue_limit`,
+    so a scenario, an `on:` entry or an ingress message can change it: the new limit
+    applies from the next request and removes nobody who waits, and `null` is no limit.
     """
 
     current_cap: Optional[Union[int, float]] = None
     max_cap: Optional[Union[int, float]] = None
-    queue: str = DEFAULT_QUEUE_ORDER
-    preempt: bool = False
+    queue: Union[str, QueueRule] = DEFAULT_QUEUE_ORDER
+    preempt: Union[bool, PreemptRule] = False
     queue_limit: Optional[int] = None
     type: Optional[Type[ResourceBase]] = None
     breakdown: Optional[Breakdown] = None
 
     @model_validator(mode="after")
     def _preempt_needs_priority(self) -> "Resource":
-        if self.preempt and self.queue != "priority":
+        if self.preempt and not (
+            isinstance(self.queue, QueueRule) or self.queue == "priority"
+        ):
             raise ValueError(
-                "preempt ranks users by priority, so it needs queue: priority"
+                "preempt ranks users by priority, so it needs queue: priority or a "
+                "queue rank"
             )
         return self
 
@@ -592,9 +654,12 @@ class Resource(_Model):
 
     @field_validator("queue")
     @classmethod
-    def _known_order(cls, value: str) -> str:
-        if value not in QUEUE_ORDERS:
-            raise ValueError(f"queue must be one of {', '.join(QUEUE_ORDERS)}")
+    def _known_order(cls, value: Union[str, QueueRule]) -> Union[str, QueueRule]:
+        if isinstance(value, str) and value not in QUEUE_ORDERS:
+            raise ValueError(
+                f"queue must be one of {', '.join(QUEUE_ORDERS)}, or a mapping with "
+                f"a rank"
+            )
         return value
 
 
@@ -618,6 +683,9 @@ class Store(_Model):
     items are `[priority, item]` pairs. `type` is a `!python` subclass of `StoreBase`,
     which sets its own order, so it cannot be given with `priority`. An item is a
     constant or a `{gen: ...}` generator, drawn once when the run starts.
+    `get_queue` and `put_queue` rank the waiting gets and puts by an expression, as a
+    resource's `queue` ranks its requests; `priority` still ranks the items. They are
+    not allowed with `type`.
     """
 
     current_cap: Optional[Union[int, float]] = None
@@ -625,10 +693,17 @@ class Store(_Model):
     priority: bool = False
     items: List[Value] = Field(default_factory=list)
     type: Optional[Type[StoreBase]] = None
+    get_queue: Optional[QueueRule] = None
+    put_queue: Optional[QueueRule] = None
 
     @model_validator(mode="after")
     def _items_fit(self) -> "Store":
         check_store_type(self.type, self.priority)
+        check_ties(
+            None if self.get_queue is None else self.get_queue.ties,
+            None if self.put_queue is None else self.put_queue.ties,
+            self.type,
+        )
         room = _room(self.current_cap, self.max_cap)
         if len(self.items) > room:
             raise ValueError(
@@ -650,7 +725,9 @@ class Container(_Model):
 
     `current_cap` defaults to `max_cap`, and with neither the container has no limit;
     `.inf` is no limit too. `max_cap` defaults to `current_cap`. `type` is a
-    `!python` subclass of `ContainerBase`.
+    `!python` subclass of `ContainerBase`. `get_queue` and `put_queue` rank the waiting
+    gets and puts by an expression, as a resource's `queue` ranks its requests; they are
+    not allowed with `type`.
     """
 
     current_cap: Optional[Union[int, float]] = None
@@ -658,10 +735,17 @@ class Container(_Model):
     # An int stays an int, as simpy.Container keeps it
     level: Union[int, float] = 0
     type: Optional[Type[ContainerBase]] = None
+    get_queue: Optional[QueueRule] = None
+    put_queue: Optional[QueueRule] = None
 
     @model_validator(mode="after")
     def _type_fits(self) -> "Container":
         check_container_type(self.type)
+        check_ties(
+            None if self.get_queue is None else self.get_queue.ties,
+            None if self.put_queue is None else self.put_queue.ties,
+            self.type,
+        )
         return self
 
 
@@ -790,11 +874,28 @@ def _next_form(value: Any) -> str:
 class InterruptAction(_Model):
     """An `interrupt` on a task or a scenario step: interrupt every running instance
     of `task` whose `where` condition holds, with `cause`, a constant or a
-    `{gen: ...}` generator evaluated at the moment of the interrupt."""
+    `{gen: ...}` generator evaluated at the moment of the interrupt. A task's own
+    `interrupt` may instead give `handle`, the name of a child flow the task or an
+    earlier task of its flow opened with `open`, and interrupts that one child, as
+    `process.interrupt(cause)` does; it takes no `where`, and it fails the run when
+    the child has ended. A scenario step and an `on:` entry take `task` only."""
 
-    task: str
+    task: Optional[str] = None
+    handle: Optional[str] = None
     where: Optional[str] = None
     cause: Value = None
+
+    @model_validator(mode="after")
+    def _task_or_handle(self) -> "InterruptAction":
+        if self.task is None and self.handle is None:
+            raise ValueError("interrupt names a task or a handle, and has neither")
+        if self.task is not None and self.handle is not None:
+            raise ValueError("interrupt takes a task or a handle, and not both")
+        if self.handle is not None and self.where is not None:
+            raise ValueError(
+                "interrupt takes no where with a handle, which names one child flow"
+            )
+        return self
 
     @field_validator("where")
     @classmethod
@@ -805,7 +906,10 @@ class InterruptAction(_Model):
 
     def action(self) -> Dict[str, Any]:
         """The mapping the builder's `interrupt` takes."""
-        return {"task": self.task, "where": self.where, "cause": self.cause}
+        found = {"task": self.task, "where": self.where, "cause": self.cause}
+        if self.handle is not None:
+            found["handle"] = self.handle
+        return found
 
 
 class SpawnAction(_Model):
@@ -930,6 +1034,11 @@ class OnEntry(_Model):
             )
         if self.value is not None and self.path is None and self.fire is None:
             raise ValueError("on: value belongs to a path or a fire action")
+        if self.interrupt is not None and self.interrupt.task is None:
+            raise ValueError(
+                "an on: entry interrupts a task; a handle is the interrupt key of a "
+                "task, which knows the names it opened"
+            )
         return self
 
     def entry(self) -> Dict[str, Any]:
@@ -957,10 +1066,16 @@ class OnEntry(_Model):
 
 class RunningTarget(_Model):
     """A `running` wait branch target: the task whose running instances to wait for,
-    narrowed by an optional `where` condition read in each instance's scope."""
+    narrowed by an optional `where` condition read in each instance's scope. The
+    wait is for the end of the instance's task, or, with `whole_flow: true`, for the
+    end of the whole flow the instance belongs to (its `next` chain and the tasks it
+    waits for in child flows), as `yield process` waits for a SimPy process. A flow
+    selected that way is any flow of the model, and one that has ended already
+    ends the wait at once; its last task's payload is the branch's value."""
 
     task: str
     where: Optional[str] = None
+    whole_flow: bool = False
 
     @field_validator("where")
     @classmethod
@@ -1062,10 +1177,44 @@ class WhenWait(_Model):
     of: "Dict[str, WaitBranch]"
 
 
+class RequestSpec(_Model):
+    """A `request` of a `wait` or an `open` with options: the `resource`, a `priority`
+    (a number or an expression read as the request is made) and a `preempt` flag (true
+    or false, or an expression). With a mapping, the task's `priority` and `preempt` do
+    not apply to this request: a key it leaves out is SimPy's default, priority 0 and
+    preempt true. With a name they do."""
+
+    resource: str
+    priority: Optional[Union[int, float, str]] = None
+    preempt: Optional[Union[bool, str]] = None
+
+    @field_validator("preempt", mode="before")
+    @classmethod
+    def _preempt_words(cls, value: Any) -> Any:
+        return _boolean_words(value)
+
+    @model_validator(mode="after")
+    def _expressions_parse(self) -> "RequestSpec":
+        for what in ("priority", "preempt"):
+            value = getattr(self, what)
+            if isinstance(value, str):
+                Expression(value)
+        return self
+
+
 class RequestWait(_Model):
     """A `wait` branch for a resource unit: the task holds it if it wins."""
 
-    request: str
+    request: Union[str, RequestSpec]
+
+
+class HandleWait(_Model):
+    """A `wait` branch for an event that `open` made: `handle` is the name it was
+    opened under. A handle already processed gives its value at once, and a handle
+    waited for through an interrupt under `resume` or `restart` is the same event
+    after it, with its first end and its place in the queue."""
+
+    handle: str
 
 
 class GetWait(_Model):
@@ -1096,6 +1245,7 @@ WaitBranch = Union[
     GetWait,
     PutWait,
     RunningWait,
+    HandleWait,
 ]
 
 AnyWait.model_rebuild()
@@ -1114,6 +1264,11 @@ def _generators_as_zero(raw: Any) -> Any:
     """
     if not isinstance(raw, Mapping):
         return raw
+    request = raw.get("request")
+    if isinstance(request, Mapping) and isinstance(request.get("preempt"), str):
+        # A boolean word is a boolean, as in the typed model
+        words = _boolean_words(request["preempt"])
+        return {**raw, "request": {**request, "preempt": words}}
     timeout = raw.get("timeout")
     if isinstance(timeout, Mapping):
         if "gen" in timeout:
@@ -1162,6 +1317,9 @@ def _with_typed_values(raw: Any, typed: Any) -> Any:
             }
     if "task" in raw and "args" in raw:
         return {"task": raw["task"], "args": typed.args}
+    if isinstance(raw.get("request"), Mapping):
+        # `preempt: "t"` is the boolean word, so the validated mapping replaces the raw
+        return {"request": typed.request.model_dump(exclude_none=True)}
     if "of" in raw and isinstance(raw["of"], Mapping):
         return {
             **raw,
@@ -1171,6 +1329,76 @@ def _with_typed_values(raw: Any, typed: Any) -> Any:
             },
         }
     return raw
+
+
+_boolean_words = boolean_word
+
+
+class SeizeSpec(_Model):
+    """A `seize` with options: the `resource`, a `priority` (a number or an expression
+    read as the request is made), a `preempt` flag (true or false, or an expression),
+    and a `patience`, which is the task's patience for the time it waits for the unit.
+    `priority` and `preempt` default to the task's. A task gives its `patience` on the
+    task or here, not both."""
+
+    resource: str
+    priority: Optional[Union[int, float, str]] = None
+    preempt: Optional[Union[bool, str]] = None
+    patience: Optional[TimePlace] = None
+
+    @field_validator("preempt", mode="before")
+    @classmethod
+    def _preempt_words(cls, value: Any) -> Any:
+        return _boolean_words(value)
+
+    @field_validator("patience", mode="before")
+    @classmethod
+    def _patience_duration(cls, value: Any) -> Any:
+        return _duration_text(value)
+
+    @model_validator(mode="after")
+    def _expressions_parse(self) -> "SeizeSpec":
+        for what in ("priority", "preempt", "patience"):
+            value = getattr(self, what)
+            if isinstance(value, str):
+                Expression(value)
+        _check_time_place(self.patience, "seize patience")
+        return self
+
+
+class ReleaseSpec(_Model):
+    """A `release` with options: `{handle: <name>}` frees the unit of that opened
+    request, and `{resource, task, where}` frees the units of `resource` that the
+    instances of `task` hold, however they asked (`resource`, `seize`, `open` or a
+    `request` in a wait) and whichever flow they are in, oldest grant first; `where`
+    is read in the instance's scope, and without it every holder of that task is
+    freed. The holder is not told. A resource name alone frees the oldest unit of it
+    that the flow holds."""
+
+    handle: Optional[str] = None
+    resource: Optional[str] = None
+    task: Optional[str] = None
+    where: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _one_form(self) -> "ReleaseSpec":
+        Release(self.action())
+        return self
+
+    def action(self) -> Dict[str, Any]:
+        """The mapping the builder's `release` takes."""
+        if self.handle is not None:
+            return {"handle": self.handle}
+        found: Dict[str, Any] = {"resource": self.resource, "task": self.task}
+        if self.where is not None:
+            found["where"] = self.where
+        return found
+
+
+class HandleRef(_Model):
+    """The name of an opened event, as `{handle: <name>}`."""
+
+    handle: str
 
 
 def _payload_form(value: Any) -> str:
@@ -1231,6 +1459,13 @@ class Task(_Model):
     preemption, `value` after an `interrupt`, and `left`, the service time that was
     left. `upstream.<field>` is the payload of the task that routed here, `item` is the
     whole item a store get took, and it lasts through the `next` chain.
+
+    `open` names branches that start at once and are not waited for, so a later step
+    can wait for, cancel, release or interrupt them by name. A branch of `open` is a
+    `timeout`, `request`, `get`, `put`, `task` or `signal`, or an `any` or `all` group
+    of `timeout`, `task`, `signal` and `handle` branches. The other kinds a `wait` takes
+    (`condition`, `running`, `at_least`, `when`) are refused at load, as is a
+    `request`, `get` or `put` inside a group.
 
     The cause of an interrupt, the holders of a resource and the entries of a queue are
     lists and mappings an expression reads: `held(m)` and `waiting(m)` for a resource,
@@ -1342,12 +1577,16 @@ class Task(_Model):
     finish_vars: Dict[str, Value] = Field(default_factory=dict)
     history: StrictInt = Field(default=1_000_000, ge=1)
     wait: Optional[WaitBranch] = None
+    open: Optional[Dict[str, WaitBranch]] = None
+    cancel: Optional[Union[str, HandleRef]] = None
+    seize: Optional[Union[str, SeizeSpec]] = None
+    release: Optional[Union[str, ReleaseSpec]] = None
     signal: Optional[str] = None
     fail: Optional[str] = None
     fail_reason: Optional[str] = None
     on_fail: Optional[str] = None
     keep: List[str] = Field(default_factory=list)
-    preempt: bool = True
+    preempt: Union[bool, str] = True
     on_interrupt: str = "resume"
     on_interrupt_next: Optional[str] = None
     interrupt: Optional[InterruptAction] = None
@@ -1414,6 +1653,32 @@ class Task(_Model):
         Wait(_generators_as_zero(value))
         return _with_typed_values(value, handler(value))
 
+    @field_validator("open", mode="wrap")
+    @classmethod
+    def _open_parses(cls, value: Any, handler: Any) -> Any:
+        # As for `wait`: `Open` is the one runtime parser and runs first, and the typed
+        # union then validates the generators inside the branches
+        if value is None:
+            return None
+        if not isinstance(value, Mapping) or not value:
+            Open(value)
+        Open({name: _generators_as_zero(branch) for name, branch in value.items()})
+        typed = handler(value)
+        return {
+            name: _with_typed_values(branch, typed[name])
+            for name, branch in value.items()
+        }
+
+    def handles(self) -> List[str]:
+        """The names the task's `open` makes, in the order written."""
+        return [] if self.open is None else list(self.open)
+
+    def seized(self) -> List[str]:
+        """The resource the task's `seize` asks for, as a list of at most one."""
+        if self.seize is None:
+            return []
+        return [self.seize if isinstance(self.seize, str) else self.seize.resource]
+
     @field_validator("fail")
     @classmethod
     def _fail_parses(cls, value: Any) -> Any:
@@ -1429,6 +1694,38 @@ class Task(_Model):
         if info.field_name == "service_time":
             _refuse_boolean(value, "service_time")
         return _duration_text(value)
+
+    @field_validator("preempt", mode="before")
+    @classmethod
+    def _preempt_words(cls, value: Any) -> Any:
+        """Text that YAML validation reads as a boolean (`t`, `yes`, `off`, `1`) stays
+        that boolean; any other text is an expression, read as each request is made."""
+        return _boolean_words(value)
+
+    def plain_requests(self) -> List[str]:
+        """The resources a `wait` or an `open` request written as a name, which take the
+        task's `priority` and `preempt`."""
+        return ([] if self.wait is None else Wait(self.wait).plain_requests()) + (
+            [] if self.open is None else Open(self.open).plain_requests()
+        )
+
+    def open_requests(self) -> List[str]:
+        """The resources the task's `open` requests, in the order written."""
+        return [] if self.open is None else Open(self.open).requests()
+
+    @model_validator(mode="after")
+    def _holding_keys(self) -> "Task":
+        """Checks `release`, `cancel` and `seize`, and gives the task the patience its
+        `seize` states, so one patience covers every wait of the task."""
+        if self.release is not None and not isinstance(self.release, str):
+            Release(self.release.action())
+        if isinstance(self.seize, SeizeSpec) and self.seize.patience is not None:
+            if self.patience is not None:
+                raise ValueError(
+                    "patience is on the task and on its seize; give it in one place"
+                )
+            self.patience = self.seize.patience
+        return self
 
     @model_validator(mode="after")
     def _resource_needs_a_service(self) -> "Task":
@@ -1461,20 +1758,23 @@ class Task(_Model):
             self.priority is not None
             and self.resource is None
             and not self.wait_requests()
+            and self.seize is None
+            and not self.open_requests()
         ):
             raise ValueError(
-                "priority orders a resource's queue, so it needs a resource or a "
-                "request in its wait"
+                "priority orders a resource's queue, so it needs a resource, a seize "
+                "or a request in its wait or open"
             )
         if (
             self.patience is not None
             and self.resource is None
             and (self.get is None or not self.get.wait)
             and self.wait is None
+            and self.seize is None
         ):
             raise ValueError(
-                "patience is how long a task waits, so it needs a wait, a resource "
-                "or a get"
+                "patience is how long a task waits, so it needs a wait, a seize, a "
+                "resource or a get"
             )
         if self.fail is None and (
             self.fail_reason is not None or self.on_fail is not None
@@ -1493,10 +1793,26 @@ class Task(_Model):
                 "item_field adds the item a store get took, and a get with wait: "
                 "false discards it"
             )
-        if self.balk is not None and self.resource is None:
-            raise ValueError("balking refuses a resource queue, so it needs a resource")
+        if self.balk is not None and self.resource is None and self.open is None:
+            raise ValueError(
+                "balking refuses a resource queue, so it needs a resource or an open"
+            )
+        if (
+            (self.priority is not None or self.preempt is not True)
+            and self.resource is None
+            and self.seize is None
+            and (self.wait_requests() or self.open_requests())
+            and not self.plain_requests()
+        ):
+            raise ValueError(
+                "priority and preempt of a task apply to a resource, a seize or a "
+                "request written as a name; every request of this task is a mapping, "
+                "which takes its own priority and preempt, so put them there"
+            )
         if isinstance(self.priority, str):
             Expression(self.priority)
+        if isinstance(self.preempt, str):
+            Expression(self.preempt)
         if isinstance(self.patience, str):
             Expression(self.patience)
         if self.balk is not None:
@@ -1711,6 +2027,11 @@ class ScenarioStep(_Model):
             raise ValueError("a value needs a path")
         if self.path is not None and "value" not in self.model_fields_set:
             raise ValueError("a path needs a value")
+        if self.interrupt is not None and self.interrupt.task is None:
+            raise ValueError(
+                "a scenario step interrupts a task; a handle is the interrupt key of "
+                "a task, which knows the names it opened"
+            )
         return self
 
 

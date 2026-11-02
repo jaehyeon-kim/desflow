@@ -13,12 +13,14 @@ ST-R17 run as their full documents since Batch 6 (`initial`, `held()`, `waiting(
 still runs as its smallest model. V3 and V4 are the generated values of Batch 4.
 """
 
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import pytest
 
 from desflow import DynamicRealtimeEnvironment
+from desflow.core.task import TaskFailed
 from tests.conformance.harness import run_yaml_text
 from tests.conformance.yaml_only import fixed_draws
 from tests.conformance.yaml_only.programs import (
@@ -26,8 +28,10 @@ from tests.conformance.yaml_only.programs import (
     a1_entities,
     a4_gap,
     batch6,
+    batch8,
     cv_032_034_steps,
     cv_040_segments,
+    known8,
     v1_service_time,
     v2_timeout,
     v3_values,
@@ -1301,3 +1305,1287 @@ run: {until: 20}
     outcome = _run6(tmp_path, text)
     done = [m for m in _marks(outcome.records) if m[2] == "none_left"]
     assert done == [(4, "c-1", "none_left", 4)]
+
+
+# ----------------------------------------------------------------- Batch 8: holding
+
+
+def _trace(
+    records: List[Dict[str, Any]],
+    statuses: Tuple[str, ...] = ("reneged", "balked", "interrupted"),
+) -> List[Tuple[Any, ...]]:
+    """The marks a blueprint publishes, in publication order, as (time, key, label,
+    extra): a payload with a label `e` (and its `x`), and the statuses `reneged`,
+    `balked` and `interrupted`, or those in `statuses`."""
+    found: List[Tuple[Any, ...]] = []
+    for record in records:
+        if record["stream_type"] != "event" or not isinstance(record["value"], dict):
+            continue
+        value = record["value"]
+        if "e" in value:
+            found.append(
+                (round(record["sim_ts"], 3), record["key"], value["e"], value.get("x"))
+            )
+        elif value.get("status") in statuses:
+            found.append(
+                (round(record["sim_ts"], 3), record["key"], value["status"], None)
+            )
+    return found
+
+
+def _same(tmp_path, text, expected, statuses=("reneged", "balked", "interrupted")):
+    """Runs the blueprint and compares its marks with the program's."""
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    assert _trace(outcome.records, statuses) == _expect(expected)
+    return outcome
+
+
+H1_TEXT = """
+simulation: {sim_id: H1, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1, queue: priority, preempt: true}}
+arrivals:
+  job: {replay: {path: job.csv}, spawn: take}
+  other: {replay: {path: other.csv}, spawn: waiter}
+  cut: {replay: {path: cut.csv}, spawn: cutter}
+tasks:
+  take: {seize: {resource: m, priority: 5}, payload: {e: got}, next: a}
+  a: {service_time: 2, payload: {e: a_done}, next: b}
+  b: {service_time: 3, payload: {e: b_done}, release: m}
+  waiter: {seize: {resource: m, priority: 9, preempt: false}, payload: {e: waiter_got}, release: m}
+  cutter: {resource: m, priority: 1, service_time: 1, payload: {e: cutter_done}}
+run: {until: 200}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("cut_at", [None, 1, 3])
+def test_h1_a_seized_unit_is_held_across_tasks_until_the_release(tmp_path, n, cut_at):
+    """H1 `seize` and `release`: the unit stays with the flow through the next two
+    timed tasks and is given back by `release: m`, so the waiter of a lower priority
+    comes after every job; a preempter takes it in the middle of a step, and the task
+    asks again under the same name and goes on with the time it had left."""
+    _csv(tmp_path, "job", ["time"], [(0,)] * n)
+    _csv(tmp_path, "other", ["time"], [(0,)])
+    _csv(tmp_path, "cut", ["time"], [(cut_at,)] if cut_at is not None else [])
+    _same(tmp_path, H1_TEXT, batch8.h1_held_across_steps(n, cut_at))
+
+
+H5_TEXT = """
+simulation: {sim_id: H5, factor: 0, random_seed: 42}
+resources: {r1: {current_cap: CAP}, r2: {current_cap: CAP}}
+arrivals:
+  first: {replay: {path: first.csv}, spawn: one_two}
+  second: {replay: {path: second.csv}, spawn: two_one}
+tasks:
+  one_two: {seize: r1, service_time: 1, payload: {e: got_first}, next: one_two_b}
+  one_two_b: {seize: r2, service_time: 1, payload: {e: both}, release: r2, next: one_two_c}
+  one_two_c: {payload: {e: done}, release: r1}
+  two_one: {seize: r2, service_time: 1, payload: {e: got_first}, next: two_one_b}
+  two_one_b: {seize: r1, service_time: 1, payload: {e: both}, release: r1, next: two_one_c}
+  two_one_c: {payload: {e: done}, release: r2}
+run: {until: 200}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("cap,at", [(1, 0), (2, 0), (1, 5)])
+def test_h5_opposite_orders_of_seize_load_with_a_warning_and_run_as_simpy(
+    tmp_path, caplog, n, cap, at
+):
+    """H5: tasks that seize two resources in opposite orders load with a warning that
+    names both tasks, and run as SimPy runs the same processes: with one unit each
+    and a tie at 0 the two sides wait for each other for ever and the run ends with
+    no error."""
+    _csv(tmp_path, "first", ["time"], [(0,)] * n)
+    _csv(tmp_path, "second", ["time"], [(at,)] * n)
+    with caplog.at_level("WARNING"):
+        _same(
+            tmp_path,
+            H5_TEXT.replace("CAP", str(cap)),
+            batch8.h5_opposite_orders(n, cap, at),
+        )
+    assert "task 'one_two_b' holding 'r1' from a seize acquires 'r1' before 'r2'" in (
+        caplog.text
+    ) or "task 'two_one_b' holding 'r2' from a seize acquires 'r2'" in (caplog.text)
+    assert "in one order everywhere" in caplog.text
+
+
+H6_TEXT = """
+simulation: {sim_id: H6, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}}
+arrivals:
+  holder: {replay: {path: holder.csv}, spawn: hold}
+  waiter: {replay: {path: waiter.csv}, spawn: want}
+  third: {replay: {path: third.csv}, spawn: free_it}
+tasks:
+  hold: HOLD
+  want: {resource: m, service_time: 10, payload: {e: served}}
+  free_it: {service_time: 1, payload: {e: freed}, release: {resource: m, task: hold, where: "process.instance == 0"}}
+run: {until: 500}
+"""
+
+
+H6_HOLDS = {
+    "seize": "{seize: m, service_time: 5, payload: {e: held}, release: m}",
+    "resource": "{resource: m, service_time: 5, payload: {e: held}}",
+    "wait request": "{wait: {request: m}, service_time: 5, payload: {e: held}}",
+}
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("form", H6_HOLDS)
+def test_h6_release_frees_the_unit_another_flow_holds(tmp_path, n, form):
+    """H6 `release: {resource, task, where}`: another entity frees the unit that the
+    first instance of `hold` holds, whether it asked by `seize`, by `resource` or by a
+    `request` in a wait; the holder is not told and its own release does nothing, and
+    the next request in the queue gets the unit at once."""
+    _csv(tmp_path, "holder", ["time"], [(0,)] * n)
+    _csv(tmp_path, "waiter", ["time"], [(0,)] * n)
+    _csv(tmp_path, "third", ["time"], [(0,)])
+    _same(
+        tmp_path,
+        H6_TEXT.replace("HOLD", H6_HOLDS[form]),
+        batch8.h6_release_of_another_holder(n),
+    )
+
+
+H9_TEXT = """
+simulation: {sim_id: H9, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: first_job}
+  b: {replay: {path: b.csv}, spawn: second_job}
+tasks:
+  first_job: {open: {slot: {request: m}}, wait: {handle: slot}, payload: {e: opened}, next: cancel_it}
+  cancel_it: {cancel: {handle: slot}, payload: {e: cancelled_after_grant}, next: hold_on}
+  hold_on: {service_time: 3, payload: {e: still_held}, release: {handle: slot}}
+  second_job: {resource: m, service_time: 1, payload: {e: got}}
+run: {until: 500}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_h9_a_cancel_after_the_grant_keeps_the_unit_until_the_release(tmp_path, n):
+    """H9 `open`, `cancel` and `release: {handle}`: a request cancelled after its grant
+    keeps the unit, and a release of its handle gives it back."""
+    _csv(tmp_path, "a", ["time"], [(0,)] * n)
+    _csv(tmp_path, "b", ["time"], [(1,)])
+    _same(tmp_path, H9_TEXT, batch8.h9_cancel_after_the_grant(n))
+
+
+I10_TEXT = """
+simulation: {sim_id: I10, factor: 0, random_seed: 42}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: waiter}
+  b: {replay: {path: b.csv}, spawn: poke}
+tasks:
+  waiter: {open: {limit: {timeout: 5}}, wait: {handle: limit}, on_interrupt: POLICY, payload: {e: ended}}
+  poke: {payload: {e: poke}, interrupt: {task: waiter, cause: x}}
+run: {until: 100}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("policy", ["resume", "restart"])
+def test_i10_a_wait_for_a_handle_goes_on_with_the_same_event_after_an_interrupt(
+    tmp_path, n, policy
+):
+    """I10: an interrupted `wait: {handle}` under `resume` or `restart` waits for the
+    same event again, as a SimPy process that yields the same timeout again does, so it
+    ends at the timeout's own time."""
+    _csv(tmp_path, "a", ["time"], [(0,)] * n)
+    _csv(tmp_path, "b", ["time"], [(2,)])
+    _same(
+        tmp_path,
+        I10_TEXT.replace("POLICY", policy),
+        batch8.i10_wait_again_after_an_interrupt(n),
+    )
+
+
+M7_TEXT = """
+simulation: {sim_id: M7, factor: 0, random_seed: 42}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: relay}
+  w: {replay: {path: w.csv}, spawn: watch}
+tasks:
+  relay: {service_time: 3, payload: {e: relay}, next: more}
+  more: {service_time: 3, payload: {e: more}}
+  watch: {wait: {running: {task: relay, WHERE whole_flow: true}}, payload: {e: flow_done, x: {gen: expr, expr: t}}}
+run: {until: 100}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("only_first", [True, False])
+def test_m7_whole_flow_waits_for_the_flows_the_task_belongs_to(tmp_path, n, only_first):
+    """M7 `whole_flow` on a `running` wait: the wait ends when the whole flow of the
+    selected instances has ended, the tasks after the named one included."""
+    _csv(tmp_path, "a", ["time"], [(0,)] * n)
+    _csv(tmp_path, "w", ["time"], [(1,)])
+    where = 'where: "process.instance == 0", ' if only_first else ""
+    _same(
+        tmp_path,
+        M7_TEXT.replace("WHERE ", where),
+        batch8.m7_whole_flow(n, only_first),
+    )
+
+
+T10_TEXT = """
+simulation: {sim_id: T10, factor: 0, random_seed: 42}
+arrivals: {a: {replay: {path: a.csv}, spawn: begin}}
+tasks:
+  begin: {open: {ev: {timeout: 1}, t: {timeout: {after: 5, value: late}}}, wait: {any: {a: {handle: ev}, b: {handle: t}}}, payload: {e: first, x: {gen: expr, expr: "handle.t.triggered"}}, next: again}
+  again: {wait: {handle: t}, payload: {e: again, x: {gen: expr, expr: "handle.t.value"}}}
+run: {until: 100}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_losing_timeout_can_be_waited_for_again(tmp_path, n):
+    """T10: the timeout that lost an `any` is waited for again through its handle, and
+    ends at its own time with its own value, as SimPy's second `yield` of the same
+    `Timeout` does."""
+    _csv(tmp_path, "a", ["time"], [(0,)] * n)
+    _same(tmp_path, T10_TEXT, batch8.t10_wait_again(n))
+
+
+def _runs(tmp_path, text, csvs, expected, replacements=()):
+    """Writes the replay files, runs the blueprint and compares its marks."""
+    for name, moments in csvs.items():
+        _csv(tmp_path, name, ["time"], [(t,) for t in moments])
+    for old, new in replacements:
+        text = text.replace(old, new)
+    return _same(tmp_path, text, expected)
+
+
+_PROBE = (
+    "  probe: {replay: {path: probe.csv}, spawn: probe}\n"
+    '  probe: {payload: {e: end, x: {gen: expr, expr: "[users.m, queue.m]"}}}\n'
+)
+
+GRANT_TEXT = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}, k: {current_cap: 1}}
+arrivals:
+  hm: {replay: {path: hm.csv}, spawn: holdm}
+  hk: {replay: {path: hk.csv}, spawn: holdk}
+  s: {replay: {path: s.csv}, spawn: seizer}
+  h: {replay: {path: h.csv}, spawn: opener}
+tasks:
+  holdm: {resource: m, service_time: 10, payload: {e: held_m}}
+  holdk: {resource: k, service_time: 10, payload: {e: held_k}}
+  seizer: {seize: m, payload: {e: got}, next: seizer2}
+  seizer2: {service_time: 2, payload: {e: s_done}, release: m}
+  opener: {open: {q: {request: k}}, service_time: 12, payload: {e: after, x: {gen: expr, expr: "handle.q.triggered"}}, release: {handle: q}}
+run: {until: 500}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_unit_states_grant(tmp_path, n):
+    """Unit states, Grant: a queued `seize` becomes held and the flow goes on; the
+    request of a handle becomes held whatever the flow is doing."""
+    csvs = {"hm": [0], "hk": [0], "s": [0] * n, "h": [0] * n}
+    _runs(tmp_path, GRANT_TEXT, csvs, batch8.unit_grant(n))
+
+
+PATIENCE_TEXT = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}, o: {current_cap: 1}}
+arrivals:
+  holder: {replay: {path: holder.csv}, spawn: hold}
+  s: {replay: {path: s.csv}, spawn: subject}
+  behind: {replay: {path: behind.csv}, spawn: behind}
+  probe: {replay: {path: probe.csv}, spawn: probe}
+tasks:
+  hold: {resource: m, service_time: 10, payload: {e: held}}
+  subject: SUBJECT
+  behind: {resource: m, service_time: 1, payload: {e: behind}}
+  probe: {payload: {e: end, x: {gen: expr, expr: "[users.m, queue.m]"}}}
+run: {until: 500}
+"""
+
+PATIENCE_HELD = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}, o: {current_cap: 1}}
+arrivals:
+  blocker: {replay: {path: holder.csv}, spawn: block}
+  s: {replay: {path: s.csv}, spawn: subject}
+  probe: {replay: {path: probe.csv}, spawn: probe}
+tasks:
+  block: {resource: o, service_time: 9, payload: {e: blocked}}
+  subject: {seize: m, payload: {e: seized}, next: second}
+  second: {resource: o, service_time: 1, patience: 2, payload: {e: never}}
+  probe: {payload: {e: end, x: {gen: expr, expr: "[users.m, queue.m]"}}}
+run: {until: 500}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("part", ["seize", "handle", "held"])
+def test_unit_states_patience_end(tmp_path, n, part):
+    """Unit states, Patience end: a queued `seize` ends and leaves the line; the
+    request of a handle stays and is granted later; a held unit stays held."""
+    subject = {
+        "seize": "{seize: {resource: m, patience: 2}, payload: {e: got}}",
+        "handle": "{open: {q: {request: m}}, wait: {handle: q}, patience: 2, payload: {e: got}}",
+    }
+    csvs = {"holder": [0], "s": [0] * n, "behind": [0.5], "probe": [30]}
+    if part == "held":
+        text, csvs = PATIENCE_HELD, {k: v for k, v in csvs.items() if k != "behind"}
+    else:
+        text = PATIENCE_TEXT.replace("SUBJECT", subject[part])
+        if part == "handle":
+            text = text.replace(
+                "  behind: {replay: {path: behind.csv}, spawn: behind}\n", ""
+            )
+            csvs.pop("behind")
+    _runs(tmp_path, text, csvs, batch8.unit_patience(n, part))
+
+
+PREEMPT_TEXT = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1, queue: priority, preempt: true}}
+arrivals:
+  v: {replay: {path: v.csv}, spawn: take}
+  q: {replay: {path: q.csv}, spawn: queued}
+  l: {replay: {path: l.csv}, spawn: looker}
+  h: {replay: {path: h.csv}, spawn: high}
+  probe: {replay: {path: probe.csv}, spawn: probe}
+tasks:
+  take: {seize: {resource: m, priority: 1}, payload: {e: taken}, next: work}
+  work: {service_time: 5, payload: {e: worked}, release: m, on_interrupt: POLICY, ON_NEXT}
+  cleanup: {payload: {e: cleanup}, release: m}
+  queued: {seize: {resource: m, priority: 2}, payload: {e: queued_got}, release: m}
+  looker: {open: {q: {request: m}}, priority: 2, service_time: 1.5, payload: {e: looked, x: {gen: expr, expr: "handle.q.triggered"}}, cancel: q}
+  high: {resource: m, priority: 0, service_time: 2, payload: {e: high_done}}
+  probe: {payload: {e: end, x: {gen: expr, expr: "[users.m, queue.m]"}}}
+run: {until: 500}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("policy", ["resume", "restart", "abandon"])
+def test_unit_states_preemption(tmp_path, n, policy):
+    """Unit states, Preemption: a request in a line is not told; a held unit is
+    ended, and under `resume` or `restart` the task asks again under the same name;
+    under `abandon` the task ends and a later `release` frees nothing."""
+    csvs = {"v": [0] * n, "q": [0.5], "l": [0.5], "h": [1], "probe": [50]}
+    on_next = "on_interrupt_next: cleanup" if policy == "abandon" else "next: null"
+    text = PREEMPT_TEXT.replace("POLICY", policy).replace("ON_NEXT", on_next)
+    _runs(tmp_path, text, csvs, batch8.unit_preemption(n, policy))
+
+
+LOSS_TEXT = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: subject}
+  probe: {replay: {path: probe.csv}, spawn: probe}
+tasks:
+  subject: {open: {q: {request: m}}, wait: {any: {w: {handle: q}, t: {timeout: 1}}}, payload: {e: any_done, x: {gen: expr, expr: "[wait.w.done, users.m, queue.m]"}}, next: later}
+  later: {service_time: 2, payload: {e: after, x: {gen: expr, expr: "[handle.q.triggered, users.m, queue.m]"}}, release: {handle: q}}
+  probe: {payload: {e: end, x: {gen: expr, expr: "[users.m, queue.m]"}}}
+run: {until: 500}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_unit_states_loss_in_any_and_release_of_a_queued_request(tmp_path, n):
+    """Unit states, Loss in `any` and `release`: a request that loses an `any` stays
+    in the line and one that wins stays held until its release; a release of a request
+    still in the line does nothing, and it is granted later."""
+    _runs(
+        tmp_path, LOSS_TEXT, {"a": [0] * n, "probe": [50]}, batch8.unit_loss_in_any(n)
+    )
+
+
+CANCEL_TEXT = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}}
+arrivals:
+  holder: {replay: {path: holder.csv}, spawn: hold}
+  a: {replay: {path: a.csv}, spawn: subject}
+tasks:
+  hold: {resource: m, service_time: 5, payload: {e: held}}
+  subject: {open: {q: {request: m}}, service_time: 1, payload: {e: before_cancel, x: STATE}, next: cancel_it}
+  cancel_it: {cancel: q, payload: {e: cancelled, x: STATE}, next: release_it}
+  release_it: {release: {handle: q}, payload: {e: released, x: STATE}}
+run: {until: 500}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_unit_states_cancel_of_a_queued_request_and_release_after_it(tmp_path, n):
+    """Unit states, `cancel`: a request in the line leaves it and the release after it
+    has nothing to free."""
+    state = '{gen: expr, expr: "[users.m, queue.m]"}'
+    _runs(
+        tmp_path,
+        CANCEL_TEXT.replace("STATE", state),
+        {"holder": [0], "a": [0] * n},
+        batch8.unit_cancel(n),
+    )
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_unit_states_cancel_of_a_request_that_left_the_line_fails_the_run(tmp_path, n):
+    """Unit states, `cancel`: a request cancelled twice is a run failure, as SimPy's
+    `ValueError` is."""
+    text = CANCEL_TEXT.replace("STATE", "null").replace(
+        "next: release_it}\n  release_it: {release: {handle: q}, payload: {e: released, x: null}}",
+        "next: cancel_again}\n  cancel_again: {cancel: q, payload: {e: again}}",
+    )
+    for name, moments in {"holder": [0], "a": [0] * n}.items():
+        _csv(tmp_path, name, ["time"], [(t,) for t in moments])
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert isinstance(outcome.error, TaskFailed)
+    assert outcome.error.task == "cancel_again"
+    assert "cancel: 'q' was cancelled already" in str(outcome.error)
+    assert [m for m in _trace(outcome.records) if m[2] == "again"] == []
+    # SimPy raises ValueError at the second cancel of the first request
+    assert batch8.unit_cancel_twice(n)[:2] == [
+        (1, "a-1", "cancelled", n - 1),
+        (1, "a-1", "again", "ValueError"),
+    ]
+
+
+RELEASE_TEXT = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 2}}
+arrivals: {a: {replay: {path: a.csv}, spawn: subject}}
+tasks:
+  subject: {open: {a: {request: m}, b: {request: m}}, wait: {all: {x: {handle: a}, y: {handle: b}}}, payload: {e: both, x: {gen: expr, expr: "users.m"}}, next: first}
+  first: {service_time: 1, release: {handle: a}, payload: {e: first}, next: after_a}
+  after_a: {payload: {e: after_a, x: {gen: expr, expr: "[users.m, handle.b.triggered]"}}, next: second}
+  second: {service_time: 1, release: {handle: b}, payload: {e: second}, next: after_b}
+  after_b: {payload: {e: after_b, x: {gen: expr, expr: "users.m"}}, next: third}
+  third: {release: {handle: a}, payload: {e: third}, next: again}
+  again: {payload: {e: again, x: {gen: expr, expr: "users.m"}}}
+run: {until: 500}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_unit_states_release_of_held_and_of_ended_requests(tmp_path, n):
+    """Unit states, `release` and Y4 two units: a release ends a held request and frees
+    its unit; a release of a request that has ended does nothing."""
+    _runs(tmp_path, RELEASE_TEXT, {"a": [0] * n}, batch8.unit_release(n))
+
+
+TASK_FLOW_END_TEXT = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}}
+arrivals:
+  holder: {replay: {path: holder.csv}, spawn: hold}
+  a: {replay: {path: a.csv}, spawn: subject}
+  probe: {replay: {path: probe.csv}, spawn: probe}
+tasks:
+  hold: {resource: m, service_time: 10, payload: {e: held}}
+  subject: SUBJECT
+  next_task: {payload: {e: te_next, x: {gen: expr, expr: "not handle.q.triggered"}}, next: waits}
+  waits: {wait: {handle: q}, payload: {e: te_got}, release: {handle: q}}
+  probe: {payload: {e: end, x: {gen: expr, expr: "[users.m, queue.m]"}}}
+run: {until: 500}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("part", ["task", "flow", "held"])
+def test_unit_states_task_end_and_flow_end(tmp_path, n, part):
+    """Unit states, Task end and Flow end: a request a task opened stays in the line
+    when the task ends, and is still there in the next task; at the end of the flow it
+    stays and is granted later; a held unit stays held."""
+    subject = {
+        "task": "{open: {q: {request: m}}, service_time: 2, payload: {e: te_first}, next: next_task}",
+        "flow": "{open: {q: {request: m}}, payload: {e: flow_ended}}",
+        "held": "{seize: m, payload: {e: seized}}",
+    }[part]
+    csvs = {"holder": [0], "a": [0] * n, "probe": [50]}
+    text = TASK_FLOW_END_TEXT.replace("SUBJECT", subject)
+    if part == "held":
+        csvs.pop("holder")
+        text = text.replace("  holder: {replay: {path: holder.csv}, spawn: hold}\n", "")
+    if part != "task":
+        text = "\n".join(
+            line
+            for line in text.split("\n")
+            if not line.startswith(("  next_task:", "  waits:"))
+        )
+    _runs(tmp_path, text, csvs, batch8.unit_task_and_flow_end(n, part))
+
+
+def test_h1_preempting_a_unit_that_an_ended_flow_holds_fails_the_requesting_flow(
+    tmp_path,
+):
+    """H1: the flow that seized the unit has ended and keeps it; a request of a higher
+    priority that would preempt it fails the run with `RuntimeError`, as SimPy's
+    `request()` raises in the process that makes it."""
+    text = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1, queue: priority, preempt: true}}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: holder}
+  b: {replay: {path: b.csv}, spawn: high}
+tasks:
+  holder: {seize: {resource: m, priority: 5}, payload: {e: holder_ended}}
+  high: {resource: m, priority: 0, service_time: 1, payload: {e: high_done}}
+run: {until: 50}
+"""
+    _csv(tmp_path, "a", ["time"], [(0,)])
+    _csv(tmp_path, "b", ["time"], [(1,)])
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert isinstance(outcome.error, RuntimeError)
+    assert "has terminated and cannot be interrupted" in str(outcome.error)
+    assert [m[2] for m in _trace(outcome.records)] == ["holder_ended"]
+    assert batch8.h1_preempting_an_ended_flow() == [(1, "RuntimeError")]
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("interrupt", [False, True])
+def test_y4_a_child_flow_is_a_handle_that_can_be_read_interrupted_and_waited_for(
+    tmp_path, n, interrupt
+):
+    """Y4 `open: {task}`, `handle.<n>.alive`, `.ok` and `.value`, and `interrupt:
+    {handle}`: a child flow is read, interrupted and waited for through its name."""
+    text = """
+simulation: {sim_id: Y4, factor: 0, random_seed: 42}
+arrivals: {a: {replay: {path: a.csv}, spawn: begin}}
+tasks:
+  begin: {open: {c: {task: w}}, payload: {e: alive, x: {gen: expr, expr: "handle.c.alive"}}, next: wait_c}
+  wait_c: {service_time: 1, payload: {e: waited}, INTERRUPT next: join}
+  join: {wait: {handle: c}, payload: {e: got, x: {gen: expr, expr: "[handle.c.value.e, handle.c.alive, handle.c.ok]"}}}
+  w: {service_time: 5, on_interrupt: abandon, on_interrupt_next: stopped, payload: {e: done}}
+  stopped: {payload: {e: stopped_task}}
+run: {until: 100}
+"""
+    text = text.replace(
+        "INTERRUPT ", "interrupt: {handle: c, cause: stop}, " if interrupt else ""
+    )
+    _csv(tmp_path, "a", ["time"], [(0,)] * n)
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    expected = batch8.y4_child_reference(n, interrupt)
+    # The program's child returns "stopped" or "done"; the blueprint's child ends with
+    # the record of its last task, `stopped_task` or `done`
+    expected = [
+        (t, k, label, [{"stopped": "stopped_task"}.get(x[0], x[0])] + x[1:])
+        if label == "got"
+        else (t, k, label, x)
+        for t, k, label, x in expected
+    ]
+    assert _trace(outcome.records) == _expect(expected)
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y4_cancel_of_a_get_and_of_a_put_and_a_get_granted_before_the_cancel(
+    tmp_path, n
+):
+    """Y4 `cancel` of a get or a put: a queued get leaves its line, and a put too; a
+    get granted before the cancel keeps its item, `ok` and value."""
+    text = """
+simulation: {sim_id: Y4, factor: 0, random_seed: 42}
+stores: {empty: {}, full: {current_cap: 1, items: [1]}, stocked: {items: [x]}}
+arrivals:
+  g: {replay: {path: g.csv}, spawn: begin}
+  k: {replay: {path: k.csv}, spawn: keep}
+  p: {replay: {path: p.csv}, spawn: put_open}
+tasks:
+  begin: {open: {r: {get: {store: empty}}}, service_time: 1, payload: {e: begun}, next: cancel_it}
+  cancel_it: {cancel: r, service_time: 1, payload: {e: cancelled, x: {gen: expr, expr: "getters.empty"}}, next: put_it}
+  put_it: {put: {store: empty, item: x}, payload: {e: put_done}, next: read}
+  read: {payload: {e: items, x: {gen: expr, expr: "level.empty"}}}
+  keep: {open: {r: {get: {store: stocked}}}, service_time: 0, payload: {e: granted}, next: cancel_kept}
+  cancel_kept: {cancel: r, payload: {e: kept, x: {gen: expr, expr: "[level.stocked, handle.r.ok, handle.r.value]"}}}
+  put_open: {open: {r: {put: {store: full, item: 2}}}, payload: {e: put_opened, x: {gen: expr, expr: "putters.full"}}, next: cancel_put}
+  cancel_put: {cancel: r, payload: {e: put_cancelled, x: {gen: expr, expr: "putters.full"}}}
+run: {until: 100}
+"""
+    _csv(tmp_path, "g", ["time"], [(0,)] * n)
+    _csv(tmp_path, "k", ["time"], [(0,)])
+    _csv(tmp_path, "p", ["time"], [(0,)])
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    assert _trace(outcome.records) == _expect(batch8.y4_get_cancel(n))
+
+
+def test_y4_a_child_reads_a_handle_of_its_parent_and_a_group_is_made_now(tmp_path):
+    """Y4 scope and group: a child flow reads the handles of the flow that started it,
+    and a group of timeouts made at one step is waited for at a later step."""
+    text = """
+simulation: {sim_id: Y4, factor: 0, random_seed: 42}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: parent}
+  g: {replay: {path: g.csv}, spawn: grouped}
+tasks:
+  parent: {open: {ev: {timeout: {after: 2, value: v}}, c: {task: child}}, wait: {handle: c}, payload: null}
+  child: {wait: {handle: ev}, payload: {e: child, x: {gen: expr, expr: "handle.ev.value"}}}
+  grouped: {open: {g: {all: {a: {timeout: {after: 1, value: 1}}, b: {timeout: {after: 3, value: 3}}}}}, service_time: 2, payload: {e: made}, next: later}
+  later: {wait: {handle: g}, payload: {e: got, x: {gen: expr, expr: "handle.g.value"}}}
+run: {until: 100}
+"""
+    _csv(tmp_path, "a", ["time"], [(0,)])
+    _csv(tmp_path, "g", ["time"], [(0,)])
+    _same(tmp_path, text, batch8.y4_scope_and_group())
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y4_an_opened_request_is_ahead_of_a_seize_of_the_same_resource(tmp_path, n):
+    """Y4 key order: `open` comes before `seize` in a task, so the opened request is
+    ahead in the line, and the seize waits for the unit it holds."""
+    text = """
+simulation: {sim_id: Y4, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}}
+arrivals:
+  blocker: {replay: {path: blocker.csv}, spawn: block}
+  a: {replay: {path: a.csv}, spawn: flow}
+  r: {replay: {path: r.csv}, spawn: free_it}
+tasks:
+  block: {resource: m, service_time: 1, payload: {e: blocked}}
+  flow: {open: {o: {request: m}}, seize: m, payload: {e: seized_got}}
+  free_it: {service_time: 2, payload: {e: released}, release: {resource: m, task: flow}}
+run: {until: 100}
+"""
+    _csv(tmp_path, "blocker", ["time"], [(0,)])
+    _csv(tmp_path, "a", ["time"], [(0,)] * n)
+    _csv(tmp_path, "r", ["time"], [(0,)])
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    got = [m[:3] for m in _trace(outcome.records) if m[2] == "seized_got"]
+    expected = [m[:3] for m in batch8.y4_key_order(n) if m[2] == "seized_got"]
+    assert got == _expect(expected)
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_a_seized_unit_that_a_preemption_takes_before_the_task_looked_is_asked_for_again(
+    tmp_path, n
+):
+    """Engine fix 9: a unit granted to a `seize` and preempted in the same instant,
+    before the task looked at the grant, is taken from it, and the task asks again
+    under the same name, as a SimPy process whose `yield request` is interrupted
+    does."""
+    text = """
+simulation: {sim_id: S, factor: 0}
+resources: {m: {current_cap: 1, queue: priority, preempt: true}}
+arrivals:
+  h: {replay: {path: h.csv}, spawn: hold}
+  v: {replay: {path: v.csv}, spawn: victim}
+  p: {replay: {path: p.csv}, spawn: high}
+  probe: {replay: {path: probe.csv}, spawn: probe}
+tasks:
+  hold: {resource: m, priority: 1, service_time: 5, payload: {e: held}}
+  victim: {seize: {resource: m, priority: 5}, payload: {e: taken}, next: work}
+  work: {service_time: 3, payload: {e: worked}, release: m}
+  high: {resource: m, priority: 0, service_time: 2, payload: {e: high_done}}
+  probe: {payload: {e: end, x: {gen: expr, expr: "[users.m, queue.m]"}}}
+run: {until: 500}
+"""
+    csvs = {"h": [0], "v": [0] * n, "p": [5], "probe": [100]}
+    _runs(tmp_path, text, csvs, batch8.granted_then_preempted(n))
+
+
+# ------------------------------------------------- Batch 8: M5, Y8, Y12 and H8
+
+
+def _ranked(tmp_path, text, expected):
+    """As `_same`, with the statuses `preempted` and `balked` as marks."""
+    return _same(tmp_path, text, expected, ("preempted", "balked"))
+
+
+def _one(name, spawn, at, attributes=None):
+    """An arrival of one entity at `at`, whose key is `<name>-1`."""
+    extra = ""
+    if attributes:
+        pairs = ", ".join(f"{k}: {v}" for k, v in attributes.items())
+        extra = f", attributes: {{{pairs}}}"
+    return (
+        f"  {name}: {{dist: constant, value: 1, spawn: {spawn}, max_events: 1, "
+        f"first_at: {at}{extra}}}\n"
+    )
+
+
+M5_JOBS = {
+    "equal rank at one instant, holder without preempt": [
+        ("a", 0, 1, False, 5),
+        ("b", 0, 1, True, 5),
+    ],
+    "equal rank, request later": [("a", 0, 1, False, 5), ("b", 1, 1, True, 5)],
+    "equal key, both preempting, no preemption": [
+        ("a", 0, 1, True, 5),
+        ("b", 0, 1, True, 5),
+    ],
+    "both without preempt": [("a", 0, 1, False, 5), ("b", 0, 1, False, 5)],
+    "lower rank later": [("a", 0, 5, True, 5), ("b", 1, 1, True, 5)],
+    "request with preempt false never preempts": [
+        ("a", 0, 5, True, 5),
+        ("b", 1, 1, False, 5),
+    ],
+    "queue order by key": [
+        ("a", 0, 1, True, 3),
+        ("b", 1, 2, False, 1),
+        ("c", 1, 2, True, 1),
+        ("d", 1, 1, False, 1),
+    ],
+}
+M5_RANKS = [
+    ("old", 0, 5, True, 9),
+    ("new", 1, 5, True, 9),
+    ("hi", 2, 1, True, 9),
+]
+WHEN_TIME = "request.rank < holder.rank and t - holder.since > 1"
+
+
+def _m5_text(jobs, copies, cap=1, queue="", preempt="true", until=30):
+    arrivals = "".join(
+        _one(
+            f"{name}{index}",
+            "job",
+            at,
+            {"rank": rank, "pre": str(flag).lower(), "span": span},
+        )
+        for name, at, rank, flag, span in jobs
+        for index in range(1, copies + 1)
+    )
+    return f"""
+simulation: {{sim_id: M5, factor: 0, random_seed: 42}}
+resources:
+  m: {{current_cap: {cap}, queue: {{rank: "attr.rank"{queue}}}, preempt: {preempt}}}
+arrivals:
+{arrivals}tasks:
+  job: {{resource: m, preempt: "attr.pre", service_time: "attr.span", on_interrupt: abandon, payload: {{e: done}}}}
+run: {{until: {until}}}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("case", sorted(M5_JOBS))
+def test_m5_default_queue_rule_runs_as_a_preemptive_resource(tmp_path, n, case):
+    """M5: a `queue` rank on the request's `attr.rank` with `preempt: true` orders
+    and preempts as SimPy's PreemptiveResource does with the same priorities."""
+    jobs = M5_JOBS[case]
+    plain = batch8.m5_rules(jobs, n)
+    outcome = _ranked(tmp_path, _m5_text(jobs, n), plain)
+    assert outcome.records
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("ties", ["fifo", "lifo"])
+@pytest.mark.parametrize("cap", [1, 2])
+def test_m5_ties_change_only_the_order_of_equal_ranks(tmp_path, n, ties, cap):
+    """M5 `ties`: of equal ranks the earliest waits first (fifo) or the latest does
+    (lifo); a later request of an equal rank preempts nobody in either."""
+    jobs = [
+        ("a", 0, 1, False, 2),
+        ("b", 1, 1, False, 1),
+        ("c", 1, 1, False, 1),
+        ("d", 1.5, 1, False, 1),
+        ("e", 2, 1, True, 1),
+    ]
+    _ranked(
+        tmp_path,
+        _m5_text(jobs, n, cap=cap, queue=f", ties: {ties}"),
+        batch8.m5_rules(jobs, n, capacity=cap, ties=ties),
+    )
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("at", [1, 2])
+def test_m5_when_rule_decides_each_preemption(tmp_path, n, at):
+    """M5 `preempt: {when}`: a request of a lower rank preempts only when the rule
+    holds (here, after the holder has held for more than 1 s)."""
+    jobs = [("a", 0, 5, True, 5), ("b", at, 1, True, 1)]
+    _ranked(
+        tmp_path,
+        _m5_text(jobs, n, preempt=f'{{when: "{WHEN_TIME}"}}'),
+        batch8.m5_rules(
+            jobs,
+            n,
+            when=lambda request, holder: (
+                request.priority < holder.priority and (at - holder.usage_since) > 1
+            ),
+        ),
+    )
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_m5_victim_rule_picks_the_holder_with_the_largest_value(tmp_path, n):
+    """M5 `preempt: {victim}`: of the holders, the one with the largest value is
+    the candidate, the first granted among equal values; `holder.rank` here."""
+    text = _m5_text(M5_RANKS, n, cap=2, preempt='{victim: "holder.rank"}', until=3)
+    _ranked(
+        tmp_path,
+        text,
+        batch8.m5_rules(
+            M5_RANKS, n, capacity=2, victim=lambda holder: holder.priority, until=3
+        ),
+    )
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("p", [1, 3])
+def test_y8_a_computed_preempt_flag_is_read_for_each_request(tmp_path, n, p):
+    """Y8 computed `preempt`: `preempt: "attr.p < 2"` is a flag per request; of the
+    requests at 1 the first of priority 1 preempts the holder and the others wait
+    in key order, and with priority 3 none preempts."""
+    arrivals = _one("low1", "job", 0, {"p": 5}) + "".join(
+        _one(f"high{i}", "job", 1, {"p": p}) for i in range(1, n + 1)
+    )
+    text = f"""
+simulation: {{sim_id: Y8, factor: 0, random_seed: 42}}
+resources:
+  r: {{current_cap: 1, queue: priority, preempt: true}}
+arrivals:
+{arrivals}tasks:
+  job: {{resource: r, priority: "attr.p", preempt: "attr.p < 2", service_time: 5, on_interrupt: abandon, payload: {{e: done}}}}
+run: {{until: 100}}
+"""
+    _ranked(tmp_path, text, batch8.y8_computed(p, n))
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y8_a_request_mapping_gives_each_branch_its_own_priority(tmp_path, n):
+    """Y8 `request` mapping: in one `wait: {all: ...}` a flow asks for m at priority
+    0 and for n at priority 5, so n goes first to a flow that asks for n alone at
+    priority 1."""
+    ps = "".join(_one(f"p{i}", "ask", 0.5) for i in range(1, n + 1))
+    qs = "".join(_one(f"q{i}", "only_n", 1) for i in range(1, n + 1))
+    text = f"""
+simulation: {{sim_id: Y8, factor: 0, random_seed: 42}}
+resources:
+  m: {{current_cap: 1, queue: priority}}
+  n: {{current_cap: 1, queue: priority}}
+arrivals:
+  hm: {{dist: constant, value: 1, spawn: hold_m, max_events: 1, first_at: 0}}
+  hn: {{dist: constant, value: 1, spawn: hold_n, max_events: 1, first_at: 0}}
+{ps}{qs}tasks:
+  hold_m: {{resource: m, service_time: 2, payload: null}}
+  hold_n: {{resource: n, service_time: 2, payload: null}}
+  ask: {{wait: {{all: {{x: {{request: {{resource: m, priority: 0}}}}, y: {{request: {{resource: n, priority: 5}}}}}}}}, service_time: 1, payload: {{e: got, x: {{gen: expr, expr: "t - 1"}}}}}}
+  only_n: {{resource: n, priority: 1, service_time: 1, payload: {{e: got, x: {{gen: expr, expr: "t - 1"}}}}}}
+run: {{until: 100}}
+"""
+    _ranked(tmp_path, text, batch8.y8_branches(n))
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y8_a_request_mapping_that_names_no_priority_or_preempt_is_simpys_request(
+    tmp_path, n
+):
+    """Y8: `request: {resource: r}` is `r.request()`, priority 0 and preempt true, so it
+    takes the unit of a holder of priority 5 and goes before a request of priority 3."""
+    arrivals = (
+        _one("low1", "low", 0)
+        + "".join(_one(f"viamap{i}", "viamap", 1) for i in range(1, n + 1))
+        + "".join(_one(f"plain{i}", "plain", 2) for i in range(1, n + 1))
+    )
+    text = f"""
+simulation: {{sim_id: Y8, factor: 0, random_seed: 42}}
+resources:
+  r: {{current_cap: 1, queue: priority, preempt: true}}
+arrivals:
+{arrivals}tasks:
+  low: {{resource: r, priority: 5, service_time: 5, on_interrupt: abandon, payload: {{e: done}}}}
+  viamap: {{wait: {{request: {{resource: r}}}}, service_time: 5, payload: {{e: done}}}}
+  plain: {{resource: r, priority: 3, service_time: 5, on_interrupt: abandon, payload: {{e: done}}}}
+run: {{until: 1000}}
+"""
+    _ranked(tmp_path, text, batch8.y8_omitted(n))
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y8_a_request_mapping_may_preempt_in_a_task_that_may_not(tmp_path, n):
+    """Y8: in a task with `preempt: false` the request written as a name asks with
+    `preempt=False` and waits for the unit, and the mapping that leaves `preempt` out
+    is `request()`, which preempts the holder of a lower rank."""
+    mixes = "".join(_one(f"mix{i}", "mix", 1) for i in range(1, n + 1))
+    text = f"""
+simulation: {{sim_id: Y8, factor: 0, random_seed: 42}}
+resources:
+  a: {{current_cap: 1, queue: priority, preempt: true}}
+  b: {{current_cap: 1, queue: priority, preempt: true}}
+arrivals:
+  hold_a: {{dist: constant, value: 1, spawn: hold_a, max_events: 1, first_at: 0}}
+  hold_b: {{dist: constant, value: 1, spawn: hold_b, max_events: 1, first_at: 0}}
+{mixes}tasks:
+  hold_a: {{resource: a, priority: 5, service_time: 5, on_interrupt: abandon, payload: {{e: done}}}}
+  hold_b: {{resource: b, priority: 5, service_time: 5, on_interrupt: abandon, payload: {{e: done}}}}
+  mix: {{preempt: false, wait: {{all: {{x: {{request: a}}, y: {{request: {{resource: b}}}}}}}}, service_time: 1, payload: {{e: got, x: {{gen: expr, expr: "t - 1"}}}}}}
+run: {{until: 100}}
+"""
+    _ranked(tmp_path, text, batch8.y8_mapping_preempt(n))
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y8_a_request_mapping_beside_a_name_does_not_take_the_task_priority(
+    tmp_path, n
+):
+    """Y8: in a task of priority 3 the request written as a name ranks 3 and the one
+    written as a mapping with no priority ranks 0, so it goes before a request of
+    priority 1."""
+    ps = "".join(_one(f"mix{i}", "mix", 0.5) for i in range(1, n + 1))
+    qs = "".join(_one(f"q{i}", "only_n", 1) for i in range(1, n + 1))
+    text = f"""
+simulation: {{sim_id: Y8, factor: 0, random_seed: 42}}
+resources:
+  m: {{current_cap: {n}, queue: priority}}
+  n: {{current_cap: 1, queue: priority}}
+arrivals:
+  hn: {{dist: constant, value: 1, spawn: hold_n, max_events: 1, first_at: 0}}
+{ps}{qs}tasks:
+  hold_n: {{resource: n, service_time: 2, payload: null}}
+  mix: {{priority: 3, wait: {{all: {{x: {{request: m}}, y: {{request: {{resource: n}}}}}}}}, service_time: 1, payload: {{e: got, x: {{gen: expr, expr: "t - 1"}}}}}}
+  only_n: {{resource: n, priority: 1, service_time: 1, payload: {{e: got, x: {{gen: expr, expr: "t - 1"}}}}}}
+run: {{until: 100}}
+"""
+    _ranked(tmp_path, text, batch8.y8_default_rank(n))
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("ties", ["fifo", "lifo"])
+@pytest.mark.parametrize("ranks", [[5, 1, 3], [1, 1, 0], [2, 2, 2]])
+def test_y12_waiting_gets_of_a_store_follow_the_rank(tmp_path, n, ranks, ties):
+    """Y12 `get_queue`: getters wait in rank order, and among equal ranks in the order
+    they asked (`ties: fifo`) or the latest first (`ties: lifo`), and each item goes
+    to the first of them."""
+    getters = "".join(
+        _one(f"g{i}", "get", 0, {"rank": rank})
+        for i, rank in enumerate((r for r in ranks for _ in range(n)), 1)
+    )
+    text = f"""
+simulation: {{sim_id: Y12, factor: 0, random_seed: 42}}
+stores:
+  s: {{get_queue: {{rank: "attr.rank", ties: {ties}}}}}
+arrivals:
+{getters}  p: {{dist: constant, value: 1, spawn: put, max_events: {len(ranks) * n}, first_at: 1}}
+tasks:
+  get: {{get: {{store: s}}, payload: {{e: got, x: {{gen: expr, expr: item}}}}}}
+  put: {{put: {{store: s, item: {{gen: expr, expr: t}}}}, payload: {{e: put}}}}
+run: {{until: 100}}
+"""
+    _ranked(tmp_path, text, batch8.y12_gets(ranks, n, ties == "lifo"))
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y12_waiting_puts_of_a_store_follow_the_rank(tmp_path, n):
+    """Y12 `put_queue`: with one place, the puts that wait go in by rank (1 before 5)
+    as takers free the place."""
+    shelving = ""
+    for name, rank in (("first", 0), ("low", 5), ("high", 1)):
+        for i in range(1, n + 1):
+            shelving += _one(f"{name[0]}{i}", "shelve", 0, {"rank": rank, "name": name})
+    text = f"""
+simulation: {{sim_id: Y12, factor: 0, random_seed: 42}}
+stores:
+  shelf: {{current_cap: 1, put_queue: {{rank: "attr.rank"}}}}
+arrivals:
+{shelving}  tk: {{dist: constant, value: 1, spawn: take, max_events: {3 * n}, first_at: 1}}
+tasks:
+  shelve: {{put: {{store: shelf, item: {{gen: attr, name: name}}}}, payload: {{e: in}}}}
+  take: {{get: {{store: shelf}}, payload: {{e: out, x: {{gen: expr, expr: item}}}}}}
+run: {{until: 100}}
+"""
+    outcome = _ranked(tmp_path, text, batch8.y12_puts(n))
+    assert outcome.records
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_y12_a_container_get_that_cannot_be_met_stops_the_scan(tmp_path, n):
+    """Y12 container `get_queue`: a get of 5 at rank 0 that cannot be met holds back
+    the gets of 1 at rank 1 behind it, as SimPy's container does."""
+    smalls = "".join(
+        _one(f"small{i}", "cget", 0, {"rank": 1, "amount": 1}) for i in range(1, n + 1)
+    )
+    text = f"""
+simulation: {{sim_id: Y12, factor: 0, random_seed: 42}}
+containers:
+  c: {{get_queue: {{rank: "attr.rank"}}, level: 0, current_cap: 100}}
+arrivals:
+{_one("big", "cget", 0, {"rank": 0, "amount": 5})}{smalls}  cp: {{dist: constant, value: 1, spawn: cput_two, max_events: 1, first_at: 1}}
+  cq: {{dist: constant, value: 1, spawn: cput_three, max_events: 1, first_at: 2}}
+  cr: {{dist: constant, value: 1, spawn: cput_one, max_events: {n}, first_at: 3}}
+tasks:
+  cget: {{get: {{container: c, amount: "attr.amount"}}, payload: {{e: got, x: {{gen: expr, expr: "level.c"}}}}}}
+  cput_two: {{put: {{container: c, amount: 2}}, payload: null}}
+  cput_three: {{put: {{container: c, amount: 3}}, payload: null}}
+  cput_one: {{put: {{container: c, amount: 1}}, payload: null}}
+run: {{until: 100}}
+"""
+    _ranked(tmp_path, text, batch8.y12_blocked_head(n))
+
+
+H8_CASES = {
+    "1 then 2 at 4": ([(0, 1), (4, 2)], [0, 1, 2, 5, 6], 10),
+    "shrink removes nobody": ([(0, 3), (4, 0)], [0, 1, 2, 3, 5], 2),
+    "limit 0 balks at a free unit too": ([(0, 0)], [0, 1], 10),
+    "no limit": ([(0, None)], [0, 1, 2], 1),
+    "write and request at one instant, write made first": (
+        [(0, 0), (1, 1)],
+        [0, 1],
+        10,
+    ),
+}
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("case", sorted(H8_CASES))
+def test_h8_queue_limit_changes_during_the_run(tmp_path, n, case):
+    """H8: `<sim>.resources.m.queue_limit` written during the run applies from the
+    next request, removes nobody who already waits, and `null` is no limit; 0 balks
+    even at a free unit."""
+    limits, times, service = H8_CASES[case]
+    first = "null" if limits[0][1] is None else limits[0][1]
+    arrivals = "".join(
+        _one(f"j{(k * n) + i}", "job", at)
+        for k, at in enumerate(times)
+        for i in range(1, n + 1)
+    )
+    steps = ", ".join(
+        f"{{at: {at}, path: H8.resources.m.queue_limit, "
+        f"value: {'null' if value is None else value}}}"
+        for at, value in limits[1:]
+    )
+    text = f"""
+simulation: {{sim_id: H8, factor: 0, random_seed: 42}}
+resources: {{m: {{current_cap: 1, queue_limit: {first}}}}}
+services: {{s: {{dist: constant, value: {service}}}}}
+arrivals:
+{arrivals}scenario: [{steps}]
+tasks:
+  job: {{resource: m, service: s, payload: {{e: done}}}}
+run: {{until: 100}}
+"""
+    _ranked(tmp_path, text, batch8.h8_limit(limits, times, n, service))
+
+
+# ------------------------------------------------- Batch 8: the known cases that run now
+
+KNOWN8 = {
+    # row: (document of known8/, program, files of the document)
+    "EX-2": ("ex_2", "EX_2", {}),
+    "GD-RS1": ("gd_rs1", "GD_RS1", {}),
+    "GD-RS6": (
+        "gd_rs6",
+        "GD_RS6",
+        {"late.csv": "time,prio,can_preempt\n1,-2,0\n1,-1,1\n"},
+    ),
+    "GD-RS11": ("gd_rs11", "GD_RS11", {}),
+    "ST-P08": ("st_p08", "ST_P08", {}),
+    "ST-R01": ("st_r01", "ST_R01", {}),
+    "ST-R14": ("st_r14", "ST_R14", {}),
+    "ST-R15": ("st_r15", "ST_R15", {}),
+    "ST-R26": ("st_r26", "ST_R26", {}),
+    "ST-R29": ("st_r29", "ST_R29", {}),
+    "P30": ("p30", "P30", {}),
+    "P50b": ("p50b", "P50b", {}),
+    "P76": ("p76", "P76", {}),
+    "P77": ("p77", "P77", {}),
+    "P79": ("p79", "P79", {}),
+    "DS-H1": ("ds_h1", "DS_H1", {}),
+    "DS-H5": ("ds_h5", "DS_H5", {}),
+    "DS-H6": ("ds_h6", "DS_H6", {}),
+    "DS-H8": ("ds_h8", "DS_H8", {}),
+    "DS-H9": ("ds_h9", "DS_H9", {}),
+    "DS-I10": ("ds_i10", "DS_I10", {}),
+    "DS-M5": ("ds_m5", "DS_M5", {}),
+    "DS-M7": ("ds_m7", "DS_M7", {}),
+    "DS-Y4": ("ds_y4", "DS_Y4", {}),
+    "DS-Y8": ("ds_y8", "DS_Y8", {}),
+    "DS-Y12": ("ds_y12", "DS_Y12", {}),
+    "CV-069": ("cv_069", "CV_069", {}),
+}
+KNOWN8_SHARED = {
+    # row: the row whose document and program it runs in, the same form with the same
+    # assertions, so a second case would repeat the first
+    "P31": "P30",
+    "CV-049": "DS-Y4",
+    "CV-050": "DS-Y4",
+    "CV-052": "DS-Y4",
+    "CV-067": "DS-H1",
+    "CV-068": "DS-H1",
+    "CV-070": "DS-Y4",
+    "CV-071": "DS-H1",
+    "CV-073": "DS-Y8",
+    "CV-077": "DS-Y8",
+    "CV-079": "DS-M5",
+    "CV-080": "DS-M5",
+    "CV-081": "DS-H8",
+    "CV-082": "DS-Y12",
+    "CV-089": "DS-Y4",
+    "CV-123": "DS-Y4",
+}
+_KEEP_STATUS = ("interrupted", "preempted", "reneged", "balked", "failed")
+
+
+def _known8_records(records, grants=False):
+    """The event records of a run as the programs log them: (time, key, task, value).
+    The engine's own `started`, `queued` and `resumed` records are left out unless the
+    program logs them (`grants`), and a record that keeps a status loses `path_id`."""
+    found = []
+    for record in records:
+        if record["stream_type"] != "event":
+            continue
+        value = record["value"]
+        if isinstance(value, dict) and "status" in value:
+            if value["status"] in _KEEP_STATUS:
+                value = {k: v for k, v in value.items() if k != "path_id"}
+            elif set(value) <= {"status", "path_id", "reason"}:
+                if not grants:
+                    continue
+                value = {k: v for k, v in value.items() if k != "path_id"}
+        found.append((round(record["sim_ts"], 3), record["key"], record["task"], value))
+    return found
+
+
+def _known8_program(name, asserts):
+    """The program `name`; without `asserts`, the same source with every `assert`
+    removed, because the asserts state the original's own scenario and a run of
+    another size is a different one."""
+    if asserts:
+        return getattr(known8, name)
+    import ast
+    import types
+
+    path = Path(known8.__file__)
+    tree = ast.parse(path.read_text())
+
+    class _NoAssert(ast.NodeTransformer):
+        def visit_Assert(self, node):  # noqa: N802
+            return ast.copy_location(ast.Pass(), node)
+
+    tree = ast.fix_missing_locations(_NoAssert().visit(tree))
+    module = types.ModuleType("known8_without_asserts")
+    exec(compile(tree, str(path), "exec"), module.__dict__)  # noqa: S102
+    module.PROCS = known8.PROCS
+    module.MODE = known8.MODE
+    module.PENDING = known8.PENDING
+    return getattr(module, name)
+
+
+def _known8_sized(row):
+    """Whether the row's program takes a size: it has a `ties` form, or it starts its
+    entities with `arrival(initial=...)`."""
+    import inspect
+
+    function = getattr(known8, KNOWN8[row][1])
+    return bool(getattr(function, "ties", False)) or "initial=" in inspect.getsource(
+        function
+    )
+
+
+def _known8_run(tmp_path, row, size=None):
+    import re
+
+    document, program, files = KNOWN8[row]
+    text = (FOLDER / "known8" / f"{document}.yaml").read_text()
+    for name, content in files.items():
+        (tmp_path / name).write_text(content)
+    if size is not None:
+        text = re.sub(r"initial: \d+", f"initial: {size}", text, count=1)
+    function = _known8_program(program, size is None)
+    ties = bool(getattr(function, "ties", False))
+    known8.MODE.update(on=size is not None and not ties, n=size, rev=False)
+    try:
+        log, error = function(size, False) if ties and size else function()
+    finally:
+        known8.MODE.update(on=False, n=None, rev=False)
+        known8.PENDING.clear()
+    outcome = run_yaml_text(tmp_path, text, {})
+    return outcome, log, error, bool(getattr(function, "grants", False))
+
+
+def _known8_compare(tmp_path, row, size=None):
+    outcome, log, error, grants = _known8_run(tmp_path, row, size)
+    produced = _known8_records(outcome.records, grants)
+    wanted = [(round(t, 3), k, task, v) for t, k, task, v in log]
+    assert produced == wanted
+    return outcome, error
+
+
+@pytest.mark.parametrize("row", sorted(KNOWN8))
+def test_known_case_of_batch_8_runs_as_its_simpy_program(tmp_path, row):
+    """Each known case of Batch 8 that its keys allow now runs from its blueprint (no
+    `!python`) and gives the records of the SimPy program written from the original:
+    the same times, keys, tasks and payloads. A row with no document of its own runs
+    the document of the row whose form it uses."""
+    outcome, error = _known8_compare(tmp_path, row)
+    assert (outcome.error is None) == (error is None), (outcome.error, error)
+
+
+@pytest.mark.parametrize("size", [1, 3, 10])
+@pytest.mark.parametrize("row", sorted(r for r in KNOWN8 if not r.startswith("CV-")))
+def test_known_case_of_batch_8_runs_at_other_sizes(tmp_path, row, size):
+    """As the base run, with `size` entities in the first arrival that starts a number
+    of them at once, in the document and in the program (the rows whose program takes
+    a size)."""
+    if not _known8_sized(row):
+        pytest.skip("the program has no arrival with `initial`")
+    _known8_compare(tmp_path, row, size)
+
+
+KNOWN8_DOCS = {
+    # row: (the documentation snippet written with `!python`, the document without it)
+    "DX-10": ("simpy_held_unit", "dx_10"),
+    "DX-13": ("simpy_wait_again", "dx_13"),
+    "DX-14": ("simpy_queue_again", "dx_14"),
+    "DX-15": ("simpy_whole_flow", "dx_15"),
+}
+
+
+def _finished(records):
+    """The (time, payload) of the finished events, without the statuses a plain
+    process does not publish and the fields that name the engine's own parts."""
+    skip = {"status", "path_id", "reason", "event_type"}
+    return sorted(
+        (
+            round(record["sim_ts"], 3),
+            json.dumps(
+                {k: v for k, v in record["value"].items() if k not in skip},
+                sort_keys=True,
+            ),
+        )
+        for record in records
+        if record["stream_type"] == "event"
+        and record["value"].get("status")
+        not in ("queued", "started", "interrupted", "resumed")
+        and set(record["value"]) - skip
+    )
+
+
+@pytest.mark.parametrize("row", sorted(KNOWN8_DOCS))
+def test_known_case_of_batch_8_document_equals_the_docs_snippet(tmp_path, row):
+    """DX-10, DX-13, DX-14 and DX-15: the document without `!python` publishes the
+    finished events of the documentation snippet that holds the same form in a SimPy
+    process (`docs/snippets/yaml/simpy_forms.py`), at the same times."""
+    snippet, document = KNOWN8_DOCS[row]
+    docs = Path(__file__).parents[2] / "docs" / "snippets" / "yaml"
+    original = tmp_path / "original"
+    original.mkdir()
+    (original / "simpy_forms.py").write_text((docs / "simpy_forms.py").read_text())
+    text = (docs / f"{snippet}.yaml").read_text()
+    text = text.replace("egress:\n  - type: Console\n", "")
+    wanted = run_yaml_text(original, text, {})
+    assert wanted.error is None, repr(wanted.error)
+    own = tmp_path / "own"
+    own.mkdir()
+    got = run_yaml_text(own, (FOLDER / "known8" / f"{document}.yaml").read_text(), {})
+    assert got.error is None, repr(got.error)
+    assert _finished(got.records) == _finished(wanted.records)
+    assert _finished(got.records)
+
+
+BATCH_8_ROWS = (
+    "EX-2 GD-RS1 GD-RS6 GD-RS11 ST-P08 ST-R01 ST-R14 ST-R15 ST-R26 ST-R29 P30 P31 "
+    "P50b P76 P77 P79 DS-H1 DS-H5 DS-H6 DS-H8 DS-H9 DS-I10 DS-M5 DS-M7 DS-Y4 DS-Y8 "
+    "DS-Y12 CV-049 CV-050 CV-052 CV-067 CV-068 CV-069 CV-070 CV-071 CV-073 CV-077 "
+    "CV-079 CV-080 CV-081 CV-082 CV-089 CV-123 DX-10 DX-13 DX-14 DX-15"
+).split()
+
+
+def test_every_known_case_of_batch_8_runs_in_a_document_that_a_case_runs():
+    """The 47 rows of the batch are each a case, or share the document of a case that
+    has the same form and assertions."""
+    assert len(BATCH_8_ROWS) == 47
+    assert set(KNOWN8_SHARED.values()) <= set(KNOWN8)
+    assert not set(KNOWN8_SHARED) & set(KNOWN8)
+    assert sorted({*KNOWN8, *KNOWN8_SHARED, *KNOWN8_DOCS}) == sorted(BATCH_8_ROWS)

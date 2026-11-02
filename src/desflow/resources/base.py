@@ -1,4 +1,6 @@
+import bisect
 import functools
+import itertools
 from typing import Any, Callable, Optional
 
 import simpy
@@ -13,6 +15,99 @@ _SELF_REGISTERING = {
     "stores": "register_store",
     "containers": "register_container",
 }
+
+
+class RankedQueue(list):
+    """The waiting requests, gets or puts of a holder, in service order.
+
+    It is a list, so `len(queue)` is how many wait and `queue[0]` is the next to be
+    served. `append` inserts an event by its rank and raises `RuntimeError` when
+    `maxlen` events wait already, as SimPy's `SortedQueue` does. An event is ranked by
+    its `_rank` when it has one, which a resource gives its requests. An event with no
+    `_rank` is ranked by its `rank` attribute (0 when it has none) and then by the
+    order it arrived in, `ties="fifo"`, or the reverse, `ties="lifo"`.
+
+    Args:
+        maxlen: The most events that can wait, or None for no limit.
+        ties: `fifo` serves equal ranks in the order they arrived, `lifo` the latest
+            first.
+    """
+
+    def __init__(self, maxlen: Optional[int] = None, ties: str = "fifo") -> None:
+        super().__init__()
+        self.maxlen = maxlen
+        self.ties = ties
+        self._sequence = itertools.count()
+
+    def append(self, item: Any) -> None:
+        """Inserts an event by its rank.
+
+        Args:
+            item: The request, get or put event.
+
+        Raises:
+            RuntimeError: If `maxlen` events wait already.
+        """
+        if self.maxlen is not None and len(self) >= self.maxlen:
+            raise RuntimeError("Cannot append event. Queue is full.")
+        if getattr(item, "_rank", None) is None:
+            order = next(self._sequence)
+            item._rank = (
+                getattr(item, "rank", 0),
+                order if self.ties == "fifo" else -order,
+            )
+        bisect.insort(self, item, key=lambda waiting: waiting._rank)
+
+    def remove(self, item: Any) -> bool:  # type: ignore[override]
+        """Takes an event out.
+
+        Args:
+            item: The event to take out.
+
+        Returns:
+            bool: True if it was taken out, False, with nothing changed, if it is
+                not in the queue.
+        """
+        for index, waiting in enumerate(self):
+            if waiting is item:
+                del self[index]
+                return True
+        return False
+
+
+def check_ties(
+    get_ties: Optional[str], put_ties: Optional[str], holder_type: Optional[Any]
+) -> None:
+    """Checks the `get_ties` and `put_ties` of a store or container.
+
+    Args:
+        get_ties: None, `fifo` or `lifo`.
+        put_ties: None, `fifo` or `lifo`.
+        holder_type: The `type` the holder is built from, or None for the default.
+
+    Raises:
+        ValueError: If a value is not None, `fifo` or `lifo`, or one is given with a
+            `type`, whose events and queues are its own.
+    """
+    for name, value in (("get_ties", get_ties), ("put_ties", put_ties)):
+        if value is not None and value not in ("fifo", "lifo"):
+            raise ValueError(f"{name} must be 'fifo' or 'lifo', got {value!r}")
+        if value is not None and holder_type is not None:
+            raise ValueError(
+                f"{name} ranks the waiting events of the default queue, so it cannot "
+                f"be given with a type, which sets its own queues"
+            )
+
+
+class _Ranked:
+    """Mixed into a put or get event class: a `rank` keyword ranks the event in the
+    queue of a holder that has a `RankedQueue`, lowest first. With no rank, an event
+    entering a ranked queue has rank 0."""
+
+    def __init__(self, resource: Any, *args: Any, rank: Any = None, **kwargs: Any):
+        if rank is not None:
+            self.rank = rank
+        super().__init__(resource, *args, **kwargs)  # type: ignore[call-arg]
 
 
 def _notifying(method: Callable[..., Any]) -> Callable[..., Any]:

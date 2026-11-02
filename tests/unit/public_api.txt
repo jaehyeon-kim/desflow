@@ -178,17 +178,17 @@ desflow.core.context.SimulationContext(sim_id: str, factor: float = 1.0, random_
 desflow.core.context.SimulationContext.add_arrival(name: str, dist: str, *, rate: float | None = None, mean: float | None = None, std: float | None = None, low: float | None = None, value: float | None = None, high: float | None = None, mode: float | None = None, shape: float | None = None, scale: float | None = None, values: list[float] | None = None, weights: list[float] | None = None, edges: list[float] | None = None, counts: list[float] | None = None, p: float | None = None, attributes: collections.abc.Mapping[str, Any] | None = None, key: collections.abc.Callable[[int], str] | None = None, spawn: str | None = None, first_at: float | None = None, group: Any = 1, active: bool = True, off_mode: str = 'drop', initial: int = 0) -> SimulationContext
 desflow.core.context.SimulationContext.add_arrival_replay(name: str, source: str | pathlib.Path | collections.abc.Iterable[collections.abc.Mapping[str, Any]], *, time: str = 'time', unit: str = 's', fields: str | list[str] = 'all', on_invalid: str = 'error', attributes: collections.abc.Mapping[str, Any] | None = None, key: collections.abc.Callable[[int], str] | None = None, spawn: str | None = None, active: bool = True, off_mode: str = 'drop') -> SimulationContext
 desflow.core.context.SimulationContext.add_breakdown(resource: str, time_to_failure: collections.abc.Mapping[str, Any], repair: collections.abc.Mapping[str, Any], work: str = 'interrupt') -> SimulationContext
-desflow.core.context.SimulationContext.add_container(name: str, current_cap: float | None = None, max_cap: float | None = None, level: float = 0.0, type: type[desflow.resources.container.ContainerBase] | None = None) -> SimulationContext
+desflow.core.context.SimulationContext.add_container(name: str, current_cap: float | None = None, max_cap: float | None = None, level: float = 0.0, type: type[desflow.resources.container.ContainerBase] | None = None, get_queue: collections.abc.Mapping[str, Any] | None = None, put_queue: collections.abc.Mapping[str, Any] | None = None) -> SimulationContext
 desflow.core.context.SimulationContext.add_egress(provider: Any, when: collections.abc.Callable[[dict], bool] | str | None = None, batch_size: int | None = None, flush_interval: float | None = None, envelope: bool = True) -> SimulationContext
 desflow.core.context.SimulationContext.add_ingress(provider: Any) -> SimulationContext
 desflow.core.context.SimulationContext.add_initial_arrival(name: str, initial: int, *, spawn: str, attributes: collections.abc.Mapping[str, Any] | None = None) -> SimulationContext
 desflow.core.context.SimulationContext.add_process(func: collections.abc.Callable[], **kwargs: Any) -> SimulationContext
-desflow.core.context.SimulationContext.add_resource(name: str, current_cap: int | float | None = None, max_cap: int | float | None = None, queue: str = 'fifo', preempt: bool = False, queue_limit: int | None = None, type: type[desflow.resources.resource.ResourceBase] | None = None) -> SimulationContext
+desflow.core.context.SimulationContext.add_resource(name: str, current_cap: int | float | None = None, max_cap: int | float | None = None, queue: str | collections.abc.Mapping[str, Any] = 'fifo', preempt: bool | collections.abc.Mapping[str, Any] = False, queue_limit: int | None = None, type: type[desflow.resources.resource.ResourceBase] | None = None) -> SimulationContext
 desflow.core.context.SimulationContext.add_scenario(steps: list[collections.abc.Mapping[str, Any]]) -> SimulationContext
 desflow.core.context.SimulationContext.add_service(name: str, dist: str, *, rate: float | None = None, mean: float | None = None, std: float | None = None, low: float | None = None, value: float | None = None, high: float | None = None, mode: float | None = None, shape: float | None = None, scale: float | None = None, values: list[float] | None = None, weights: list[float] | None = None, edges: list[float] | None = None, counts: list[float] | None = None, p: float | None = None) -> SimulationContext
 desflow.core.context.SimulationContext.add_signal(name: str, once: bool = True, on: list[collections.abc.Mapping[str, Any]] | None = None) -> SimulationContext
 desflow.core.context.SimulationContext.add_step(at: float | str, path: str | None = None, value: Any = None, record: collections.abc.Mapping[str, Any] | None = None, interrupt: collections.abc.Mapping[str, Any] | None = None) -> SimulationContext
-desflow.core.context.SimulationContext.add_store(name: str, current_cap: float | None = None, max_cap: float | None = None, priority: bool = False, items: list[Any] | None = None, type: type[desflow.resources.store.StoreBase] | None = None) -> SimulationContext
+desflow.core.context.SimulationContext.add_store(name: str, current_cap: float | None = None, max_cap: float | None = None, priority: bool = False, items: list[Any] | None = None, type: type[desflow.resources.store.StoreBase] | None = None, get_queue: collections.abc.Mapping[str, Any] | None = None, put_queue: collections.abc.Mapping[str, Any] | None = None) -> SimulationContext
 desflow.core.context.SimulationContext.add_variable(name: str, value: Any) -> SimulationContext
 desflow.core.context.SimulationContext.advance(until: float | str | simpy.events.Event) -> Any
 desflow.core.context.SimulationContext.analyze(verify: bool = False, *, until: float | str | None = None, seed: int | None = None, replications: int | None = None, target: float = 0.85) -> Explanation
@@ -215,7 +215,7 @@ desflow.core.context.SimulationContext.start(until: Any = None, stop: Any = None
 desflow.core.context.SimulationContext.step() -> None
 desflow.core.context.SimulationContext.stop_arrivals() -> None
 desflow.core.context.SimulationContext.subscribe(event: Any) -> None
-desflow.core.context.SimulationContext.task(service_id: str | None = None, resource_id: str | list[str] | None = None, *, name: str | None = None, priority: float | str | collections.abc.Callable[[Any, dict[str, Any]], float] | None = None, get: desflow.core.flow.Transfer | collections.abc.Mapping[str, Any] | None = None, put: desflow.core.flow.Transfer | collections.abc.Mapping[str, Any] | None = None, next: None | str | collections.abc.Mapping[str, Any] | collections.abc.Callable[[desflow.models.flow.Upstream], str | None] = None, set: collections.abc.Mapping[str, Any] | None = None, patience: float | str | collections.abc.Callable[[Any, dict[str, Any]], float] | Any = None, balk: str | None = None, wait: collections.abc.Mapping[str, Any] | None = None, signal: str | None = None, fail: str | collections.abc.Callable[[Any, Any], bool] | None = None, fail_reason: str | None = None, on_fail: str | None = None, on_renege: str | None = None, on_balk: str | None = None, service_time: float | str | collections.abc.Callable[[desflow.models.flow.Entity], float] | Any = None, key_field: str | None = None, key: Any = None, keep: list[str] | None = None, preempt: bool = True, on_interrupt: str = 'resume', on_interrupt_next: str | None = None, interrupt: collections.abc.Mapping[str, Any] | None = None, spawn: collections.abc.Mapping[str, Any] | None = None, subscribe: collections.abc.Mapping[str, Any] | None = None, on: list[collections.abc.Mapping[str, Any]] | None = None, vars: collections.abc.Mapping[str, Any] | None = None, vars_once: collections.abc.Mapping[str, Any] | None = None, on_start: collections.abc.Mapping[str, Any] | None = None, finish_vars: collections.abc.Mapping[str, Any] | None = None, set_args: collections.abc.Mapping[str, Any] | None = None, activate: str | list[str] | None = None, deactivate: str | list[str] | None = None, history: int | None = None) -> collections.abc.Callable[]
+desflow.core.context.SimulationContext.task(service_id: str | None = None, resource_id: str | list[str] | None = None, *, name: str | None = None, priority: float | str | collections.abc.Callable[[Any, dict[str, Any]], float] | None = None, get: desflow.core.flow.Transfer | collections.abc.Mapping[str, Any] | None = None, put: desflow.core.flow.Transfer | collections.abc.Mapping[str, Any] | None = None, next: None | str | collections.abc.Mapping[str, Any] | collections.abc.Callable[[desflow.models.flow.Upstream], str | None] = None, set: collections.abc.Mapping[str, Any] | None = None, patience: float | str | collections.abc.Callable[[Any, dict[str, Any]], float] | Any = None, balk: str | None = None, wait: collections.abc.Mapping[str, Any] | None = None, open: collections.abc.Mapping[str, Any] | None = None, cancel: str | collections.abc.Mapping[str, Any] | None = None, seize: str | collections.abc.Mapping[str, Any] | None = None, release: str | collections.abc.Mapping[str, Any] | None = None, signal: str | None = None, fail: str | collections.abc.Callable[[Any, Any], bool] | None = None, fail_reason: str | None = None, on_fail: str | None = None, on_renege: str | None = None, on_balk: str | None = None, service_time: float | str | collections.abc.Callable[[desflow.models.flow.Entity], float] | Any = None, key_field: str | None = None, key: Any = None, keep: list[str] | None = None, preempt: bool | str = True, on_interrupt: str = 'resume', on_interrupt_next: str | None = None, interrupt: collections.abc.Mapping[str, Any] | None = None, spawn: collections.abc.Mapping[str, Any] | None = None, subscribe: collections.abc.Mapping[str, Any] | None = None, on: list[collections.abc.Mapping[str, Any]] | None = None, vars: collections.abc.Mapping[str, Any] | None = None, vars_once: collections.abc.Mapping[str, Any] | None = None, on_start: collections.abc.Mapping[str, Any] | None = None, finish_vars: collections.abc.Mapping[str, Any] | None = None, set_args: collections.abc.Mapping[str, Any] | None = None, activate: str | list[str] | None = None, deactivate: str | list[str] | None = None, history: int | None = None) -> collections.abc.Callable[]
 desflow.core.context.SimulationContext.telemetry_loop(interval: float) -> collections.abc.Callable[]
 desflow.core.context.SimulationContext.wait_for_arrival(arrival_id: str) -> simpy.events.Event
 desflow.core.context.SimulationContext.with_batching(batch_size: int, flush_interval: float, max_queued_batches: int = 2000, drain_stall_seconds: float = 30.0) -> SimulationContext
@@ -243,7 +243,7 @@ desflow.core.environment.DynamicRealtimeEnvironment.teardown_egress()
 desflow.core.environment.DynamicRealtimeEnvironment.teardown_ingress()
 desflow.core.environment.DynamicRealtimeEnvironment.unwatch_changes(callback: collections.abc.Callable[[], None]) -> None
 desflow.core.environment.DynamicRealtimeEnvironment.watch_changes(callback: collections.abc.Callable[[], None], queues: bool = False) -> None
-desflow.core.expressions.Expression(text: str, records: bool = False, names: collections.abc.Container[str] | None = None)
+desflow.core.expressions.Expression(text: str, records: bool = False, names: collections.abc.Container[str] | None = None, rule: bool = False)
 desflow.core.expressions.Expression.evaluate(scope: desflow.core.expressions.Scope) -> Any
 desflow.core.expressions.Expression.outside_run(names: bool = True) -> str | None
 desflow.core.expressions.Expression.reads_queues: property
@@ -353,7 +353,7 @@ desflow.replicate = desflow.analysis.runner.replicate
 desflow.resources.container.ContainerBase(env: Environment, capacity: ContainerAmount = inf, init: ContainerAmount = 0)
 desflow.resources.container.ContainerBase.get: BoundClass
 desflow.resources.container.ContainerBase.put: BoundClass
-desflow.resources.container.DynamicContainer(env: simpy.core.Environment, sim_id: str, container_id: str, init: float | None = None, type: type[desflow.resources.container.ContainerBase] | None = None)
+desflow.resources.container.DynamicContainer(env: simpy.core.Environment, sim_id: str, container_id: str, init: float | None = None, type: type[desflow.resources.container.ContainerBase] | None = None, get_ties: str | None = None, put_ties: str | None = None)
 desflow.resources.container.DynamicContainer.capacity: property
 desflow.resources.container.DynamicContainer.get(*args: Any, **kwargs: Any) -> simpy.resources.container.ContainerGet
 desflow.resources.container.DynamicContainer.get_queue: property
@@ -362,7 +362,7 @@ desflow.resources.container.DynamicContainer.level: property
 desflow.resources.container.DynamicContainer.put(*args: Any, **kwargs: Any) -> simpy.events.Event
 desflow.resources.container.DynamicContainer.put_queue: property
 desflow.resources.container.DynamicContainer.putters_waiting: property
-desflow.resources.resource.DynamicResource(env: Environment, sim_id: str, resource_id: str, queue: str = 'fifo', preempt: bool = False, queue_limit: Optional[int] = None)
+desflow.resources.resource.DynamicResource(env: Environment, sim_id: str, resource_id: str, queue: str = 'fifo', preempt: Union[bool, PreemptRule] = False, queue_limit: Optional[int] = None, ties: str = 'fifo')
 desflow.resources.resource.DynamicResource.GetQueue: class
 desflow.resources.resource.DynamicResource.PutQueue: class
 desflow.resources.resource.DynamicResource.capacity: property
@@ -372,10 +372,11 @@ desflow.resources.resource.DynamicResource.fail(interrupt_work: bool = True) -> 
 desflow.resources.resource.DynamicResource.get(*args: Any, **kwargs: Any) -> DynamicRelease
 desflow.resources.resource.DynamicResource.in_use: property
 desflow.resources.resource.DynamicResource.put(*args: Any, **kwargs: Any) -> DynamicResourceRequest
+desflow.resources.resource.DynamicResource.queue_limit: property
 desflow.resources.resource.DynamicResource.release: BoundClass
 desflow.resources.resource.DynamicResource.repair() -> None
 desflow.resources.resource.DynamicResource.request: BoundClass
-desflow.resources.resource.ResourceBase(env: Environment, sim_id: str, resource_id: str, queue: str = 'fifo', preempt: bool = False, queue_limit: Optional[int] = None)
+desflow.resources.resource.ResourceBase(env: Environment, sim_id: str, resource_id: str, queue: str = 'fifo', preempt: Union[bool, PreemptRule] = False, queue_limit: Optional[int] = None, ties: str = 'fifo')
 desflow.resources.resource.ResourceBase.GetQueue: class
 desflow.resources.resource.ResourceBase.PutQueue: class
 desflow.resources.resource.ResourceBase.capacity: property
@@ -385,10 +386,11 @@ desflow.resources.resource.ResourceBase.fail(interrupt_work: bool = True) -> int
 desflow.resources.resource.ResourceBase.get(*args: Any, **kwargs: Any) -> DynamicRelease
 desflow.resources.resource.ResourceBase.in_use: property
 desflow.resources.resource.ResourceBase.put(*args: Any, **kwargs: Any) -> DynamicResourceRequest
+desflow.resources.resource.ResourceBase.queue_limit: property
 desflow.resources.resource.ResourceBase.release: BoundClass
 desflow.resources.resource.ResourceBase.repair() -> None
 desflow.resources.resource.ResourceBase.request: BoundClass
-desflow.resources.store.DynamicStore(env: simpy.core.Environment, sim_id: str, store_id: str, priority: bool = False, items: collections.abc.Iterable[Any] | None = None, type: type[desflow.resources.store.StoreBase] | None = None)
+desflow.resources.store.DynamicStore(env: simpy.core.Environment, sim_id: str, store_id: str, priority: bool = False, items: collections.abc.Iterable[Any] | None = None, type: type[desflow.resources.store.StoreBase] | None = None, get_ties: str | None = None, put_ties: str | None = None)
 desflow.resources.store.DynamicStore.capacity: property
 desflow.resources.store.DynamicStore.get(*args: Any, **kwargs: Any) -> simpy.resources.store.StoreGet
 desflow.resources.store.DynamicStore.get_queue: property

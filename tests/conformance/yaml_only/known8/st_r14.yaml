@@ -1,0 +1,13 @@
+# case ST-R14: five processes with delays 0, 0, 1, 3, 4, priorities 2, 2, 1, 0, 3 and preempt flags; log (2, 0), (3, 2, (p3, 2)), (5, 3), (7, 1), (9, 4).
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+resources: {res: {current_cap: 1, queue: priority, preempt: true}}
+arrivals:
+  p0: {initial: 1, spawn: p, attributes: {delay: 0, prio: 2, can: true}}
+  p1: {initial: 1, spawn: p, attributes: {delay: 0, prio: 2, can: true}}
+  p2: {initial: 1, spawn: p, attributes: {delay: 1, prio: 1, can: false}}
+  p3: {initial: 1, spawn: p, attributes: {delay: 3, prio: 0, can: true}}
+  p4: {initial: 1, spawn: p, attributes: {delay: 4, prio: 3, can: true}}
+tasks:
+  p: {service_time: "attr.delay", payload: {event_type: start}, next: use}
+  use: {resource: res, priority: "attr.prio", preempt: "attr.can", service_time: 2, on_interrupt: abandon, on_interrupt_next: lost, payload: {event_type: done}}
+  lost: {payload: {event_type: preempted, by: {gen: expr, expr: "cause.by"}, since: {gen: expr, expr: "cause.usage_since"}}}

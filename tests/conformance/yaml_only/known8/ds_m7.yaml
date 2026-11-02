@@ -1,0 +1,9 @@
+# Register row M7, settled form running: {task: relay, whole_flow: true}. Another entity waits for the whole flow that a task belongs to.
+simulation: {sim_id: M7, factor: 0, random_seed: 42}
+arrivals:
+  a: {initial: 1, spawn: relay}
+  w: {initial: 1, spawn: watch}
+tasks:
+  relay: {service_time: 3, payload: {event_type: relay}, next: more}
+  more: {service_time: 3, payload: {event_type: more}}
+  watch: {wait: {running: {task: relay, where: "process.instance == 0", whole_flow: true}}, payload: {event_type: flow_done, at: {gen: expr, expr: "t"}}}

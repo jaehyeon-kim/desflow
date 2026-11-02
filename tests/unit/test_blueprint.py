@@ -1567,7 +1567,7 @@ def test_timezone_in_a_blueprint_and_the_builder(tmp_path):
         SimulationContext("Shop", timezone="Mars/Base")
 
 
-def test_resources_in_opposite_orders_name_the_tasks_line(tmp_path):
+def test_resources_in_opposite_orders_warn_and_run(tmp_path, caplog):
     text = (
         MINIMAL.replace(
             "  packers: {current_cap: 2, max_cap: 5}",
@@ -1583,9 +1583,10 @@ def test_resources_in_opposite_orders_name_the_tasks_line(tmp_path):
             "    payload: {status: done}\nrun:",
         )
     )
-    with pytest.raises(BlueprintError, match="in one order everywhere") as error:
-        SimulationContext.from_yaml(write(tmp_path, text))
-    assert ":12:" in str(error.value)  # the tasks section
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    with caplog.at_level("WARNING"):
+        app.run(until=1)
+    assert "in one order everywhere" in caplog.text
 
 
 def test_cli_drain_runs_until_the_model_is_empty(tmp_path):
@@ -1774,13 +1775,16 @@ def test_a_resource_in_the_wait_and_in_resource_is_refused_in_yaml(tmp_path):
         SimulationContext.from_yaml(write(tmp_path, text))
 
 
-def test_a_wait_request_counts_in_the_acquisition_order_in_yaml(tmp_path):
+def test_a_wait_request_counts_in_the_acquisition_order_in_yaml(tmp_path, caplog):
     text = _wait_request(pack="resource: bench", tidy="resource: [bench, picker]")
-    with pytest.raises(BlueprintError, match="in one order everywhere") as error:
-        SimulationContext.from_yaml(write(tmp_path, text))
-    assert ":10:" in str(error.value)  # the tasks section
+    with caplog.at_level("WARNING"):
+        SimulationContext.from_yaml(write(tmp_path, text)).run(until=1)
+    assert "in one order everywhere" in caplog.text
+    caplog.clear()
     same = _wait_request(pack="resource: bench", tidy="resource: [picker, bench]")
-    SimulationContext.from_yaml(write(tmp_path, same, "same.yaml"))
+    with caplog.at_level("WARNING"):
+        SimulationContext.from_yaml(write(tmp_path, same, "same.yaml")).run(until=1)
+    assert "in one order everywhere" not in caplog.text
 
 
 WAIT_ALL = """\
@@ -1806,15 +1810,20 @@ run: {until: 10}
 """
 
 
-def test_requests_under_one_all_are_acquired_together_in_yaml(tmp_path):
+def test_requests_under_one_all_are_acquired_together_in_yaml(tmp_path, caplog):
     for listed in ("[picker, bench]", "[bench, picker]"):
         text = WAIT_ALL.replace("MODE", "all").replace("TIDY", f"resource: {listed}")
-        with pytest.raises(BlueprintError, match="together in its wait"):
-            SimulationContext.from_yaml(write(tmp_path, text))
+        caplog.clear()
+        with caplog.at_level("WARNING"):
+            SimulationContext.from_yaml(write(tmp_path, text)).run(until=1)
+        assert "together in its wait" in caplog.text
     either = WAIT_ALL.replace("MODE", "any").replace(
         "TIDY", "wait: {any: {b: {request: bench}, p: {request: picker}}}"
     )
-    SimulationContext.from_yaml(write(tmp_path, either, "either.yaml"))
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        SimulationContext.from_yaml(write(tmp_path, either, "either.yaml")).run(until=1)
+    assert "in one order everywhere" not in caplog.text
 
 
 def test_a_kept_resource_requested_in_the_next_wait_is_refused_in_yaml(tmp_path):
@@ -1835,7 +1844,10 @@ def test_a_priority_with_a_wait_request_needs_a_priority_queue_in_yaml(tmp_path)
     bare = _wait_request(pack="priority: 2", tidy="priority: 1").replace(
         "wait: {request: picker}", "wait: {timeout: 1}"
     )
-    with pytest.raises(BlueprintError, match="needs a resource or a request"):
+    with pytest.raises(
+        BlueprintError,
+        match="needs a resource, a seize or a request in its wait or open",
+    ):
         SimulationContext.from_yaml(write(tmp_path, bare, "bare.yaml"))
 
 

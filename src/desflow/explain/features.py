@@ -79,7 +79,18 @@ def task_features(context: "SimulationContext", spec: "TaskSpec") -> List[str]:
     if spec.keep or _receives_kept(context, spec):
         features.append(KEEP)
     only_requests = spec.wait is not None and _only_requests(spec.wait)
-    for name in ("wait", "get", "put", "signal", "subscribe", "interrupt"):
+    for name in (
+        "wait",
+        "get",
+        "put",
+        "signal",
+        "subscribe",
+        "interrupt",
+        "seize",
+        "open",
+        "release",
+        "cancel",
+    ):
         if getattr(spec, name) is not None and not (name == "wait" and only_requests):
             features.append(name)
     if spec.wait is not None and _request_leaves(spec.wait) > 1:

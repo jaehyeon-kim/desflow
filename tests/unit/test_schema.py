@@ -212,10 +212,15 @@ def _model_errors(data: Any) -> set:
 
 def _same_place(loc: tuple, here: tuple) -> bool:
     """A model error is at the place of a new key when it is at or inside the place, or
-    at the `wait` or `subscribe` node above it, which the models parse as a whole."""
+    at the `wait`, `open` or `subscribe` node above it, which the models parse as a
+    whole."""
     if loc[: len(here)] == here:
         return True
-    return here[: len(loc)] == loc and loc[-1:] in (("wait",), ("subscribe",))
+    return here[: len(loc)] == loc and loc[-1:] in (
+        ("wait",),
+        ("open",),
+        ("subscribe",),
+    )
 
 
 def test_a_generator_nested_in_a_value_is_checked_by_the_schema():
