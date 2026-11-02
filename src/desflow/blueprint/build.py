@@ -42,7 +42,7 @@ from desflow.blueprint.models import (
     WhenExpr,
     unknown_key,
 )
-from desflow.config import LABELS
+from desflow.config import LABELS, TRACE
 from desflow.connectors.egress.local import ConsoleEgress
 from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.core.arrivals import ArrivalPlan
@@ -51,6 +51,8 @@ from desflow.core.registry import ParamRejected, is_queue_limit, queue_limit_val
 from desflow.core.task import (
     NO_RECORD,
     Holding,
+    batch_mismatch,
+    batch_mismatch_text,
     check_acquisition_order,
     flow_sets,
     handle_problem,
@@ -124,9 +126,10 @@ INGRESS_TYPES: Dict[str, Tuple[str, str, str]] = {
 class Preview:
     """A preview run of a blueprint, as `desflow run --sample` and `--stdout` make.
 
-    Every egress entry is replaced by a JSON console on stdout, and a second one for
-    labels when the file has a `when: labels` entry, so no sink module the file
-    names by a short `type` is imported, and no sink is written to.
+    Every egress entry is replaced by a JSON console on stdout, with one more console
+    for labels when the file has a `when: labels` entry and one for the trace when it
+    has a `when: trace` entry, so no sink module the file names by a short `type` is
+    imported, and no sink is written to.
 
     Attributes:
         sample: Print this many events, unpaced and with no ingress, then stop.
@@ -248,6 +251,7 @@ def load_blueprint(
     _check_arrival_places(blueprint, source)
     _bind_values(blueprint, source)
     context = _build_context(blueprint, source, preview)
+    _check_batches(context, source)
     _check_values(blueprint, context, source)
     _check_scenario(blueprint, context, source)
     _check_registry_reads(blueprint, context, source)
@@ -760,7 +764,8 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
             for branch in expression.references["wait"]:
                 # balk and patience are read before the wait starts
                 if branch not in branches or (
-                    location[2] in ("wait", "balk", "patience", "open", "seize")
+                    location[2]
+                    in ("wait", "balk", "patience", "open", "seize", "batch")
                     and not in_when
                 ):
                     raise source.error(
@@ -911,6 +916,14 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 ("egress", index, "when"),
                 f"when: {egress.when} needs simulation.go_live_at",
             )
+        if egress.when == TRACE and not (
+            blueprint.stats is not None and blueprint.stats.trace
+        ):
+            raise source.error(
+                ("egress", index, "when"),
+                "when: trace receives the records of stats.trace, so the file needs "
+                "stats: {trace: true}",
+            )
 
 
 def _starts(blueprint: Blueprint) -> Set[str]:
@@ -960,6 +973,14 @@ def _reach_from(blueprint: Blueprint, start: str) -> Tuple[Set[str], bool]:
         if task.subscribe is not None:
             frontier.extend(Wait(task.subscribe).targets("task"))
     return seen, unknown
+
+
+def _check_batches(context: Any, source: SourceMap) -> None:
+    """Refuses two tasks that share a batch name but differ in `size`, `timeout`,
+    `close_when`, `resource` or service, at the second task's `batch` line."""
+    found = batch_mismatch(context._task_specs)
+    if found is not None:
+        raise source.error(("tasks", found[2], "batch"), batch_mismatch_text(*found))
 
 
 def _check_events(blueprint: Blueprint, source: SourceMap) -> None:
@@ -1368,15 +1389,30 @@ def _rule_expressions(
                     yield Expression(rule.rank), (section, name, key, "rank")
 
 
+def _reading_expressions(
+    blueprint: Blueprint,
+) -> Iterator[Tuple[Expression, Tuple[Union[str, int], ...]]]:
+    """The expression of every `readings` entry of `telemetry`, parsed, with where it
+    is written."""
+    for index, entry in enumerate(blueprint.telemetry):
+        for name, text in (entry.readings or {}).items():
+            yield (
+                Expression(text, names=ANY_NAME),
+                ("telemetry", index, "readings", name),
+            )
+
+
 def _check_arrival_places(blueprint: Blueprint, source: SourceMap) -> None:
     """Checks the names the run places of an arrival and the value places outside a
     task (a store's `items`, a signal's `on`, a scenario step) read: every `level`,
     `signal`, `users`, `queue`, `putters`, `getters`, `count` and `items` name must
-    exist, as in a `stop` condition. The rules of a `queue` and a `preempt` are such
-    places too."""
+    exist, as in a `stop` condition. The rules of a `queue` and a `preempt` and the
+    `readings` of `telemetry` are such places too."""
     for expression, where in _arrival_expressions(blueprint):
         _check_run_names(expression, blueprint, source, where)
     for expression, where in _rule_expressions(blueprint):
+        _check_run_names(expression, blueprint, source, where)
+    for expression, where in _reading_expressions(blueprint):
         _check_run_names(expression, blueprint, source, where)
     for location, value in _value_sites(blueprint):
         for expression, where in _parsed_texts(value, location):
@@ -1537,6 +1573,25 @@ def _expressions(
         )
     if task.balk is not None:
         found.append((Expression(task.balk), where + ("balk",)))
+    if task.batch is not None:
+        if isinstance(task.batch.size, str):
+            found.append(
+                (Expression(task.batch.size, names=ANY_NAME), where + ("batch", "size"))
+            )
+        if isinstance(task.batch.timeout, str):
+            found.append(
+                (
+                    Expression(task.batch.timeout, names=ANY_NAME),
+                    where + ("batch", "timeout"),
+                )
+            )
+        if task.batch.close_when is not None:
+            found.append(
+                (
+                    Expression(task.batch.close_when, names=ANY_NAME, batch=True),
+                    where + ("batch", "close_when"),
+                )
+            )
     if task.fail is not None:
         found.append((Expression(task.fail, names=ANY_NAME), where + ("fail",)))
     if task.interrupt is not None and task.interrupt.where is not None:
@@ -1653,7 +1708,11 @@ def _add_to_context(
             provider = _connector(egress.type, egress.config, EGRESS_TYPES)
             context.add_egress(
                 provider(source, ("egress", index)),
-                when=LABELS if egress.when == LABELS else _when(egress.when, blueprint),
+                when=(
+                    egress.when
+                    if egress.when in (LABELS, TRACE)
+                    else _when(egress.when, blueprint)
+                ),
                 batch_size=egress.batch_size,
                 flush_interval=egress.flush_interval,
                 envelope=egress.envelope,
@@ -1668,13 +1727,19 @@ def _add_to_context(
             ConsoleEgress(format="json"),
             when=_preview_predicate(context, preview.sample),
         )
-        if any(egress.when == LABELS for egress in blueprint.egress):
-            context.add_egress(ConsoleEgress(format="json"), when=LABELS)
+        for kind in (LABELS, TRACE):
+            if any(egress.when == kind for egress in blueprint.egress):
+                context.add_egress(ConsoleEgress(format="json"), when=kind)
 
     if blueprint.batching is not None:
         context.with_batching(**blueprint.batching.model_dump(exclude_none=True))
     if blueprint.stats is not None:
-        context.with_stats(blueprint.stats.level, blueprint.stats.interval)
+        context.with_stats(
+            blueprint.stats.level,
+            blueprint.stats.interval,
+            on_change=blueprint.stats.on_change,
+            trace=blueprint.stats.trace,
+        )
 
     for name, resource in blueprint.resources.items():
         context.add_resource(
@@ -1698,6 +1763,7 @@ def _add_to_context(
                     **resource.breakdown.repair.parameters(),
                 },
                 work=resource.breakdown.work,
+                clock=resource.breakdown.clock,
             )
     for name, store in blueprint.stores.items():
         context.add_store(
@@ -1783,6 +1849,7 @@ def _add_to_context(
             on_interrupt_run=task.on_interrupt_run,
             interrupt=None if task.interrupt is None else task.interrupt.action(),
             resume=None if task.resume is None else task.resume.action(),
+            batch=None if task.batch is None else task.batch.action(),
             name=name,
             priority=task.priority,
             patience=task.patience,
@@ -1845,7 +1912,11 @@ def _add_to_context(
         context.add_process(process.function, **process.kwargs)
 
     for entry in blueprint.telemetry:
-        context.telemetry_loop(entry.interval)(entry.function)
+        if entry.readings is not None:
+            context.add_readings(entry.interval, entry.readings)
+        else:
+            assert entry.function is not None  # the model takes one of the two
+            context.telemetry_loop(entry.interval)(entry.function)
 
     if blueprint.scenario:
         context.add_scenario(
@@ -1987,6 +2058,8 @@ def _arrival_sites(
 
 def _task_value(task: Any, key: str) -> Any:
     """The value of one place of `TASK_VALUE_PLACES` in a blueprint task."""
+    if key.startswith("batch."):
+        return None if task.batch is None else getattr(task.batch, key[6:])
     if key == "put.item":
         return task.put.item if task.put is not None else None
     return getattr(task, key)
@@ -2036,6 +2109,9 @@ def _check_values(
                 **dict(_timeout_values(task.wait, ("wait",))),
                 ("patience",): task.patience,
                 ("key",): task.key,
+                ("batch", "timeout"): None
+                if task.batch is None
+                else task.batch.timeout,
             },
             service_time=task.service_time,
             services=services,
@@ -2107,30 +2183,16 @@ def _check_values(
 
 
 def _task_sites(blueprint: Blueprint) -> Iterator[Tuple[Tuple[Any, ...], Any, str]]:
-    """Every value place of a task, with where it is written and the task's name."""
+    """Every value place of a task, with where it is written and the task's name. The
+    places are those of `TASK_VALUE_PLACES`."""
     for name, task in blueprint.tasks.items():
-        keys = [
-            "payload",
-            "set",
-            "set_args",
-            "vars",
-            "vars_once",
-            "on_start",
-            "finish_vars",
-            "interrupt",
-            "on",
-            "wait",
-            "spawn",
-            "service_time",
-            "patience",
-            "key",
-        ]
-        for key in keys:
-            value = getattr(task, key)
+        for _key, where, _after, value in task_value_places(
+            lambda key: _task_value(task, key)
+        ):
+            if value is None:
+                continue
             if not callable(value) or isinstance(value, (_Gen, dict, list)):
-                yield ("tasks", name, key), value, name
-        if task.put is not None and task.put.item is not None:
-            yield ("tasks", name, "put", "item"), task.put.item, name
+                yield ("tasks", name) + where, value, name
 
 
 def _payload_keys(task: Any) -> Optional[Set[str]]:
@@ -2469,6 +2531,7 @@ def _check_registry_reads(
     ]
     found += list(_arrival_expressions(blueprint))
     found += list(_rule_expressions(blueprint))
+    found += list(_reading_expressions(blueprint))
     for location, value, _owner in _task_sites(blueprint):
         found += list(_parsed_texts(value, location))
     for location, value in _value_sites(blueprint):

@@ -279,6 +279,7 @@ class EgressMixIn:
         labels: Optional[List[bool]] = None,
         warmup: Optional[float] = None,
         envelopes: Optional[List[bool]] = None,
+        traces: Optional[List[bool]] = None,
     ):
         """
         Initializes the egress buffers and starts the background publisher threads.
@@ -326,6 +327,10 @@ class EgressMixIn:
                 no `queued` or `started` record, and the sink writes each event's
                 value without the record around it. Defaults to None, which is every
                 provider receiving the whole record.
+            traces (List, optional): One entry per provider, aligned by position.
+                True makes it a trace sink, which receives the event trace
+                (`trace_events`) and nothing else; every other provider never
+                receives it. Defaults to None, which is no trace sink.
 
         Raises:
             ValueError: If a per-provider list has the wrong length.
@@ -362,6 +367,12 @@ class EgressMixIn:
             bool(flag)
             for flag in self._resolve_per_provider(
                 labels, False, len(providers), "labels"
+            )
+        ]
+        self.egress_traces: List[bool] = [
+            bool(flag)
+            for flag in self._resolve_per_provider(
+                traces, False, len(providers), "traces"
             )
         ]
         self.egress_envelopes: List[bool] = [
@@ -609,13 +620,17 @@ class EgressMixIn:
 
         Predicates are tested here rather than at flush time, so a record is tested
         once on the way in instead of against every predicate at fan-out. A
-        ground-truth record goes only to labels sinks, and every other record only to
-        the others. A provider with `envelope` off takes no telemetry record and no
-        record of `lifecycle`, a task's `queued` or `started`.
+        ground-truth record goes only to labels sinks, a trace record only to trace
+        sinks, and every other record only to the others. A provider with `envelope`
+        off takes no telemetry record and no record of `lifecycle`, a task's
+        `queued` or `started`.
         """
         is_label = record["stream_type"] == "label"
+        is_trace = record["stream_type"] == "trace"
         for index, predicate in enumerate(self.egress_predicates):
             if self.egress_labels[index] is not is_label:
+                continue
+            if self.egress_traces[index] is not is_trace:
                 continue
             if (
                 not self.egress_envelopes[index]
@@ -947,6 +962,55 @@ def _resolve_strict(
     return bool(factor) or go_live_at is not None
 
 
+# The public name of an event in a `trace` record, by the name of a class in the
+# event's class tree. SimPy's own names are kept where SimPy has one. A class of
+# desflow's own gets a public name here, so a record never carries a private or an
+# internal class name, and renaming a class does not change a record.
+TRACE_EVENT_NAMES: Dict[str, str] = {
+    "Initialize": "Initialize",
+    "Process": "Process",
+    "Timeout": "Timeout",
+    "Condition": "Condition",
+    "Interruption": "Interruption",
+    "Request": "Request",
+    "PriorityRequest": "Request",
+    "DynamicResourceRequest": "Request",
+    "Release": "Release",
+    "DynamicRelease": "Release",
+    "Get": "Get",
+    "StoreGet": "Get",
+    "FilterStoreGet": "Get",
+    "ContainerGet": "Get",
+    "DynamicStoreGet": "Get",
+    "DynamicFilterStoreGet": "Get",
+    "DynamicContainerGet": "Get",
+    "Put": "Put",
+    "StorePut": "Put",
+    "ContainerPut": "Put",
+    "DynamicStorePut": "Put",
+    "DynamicContainerPut": "Put",
+    "_Suspension": "Suspension",
+    "Event": "Event",
+}
+
+
+def trace_event_name(event: Any) -> str:
+    """The public name of an event in a `trace` record.
+
+    Args:
+        event: The event the environment is about to process.
+
+    Returns:
+        str: The name from `TRACE_EVENT_NAMES` of the nearest class in the event's class
+        tree that has one, and `Event` when none does.
+    """
+    for kind in type(event).__mro__:
+        named = TRACE_EVENT_NAMES.get(kind.__name__)
+        if named is not None:
+            return named
+    return "Event"
+
+
 class DynamicRealtimeEnvironment(
     RealtimeEnvironment, RegistryMixIn, IngressMixIn, EgressMixIn, StatisticsMixIn
 ):
@@ -1033,6 +1097,9 @@ class DynamicRealtimeEnvironment(
             strict=_resolve_strict(strict, factor, go_live_at),
         )
 
+        # True when `trace_events` is on: each model event processed is published as a
+        # `trace` record to the trace sinks
+        self._trace_on = False
         # True while `run()` is stepping, when `step()` processes every event
         self._in_run = False
         # True while a run has no end of its own: `step()` then ends the run when
@@ -1252,6 +1319,8 @@ class DynamicRealtimeEnvironment(
             else:
                 # The unpaced run, which is `_step_event()` without its checks,
                 # kept here because it runs once for every event
+                if self._trace_on:
+                    self._trace_head()
                 Environment.step(self)
             return
         if math.isinf(self.peek()):
@@ -1343,8 +1412,46 @@ class DynamicRealtimeEnvironment(
                     break
                 simpy.rt.sleep(delta)
         event = self._queue[0][3]
+        if self._trace_on:
+            self._trace_head()
         Environment.step(self)
         return event
+
+    def trace_events(self, on: bool = True) -> None:
+        """Switches the event trace on or off.
+
+        While it is on, each model event is published as a `trace` record just before
+        the environment processes it, so before its callbacks run, as the SimPy
+        monitoring guide's patched `env.step` records it. The events of desflow's own
+        (a statistics reading, a flush timer) are not traced. A trace record goes only
+        to the sinks added as trace sinks, and a run with none publishes none.
+
+        Args:
+            on: True to trace, False to stop.
+        """
+        self._trace_on = bool(on)
+
+    def _trace_head(self) -> None:
+        """Publishes the `trace` record of the event `step` is about to process, unless
+        it is one of desflow's own or no sink asks for the trace."""
+        if not self._queue or not any(getattr(self, "egress_traces", ())):
+            return
+        when, priority, event_id, event = self._queue[0]
+        if is_internal(event):
+            return
+        self._append_record(
+            {
+                "stream_type": "trace",
+                "sim_ts": float(when),
+                "timestamp": self._get_iso_timestamp(self.start_datetime, when),
+                "path_id": "trace",
+                "value": {
+                    "priority": priority,
+                    "event_id": event_id,
+                    "event": trace_event_name(event),
+                },
+            }
+        )
 
     def teardown(self):
         """

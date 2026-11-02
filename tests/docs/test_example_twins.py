@@ -74,6 +74,7 @@ def _run_builder(app, until, **run):
     app._egress_batch_sizes = [None, None]
     app._egress_flush_intervals = [None, None]
     app._egress_labels = [False, True]
+    app._egress_traces = [False, False]
     app._egress_envelopes = [True, True]
     app.run(until=until, **run)
     return _records(capture.records + labels.records)

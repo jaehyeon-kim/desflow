@@ -9,6 +9,7 @@ from simpy.core import BoundClass
 from simpy.resources.resource import Preempted, PriorityRequest
 
 from desflow.config import DEFAULT_QUEUE_ORDER, QUEUE_ORDERS
+from desflow.core.internal import InternalEvent
 from desflow.resources.base import BaseDynamicResource, RankedQueue
 
 
@@ -68,6 +69,7 @@ class DynamicResourceRequest(PriorityRequest):
         self.usage_since: Optional[float] = None
         self.proc = resource.env.active_process
         resource._enqueue(self)
+        resource._called()
 
     def cancel(self) -> None:
         """Leaves the queue at once while waiting; does nothing once granted.
@@ -120,6 +122,7 @@ class DynamicRelease(Event):
         resource.get_queue.append(self)
         self.callbacks.append(resource._trigger_put)
         resource._trigger_get(None)
+        resource._called()
 
 
 def _default_put_queue(resource_class: Any) -> bool:
@@ -283,6 +286,10 @@ class ResourceBase(BaseDynamicResource):
         self.has_breakdowns = False
         self._down_since: Optional[float] = None
         self._downtime = 0.0
+        # The events `when_busy` and `when_idle` made, woken when the resource changes
+        # between holding no unit and holding one
+        self._busy_waiters: List[Event] = []
+        self._idle_waiters: List[Event] = []
         # The registry values `_target` last read and its result, so a grant that
         # finds both values unchanged skips the conversion
         self._target_read: Tuple[Any, Any] = (None, None)
@@ -363,6 +370,14 @@ class ResourceBase(BaseDynamicResource):
             return (0, -sequence)
         return (0, sequence)
 
+    def _called(self) -> None:
+        """Publishes this resource's readings after a `request` or a `release` call
+        when the statistics have `on_change`. A grant that a release event makes
+        later, and a cancel, publish none of their own."""
+        stats = self._stats
+        if stats is not None and stats.on_change:
+            stats.publish_object(self._category, self.obj_id)
+
     def _line_limit(self) -> Optional[int]:
         """The most requests that may wait now, which the waiting line then keeps.
 
@@ -440,21 +455,78 @@ class ResourceBase(BaseDynamicResource):
         On a resource built with `preempt=True`, a request that may preempt takes a
         unit from the user SimPy's `PreemptiveResource` would choose.
         """
+        was_busy = bool(self.users)
         if len(self.users) >= self._capacity and not self._preempt_for(request):
             return None
         self.users.append(request)
         request.usage_since = self.env.now
         request.succeed()
+        if not was_busy:
+            self._wake(self._busy_waiters)
         return None
 
     def _do_get(self, release: DynamicRelease) -> Optional[bool]:
         """Gives the released request's unit back, if it holds one."""
         request = release.request
+        emptied = False
         if request is not None and request in self.users:
             self.users.remove(request)
             self._changed()
+            emptied = not self.users
         release.succeed()
+        if emptied:
+            self._wake(self._idle_waiters)
         return None
+
+    def when_busy(self) -> Event:
+        """Returns an event that succeeds when the resource next holds a unit after
+        holding none: the step after the grant that ends an idle time.
+
+        A grant that takes the unit of a user it preempts does not end an idle time,
+        because the resource held a unit all along. The event is for desflow's own
+        use, so it does not count as a model step.
+
+        Returns:
+            Event: The event. It never fails.
+        """
+        event = InternalEvent(self.env)
+        self._busy_waiters.append(event)
+        return event
+
+    def when_idle(self) -> Event:
+        """Returns an event that succeeds when the resource next holds no unit after
+        holding one: the step after the release that gives the last unit back.
+
+        A resource that is down keeps the units its users hold, so it is not idle
+        until they are given back. The event is for desflow's own use, so it does
+        not count as a model step.
+
+        Returns:
+            Event: The event. It never fails.
+        """
+        event = InternalEvent(self.env)
+        self._idle_waiters.append(event)
+        return event
+
+    def _forget_waiter(self, event: Event) -> None:
+        """Takes an event `when_busy` or `when_idle` returned out of the waiting lists,
+        for a caller that no longer waits for it.
+
+        Args:
+            event: The event.
+        """
+        for waiters in (self._busy_waiters, self._idle_waiters):
+            if event in waiters:
+                waiters.remove(event)
+
+    @staticmethod
+    def _wake(waiters: List[Event]) -> None:
+        """Succeeds each waiting event once and forgets them."""
+        woken = list(waiters)
+        waiters.clear()
+        for event in woken:
+            if not event.triggered:
+                event.succeed()
 
     def _grant_all(self) -> None:
         """Grants waiting requests while a unit is free: a capacity rise or a repair

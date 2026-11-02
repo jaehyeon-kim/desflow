@@ -36,6 +36,7 @@ from desflow.config import (
     DEFAULT_STATS_INTERVAL,
     DEFAULT_STATS_LEVEL,
     LABELS,
+    TRACE,
     QUEUE_ORDERS,
     STATS_LEVELS,
 )
@@ -67,9 +68,12 @@ from desflow.core.flow import (
 )
 from desflow.core.signals import Signal
 from desflow.core.task import (
+    Batch,
     TaskRun,
     TaskSpec,
     Holding,
+    batch_mismatch,
+    batch_mismatch_text,
     check_acquisition_order,
     flow_sets,
     handle_problem,
@@ -303,9 +307,12 @@ class SimulationContext:
 
         # Aligned with _egress_providers by position.
         self._egress_labels: List[bool] = []
+        self._egress_traces: List[bool] = []
         self._egress_envelopes: List[bool] = []
         self._stats_level = DEFAULT_STATS_LEVEL
         self._stats_interval = DEFAULT_STATS_INTERVAL
+        self._stats_on_change = False
+        self._stats_trace = False
 
         self._resources_config: Dict[str, CapacityConfig] = {}
         self._resource_queues: Dict[str, str] = {}
@@ -322,6 +329,8 @@ class SimulationContext:
         self._holder_ranks: Dict[Tuple[str, str], Tuple[Expression, str]] = {}
         self._resource_types: Dict[str, Optional[Type[ResourceBase]]] = {}
         self._breakdowns_config: Dict[str, BreakdownConfig] = {}
+        # The readings of `add_readings`, one mapping of name to expression for each call
+        self._readings: List[Dict[str, Expression]] = []
         self._scenario_steps: List[Dict[str, Any]] = []
         # Replayed arrivals: how to read each, and the rows left once read
         self._replays: Dict[str, Dict[str, Any]] = {}
@@ -384,6 +393,8 @@ class SimulationContext:
         # The events of the instances suspended in a `wait: {suspend: true}`, by task,
         # in the order they suspended, which `resume` wakes
         self._suspended: Dict[str, List[Any]] = {}
+        # The batch open under each batch name (a task's name unless it names one)
+        self._open_batches: Dict[str, Any] = {}
         # The instance a task function's generator runs, until `spawn` starts it
         self._runs_of: "weakref.WeakKeyDictionary[Any, TaskRun]" = (
             weakref.WeakKeyDictionary()
@@ -566,7 +577,10 @@ class SimulationContext:
                 this provider. None sends every record, which is the usual case.
                 `"labels"` makes it a labels sink: it receives the ground-truth
                 records (`env.publish_label`) and nothing else, and no other sink
-                receives them.
+                receives them. `"trace"` makes it a trace sink: it receives the
+                event trace that `with_stats(trace=True)` switches on, and nothing
+                else, and no other sink receives it. A run with a trace sink and no
+                `with_stats(trace=True)` is refused, as YAML refuses it at load.
             batch_size: Records this provider buffers before flushing. None uses the
                 context default from `with_batching`. A stream sink wants a small
                 value to keep latency down; a file or lake sink wants a large one,
@@ -585,7 +599,7 @@ class SimulationContext:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If `when` is a string other than `"labels"`.
+            ValueError: If `when` is a string other than `"labels"` or `"trace"`.
 
         Each provider has its own buffer and its own queue of batches. A record that
         several providers take is stored once, and stays in memory until the last
@@ -605,18 +619,25 @@ class SimulationContext:
             app.add_egress(parquet, batch_size=200_000, flush_interval=300)
             ```
         """
-        if isinstance(when, str) and when != LABELS:
-            raise ValueError(f"when takes a function or '{LABELS}', got '{when}'")
+        if isinstance(when, str) and when not in (LABELS, TRACE):
+            raise ValueError(
+                f"when takes a function, '{LABELS}' or '{TRACE}', got '{when}'"
+            )
         self._egress_providers.append(provider)
         self._egress_predicates.append(None if isinstance(when, str) else when)
         self._egress_labels.append(when == LABELS)
+        self._egress_traces.append(when == TRACE)
         self._egress_batch_sizes.append(batch_size)
         self._egress_flush_intervals.append(flush_interval)
         self._egress_envelopes.append(envelope)
         return self
 
     def with_stats(
-        self, level: str = "basic", interval: float = DEFAULT_STATS_INTERVAL
+        self,
+        level: str = "basic",
+        interval: float = DEFAULT_STATS_INTERVAL,
+        on_change: bool = False,
+        trace: bool = False,
     ) -> "SimulationContext":
         """
         Switches on the built-in statistics, published as telemetry.
@@ -632,12 +653,27 @@ class SimulationContext:
             interval: Simulation seconds between publications; they are also
                 published once at the end of the run, except the values unchanged
                 since a reading at that same time. Defaults to 10.
+            on_change: True also publishes a resource's readings, the names it
+                publishes at each interval, right after each `request` and each
+                `release` call on it, as a patched `request` and `release` would
+                record them. A grant that a release event makes later, and a cancel,
+                publish none of their own. Needs a level above `none`.
+            trace: True publishes one record of the kind `trace` for each model event
+                the environment processes, before its callbacks run, with the value
+                `{"priority", "event_id", "event"}`: the event's priority, its
+                `event_id` (SimPy's sequence number of the event, which desflow's own
+                events also advance) and its name, one of `Initialize`, `Process`,
+                `Timeout`, `Condition`, `Interruption`, `Request`, `Release`, `Get`,
+                `Put`, `Suspension` or `Event`. It reaches only the sinks added with
+                `when="trace"`.
+                Needs no level.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If the level is unknown or the interval is not positive.
+            ValueError: If the level is unknown, the interval is not positive, or
+                `on_change` is set with the level `none`.
         """
         if level not in STATS_LEVELS:
             raise ValueError(
@@ -645,8 +681,15 @@ class SimulationContext:
             )
         if not interval > 0:
             raise ValueError(f"stats interval must be greater than 0, got {interval}")
+        if on_change and level == "none":
+            raise ValueError(
+                "on_change publishes the statistics at each request and release, so "
+                "it needs a level above none"
+            )
         self._stats_level = level
         self._stats_interval = interval
+        self._stats_on_change = bool(on_change)
+        self._stats_trace = bool(trace)
         return self
 
     def with_batching(
@@ -1059,14 +1102,17 @@ class SimulationContext:
         time_to_failure: Mapping[str, Any],
         repair: Mapping[str, Any],
         work: str = "interrupt",
+        clock: str = "calendar",
     ) -> "SimulationContext":
         """
         Makes a resource break down at random and be repaired.
 
-        The failure clock runs on calendar time: after each repair, or the start,
-        the time to the next failure is drawn, busy or idle. While the resource is
-        down its capacity is 0, its `current_cap` keeps the planned value, and a
-        change to it during the repair sets the capacity the resource returns to.
+        After each repair, or the start, the time to the next failure is drawn. The
+        `calendar` clock counts it from then, busy or idle. The `busy` clock counts
+        it only while the resource holds a unit, so an idle resource does not wear out.
+        While the resource is down its capacity is 0, its `current_cap` keeps the
+        planned value, and a change to it during the repair sets the capacity the
+        resource returns to.
         Each failure and repair publishes an event keyed by the resource's name,
         `{"status": "down", "reason": "failure"}` and `{"status": "repaired", ...}`.
         The two distributions are registry paths,
@@ -1079,17 +1125,20 @@ class SimulationContext:
             repair: A distribution, such as `{"dist": "exponential", "rate": 0.01}`.
             work: `interrupt` (the default) interrupts the tasks being served, which
                 follow their `on_interrupt`; `finish` lets them finish.
+            clock: `calendar` (the default) or `busy`, the time the time to failure
+                counts.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If a distribution or `work` is invalid.
+            ValueError: If a distribution, `work` or `clock` is invalid.
         """
         self._breakdowns_config[resource] = BreakdownConfig(
             time_to_failure=_distribution_of(time_to_failure),
             repair=_distribution_of(repair),
             work=work,
+            clock=clock,
         )
         return self
 
@@ -1512,6 +1561,7 @@ class SimulationContext:
         on_interrupt_run: Optional[str] = None,
         interrupt: Optional[Mapping[str, Any]] = None,
         resume: Optional[Mapping[str, Any]] = None,
+        batch: Optional[Mapping[str, Any]] = None,
         spawn: Optional[Mapping[str, Any]] = None,
         subscribe: Optional[Mapping[str, Any]] = None,
         on: Optional[List[Mapping[str, Any]]] = None,
@@ -1695,6 +1745,17 @@ class SimulationContext:
                 the instances of that task suspended in `wait={"suspend": True}`, in the
                 order they suspended, up to `limit` (all when it is None), whose
                 `where` holds. Each reads `value` as `wait.suspend.value`.
+            batch: Members that wait together: `{"size": n, "timeout": seconds,
+                "close_when": condition, "name": text}`. The batch closes when `size`
+                members have joined (a number, or an expression read when the first
+                member joins), `timeout` after its first member, or when `close_when`
+                holds as a member joins; it reads `batch.size` and `batch.age`. The
+                `resource` and service run once for the batch, and each member then
+                publishes its own payload and follows its own `next`. `name` defaults
+                to the task's name, and tasks with the same name share one open batch,
+                so they must have the same `size`, `timeout`, `close_when`, `resource`
+                and service; a run with different ones is refused.
+                It takes no `get`, `seize`, `open` or `cancel`.
             interrupt: An action applied when the task finishes:
                 `{"task": name, "where": condition, "cause": value}` interrupts every
                 running instance of that task whose condition holds, and
@@ -1789,6 +1850,19 @@ class SimulationContext:
                     "seize took is kept"
                 )
         resumed = None if resume is None else _parse_resume(resume)
+        batched = None if batch is None else _parse_batch(batch)
+        if batched is not None:
+            for given_key, given in (
+                ("get", get),
+                ("seize", seize),
+                ("open", open),
+                ("cancel", cancel),
+            ):
+                if given is not None:
+                    raise ValueError(
+                        f"a batch serves its members with one run of the resource and "
+                        f"service, so it takes no {given_key}"
+                    )
         if interrupt is not None:
             interrupt = dict(interrupt)
             unknown = {*interrupt} - {"task", "handle", "where", "cause"}
@@ -1909,6 +1983,7 @@ class SimulationContext:
             and (take is None or not take.wait)
             and wait is None
             and seized is None
+            and batched is None
         ):
             raise ValueError(
                 "patience is how long a task waits, so it needs a wait, a seize, a "
@@ -1957,6 +2032,7 @@ class SimulationContext:
             on_interrupt_run=on_interrupt_run,
             interrupt=interrupt,
             resume=resumed,
+            batch=batched,
             spawn=None if spawn is None else _parse_spawn(spawn),
             subscribe=None if subscribe is None else Wait(subscribe),
             on=[_parse_on_action(entry) for entry in on or []],
@@ -2165,6 +2241,76 @@ class SimulationContext:
             return user_func
 
         return decorator
+
+    def add_readings(
+        self, interval: float, readings: Mapping[str, str]
+    ) -> "SimulationContext":
+        """
+        Publishes expressions of the run as telemetry every `interval` seconds.
+
+        It is the builder form of a YAML `telemetry` entry with `readings`, and
+        `telemetry_loop` with a function that publishes values, written as
+        expressions. Each reading is evaluated over the run (`level.`, `users.`,
+        `queue.`, `signal.`, `registry[...]`, `t` and the functions of the expression
+        language, and no name of an entity or a task), at the start and then every
+        `interval`. Each interval publishes one telemetry record for each reading, in
+        the order given, named `<sim_id>.<reading>` as `publish` names one. The
+        readings of one interval are all evaluated before the first is published.
+
+        Args:
+            interval: Simulation seconds between two publications.
+            readings: A reading name mapped to an expression, such as
+                `{"waiting_per_packer": "queue.packers / 2"}`.
+
+        Returns:
+            SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If `interval` is not positive, `readings` is empty or not a
+                mapping of text to text, or an expression is invalid or reads an
+                entity. A name that is not in the model, or an expression that cannot
+                be evaluated, is refused when the run is built or stops the run.
+        """
+        if not interval > 0:
+            raise ValueError(
+                f"the interval of readings must be above 0, got {interval}"
+            )
+        if not isinstance(readings, Mapping) or not readings:
+            raise ValueError("readings is a mapping of a reading name to an expression")
+        parsed: Dict[str, Expression] = {}
+        for name, text in readings.items():
+            if not isinstance(name, str) or not name or not isinstance(text, str):
+                raise ValueError(
+                    f"a reading is a name and the text of an expression, got "
+                    f"{name!r}: {text!r}"
+                )
+            try:
+                expression = Expression(text, names=ANY_NAME)
+            except ValueError as error:
+                raise ValueError(f"reading '{name}': {error}") from None
+            outside = expression.outside_run()
+            if outside:
+                raise ValueError(
+                    f"reading '{name}' '{text}' reads {outside}, but a reading reads "
+                    f"the run (level, users, queue, signal, registry and t), not an "
+                    f"entity or a task"
+                )
+            parsed[name] = expression
+        self._readings.append(parsed)
+
+        def report(context: "SimulationContext") -> None:
+            scope = context.values.scope_of()
+            values: Dict[str, Any] = {}
+            for name, expression in parsed.items():
+                try:
+                    values[name] = expression.evaluate(scope)
+                except ValueError as error:
+                    raise ValueError(f"telemetry reading '{name}': {error}") from None
+            for name, value in values.items():
+                context.publish(name, value)
+
+        self.telemetry_loop(interval)(report)
+        return self
 
     def add_process(self, func: Callable, **kwargs: Any) -> "SimulationContext":
         """
@@ -2541,8 +2687,8 @@ class SimulationContext:
         return paths | {a["path"] for a in actions if isinstance(a.get("path"), str)}
 
     def _rule_expressions(self) -> List[Tuple[str, Expression]]:
-        """The `queue` ranks, `preempt` rules and store and container ranks, each with
-        the place it is written for a message."""
+        """The `queue` ranks, `preempt` rules, store and container ranks and telemetry
+        readings, each with the place it is written for a message."""
         found: List[Tuple[str, Expression]] = []
         for name, (rank, _ties) in self._resource_rank.items():
             found.append((f"resource '{name}' queue rank", rank))
@@ -2552,6 +2698,9 @@ class SimulationContext:
                     found.append((f"resource '{name}' preempt {key}", expression))
         for (name, direction), (rank, _ties) in self._holder_ranks.items():
             found.append((f"'{name}' {direction}_queue rank", rank))
+        for parsed in self._readings:
+            for name, expression in parsed.items():
+                found.append((f"telemetry reading '{name}'", expression))
         return found
 
     def _check_rule_names(
@@ -3778,7 +3927,8 @@ class SimulationContext:
 
         Raises:
             ValueError: As for `run()`; or `stats` is not a level, or an override's
-                path does not exist or its value is refused.
+                path does not exist or its value is refused, or a trace sink has no
+                `with_stats(trace=True)`.
         """
         if until is None and run_settings:
             until = self._default_until
@@ -3824,6 +3974,11 @@ class SimulationContext:
             )
         _check_end(until, stop, drain, self._signal_names)
         self._check_tasks(overrides)
+        if any(self._egress_traces) and not self._stats_trace:
+            raise ValueError(
+                "when='trace' receives the records of stats.trace, so the context needs "
+                "with_stats(trace=True)"
+            )
         for setup in self._before_run:
             setup()
         # A run started and not closed is closed first, so its connectors stop
@@ -3842,6 +3997,7 @@ class SimulationContext:
         self._draining = False
         self._running = {}
         self._suspended = {}
+        self._open_batches = {}
         self._entity_counters = {}
         self._arrival_on = {
             name: plan.active for name, plan in self._arrival_plans.items()
@@ -3944,6 +4100,7 @@ class SimulationContext:
             # Without sinks nothing receives a publication, so no timer runs and
             # the statistics are read at the end
             self._env.stats.configure(self.sim_id, level, self._stats_interval)
+        self._env.stats.on_change = self._stats_on_change and level != "none"
         self._signals = {
             name: Signal(self._env, name, once=self._signal_once.get(name, True))
             for name in self._signal_names
@@ -3985,6 +4142,7 @@ class SimulationContext:
                 batch_sizes=self._egress_batch_sizes,
                 flush_intervals=self._egress_flush_intervals,
                 labels=self._egress_labels,
+                traces=self._egress_traces,
                 envelopes=self._egress_envelopes,
                 warmup=self.warmup,
                 lag_monitor_interval=(
@@ -3993,6 +4151,9 @@ class SimulationContext:
             )
         elif self.warmup is not None:
             self._env.start_internal(self._end_warmup(self.warmup))
+        self._env.trace_events(
+            self._stats_trace and egress and any(self._egress_traces)
+        )
 
         # Hydrate Physical SimPy Resources
         for res_id in self._resources_config.keys():
@@ -4046,6 +4207,7 @@ class SimulationContext:
                     self._resources_map[res_id],
                     self.sampler,
                     work=breakdown.work,
+                    clock=breakdown.clock,
                 )
             )
 
@@ -4457,6 +4619,17 @@ class SimulationContext:
                 "other had a row: " + " -> ".join(cycle)
             )
 
+    def _check_batches(self) -> None:
+        """Refuses two tasks that share a batch name but differ in what the batch needs
+        one answer for.
+
+        Raises:
+            ValueError: Naming both tasks and the key that differs.
+        """
+        found = batch_mismatch(self._task_specs)
+        if found is not None:
+            raise ValueError(batch_mismatch_text(*found))
+
     def _check_tasks(self, overrides: Optional[Mapping[str, Any]] = None) -> None:
         """Checks what each task names, before the clock or any connector starts.
 
@@ -4465,6 +4638,7 @@ class SimulationContext:
                 scenario is checked against them, as the run will apply it.
         """
         self._build_end_sets()
+        self._check_batches()
         self._check_lookups()
         if self._scenario_steps:
             known = self._scratch_registry(isolated=True)
@@ -4871,6 +5045,7 @@ class SimulationContext:
                 # balk and patience are read before the wait starts
                 early = key in (
                     "wait",
+                    "batch",
                     "balk",
                     "patience",
                     "open",
@@ -4954,6 +5129,9 @@ class SimulationContext:
                     },
                     ("patience",): spec.patience,
                     ("key",): spec.key,
+                    ("batch", "timeout"): (
+                        None if spec.batch is None else spec.batch.timeout
+                    ),
                 },
                 service_time=spec.service_time,
                 services=set(self._services_config),
@@ -5137,6 +5315,8 @@ def _builder_value(spec: Any, key: str) -> Any:
         return spec.attribute_changes
     if key == "put.item":
         return spec.put.item if spec.put is not None else None
+    if key.startswith("batch."):
+        return None if spec.batch is None else getattr(spec.batch, key[6:])
     if key in ("wait", "open"):
         node = getattr(spec, key)
         if node is None:
@@ -5461,6 +5641,38 @@ def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
     if kind == "resume":
         return {"resume": _parse_resume(entry["resume"])}
     return {"path": entry["path"], "value": entry.get("value")}
+
+
+def _parse_batch(spec: Mapping[str, Any]) -> Batch:
+    """Checks a `batch` key and returns it.
+
+    Args:
+        spec: A mapping of `size` and optionally `name`, `timeout` and `close_when`.
+
+    Returns:
+        Batch: The batch.
+
+    Raises:
+        ValueError: If it is not such a mapping.
+    """
+    if not isinstance(spec, Mapping) or "size" not in spec:
+        raise ValueError(
+            f"a batch is a mapping with a size, and optionally a name, timeout and "
+            f"close_when, got {spec!r}"
+        )
+    extra = set(spec) - {"name", "size", "timeout", "close_when"}
+    if extra:
+        raise ValueError(
+            f"a batch takes name, size, timeout and close_when, not "
+            f"{', '.join(sorted(map(str, extra)))}"
+        )
+    timeout = spec.get("timeout")
+    if isinstance(timeout, str):
+        try:
+            timeout = time_to_seconds(timeout)
+        except ValueError:
+            pass  # not a duration, so an expression
+    return Batch(spec["size"], spec.get("name"), timeout, spec.get("close_when"))
 
 
 def _parse_resume(spec: Mapping[str, Any]) -> Dict[str, Any]:

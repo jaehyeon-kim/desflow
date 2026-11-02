@@ -1236,6 +1236,91 @@
       "title": "Attr",
       "type": "object"
     },
+    "BatchSpec": {
+      "additionalProperties": false,
+      "description": "A task's `batch`: its members wait together and one run of the task's `resource`\nand service serves them all.\n\nThe batch closes when `size` members have joined, `timeout` after its first member,\nor when `close_when` holds as a member joins, whichever is first. `size` is a\nnumber, or text read as an expression in the scope of the first member when it\njoins; 1 or below closes the batch at its first member. `close_when` reads\n`batch.size` (how many members it holds) and `batch.age` (seconds since its first\nmember). `name` names the batch and defaults to the task's name: tasks with the same\n`name` share one open batch, so they must have the same `size`, `timeout`,\n`close_when`, `resource` and service (`service` or `service_time`), or the file\nis refused at load. Values are compared by what they mean, so a generator written\nthe same way, an expression with other spacing and a number written as text agree. Each member keeps its own `on_interrupt`, `patience`, payload\nand `next`, and follows its own `next` in the order the members joined.",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Generator"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/Placeholder"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "title": "Duration or expression",
+              "description": "A duration such as 30 s, or an expression such as attr.limit"
+            }
+          ],
+          "default": null
+        },
+        "close_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "size"
+      ],
+      "title": "BatchSpec",
+      "type": "object"
+    },
     "Batching": {
       "additionalProperties": false,
       "description": "The `batching` section: the arguments of `with_batching`.",
@@ -1452,7 +1537,7 @@
     },
     "Breakdown": {
       "additionalProperties": false,
-      "description": "A resource's `breakdown`: the time to each failure, the repair time, and\nwhether the tasks being served are interrupted or finish.",
+      "description": "A resource's `breakdown`: the time to each failure, the repair time, whether\nthe tasks being served are interrupted or finish, and which time the time to\nfailure counts. `clock: calendar` (the default) counts it from the start or the\nlast repair, busy or idle. `clock: busy` counts it only while the resource holds\nat least one unit; a time to failure of 0 then fails at the grant.",
       "properties": {
         "time_to_failure": {
           "$ref": "#/$defs/Distribution"
@@ -1467,6 +1552,21 @@
               "enum": [
                 "interrupt",
                 "finish"
+              ],
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "clock": {
+          "default": "calendar",
+          "anyOf": [
+            {
+              "enum": [
+                "calendar",
+                "busy"
               ],
               "type": "string"
             },
@@ -2132,7 +2232,7 @@
     },
     "EgressConnector": {
       "additionalProperties": false,
-      "description": "An `egress` entry, with the per-provider options of `add_egress`.\n\n`when` is `history`, `live`, `events`, `telemetry`, `labels`, a mapping\n`{expr: ...}` or a `!python` function taking one record. `history` sends the\nrecords stamped before `simulation.go_live_at`, and `live` sends the records\nstamped at or after it. `events` sends the event records and `telemetry` the\ntelemetry records. `labels` sends the ground-truth records of scenario steps\nwith a `record`, and nothing else.\n\n`envelope: false` makes the entry plain output: the sink writes each event's\nvalue without the record around it (`stream_type`, `sim_ts`, `timestamp`, `key`,\n`task` and `instance`), and it receives no telemetry record and no `queued` or\n`started` record of a task. A Kafka or Redis sink sends a value that is not a\nmapping as JSON. A storage or PostgreSQL sink skips it, with one warning. The\nmessage key of Kafka stays the record's key, and a `topic_router` still receives\nthe whole record. Ground-truth records of a `when: labels` entry are not\naffected.",
+      "description": "An `egress` entry, with the per-provider options of `add_egress`.\n\n`when` is `history`, `live`, `events`, `telemetry`, `labels`, `trace`, a mapping\n`{expr: ...}` or a `!python` function taking one record. `history` sends the\nrecords stamped before `simulation.go_live_at`, and `live` sends the records\nstamped at or after it. `events` sends the event records and `telemetry` the\ntelemetry records. `labels` sends the ground-truth records of scenario steps\nwith a `record`, and nothing else. `trace` sends the records of `stats.trace`,\none for each event the environment processes, and nothing else; no other entry\nreceives them.\n\n`envelope: false` makes the entry plain output: the sink writes each event's\nvalue without the record around it (`stream_type`, `sim_ts`, `timestamp`, `key`,\n`task` and `instance`), and it receives no telemetry record and no `queued` or\n`started` record of a task. A Kafka or Redis sink sends a value that is not a\nmapping as JSON. A storage or PostgreSQL sink skips it, with one warning. The\nmessage key of Kafka stays the record's key, and a `topic_router` still receives\nthe whole record. Ground-truth records of a `when: labels` entry are not\naffected.",
       "properties": {
         "type": {
           "anyOf": [
@@ -2168,7 +2268,8 @@
                 "live",
                 "events",
                 "telemetry",
-                "labels"
+                "labels",
+                "trace"
               ],
               "type": "string"
             },
@@ -6128,7 +6229,7 @@
     },
     "Stats": {
       "additionalProperties": false,
-      "description": "The `stats` section: the built-in statistics level and how often to publish.\n\nWritten as a level alone (`stats: basic`) or as a mapping\n(`stats: {level: all, interval: 60}`). The interval is in seconds or a duration\nsuch as `5 min`.",
+      "description": "The `stats` section: the built-in statistics level and how often to publish.\n\nWritten as a level alone (`stats: basic`) or as a mapping\n(`stats: {level: all, interval: 60}`). The interval is in seconds or a duration\nsuch as `5 min`. A mapping needs a `level`, unless it sets only `trace`,\nwhen the level is `none`. `on_change: true` also publishes a resource's readings\nat each `request` and `release` call on it, so it needs a level above `none`.\n`trace: true` publishes one record for each event the environment processes, of\nthe kind `trace`, to the egress entries with `when: trace`.",
       "properties": {
         "level": {
           "anyOf": [
@@ -6163,11 +6264,30 @@
           ],
           "default": 10.0,
           "gt": 0
+        },
+        "on_change": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "trace": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
         }
       },
-      "required": [
-        "level"
-      ],
       "title": "Stats",
       "type": "object"
     },
@@ -7141,6 +7261,17 @@
           ],
           "default": null
         },
+        "batch": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BatchSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "spawn": {
           "anyOf": [
             {
@@ -7207,7 +7338,7 @@
     },
     "Telemetry": {
       "additionalProperties": false,
-      "description": "A `telemetry` entry: custom readings published every `interval` seconds.\n\n`function` is a `!python` function called as `function(context)`, which\npublishes with `context.publish`. Resource, store and container readings come\nfrom `stats` instead.",
+      "description": "A `telemetry` entry: custom readings published every `interval` seconds.\n\nIt takes exactly one of `function` and `readings`. `function` is a `!python`\nfunction called as `function(context)`, which publishes with `context.publish`.\n`readings` maps a reading name to an expression read over the run (`level.`,\n`users.`, `queue.`, `signal.`, `registry[...]`, `t` and the functions of the\nexpression language, and no name of an entity or a task). Each interval publishes\none telemetry record for each reading, named `<sim_id>.<reading>`, as\n`context.publish` names one, in the order the readings are written. An expression\nthat cannot be evaluated stops the run. Resource, store and container readings\ncome from `stats` instead.",
       "properties": {
         "interval": {
           "anyOf": [
@@ -7221,12 +7352,33 @@
           ]
         },
         "function": {
-          "$ref": "#/$defs/PythonReference"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PythonReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "readings": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
-        "interval",
-        "function"
+        "interval"
       ],
       "title": "Telemetry",
       "type": "object"

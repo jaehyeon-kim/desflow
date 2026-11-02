@@ -166,6 +166,8 @@ INPUT_FORMS: Dict[Tuple[str, str], Any] = {
     ("Task", "_wait_parses"): None,
     ("Task", "_open_parses"): None,
     ("SeizeSpec", "_patience_duration"): PATIENCE,
+    ("BatchSpec", "_timeout_duration"): PATIENCE,
+    ("BatchSpec", "_size_not_boolean"): None,
     ("SeizeSpec", "_preempt_words"): None,
     ("RequestSpec", "_preempt_words"): None,
     ("Task", "_preempt_words"): None,

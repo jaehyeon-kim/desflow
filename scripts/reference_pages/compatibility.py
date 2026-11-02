@@ -160,16 +160,6 @@ def compatibility_page() -> str:
         "The register also holds checks of desflow's own features and of variants of "
         "a SimPy feature, such as breakdowns, schedules, replay and cancelling a put; "
         "this page lists only SimPy's features.",
-        "",
-        "Four gaps belong to no SimPy feature, because a SimPy program writes them "
-        "in plain Python: "
-        + "; ".join(
-            f"**{gap}**, {info['text']}, which a blueprint writes as `!python`: "
-            f"{info['python']}"
-            for gap, info in data["unattached"].items()
-        )
-        + ". [Call Python from YAML]"
-        f"({PYTHON_PAGE}#{PYTHON_FORMS['computed']}) shows how to write a process.",
     ]
     for area in areas():
         lines += [

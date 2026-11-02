@@ -2619,3 +2619,122 @@ def test_a_loop_name_may_not_be_a_var(tmp_path):
         )
         with pytest.raises(BlueprintError, match="loop name 'x'"):
             SimulationContext.from_yaml(path)
+
+
+READINGS = """\
+telemetry:
+  - interval: 10
+    readings:
+      waiting: queue.packers
+      busy_share: "users.packers / registry['Shop.resources.packers.current_cap']"
+"""
+
+
+def _telemetry(records):
+    return [
+        (r["sim_ts"], r["path_id"], r["value"])
+        for r in records
+        if r["stream_type"] == "telemetry" and r["path_id"] in READ_PATHS
+    ]
+
+
+READ_PATHS = ("Shop.waiting", "Shop.busy_share")
+
+
+def test_readings_publish_per_interval(tmp_path):
+    """Each reading of `telemetry.readings` is one telemetry record every interval (and
+    at the start, as a `function` is called), under `<sim_id>.<reading>`, in the order
+    written, with the expression's value."""
+    app = SimulationContext.from_yaml(write(tmp_path, MINIMAL + READINGS))
+    capture = _Capture()
+    app.add_egress(capture)
+    app.run(until=30)
+    found = _telemetry(capture.records)
+    assert [(t, p) for t, p, _ in found] == [
+        (t, p) for t in (0.0, 10.0, 20.0) for p in READ_PATHS
+    ]
+    assert all(isinstance(v, (int, float)) for _, _, v in found)
+
+
+def test_readings_refuse_function_too(tmp_path, logic):
+    """A telemetry entry gives `function` or `readings`, not both and not neither."""
+    both = MINIMAL + READINGS.replace(
+        "    readings:", f"    function: !python {logic}.sample\n    readings:"
+    )
+    with pytest.raises(
+        BlueprintError, match=re.escape("exactly one of function and readings")
+    ):
+        SimulationContext.from_yaml(write(tmp_path, both))
+    neither = MINIMAL + "telemetry:\n  - interval: 10\n"
+    with pytest.raises(
+        BlueprintError, match=re.escape("exactly one of function and readings")
+    ):
+        SimulationContext.from_yaml(write(tmp_path, neither, "neither.yaml"))
+
+
+@pytest.mark.parametrize(
+    "reading,fragment,line",
+    [
+        ("queue.nobody", "nobody", 22),
+        ("1 +", "not a valid expression", 20),
+        ("attr.x", "reads attr", 20),
+        ("registry['Shop.resources.nobody.current_cap']", "nobody", 22),
+    ],
+)
+def test_readings_parse_at_load(tmp_path, reading, fragment, line):
+    """A reading is parsed and checked when the file loads, in the scope of the run:
+    a bad expression, an entity read and a name or registry path that does not exist
+    are refused with the line."""
+    text = (
+        MINIMAL + f'telemetry:\n  - interval: 10\n    readings:\n      r: "{reading}"\n'
+    )
+    with pytest.raises(BlueprintError, match=re.escape(fragment)) as error:
+        SimulationContext.from_yaml(write(tmp_path, text))
+    assert f"blueprint.yaml:{line}:" in str(error.value), error.value
+
+
+def test_a_reading_that_fails_to_evaluate_is_a_run_failure(tmp_path):
+    text = (
+        MINIMAL
+        + 'telemetry:\n  - interval: 10\n    readings:\n      r: "1 / (t - 10)"\n'
+    )
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    with pytest.raises(ValueError, match=re.escape("telemetry reading 'r'")):
+        app.run(until=30)
+
+
+def test_readings_match_the_docs_packers_report(tmp_path):
+    """DX-7: the readings that replace the docs snippet's `packers_report` function
+    give the same records, as a whole stream, as the function."""
+    import shutil
+    from pathlib import Path
+
+    docs = Path(__file__).parents[2] / "docs" / "snippets" / "yaml"
+    streams = []
+    for form in ("function", "readings"):
+        folder = tmp_path / form
+        folder.mkdir()
+        shutil.copy(docs / "shop_logic.py", folder / "shop_logic.py")
+        text = (docs / "statistics.yaml").read_text(encoding="utf-8")
+        old = "    function: !python shop_logic.packers_report\n"
+        assert old in text
+        if form == "readings":
+            text = text.replace(
+                old,
+                "    readings:\n"
+                '      waiting_per_packer: "queue.packers / max(registry['
+                "'Shop.resources.packers.current_cap'], 1)\"\n"
+                "      arrival_rate: \"registry['Shop.arrival.orders.rate']\"\n",
+            )
+        text = text.replace("egress:\n  - type: Console\n\n", "")
+        path = folder / "statistics.yaml"
+        path.write_text(text, encoding="utf-8")
+        app = SimulationContext.from_yaml(path)
+        capture = _Capture()
+        app.add_egress(capture)
+        app.run()
+        streams.append(
+            [{k: v for k, v in r.items() if k != "timestamp"} for r in capture.records]
+        )
+    assert streams[0] == streams[1]
+    assert any(r.get("path_id") == "Shop.waiting_per_packer" for r in streams[0])

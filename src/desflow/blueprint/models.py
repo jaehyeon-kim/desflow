@@ -46,10 +46,12 @@ from pydantic import (
 from desflow.config import (
     DEFAULT_QUEUE_ORDER,
     DEFAULT_STATS_INTERVAL,
+    DEFAULT_STATS_LEVEL,
     INTERRUPT_POLICIES,
     LABELS,
     QUEUE_ORDERS,
     STATS_LEVELS,
+    TRACE,
 )
 from desflow.core.distributions import (
     PARAMETERS,
@@ -78,7 +80,7 @@ from desflow.values.models import GENERATORS, Generator, Payload, Value, _Gen
 from desflow.utils import suggestion, time_to_seconds
 
 # The names an egress `when` takes instead of a `!python` function.
-WHEN_NAMES = ("history", "live", "events", "telemetry", LABELS)
+WHEN_NAMES = ("history", "live", "events", "telemetry", LABELS, TRACE)
 
 
 def _seconds(value: Union[int, float, str]) -> Union[int, float]:
@@ -553,12 +555,16 @@ class Arrival(Distribution):
 
 
 class Breakdown(_Model):
-    """A resource's `breakdown`: the time to each failure, the repair time, and
-    whether the tasks being served are interrupted or finish."""
+    """A resource's `breakdown`: the time to each failure, the repair time, whether
+    the tasks being served are interrupted or finish, and which time the time to
+    failure counts. `clock: calendar` (the default) counts it from the start or the
+    last repair, busy or idle. `clock: busy` counts it only while the resource holds
+    at least one unit; a time to failure of 0 then fails at the grant."""
 
     time_to_failure: Distribution
     repair: Distribution
     work: Literal["interrupt", "finish"] = "interrupt"
+    clock: Literal["calendar", "busy"] = "calendar"
 
 
 class QueueRule(_Model):
@@ -948,6 +954,70 @@ class ResumeSpec(_Model):
             "value": self.value,
             "limit": self.limit,
         }
+
+
+class BatchSpec(_Model):
+    """A task's `batch`: its members wait together and one run of the task's `resource`
+    and service serves them all.
+
+    The batch closes when `size` members have joined, `timeout` after its first member,
+    or when `close_when` holds as a member joins, whichever is first. `size` is a
+    number, or text read as an expression in the scope of the first member when it
+    joins; 1 or below closes the batch at its first member. `close_when` reads
+    `batch.size` (how many members it holds) and `batch.age` (seconds since its first
+    member). `name` names the batch and defaults to the task's name: tasks with the same
+    `name` share one open batch, so they must have the same `size`, `timeout`,
+    `close_when`, `resource` and service (`service` or `service_time`), or the file
+    is refused at load. Values are compared by what they mean, so a generator written
+    the same way, an expression with other spacing and a number written as text agree. Each member keeps its own `on_interrupt`, `patience`, payload
+    and `next`, and follows its own `next` in the order the members joined.
+    """
+
+    name: Optional[str] = None
+    size: Union[int, float, str]
+    timeout: Optional[TimePlace] = None
+    close_when: Optional[str] = None
+
+    @field_validator("size", mode="before")
+    @classmethod
+    def _size_not_boolean(cls, value: Any) -> Any:
+        _refuse_boolean(value, "batch size")
+        return value
+
+    @field_validator("timeout", mode="before")
+    @classmethod
+    def _timeout_duration(cls, value: Any) -> Any:
+        _refuse_boolean(value, "batch timeout")
+        return _duration_text(value)
+
+    @field_validator("name")
+    @classmethod
+    def _name_is_text(cls, value: Any) -> Any:
+        if value is not None and not value.strip():
+            raise ValueError("batch name is text, not empty")
+        return value
+
+    @model_validator(mode="after")
+    def _expressions_parse(self) -> "BatchSpec":
+        if isinstance(self.size, str):
+            _check_run_text(self.size, "batch size", False)
+        _check_time_place(self.timeout, "batch timeout")
+        if self.close_when is not None:
+            try:
+                Expression(self.close_when, names=ANY_NAME, batch=True)
+            except ValueError as exc:
+                raise ValueError(f"batch close_when: {exc}") from None
+        return self
+
+    def action(self) -> Dict[str, Any]:
+        """The mapping the builder's `batch` takes."""
+        given = {
+            "name": self.name,
+            "size": self.size,
+            "timeout": self.timeout,
+            "close_when": self.close_when,
+        }
+        return {key: value for key, value in given.items() if value is not None}
 
 
 class SpawnAction(_Model):
@@ -1693,6 +1763,7 @@ class Task(_Model):
     on_interrupt_run: Optional[str] = None
     interrupt: Optional[InterruptAction] = None
     resume: Optional[ResumeSpec] = None
+    batch: Optional[BatchSpec] = None
     spawn: Optional[SpawnAction] = None
     subscribe: Optional[Dict[str, Any]] = None
     on: List[OnEntry] = Field(default_factory=list)
@@ -1892,11 +1963,19 @@ class Task(_Model):
             and (self.get is None or not self.get.wait)
             and self.wait is None
             and self.seize is None
+            and self.batch is None
         ):
             raise ValueError(
                 "patience is how long a task waits, so it needs a wait, a seize, a "
                 "resource or a get"
             )
+        if self.batch is not None:
+            for key in ("get", "seize", "open", "cancel"):
+                if getattr(self, key) is not None:
+                    raise ValueError(
+                        f"a batch serves its members with one run of the resource and "
+                        f"service, so it takes no {key}"
+                    )
         if self.fail is None and self.fail_reason is not None:
             raise ValueError("fail_reason needs a fail condition")
         if self.on_renege is not None and self.patience is None:
@@ -2043,12 +2122,14 @@ class WhenExpr(_Model):
 class EgressConnector(Connector):
     """An `egress` entry, with the per-provider options of `add_egress`.
 
-    `when` is `history`, `live`, `events`, `telemetry`, `labels`, a mapping
+    `when` is `history`, `live`, `events`, `telemetry`, `labels`, `trace`, a mapping
     `{expr: ...}` or a `!python` function taking one record. `history` sends the
     records stamped before `simulation.go_live_at`, and `live` sends the records
     stamped at or after it. `events` sends the event records and `telemetry` the
     telemetry records. `labels` sends the ground-truth records of scenario steps
-    with a `record`, and nothing else.
+    with a `record`, and nothing else. `trace` sends the records of `stats.trace`,
+    one for each event the environment processes, and nothing else; no other entry
+    receives them.
 
     `envelope: false` makes the entry plain output: the sink writes each event's
     value without the record around it (`stream_type`, `sim_ts`, `timestamp`, `key`,
@@ -2062,7 +2143,7 @@ class EgressConnector(Connector):
 
     when: Optional[
         Union[
-            Literal["history", "live", "events", "telemetry", "labels"],
+            Literal["history", "live", "events", "telemetry", "labels", "trace"],
             WhenExpr,
             Callable[[dict], bool],
         ]
@@ -2077,7 +2158,7 @@ class EgressConnector(Connector):
         if isinstance(value, str) and value not in WHEN_NAMES:
             raise ValueError(
                 f"'{value}' is not a when. Use history, live, events, telemetry, "
-                f"labels, a mapping with expr, or a !python function"
+                f"labels, trace, a mapping with expr, or a !python function"
             )
         return value
 
@@ -2094,13 +2175,32 @@ class Batching(_Model):
 class Telemetry(_Model):
     """A `telemetry` entry: custom readings published every `interval` seconds.
 
-    `function` is a `!python` function called as `function(context)`, which
-    publishes with `context.publish`. Resource, store and container readings come
-    from `stats` instead.
+    It takes exactly one of `function` and `readings`. `function` is a `!python`
+    function called as `function(context)`, which publishes with `context.publish`.
+    `readings` maps a reading name to an expression read over the run (`level.`,
+    `users.`, `queue.`, `signal.`, `registry[...]`, `t` and the functions of the
+    expression language, and no name of an entity or a task). Each interval publishes
+    one telemetry record for each reading, named `<sim_id>.<reading>`, as
+    `context.publish` names one, in the order the readings are written. An expression
+    that cannot be evaluated stops the run. Resource, store and container readings
+    come from `stats` instead.
     """
 
     interval: float = Field(gt=0)
-    function: Callable[..., Any]
+    function: Optional[Callable[..., Any]] = None
+    readings: Optional[Dict[str, str]] = None
+
+    @model_validator(mode="after")
+    def _one_source(self) -> "Telemetry":
+        if (self.function is None) == (self.readings is None):
+            raise ValueError(
+                "a telemetry entry takes exactly one of function and readings"
+            )
+        for name, text in (self.readings or {}).items():
+            if not name:
+                raise ValueError("a reading needs a name")
+            _check_run_text(text, f"reading '{name}'", True)
+        return self
 
 
 class Stats(_Model):
@@ -2108,11 +2208,17 @@ class Stats(_Model):
 
     Written as a level alone (`stats: basic`) or as a mapping
     (`stats: {level: all, interval: 60}`). The interval is in seconds or a duration
-    such as `5 min`.
+    such as `5 min`. A mapping needs a `level`, unless it sets only `trace`,
+    when the level is `none`. `on_change: true` also publishes a resource's readings
+    at each `request` and `release` call on it, so it needs a level above `none`.
+    `trace: true` publishes one record for each event the environment processes, of
+    the kind `trace`, to the egress entries with `when: trace`.
     """
 
-    level: str
+    level: str = DEFAULT_STATS_LEVEL
     interval: Union[int, float] = Field(default=DEFAULT_STATS_INTERVAL, gt=0)
+    on_change: bool = False
+    trace: bool = False
 
     @field_validator("interval", mode="before")
     @classmethod
@@ -2125,6 +2231,22 @@ class Stats(_Model):
         if value not in STATS_LEVELS:
             raise ValueError(f"level must be one of {', '.join(STATS_LEVELS)}")
         return value
+
+    @model_validator(mode="after")
+    def _level_for_what_is_set(self) -> "Stats":
+        if "level" not in self.model_fields_set and not (
+            self.trace and not self.on_change
+        ):
+            raise ValueError(
+                "stats needs a level, unless it sets only trace, when the "
+                f"level is {DEFAULT_STATS_LEVEL}"
+            )
+        if self.on_change and self.level == "none":
+            raise ValueError(
+                "on_change publishes the statistics at each request and release, so "
+                "it needs a level above none"
+            )
+        return self
 
 
 class ScenarioStep(_Model):

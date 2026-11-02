@@ -479,6 +479,8 @@
     - tests/conformance/test_yaml_only.py::test_m5_ties_change_only_the_order_of_equal_ranks
     - tests/conformance/test_yaml_only.py::test_m5_when_rule_decides_each_preemption
     - tests/conformance/test_yaml_only.py::test_m5_victim_rule_picks_the_holder_with_the_largest_value
+    - tests/conformance/test_yaml_only.py::test_on_change_publishes_the_reading_after_each_call_as_simpy_records_it
+    - tests/conformance/test_yaml_only.py::test_trace_publishes_each_event_the_run_processes_as_simpy_steps_it
   page: user-guide/resources/custom-resource-types.md#custom-resource-types
 
 - id: C5
@@ -971,13 +973,16 @@
   operation: Breakdown and repair
   description: "A resource fails from time to time and is repaired, interrupting the work it was doing."
   simpy: "a repair process holding the machine on a `PreemptiveResource`"
-  yaml: "`resources.<name>.breakdown: {time_to_failure, repair, work}`"
-  builder: "`add_breakdown(resource, time_to_failure={...}, repair={...}, work=...)`"
-  low_level: "`run_breakdowns(env, resource, sampler, work=...)`"
+  yaml: "`resources.<name>.breakdown: {time_to_failure, repair, work, clock}`"
+  builder: "`add_breakdown(resource, time_to_failure={...}, repair={...}, work=..., clock=...)`"
+  low_level: "`run_breakdowns(env, resource, sampler, work=..., clock=...)`"
   checks:
     - tests/conformance/test_s1_breakdowns.py::test_s1_failure_during_service
     - tests/conformance/test_s1_breakdowns.py::test_s1_failure_during_service_work_finishes
     - tests/conformance/test_s1_breakdowns.py::test_s1_planned_change_during_repair
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_10_runs_as_its_simpy_program
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_10_runs_at_other_sizes
+    - tests/conformance/test_yaml_only.py::test_every_known_case_of_batch_10_runs_or_names_the_key_it_waits_for
   page: how-to/modelling/breakdowns.md#steps
   differences: "The resource is down on a calendar clock, from the failure to the repair, even while it waits for the work in service to finish with `work: finish`."
 

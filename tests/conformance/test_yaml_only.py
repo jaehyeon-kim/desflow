@@ -34,6 +34,7 @@ from tests.conformance.yaml_only.programs import (
     cv_040_segments,
     known8,
     known9,
+    known10,
     v1_service_time,
     v2_timeout,
     v3_values,
@@ -2470,8 +2471,10 @@ def _known_sized(module, table, row):
     import inspect
 
     function = getattr(module, table[row][1])
-    return bool(getattr(function, "ties", False)) or "initial=" in inspect.getsource(
-        function
+    return (
+        bool(getattr(function, "ties", False))
+        or function.__name__ in getattr(module, "SIZED", ())
+        or "initial=" in inspect.getsource(function)
     )
 
 
@@ -2983,3 +2986,154 @@ def test_an_interrupted_holder_leaves_no_unit_or_request_with_a_breakdown_or_a_r
             if m[1] == f"s-{index}" and m[2] in ("s_done", "cleanup")
         ]
         assert len(ended) == 1, (index, marks)
+
+
+# ------------------------------------------------ Batch 10: the known cases that run now
+
+KNOWN10: Dict[str, Tuple[str, str, Dict[str, str]]] = {
+    # row: (document of known10/, program, files of the document)
+    "DS-B1": ("ds_b1", "DS_B1", {}),
+    "P49": ("p49", "P49", {}),
+    "P50": ("p50", "P50", {}),
+    "DS-B3": ("ds_b3", "DS_B3", {}),
+    "P52": ("p52", "P52", {}),
+    "P53": ("p53", "P53", {}),
+    "DS-M1": ("ds_m1", "DS_M1", {}),
+    "GD-M2": ("gd_m2", "GD_M2", {}),
+    "GD-M3": ("gd_m3", "GD_M3", {}),
+    "GD-M4": ("gd_m4", "GD_M4", {}),
+}
+KNOWN10_SHARED = {
+    # row: the row whose document and program it runs in, the same form with the same
+    # assertions
+    "CV-043": "DS-M1",
+}
+# row: the test that runs it, where it is not a SimPy program
+KNOWN10_OTHER = {
+    "DX-7": "tests/unit/test_blueprint.py::test_readings_match_the_docs_packers_report",
+}
+BATCH_10_ROWS = (
+    "GD-M2 GD-M3 GD-M4 P49 P50 P52 P53 DS-B1 DS-B3 DS-M1 CV-043 DX-7"
+).split()
+
+
+@pytest.mark.parametrize("row", sorted(KNOWN10))
+def test_known_case_of_batch_10_runs_as_its_simpy_program(tmp_path, row):
+    """Each known case of Batch 10 runs from its blueprint (no `!python`) and gives the
+    records of the SimPy program written from the original: the same times, keys, tasks
+    and payloads."""
+    outcome, error = _known_compare(known10, KNOWN10, "known10", tmp_path, row)
+    assert (outcome.error is None) == (error is None), (outcome.error, error)
+
+
+@pytest.mark.parametrize("size", [1, 3, 10])
+@pytest.mark.parametrize("row", sorted(KNOWN10))
+def test_known_case_of_batch_10_runs_at_other_sizes(tmp_path, row, size):
+    """As the base run, with `size` entities in the first arrival that starts a number
+    of them at once, in the document and in the program (the rows whose program takes
+    a size)."""
+    if not _known_sized(known10, KNOWN10, row):
+        pytest.skip("the program has no arrival with `initial`")
+    _known_compare(known10, KNOWN10, "known10", tmp_path, row, size)
+
+
+def test_every_known_case_of_batch_10_runs_or_names_the_key_it_waits_for():
+    """The 12 rows of the batch are each a case, share the document of a case that has
+    the same form, or run in a test of their own."""
+    assert len(BATCH_10_ROWS) == 12
+    assert set(KNOWN10_SHARED.values()) <= set(KNOWN10)
+    assert not set(KNOWN10_SHARED) & set(KNOWN10)
+    assert not (set(KNOWN10_OTHER) & set(KNOWN10)) | (
+        set(KNOWN10_OTHER) & set(KNOWN10_SHARED)
+    )
+    assert sorted({*KNOWN10, *KNOWN10_SHARED, *KNOWN10_OTHER}) == sorted(BATCH_10_ROWS)
+    test, _, name = KNOWN10_OTHER["DX-7"].partition("::")
+    assert f"def {name}(" in (Path(__file__).parents[2] / test).read_text()
+
+
+def _reading_series(records, resource="res"):
+    """The `in_use` and `queue_length` readings of a resource: (time, field, value)."""
+    found = []
+    for record in records:
+        if record["stream_type"] != "telemetry":
+            continue
+        path = record["path_id"]
+        for field in ("in_use", "queue_length"):
+            if path.endswith(f".resources.{resource}.{field}"):
+                found.append((round(record["sim_ts"], 3), field, record["value"]))
+    return found
+
+
+def _calls_as_readings(calls):
+    """What the readings after each call give: the first call of an instant gives both
+    values, and each later call only the one that changed."""
+    found, last, previous = [], None, None
+    for at, count, queued in calls:
+        at = round(at, 3)
+        if at != last:
+            previous, last = None, at
+        if previous is None or previous[0] != count:
+            found.append((at, "in_use", count))
+        if previous is None or previous[1] != queued:
+            found.append((at, "queue_length", queued))
+        previous = (count, queued)
+    return found
+
+
+def _run_with_trace(tmp_path, row):
+    """Runs the document of a row with a sink that keeps the trace records."""
+    from tests.conformance.harness import RecordingEgress
+
+    text = (FOLDER / "known10" / f"{KNOWN10[row][0]}.yaml").read_text()
+    sink = RecordingEgress()
+    outcome = run_yaml_text(
+        tmp_path, text, {}, prepare=lambda app: app.add_egress(sink, when="trace")
+    )
+    return outcome, sink.records
+
+
+def _trace_events(records):
+    return [
+        (
+            round(r["sim_ts"], 3),
+            r["value"]["priority"],
+            r["value"]["event"],
+        )
+        for r in records
+        if r["stream_type"] == "trace"
+    ]
+
+
+@pytest.mark.parametrize("row", ["GD-M2", "GD-M3", "DS-M1"])
+def test_on_change_publishes_the_reading_after_each_call_as_simpy_records_it(
+    tmp_path, row
+):
+    """M1: a resource's `in_use` and `queue_length` are published after each `request`
+    and `release` call, the series the patched SimPy resource records (a grant made
+    when a release is processed publishes none, as no call is made)."""
+    known10.TELE.clear()
+    outcome, _ = _known_compare(known10, KNOWN10, "known10", tmp_path, row)
+    wanted = _calls_as_readings(known10.TELE)
+    assert wanted, row
+    assert _reading_series(outcome.records) == wanted
+    known10.TELE.clear()
+
+
+@pytest.mark.parametrize("row", ["GD-M4", "DS-M1"])
+def test_trace_publishes_each_event_the_run_processes_as_simpy_steps_it(tmp_path, row):
+    """M1, MF5: the trace gives one record per processed model event, with its time,
+    priority and class, to the sinks that ask for `when: trace` only. The blueprint's
+    arrival process is the one extra process SimPy's program starts."""
+    known10.TRACE.clear()
+    function = getattr(known10, KNOWN10[row][1])
+    function()
+    wanted = list(known10.TRACE)
+    known10.TRACE.clear()
+    known8.MODE.update(on=False, n=None, rev=False)
+    outcome, records = _run_with_trace(tmp_path, row)
+    assert outcome.error is None, repr(outcome.error)
+    assert all(r["stream_type"] != "trace" for r in outcome.records)
+    produced = _trace_events(records)
+    assert [(t, p, c) for t, p, c in produced if c != "Event"] == [
+        (round(t, 3), p, c) for t, p, c in wanted if c != "Event"
+    ]

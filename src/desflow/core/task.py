@@ -12,7 +12,9 @@ context keeps the decorator and the checks made before the clock starts.
 
 from __future__ import annotations
 
+import ast
 import functools
+import math
 import numbers
 from collections.abc import Mapping
 from dataclasses import replace
@@ -27,6 +29,7 @@ from typing import (
     Union,
 )
 
+from pydantic import BaseModel
 from simpy import Interrupt
 from simpy.events import Condition, Event
 from simpy.resources.resource import Preempted
@@ -226,6 +229,177 @@ def _won(event: Any) -> bool:
     return event.processed
 
 
+class Batch:
+    """A task's `batch` key: members wait together and one resource and service run
+    covers all of them.
+
+    Attributes:
+        name: The name of the batch. Tasks with the same name share one open batch.
+            It defaults to the task's name.
+        size: How many members close the batch: a number, or an expression read when
+            the first member joins.
+        timeout: How long after its first member the batch closes, or None.
+        close_when: An expression tested as each member joins, which closes the batch
+            when it holds; it reads `batch.size` and `batch.age`.
+    """
+
+    def __init__(
+        self,
+        size: Any,
+        name: Optional[str] = None,
+        timeout: Any = None,
+        close_when: Optional[str] = None,
+    ):
+        """
+        Args:
+            size: A number, or text read as an expression.
+            name: The batch's name, which defaults to the task's name.
+            timeout: Seconds, an expression, a generator or a function of the entity.
+            close_when: An expression over `batch.size`, `batch.age` and the run.
+
+        Raises:
+            ValueError: If a value is not of the kind the key takes.
+        """
+        if isinstance(size, bool) or not (
+            isinstance(size, (numbers.Real, str, _Gen)) or callable(size)
+        ):
+            raise ValueError(f"batch size is a number or an expression, got {size!r}")
+        if isinstance(timeout, bool):
+            raise ValueError(f"batch timeout is a time, got {timeout!r}")
+        if name is not None and (not isinstance(name, str) or not name):
+            raise ValueError(f"batch name is text, got {name!r}")
+        self.name = name
+        self.size = size
+        self.timeout = timeout
+        self.close_when = close_when
+        self.size_of = (
+            Expression(size, names=ANY_NAME) if isinstance(size, str) else None
+        )
+        self.timeout_of = (
+            Expression(timeout, names=ANY_NAME) if isinstance(timeout, str) else None
+        )
+        self.close_when_of = (
+            None
+            if close_when is None
+            else Expression(close_when, names=ANY_NAME, batch=True)
+        )
+
+    @property
+    def expressions(self) -> List[Expression]:
+        """Every expression the batch holds."""
+        return [e for e in (self.size_of, self.timeout_of, self.close_when_of) if e]
+
+
+class _OpenBatch:
+    """The members that wait to be served together, and what they wait for."""
+
+    def __init__(self, key: str, size: Union[int, float], since: float):
+        self.key = key
+        self.size = size
+        self.since = since
+        self.members: List["TaskRun"] = []
+        self.closed = False
+        self.finished = False
+        self.dead = False
+        self.leader: Optional["TaskRun"] = None
+
+
+def _same_form(value: Any) -> Any:
+    """A form of a batch or service value that two equal values share, whatever their
+    spelling or where they were written: a pydantic value by its fields (not its private
+    place in the file), an expression by its parsed tree, text that is a number by its
+    number, and a mapping or list by its parts.
+
+    Args:
+        value: A `size`, `timeout`, `close_when` or `service_time`.
+
+    Returns:
+        Any: A value to compare with `==`.
+    """
+    if isinstance(value, BaseModel):
+        return (type(value).__name__, _same_form(value.model_dump()))
+    if isinstance(value, Mapping):
+        return {key: _same_form(part) for key, part in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_same_form(part) for part in value]
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            pass
+        try:
+            return ast.dump(ast.parse(value.strip(), mode="eval"))
+        except SyntaxError:
+            return value
+    return value
+
+
+# The keys of a shared batch that are compared by `_same_form`
+_COMPARED_BY_FORM = ("size", "timeout", "close_when", "service_time")
+
+
+def batch_mismatch(
+    specs: Mapping[str, "TaskSpec"],
+) -> Optional[Tuple[str, str, str, str]]:
+    """Finds two tasks that share a batch name and differ in what the batch needs one
+    answer for: its `size`, `timeout` and `close_when`, its `resource` and its
+    service (`service` or `service_time`). `on_interrupt`, `patience`, `payload` and
+    `next` may differ, because each member keeps its own.
+
+    Args:
+        specs: The tasks by name.
+
+    Returns:
+        Optional[Tuple[str, str, str, str]]: The batch name, the first task, the other
+        task and the key that differs, or None when every shared batch agrees.
+    """
+    first: Dict[str, "TaskSpec"] = {}
+    for name, spec in specs.items():
+        if spec.batch is None:
+            continue
+        key = spec.batch.name or name
+        opener = first.setdefault(key, spec)
+        if opener is spec:
+            continue
+        for label, value, other in (
+            ("size", opener.batch.size, spec.batch.size),  # type: ignore[union-attr]
+            ("timeout", opener.batch.timeout, spec.batch.timeout),  # type: ignore[union-attr]
+            (
+                "close_when",
+                opener.batch.close_when,  # type: ignore[union-attr]
+                spec.batch.close_when,
+            ),
+            ("resource", opener.resources, spec.resources),
+            ("service", opener.service_id, spec.service_id),
+            ("service_time", opener.service_time, spec.service_time),
+        ):
+            if label in _COMPARED_BY_FORM:
+                value, other = _same_form(value), _same_form(other)
+            if value != other:
+                return key, opener.name, name, label
+    return None
+
+
+def batch_mismatch_text(key: str, first: str, other: str, label: str) -> str:
+    """The refusal for two tasks that share a batch and differ in one key.
+
+    Args:
+        key: The batch name.
+        first: The task that opened the name.
+        other: The task that differs.
+        label: The key that differs.
+
+    Returns:
+        str: The message, which names both tasks.
+    """
+    return (
+        f"tasks '{first}' and '{other}' share the batch '{key}' but differ in "
+        f"{label}; the members of one batch are served by one run of the resource and "
+        f"service, so give both tasks the same size, timeout, close_when, resource "
+        f"and service, or different batch names"
+    )
+
+
 class TaskSpec:
     """What a task is: its keys, checked when it is declared, and what `run()`
     checks before the clock starts."""
@@ -275,8 +449,11 @@ class TaskSpec:
         cancel: Optional[str] = None,
         on_interrupt_run: Optional[str] = None,
         resume: Optional[Dict[str, Any]] = None,
+        batch: Optional[Batch] = None,
     ):
         self.name = name
+        # Members wait together and are served by one run of the resource and service
+        self.batch = batch
         # The task run as a child flow after an interrupt, and the suspended
         # instances this task wakes when it finishes
         self.on_interrupt_run = on_interrupt_run
@@ -366,6 +543,7 @@ class TaskSpec:
             or (get is not None and get.wait)
             or wait is not None
             or seize is not None
+            or batch is not None
         )
         # Publishes started before its work
         self.timed = service_id is not None or service_time is not None or self.queues
@@ -408,6 +586,8 @@ class TaskSpec:
             if transfer is not None:
                 found.extend((key, e) for e in transfer.expressions)
         found.extend(("next", e) for e in self.router.conditions)
+        if self.batch is not None:
+            found.extend(("batch", e) for e in self.batch.expressions)
         if self.seize is not None:
             found.extend(("seize", e) for e in self.seize.expressions)
         if self.open is not None:
@@ -526,6 +706,16 @@ class TaskRun:
         self._finish: Dict[str, Any] = {}
         self._once_made = self._vars_made = False
         self._instance_key: Optional[str] = None
+        # The batch this instance joined, the event it waits on there, whether the
+        # batch has already published its `started`, and whether another member's
+        # run of the resource and service served it
+        self._batch: Optional[_OpenBatch] = None
+        self._batch_event: Any = None
+        self._batch_started = False
+        # Interrupted after `started` was published at a batch's close, so the next
+        # grant is a resume
+        self._owes_resume = False
+        self._batch_served = False
         # An instance whose task needs an end event (for `running`, `subscribe`, a
         # `fire from`, or its own `on:` actions) gets one, defused so its failure
         # stops the run only through the task process.
@@ -975,6 +1165,7 @@ class TaskRun:
         finally:
             self._target = None
             self._stop_running()
+            self._leave_batch()
         # A balk or a renege returns with the end event not yet triggered: it
         # succeeds with None, so a `running` waiter resumes with no value.
         self._end_default(ok=True, actions=not self._dropped)
@@ -1151,6 +1342,7 @@ class TaskRun:
             and spec.seize is None
             and spec.open is None
             and spec.cancel is None
+            and spec.batch is None
         ):
             # Nothing yields or makes room between here and the first request, so a
             # full line is known now and the task balks before it queues, as in SimPy
@@ -1244,12 +1436,29 @@ class TaskRun:
                 stats.task_failed(spec.name, self.task_id)
             break
 
+        while spec.batch is not None and failure is None and not self._batch_served:
+            try:
+                outcome = yield from self._batch_phase()
+            except _HandlerFailed as stopped:
+                failure = stopped.reason
+                break
+            except Exception as error:  # a size, timeout or close_when that failed
+                failure = self._fail_with(error)
+                break
+            if outcome is _RENEGED:
+                self._renege()
+                return None
+            if outcome is not None:
+                return self._abandon(outcome, None)
+            break
+
         payload: Any = None
         silent = False  # `payload: null`: the task publishes no finished record
         rank = self._rank() if self.spec.resources else None
         may_preempt = self._preempt() if self.spec.resources else False
         remaining: Optional[float] = None  # service still owed, when interrupted
-        started = got_item = put_done = served = no_time_left = False
+        started = got_item = put_done = no_time_left = False
+        served = self._batch_served  # a member another member's service served
         values_done = False
         # The requests the task holds, and the position in `spec.resources` each one
         # asked for. Kept across a resume, as a SimPy process keeps its request
@@ -1311,7 +1520,7 @@ class TaskRun:
                                 self._renege()
                                 return None
                 for at, resource in enumerate(spec.resources):
-                    if at in slots or no_time_left:
+                    if at in slots or no_time_left or self._batch_served:
                         continue
                     self._target = f"resource.{resource}"
                     try:
@@ -1358,9 +1567,15 @@ class TaskRun:
                     self.item_priority = self._taken_priority
                 if not started:
                     started = True
-                    if spec.timed:
+                    if spec.timed and not self._batch_started:
                         self.publish(self.status("started"), lifecycle=True)
                         stats.task_started(spec.name, self.task_id)
+                    elif self._owes_resume:
+                        # `started` came at the batch's close and the task was
+                        # interrupted since: this grant is a resume
+                        self._owes_resume = False
+                        self.publish(self.status("resumed"))
+                        stats.task_resumed(spec.name, self.task_id)
                     # Units the task before kept for this one go back once it starts.
                     # A child flow gives back only its own: the units its parent
                     # kept stay until the parent's next task starts.
@@ -1406,6 +1621,9 @@ class TaskRun:
                         self._target = "service"
                         yield env.timeout(remaining)
                         remaining, service_from, served = 0.0, None, True
+                    if self._batch is not None and not self._batch_served:
+                        # The members wait for the one run that serves them all
+                        yield from self._batch_finish()
                     if not values_done and (
                         self._has_values
                         or isinstance(payload, (Template, BoundPayload))
@@ -1579,6 +1797,215 @@ class TaskRun:
             return payload
         self._follow(following, handed)
         return payload
+
+    # ------------------------------------------------------------------- batch
+
+    def _batch_size(self) -> Union[int, float]:
+        """Evaluates the batch `size` in this member's scope, once, when it is the first
+        member.
+
+        Returns:
+            Union[int, float]: The size.
+
+        Raises:
+            TypeError: If the value is not a finite number.
+        """
+        batch = self.spec.batch
+        assert batch is not None
+        value: Any = batch.size
+        if batch.size_of is not None:
+            value = batch.size_of.evaluate(self.scope())
+        elif isinstance(value, _Gen):
+            value = self.context.values.evaluate(value, self.scope())
+        elif callable(value):
+            value = value(self.entity)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, numbers.Real)
+            or not math.isfinite(value)
+        ):
+            raise TypeError(
+                f"task '{self.spec.name}' batch size gave {value!r}, which is not a "
+                f"finite number"
+            )
+        return value
+
+    def _batch_key(self) -> str:
+        """The name of the batch this task joins: its `name`, or the task's name. Tasks
+        with the same name share one open batch."""
+        assert self.spec.batch is not None
+        return self.spec.batch.name or self.spec.name
+
+    def _batch_join(self) -> None:
+        """Adds this instance to the open batch of its task, opening one when there is
+        none, and closes the batch when it is now full or its `close_when` holds."""
+        spec, env, context = self.spec, self.env, self.context
+        assert spec.batch is not None
+        key = self._batch_key()
+        batch = context._open_batches.get(key)
+        if batch is None:
+            size = self._batch_size()
+            limit = None
+            if spec.batch.timeout is not None:
+                limit = self._place(
+                    spec.batch.timeout_of or spec.batch.timeout, "batch timeout"
+                )
+            batch = _OpenBatch(key, size, env.now)
+            context._open_batches[key] = batch
+            if limit is not None:
+                timer = env.timeout(limit)
+                timer.callbacks.append(
+                    functools.partial(self._batch_timer, batch, context)
+                )
+        batch.members.append(self)
+        self._batch = batch
+        if len(batch.members) >= batch.size:
+            self._batch_close(batch)
+            return
+        when = spec.batch.close_when_of
+        if when is not None:
+            scope = replace(
+                self.scope(),
+                batch={"size": len(batch.members), "age": env.now - batch.since},
+            )
+            if when.evaluate(scope):
+                self._batch_close(batch)
+
+    def _batch_timer(self, batch: _OpenBatch, context: Any, _event: Any) -> None:
+        """Closes the batch the timeout belongs to, if it is still open; a batch with
+        no member left runs nothing."""
+        if batch.closed or batch.dead:
+            return
+        if not batch.members:
+            batch.dead = True
+            if context._open_batches.get(batch.key) is batch:
+                del context._open_batches[batch.key]
+            return
+        batch.members[0]._batch_close(batch)
+
+    def _batch_close(self, batch: _OpenBatch) -> None:
+        """Closes the batch: publishes `started` for every member in join order, and
+        wakes the first member, which runs the resource and service."""
+        batch.closed = True
+        batch.leader = batch.members[0]
+        if self.context._open_batches.get(batch.key) is batch:
+            del self.context._open_batches[batch.key]
+        for member in batch.members:
+            member._batch_started = True
+            member.publish(member.status("started"), lifecycle=True)
+            member.env.stats.task_started(member.spec.name, member.task_id)
+        # Only the first member runs now; the others wait until it has served them
+        batch.leader._batch_notify("closed")
+
+    def _batch_notify(self, value: str) -> None:
+        """Wakes this member if it waits for the batch."""
+        event, self._batch_event = self._batch_event, None
+        if event is not None and not event.triggered:
+            event.succeed(value)
+
+    def _batch_phase(self):
+        """Joins the batch and waits until this member serves it (the first member of
+        the closed batch) or has been served.
+
+        Returns:
+            Any: None when the member goes on, `_RENEGED` when its patience ran out
+            before the batch closed, or the `Interrupt` that ended its task under
+            `abandon`.
+
+        Raises:
+            _HandlerFailed: If an `on_interrupt_run` task failed.
+        """
+        env, spec = self.env, self.spec
+        if self._batch is None:
+            self._target = "batch"
+            self._batch_join()
+        event: Any = None
+        while True:
+            batch = self._batch
+            assert batch is not None
+            if batch.finished:
+                self._batch_served = True
+                return None
+            if batch.closed and batch.leader is self:
+                return None
+            if event is None or event.triggered:
+                event = self._batch_event = env.event()
+            deadline = None if batch.closed else self._deadline()
+            try:
+                if deadline is None:
+                    yield event
+                else:
+                    yield event | deadline
+                    self._waited()
+                    if not _won(event):
+                        if batch.closed:
+                            # The patience counts until the batch closes: a member
+                            # served later waits on without it
+                            self._patience_left = None
+                            continue
+                        self._batch_event = None
+                        self._leave_batch()
+                        return _RENEGED
+            except Interrupt as interrupt:
+                self._waited()
+                self._batch_event = event = None
+                closed = batch.closed
+                if not closed:
+                    # An interrupted member leaves the batch, and `size` counts the
+                    # members left
+                    self._leave_batch()
+                if not self._interrupted(interrupt):
+                    return interrupt
+                yield from self._interrupt_flow(interrupt, None)
+                if not closed:
+                    # `resume` and `restart` join again, at the back of the members.
+                    # The member has not started, so it publishes no `resumed`, as a
+                    # task interrupted in a queue publishes none
+                    self._batch_join()
+                else:
+                    # A member of a closed batch has started and is served by the
+                    # leader's service, so there is nothing to restart: it resumes
+                    # and goes on waiting to be served
+                    self._owes_resume = False
+                    self.publish(self.status("resumed"))
+                    self.env.stats.task_resumed(spec.name, self.task_id)
+
+    def _batch_finish(self):
+        """Wakes every member of the batch in join order once its resource and service
+        are done, this one included."""
+        batch = self._batch
+        assert batch is not None
+        if batch.finished:
+            return
+        batch.finished = True
+        mine = self._batch_event = self.env.event()
+        for member in list(batch.members):
+            if member is self:
+                mine.succeed("done")
+            else:
+                member._batch_notify("done")
+        yield mine
+        self._batch_event = None
+
+    def _leave_batch(self) -> None:
+        """Takes this instance out of its batch. When it was the member serving a
+        closed batch, the next member serves it."""
+        batch, self._batch = self._batch, None
+        self._batch_event = None
+        if batch is None:
+            return
+        if self in batch.members:
+            batch.members.remove(self)
+        if batch.finished or batch.dead:
+            return
+        if batch.closed:
+            if batch.leader is self and batch.members:
+                batch.leader = batch.members[0]
+                batch.leader._batch_notify("lead")
+        elif not batch.members and self.spec.batch.timeout is None:  # type: ignore[union-attr]
+            batch.dead = True
+            if self.context._open_batches.get(batch.key) is batch:
+                del self.context._open_batches[batch.key]
 
     # ------------------------------------------------- holding: seize, open, release
 
@@ -2186,6 +2613,7 @@ class TaskRun:
             value = self.status("interrupted", cause=cause)
         self.publish(value)
         stats.task_interrupted(spec.name, self.task_id, preempted=preempted)
+        self._owes_resume = self._batch_started
         return spec.on_interrupt != "abandon"
 
     def _abandon(self, interrupt: Interrupt, left: Optional[float] = None) -> None:

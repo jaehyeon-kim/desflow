@@ -302,6 +302,8 @@ _PARTS = {
 # being the holder's entity attributes
 _REQUEST_FIELDS = ("rank", "time", "preempt", "key")
 _HOLDER_FIELDS = (*_REQUEST_FIELDS, "since")
+# The fields of the batch a `close_when` reads
+_BATCH_FIELDS = ("size", "age")
 # The calls that read the state of the run by a bare name, with the fewest and most
 # arguments each takes
 _STATE_CALLS = {
@@ -549,6 +551,7 @@ class Scope:
     handles: Optional[Callable[[str], Any]] = None
     request: Optional[Mapping[str, Any]] = None
     holder: Optional[Mapping[str, Any]] = None
+    batch: Optional[Mapping[str, Any]] = None
 
 
 class AnyName:
@@ -584,6 +587,7 @@ class Expression:
         records: bool = False,
         names: Optional[Container[str]] = None,
         rule: bool = False,
+        batch: bool = False,
     ):
         """
         Parses and checks an expression.
@@ -598,6 +602,9 @@ class Expression:
                 checks them against the vars afterwards.
             rule: True for the `when` and `victim` of a preempt rule, which also read
                 `request.<field>` and `holder.<field>` and none of the entity's names.
+            batch: True for a batch's `close_when`, which also reads `batch.size` (how
+                many members the batch holds) and `batch.age` (the seconds since its
+                first member joined).
 
         Raises:
             ValueError: If it is not valid Python or uses anything outside the
@@ -609,6 +616,7 @@ class Expression:
         self._records = records
         self._names = names
         self._rule = rule
+        self._batch = batch
         try:
             tree = ast.parse(text.strip(), mode="eval")
         except SyntaxError as exc:
@@ -961,6 +969,9 @@ class Expression:
         if base.id in ("request", "holder"):
             self._check_rule_read(base.id, parts)
             return
+        if base.id == "batch":
+            self._check_batch_read(parts)
+            return
         if base.id == "process":
             if len(parts) != 1 or parts[0] not in _PROCESS:
                 raise self._refuse(
@@ -1024,6 +1035,19 @@ class Expression:
                 + ")"
             )
         self.rule_reads.add(f"{source}.{'.'.join(parts)}")
+
+    def _check_batch_read(self, parts: List[str]) -> None:
+        """Checks `batch.size` or `batch.age`, which only a batch's `close_when` reads."""
+        if not self._batch:
+            raise self._refuse(
+                f"the name 'batch.{'.'.join(parts)}', which only the close_when of a "
+                f"batch reads"
+            )
+        if len(parts) != 1 or parts[0] not in _BATCH_FIELDS:
+            raise self._refuse(
+                f"'batch.{'.'.join(parts)}' (write batch.{', batch.'.join(_BATCH_FIELDS)})"
+            )
+        self.rule_reads.add(f"batch.{parts[0]}")
 
     def _check_call(self, node: ast.Call) -> None:
         """Checks a call: `count(<store>)` or `items(<store>)`, `has(attr.<name>)`, a
@@ -1345,6 +1369,10 @@ class Expression:
         source, first = base.id, parts[0]
         if source in ("request", "holder"):
             return self._read_rule(source, parts, scope)
+        if source == "batch":
+            if scope.batch is None:
+                raise KeyError("no batch is being tested, so batch has no value")
+            return scope.batch[parts[0]]
         if source in scope.loops:
             value = scope.loops[source]
             for part in parts:

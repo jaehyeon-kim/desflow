@@ -1,0 +1,10 @@
+# Pattern P53: as P52, and a batch that also closes when it holds 2 members.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+arrivals:
+  m0: {initial: 1, spawn: pack}
+  m1: {dist: constant, value: 1, spawn: pack, max_events: 1}
+  m2: {dist: constant, value: 5, spawn: pack, max_events: 1}
+  m3: {dist: constant, value: 5.5, spawn: pack, max_events: 1}
+  m4: {dist: constant, value: 5.8, spawn: pack, max_events: 1}
+tasks: {pack: {batch: {name: box, size: 3, timeout: 2, close_when: "batch.size >= 2"}, payload: {event_type: packed}}}
+run: {until: 30}

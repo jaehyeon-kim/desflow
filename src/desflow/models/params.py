@@ -192,8 +192,9 @@ class BreakdownConfig:
     How a resource breaks down: the time to each failure, the repair time, and what
     happens to the work in progress.
 
-    The failure clock runs on calendar time: the next failure is drawn when a repair
-    ends, busy or idle. While down, the resource's capacity is 0; its `current_cap`
+    The next failure is drawn when a repair ends, or at the start. With the `calendar`
+    clock it counts that time busy or idle, and with the `busy` clock only while the
+    resource holds a unit. While down, the resource's capacity is 0; its `current_cap`
     keeps the planned value, which a change during the repair sets for its return.
 
     Attributes:
@@ -203,15 +204,20 @@ class BreakdownConfig:
         work (str): `interrupt` (the default) interrupts the tasks being served,
             which follow their `on_interrupt`; `finish` lets them finish, and no new
             task starts until the repair ends.
+        clock (str): `calendar` (the default) or `busy`, the time the time to failure
+            counts.
     """
 
     time_to_failure: DistributionConfig
     repair: DistributionConfig
     work: str = "interrupt"
+    clock: str = "calendar"
 
     def __post_init__(self) -> None:
         if self.work not in ("interrupt", "finish"):
             raise ValueError(f"work must be interrupt or finish, got '{self.work}'")
+        if self.clock not in ("calendar", "busy"):
+            raise ValueError(f"clock must be calendar or busy, got '{self.clock}'")
 
 
 @dataclass

@@ -21,19 +21,10 @@
 # A batch that removes a gap deletes its id from `gaps` and from every construct.
 
 gaps:
-  M1:
-    text: "Readings at each change of a resource, and an event trace, need a `!python` resource type or environment."
-    key: "`type: !python` on the resource, or `simulation.environment: !python`"
   M2:
     text: "A Builder `on=` refuses a callable. A generator started with `add_process` can add a function to an event's callbacks."
 
-unattached:
-  B1:
-    text: "a failure clock that runs on busy time only"
-    python: "a `processes` entry counts the busy time and calls the task `repair` when it reaches the limit"
-  B3:
-    text: "a batch that keeps each member's identity and closes on a time or a rule"
-    python: "a `processes` entry takes up to 3 members from a store, closes the batch 2 after its first member, and each member goes on under its own key"
+unattached: {}
 
 constructs:
   # Environment
@@ -114,7 +105,7 @@ constructs:
   - {id: SP-Q5, area: Resources, simpy: "The user to preempt is picked with `max`"}
   - {id: SP-Q6, area: Resources, simpy: "`Preempted` cause: `by`, `usage_since`, `resource`"}
   - {id: SP-Q7, area: Resources, simpy: "`SortedQueue(maxlen)`, a waiting line with a limit"}
-  - {id: SP-Q8, area: Resources, simpy: "A subclass of `PreemptiveResource` or `Resource`", gaps: [M1]}
+  - {id: SP-Q8, area: Resources, simpy: "A subclass of `PreemptiveResource` or `Resource`"}
   # Containers
   - {id: SP-K1, area: Containers, simpy: "`Container.put(amount)`"}
   - {id: SP-K2, area: Containers, simpy: "`Container.get(amount)`"}

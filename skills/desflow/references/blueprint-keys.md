@@ -64,13 +64,14 @@ A `preempt` of a resource written as a rule. `when` is tested when a request fin
 
 ### Breakdown
 
-A resource's `breakdown`: the time to each failure, the repair time, and whether the tasks being served are interrupted or finish.
+A resource's `breakdown`: the time to each failure, the repair time, whether the tasks being served are interrupted or finish, and which time the time to failure counts. `clock: calendar` (the default) counts it from the start or the last repair, busy or idle. `clock: busy` counts it only while the resource holds at least one unit; a time to failure of 0 then fails at the grant.
 
 | Key | Type | Default |
 |---|---|---|
 | `time_to_failure` | [Distribution](#services) | required |
 | `repair` | [Distribution](#services) | required |
 | `work` | `interrupt` or `finish` | `"interrupt"` |
+| `clock` | `calendar` or `busy` | `"calendar"` |
 
 ## containers
 
@@ -346,6 +347,7 @@ An expression also reads a process's local names `arg.<name>`, the interrupt tha
 | `on_interrupt_run` | text | none |
 | `interrupt` | [InterruptAction](#interruptaction) | none |
 | `resume` | [ResumeSpec](#resumespec) | none |
+| `batch` | [BatchSpec](#batchspec) | none |
 | `spawn` | [SpawnAction](#spawnaction) | none |
 | `subscribe` | mapping | none |
 | `on` | list of [OnEntry](#onentry) |  |
@@ -559,18 +561,32 @@ A `release` with options: `{handle: <name>}` frees the unit of that opened reque
 | `task` | text | none |
 | `where` | text | none |
 
+### BatchSpec
+
+A task's `batch`: its members wait together and one run of the task's `resource` and service serves them all.
+
+The batch closes when `size` members have joined, `timeout` after its first member, or when `close_when` holds as a member joins, whichever is first. `size` is a number, or text read as an expression in the scope of the first member when it joins; 1 or below closes the batch at its first member. `close_when` reads `batch.size` (how many members it holds) and `batch.age` (seconds since its first member). `name` names the batch and defaults to the task's name: tasks with the same `name` share one open batch, so they must have the same `size`, `timeout`, `close_when`, `resource` and service (`service` or `service_time`), or the file is refused at load. Values are compared by what they mean, so a generator written the same way, an expression with other spacing and a number written as text agree. Each member keeps its own `on_interrupt`, `patience`, payload and `next`, and follows its own `next` in the order the members joined.
+
+| Key | Type | Default |
+|---|---|---|
+| `name` | text | none |
+| `size` | integer or number or text | required |
+| `timeout` | Generator or integer or number or text or Duration or expression | none |
+| `close_when` | text | none |
+
 ## telemetry
 
 Type: list of [Telemetry](#telemetry). Optional.
 
 A `telemetry` entry: custom readings published every `interval` seconds.
 
-`function` is a `!python` function called as `function(context)`, which publishes with `context.publish`. Resource, store and container readings come from `stats` instead.
+It takes exactly one of `function` and `readings`. `function` is a `!python` function called as `function(context)`, which publishes with `context.publish`. `readings` maps a reading name to an expression read over the run (`level.`, `users.`, `queue.`, `signal.`, `registry[...]`, `t` and the functions of the expression language, and no name of an entity or a task). Each interval publishes one telemetry record for each reading, named `<sim_id>.<reading>`, as `context.publish` names one, in the order the readings are written. An expression that cannot be evaluated stops the run. Resource, store and container readings come from `stats` instead.
 
 | Key | Type | Default |
 |---|---|---|
 | `interval` | number | required |
-| `function` | !python reference | required |
+| `function` | !python reference | none |
+| `readings` | mapping of names to text | none |
 
 ## processes
 
@@ -620,7 +636,7 @@ Type: list of [EgressConnector](#egress). Optional.
 
 An `egress` entry, with the per-provider options of `add_egress`.
 
-`when` is `history`, `live`, `events`, `telemetry`, `labels`, a mapping `{expr: ...}` or a `!python` function taking one record. `history` sends the records stamped before `simulation.go_live_at`, and `live` sends the records stamped at or after it. `events` sends the event records and `telemetry` the telemetry records. `labels` sends the ground-truth records of scenario steps with a `record`, and nothing else.
+`when` is `history`, `live`, `events`, `telemetry`, `labels`, `trace`, a mapping `{expr: ...}` or a `!python` function taking one record. `history` sends the records stamped before `simulation.go_live_at`, and `live` sends the records stamped at or after it. `events` sends the event records and `telemetry` the telemetry records. `labels` sends the ground-truth records of scenario steps with a `record`, and nothing else. `trace` sends the records of `stats.trace`, one for each event the environment processes, and nothing else; no other entry receives them.
 
 `envelope: false` makes the entry plain output: the sink writes each event's value without the record around it (`stream_type`, `sim_ts`, `timestamp`, `key`, `task` and `instance`), and it receives no telemetry record and no `queued` or `started` record of a task. A Kafka or Redis sink sends a value that is not a mapping as JSON. A storage or PostgreSQL sink skips it, with one warning. The message key of Kafka stays the record's key, and a `topic_router` still receives the whole record. Ground-truth records of a `when: labels` entry are not affected.
 
@@ -628,7 +644,7 @@ An `egress` entry, with the per-provider options of `add_egress`.
 |---|---|---|
 | `type` | short name or !python reference | required |
 | `config` | mapping |  |
-| `when` | `history` or `live` or `events` or `telemetry` or `labels` or [WhenExpr](#whenexpr) or !python reference | none |
+| `when` | `history` or `live` or `events` or `telemetry` or `labels` or `trace` or [WhenExpr](#whenexpr) or !python reference | none |
 | `envelope` | boolean | `true` |
 | `batch_size` | integer | none |
 | `flush_interval` | number | none |
@@ -662,12 +678,14 @@ Type: [Stats](#stats) or level name. Optional.
 
 The `stats` section: the built-in statistics level and how often to publish.
 
-Written as a level alone (`stats: basic`) or as a mapping (`stats: {level: all, interval: 60}`). The interval is in seconds or a duration such as `5 min`.
+Written as a level alone (`stats: basic`) or as a mapping (`stats: {level: all, interval: 60}`). The interval is in seconds or a duration such as `5 min`. A mapping needs a `level`, unless it sets only `trace`, when the level is `none`. `on_change: true` also publishes a resource's readings at each `request` and `release` call on it, so it needs a level above `none`. `trace: true` publishes one record for each event the environment processes, of the kind `trace`, to the egress entries with `when: trace`.
 
 | Key | Type | Default |
 |---|---|---|
-| `level` | `none` or `minimal` or `basic` or `typical` or `all` | required |
+| `level` | `none` or `minimal` or `basic` or `typical` or `all` |  |
 | `interval` | integer or number or Duration | `10.0` |
+| `on_change` | boolean | `false` |
+| `trace` | boolean | `false` |
 
 ## run
 

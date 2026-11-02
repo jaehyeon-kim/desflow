@@ -41,6 +41,7 @@ def make_scope(
     handles: Optional[Callable[[str], Any]] = None,
     request: Optional[Mapping[str, Any]] = None,
     holder: Optional[Mapping[str, Any]] = None,
+    batch: Optional[Mapping[str, Any]] = None,
 ) -> Scope:
     """
     Builds what an expression's names read.
@@ -69,6 +70,7 @@ def make_scope(
         handles: Gives the opened handle of a name, for `handle`.
         request: The request a preempt rule tests, for `request`.
         holder: The user whose unit it would take, for `holder`.
+        batch: The open batch a `close_when` tests, for `batch.size` and `batch.age`.
 
     Returns:
         Scope: The scope.
@@ -98,6 +100,7 @@ def make_scope(
         handles=handles,
         request=request,
         holder=holder,
+        batch=batch,
     )
 
 

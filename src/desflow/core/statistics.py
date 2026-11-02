@@ -153,6 +153,8 @@ class Statistics:
         sim_id (Optional[str]): The first part of every published name.
         level (str): `none`, `minimal`, `basic`, `typical` or `all`.
         interval (float): Simulation seconds between two publications.
+        on_change (bool): Whether a request or a release of a resource also publishes
+            that resource's readings, as well as the publication at each interval.
     """
 
     def __init__(self, env: Any):
@@ -167,6 +169,7 @@ class Statistics:
         self.sim_id: Optional[str] = None
         self.level = "none"
         self.interval = DEFAULT_STATS_INTERVAL
+        self.on_change = False
         self._rank = 0
         # The time of the last publication and the values published at it, so a
         # second publication at the same time publishes only what changed
@@ -532,20 +535,8 @@ class Statistics:
             return values
         now = self.env.now
         prefix = f"{self.sim_id}.stats"
-        for (category, name), obj in self._objects.items():
-            base = f"{prefix}.{category}.{name}"
-            current = (
-                _resource_readings(obj)
-                if category == "resources"
-                else _holder_readings(obj)
-            )
-            for stat, value in current.items():
-                values[f"{base}.{stat}"] = value
-            for stat, average in self._averages.get((category, name), {}).items():
-                values[f"{base}.{stat}"] = average.average(now)
-            if self._rank >= _BASIC and getattr(obj, "has_breakdowns", False):
-                values[f"{base}.downtime"] = obj.downtime
-                values[f"{base}.failures"] = obj.failures
+        for category, name in self._objects:
+            values.update(self._object_readings(category, name, now))
         for name, count in self._in_progress.items():
             values[f"{prefix}.tasks.{name}.in_progress"] = count
         for name, task in self._tasks.items():
@@ -582,6 +573,43 @@ class Statistics:
                 values[f"{prefix}.flows.{flow}.failed"] = failed
         return values
 
+    def _object_readings(self, category: str, name: str, now: float) -> Dict[str, Any]:
+        """The readings of one resource, store or container, by published name: its
+        current values, its time averages and, from `basic`, a breakdown's downtime
+        and failures."""
+        obj = self._objects[(category, name)]
+        base = f"{self.sim_id}.stats.{category}.{name}"
+        values: Dict[str, Any] = {}
+        current = (
+            _resource_readings(obj)
+            if category == "resources"
+            else _holder_readings(obj)
+        )
+        for stat, value in current.items():
+            values[f"{base}.{stat}"] = value
+        for stat, average in self._averages.get((category, name), {}).items():
+            values[f"{base}.{stat}"] = average.average(now)
+        if self._rank >= _BASIC and getattr(obj, "has_breakdowns", False):
+            values[f"{base}.downtime"] = obj.downtime
+            values[f"{base}.failures"] = obj.failures
+        return values
+
+    def publish_object(self, category: str, name: str) -> None:
+        """
+        Publishes one resource's readings now, as a request or a release of it does
+        when `on_change` is set.
+
+        It publishes what `publish` publishes for that object. A value that equals the
+        one published at this same time is not published again.
+
+        Args:
+            category: `resources`, `stores` or `containers`.
+            name: Its name.
+        """
+        if not self.enabled or (category, name) not in self._objects:
+            return
+        self._send(self._object_readings(category, name, self.env.now))
+
     def publish(self) -> None:
         """
         Publishes every statistic as telemetry at the current simulation time.
@@ -590,7 +618,11 @@ class Statistics:
         statistics whose value changed since, so a run that ends at an interval time
         repeats no value and its last values are the state at the end.
         """
-        readings = self.readings()
+        self._send(self.readings())
+
+    def _send(self, readings: Dict[str, Any]) -> None:
+        """Publishes the readings that differ from what this same time already
+        published."""
         if self._published_at != self.env.now:
             self._published_at = self.env.now
             self._published = {}

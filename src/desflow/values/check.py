@@ -69,6 +69,9 @@ TASK_VALUE_PLACES: Tuple[Tuple[str, bool], ...] = (
     ("service_time", True),
     ("patience", False),
     ("key", False),
+    ("batch.size", False),
+    ("batch.timeout", False),
+    ("batch.close_when", False),
     ("put.item", True),
 )
 

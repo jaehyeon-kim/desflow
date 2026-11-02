@@ -261,23 +261,23 @@ def test_every_gap_is_used_defined_and_linked_to_a_form():
     # Batch 9 of 1.0.0 removes I3, I4, I6 and M3
     for gap in ("I3", "I4", "I6", "M3"):
         assert gap not in data["gaps"]
+    # Batch 10 of 1.0.0 removes M1, and the plain-Python entries B1 and B3
+    for gap in ("M1", "B1", "B3"):
+        assert gap not in data["gaps"] and gap not in data["unattached"]
     for gap, info in data["unattached"].items():
         assert "fixed" not in info, gap
     page = gen_pages.compatibility_page()
     assert "Planned for" not in page and "Fixed in" not in page
 
 
-def test_gaps_that_belong_to_no_feature_are_named_on_the_page():
-    """B1 and B3 are written in plain Python by a SimPy program, so no
-    feature row holds them; a paragraph names each with its `!python` form."""
+def test_no_gap_is_left_that_belongs_to_no_feature():
+    """Batch 10 of 1.0.0 removes B1 and B3, the last two gaps a SimPy program writes in
+    plain Python, so `unattached` is empty and the page has no paragraph for it. A gap
+    added there needs the paragraph back in `compatibility.py`."""
     data = gen_pages.constructs()
+    assert list(data["unattached"]) == []
     page = gen_pages.compatibility_page()
-    assert list(data["unattached"]) == ["B1", "B3"]
-    used = {g for c in data["constructs"] for g in c.get("gaps", [])}
-    for gap, info in data["unattached"].items():
-        assert gap not in used and gap not in data["gaps"]
-        assert f"**{gap}**, {info['text']}" in page
-        assert info["python"] in page
+    assert "belong to no SimPy feature" not in page
 
 
 def test_a_row_shown_native_has_no_gap_that_says_otherwise():
@@ -285,7 +285,9 @@ def test_a_row_shown_native_has_no_gap_that_says_otherwise():
     native."""
     rows = {c["id"]: c.get("gaps", []) for c in gen_pages.constructs()["constructs"]}
     # A gap that remains shows on its rows
-    assert rows["SP-V5"] == ["M2"] and rows["SP-Q8"] == ["M1"]
+    assert rows["SP-V5"] == ["M2"]
+    # Batch 10 gives the row of M1 its native status
+    assert rows["SP-Q8"] == []
     # Batch 9 gives the rows of I3, I4, I6 and M3 their native status
     for construct in ("SP-S14", "SP-S13", "SP-P3", "SP-P9", "SP-V1", "SP-V6"):
         assert rows[construct] == [], construct
