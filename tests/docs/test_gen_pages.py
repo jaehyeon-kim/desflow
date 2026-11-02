@@ -258,9 +258,9 @@ def test_every_gap_is_used_defined_and_linked_to_a_form():
     # Batch 8 of 1.0.0 removes H1, H5, H6, H8, H9, I10, T10, M5 and M7
     for gap in ("H1", "H5", "H6", "H8", "H9", "I10", "T10", "M5", "M7"):
         assert gap not in data["gaps"]
-    # A gap with only part of its row planned names no release
-    for gap in ("I6", "M3"):
-        assert "fixed" not in data["gaps"][gap]
+    # Batch 9 of 1.0.0 removes I3, I4, I6 and M3
+    for gap in ("I3", "I4", "I6", "M3"):
+        assert gap not in data["gaps"]
     for gap, info in data["unattached"].items():
         assert "fixed" not in info, gap
     page = gen_pages.compatibility_page()
@@ -281,14 +281,14 @@ def test_gaps_that_belong_to_no_feature_are_named_on_the_page():
 
 
 def test_a_row_shown_native_has_no_gap_that_says_otherwise():
-    """The constructs that the gap texts name carry those gaps, so they are not
-    shown native: a balk (I6) and a failed wait handled with no condition (M3)."""
+    """The constructs that a gap text names carry that gap, so they are not shown
+    native."""
     rows = {c["id"]: c.get("gaps", []) for c in gen_pages.constructs()["constructs"]}
-    for construct, gap in (
-        ("SP-S14", "I6"),
-        ("SP-P3", "M3"),
-    ):
-        assert gap in rows[construct], (construct, gap)
+    # A gap that remains shows on its rows
+    assert rows["SP-V5"] == ["M2"] and rows["SP-Q8"] == ["M1"]
+    # Batch 9 gives the rows of I3, I4, I6 and M3 their native status
+    for construct in ("SP-S14", "SP-S13", "SP-P3", "SP-P9", "SP-V1", "SP-V6"):
+        assert rows[construct] == [], construct
     # Batch 8 gives the rows of H1, H5, H6, H9, I10, T10 and M7 their native status
     for construct in ("SP-S9", "SP-P12", "SP-P7", "SP-S1", "SP-S12", "SP-Q4", "SP-V9"):
         assert rows[construct] == [], construct

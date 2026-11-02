@@ -215,13 +215,14 @@ A signal fires once, as SimPy's `Event` does, unless it says `once: false`, whic
 
 ### OnEntry
 
-One entry of an `on:` list: exactly one of a fire, spawn or interrupt action, or a `path` with a `value` as a scenario step sets a registry value. A `value` is a constant or a `{gen: ...}` generator evaluated when the entry runs; a mapping with no `gen` key is data, and a generator nested in it is stored as written.
+One entry of an `on:` list: exactly one of a fire, spawn, interrupt or resume action, or a `path` with a `value` as a scenario step sets a registry value. A `value` is a constant or a `{gen: ...}` generator evaluated when the entry runs; a mapping with no `gen` key is data, and a generator nested in it is stored as written.
 
 | Key | Type | Default |
 |---|---|---|
 | `fire` | [FireAction](#fireaction) | none |
 | `spawn` | [SpawnAction](#spawnaction) | none |
 | `interrupt` | [InterruptAction](#interruptaction) | none |
+| `resume` | [ResumeSpec](#resumespec) | none |
 | `activate` | text or list of text | none |
 | `deactivate` | text or list of text | none |
 | `path` | text | none |
@@ -262,6 +263,17 @@ An `interrupt` on a task or a scenario step: interrupt every running instance of
 | `where` | text | none |
 | `cause` | Value | none |
 
+### ResumeSpec
+
+A `resume`, a task key and an `on:` entry: wakes the instances of `task` that are suspended in a `wait: {suspend: true}`, in the order they suspended, as `event.succeed(value)` wakes the process that waits for the event. `where` keeps the instances whose scope it holds for (as `interrupt` reads it), `limit` is how many to wake at most (no `limit` wakes all, and 0 wakes nobody), and `value` is what each one's `wait.suspend.value` reads. `limit` and `value` are read once for each `resume`. A `resume` that finds nobody suspended does nothing.
+
+| Key | Type | Default |
+|---|---|---|
+| `task` | text | required |
+| `where` | text | none |
+| `value` | Value | none |
+| `limit` | Generator or integer or text | none |
+
 ## tasks
 
 Type: mapping of names to [Task](#tasks). Optional.
@@ -275,6 +287,8 @@ Text in a value place stays text. A time place reads a number as seconds, text `
 `service_time` is the task's own time, in place of a `service`, and the two are not given together: seconds, a duration such as `30 s`, an expression, or a `{gen: ...}` generator, read after the task has its resource and, for a `get`, its item. It may read `vars_once` and `vars` as bare names, and `item.<field>` after a store get. A result below 0 fails the run. A task with a `resource` needs a `service` or a `service_time`.
 
 `priority` is a number or an expression such as `attr.priority`, for a resource whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s`, an expression or a generator; `balk` is a condition checked before the task joins the queue. `resource` is one resource or a list, acquired in the order listed; `keep` hands units to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and `interrupt` interrupts the running instances of a task when this one finishes. `wait` is what the task waits for first: a signal, a child task, a timeout or a condition, or any or all of several. `signal` names a signal the task fires when it finishes. `fail` is a condition checked after the service: when it holds the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or container. `next` is a task name, `when` rules or `weights`, whose values are numbers or expressions read when the task finishes, with one draw for the choice. `set` gives the entity attribute values when the task finishes. `set_args` writes this process's own local names, read as `arg.<name>` by this task and by the tasks that follow in the same flow (not by a child flow, which has its own). It is read after `set`, so a payload reads the value from before the write. A parent passes names to a child with `args` on a `task` branch of its `wait`, or on a `spawn`; a read of a name that was neither passed nor written is a run failure. `activate` and `deactivate` turn the sources of the named arrivals on and off when the task finishes, after `set_args`. `cause.<name>` reads why the task was interrupted, in a task that an `on_interrupt_next` edge reaches: `by`, `usage_since` and `resource` after a preemption, `value` after an `interrupt`, and `left`, the service time that was left. `upstream.<field>` is the payload of the task that routed here, `item` is the whole item a store get took, and it lasts through the `next` chain.
+
+`on_interrupt_run` names a task that runs as a child flow of the same entity after each interrupt or preemption the task meets under `resume` or `restart`, and the task then goes on with the time left, or a new time under `restart`, as a SimPy loop `try: yield env.timeout(left) except Interrupt: yield from repair()` does. The child runs in the task's process. An interrupt that arrives while it runs reaches the child at its next wait and follows the child's own `on_interrupt`. The child reads `cause.<name>` as a task reached by `on_interrupt_next` does. It is refused with `abandon`, with a `resource` and with a request in the `wait`, because it is for work that holds no unit of its own. A child that fails fails the task. `on_renege` and `on_balk` name the task an instance goes to after it reneges (its `patience` ran out) or balks (its `balk` condition holds, or the line of its resource, `seize` or `open` is full), in place of the end of its flow. The instance still publishes `reneged` or `balked`, and that task reads the record as `upstream.status`. `on_fail` needs no `fail`: a failed `wait`, a failed child flow, a step that raises and an expression that cannot be evaluated go to it, and it reads the failure as `upstream.status` and `upstream.reason`. An interrupt is not a failure, and `on_fail` does not see it. `suspend` and `resume` are described on their models.
 
 `open` names branches that start at once and are not waited for, so a later step can wait for, cancel, release or interrupt them by name. A branch of `open` is a `timeout`, `request`, `get`, `put`, `task` or `signal`, or an `any` or `all` group of `timeout`, `task`, `signal` and `handle` branches. The other kinds a `wait` takes (`condition`, `running`, `at_least`, `when`) are refused at load, as is a `request`, `get` or `put` inside a group.
 
@@ -314,7 +328,7 @@ An expression also reads a process's local names `arg.<name>`, the interrupt tha
 | `on_start` | mapping of names to Value |  |
 | `finish_vars` | mapping of names to Value |  |
 | `history` | integer | `1000000` |
-| `wait` | [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) | none |
+| `wait` | [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) | none |
 | `open` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) | none |
 | `cancel` | text or [HandleRef](#handleref) | none |
 | `seize` | text or [SeizeSpec](#seizespec) | none |
@@ -323,11 +337,15 @@ An expression also reads a process's local names `arg.<name>`, the interrupt tha
 | `fail` | text | none |
 | `fail_reason` | text | none |
 | `on_fail` | text | none |
+| `on_renege` | text | none |
+| `on_balk` | text | none |
 | `keep` | list of text |  |
 | `preempt` | boolean or text | `true` |
 | `on_interrupt` | `resume` or `restart` or `abandon` | `"resume"` |
 | `on_interrupt_next` | text | none |
+| `on_interrupt_run` | text | none |
 | `interrupt` | [InterruptAction](#interruptaction) | none |
+| `resume` | [ResumeSpec](#resumespec) | none |
 | `spawn` | [SpawnAction](#spawnaction) | none |
 | `subscribe` | mapping | none |
 | `on` | list of [OnEntry](#onentry) |  |
@@ -415,7 +433,7 @@ A `wait` done when the first of its named branches is.
 
 | Key | Type | Default |
 |---|---|---|
-| `any` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) | required |
+| `any` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) | required |
 
 ### AllWait
 
@@ -423,7 +441,7 @@ A `wait` done when every one of its named branches is.
 
 | Key | Type | Default |
 |---|---|---|
-| `all` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) | required |
+| `all` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) | required |
 
 ### AtLeastWait
 
@@ -432,7 +450,7 @@ A `wait` done when at least `at_least` of its named branches are.
 | Key | Type | Default |
 |---|---|---|
 | `at_least` | integer | required |
-| `of` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) | required |
+| `of` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) | required |
 
 ### WhenWait
 
@@ -441,7 +459,7 @@ A `wait` done when the expression `when` holds. It is read each time a branch of
 | Key | Type | Default |
 |---|---|---|
 | `when` | text | required |
-| `of` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) | required |
+| `of` | mapping of names to [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) or [HandleWait](#handlewait) or [SuspendWait](#suspendwait) | required |
 
 ### RequestWait
 
@@ -502,6 +520,14 @@ A `wait` branch for an event that `open` made: `handle` is the name it was opene
 | Key | Type | Default |
 |---|---|---|
 | `handle` | text | required |
+
+### SuspendWait
+
+A `wait` branch that suspends the instance until a `resume` of another task wakes it (`suspend: true`). The branch's value is the `value` of that `resume`, so `wait.suspend.value` reads it. An interrupt that reaches a suspended instance follows the task's `on_interrupt`: under `resume` the instance stays suspended in its place, under `restart` it suspends again behind the others, and under `abandon` it ends. `open` does not take it.
+
+| Key | Type | Default |
+|---|---|---|
+| `suspend` | boolean | required |
 
 ### HandleRef
 

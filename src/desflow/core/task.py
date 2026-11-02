@@ -28,7 +28,7 @@ from typing import (
 )
 
 from simpy import Interrupt
-from simpy.events import Condition
+from simpy.events import Condition, Event
 from simpy.resources.resource import Preempted
 
 from desflow.core.expressions import ANY_NAME, Expression, Scope, boolean_word
@@ -191,6 +191,32 @@ NO_RECORD = _NoRecord()
 _NO_TIME_LEFT = 1e-9
 
 
+class _HandlerFailed(Exception):
+    """The flow `on_interrupt_run` names failed. The task has published `failed`
+    already."""
+
+    def __init__(self, reason: Any):
+        super().__init__(reason)
+        self.reason = reason
+
+
+class _Suspension(Event):
+    """The event of a `suspend` wait branch. It is listed under its task, in the order
+    the instances suspended, until a `resume` wakes it or the wait leaves it."""
+
+    def __init__(self, run: "TaskRun"):
+        super().__init__(run.env)
+        self.run = run
+        run.context._suspended.setdefault(run.spec.name, []).append(self)
+
+    def cancel(self) -> None:
+        """Takes the event out of the list of the suspended, so no `resume` reaches it.
+        An event already woken is not listed any more."""
+        listed = self.run.context._suspended.get(self.run.spec.name, [])
+        if self in listed:
+            listed.remove(self)
+
+
 def _won(event: Any) -> bool:
     """Whether a request, get or put counts as won against a patience or a wait that
     ended at the same instant: only when the event was processed before the wait's
@@ -247,8 +273,14 @@ class TaskSpec:
         release: Optional[Release] = None,
         open: Optional[Open] = None,
         cancel: Optional[str] = None,
+        on_interrupt_run: Optional[str] = None,
+        resume: Optional[Dict[str, Any]] = None,
     ):
         self.name = name
+        # The task run as a child flow after an interrupt, and the suspended
+        # instances this task wakes when it finishes
+        self.on_interrupt_run = on_interrupt_run
+        self.resume = resume
         # The units the flow keeps from this task until a `release`, the events it
         # opens under names, and the opened request or get it cancels
         self.seize = seize
@@ -384,6 +416,10 @@ class TaskSpec:
             found.extend(("release", e) for e in self.release.expressions)
         if self.interrupt_where is not None:
             found.append(("interrupt", self.interrupt_where))
+        if self.resume is not None:
+            for part in ("where", "limit"):
+                if isinstance(self.resume.get(part), Expression):
+                    found.append(("resume", self.resume[part]))
         if self.wait is not None:
             found.extend(("wait", e) for e in self.wait.conditions)
             found.extend(("wait", e) for e in self.wait.time_expressions)
@@ -451,6 +487,8 @@ class TaskRun:
         # Whether the failure the task ends in is a run failure: a wait that failed,
         # or a task function that raised, as an uncaught exception ends a SimPy process
         self._raised = False
+        self._done_counted = False  # `task_finished` is counted
+        self._signalled = False  # the `signal` fired as succeeded
         # The instance this one handed on to, which `run` runs next; None if none
         self._following: Optional["TaskRun"] = None
         # The put or get the task is waiting for, cancelled by an interrupt
@@ -927,11 +965,13 @@ class TaskRun:
             # A `row` with on_end: stop ended the run; this instance ends quietly
             return None
         except BaseException as error:
-            # An error ends the instance: the end event fails with it, so a waiter
-            # receives it. The run still raises. No `on:` action runs after it,
-            # as no statement runs after an uncaught exception in SimPy.
-            self._end_default(ok=False, error=error, actions=False)
-            raise
+            if not self._send_to_on_fail(error):
+                # An error ends the instance: the end event fails with it, so a waiter
+                # receives it. The run still raises. No `on:` action runs after it,
+                # as no statement runs after an uncaught exception in SimPy.
+                self._end_default(ok=False, error=error, actions=False)
+                raise
+            result = None
         finally:
             self._target = None
             self._stop_running()
@@ -939,6 +979,80 @@ class TaskRun:
         # succeeds with None, so a `running` waiter resumes with no value.
         self._end_default(ok=True, actions=not self._dropped)
         return result
+
+    def _send_to_on_fail(self, error: BaseException) -> bool:
+        """Hands an error that came out of the task to its `on_fail` task, as an
+        `except Exception:` block handles it: a step that raised, or an expression
+        that cannot be evaluated. An interrupt is not a failure, and the failure of
+        a task that has handed on already is not this task's.
+
+        Args:
+            error: What the task raised.
+
+        Returns:
+            bool: True when `on_fail` takes the instance, which then leads to it.
+        """
+        spec = self.spec
+        if (
+            spec.on_fail is None
+            or not isinstance(error, Exception)
+            or isinstance(error, (Interrupt, TaskFailed))
+            or self._following is not None
+        ):
+            return False
+        reason = self._fail_with(error)
+        self._end_wait()
+        self._cancel_awaiting()
+        self._release_kept(own=True)
+        self._fail(reason)
+        return True
+
+    def _fail(self, failure: str) -> None:
+        """Ends the task as failed: fires its `signal` as failed, makes the end event
+        fail, and goes to `on_fail` when the task has one. Every failure of a task
+        goes through here: a `fail` condition, a wait or a child flow that failed, and
+        an error a step raised in a task with `on_fail`. A signal the task fired as
+        succeeded before the error is not fired again.
+
+        Args:
+            failure: The reason.
+
+        Raises:
+            TaskFailed: If no `on_fail` handles the failure and the run stops on it.
+        """
+        spec = self.spec
+        if spec.signal is not None and not self._signalled:
+            self.context._fire_signal(spec.signal, False, failure, self.entity)
+        failed = Upstream(
+            self.task_id,
+            self.entity.key,
+            self.entity.attributes,
+            self.status("failed", reason=failure),
+        )
+        # The end event fails whether or not on_fail handles the task, so a
+        # waiter sees the failure. The `on:` actions see it too, unless a wait
+        # failed or the function raised and no `on_fail` handles that: then the
+        # task ends in a run failure, and no action runs (D3). The task's own
+        # `fail` is not a run failure.
+        self._set_ended(
+            failed,
+            ok=False,
+            result=TaskFailed(spec.name, failure),
+            actions=not self._raised or spec.on_fail is not None,
+        )
+        if spec.on_fail is not None:
+            return self._follow(spec.on_fail, failed)
+        # No task follows, so the units this flow keeps for it go back
+        self._release_kept(own=True)
+        if self.child:
+            raise TaskFailed(spec.name, failure) from self._fail_error
+        # Under `continue` a root task's failure ends the flow and the run goes
+        # on; under `stop` it raises, so the exception reaches the caller of
+        # `run()`, as SimPy's unhandled failure does.
+        if getattr(self.env, "on_unhandled_failure", "stop") == "stop":
+            raise TaskFailed(spec.name, failure) from self._fail_error
+        self._end_flow("failed")
+        return None
 
     @staticmethod
     def _target_label(node: Any) -> Optional[str]:
@@ -1056,7 +1170,7 @@ class TaskRun:
         failure: Any = None
         try:
             self._ensure_once()
-        except Exception as error:  # noqa: BLE001: a task's failure
+        except Exception as error:  # a task's failure
             failure = f"{type(error).__name__}: {error}"
             self._fail_error = error
             self._raised = True
@@ -1073,7 +1187,9 @@ class TaskRun:
         ):
             try:
                 holding = yield from self._holding_steps()
-            except Exception as error:  # noqa: BLE001: a task's failure
+            except _HandlerFailed as stopped:
+                failure = stopped.reason
+            except Exception as error:  # a task's failure
                 failure = self._fail_with(error)
             else:
                 if holding is _LEFT:
@@ -1092,6 +1208,9 @@ class TaskRun:
                         return self._abandon(holding)
                 outcome = yield from self._wait(self._deadline())
                 self._waited()
+            except _HandlerFailed as stopped:
+                failure = stopped.reason
+                break
             except Interrupt as interrupt:
                 self._waited()
                 timeout_left = (
@@ -1105,7 +1224,14 @@ class TaskRun:
                 if self._interrupted(interrupt):
                     if spec.on_interrupt == "restart":
                         self._children = {}  # a restart starts its child flows again
-                        self._cancel_wait_events()  # and re-makes its wait branches
+                        self._cancel_wait_events(
+                            keep_granted=True
+                        )  # and re-makes its wait branches
+                    try:
+                        yield from self._interrupt_flow(interrupt, timeout_left)
+                    except _HandlerFailed as stopped:
+                        failure = stopped.reason
+                        break
                     continue  # resume or restart: wait again
                 return self._abandon(interrupt, timeout_left)
             if outcome is _RENEGED:
@@ -1245,7 +1371,7 @@ class TaskRun:
                         )
                         if payload is NO_RECORD:
                             payload, silent = None, True
-                    except Exception as error:  # noqa: BLE001: a task's failure
+                    except Exception as error:  # a task's failure
                         failure = f"{type(error).__name__}: {error}"
                         self._fail_error = error
                         self._raised = True
@@ -1265,7 +1391,7 @@ class TaskRun:
                     if failure is None and spec.on_start:
                         try:
                             self._start_values()
-                        except Exception as error:  # noqa: BLE001: as above
+                        except Exception as error:  # as above
                             failure = f"{type(error).__name__}: {error}"
                             self._fail_error = error
                             self._raised = True
@@ -1286,7 +1412,7 @@ class TaskRun:
                     ):
                         try:
                             payload = self._finish_values(payload)
-                        except Exception as error:  # noqa: BLE001: as above
+                        except Exception as error:  # as above
                             failure = f"{type(error).__name__}: {error}"
                             self._fail_error = error
                             self._raised = True
@@ -1307,6 +1433,7 @@ class TaskRun:
                         self.publish(payload, key=self._payload_key(payload))
                         self.context.values.record(spec.name, payload, self.entity)
                     stats.task_finished(spec.name, self.task_id)
+                    self._done_counted = True
                     # A stop condition, such as `t >= 300`, is checked after every
                     # finished task as well as after every change of state
                     env.notify_change()
@@ -1358,8 +1485,18 @@ class TaskRun:
                     else:
                         remaining = None
                 if self._interrupted(interrupt):
+                    try:
+                        yield from self._interrupt_flow(interrupt, left)
+                    except _HandlerFailed as stopped:
+                        failure = stopped.reason
+                        break
                     continue
                 return self._abandon(interrupt, left)
+            except _HandlerFailed as stopped:
+                # Raised while the task asked again for a unit it lost
+                self._release(held)
+                failure = stopped.reason
+                break
             except Exception:
                 # Any other error gives the units back before it goes on, as a
                 # `with` block does, so a child flow whose failure is handled
@@ -1374,41 +1511,11 @@ class TaskRun:
         self._stop_running()
         self._end_wait()
         if failure is not None:
-            if spec.signal is not None:
-                self.context._fire_signal(spec.signal, False, failure, self.entity)
-            failed = Upstream(
-                self.task_id,
-                self.entity.key,
-                self.entity.attributes,
-                self.status("failed", reason=failure),
-            )
-            # The end event fails whether or not on_fail handles the task, so a
-            # waiter sees the failure. The `on:` actions see it too, unless a wait
-            # failed or the function raised and no `on_fail` handles that: then the
-            # task ends in a run failure, and no action runs (D3). The task's own
-            # `fail` is not a run failure.
-            self._set_ended(
-                failed,
-                ok=False,
-                result=TaskFailed(spec.name, failure),
-                actions=not self._raised or spec.on_fail is not None,
-            )
-            if spec.on_fail is not None:
-                return self._follow(spec.on_fail, failed)
-            # No task follows, so the units this flow keeps for it go back
-            self._release_kept(own=True)
-            if self.child:
-                raise TaskFailed(spec.name, failure) from self._fail_error
-            # Under `continue` a root task's failure ends the flow and the run goes
-            # on; under `stop` it raises, so the exception reaches the caller of
-            # `run()`, as SimPy's unhandled failure does.
-            if getattr(self.env, "on_unhandled_failure", "stop") == "stop":
-                raise TaskFailed(spec.name, failure) from self._fail_error
-            self._end_flow("failed")
-            return None
+            return self._fail(failure)
 
         if spec.signal is not None:
             self.context._fire_signal(spec.signal, True, payload, self.entity)
+            self._signalled = True
         if spec.interrupt is not None:
             cause = spec.interrupt.get("cause")
             cause = self._generated(cause) if spec.cause_generated else cause
@@ -1446,6 +1553,8 @@ class TaskRun:
             )
         if spec.release is not None:
             self._release_step()
+        if spec.resume is not None:
+            self._resume_step()
         if spec.activate:
             self.context._set_arrivals(spec.activate, True)
         if spec.deactivate:
@@ -1472,6 +1581,22 @@ class TaskRun:
         return payload
 
     # ------------------------------------------------- holding: seize, open, release
+
+    def _resume_step(self) -> None:
+        """Step 21: wakes the instances suspended in `wait: {suspend: true}`. The value
+        and the limit are read once, as the arguments of one call are; the instances
+        that wake run in a later step of this instant, as `event.succeed(value)`
+        schedules them."""
+        spec = self.spec.resume
+        assert spec is not None
+        scope = self.scope()
+        value = spec.get("value")
+        if has_generator(value):
+            value = self.context.values.evaluate(value, scope)
+        limit = spec.get("limit")
+        if isinstance(limit, _Gen):
+            limit = self.context.values.evaluate(limit, scope)
+        self.context._resume(spec["task"], spec.get("where"), value, limit, scope)
 
     def _handle_of(self, name: str) -> Optional[Handle]:
         """The handle under `name` in this flow's table or its parents', or None."""
@@ -1510,7 +1635,8 @@ class TaskRun:
         self._fail_error = error
         self._raised = True
         self.publish(self.status("failed", reason=reason))
-        self.env.stats.task_failed(self.spec.name, self.task_id)
+        if not self._done_counted:
+            self.env.stats.task_failed(self.spec.name, self.task_id)
         return reason
 
     def _rank_on(
@@ -1665,6 +1791,12 @@ class TaskRun:
                 self._awaiting.insert(0, fresh)
         return None
 
+    def _forget_preempted(self) -> None:
+        """Ends the `seize` requests a preemption took, so a later `release` does
+        nothing and a task that follows asks for no unit it lost."""
+        for request in [r for r in self._seized if r.preempted]:
+            self._forget(request)
+
     def _cancel_awaiting(self) -> None:
         """Takes the `seize` requests this instance still waits for out of their
         lines. A unit granted already stays held, as the Unit states table says."""
@@ -1757,6 +1889,7 @@ class TaskRun:
                         self._release_kept(own=self.child)
                         self._balk_full(request.resource)
                         return _LEFT
+                yield from self._interrupt_flow(interrupt, None)
                 continue
             self._awaiting.remove(request)
 
@@ -1980,22 +2113,33 @@ class TaskRun:
         self._lost_requests = []
         self._cancel_wait_events()
 
-    def _cancel_wait_events(self) -> None:
+    def _cancel_wait_events(self, keep_granted: bool = False) -> None:
         """Cancels every live request, get or put wait-branch event, giving back a
         unit a request already won. A store or container get or put has no `users`,
-        so it is only cancelled, as SimPy leaves a won get."""
+        so it is only cancelled, as SimPy leaves a won get.
+
+        Args:
+            keep_granted: Leaves a request that is granted, whether the task has taken
+                the grant or not, with its branch, as a restart does: the unit is
+                held, and the wait that is made again reuses the request.
+        """
         branches = self.spec.wait.branches if self.spec.wait is not None else {}
+        kept: Dict[str, Any] = {}
         for name, event in self._wait_events.items():
-            event.cancel()
             node = branches.get(name)
-            if (
+            granted = (
                 node is not None
                 and node.kind == "request"
                 and event.triggered
                 and event in event.resource.users
-            ):
+            )
+            if granted and keep_granted:
+                kept[name] = event
+                continue
+            event.cancel()
+            if granted:
                 event.resource.release(event)
-        self._wait_events = {}
+        self._wait_events = kept
 
     def _release_kept(self, lost_only: bool = False, own: bool = False) -> None:
         """Gives back the units the task before kept for this one; with `lost_only`,
@@ -2051,8 +2195,7 @@ class TaskRun:
         self._end_wait()
         # A `seize` unit a preemption took is ended: a later `release` does nothing
         self._cancel_awaiting()
-        for request in [r for r in self._seized if r.preempted]:
-            self._forget(request)
+        self._forget_preempted()
         stats.task_dropped(spec.name, self.task_id)
         self._stop_running()
         handed = Upstream(
@@ -2078,6 +2221,57 @@ class TaskRun:
             raise TaskFailed(spec.name, f"interrupted: {_cause(interrupt)}")
         self._set_ended(handed, ok=True, result=None)
         self._end_flow("ended")
+
+    def _interrupt_flow(self, interrupt: Interrupt, left: Optional[float]):
+        """Runs the task `on_interrupt_run` names for this entity, inside this flow's
+        process, as the body of an `except Interrupt:` block runs; without that key it
+        does nothing. The task then goes on with the time left, or a new time under
+        `restart`. The child reads `cause.<name>`. It runs in the same process, so an
+        interrupt that arrives while it runs reaches the child at its own wait, and
+        one that arrives while it takes no time is delivered at the task's next wait.
+
+        Args:
+            interrupt: The interrupt the task caught.
+            left: The service time that was left, for `cause.left`, or None.
+
+        Raises:
+            _HandlerFailed: If the child fails. The task has published `failed`.
+        """
+        name = self.spec.on_interrupt_run
+        if name is None:
+            return
+        context = self.context
+        run = TaskRun(
+            context,
+            context._task_specs[name],
+            context.next_instance(name),
+            self.entity,
+            self.upstream,
+            self.args,
+            self.kwargs,
+            child=True,
+            handles=self._visible_handles(),
+        )
+        run.cause_values = self._cause_values(interrupt, left)
+        run.flow_name = name
+        self._target = f"task.{name}"
+        try:
+            while True:
+                yield from run._run_one()
+                if run._following is None:
+                    break
+                run, run._following = run._following, None  # type: ignore[assignment]
+        except Exception as error:  # the child's failure
+            reason = getattr(error, "reason", None) or str(error)
+            self._fail_error = error
+            self._raised = True
+            self.publish(self.status("failed", reason=reason))
+            self.env.stats.task_failed(self.spec.name, self.task_id)
+            # The task leaves with the failure, so a `seize` request still in a line
+            # leaves it, as it does when the task fails any other way
+            self._cancel_awaiting()
+            self._forget_preempted()
+            raise _HandlerFailed(reason) from None
 
     def _cause_values(
         self, interrupt: Interrupt, left: Optional[float]
@@ -2451,6 +2645,13 @@ class TaskRun:
                     self._stamp(event)
                     self._track(event)
                     self._wait_events[node.name] = event
+            elif node.kind == "suspend":
+                # Kept across a resume, so the instance stays in its place among the
+                # suspended; a restart makes it again, behind the others
+                event = self._wait_events.get(node.name)
+                if event is None:
+                    event = _Suspension(self)
+                    self._wait_events[node.name] = event
             elif node.kind in ("get", "put"):
                 event = self._wait_events.get(node.name)
                 if event is None:
@@ -2506,13 +2707,18 @@ class TaskRun:
             yield joined if deadline is None else joined | deadline
         except Interrupt:
             raise
-        except Exception as error:  # noqa: BLE001: a branch failed
+        except Exception as error:  # a branch failed
             failure = getattr(error, "reason", None) or str(error)
         finally:
             # Losing condition branches stop checking; losing child flows keep
             # running, as SimPy leaves processes running.
             for stop in stop_watching:
                 stop()
+        # The wait is over, by a branch, the patience or a failure: a branch that
+        # suspended and was not woken leaves the list of the suspended
+        for event in self._wait_events.values():
+            if isinstance(event, _Suspension):
+                event.cancel()
         # When the patience ends first and the wait's event or condition is not yet
         # processed, the wait has lost the tie. It still succeeds when its leaves
         # processed by then satisfy it.
@@ -2688,7 +2894,8 @@ def flow_sets(
         routes: The tasks each task can lead to by `next`, `on_fail`, `on_renege`,
             `on_balk` and `on_interrupt_next`, by task name.
         getters: The tasks that take an item with a waiting store `get`.
-        interrupt_targets: The tasks an `on_interrupt_next` edge reaches.
+        interrupt_targets: The tasks an `on_interrupt_next` or `on_interrupt_run` edge
+            reaches.
 
     Returns:
         Tuple[set, set]: The tasks reached after a waiting store get, which read
@@ -2758,7 +2965,7 @@ def scope_problem(
         own_item: Whether the place is evaluated after the task's own waiting store
             get, or is that get's filter.
         later_item: Whether the task is reached after a waiting store get by a route.
-        cause_ok: Whether an `on_interrupt_next` edge reaches the task.
+        cause_ok: Whether an `on_interrupt_next` or `on_interrupt_run` edge reaches the task.
         in_when: Whether the place is the `when` of a wait group.
 
     Returns:
@@ -2774,7 +2981,10 @@ def scope_problem(
     if "done_count" in flags and not in_when:
         return "done_count is read in the when of a wait group"
     if expression.references["cause"] and not cause_ok:
-        return "cause.<name> is read in a task that an on_interrupt_next edge reaches"
+        return (
+            "cause.<name> is read in a task that an on_interrupt_next edge or an "
+            "on_interrupt_run edge reaches"
+        )
     return None
 
 

@@ -91,7 +91,7 @@ def _blueprints(root: Path, twins, harness) -> Dict[str, Any]:
         try:
             records, _ = harness.run_yaml(path.name)
             captured[f"blueprint:{path.name}"] = twins._records(records)
-        except Exception as exc:  # noqa: BLE001: the exception is the captured value
+        except Exception as exc:  # the exception is the captured value
             captured[f"blueprint:{path.name}"] = {
                 "error": f"{type(exc).__name__}: {exc}"
             }

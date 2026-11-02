@@ -62,6 +62,7 @@ TASK_VALUE_PLACES: Tuple[Tuple[str, bool], ...] = (
     ("on_start", True),
     ("spawn", True),
     ("interrupt", True),
+    ("resume", True),
     ("on", True),
     ("wait", False),
     ("open", False),

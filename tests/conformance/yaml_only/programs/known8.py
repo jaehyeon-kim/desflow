@@ -13,7 +13,6 @@ from typing import Any, Dict, List
 import simpy
 from simpy.core import BoundClass as _M5Bound
 from simpy.resources.container import ContainerGet as _CGet
-from simpy.resources.container import ContainerGet as _CG
 from simpy.resources.resource import Preempted as _M5Preempted
 from simpy.resources.resource import PriorityRequest as _M5PReq
 from simpy.resources.resource import Request as _M5Req
@@ -22,7 +21,6 @@ from simpy.resources.resource import SortedQueue as _SQ
 from simpy.resources.store import StoreGet as _StoreGet
 from simpy.resources.store import StoreGet as _SG
 from simpy.resources.store import StorePut as _StorePut
-from simpy.resources.store import StorePut as _SP
 
 PROCS: dict = {}  # entity key -> its process, filled by `arrival`
 MODE = {"on": False, "n": None, "rev": False}  # a tie run is a different scenario
@@ -95,7 +93,7 @@ def go(env, log, until=None, expect_error=False):
     err = None
     try:
         env.run(until=until)
-    except BaseException as exc:  # noqa: BLE001: the program's own error is a result
+    except BaseException as exc:  # the program's own error is a result
         err = f"{type(exc).__name__}: {str(exc)[:300]}"
     return log, err
 
@@ -212,7 +210,8 @@ def GD_RS1():
     return go(env, log)
 
 
-S = lambda s, **k: dict(status=s, **k)
+def S(s: Any, **k: Any) -> Dict[str, Any]:
+    return dict(status=s, **k)
 
 
 def GD_RS6(n=None, rev=False):

@@ -491,6 +491,8 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                     for target in (
                         task.on_interrupt_next,
                         task.on_fail,
+                        task.on_renege,
+                        task.on_balk,
                     )
                     if target is not None
                 ),
@@ -502,7 +504,12 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
             for name, task in blueprint.tasks.items()
             if task.get is not None and task.get.store is not None and task.get.wait
         ],
-        [t.on_interrupt_next for t in blueprint.tasks.values() if t.on_interrupt_next],
+        [
+            target
+            for t in blueprint.tasks.values()
+            for target in (t.on_interrupt_next, t.on_interrupt_run)
+            if target
+        ],
     )
     _check_switches(blueprint, source)
     for name in set(blueprint.stores) & set(blueprint.containers):
@@ -605,6 +612,10 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 )
         for key, target in (
             ("on_interrupt_next", task.on_interrupt_next),
+            ("on_interrupt_run", task.on_interrupt_run),
+            ("on_renege", task.on_renege),
+            ("on_balk", task.on_balk),
+            ("resume", task.resume.task if task.resume else None),
             ("interrupt", task.interrupt.task if task.interrupt else None),
             ("release", getattr(task.release, "task", None)),
         ):
@@ -835,6 +846,8 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                             t
                             for t in (
                                 task.on_fail,
+                                task.on_renege,
+                                task.on_balk,
                                 task.on_interrupt_next,
                             )
                             if t is not None
@@ -929,7 +942,17 @@ def _reach_from(blueprint: Blueprint, start: str) -> Tuple[Set[str], bool]:
         if callable(task.payload):
             unknown = True
         frontier.extend(target for target, _ in _routes(name, task))
-        frontier.extend(n for n in (task.on_fail, task.on_interrupt_next) if n)
+        frontier.extend(
+            n
+            for n in (
+                task.on_fail,
+                task.on_renege,
+                task.on_balk,
+                task.on_interrupt_next,
+                task.on_interrupt_run,
+            )
+            if n
+        )
         if task.wait is not None:
             frontier.extend(Wait(task.wait).targets("task"))
         if task.open is not None:
@@ -1079,6 +1102,13 @@ def _check_events(blueprint: Blueprint, source: SourceMap) -> None:
                     f"'{entry.interrupt.task}', "
                     + _undefined(entry.interrupt.task, tasks, "tasks"),
                 )
+            if entry.resume is not None and entry.resume.task not in tasks:
+                raise source.error(
+                    location + ("resume",),
+                    f"the on: action of {owner} resumes task "
+                    f"'{entry.resume.task}', "
+                    + _undefined(entry.resume.task, tasks, "tasks"),
+                )
             if entry.fire is not None:
                 check_fire(entry.fire, owner, location + ("fire",), {name})
 
@@ -1099,6 +1129,13 @@ def _check_events(blueprint: Blueprint, source: SourceMap) -> None:
                     f"the on: action of {owner} interrupts task "
                     f"'{entry.interrupt.task}', "
                     + _undefined(entry.interrupt.task, tasks, "tasks"),
+                )
+            if entry.resume is not None and entry.resume.task not in tasks:
+                raise source.error(
+                    location + ("resume",),
+                    f"the on: action of {owner} resumes task "
+                    f"'{entry.resume.task}', "
+                    + _undefined(entry.resume.task, tasks, "tasks"),
                 )
             if entry.fire is not None:
                 check_fire(entry.fire, owner, location + ("fire",), anchors)
@@ -1504,6 +1541,18 @@ def _expressions(
         found.append((Expression(task.fail, names=ANY_NAME), where + ("fail",)))
     if task.interrupt is not None and task.interrupt.where is not None:
         found.append((Expression(task.interrupt.where), where + ("interrupt", "where")))
+    if task.resume is not None:
+        if task.resume.where is not None:
+            found.append((Expression(task.resume.where), where + ("resume", "where")))
+        if isinstance(task.resume.limit, str):
+            found.append((Expression(task.resume.limit), where + ("resume", "limit")))
+    for index, entry in enumerate(task.on):
+        if entry.resume is not None:
+            at = where + ("on", index, "resume")
+            if entry.resume.where is not None:
+                found.append((Expression(entry.resume.where), at + ("where",)))
+            if isinstance(entry.resume.limit, str):
+                found.append((Expression(entry.resume.limit), at + ("limit",)))
     if task.open is not None:
         for delay in Open(task.open).expressions:
             found.append((delay, where + ("open",)))
@@ -1731,7 +1780,9 @@ def _add_to_context(
             preempt=task.preempt,
             on_interrupt=task.on_interrupt,
             on_interrupt_next=task.on_interrupt_next,
+            on_interrupt_run=task.on_interrupt_run,
             interrupt=None if task.interrupt is None else task.interrupt.action(),
+            resume=None if task.resume is None else task.resume.action(),
             name=name,
             priority=task.priority,
             patience=task.patience,
@@ -1771,6 +1822,8 @@ def _add_to_context(
             fail=task.fail,
             fail_reason=task.fail_reason,
             on_fail=task.on_fail,
+            on_renege=task.on_renege,
+            on_balk=task.on_balk,
             key_field=task.key_field,
             spawn=(None if task.spawn is None else task.spawn.action()),
             subscribe=task.subscribe,
@@ -1976,6 +2029,7 @@ def _check_values(
                 "set": task.set,
                 "set_args": task.set_args,
                 "interrupt": task.interrupt,
+                "resume": task.resume,
                 "on": task.on,
             },
             wait_values={
@@ -2110,7 +2164,12 @@ def _check_relationships(
                 reached_by_next[target].append(name)
         reached_otherwise |= {
             target
-            for target in (task.on_fail, task.on_interrupt_next)
+            for target in (
+                task.on_fail,
+                task.on_renege,
+                task.on_balk,
+                task.on_interrupt_next,
+            )
             if target is not None
         }
 
@@ -2201,9 +2260,10 @@ def _check_relationships(
                 found.append(
                     (
                         where,
-                        f"task '{owner}' is also reached by on_fail or "
-                        "on_interrupt_next, which hand over the failure or the "
-                        "interrupted task's record and not its payload; upstream "
+                        f"task '{owner}' is also reached by on_fail, "
+                        "on_renege, on_balk or on_interrupt_next, which hand over the "
+                        "failure, the renege, the balk or the interrupted task's "
+                        "record and not its payload; upstream "
                         "reads the payload of the task that routed here with next, "
                         "so give the task reached that way no upstream",
                     )

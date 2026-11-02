@@ -138,7 +138,7 @@ def run_yaml(
     error: Optional[BaseException] = None
     try:
         value = app.run(until=until)
-    except Exception as exc:  # noqa: BLE001: kept for the caller to assert on
+    except Exception as exc:  # kept for the caller to assert on
         error = exc
     return Outcome(rec.records, value, error, app)
 
@@ -165,7 +165,7 @@ def run_yaml_text(
     value: Any = None
     try:
         value = app.run()
-    except Exception as exc:  # noqa: BLE001: returned for the caller to assert on
+    except Exception as exc:  # returned for the caller to assert on
         error = exc
     return Outcome(rec.records, value, error, app)
 
@@ -191,7 +191,7 @@ def run_builder(
     error: Optional[BaseException] = None
     try:
         value = app.run(until=until, on_unhandled_failure=on_unhandled_failure)
-    except Exception as exc:  # noqa: BLE001: kept for the caller to assert on
+    except Exception as exc:  # kept for the caller to assert on
         error = exc
     return Outcome(rec.records, value, error, app)
 
@@ -236,7 +236,7 @@ def run_low_level(
     error: Optional[BaseException] = None
     try:
         value = env.run(until=until)
-    except Exception as exc:  # noqa: BLE001: returned when raises, else re-raised
+    except Exception as exc:  # returned when raises, else re-raised
         if not raises:
             raise
         error = exc

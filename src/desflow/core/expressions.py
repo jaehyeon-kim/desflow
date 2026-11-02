@@ -26,8 +26,8 @@ operand that cannot be evaluated fails the expression. Each name carries its sou
 | `process.name`, `.instance`, `.target` | the running task's name, its instance id, and what it waits on now (`timeout`, `signal.<n>`, `task.<n>`, `condition`, `resource.<n>`, `get.<n>`, `put.<n>`, `service`), None once ended |
 | `process.key`, `process.flow_name` | the entity's key, and the first task of the flow this process runs (one name for the process's life; a child flow has its own) |
 | `arg.gap` | an argument the parent passed to this flow with `args`, or a name `set_args` wrote in this process; a name not written or passed is a run failure |
-| `cause.by`, `.usage_since`, `.resource`, `.value`, `.left` | why the task was interrupted, read in the task an `on_interrupt_next` edge reaches; a name the cause does not have is a run failure |
-| `upstream.total` | a field of the payload of the task that routed here; `payload.` in `next` is the task's own |
+| `cause.by`, `.usage_since`, `.resource`, `.value`, `.left` | why the task was interrupted, read in the task an `on_interrupt_next` or `on_interrupt_run` edge reaches; a name the cause does not have is a run failure |
+| `upstream.total` | a field of the payload of the task that routed here, or its `status` and `reason` when `on_fail`, `on_renege` or `on_balk` routed here; `payload.` in `next` is the task's own |
 | `item`, `item.req.id`, `item_priority` | the whole item a store get took (it lasts through the `next` chain), a field of it at any depth, and the priority of the item a priority store gave |
 | `held(m)`, `waiting(m)` | the resource `m`'s holders in grant order, and its waiting requests in queue order; each entry is a mapping of `entity`, `rank`, `time`, `preempt` and `key`, and for a holder `since` |
 | `putting(s)`, `getting(s)` | the puts and the gets waiting on a store or container; each entry has `entity` and, for a put, `item` or `amount` |
@@ -1398,7 +1398,7 @@ class Expression:
             if scope.cause is None:
                 raise KeyError(
                     "no interrupt reached this task: cause is read in a task an "
-                    "on_interrupt_next edge reaches"
+                    "on_interrupt_next edge or an on_interrupt_run edge reaches"
                 )
             if first not in scope.cause:
                 raise KeyError(f"the cause has no '{first}'")

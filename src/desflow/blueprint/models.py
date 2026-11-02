@@ -912,6 +912,44 @@ class InterruptAction(_Model):
         return found
 
 
+class ResumeSpec(_Model):
+    """A `resume`, a task key and an `on:` entry: wakes the instances of `task` that are
+    suspended in a `wait: {suspend: true}`, in the order they suspended, as
+    `event.succeed(value)` wakes the process that waits for the event. `where` keeps the
+    instances whose scope it holds for (as `interrupt` reads it), `limit` is how many to
+    wake at most (no `limit` wakes all, and 0 wakes nobody), and `value` is what each
+    one's `wait.suspend.value` reads. `limit` and `value` are read once for each
+    `resume`. A `resume` that finds nobody suspended does nothing."""
+
+    task: str
+    where: Optional[str] = None
+    value: Value = None
+    limit: Optional[CountPlace] = None
+
+    @field_validator("where")
+    @classmethod
+    def _where_parses(cls, value: Any) -> Any:
+        if value is not None:
+            Expression(value)
+        return value
+
+    @field_validator("limit")
+    @classmethod
+    def _limit_parses(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            Expression(value)
+        return value
+
+    def action(self) -> Dict[str, Any]:
+        """The mapping the builder's `resume` takes."""
+        return {
+            "task": self.task,
+            "where": self.where,
+            "value": self.value,
+            "limit": self.limit,
+        }
+
+
 class SpawnAction(_Model):
     """A `spawn:` key or an `on:` spawn action: start `task` as a new entity, after
     an optional delay. `count` is how many entities one spawn starts: a whole number,
@@ -1005,14 +1043,15 @@ class FireAction(_Model):
 
 
 class OnEntry(_Model):
-    """One entry of an `on:` list: exactly one of a fire, spawn or interrupt action,
-    or a `path` with a `value` as a scenario step sets a registry value. A `value` is a
+    """One entry of an `on:` list: exactly one of a fire, spawn, interrupt or resume
+    action, or a `path` with a `value` as a scenario step sets a registry value. A `value` is a
     constant or a `{gen: ...}` generator evaluated when the entry runs; a mapping with no
     `gen` key is data, and a generator nested in it is stored as written."""
 
     fire: Optional[FireAction] = None
     spawn: Optional[SpawnAction] = None
     interrupt: Optional[InterruptAction] = None
+    resume: Optional[ResumeSpec] = None
     activate: Optional[Union[str, List[str]]] = None
     deactivate: Optional[Union[str, List[str]]] = None
     path: Optional[str] = None
@@ -1024,13 +1063,21 @@ class OnEntry(_Model):
     def _one_action(self) -> "OnEntry":
         actions = [
             name
-            for name in ("fire", "spawn", "interrupt", "activate", "deactivate", "path")
+            for name in (
+                "fire",
+                "spawn",
+                "interrupt",
+                "resume",
+                "activate",
+                "deactivate",
+                "path",
+            )
             if getattr(self, name) is not None
         ]
         if len(actions) != 1:
             raise ValueError(
-                "an on: entry takes exactly one of fire, spawn, interrupt, activate, "
-                "deactivate or path"
+                "an on: entry takes exactly one of fire, spawn, interrupt, resume, "
+                "activate, deactivate or path"
             )
         if self.value is not None and self.path is None and self.fire is None:
             raise ValueError("on: value belongs to a path or a fire action")
@@ -1057,6 +1104,8 @@ class OnEntry(_Model):
             return {"spawn": self.spawn.action()}
         if self.interrupt is not None:
             return {"interrupt": self.interrupt.action()}
+        if self.resume is not None:
+            return {"resume": self.resume.action()}
         if self.activate is not None:
             return {"activate": _names(self.activate)}
         if self.deactivate is not None:
@@ -1217,6 +1266,17 @@ class HandleWait(_Model):
     handle: str
 
 
+class SuspendWait(_Model):
+    """A `wait` branch that suspends the instance until a `resume` of another task
+    wakes it (`suspend: true`). The branch's value is the `value` of that `resume`, so
+    `wait.suspend.value` reads it. An interrupt that reaches a suspended instance
+    follows the task's `on_interrupt`: under `resume` the instance stays suspended in
+    its place, under `restart` it suspends again behind the others, and under
+    `abandon` it ends. `open` does not take it."""
+
+    suspend: Literal[True]
+
+
 class GetWait(_Model):
     """A `wait` branch for a store or container get."""
 
@@ -1233,6 +1293,25 @@ class PutWait(_Model):
 # accepts only its own key under extra="forbid", so exactly one matches a valid
 # mapping, on every Pydantic from 2.6.0.
 WaitBranch = Union[
+    SignalWait,
+    TaskWait,
+    TimeoutWait,
+    ConditionWait,
+    AnyWait,
+    AllWait,
+    AtLeastWait,
+    WhenWait,
+    RequestWait,
+    GetWait,
+    PutWait,
+    RunningWait,
+    HandleWait,
+    SuspendWait,
+]
+
+# What an `open` branch is written as: every wait branch but `suspend`, which a
+# handle cannot hold.
+OpenBranch = Union[
     SignalWait,
     TaskWait,
     TimeoutWait,
@@ -1460,6 +1539,26 @@ class Task(_Model):
     left. `upstream.<field>` is the payload of the task that routed here, `item` is the
     whole item a store get took, and it lasts through the `next` chain.
 
+    `on_interrupt_run` names a task that runs as a child flow of the same entity after
+    each interrupt or preemption the task meets under `resume` or `restart`, and the
+    task then goes on with the time left, or a new time under `restart`, as a
+    SimPy loop `try: yield env.timeout(left) except Interrupt: yield from repair()`
+    does. The child runs in the task's process. An interrupt that arrives while it
+    runs reaches the child at its next wait and follows the child's own
+    `on_interrupt`. The child reads `cause.<name>` as a task reached by
+    `on_interrupt_next` does. It is refused with `abandon`, with a `resource` and with
+    a request in the `wait`, because it is for work that holds no unit of its own. A
+    child that fails fails the task.
+    `on_renege` and `on_balk` name the task an instance goes to after it reneges (its
+    `patience` ran out) or balks (its `balk` condition holds, or the line of its
+    resource, `seize` or `open` is full), in place of the end of its flow. The
+    instance still publishes `reneged` or `balked`, and that task reads the record as
+    `upstream.status`. `on_fail` needs no `fail`: a failed `wait`, a failed child flow,
+    a step that raises and an expression that cannot be evaluated go to it, and it reads
+    the failure as `upstream.status` and `upstream.reason`. An interrupt is not a
+    failure, and `on_fail` does not see it. `suspend` and `resume` are described on
+    their models.
+
     `open` names branches that start at once and are not waited for, so a later step
     can wait for, cancel, release or interrupt them by name. A branch of `open` is a
     `timeout`, `request`, `get`, `put`, `task` or `signal`, or an `any` or `all` group
@@ -1577,7 +1676,7 @@ class Task(_Model):
     finish_vars: Dict[str, Value] = Field(default_factory=dict)
     history: StrictInt = Field(default=1_000_000, ge=1)
     wait: Optional[WaitBranch] = None
-    open: Optional[Dict[str, WaitBranch]] = None
+    open: Optional[Dict[str, OpenBranch]] = None
     cancel: Optional[Union[str, HandleRef]] = None
     seize: Optional[Union[str, SeizeSpec]] = None
     release: Optional[Union[str, ReleaseSpec]] = None
@@ -1585,11 +1684,15 @@ class Task(_Model):
     fail: Optional[str] = None
     fail_reason: Optional[str] = None
     on_fail: Optional[str] = None
+    on_renege: Optional[str] = None
+    on_balk: Optional[str] = None
     keep: List[str] = Field(default_factory=list)
     preempt: Union[bool, str] = True
     on_interrupt: str = "resume"
     on_interrupt_next: Optional[str] = None
+    on_interrupt_run: Optional[str] = None
     interrupt: Optional[InterruptAction] = None
+    resume: Optional[ResumeSpec] = None
     spawn: Optional[SpawnAction] = None
     subscribe: Optional[Dict[str, Any]] = None
     on: List[OnEntry] = Field(default_factory=list)
@@ -1639,6 +1742,24 @@ class Task(_Model):
             )
         if self.on_interrupt_next is not None and self.on_interrupt != "abandon":
             raise ValueError("on_interrupt_next needs on_interrupt: abandon")
+        if self.on_interrupt_run is not None:
+            if self.on_interrupt == "abandon":
+                raise ValueError(
+                    "on_interrupt_run runs a flow and then goes on with the task, so "
+                    "it needs on_interrupt: resume or restart; with abandon, use "
+                    "on_interrupt_next"
+                )
+            if self.resources():
+                raise ValueError(
+                    "on_interrupt_run is for work that holds no unit of its own, so "
+                    "a task with resource does not take it; a repair task preempts "
+                    "the unit instead, and a unit an earlier seize took is kept"
+                )
+            if self.wait_requests():
+                raise ValueError(
+                    "on_interrupt_run is for a task that holds no unit of its own, "
+                    "and a request in its wait holds one"
+                )
         return self
 
     @field_validator("wait", mode="wrap")
@@ -1776,10 +1897,23 @@ class Task(_Model):
                 "patience is how long a task waits, so it needs a wait, a seize, a "
                 "resource or a get"
             )
-        if self.fail is None and (
-            self.fail_reason is not None or self.on_fail is not None
+        if self.fail is None and self.fail_reason is not None:
+            raise ValueError("fail_reason needs a fail condition")
+        if self.on_renege is not None and self.patience is None:
+            raise ValueError(
+                "on_renege is where a reneging task goes, so it needs patience"
+            )
+        if (
+            self.on_balk is not None
+            and self.balk is None
+            and self.resource is None
+            and self.seize is None
+            and self.open is None
         ):
-            raise ValueError("fail_reason and on_fail need a fail condition")
+            raise ValueError(
+                "on_balk is where a balking task goes, so it needs a balk, a "
+                "resource, a seize or an open"
+            )
         if self.put is not None and self.put.filter is not None:
             raise ValueError(
                 "a put takes no filter; a filter picks the item a get takes"

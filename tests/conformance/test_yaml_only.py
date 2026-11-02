@@ -29,9 +29,11 @@ from tests.conformance.yaml_only.programs import (
     a4_gap,
     batch6,
     batch8,
+    batch9,
     cv_032_034_steps,
     cv_040_segments,
     known8,
+    known9,
     v1_service_time,
     v2_timeout,
     v3_values,
@@ -2437,16 +2439,16 @@ def _known8_records(records, grants=False):
     return found
 
 
-def _known8_program(name, asserts):
-    """The program `name`; without `asserts`, the same source with every `assert`
-    removed, because the asserts state the original's own scenario and a run of
-    another size is a different one."""
+def _known_program(module, name, asserts):
+    """The program `name` of `module`; without `asserts`, the same source with every
+    `assert` removed, because the asserts state the original's own scenario and a run
+    of another size is a different one."""
     if asserts:
-        return getattr(known8, name)
+        return getattr(module, name)
     import ast
     import types
 
-    path = Path(known8.__file__)
+    path = Path(module.__file__)
     tree = ast.parse(path.read_text())
 
     class _NoAssert(ast.NodeTransformer):
@@ -2454,35 +2456,35 @@ def _known8_program(name, asserts):
             return ast.copy_location(ast.Pass(), node)
 
     tree = ast.fix_missing_locations(_NoAssert().visit(tree))
-    module = types.ModuleType("known8_without_asserts")
-    exec(compile(tree, str(path), "exec"), module.__dict__)  # noqa: S102
-    module.PROCS = known8.PROCS
-    module.MODE = known8.MODE
-    module.PENDING = known8.PENDING
-    return getattr(module, name)
+    plain = types.ModuleType(f"{module.__name__}_without_asserts")
+    exec(compile(tree, str(path), "exec"), plain.__dict__)  # noqa: S102
+    plain.PROCS = known8.PROCS
+    plain.MODE = known8.MODE
+    plain.PENDING = known8.PENDING
+    return getattr(plain, name)
 
 
-def _known8_sized(row):
+def _known_sized(module, table, row):
     """Whether the row's program takes a size: it has a `ties` form, or it starts its
     entities with `arrival(initial=...)`."""
     import inspect
 
-    function = getattr(known8, KNOWN8[row][1])
+    function = getattr(module, table[row][1])
     return bool(getattr(function, "ties", False)) or "initial=" in inspect.getsource(
         function
     )
 
 
-def _known8_run(tmp_path, row, size=None):
+def _known_run(module, table, folder, tmp_path, row, size=None):
     import re
 
-    document, program, files = KNOWN8[row]
-    text = (FOLDER / "known8" / f"{document}.yaml").read_text()
+    document, program, files = table[row]
+    text = (FOLDER / folder / f"{document}.yaml").read_text()
     for name, content in files.items():
         (tmp_path / name).write_text(content)
     if size is not None:
         text = re.sub(r"initial: \d+", f"initial: {size}", text, count=1)
-    function = _known8_program(program, size is None)
+    function = _known_program(module, program, size is None)
     ties = bool(getattr(function, "ties", False))
     known8.MODE.update(on=size is not None and not ties, n=size, rev=False)
     try:
@@ -2494,12 +2496,20 @@ def _known8_run(tmp_path, row, size=None):
     return outcome, log, error, bool(getattr(function, "grants", False))
 
 
-def _known8_compare(tmp_path, row, size=None):
-    outcome, log, error, grants = _known8_run(tmp_path, row, size)
+def _known_compare(module, table, folder, tmp_path, row, size=None):
+    outcome, log, error, grants = _known_run(module, table, folder, tmp_path, row, size)
     produced = _known8_records(outcome.records, grants)
     wanted = [(round(t, 3), k, task, v) for t, k, task, v in log]
     assert produced == wanted
     return outcome, error
+
+
+def _known8_sized(row):
+    return _known_sized(known8, KNOWN8, row)
+
+
+def _known8_compare(tmp_path, row, size=None):
+    return _known_compare(known8, KNOWN8, "known8", tmp_path, row, size)
 
 
 @pytest.mark.parametrize("row", sorted(KNOWN8))
@@ -2589,3 +2599,387 @@ def test_every_known_case_of_batch_8_runs_in_a_document_that_a_case_runs():
     assert set(KNOWN8_SHARED.values()) <= set(KNOWN8)
     assert not set(KNOWN8_SHARED) & set(KNOWN8)
     assert sorted({*KNOWN8, *KNOWN8_SHARED, *KNOWN8_DOCS}) == sorted(BATCH_8_ROWS)
+
+
+# ------------------------------------------------- Batch 9: the known cases that run now
+
+KNOWN9: Dict[str, Tuple[str, str, Dict[str, str]]] = {
+    # row: (document of known9/, program, files of the document)
+    "EX-3": ("ex_3", "EX_3", {}),
+    "GD-TT2": ("gd_tt2", "GD_TT2", {}),
+    "ST-R10": ("st_r10", "ST_R10", {}),
+    "ST-X01": ("st_x01", "ST_X01", {}),
+    "P39": ("p39", "P39", {}),
+    "P42": ("p42", "P42", {}),
+    "P65": ("p65", "P65", {}),
+    "P74": ("p74", "P74", {}),
+    "DS-I3": ("ds_i3", "DS_I3", {}),
+    "DS-I4": ("ds_i4", "DS_I4", {}),
+    "DS-I6": ("ds_i6", "DS_I6", {}),
+    "CV-110": ("ds_m3", "DS_M3", {}),
+}
+KNOWN9_SHARED = {
+    # row: the row whose document and program it runs in, the same form with the same
+    # assertions, so a second case would repeat the first
+    "ST-I02": "GD-TT2",
+    "CV-054": "DS-I3",
+}
+# row: the key of a later batch that its blueprint needs, so it does not run yet
+KNOWN9_WAITING = {
+    "BT-LD12": "wait: {each} (Batch 11), and Postgres ingress and egress",
+}
+BATCH_9_ROWS = (
+    "EX-3 GD-TT2 ST-I02 ST-R10 ST-X01 P39 P42 P65 P74 DS-I3 DS-I4 DS-I6 CV-054 CV-110 "
+    "BT-LD12"
+).split()
+
+
+@pytest.mark.parametrize("row", sorted(KNOWN9))
+def test_known_case_of_batch_9_runs_as_its_simpy_program(tmp_path, row):
+    """Each known case of Batch 9 that its keys allow now runs from its blueprint (no
+    `!python`) and gives the records of the SimPy program written from the original:
+    the same times, keys, tasks and payloads."""
+    outcome, error = _known_compare(known9, KNOWN9, "known9", tmp_path, row)
+    assert (outcome.error is None) == (error is None), (outcome.error, error)
+
+
+@pytest.mark.parametrize("size", [1, 3, 10])
+@pytest.mark.parametrize("row", sorted(KNOWN9))
+def test_known_case_of_batch_9_runs_at_other_sizes(tmp_path, row, size):
+    """As the base run, with `size` entities in the first arrival that starts a number
+    of them at once, in the document and in the program (the rows whose program takes
+    a size)."""
+    if not _known_sized(known9, KNOWN9, row):
+        pytest.skip("the program has no arrival with `initial`")
+    _known_compare(known9, KNOWN9, "known9", tmp_path, row, size)
+
+
+def test_every_known_case_of_batch_9_runs_or_names_the_key_it_waits_for():
+    """The 15 rows of the batch are each a case, share the document of a case that has
+    the same form and assertions, or wait for a later batch's key."""
+    assert len(BATCH_9_ROWS) == 15
+    assert set(KNOWN9_SHARED.values()) <= set(KNOWN9)
+    assert not set(KNOWN9_SHARED) & set(KNOWN9)
+    assert sorted({*KNOWN9, *KNOWN9_SHARED, *KNOWN9_WAITING}) == sorted(BATCH_9_ROWS)
+
+
+# ------------------------------------------------- Batch 9: interrupts of holders
+
+INTERRUPT_TEXT = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {m: {current_cap: CAP}}
+arrivals:
+  holder: {replay: {path: holder.csv}, spawn: hold}
+  s: {replay: {path: s.csv}, spawn: subject}
+  behind: {replay: {path: behind.csv}, spawn: behind}
+  cut: {replay: {path: cut.csv}, spawn: cutter}
+  probe: {replay: {path: probe.csv}, spawn: probe}
+tasks:
+  hold: {resource: m, service_time: 10, payload: {e: held}}
+  subject: SUBJECT
+  cleanup: {payload: {e: cleanup}, release: m}
+  behind: {resource: m, service_time: 1, payload: {e: behind}}
+  cutter: CUTTER
+  probe: {payload: {e: end, x: {gen: expr, expr: "[users.m, queue.m]"}}}
+run: {until: 500}
+"""
+HOLDER_FORMS = {
+    "seize": "{seize: m, service_time: SERVICE, on_interrupt: POLICY, NEXT payload: {e: s_done}, release: m}",
+    "resource": "{resource: m, service_time: SERVICE, on_interrupt: POLICY, NEXT payload: {e: s_done}}",
+    "wait request": "{wait: {request: m}, service_time: SERVICE, on_interrupt: POLICY, NEXT payload: {e: s_done}}",
+}
+
+
+def _interrupt_text(form, policy, part):
+    subject = HOLDER_FORMS[form].replace("POLICY", policy)
+    subject = subject.replace(
+        "NEXT", "on_interrupt_next: cleanup," if policy == "abandon" else ""
+    )
+    subject = subject.replace("SERVICE", "5" if part == "held" else "2")
+    cut = {"queued": 3, "held": 2}.get(part)
+    cutter = (
+        "{wait: {timeout: 5}, payload: null, next: cutter2}\n"
+        "  cutter2: {wait: {timeout: 5}, payload: null, next: cutter3}\n"
+        "  cutter3: {wait: {timeout: 0}, payload: {e: cut}, interrupt: {task: subject}}"
+        if part == "instant"
+        else f"{{wait: {{timeout: {cut}}}, payload: {{e: cut}}, interrupt: {{task: subject}}}}"
+    )
+    return (
+        INTERRUPT_TEXT.replace("SUBJECT", subject)
+        .replace("CUTTER", cutter)
+        .replace("CAP", "N" if part == "held" else "1")
+    )
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("policy", ["resume", "restart", "abandon"])
+@pytest.mark.parametrize("part", ["queued", "held", "instant"])
+@pytest.mark.parametrize("form", sorted(HOLDER_FORMS))
+def test_unit_states_interrupt(tmp_path, n, policy, part, form):
+    """Unit states, Interrupt and Grant at the instant, in each form that holds a
+    unit (`seize`, `resource`, a wait `request`). Queued: `resume` keeps the place,
+    `restart` asks again at the back, `abandon` leaves the line. Held: the unit stays
+    with the flow under `resume` and `restart`, and `abandon` frees it through the
+    task that follows. At the instant the grant is made: the unit is held, `resume`
+    goes on, `restart` keeps it, `abandon` frees it. A `resource:` task that is still
+    queued asks again at the back under `resume` too, as it did before Batch 9."""
+    csvs = {
+        "holder": [] if part == "held" else [0],
+        "s": [0] * n,
+        "behind": [1] if part in ("queued", "instant") else [],
+        "cut": [0],
+        "probe": [30],
+    }
+    text = _interrupt_text(form, policy, part).replace("CAP: N", f"CAP: {n}")
+    text = text.replace("current_cap: N", f"current_cap: {n}")
+    expected = batch9.unit_interrupt(n, policy, part, back=form == "resource")
+    _runs(tmp_path, text, csvs, expected)
+
+
+I3_TEXT = """
+simulation: {sim_id: I3, factor: 0, random_seed: 42}
+arrivals:
+  w: {replay: {path: w.csv}, spawn: work}
+  c1: {replay: {path: c.csv}, spawn: cut1}
+  c2: {replay: {path: c.csv}, spawn: cut2}
+tasks:
+  work: {service_time: 10, on_interrupt: POLICY, on_interrupt_run: repair, payload: {e: done}}
+  repair: {service_time: 5, payload: {e: repaired}}
+  cut1: {wait: {timeout: 2}, payload: null, interrupt: {task: work}}
+  cut2: {wait: {timeout: 4}, payload: null, interrupt: {task: work}}
+run: {until: 500}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("policy", ["resume", "restart"])
+def test_i3_a_flow_runs_after_an_interrupt_and_then_the_work_goes_on(
+    tmp_path, n, policy
+):
+    """I3 `on_interrupt_run`: the named task runs as a child flow of the same entity
+    when the interrupt arrives, and the work goes on after it with the time left
+    (`resume`) or from the start (`restart`). An interrupt that arrives while the child
+    runs reaches the child, as a `yield from` of the repair in the same process does."""
+    _runs(
+        tmp_path,
+        I3_TEXT.replace("POLICY", policy),
+        {"w": [0] * n, "c": [0]},
+        batch9.i3_interrupt_run(n, policy),
+    )
+
+
+I4_TEXT = """
+simulation: {sim_id: I4, factor: 0, random_seed: 42}
+arrivals:
+  s: {replay: {path: s.csv}, spawn: park}
+  t: {replay: {path: t.csv}, spawn: other}
+  r: {replay: {path: r.csv}, spawn: wake}
+tasks:
+  park: {wait: {suspend: true}, payload: {e: woke, x: {gen: expr, expr: "wait.suspend.value"}}}
+  other: {wait: {suspend: true}, payload: {e: woke, x: {gen: expr, expr: "wait.suspend.value"}}}
+  wake: {payload: null, resume: {task: park, value: {gen: sequence}, limit: {gen: expr, expr: "[1, 0, 100][v]", names: {v: {gen: sequence}}}}}
+run: {until: 500}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_i4_suspend_waits_for_a_resume_that_names_the_task(tmp_path, n):
+    """I4 `suspend` and `resume`: instances of the task wait until another flow resumes
+    them, oldest first; `limit` caps how many, `limit: 0` wakes none, no `limit` wakes
+    all; `value` is evaluated once for each resume, whether it wakes anyone or not,
+    and the woken instance reads it as `wait.suspend.value`."""
+    csvs = {"s": [0] * n, "t": [1], "r": [2, 4, 6]}
+    _runs(tmp_path, I4_TEXT, csvs, batch9.i4_resume(n))
+
+
+I6_TEXT = """
+simulation: {sim_id: I6, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}}
+arrivals:
+  holder: {replay: {path: holder.csv}, spawn: hold}
+  l: {replay: {path: l.csv}, spawn: late}
+tasks:
+  hold: {resource: m, service_time: 5, payload: null}
+  late: {balk: "queue.m >= 2", on_balk: elsewhere, patience: 2, on_renege: elsewhere, resource: m, service_time: 0, payload: {e: served}}
+  elsewhere: {payload: {e: elsewhere, x: {gen: expr, expr: "upstream.status"}}}
+run: {until: 500}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_i6_a_flow_goes_on_after_it_balks_or_reneges(tmp_path, n):
+    """I6 `on_renege` and `on_balk`: a flow that leaves the line because its patience
+    ends, or because the line is too long, goes on to the named task, which reads
+    `upstream.status` as `reneged` or `balked`."""
+    _runs(
+        tmp_path,
+        I6_TEXT,
+        {"holder": [0], "l": [1] * n},
+        batch9.i6_leave(n),
+    )
+
+
+M3_TEXTS = {
+    "step": """
+simulation: {sim_id: M3, factor: 0, random_seed: 42}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: t}
+tasks:
+  t: {service_time: {gen: expr, expr: "1 / 0"}, on_fail: handle, payload: {e: fine}}
+  handle: {payload: {e: handled, x: {gen: expr, expr: "upstream.status"}}}
+run: {until: 500}
+""",
+    "wait": """
+simulation: {sim_id: M3, factor: 0, random_seed: 42}
+signals: {may_fail: {once: true}}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: t}
+  b: {replay: {path: b.csv}, spawn: breaker}
+tasks:
+  t: {wait: {signal: may_fail}, on_fail: handle, payload: {e: fine}}
+  handle: {payload: {e: handled, x: {gen: expr, expr: "upstream.reason"}}}
+  breaker: {wait: {timeout: 1}, payload: null, fail: "True", fail_reason: event, signal: may_fail, on_fail: broke}
+  broke: {payload: {e: broke}}
+run: {until: 500}
+""",
+}
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("part", ["step", "wait"])
+def test_m3_a_failed_flow_goes_on_when_on_fail_names_a_task(tmp_path, n, part):
+    """M3 `on_fail` with no `fail`: a flow whose own expression fails, or whose wait
+    fails, goes on to the named task, which reads `upstream.reason`."""
+    for name, moments in {"a": [0] * n, "b": [0]}.items():
+        _csv(tmp_path, name, ["time"], [(x,) for x in moments])
+    expected = batch9.m3_failure(n, part)
+    if part == "wait":
+        expected = [(1, "b-1", "failed", None), (1, "b-1", "broke", None)] + expected
+    _same(tmp_path, M3_TEXTS[part], expected, ("failed", "reneged", "balked"))
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("form", ["seize", "wait request"])
+def test_a_request_asked_again_under_restart_and_interrupted_goes_to_the_back(
+    tmp_path, n, form
+):
+    """Engine fix 7: a `seize` (or a wait `request`) that restart took out of the line
+    and asked again goes to the back again when a second interrupt arrives, behind the
+    flow that asked meanwhile. The interrupts are at 3 and 5, and flows ask at 1 and 4."""
+    text = _interrupt_text(form, "restart", "queued")
+    text = text.replace(
+        "  probe: {replay",
+        "  behind2: {replay: {path: behind2.csv}, spawn: behind2}\n"
+        "  cut2: {replay: {path: cut2.csv}, spawn: cutter2}\n  probe: {replay",
+    ).replace(
+        "  probe: {payload",
+        "  behind2: {resource: m, service_time: 1, payload: {e: behind}}\n"
+        "  cutter2: {wait: {timeout: 5}, payload: {e: cut}, interrupt: {task: subject}}\n"
+        "  probe: {payload",
+    )
+    csvs = {
+        "holder": [0],
+        "s": [0] * n,
+        "behind": [1],
+        "behind2": [4],
+        "cut": [0],
+        "cut2": [0],
+        "probe": [30],
+    }
+    _runs(tmp_path, text, csvs, batch9.unit_interrupt(n, "restart", "again"))
+
+
+SUSPEND_TEXT = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+arrivals:
+  s: {replay: {path: s.csv}, spawn: park, attributes: {late: 0}}
+  late: {replay: {path: late.csv}, spawn: park, attributes: {late: 1}}
+  cut: {replay: {path: cut.csv}, spawn: cutter}
+  wake: {replay: {path: wake.csv}, spawn: waker}
+tasks:
+  park: {wait: {suspend: true}, on_interrupt: POLICY, NEXT payload: {e: woke}}
+  cleanup: {payload: {e: cleanup}}
+  cutter: {wait: {timeout: 2}, payload: null, interrupt: {task: park, where: "attr.late == 0"}}
+  waker: {wait: {timeout: 6}, payload: null, resume: {task: park}}
+run: {until: 500}
+"""
+
+
+@pytest.mark.parametrize("n", SIZES)
+@pytest.mark.parametrize("policy", ["resume", "restart", "abandon"])
+@pytest.mark.parametrize("wakes", [True, False])
+def test_an_interrupt_of_a_suspended_instance_follows_on_interrupt(
+    tmp_path, n, policy, wakes
+):
+    """Engine fix 11: an interrupt of a suspended instance follows `on_interrupt`.
+    `resume` keeps it suspended in its place, `restart` suspends it again at the back
+    of the order, and `abandon` ends it, so a later `resume` wakes the rest in order."""
+    text = SUSPEND_TEXT.replace("POLICY", policy).replace(
+        "NEXT", "on_interrupt_next: cleanup," if policy == "abandon" else ""
+    )
+    csvs = {"s": [0] * n, "late": [1], "cut": [0], "wake": [0] if wakes else []}
+    _runs(
+        tmp_path,
+        text,
+        csvs,
+        batch9.suspended_interrupt(n, policy, 6 if wakes else None),
+    )
+
+
+@pytest.mark.parametrize("extra", ["breakdown", "release"])
+@pytest.mark.parametrize("policy", ["resume", "restart", "abandon"])
+@pytest.mark.parametrize("part", ["queued", "held"])
+@pytest.mark.parametrize("form", sorted(HOLDER_FORMS))
+def test_an_interrupted_holder_leaves_no_unit_or_request_with_a_breakdown_or_a_release(
+    tmp_path, form, part, policy, extra
+):
+    """Every form that holds a unit ends with the unit given back and the line empty
+    when an interrupt meets a breakdown of the resource (at 6, repaired at 8) or a unit
+    that another flow freed with `release` (at 1). Each of the three flows ends, by its
+    work or by its cleanup."""
+    n = 3
+    text = _interrupt_text(form, policy, part).replace(
+        "current_cap: N", f"current_cap: {n}"
+    )
+    csvs = {
+        "holder": [] if part == "held" else [0],
+        "s": [0] * n,
+        "behind": [],
+        "cut": [0],
+        "probe": [60],
+    }
+    if extra == "breakdown":
+        text = text.replace(
+            "m: {current_cap: 1}",
+            "m: {current_cap: 1, breakdown: {time_to_failure: {dist: constant, value: 6}, repair: {dist: constant, value: 2}}}",
+        ).replace(
+            f"m: {{current_cap: {n}}}",
+            f"m: {{current_cap: {n}, breakdown: {{time_to_failure: {{dist: constant, value: 6}}, repair: {{dist: constant, value: 2}}}}}}",
+        )
+    else:
+        text = text.replace(
+            "  probe: {replay",
+            "  rel: {replay: {path: rel.csv}, spawn: freer}\n  probe: {replay",
+        ).replace(
+            "  probe: {payload",
+            "  freer: {wait: {timeout: 1}, payload: null, release: {resource: m, task: subject}}\n  probe: {payload",
+        )
+        csvs["rel"] = [0]
+    for name, moments in csvs.items():
+        _csv(tmp_path, name, ["time"], [(t,) for t in moments])
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, repr(outcome.error)
+    marks = _trace(outcome.records)
+    went_down = any(
+        r["stream_type"] == "event" and r["value"].get("status") == "down"
+        for r in outcome.records
+    )
+    assert went_down == (extra == "breakdown")
+    assert [m[3] for m in marks if m[2] == "end"] == [[0, 0]], marks
+    for index in range(1, n + 1):
+        ended = [
+            m[2]
+            for m in marks
+            if m[1] == f"s-{index}" and m[2] in ("s_done", "cleanup")
+        ]
+        assert len(ended) == 1, (index, marks)

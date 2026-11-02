@@ -410,7 +410,9 @@ def test_on_renege_and_on_balk_need_their_cause():
     app = SimulationContext("I6b", factor=0.0)
     with pytest.raises(ValueError, match="needs patience"):
         app.task(name="a", on_renege="b")
-    with pytest.raises(ValueError, match="needs a balk or a resource"):
+    with pytest.raises(
+        ValueError, match="needs a balk, a resource, a seize or an open"
+    ):
         app.task(name="c", on_balk="d")
 
 

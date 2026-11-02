@@ -356,6 +356,7 @@ def test_the_builder_checks_the_names_before_the_run(keys, message):
 
 def run_records(app: SimulationContext, until: float) -> List[Tuple[Any, ...]]:
     records = run_builder(app, until)
+    assert isinstance(records, list)
     return [
         (round(r["sim_ts"], 3), r["key"], r["value"]["e"])
         for r in records

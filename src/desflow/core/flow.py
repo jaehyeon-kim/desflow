@@ -583,6 +583,7 @@ WAIT_KINDS = (
     "put",
     "running",
     "handle",
+    "suspend",
 )
 
 # Group kinds: a branch that holds named child branches.
@@ -653,6 +654,9 @@ class Wait:
       branch already processed. It reads `wait.<branch>.done`, `.ok` and `.value` of
       the group's branches and `done_count`. A branch that fails fails the wait; an
       empty `of` succeeds at once;
+    - `{"suspend": True}`: done when a `resume` of another task wakes this instance,
+      with the value that `resume` gives, as `value = yield event` is done when
+      another process calls `event.succeed(value)`;
     - `{"task": "child", "args": {...}}`: a `task` branch whose child flow reads the
       argument values as `arg.<name>`, read in the parent's scope when the child
       starts;
@@ -983,6 +987,10 @@ def _wait_branch(branch: Any) -> Tuple[str, Any]:
         return kind, (_timeout_delay(delay, target), value)
     if kind == "condition":
         return kind, Expression(target)
+    if kind == "suspend":
+        if target is not True:
+            raise ValueError(f"a wait suspend branch is suspend: true, got {target!r}")
+        return kind, True
     if kind in ("get", "put"):
         try:
             transfer = Transfer.of(target)

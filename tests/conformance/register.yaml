@@ -55,11 +55,12 @@
   operation: Signal event success and value
   description: "One task fires a named signal with a value, and every task waiting for it wakes up and reads that value."
   simpy: "`simpy.events.Event.succeed(value)`"
-  yaml: "`signals: [restocked]`, `signal: restocked` on the firing task and `wait: {signal: restocked}`"
+  yaml: "`signals: [restocked]`, `signal: restocked` on the firing task and `wait: {signal: restocked}`; `wait: {suspend: true}` and `resume: {task, where, value, limit}` wake instances that no signal names"
   builder: "`add_signal`, `@app.task(signal=...)`, `wait={\"signal\": ...}`, or `context.signal(name).fire(value)`"
   low_level: "`Signal(env, name)`: `yield signal.wait()` and `signal.fire(value)`"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_signal_event_success_and_value
+    - tests/conformance/test_yaml_only.py::test_i4_suspend_waits_for_a_resume_that_names_the_task
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
@@ -115,13 +116,14 @@
   operation: Process failure
   description: "A failure inside a child flow reaches the task waiting for it, which can handle it or fail in turn."
   simpy: "an exception raised in a process reaches the process that waits for it"
-  yaml: "`fail`, `fail_reason` and `on_fail` on a task; a failure no `on_fail` handles fails the waiting task"
+  yaml: "`fail`, `fail_reason` and `on_fail` on a task, and `on_fail` alone for a failed wait or step; a failure no `on_fail` handles fails the waiting task"
   builder: "the same, and a function that raises fails its task"
   low_level: "`try: yield env.process(child())` and `except`"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_failure
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_failure_handled_by_on_fail
     - tests/conformance/test_builder_additions.py::test_builder_on_fail_catches_a_raise
+    - tests/conformance/test_yaml_only.py::test_m3_a_failed_flow_goes_on_when_on_fail_names_a_task
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
   differences: "By default (`on_unhandled_failure` is `stop`) a failure no task waits for stops the run, matching SimPy and the low-level API, where an exception nobody handles stops the run; under `on_unhandled_failure` of `continue` it ends the entity's flow in YAML and the builder, publishes `failed` and is counted, and the run goes on."
 
@@ -217,7 +219,7 @@
   operation: Interrupt during service
   description: "A task is interrupted while it holds a resource, and resumes, restarts or abandons its work."
   simpy: "`simpy.Process.interrupt` while the process holds a unit"
-  yaml: "`on_interrupt: resume`, `restart` or `abandon`"
+  yaml: "`on_interrupt: resume`, `restart` or `abandon`, and `on_interrupt_run` for a task that runs first"
   builder: "`@app.task(on_interrupt=...)`"
   low_level: "`except simpy.Interrupt`, then request again"
   checks:
@@ -240,6 +242,14 @@
     - tests/conformance/test_yaml_only.py::test_v7_a_holder_preempted_at_its_grant_has_its_whole_time_left
     - tests/conformance/test_yaml_only.py::test_v7_cause_left_of_a_single_timeout_wait
     - tests/conformance/test_yaml_only.py::test_p37_preemption_with_resume_and_restart
+    - tests/conformance/test_yaml_only.py::test_i3_a_flow_runs_after_an_interrupt_and_then_the_work_goes_on
+    - tests/conformance/test_yaml_only.py::test_unit_states_interrupt
+    - tests/conformance/test_yaml_only.py::test_a_request_asked_again_under_restart_and_interrupted_goes_to_the_back
+    - tests/conformance/test_yaml_only.py::test_an_interrupt_of_a_suspended_instance_follows_on_interrupt
+    - tests/conformance/test_yaml_only.py::test_an_interrupted_holder_leaves_no_unit_or_request_with_a_breakdown_or_a_release
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_9_runs_as_its_simpy_program
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_9_runs_at_other_sizes
+    - tests/conformance/test_yaml_only.py::test_every_known_case_of_batch_9_runs_or_names_the_key_it_waits_for
   page: learn/shop-logic/interruptions.md#resume-restart-or-abandon
 
 - id: C3
@@ -824,7 +834,7 @@
   operation: Reneging
   description: "A customer leaves the queue after waiting longer than their patience."
   simpy: "`simpy.events.AnyOf` of a request and a timeout"
-  yaml: "`patience: 3 min` on a task"
+  yaml: "`patience: 3 min` on a task, and `on_renege` for the task that follows"
   builder: "`@app.task(..., patience=180)`"
   low_level: "`yield req | env.timeout(patience)`, then `req not in result`"
   checks:
@@ -839,6 +849,7 @@
     - tests/conformance/test_c7_patience.py::test_patience_first_at_a_tie_reneges_a_request_asked_again
     - tests/conformance/test_builder_additions.py::test_builder_on_renege_on_balk
     - tests/conformance/test_builder_additions.py::test_on_renege_and_on_balk_need_their_cause
+    - tests/conformance/test_yaml_only.py::test_i6_a_flow_goes_on_after_it_balks_or_reneges
     - tests/conformance/test_c7_patience.py::test_c7_reneging_tie_timeout_scheduled_before_the_grant
     - tests/conformance/test_c7_patience.py::test_c7_reneged_request_leaves_the_queue
     - tests/conformance/test_c7_patience.py::test_c7_patience_pauses_during_service

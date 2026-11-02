@@ -1,0 +1,33 @@
+# EX-3 Machine shop (SimPy docs/examples/code/machine_shop.py). Ten machines, one repairman with other jobs, breakdowns by mean time to failure 300, repair 30, a run of 3000 minutes. The draws are two repeating sequences (part time 8 to 12, gap between breakdowns 250 to 310), so the program draws the same numbers.
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+variables: {target: -1, parts_made: {}}
+resources:
+  repairman: {current_cap: 1, queue: priority, preempt: true}
+services: {repair_time: {dist: constant, value: 30}}
+arrivals:
+  machines: {initial: 10, spawn: start_machine, key: {gen: sequence, format: "Machine {}"}, attributes: {id: {gen: sequence}, parts_made: 0, broken: 0}}
+  others: {initial: 1, spawn: other_job}
+tasks:
+  start_machine:
+    payload: {event_type: machine_started}
+    spawn: {task: break_loop, copy_attributes: true}
+    next: part
+  part:
+    service_time: {gen: expr, expr: "8 + n % 5", names: {n: {gen: sequence}}}
+    on_interrupt: resume
+    on_interrupt_run: begin_repair
+    set: {parts_made: {gen: expr, expr: "attr.parts_made + 1"}}
+    on: [{path: Shop.variables.parts_made, value: {gen: expr, expr: "set_key(registry['Shop.variables.parts_made'], process.key, get_key(registry['Shop.variables.parts_made'], process.key, 0) + 1)"}}]
+    payload: {event_type: part_made}
+    next: part
+  begin_repair: {payload: {event_type: broken}, set: {broken: 1}, next: repair}
+  repair: {resource: repairman, priority: 1, service: repair_time, set: {broken: 0}, payload: {event_type: repaired}}
+  break_loop:
+    wait: {timeout: {gen: expr, expr: "250 + n % 7 * 10", names: {n: {gen: sequence}}}}
+    payload: {event_type: tick}
+    on:
+      - {path: Shop.variables.target, value: {gen: expr, expr: "attr.id"}}
+      - {interrupt: {task: part, where: "attr.id == registry['Shop.variables.target'] and attr.broken == 0"}}
+    next: break_loop
+  other_job: {resource: repairman, priority: 2, service_time: 30, on_interrupt: resume, payload: {event_type: other_done}, next: other_job}
+run: {until: 3000}

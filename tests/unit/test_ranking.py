@@ -9,12 +9,11 @@ from typing import Any, List, Tuple
 
 import numpy as np
 import pytest
-import simpy
 
 from desflow import SimulationContext, replicate
 from desflow.blueprint.loader import BlueprintError
 from desflow.core.registry import ParamRejected
-from desflow.resources.resource import DynamicResource, QueueFull
+from desflow.resources.resource import DynamicResource
 from tests.conformance.harness import run_builder, run_yaml_text
 
 BASE = """\
@@ -581,8 +580,6 @@ def test_a_bad_write_to_queue_limit_is_refused_by_name_and_keeps_the_limit(writt
 
 
 def test_a_resource_with_its_own_put_queue_has_no_queue_limit_path():
-    from desflow.resources.base import RankedQueue
-
     class Mine(DynamicResource):
         class PutQueue(list):
             def __init__(self, maxlen=None):
@@ -600,7 +597,7 @@ def test_a_resource_with_its_own_put_queue_has_no_queue_limit_path():
     run_builder(app, 0.5)
     with pytest.raises(KeyError):
         app._env.registry.get(LIMIT_PATH)
-    assert RankedQueue  # the default resource keeps the path
+    # the default resource keeps the path
     assert app._env.registry.get("S.resources.k.queue_limit").value is None
 
 

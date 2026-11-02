@@ -21,23 +21,11 @@
 # A batch that removes a gap deletes its id from `gaps` and from every construct.
 
 gaps:
-  I3:
-    text: "After an interrupt, a flow cannot run and then resume the time left, for work that holds no resource."
-    form: computed
-  I4:
-    text: "A process cannot suspend until another process resumes it."
-    form: computed
-  I6:
-    text: "Going on after a renege or a balk has no YAML key, and the Builder's `on_renege` and `on_balk` do it; a child flow that does it reports `ok: true` and no value, as a SimPy child that returns without a value does."
-    form: computed
   M1:
     text: "Readings at each change of a resource, and an event trace, need a `!python` resource type or environment."
     key: "`type: !python` on the resource, or `simulation.environment: !python`"
   M2:
     text: "A Builder `on=` refuses a callable. A generator started with `add_process` can add a function to an event's callbacks."
-  M3:
-    text: "In YAML, `on_fail` needs a `fail` condition, so a failed wait is handled only with a dummy condition. The Builder's `on_fail` takes none."
-    form: computed
 
 unattached:
   B1:
@@ -67,12 +55,12 @@ constructs:
   - {id: SP-E16, area: Environment, simpy: "Callbacks of the stopping event run when the run resumes"}
   - {id: SP-E17, area: Environment, simpy: "A subclass of `Environment`"}
   # Events and Timeout
-  - {id: SP-V1, area: Events and Timeout, simpy: "`Event.succeed(value)` waking every waiter", gaps: [I4]}
+  - {id: SP-V1, area: Events and Timeout, simpy: "`Event.succeed(value)` waking every waiter"}
   - {id: SP-V2, area: Events and Timeout, simpy: "`Event.fail(exception)`"}
   - {id: SP-V3, area: Events and Timeout, simpy: "An event that triggers once"}
   - {id: SP-V4, area: Events and Timeout, simpy: "`Event.trigger(event)`"}
   - {id: SP-V5, area: Events and Timeout, simpy: "`Event.callbacks`", gaps: [M2]}
-  - {id: SP-V6, area: Events and Timeout, simpy: "`Event.defused`", gaps: [M3]}
+  - {id: SP-V6, area: Events and Timeout, simpy: "`Event.defused`"}
   - {id: SP-V7, area: Events and Timeout, simpy: "A failed event nobody handles stops the run"}
   - {id: SP-V8, area: Events and Timeout, simpy: "`Event.triggered`, `processed`, `ok` and `value`"}
   - {id: SP-V9, area: Events and Timeout, simpy: "`a & b` and `a | b`"}
@@ -81,7 +69,7 @@ constructs:
   # Processes
   - {id: SP-P1, area: Processes, simpy: "Start a process and wait for it"}
   - {id: SP-P2, area: Processes, simpy: "A process's return value"}
-  - {id: SP-P3, area: Processes, simpy: "An exception in a process reaches the process that waits for it", gaps: [M3]}
+  - {id: SP-P3, area: Processes, simpy: "An exception in a process reaches the process that waits for it"}
   - {id: SP-P4, area: Processes, simpy: "`Process.is_alive`"}
   - {id: SP-P5, area: Processes, simpy: "`Process.target`"}
   - {id: SP-P6, area: Processes, simpy: "`Process.name`"}
@@ -98,7 +86,7 @@ constructs:
   - {id: SP-C8, area: Conditions, simpy: "A request, get or put as a member of a condition"}
   # Interrupts
   - {id: SP-P8, area: Interrupts, simpy: "`Process.interrupt(cause)` while the process waits"}
-  - {id: SP-P9, area: Interrupts, simpy: "An interrupt during a timeout", gaps: [I3]}
+  - {id: SP-P9, area: Interrupts, simpy: "An interrupt during a timeout"}
   - {id: SP-P10, area: Interrupts, simpy: "`Interrupt` and `Interrupt.cause`"}
   - {id: SP-P11, area: Interrupts, simpy: "Several interrupts at one time arrive in order"}
   - {id: SP-P12, area: Interrupts, simpy: "A process waits again for the same event after an interrupt"}
@@ -117,8 +105,8 @@ constructs:
   - {id: SP-S10, area: Resources, simpy: "`Release` and `Release.request`"}
   - {id: SP-S11, area: Resources, simpy: "`Request.usage_since`"}
   - {id: SP-S12, area: Resources, simpy: "Hold several resources at once"}
-  - {id: SP-S13, area: Resources, simpy: "Reneging: `req | env.timeout(patience)`", gaps: [I6]}
-  - {id: SP-S14, area: Resources, simpy: "Balking: a check before `request()`", gaps: [I6]}
+  - {id: SP-S13, area: Resources, simpy: "Reneging: `req | env.timeout(patience)`"}
+  - {id: SP-S14, area: Resources, simpy: "Balking: a check before `request()`"}
   - {id: SP-Q1, area: Resources, simpy: "`PriorityResource.request(priority)`"}
   - {id: SP-Q2, area: Resources, simpy: "Default request priority 0"}
   - {id: SP-Q3, area: Resources, simpy: "Queue key `(priority, time, not preempt)`"}

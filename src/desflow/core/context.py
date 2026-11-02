@@ -53,6 +53,7 @@ from desflow.core.arrivals import (
     defuse_stopped as _defuse_arrivals_stopped,
     source as _source,
     start_entities,
+    whole,
 )
 from desflow.core.flow import (
     NextSpec,
@@ -380,6 +381,9 @@ class SimulationContext:
         self._held_prune = 64
         # Task instances running now, by task, which interrupt() reaches
         self._running: Dict[str, List[TaskRun]] = {}
+        # The events of the instances suspended in a `wait: {suspend: true}`, by task,
+        # in the order they suspended, which `resume` wakes
+        self._suspended: Dict[str, List[Any]] = {}
         # The instance a task function's generator runs, until `spawn` starts it
         self._runs_of: "weakref.WeakKeyDictionary[Any, TaskRun]" = (
             weakref.WeakKeyDictionary()
@@ -1505,7 +1509,9 @@ class SimulationContext:
         preempt: Union[bool, str] = True,
         on_interrupt: str = "resume",
         on_interrupt_next: Optional[str] = None,
+        on_interrupt_run: Optional[str] = None,
         interrupt: Optional[Mapping[str, Any]] = None,
+        resume: Optional[Mapping[str, Any]] = None,
         spawn: Optional[Mapping[str, Any]] = None,
         subscribe: Optional[Mapping[str, Any]] = None,
         on: Optional[List[Mapping[str, Any]]] = None,
@@ -1676,6 +1682,19 @@ class SimulationContext:
                 interrupt leaves a granted unit with the task; a preemption or a
                 breakdown takes it.
             on_interrupt_next: The task an abandoned instance goes to.
+            on_interrupt_run: The task that runs as a child flow of the same entity
+                after each interrupt or preemption, under `resume` or `restart`, before
+                the task goes on with the time left (a new time under `restart`). The
+                child reads `cause.<name>`. Not with `abandon`, a `resource` or a
+                request in the `wait`, because it is for work that holds no unit of
+                its own. The child runs in the task's process, so an interrupt that
+                arrives while it runs reaches the child at its next wait and follows
+                the child's own `on_interrupt`.
+            resume: An action applied when the task finishes:
+                `{"task": name, "where": condition, "value": value, "limit": n}` wakes
+                the instances of that task suspended in `wait={"suspend": True}`, in the
+                order they suspended, up to `limit` (all when it is None), whose
+                `where` holds. Each reads `value` as `wait.suspend.value`.
             interrupt: An action applied when the task finishes:
                 `{"task": name, "where": condition, "cause": value}` interrupts every
                 running instance of that task whose condition holds, and
@@ -1755,6 +1774,21 @@ class SimulationContext:
             )
         if on_interrupt_next is not None and on_interrupt != "abandon":
             raise ValueError("on_interrupt_next needs on_interrupt='abandon'")
+        if on_interrupt_run is not None:
+            if on_interrupt == "abandon":
+                raise ValueError(
+                    "on_interrupt_run runs a flow and then goes on with the task, so "
+                    "it needs on_interrupt='resume' or 'restart'; with 'abandon', use "
+                    "on_interrupt_next"
+                )
+            if resources or (wait is not None and Wait(wait).requests()):
+                raise ValueError(
+                    "on_interrupt_run is for work that holds no unit of its own, so "
+                    "a task with resource or a request in its wait does not take it; "
+                    "a repair task preempts the unit instead, and a unit an earlier "
+                    "seize took is kept"
+                )
+        resumed = None if resume is None else _parse_resume(resume)
         if interrupt is not None:
             interrupt = dict(interrupt)
             unknown = {*interrupt} - {"task", "handle", "where", "cause"}
@@ -1886,9 +1920,16 @@ class SimulationContext:
             raise ValueError(
                 "on_renege is where a reneging task goes, so it needs patience"
             )
-        if on_balk is not None and balk is None and resource_id is None:
+        if (
+            on_balk is not None
+            and balk is None
+            and resource_id is None
+            and seized is None
+            and opened is None
+        ):
             raise ValueError(
-                "on_balk is where a balking task goes, so it needs a balk or a resource"
+                "on_balk is where a balking task goes, so it needs a balk, a "
+                "resource, a seize or an open"
             )
         spec_kwargs = dict(
             patience=patience,
@@ -1913,7 +1954,9 @@ class SimulationContext:
             preempt=preempt,
             on_interrupt=on_interrupt,
             on_interrupt_next=on_interrupt_next,
+            on_interrupt_run=on_interrupt_run,
             interrupt=interrupt,
+            resume=resumed,
             spawn=None if spawn is None else _parse_spawn(spawn),
             subscribe=None if subscribe is None else Wait(subscribe),
             on=[_parse_on_action(entry) for entry in on or []],
@@ -2734,7 +2777,7 @@ class SimulationContext:
         def signaller(signal: Any, receiver: Any):
             try:
                 result = yield signal
-            except Exception as error:  # noqa: BLE001: the event failed
+            except Exception as error:  # the event failed
                 # Under `continue` the subscriber is told; under `stop` the failure
                 # is left undefused, so it stops the run as SimPy's does.
                 if getattr(self.env, "on_unhandled_failure", "stop") == "stop":
@@ -3057,6 +3100,15 @@ class SimulationContext:
             self._set_arrivals(action["activate"], True)
         elif "deactivate" in action:
             self._set_arrivals(action["deactivate"], False)
+        elif "resume" in action:
+            spec = action["resume"]
+            self._resume(
+                spec["task"],
+                spec.get("where"),
+                spec.get("value"),
+                spec.get("limit"),
+                scope,
+            )
         elif "interrupt" in action:
             spec = action["interrupt"]
             where = spec.get("where")
@@ -3067,6 +3119,50 @@ class SimulationContext:
             )
         else:
             apply_step(self.env, action["path"], action["value"])
+
+    def _resume(
+        self,
+        task: str,
+        where: Union[str, Expression, None],
+        value: Any,
+        limit: Any,
+        scope: Optional[Scope] = None,
+    ) -> int:
+        """Wakes the instances of `task` suspended in a `wait: {suspend: true}`, in
+        the order they suspended, as `event.succeed(value)` wakes a process.
+
+        Args:
+            task: The task whose suspended instances to wake.
+            where: A condition read in each instance's scope, or None for all.
+            value: What each woken instance reads as `wait.suspend.value`, already
+                evaluated.
+            limit: How many to wake at most: a whole number, a boolean counting as 1,
+                an `Expression` read in `scope`, or None for all. 0 or less wakes none.
+            scope: What a `limit` expression reads.
+
+        Returns:
+            int: How many instances were woken.
+
+        Raises:
+            TypeError: If `limit` is not a whole number.
+        """
+        if isinstance(limit, Expression):
+            limit = limit.evaluate(
+                scope if scope is not None else self.values.scope_of(None)
+            )
+        if limit is not None:
+            limit = whole(limit, f"the resume limit of task '{task}'")
+        condition = Expression(where) if isinstance(where, str) else where
+        woken = 0
+        for event in list(self._suspended.get(task, [])):
+            if limit is not None and woken >= limit:
+                break
+            if condition is not None and not condition.evaluate(event.run.scope()):
+                continue
+            event.cancel()  # leaves the list
+            event.succeed(value)
+            woken += 1
+        return woken
 
     def _copy_outcome(
         self, fire: Dict[str, Any], entity: Optional[Entity]
@@ -3745,6 +3841,7 @@ class SimulationContext:
         self._key_skips = {}
         self._draining = False
         self._running = {}
+        self._suspended = {}
         self._entity_counters = {}
         self._arrival_on = {
             name: plan.active for name, plan in self._arrival_plans.items()
@@ -4242,6 +4339,13 @@ class SimulationContext:
                         f"the on: action of {owner} interrupts task '{target}', "
                         + _not_added(target, self._task_specs, "@app.task()")
                     )
+            if "resume" in action:
+                target = action["resume"]["task"]
+                if target not in self._task_specs:
+                    raise ValueError(
+                        f"the on: action of {owner} resumes task '{target}', "
+                        + _not_added(target, self._task_specs, "@app.task()")
+                    )
             if "fire" in action:
                 signal = action["fire"]["signal"]
                 if signal not in self._signal_names:
@@ -4514,6 +4618,7 @@ class SimulationContext:
                 # does one it opens when a task waits for its handle
                 name: {
                     *routes[name],
+                    *([spec.on_interrupt_run] if spec.on_interrupt_run else ()),
                     *(spec.wait.targets("task") if spec.wait else ()),
                     *(
                         node.target
@@ -4545,9 +4650,10 @@ class SimulationContext:
                 if spec.get is not None and spec.get.store is not None and spec.get.wait
             ],
             [
-                spec.on_interrupt_next
+                target
                 for spec in self._task_specs.values()
-                if spec.on_interrupt_next
+                for target in (spec.on_interrupt_next, spec.on_interrupt_run)
+                if target
             ],
         )
         for name, spec in self._task_specs.items():
@@ -4712,6 +4818,8 @@ class SimulationContext:
                 spec.on_renege,
                 spec.on_balk,
                 spec.on_interrupt_next,
+                spec.on_interrupt_run,
+                spec.resume["task"] if spec.resume else None,
                 spec.interrupt["task"] if spec.interrupt else None,
                 *(spec.wait.targets("task") if spec.wait else ()),
                 *(spec.open.targets("task") if spec.open is not None else ()),
@@ -5288,13 +5396,21 @@ def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
         raise ValueError(f"an on: action is a mapping, got {entry!r}")
     present = [
         k
-        for k in ("fire", "spawn", "interrupt", "activate", "deactivate", "path")
+        for k in (
+            "fire",
+            "spawn",
+            "interrupt",
+            "resume",
+            "activate",
+            "deactivate",
+            "path",
+        )
         if entry.get(k) is not None
     ]
     if len(present) != 1:
         raise ValueError(
-            "an on: action takes exactly one of fire, spawn, interrupt, activate, "
-            "deactivate or path"
+            "an on: action takes exactly one of fire, spawn, interrupt, resume, "
+            "activate, deactivate or path"
         )
     kind = present[0]
     if kind == "fire":
@@ -5342,7 +5458,41 @@ def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
         if action.get("where") is not None:
             Expression(action["where"])
         return {"interrupt": action}
+    if kind == "resume":
+        return {"resume": _parse_resume(entry["resume"])}
     return {"path": entry["path"], "value": entry.get("value")}
+
+
+def _parse_resume(spec: Mapping[str, Any]) -> Dict[str, Any]:
+    """Checks a `resume` action and returns it with `where` and a text `limit` parsed:
+    `{task, where, value, limit}`."""
+    if (
+        not isinstance(spec, Mapping)
+        or not isinstance(spec.get("task"), str)
+        or set(spec) - {"task", "where", "value", "limit"}
+    ):
+        raise ValueError(
+            "a resume action takes a task, and an optional where, value and limit, "
+            f"got {spec!r}"
+        )
+    where, limit = spec.get("where"), spec.get("limit")
+    if where is not None and not isinstance(where, (str, Expression)):
+        raise ValueError(f"a resume where is an expression, got {where!r}")
+    if isinstance(limit, str):
+        limit = Expression(limit)
+    elif isinstance(limit, bool) or not (
+        limit is None or isinstance(limit, (numbers.Integral, _Gen, Expression))
+    ):
+        raise ValueError(
+            f"a resume limit is a whole number, an expression or a generator, "
+            f"got {limit!r}"
+        )
+    return {
+        "task": spec["task"],
+        "where": Expression(where) if isinstance(where, str) else where,
+        "value": spec.get("value"),
+        "limit": limit,
+    }
 
 
 def _seconds(value: Union[int, float, str]) -> Union[int, float]:

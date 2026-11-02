@@ -86,6 +86,7 @@ def task_features(context: "SimulationContext", spec: "TaskSpec") -> List[str]:
         "signal",
         "subscribe",
         "interrupt",
+        "resume",
         "seize",
         "open",
         "release",
