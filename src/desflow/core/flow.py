@@ -37,6 +37,7 @@ def make_scope(
     item_priority: Any = None,
     peek: Optional[Callable[[], Any]] = None,
     instances: Optional[Callable[[str], List[Scope]]] = None,
+    stream: Any = None,
 ) -> Scope:
     """
     Builds what an expression's names read.
@@ -61,6 +62,7 @@ def make_scope(
         peek: Gives the time of the next scheduled event, for `peek()`.
         instances: Gives the scopes of the running instances of a task, for
             `running()`.
+        stream: The stream `previous` follows for the entity.
 
     Returns:
         Scope: The scope.
@@ -86,6 +88,7 @@ def make_scope(
         item_priority=item_priority,
         peek=peek,
         instances=instances,
+        stream=stream,
     )
 
 

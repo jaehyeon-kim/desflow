@@ -1406,3 +1406,1243 @@ def test_every_builder_place_takes_a_typed_generator_with_its_own_stream():
     assert len(paths) == 5
     labels = [r for r in recorder.records if r["stream_type"] == "label"]
     assert labels and 0 <= labels[0]["label"]["drawn"] < 1
+
+
+# --- relationships between records ----------------------------------------------------
+
+RELATIONS = (
+    Path(__file__).parent.parent / "conformance" / "yaml_only" / "relationships.yaml"
+)
+
+
+def relation_run(tmp_path: Path, text: str, until: float = 12) -> Any:
+    """A run of a blueprint whose arrivals are written in it."""
+    outcome = run_yaml_text(tmp_path, text.replace("__UNTIL__", str(until)), {})
+    assert outcome.error is None, outcome.error
+    return outcome
+
+
+def relation_model(read: str, make: str = "", arrivals: str = "", seed: int = 3) -> str:
+    """A producer `make` that writes `{id, group, amount}` a second from time 1, and a
+    consumer `read` every 3 seconds from time 3.5, with `read` written as `read`."""
+    return (
+        HEAD % seed
+        + "arrivals:\n  makers: {dist: constant, value: 1, spawn: make}\n"
+        + "  readers: {dist: constant, value: 3, first_at: 3.5, spawn: read}\n"
+        + arrivals
+        + "tasks:\n  make:\n"
+        + textwrap.indent(
+            textwrap.dedent(
+                make
+                or """\
+                vars: {n: {gen: sequence}}
+                payload: {id: {gen: var, name: n}, group: {gen: expr, expr: "n % 3"}, amount: {gen: expr, expr: "n * 10"}}
+                """
+            ).strip("\n"),
+            "    ",
+        )
+        + "\n  read:\n"
+        + textwrap.indent(textwrap.dedent(read).strip("\n"), "    ")
+        + "\nrun: {until: 11}\n"
+    )
+
+
+def read_payloads(tmp_path: Path, read: str, **kwargs: Any) -> List[Dict[str, Any]]:
+    outcome = run_yaml_text(tmp_path, relation_model(read, **kwargs), {})
+    return payloads(outcome, "read")
+
+
+def load_error(tmp_path: Path, text: str) -> str:
+    (tmp_path / "bad.yaml").write_text(text)
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(tmp_path / "bad.yaml")
+    return str(error.value)
+
+
+def test_relationships_file_gives_each_kind_what_it_states(tmp_path):
+    """Every kind of `relationships.yaml` at the first read, 3.5 s into the run: the
+    rows 0, 1 and 2 of `make` exist, and the start at 0.5 s was dropped."""
+    first, second, third = payloads(
+        relation_run(tmp_path, RELATIONS.read_text(), 11), "read"
+    )
+    assert first["step"] == 0 and second["before"] == 0 and third["before"] == 1
+    assert first["before"] == -1  # no earlier record on the stream: the default
+    assert first["oldest"] == 0 and first["newest"] == 2
+    assert first["whole"] == {"id": 2, "group": 2, "amount": 20}
+    assert first["any"] in (0, 1, 2)
+    assert sorted(first["different"]) == [0, 1, 2]
+    assert first["mean"] == 10 and first["total"] == 30
+    assert (first["lowest"], first["highest"], first["rows"]) == (0, 20, 3)
+    assert first["group_zero"] == 0 and second["group_zero"] == 30
+    follow = payloads(relation_run(tmp_path, RELATIONS.read_text(), 11), "follow")
+    assert [p["from_read"] for p in follow] == [0, 1, 2]
+    assert follow[0]["whole"]["step"] == 0 and follow[0]["whole"]["oldest"] == 0
+
+
+def test_lookup_strategies_and_path(tmp_path):
+    found = read_payloads(
+        tmp_path,
+        """\
+        payload:
+          first: {gen: lookup, task: make, path: id, strategy: first}
+          last: {gen: lookup, task: make, path: id, strategy: last}
+          row: {gen: lookup, task: make, strategy: first}
+          random: {gen: repeat, times: 40, value: {gen: lookup, task: make, path: amount}}
+        """,
+    )
+    assert [p["first"] for p in found] == [0, 0, 0]
+    assert [p["last"] for p in found] == [2, 5, 8]
+    assert found[1]["row"] == {"id": 0, "group": 0, "amount": 0}
+    # the rows are 0 to 2, then 0 to 5, then 0 to 8: every one is drawn in time
+    assert set(found[0]["random"]) == {0, 10, 20}
+    assert set(found[2]["random"]) <= {n * 10 for n in range(9)}
+    assert len(set(found[2]["random"])) > 4
+
+
+def test_lookup_reads_only_a_published_row(tmp_path):
+    """A row is readable from the instant its finished record is published. `make` takes
+    5 seconds, so the read at 3.5 s has no row and is dropped, and the first read is at
+    6.5 s, when the arrival of time 1 has finished at 6. Its `queued` and `started`
+    records add no row."""
+    make = """\
+        service_time: 5
+        vars: {n: {gen: sequence}}
+        payload: {id: {gen: var, name: n}}
+        """
+    read = "payload: {last: {gen: lookup, task: make, path: id, strategy: last}, rows: {gen: aggregate, task: make, last: 100, function: count}}"
+    outcome = run_yaml_text(tmp_path, relation_model(read, make=make), {})
+    reads = [
+        r for r in outcome.records if r.get("task") == "read" and "last" in r["value"]
+    ]
+    assert [r["sim_ts"] for r in reads] == [6.5, 9.5]
+    assert [(r["value"]["last"], r["value"]["rows"]) for r in reads] == [(0, 1), (3, 4)]
+
+
+def test_lookup_histogram_draws_from_the_bins_in_the_order_written(tmp_path):
+    found = read_payloads(
+        tmp_path,
+        """\
+        payload:
+          early: {gen: repeat, times: 200, value: {gen: lookup, task: make, path: id, histogram: [{bin: 0.2, frequency: 0.9}, {bin: 0.8, frequency: 0.1}]}}
+          only_late: {gen: repeat, times: 50, value: {gen: lookup, task: make, path: id, histogram: [{bin: 1, frequency: 0}, {bin: 1, frequency: 1}]}}
+        """,
+    )
+    last = found[2]  # the nine rows 0 to 8: the first bin covers row 0 or rows 0 and 1
+    share_first_bin = sum(1 for v in last["early"] if v <= 1) / 200
+    assert 0.8 < share_first_bin <= 1.0
+    assert set(last["only_late"]) <= {4, 5, 6, 7, 8}  # the second half of the rows
+    assert len(set(last["only_late"])) > 2
+
+
+def test_lookup_histogram_leaves_out_a_bin_with_no_row(tmp_path):
+    """With 3 rows the bin of a tenth of them holds none, and the draw uses the others."""
+    found = read_payloads(
+        tmp_path,
+        "payload: {x: {gen: repeat, times: 30, value: {gen: lookup, task: make, path: id, histogram: [{bin: 0.1, frequency: 5}, {bin: 0.9, frequency: 1}]}}}",
+    )
+    assert len(found[0]["x"]) == 30
+    assert set(found[0]["x"]) <= {0, 1, 2}
+
+
+def test_lookup_latest_by_sees_the_newest_row_of_each_value(tmp_path):
+    make = """\
+        vars: {n: {gen: sequence}}
+        payload: {id: {gen: var, name: n}, who: {gen: expr, expr: "n % 2"}, version: {gen: var, name: n}}
+        """
+    found = read_payloads(
+        tmp_path,
+        "payload: {x: {gen: repeat, times: 60, value: {gen: lookup, task: make, path: version, latest_by: who}}}",
+        make=make,
+    )
+    assert set(found[0]["x"]) == {1, 2}  # rows 0 1 2: who 0 -> 2, who 1 -> 1
+    assert set(found[2]["x"]) == {7, 8}  # rows 0 to 8
+    assert set(found[1]["x"]) == {4, 5}
+
+
+def test_lookup_latest_by_follows_a_history_that_drops_rows(tmp_path):
+    """With `history: 4` the rows 0 to 5 leave 2 to 5; a value whose newest row left
+    is gone."""
+    make = """\
+        history: 4
+        vars: {n: {gen: sequence}}
+        payload: {id: {gen: var, name: n}, who: {gen: expr, expr: "n if n < 2 else 9"}}
+        """
+    found = read_payloads(
+        tmp_path,
+        "payload: {x: {gen: repeat, times: 40, value: {gen: lookup, task: make, path: id, latest_by: who}}, n: {gen: aggregate, task: make, last: 100, function: count}}",
+        make=make,
+    )
+    assert found[0]["n"] == 3 and set(found[0]["x"]) == {0, 1, 2}
+    assert found[1]["n"] == 4 and set(found[1]["x"]) == {5}  # rows 2 to 5, all who 9
+
+
+def test_lookup_distinct_gives_each_row_once_in_a_repeat(tmp_path):
+    found = read_payloads(
+        tmp_path,
+        """\
+        payload:
+          a: {gen: repeat, times: 3, value: {gen: lookup, task: make, path: id, distinct: true}}
+          b: {gen: repeat, times: 3, value: {gen: lookup, task: make, path: id, distinct: true}}
+          last: {gen: repeat, times: 3, value: {gen: lookup, task: make, path: id, strategy: last, distinct: true}}
+        """,
+    )
+    for payload in found:
+        assert len(set(payload["a"])) == 3 and len(set(payload["b"])) == 3
+    assert found[0]["last"] == [2, 1, 0]
+    assert found[2]["last"] == [8, 7, 6]
+
+
+def test_lookup_distinct_without_enough_rows_names_the_task(tmp_path):
+    outcome = run_yaml_text(
+        tmp_path,
+        relation_model(
+            "payload: {a: {gen: repeat, times: 4, value: {gen: lookup, task: make, path: id, distinct: true}}}"
+        ),
+        {},
+    )
+    assert any(
+        "has no row left" in str(r["value"].get("reason", ""))
+        for r in outcome.records
+        if r.get("task") == "read"
+    ) or "has no row left" in str(outcome.error)
+
+
+def test_lookup_gate_drops_a_start_and_logs_the_wait_once(tmp_path, caplog):
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="desflow.values.runtime"):
+        found = read_payloads(
+            tmp_path,
+            "payload: {x: {gen: lookup, task: make, path: id}}",
+            arrivals="  early: {dist: constant, value: 0.4, first_at: 0.5, spawn: read}\n",
+        )
+    # `early` starts `read` at 0.5 and 0.9 with no row, and 1.3, 1.7, ... with one
+    assert all(p["x"] >= 0 for p in found) and len(found) > 3
+    lines = [
+        r.getMessage() for r in caplog.records if "was not started" in r.getMessage()
+    ]
+    assert len(lines) == 1
+    assert "task 'read'" in lines[0] and "make" in lines[0]
+    assert "2 starts were dropped" in lines[0] and "0.8" in lines[0]
+
+
+def test_lookup_gate_holds_a_task_reached_by_next(tmp_path):
+    """`a` leads to `b`, which looks up `c`; `c` has no row until time 5, so the flows
+    of `a` that reach `b` before then end there."""
+    text = (
+        HEAD % 1
+        + "arrivals: {a: {dist: constant, value: 2, spawn: a}, c: {dist: constant, value: 5, spawn: c}}\n"
+        + "tasks:\n  a: {payload: {k: 1}, next: b}\n  b: {payload: {v: {gen: lookup, task: c, path: z}}}\n"
+        + "  c: {payload: {z: 7}}\nrun: {until: 11}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None
+    assert [r["sim_ts"] for r in outcome.records if r.get("task") == "b"] == [
+        6.0,
+        8.0,
+        10.0,
+    ]
+    assert [r["sim_ts"] for r in outcome.records if r.get("task") == "a"] == [
+        2,
+        4,
+        6,
+        8,
+        10,
+    ]
+
+
+def test_a_task_that_nothing_starts_is_refused_as_a_lookup_target(tmp_path):
+    text = (
+        HEAD % 1
+        + "arrivals: {a: {dist: constant, value: 1, spawn: grab}}\n"
+        + "tasks:\n  grab: {payload: {x: {gen: lookup, task: other}}}\n  other: {payload: {}}\n"
+    )
+    message = load_error(tmp_path, text)
+    assert "which no arrival, spawn, next or wait starts" in message, message
+
+
+def test_previous_follows_the_arrival_as_one_stream(tmp_path):
+    """Two entities of one arrival share a stream, and a second arrival that starts the
+    same task has its own."""
+    text = (
+        HEAD % 1
+        + "arrivals:\n  a: {dist: constant, value: 2, first_at: 1, spawn: t}\n"
+        + "  b: {dist: constant, value: 2, first_at: 2, spawn: t}\n"
+        + "tasks:\n  t:\n    vars: {n: {gen: sequence}}\n"
+        + "    payload: {n: {gen: var, name: n}, who: {gen: entity}, before: {gen: previous, path: n, default: -1}}\n"
+        + "run: {until: 6.5}\n"
+    )
+    found = payloads(run_yaml_text(tmp_path, text, {}), "t")
+    # n counts every start: a at 1, b at 2, a at 3, b at 4, a at 5, b at 6
+    assert [(p["who"][0], p["n"], p["before"]) for p in found] == [
+        ("a", 0, -1),
+        ("b", 1, -1),
+        ("a", 2, 0),
+        ("b", 3, 1),
+        ("a", 4, 2),
+        ("b", 5, 3),
+    ]
+
+
+def test_previous_is_per_entity_for_an_arrival_with_count_or_keys(tmp_path):
+    for arrival in (
+        "{dist: constant, value: 3, count: 3, stagger: 1, spawn: t}",
+        "{dist: constant, value: 3, keys: [x, y, z], stagger: 1, spawn: t}",
+    ):
+        text = (
+            HEAD % 1
+            + f"arrivals: {{a: {arrival}}}\n"
+            + "tasks:\n  t:\n    vars: {n: {gen: sequence}}\n"
+            + "    payload: {n: {gen: var, name: n}, e: {gen: entity}, before: {gen: previous, path: n, default: -1}}\n"
+            + "run: {until: 10}\n"
+        )
+        found = payloads(run_yaml_text(tmp_path, text, {}), "t")
+        by_entity: Dict[str, List[Dict[str, Any]]] = {}
+        for p in found:
+            by_entity.setdefault(p["e"], []).append(p)
+        assert len(by_entity) == 3
+        for runs in by_entity.values():
+            assert runs[0]["before"] == -1
+            assert [p["before"] for p in runs[1:]] == [p["n"] for p in runs[:-1]]
+        assert len(found) >= 6
+
+
+def test_previous_without_a_default_is_null_at_the_first_record(tmp_path):
+    text = (
+        HEAD % 1
+        + "arrivals: {a: {dist: constant, value: 1, spawn: t, max_events: 2}}\n"
+        + "tasks:\n  t:\n    payload: {before: {gen: previous, path: n}, n: 1}\nrun: {until: 5}\n"
+    )
+    found = payloads(run_yaml_text(tmp_path, text, {}), "t")
+    assert [p["before"] for p in found] == [None, 1]
+
+
+def test_previous_starts_with_a_default_that_is_drawn_only_then(tmp_path):
+    """The default draws from its own stream only when there is no record, so the other
+    fields give the same draws whether or not a default is written."""
+    base = (
+        HEAD % 5
+        + "arrivals: {a: {dist: constant, value: 1, spawn: t, max_events: 4}}\n"
+        + "tasks:\n  t:\n    payload: {u: {gen: uniform, low: 0, high: 1}, p: __P__}\nrun: {until: 6}\n"
+    )
+    with_previous = base.replace(
+        "__P__", "{gen: previous, path: u, default: {gen: uniform, low: 5, high: 6}}"
+    )
+    plain = base.replace("__P__", "0")
+    a = payloads(run_yaml_text(tmp_path, with_previous, {}), "t")
+    b = payloads(run_yaml_text(tmp_path, plain, {}), "t")
+    assert [p["u"] for p in a] == [p["u"] for p in b]
+    assert 5 <= a[0]["p"] <= 6 and a[1]["p"] == a[0]["u"] and a[2]["p"] == a[1]["u"]
+
+
+def test_upstream_reads_the_payload_of_the_routing_task(tmp_path):
+    text = (
+        HEAD % 1
+        + "arrivals: {a: {dist: constant, value: 1, spawn: one, max_events: 2}}\n"
+        + "tasks:\n  one: {payload: {tenant: acme, n: {gen: sequence}}, next: two}\n"
+        + "  two: {payload: {tenant: {gen: upstream, path: tenant}, n: {gen: upstream, path: n}, all: {gen: upstream}}}\n"
+        + "run: {until: 5}\n"
+    )
+    found = payloads(run_yaml_text(tmp_path, text, {}), "two")
+    assert [p["tenant"] for p in found] == ["acme", "acme"]
+    assert [p["n"] for p in found] == [0, 1]
+    assert found[1]["all"] == {"tenant": "acme", "n": 1}
+
+
+def test_aggregate_where_selects_the_rows_of_a_day(tmp_path):
+    """The daily weather shape: a forecast row each hour for lead 1 or 2, and a daily
+    task that averages the rows of one lead and one day. `where` reads the row's fields
+    and also the task's own var `day`."""
+    spec = (
+        HEAD % 1
+        + "arrivals: {h: {dist: constant, value: 3600, spawn: forecast}, d: {dist: constant, value: 86400, first_at: 86399, spawn: daily}}\n"
+        + "tasks:\n"
+        + "  forecast:\n    vars: {k: {gen: sequence}}\n"
+        + "    payload: {lead_days: {gen: expr, expr: '1 + k % 2'}, forecast_for: {gen: format_time, format: '%Y-%m-%dT%H'}, temperature: {gen: var, name: k}, precipitation: {gen: expr, expr: '0 if k % 4 else 1'}}\n"
+        + "  daily:\n    vars:\n      day: {gen: format_time, format: '%Y-%m-%d'}\n"
+        + '      mean: {gen: aggregate, task: forecast, path: temperature, last: 24, function: mean, where: "lead_days == 1 and forecast_for[:10] == day"}\n'
+        + '      wet: {gen: aggregate, task: forecast, last: 24, function: count, where: "lead_days == 1 and forecast_for[:10] == day and precipitation > 0"}\n'
+        + "    payload: {mean: {gen: var, name: mean}, wet: {gen: var, name: wet}}\nrun: {until: 90000}\n"
+    )
+    found = payloads(run_yaml_text(tmp_path, spec, {}), "daily")
+    # The first row is at 1 h (k = 0), so 2026-01-01 holds k = 0 to 22; lead 1 is
+    # every even k, and a row is wet when k is a multiple of 4
+    lead_one = [k for k in range(23) if k % 2 == 0]
+    assert found[0]["mean"] == pytest.approx(sum(lead_one) / len(lead_one))
+    assert found[0]["wet"] == len([k for k in lead_one if k % 4 == 0])
+
+
+def test_aggregate_names_an_unreadable_value(tmp_path):
+    outcome = run_yaml_text(
+        tmp_path,
+        relation_model(
+            "payload: {x: {gen: aggregate, task: make, path: kind, last: 2, function: mean}}",
+            make="vars: {n: {gen: sequence}}\npayload: {kind: text}",
+        ),
+        {},
+    )
+    assert "kind must be a number in every row" in str(outcome.error)
+
+
+def test_aggregate_where_scans_every_row_the_task_keeps(tmp_path):
+    """A `where` that keeps fewer than `last` rows takes the rows there are, from all
+    the rows kept and not from a fixed number of the newest."""
+    found = read_payloads(
+        tmp_path,
+        "payload: {x: {gen: aggregate, task: make, last: 5, function: count, where: 'id == 0'}}",
+    )
+    assert [p["x"] for p in found] == [1, 1, 1]
+
+
+def test_a_generator_added_beside_others_leaves_their_draws(tmp_path):
+    base = """\
+        payload:
+          u: {gen: uniform, low: 0, high: 1}
+          %s
+        """
+    a = read_payloads(tmp_path, base % "x: 1")
+    b = read_payloads(tmp_path, base % "x: {gen: lookup, task: make, path: id}")
+    assert [p["u"] for p in a] == [p["u"] for p in b]
+
+
+@pytest.mark.parametrize(
+    "value, fragment",
+    [
+        ("{gen: lookup, task: nope}", "which is not defined under tasks"),
+        ("{gen: aggregate, task: nope, path: x, last: 2, function: sum}", "nope"),
+        ("{gen: lookup, task: silent}", "payload: null"),
+        (
+            "{gen: lookup, task: make, path: idd}",
+            "'idd' is not a field of the payload of task 'make'",
+        ),
+        ("{gen: lookup, task: make, latest_by: grp}", "'grp' is not a field"),
+        (
+            "{gen: aggregate, task: make, path: amoun, last: 2, function: sum}",
+            "'amoun' is not a field",
+        ),
+        ("{gen: lookup, task: make, distinct: true}", "inside the value of a repeat"),
+        (
+            "{gen: lookup, task: make, strategy: first, histogram: [{bin: 1, frequency: 1}]}",
+            "strategy: random only",
+        ),
+        (
+            "{gen: lookup, task: make, latest_by: a.b}",
+            "latest_by names one field of the row",
+        ),
+        (
+            "{gen: lookup, task: make, histogram: [{bin: 1, frequency: .inf}]}",
+            "frequency",
+        ),
+        ("{gen: lookup, task: make, histogram: [{bin: .inf, frequency: 1}]}", "bin"),
+        ("{gen: aggregate, task: make, path: id, last: true, function: sum}", "last"),
+        ("{gen: aggregate, task: make, path: id, last: 2.0, function: sum}", "last"),
+        ("{gen: lookup, task: make, histogram: []}", "at least one bin"),
+        (
+            "{gen: lookup, task: make, histogram: [{bin: 1, frequency: 0}]}",
+            "add up to above 0",
+        ),
+        (
+            "{gen: aggregate, task: make, last: 2, function: count, path: id}",
+            "takes no path",
+        ),
+        ("{gen: aggregate, task: make, last: 2, function: mean}", "needs the path"),
+        ("{gen: aggregate, task: make, path: id, last: 0, function: sum}", "last"),
+        (
+            "{gen: aggregate, task: make, path: id, last: 2, function: median}",
+            "function",
+        ),
+        (
+            "{gen: aggregate, task: make, path: id, last: 2, function: sum, where: 'id =='}",
+            "where",
+        ),
+        (
+            "{gen: previous, path: nope, default: 1}",
+            "'nope' is not a field of the payload of task 'read'",
+        ),
+        ("{gen: upstream, path: step}", "no task routes to 'read' with next"),
+    ],
+)
+def test_relationship_errors_name_the_line(tmp_path, value, fragment):
+    text = (
+        HEAD % 1
+        + "arrivals: {m: {dist: constant, value: 1, spawn: make}, r: {dist: constant, value: 1, spawn: read}}\n"
+        + "tasks:\n  make: {payload: {id: 1, group: 2, amount: 3}}\n  silent: {payload: null}\n"
+        + f"  read:\n    payload: {{step: 1, x: {value}}}\n"
+    )
+    message = load_error(tmp_path, text)
+    assert fragment in message, message
+    assert message.startswith(str(tmp_path / "bad.yaml")), message
+    assert "<gen>" not in message and "<map>" not in message
+
+
+def test_previous_and_upstream_are_refused_where_no_task_runs(tmp_path):
+    for place in (
+        "attributes: {x: {gen: previous, path: p, default: 1}}",
+        "attributes: {x: {gen: upstream, path: p}}",
+    ):
+        text = (
+            HEAD % 1
+            + f"arrivals: {{a: {{dist: constant, value: 1, spawn: t, {place}}}}}\n"
+            + "tasks: {t: {payload: {}}}\n"
+        )
+        message = load_error(tmp_path, text)
+        assert "so it stands in a task" in message, message
+
+
+def test_tasks_that_look_each_other_up_are_refused(tmp_path):
+    text = (
+        HEAD % 1
+        + "arrivals: {a: {dist: constant, value: 1, spawn: a}, b: {dist: constant, value: 1, spawn: b}}\n"
+        + "tasks:\n  a: {payload: {v: {gen: lookup, task: b, path: w}, z: 1}}\n"
+        + "  b: {payload: {w: {gen: lookup, task: a, path: z}}}\n"
+    )
+    message = load_error(tmp_path, text)
+    assert "tasks look each other up" in message and "a -> b -> a" in message
+    own = text.replace("task: b, path: w", "task: a, path: z")
+    assert "a -> a" in load_error(tmp_path, own)
+
+
+def test_upstream_path_must_be_a_field_of_every_task_that_routes_with_next(tmp_path):
+    text = (
+        HEAD % 1
+        + "arrivals: {a: {dist: constant, value: 1, spawn: p}}\n"
+        + "tasks:\n  p: {payload: {k: 1}, next: q}\n  o: {payload: {z: 1}, next: q}\n"
+        + "  q: {payload: {x: {gen: upstream, path: k}}}\n"
+    )
+    message = load_error(tmp_path, text)
+    assert "'k' is not a field of the payload of task 'o'" in message, message
+
+
+def test_a_lookup_in_an_arrival_place_reads_rows_when_the_entity_arrives(tmp_path):
+    text = (
+        HEAD % 1
+        + "arrivals:\n  m: {dist: constant, value: 1, spawn: make}\n"
+        + "  r: {dist: constant, value: 2, first_at: 3.5, spawn: read, attributes: {seen: {gen: lookup, task: make, path: id, strategy: last}}}\n"
+        + "tasks:\n  make:\n    vars: {n: {gen: sequence}}\n    payload: {id: {gen: var, name: n}}\n"
+        + "  read: {payload: {seen: {gen: attr, name: seen}}}\nrun: {until: 8}\n"
+    )
+    found = payloads(run_yaml_text(tmp_path, text, {}), "read")
+    assert [p["seen"] for p in found] == [2, 4, 6]
+
+
+def test_history_keeps_the_last_rows_and_a_task_nobody_looks_up_keeps_none(tmp_path):
+    found = read_payloads(
+        tmp_path,
+        "payload: {n: {gen: aggregate, task: make, last: 100, function: count}, o: {gen: lookup, task: make, path: id, strategy: first}}",
+        make="history: 4\nvars: {n: {gen: sequence}}\npayload: {id: {gen: var, name: n}}",
+    )
+    assert [(p["n"], p["o"]) for p in found] == [(3, 0), (4, 2), (4, 5)]
+    app = SimulationContext.from_yaml(
+        _write_model(tmp_path, relation_model("payload: {x: 1}"))
+    )
+    app.run(until=2)
+    assert "make" not in app.values._kept
+
+
+def _write_model(tmp_path: Path, text: str) -> Path:
+    (tmp_path / "m.yaml").write_text(text)
+    return tmp_path / "m.yaml"
+
+
+@pytest.mark.parametrize("bad", ["0", "true", '"10"', "5.0", "-3"])
+def test_a_history_that_is_not_a_whole_number_of_one_or_more_is_refused(tmp_path, bad):
+    text = relation_model("payload: {}", make=f"history: {bad}\npayload: {{a: 1}}")
+    assert "history" in load_error(tmp_path, text)
+
+
+def test_a_history_has_no_upper_limit(tmp_path):
+    found = read_payloads(
+        tmp_path,
+        "payload: {n: {gen: aggregate, task: make, last: 10000000, function: count}}",
+        make="history: 50000000\nvars: {n: {gen: sequence}}\npayload: {id: {gen: var, name: n}}",
+    )
+    assert [p["n"] for p in found] == [3, 6, 9]
+
+
+def test_relationships_hold_across_replications_and_a_sample(tmp_path):
+    """Each replication starts with no rows and no `previous` stream, so each reads the
+    same count of rows, and `--sample` prints the records of a run that reads them."""
+    from typer.testing import CliRunner
+
+    from desflow.analysis import replicate
+    from desflow.cli import app as cli
+
+    path = _write(
+        tmp_path,
+        relation_model(
+            "payload: {n: {gen: aggregate, task: make, last: 100, function: count}, before: {gen: previous, path: n, default: -1}}"
+        ),
+    )
+    result = CliRunner().invoke(
+        cli, ["run", str(path), "--sample", "40", "--until", "8"]
+    )
+    assert result.exit_code == 0, result.output
+    reads = [
+        json.loads(line)["value"]
+        for line in result.stdout.splitlines()
+        if '"task":"read"' in line.replace(" ", "") and '"before"' in line
+    ]
+    assert [(r["n"], r["before"]) for r in reads] == [(3, -1), (6, 3)]
+    summary = replicate(
+        path, 3, seed=2, until=8, measures=["tasks.read.finished"]
+    ).summary
+    assert (
+        summary[0]["mean"] == 2
+    )  # the reads at 3.5 and 6.5 in each, never fewer or more
+
+
+def _builder_events(app: SimulationContext, until: float) -> List[Any]:
+    recorder = RecordingEgress()
+    app.add_egress(recorder)
+    app.run(until=until)
+    return [
+        r
+        for r in recorder.records
+        if r["stream_type"] == "event"
+        and isinstance(r["value"], dict)
+        and "status" not in r["value"]
+    ]
+
+
+def _builder_pair(read_payload: Any, **make_options: Any) -> SimulationContext:
+    app = SimulationContext(sim_id="B", random_seed=2, factor=0)
+    app.add_arrival("m", "constant", value=1, spawn="make")
+    app.add_arrival("r", "constant", value=3, first_at=3.5, spawn="read")
+
+    @app.task(name="make", vars={"n": {"gen": "sequence"}}, **make_options)
+    def make(task_id):
+        return Template(
+            {"id": {"gen": "var", "name": "n"}},
+            name="make",
+            vars={"n": {"gen": "sequence"}},
+        )
+
+    app.task(name="read")(lambda task_id: read_payload)
+    return app
+
+
+def test_builder_template_looks_up_a_task_that_asks_for_history():
+    read = Template(
+        {
+            "last": {"gen": "lookup", "task": "make", "path": "id", "strategy": "last"},
+            "rows": {
+                "gen": "aggregate",
+                "task": "make",
+                "last": 9,
+                "function": "count",
+            },
+            "before": {"gen": "previous", "path": "rows", "default": -1},
+        },
+        name="read",
+    )
+    events = _builder_events(_builder_pair(read, history=5), 8)
+    found = [r["value"] for r in events if r["task"] == "read"]
+    assert [(p["last"], p["rows"], p["before"]) for p in found] == [
+        (2, 3, -1),
+        (5, 5, 3),
+    ]
+
+
+def test_builder_task_that_keeps_no_rows_names_the_fix():
+    read = Template({"x": {"gen": "lookup", "task": "make", "path": "id"}}, name="read")
+    app = _builder_pair(read)
+    recorder = RecordingEgress()
+    app.add_egress(recorder)
+    with pytest.raises(Exception) as error:
+        app.run(until=8)
+    assert "keeps no rows" in str(error.value) and "history=" in str(error.value)
+
+
+def test_builder_task_values_name_the_rows_they_need_without_history():
+    """A `lookup` in the `vars` of a builder task makes the task it names keep rows, and
+    a task with one does not start before that task has a row."""
+    app = SimulationContext(sim_id="B", random_seed=2, factor=0)
+    app.add_arrival("m", "constant", value=2, spawn="make")
+    app.add_arrival("r", "constant", value=1, spawn="read")
+    app.task(name="make")(lambda task_id: {"id": task_id})
+    app.task(
+        name="read",
+        vars={"u": {"gen": "lookup", "task": "make", "path": "id", "strategy": "last"}},
+    )(lambda task_id: Template({"u": {"gen": "var", "name": "u"}}, name="read"))
+    found = [r for r in _builder_events(app, 6) if r["task"] == "read"]
+    # `make` first finishes at 2, so the read at 1 is dropped; the read at 2 follows
+    # the finish of `make` in the same instant
+    assert [(r["sim_ts"], r["value"]["u"]) for r in found] == [
+        (2, 0),
+        (3, 0),
+        (4, 1),
+        (5, 1),
+    ]
+
+
+def test_builder_refuses_a_lookup_of_a_name_that_is_not_a_task_and_a_cycle():
+    app = SimulationContext(sim_id="B", random_seed=2, factor=0)
+    app.add_arrival("r", "constant", value=1, spawn="read")
+    app.task(name="read", vars={"u": {"gen": "lookup", "task": "ghost"}})(
+        lambda task_id: {}
+    )
+    with pytest.raises(ValueError, match="names task 'ghost'"):
+        app.run(until=2)
+    cyc = SimulationContext(sim_id="B", random_seed=2, factor=0)
+    cyc.add_arrival("a", "constant", value=1, spawn="a")
+    cyc.task(name="a", vars={"u": {"gen": "lookup", "task": "b"}})(lambda task_id: {})
+    cyc.task(name="b", vars={"u": {"gen": "lookup", "task": "a"}})(lambda task_id: {})
+    with pytest.raises(ValueError, match="a -> b -> a"):
+        cyc.run(until=2)
+
+
+def test_builder_history_must_be_a_whole_number_of_one_or_more():
+    app = SimulationContext(sim_id="B", factor=0)
+    for bad in (0, -1, 2.5, True):
+        with pytest.raises(ValueError, match="history"):
+            app.task(name="t", history=bad)
+
+
+def test_low_level_script_reads_rows_through_the_value_runtime():
+    app = SimulationContext(sim_id="B", random_seed=2, factor=0)
+    app.add_arrival("m", "constant", value=1, spawn="make")
+    app.task(name="make", history=3)(lambda task_id: {"id": task_id, "v": task_id * 2})
+    seen: List[Any] = []
+
+    def reader(context):
+        yield context.env.timeout(5.5)
+        for spec in (
+            {"gen": "lookup", "task": "make", "path": "v", "strategy": "last"},
+            {"gen": "lookup", "task": "make", "path": "v", "strategy": "first"},
+            {
+                "gen": "aggregate",
+                "task": "make",
+                "path": "v",
+                "last": 9,
+                "function": "sum",
+            },
+        ):
+            seen.append(context.values.value(spec))
+
+    app.add_process(reader)
+    app.run(until=6)
+    assert seen == [8, 4, 4 + 6 + 8]
+
+
+def test_runtime_rows_drop_the_oldest_and_the_latest_index_follows():
+    from desflow.values.runtime import _Rows
+
+    rows = _Rows(3)
+    index = rows.latest("who")
+    for n in range(8):
+        rows.add({"n": n, "who": n % 2})
+    assert [r["n"] for _, r in (rows.at(i) for i in range(len(rows)))] == [5, 6, 7]
+    assert sorted(index.at(i)[1]["n"] for i in range(len(index))) == [6, 7]
+    rows.add({"n": 8, "who": [1]})  # a list is kept by its text
+    rows.add({"n": 9})  # no such field: not in the index
+    assert [r["n"] for _, r in (rows.at(i) for i in range(len(rows)))] == [7, 8, 9]
+    assert sorted(index.at(i)[1]["n"] for i in range(len(index))) == [7, 8]
+
+
+# ------------------------------------------------------------ review round 1
+
+
+def test_a_dropped_start_runs_none_of_its_on_actions(tmp_path):
+    """`read` is started at 1 s and 2 s, before `make` has a row at 3 s, and the run
+    ends at 2.5 s. Both starts are dropped, so neither its constant `on:` write, its
+    `on:` write with a `lookup` (which would stop the run), nor its `on:` spawn runs."""
+    text = (
+        HEAD % 1
+        + "resources: {pool: {current_cap: 1}}\n"
+        + "arrivals: {m: {dist: constant, value: 1, first_at: 3, spawn: make, max_events: 1}, r: {dist: constant, value: 1, first_at: 1, spawn: read, max_events: 2}}\n"
+        + "tasks:\n  make: {payload: {a: 1}}\n  other: {payload: {b: 1}}\n"
+        + "  read:\n    on:\n      - {spawn: {task: other}}\n"
+        + "      - {path: B.resources.pool.current_cap, value: 4}\n"
+        + "      - {path: B.resources.pool.current_cap, value: {gen: lookup, task: make, path: a}}\n"
+        + "    payload: {x: {gen: lookup, task: make, path: a}}\n"
+        + "run: {until: 2.5}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, outcome.error
+    assert payloads(outcome, "read") == [] and payloads(outcome, "other") == []
+    assert outcome.app_or_env.get_resource("pool").capacity == 1
+
+
+def test_a_row_field_named_t_wins_over_the_simulation_time_in_where(tmp_path):
+    text = (
+        HEAD % 1
+        + "arrivals: {m: {dist: constant, value: 1, spawn: make, max_events: 4}, r: {dist: constant, value: 10, first_at: 5, spawn: read, max_events: 1}}\n"
+        + "tasks:\n  make: {vars: {n: {gen: sequence}}, payload: {t: {gen: var, name: n}}}\n"
+        + "  read: {payload: {c: {gen: aggregate, task: make, last: 10, function: count, where: 't == 2'}}}\n"
+        + "run: {until: 20}\n"
+    )
+    assert payloads(run_yaml_text(tmp_path, text, {}), "read") == [{"c": 1}]
+
+
+def test_a_builder_template_that_looks_up_a_task_with_no_row_is_dropped(
+    tmp_path, caplog
+):
+    import logging
+
+    app = SimulationContext(sim_id="B", random_seed=1, factor=0)
+    app.add_arrival("m", "constant", value=1, first_at=3, spawn="make")
+    app.add_arrival("r", "constant", value=1, first_at=1, spawn="read")
+    app.task(name="make", history=5)(lambda task_id: {"id": task_id})
+    template = Template(
+        {"x": {"gen": "lookup", "task": "make", "path": "id"}}, name="read"
+    )
+    app.task(name="read")(lambda task_id: template)
+    with caplog.at_level(logging.INFO, logger="desflow.values.runtime"):
+        events = _builder_events(app, 6)
+    reads = [r["sim_ts"] for r in events if r["task"] == "read"]
+    assert reads and min(reads) >= 3
+    lines = [
+        r.getMessage() for r in caplog.records if "was not started" in r.getMessage()
+    ]
+    assert len(lines) == 1 and "task 'read'" in lines[0]
+
+
+def test_a_python_process_may_start_a_lookup_target(tmp_path, monkeypatch):
+    (tmp_path / "procm.py").write_text(
+        "def starter(context):\n    yield context.env.timeout(1)\n    yield context.call('tgt')\n"
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    text = (
+        HEAD % 1
+        + "arrivals: {b: {dist: constant, value: 1, first_at: 3, spawn: read, max_events: 2}}\n"
+        + "tasks:\n  tgt: {history: 5, payload: {a: 1}}\n"
+        + "  read: {payload: {x: {gen: aggregate, task: tgt, path: a, last: 2, function: sum}}}\n"
+        + "processes:\n  - !python procm.starter\nrun: {until: 5}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, outcome.error
+    assert [p["x"] for p in payloads(outcome, "read")] == [1, 1]
+
+
+def test_upstream_is_refused_in_a_task_that_on_fail_reaches(tmp_path):
+    text = (
+        HEAD % 1
+        + "arrivals: {a: {dist: constant, value: 1, spawn: first, max_events: 1}}\n"
+        + "tasks:\n  first: {fail: 'True', on_fail: tgt, payload: {a: 1}}\n"
+        + "  tgt: {payload: {u: {gen: upstream, path: a}}}\nrun: {until: 3}\n"
+    )
+    assert "also reached by on_fail" in load_error(tmp_path, text)
+
+
+def test_two_arrivals_with_the_same_key_keep_separate_previous_streams(tmp_path):
+    text = (
+        HEAD % 1
+        + "arrivals:\n  a: {dist: constant, value: 1, keys: [p], spawn: t}\n"
+        + "  b: {dist: constant, value: 1, first_at: 0.5, keys: [p], spawn: t}\n"
+        + "tasks:\n  t: {payload: {n: {gen: add, args: [{gen: previous, path: n, default: 0}, 1]}}}\n"
+        + "run: {until: 3.9}\n"
+    )
+    found = payloads(run_yaml_text(tmp_path, text, {}), "t")
+    assert sorted(p["n"] for p in found) == [1, 1, 2, 2, 3, 3, 4]
+
+
+def test_a_gate_that_never_opens_logs_why_the_task_is_empty(tmp_path, caplog):
+    import logging
+
+    text = (
+        HEAD % 1
+        + "arrivals: {m: {dist: constant, value: 1, first_at: 50, spawn: make}, r: {dist: constant, value: 1, spawn: read}}\n"
+        + "tasks:\n  make: {payload: {a: 1}}\n  read: {payload: {x: {gen: lookup, task: make, path: a}}}\n"
+        + "run: {until: 5}\n"
+    )
+    with caplog.at_level(logging.INFO, logger="desflow.values.runtime"):
+        outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None and payloads(outcome, "read") == []
+    lines = [
+        r.getMessage() for r in caplog.records if "was not started" in r.getMessage()
+    ]
+    assert len(lines) == 1
+    assert "to the end of the run" in lines[0] and "make" in lines[0]
+
+
+def test_a_histogram_whose_last_bin_is_empty_still_finds_a_row_among_few(tmp_path):
+    found = read_payloads(
+        tmp_path,
+        "payload: {x: {gen: lookup, task: make, path: id, histogram: [{bin: 0.5, frequency: 1}, {bin: 0.5, frequency: 0}]}}",
+        arrivals="  one: {dist: constant, value: 1, first_at: 0.5, spawn: read, max_events: 1}\n",
+        make="vars: {n: {gen: sequence}}\npayload: {id: {gen: var, name: n}}\nhistory: 1",
+    )
+    assert found and all(isinstance(p["x"], int) for p in found)
+
+
+def test_previous_is_one_stream_for_a_group_of_two(tmp_path):
+    text = (
+        HEAD % 1
+        + "arrivals: {a: {dist: constant, value: 1, group: 2, spawn: t}}\n"
+        + "tasks:\n  t: {payload: {n: {gen: add, args: [{gen: previous, path: n, default: 0}, 1]}}}\n"
+        + "run: {until: 2.5}\n"
+    )
+    assert [p["n"] for p in payloads(run_yaml_text(tmp_path, text, {}), "t")] == [
+        1,
+        2,
+        3,
+        4,
+    ]
+
+
+def test_initial_entities_are_dropped_by_a_gate_and_not_started_later(tmp_path, caplog):
+    import logging
+
+    text = (
+        HEAD % 1
+        + "arrivals: {i: {initial: 2, spawn: read}, m: {dist: constant, value: 1, first_at: 1, spawn: make}}\n"
+        + "tasks:\n  make: {payload: {a: 1}}\n  read: {set: {k: {gen: lookup, task: make, path: a}}, payload: {x: 1}}\n"
+        + "run: {until: 5}\n"
+    )
+    with caplog.at_level(logging.INFO, logger="desflow.values.runtime"):
+        outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None
+    # not even a failed record: the start never ran
+    assert [r for r in outcome.records if r.get("task") == "read"] == []
+    lines = [
+        r.getMessage() for r in caplog.records if "was not started" in r.getMessage()
+    ]
+    assert len(lines) == 1 and "2 starts were dropped" in lines[0]
+
+
+# The newest row of each group is not in the order the groups first appeared in: at the
+# third read the newest row of group 0 (7) is older than that of group 1 (8)
+GROUPED = """\
+vars: {n: {gen: sequence}}
+payload: {id: {gen: var, name: n}, group: {gen: expr, expr: "1 if n % 4 == 0 else 0"}}
+"""
+
+
+@pytest.mark.parametrize(
+    "extra, expected",
+    [
+        ("strategy: first", [0, 4, 7]),
+        ("strategy: last", [2, 5, 8]),
+        ("histogram: [{bin: 0.5, frequency: 1}, {bin: 0.5, frequency: 0}]", [0, 4, 7]),
+    ],
+)
+def test_latest_by_with_a_strategy_or_histogram_orders_the_newest_rows_by_time(
+    tmp_path, extra, expected
+):
+    found = read_payloads(
+        tmp_path,
+        f"payload: {{x: {{gen: lookup, task: make, path: id, latest_by: group, {extra}}}}}",
+        make=GROUPED,
+    )
+    assert [p["x"] for p in found] == expected
+
+
+def test_distinct_with_a_histogram_gives_each_row_once(tmp_path):
+    found = read_payloads(
+        tmp_path,
+        "payload: {a: {gen: repeat, times: 3, value: {gen: lookup, task: make, path: id, distinct: true, histogram: [{bin: 1, frequency: 1}]}}}",
+    )
+    assert all(len(set(p["a"])) == 3 for p in found)
+
+
+# ------------------------------------------------------------ review round 2
+
+
+def _template_read() -> Template:
+    return Template({"x": {"gen": "lookup", "task": "make", "path": "id"}}, name="read")
+
+
+def _drop_model(app: SimulationContext, **read_options: Any) -> None:
+    """`read` starts at 1 and returns a Template that looks up `make`, which has its
+    first row at 5; `useit` needs the resource `r` from 6."""
+    app.add_resource("r", current_cap=1)
+    app.add_service("s", "constant", value=1)
+    app.add_arrival("a", "constant", value=100, first_at=1, spawn="read")
+    app.add_arrival("m", "constant", value=100, first_at=5, spawn="make")
+    app.add_arrival("u", "constant", value=100, first_at=6, spawn="useit")
+    app.task(name="make", history=5)(lambda task_id: {"id": 1})
+    template = _template_read()
+    app.task(name="read", **read_options)(lambda task_id: template)
+    app.task("s", "r", name="useit")(lambda task_id: {"used": 1})
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"service_id": "s", "resource_id": "r"},
+        {"wait": {"request": "r"}},
+        {"wait": {"any": {"w": {"request": "r"}, "t": {"timeout": 0.5}}}},
+        {"wait": {"all": {"w": {"request": "r"}, "t": {"timeout": 0.5}}}},
+    ],
+    ids=["resource_id", "wait-request", "wait-any", "wait-all"],
+)
+def test_a_dropped_template_start_gives_back_its_units(options):
+    app = SimulationContext(sim_id="B", random_seed=1, factor=0)
+    _drop_model(app, **options)
+    events = _builder_events(app, 10)
+    resource = app._resources_map["r"]
+    assert (len(resource.users), len(resource.queue)) == (0, 0)
+    assert [r["sim_ts"] for r in events if r["task"] == "useit"] == [7.0]
+
+
+def test_a_dropped_template_start_stops_counting_as_in_progress():
+    app = SimulationContext(sim_id="B", random_seed=1, factor=0)
+    app.with_stats("typical", interval=100)
+    app.add_service("s", "constant", value=1)
+    app.add_arrival("a", "constant", value=1, first_at=1, spawn="read")
+    app.add_arrival("m", "constant", value=100, first_at=5, spawn="make")
+    app.task(name="make", history=5)(lambda task_id: {"id": 1})
+    template = _template_read()
+    app.task("s", name="read")(lambda task_id: template)
+    _builder_events(app, 4.5)
+    stats = app._env.stats
+    assert stats._in_progress.get("read", 0) == 0
+    assert not [key for key in stats._active if key[0] == "read"]
+    assert not [key for key in stats._in_flight if key[0] == "read"]
+
+
+def test_a_dropped_template_start_has_consumed_its_get_item(caplog):
+    """The task function has run, `queued` and `started` are published, and the item
+    of the `get` is gone, so the INFO line says so."""
+    import logging
+
+    app = SimulationContext(sim_id="B", random_seed=1, factor=0)
+    app.add_store("st", items=[1, 2, 3])
+    app.add_arrival("a", "constant", value=100, first_at=1, spawn="read")
+    app.add_arrival("m", "constant", value=100, first_at=5, spawn="make")
+    app.task(name="make", history=5)(lambda task_id: {"id": 1})
+    template = _template_read()
+    calls: List[int] = []
+    app.task(name="read", get={"store": "st"})(
+        lambda task_id: calls.append(task_id) or template
+    )
+    recorder = RecordingEgress()
+    app.add_egress(recorder)
+    with caplog.at_level(logging.INFO, logger="desflow.values.runtime"):
+        app.run(until=4)
+    assert list(app._stores_map["st"].items) == [2, 3]
+    assert len(calls) == 1
+    statuses = [
+        r["value"].get("status")
+        for r in recorder.records
+        if r.get("task") == "read" and isinstance(r["value"], dict)
+    ]
+    assert "queued" in statuses and "started" in statuses
+    lines = [
+        r.getMessage() for r in caplog.records if "was not started" in r.getMessage()
+    ]
+    assert len(lines) == 1 and "get item of each of them was consumed" in lines[0]
+
+
+@pytest.mark.parametrize(
+    "wait, items, left, said",
+    [
+        ({"get": {"store": "st"}}, [1, 2, 3], [2, 3], True),
+        (
+            {"any": {"g": {"get": {"store": "st"}}, "t": {"timeout": 0.5}}},
+            [1, 2, 3],
+            [2, 3],
+            True,
+        ),
+        (
+            {"all": {"g": {"get": {"store": "st"}}, "t": {"timeout": 0.5}}},
+            [1, 2, 3],
+            [2, 3],
+            True,
+        ),
+        (
+            {"any": {"g": {"get": {"store": "st"}}, "t": {"timeout": 0.5}}},
+            [],
+            [],
+            False,
+        ),
+        ({"put": {"store": "st", "item": 9}}, [], [9], False),
+    ],
+    ids=["get", "any-get-taken", "all-get", "any-get-not-taken", "put"],
+)
+def test_a_dropped_template_start_says_whether_a_wait_get_took_an_item(
+    caplog, wait, items, left, said
+):
+    """A `get` branch of a `wait` that took an item has consumed it, as a task's own
+    `get` has. A branch that took nothing, and a `put`, leave no item to report."""
+    import logging
+
+    app = SimulationContext(sim_id="B", random_seed=1, factor=0)
+    app.add_store("st", items=items)
+    app.add_arrival("a", "constant", value=100, first_at=1, spawn="read")
+    app.add_arrival("m", "constant", value=100, first_at=5, spawn="make")
+    app.task(name="make", history=5)(lambda task_id: {"id": 1})
+    template = _template_read()
+    app.task(name="read", wait=wait)(lambda task_id: template)
+    app.add_egress(RecordingEgress())
+    with caplog.at_level(logging.INFO, logger="desflow.values.runtime"):
+        app.run(until=4)
+    assert list(app._stores_map["st"].items) == left
+    lines = [
+        r.getMessage() for r in caplog.records if "was not started" in r.getMessage()
+    ]
+    assert len(lines) == 1
+    assert ("get item of each of them was consumed" in lines[0]) is said
+
+
+def test_the_line_for_a_template_start_that_later_goes_ahead_says_the_item_was_consumed(
+    caplog,
+):
+    import logging
+
+    app = SimulationContext(sim_id="B", random_seed=1, factor=0)
+    app.add_store("st", items=[1, 2, 3, 4, 5])
+    app.add_arrival("a", "constant", value=2.5, first_at=1, spawn="read")
+    app.add_arrival("m", "constant", value=100, first_at=5, spawn="make")
+    app.task(name="make", history=5)(lambda task_id: {"id": 1})
+    template = _template_read()
+    app.task(name="read", get={"store": "st"})(lambda task_id: template)
+    app.add_egress(RecordingEgress())
+    with caplog.at_level(logging.INFO, logger="desflow.values.runtime"):
+        app.run(until=7)
+    lines = [
+        r.getMessage() for r in caplog.records if "was not started" in r.getMessage()
+    ]
+    assert len(lines) == 1 and "until time 6" in lines[0]
+    assert (
+        "2 starts were dropped; the get item of each of them was consumed" in lines[0]
+    )
+
+
+def test_note_values_on_a_template_gives_the_full_gate(caplog):
+    """With `note_values("read", template.payload)` the start is dropped before the
+    function runs, with no `queued` or `started` record and no service."""
+    import logging
+
+    app = SimulationContext(sim_id="B", random_seed=1, factor=0)
+    app.add_service("s", "constant", value=2)
+    app.add_arrival("a", "constant", value=1, first_at=1, spawn="read")
+    app.add_arrival("m", "constant", value=100, first_at=5, spawn="make")
+    app.task(name="make", history=5)(lambda task_id: {"id": 1})
+    template = _template_read()
+    calls: List[int] = []
+    app.task("s", name="read")(lambda task_id: calls.append(task_id) or template)
+    app.note_values("read", template.payload)
+    recorder = RecordingEgress()
+    app.add_egress(recorder)
+    with caplog.at_level(logging.INFO, logger="desflow.values.runtime"):
+        app.run(until=4)
+    assert calls == []
+    assert [r for r in recorder.records if r.get("task") == "read"] == []
+    lines = [
+        r.getMessage() for r in caplog.records if "was not started" in r.getMessage()
+    ]
+    assert len(lines) == 1 and "get item" not in lines[0]
+
+
+def _vars_lookup_model(app: SimulationContext) -> Template:
+    app.add_service("s", "constant", value=2)
+    app.add_arrival("a", "constant", value=1, first_at=1, spawn="read")
+    app.add_arrival("m", "constant", value=100, first_at=5, spawn="make")
+    app.task(name="make")(lambda task_id: {"id": 1})
+    return Template(
+        {"x": {"gen": "var", "name": "u"}},
+        vars={"u": {"gen": "lookup", "task": "make", "path": "id"}},
+        name="read",
+    )
+
+
+@pytest.mark.parametrize("whole_template", [True, False], ids=["template", "vars"])
+def test_note_values_gates_a_lookup_in_the_vars_of_a_template(whole_template):
+    """A `Template` given to `note_values` is searched in its `payload`, `vars` and
+    `vars_once`, and `note_values` keeps the rows of the task it names."""
+    app = SimulationContext(sim_id="B", random_seed=1, factor=0)
+    template = _vars_lookup_model(app)
+    calls: List[int] = []
+    app.task("s", name="read")(lambda task_id: calls.append(task_id) or template)
+    app.note_values("read", template if whole_template else template.vars)
+    recorder = RecordingEgress()
+    app.add_egress(recorder)
+    app.run(until=4)
+    assert calls == []
+    assert [r for r in recorder.records if r.get("task") == "read"] == []
+
+
+def test_note_values_with_a_template_whose_vars_hold_no_lookup_gates_nothing():
+    app = SimulationContext(sim_id="B", random_seed=1, factor=0)
+    template = Template({"x": 1}, vars={"u": 2}, vars_once={"v": 3}, name="read")
+    app.note_values("read", template)
+    assert app._gates == {} and app._row_targets == set()
+
+
+def test_note_values_searches_the_vars_once_of_a_template():
+    app = SimulationContext(sim_id="B", random_seed=1, factor=0)
+    template = Template(
+        {"x": 1},
+        vars_once={"v": {"gen": "lookup", "task": "make", "path": "id"}},
+        name="read",
+    )
+    app.note_values("read", template)
+    assert app._gates == {"read": {"make"}}
+
+
+def test_note_values_searches_a_bound_template_and_its_fields():
+    from desflow.values.models import values_adapter
+    from desflow.values.template import BoundPayload
+
+    app = SimulationContext(sim_id="B", random_seed=1, factor=0)
+    lookup = {"gen": "lookup", "task": "make", "path": "id"}
+    inside = BoundPayload(Template({"x": 1}, vars={"u": lookup}, name="a"))
+    app.note_values("a", inside)
+    assert app._gates == {"a": {"make"}}
+    field = BoundPayload(
+        Template({"x": 1}, name="b"),
+        fields=values_adapter().validate_python({"y": lookup}),
+    )
+    app.note_values("b", field)
+    assert app._gates["b"] == {"make"}
+
+
+def test_note_values_refuses_a_place_it_does_not_search():
+    """A set or an iterator is not searched, so a lookup inside would pass with no
+    message."""
+    app = SimulationContext(sim_id="B", random_seed=1, factor=0)
+    with pytest.raises(TypeError, match="not set"):
+        app.note_values("read", {1, 2})
+    with pytest.raises(TypeError, match="not list_iterator"):
+        app.note_values("read", iter([1]))
+    app.note_values("read", len, None, "text", 3, [1], (1,), {"a": 1})
+
+
+def test_note_values_for_an_unknown_task_is_refused_before_the_run():
+    app = SimulationContext(sim_id="B", random_seed=1, factor=0)
+    app.add_arrival("m", "constant", value=100, first_at=5, spawn="make")
+    app.task(name="make", history=5)(lambda task_id: {"id": 1})
+    template = _template_read()
+    app.task(name="read")(lambda task_id: template)
+    app.note_values("raed", template.payload)
+    app.add_egress(RecordingEgress())
+    with pytest.raises(ValueError, match="note_values names task 'raed'"):
+        app.run(until=4)
+
+
+def test_rows_that_left_are_not_held_past_an_eighth_of_history():
+    from desflow.values.runtime import _Rows
+
+    rows = _Rows(1000)
+    for i in range(1999):
+        rows.add({"i": i})
+    assert len(rows) == 1000 and len(rows._entries) <= 1000 + 125 + 1
+    assert [r["i"] for _, r in rows.newest()][:2] == [1998, 1997]
+
+
+@pytest.mark.parametrize(
+    "function, expected",
+    [
+        ("sum", 0),
+        ("count", 0),
+        ("mean", "mean of no rows"),
+        ("min", "min of no rows"),
+        ("max", "max of no rows"),
+    ],
+)
+def test_aggregate_of_no_rows_is_zero_for_sum_and_count_and_a_named_error_otherwise(
+    tmp_path, function, expected
+):
+    path = "" if function == "count" else "path: id, "
+    outcome = run_yaml_text(
+        tmp_path,
+        relation_model(
+            f"payload: {{x: {{gen: aggregate, task: make, {path}last: 3, function: {function}, where: 'id < 0'}}}}"
+        ),
+        {},
+    )
+    if isinstance(expected, int):
+        assert [p["x"] for p in payloads(outcome, "read")] == [expected] * 3
+    else:
+        assert expected in str(outcome.error)

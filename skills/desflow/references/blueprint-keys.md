@@ -255,7 +255,9 @@ Text in a value place stays text. A time place reads a number as seconds, text `
 
 The cause of an interrupt, the holders of a resource and the entries of a queue are lists and mappings an expression reads: `held(m)` and `waiting(m)` for a resource, `putting(s)` and `getting(s)` for a store or container, `running(task)` and `running(task, condition)`, `peek()`, `process.key` and `process.flow_name`, `signal.<name>.processed`, and in the `when` of a wait group `done_count`.
 
-A value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a mapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a mapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`, `one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`, `sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`, `subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `entity`, `param`, `repeat`, `literal`, `object`, `call` and `row`; `null_rate`, `unique`, `omit_rate` and `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a mapping; `set` values and the `cause` of an interrupt are evaluated when the task finishes or interrupts. `vars_once` names are drawn once for each entity and task, at the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in order, once for each instance of the task: when it starts if `on_start` is given, otherwise after the service, just before the payload; a `service_time` that reads a var draws it first. `{gen: entity}` gives the entity's key, in a task only. A var reads the vars above it with `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are published as one event record when the task starts. `finish_vars` are drawn after the service and may read the vars. A bare var name also reads in `put`, `fail` and `next.when`, but not in `next.weights`, which read the entity and the run. A var name is an identifier, not a name an expression already uses, and is in one of the three groups only. Every generator node draws from its own stream of the run's seed, so adding a node does not change the draws of the others.
+A value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a mapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a mapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`, `one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`, `sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`, `subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `entity`, `param`, `repeat`, `literal`, `object`, `call`, `row`, `lookup`, `previous`, `upstream` and `aggregate`; `null_rate`, `unique`, `omit_rate` and `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a mapping; `set` values and the `cause` of an interrupt are evaluated when the task finishes or interrupts. `vars_once` names are drawn once for each entity and task, at the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in order, once for each instance of the task: when it starts if `on_start` is given, otherwise after the service, just before the payload; a `service_time` that reads a var draws it first. `{gen: entity}` gives the entity's key, in a task only. A var reads the vars above it with `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are published as one event record when the task starts. `finish_vars` are drawn after the service and may read the vars. A bare var name also reads in `put`, `fail` and `next.when`, but not in `next.weights`, which read the entity and the run. A var name is an identifier, not a name an expression already uses, and is in one of the three groups only. Every generator node draws from its own stream of the run's seed, so adding a node does not change the draws of the others.
+
+A task keeps its last `history` finished payloads (default 1,000,000) when a `lookup` or `aggregate` in the file names it, or when `history` is written. A task that looks up another does not start before the other has a row: an arrival's start is dropped, and one INFO line says how long the task waited in simulation time. A task reached by `next` that has no row to look up ends its flow in the same way. `previous` reads the last finished payload of the same task on the same stream: the arrival, or the entity for an arrival with `count` or `keys`. `upstream` reads the payload of the task that routed here, in a task reached by `next`. `aggregate` is `mean`, `sum`, `min`, `max` or `count` over the last rows of a task that `where`, an expression over the row's fields, keeps.
 
 An expression uses Python's arithmetic: `/` gives a float, and `//` rounds down and gives an integer for two integers. `and` and `or` stop at the first operand that decides the result and do not absorb an error: an operand that cannot be evaluated fails the expression. `**` raises to a power (an integer power above 10000 is refused), `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `exp`, `log`, `log10`, `sin`, `cos` and `tan` are calls on numbers, and `has(attr.x)` is true when the entity has the attribute `x`.
 
@@ -286,6 +288,7 @@ An expression also reads a process's local names `arg.<name>`, the interrupt tha
 | `vars_once` | mapping of names to Value |  |
 | `on_start` | mapping of names to Value |  |
 | `finish_vars` | mapping of names to Value |  |
+| `history` | integer | `1000000` |
 | `wait` | [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [WhenWait](#whenwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) | none |
 | `signal` | text | none |
 | `fail` | text | none |
@@ -656,6 +659,23 @@ A value place takes a constant or a generator: a mapping with a `gen` key that n
 | `decimals` | integer | none |
 | `gen` | text | required |
 
+### Aggregate
+
+`aggregate`: `mean`, `sum`, `min`, `max` or `count` over the last `last` rows of the task `task` that `where` keeps. `where` is an expression over the row's own fields, such as `lead_days == 3 and precipitation > 0`; without it every row counts. `count` counts rows and takes no `path`; the others read the number at `path`. A reading looks back through the rows the task keeps (its `history`) until `last` rows are kept, and takes the rows there are when `where` keeps fewer.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `task` | text | required |
+| `path` | text | none |
+| `last` | integer | required |
+| `function` | `mean` or `sum` or `min` or `max` or `count` | required |
+| `where` | text | none |
+
 ### Attr
 
 `attr`: the entity's attribute `name`, or the part of it at `path`.
@@ -809,6 +829,37 @@ A value place takes a constant or a generator: a mapping with a `gen` key that n
 | `gen` | text | required |
 | `value` | None | none |
 
+### Lookup
+
+`lookup`: a row of the finished payloads of the task `task`, or the part of it at `path` (dotted; an integer part indexes a list).
+
+A row is readable from the instant the task's finished record is published. The task keeps its last `history` rows (default 1,000,000).
+
+`strategy` is `random` (the default), `first` (the oldest row kept) or `last` (the newest). `histogram` splits the rows kept, in the order they were written, into bins of the stated shares; a draw picks a bin by its frequency and then a row of the bin at random, so it is for `random` only. A bin that holds no row yet is left out of the draw, and while no bin with a frequency above 0 holds a row (a few rows and a last bin of frequency 0), the draw is over all the rows. `latest_by` keeps only the newest row for each value of that field of the row, so a lookup sees a customer's latest address; `strategy` and `histogram` then choose among those rows, oldest first by the time each was written. `distinct` draws without replacement within one `repeat`, so the items of one order differ.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `task` | text | required |
+| `path` | text | none |
+| `strategy` | `random` or `first` or `last` | `"random"` |
+| `histogram` | list of [HistogramBin](#histogrambin) | none |
+| `latest_by` | text | none |
+| `distinct` | boolean | `false` |
+
+### HistogramBin
+
+One bin of a `lookup` histogram: `bin` is the share of the rows it covers, in the order they were written, and `frequency` is the chance that a draw falls in it. Both are scaled to add up to 1, so `{bin: 2, frequency: 8}, {bin: 8, frequency: 2}` means the same as 0.2 with 0.8, and 0.8 with 0.2.
+
+| Key | Type | Default |
+|---|---|---|
+| `bin` | number | required |
+| `frequency` | number | required |
+
 ### Lower
 
 `lower`: the text of `value` in lower case.
@@ -945,6 +996,20 @@ A value place takes a constant or a generator: a mapping with a `gen` key that n
 | `gen` | text | required |
 | `choices` | list of Value | required |
 | `count` | Value | `1` |
+
+### Previous
+
+`previous`: the last finished payload of the same task for the same stream, or the part of it at `path`. The stream is the arrival, so all the entities it starts share one, except for an arrival with `count` or `keys`, where each entity has its own. `default` is evaluated only when the stream has no finished payload yet, and without one the first reading is null.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `path` | text | none |
+| `default` | Value | none |
 
 ### Repeat
 
@@ -1088,6 +1153,19 @@ One range case of `switch`: the first case whose `min` is at or below `on` and w
 | `omit_when` | text | none |
 | `gen` | text | required |
 | `value` | Value | required |
+
+### Upstream
+
+`upstream`: the finished payload of the task that routed to this one with `next`, or the part of it at `path`. A start by an arrival has no upstream, and a task that `on_fail` or `on_interrupt_next` reaches is handed a failure or an interrupted record, so a blueprint refuses `upstream` there.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `path` | text | none |
 
 ### Uuid
 

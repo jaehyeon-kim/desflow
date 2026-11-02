@@ -1244,7 +1244,8 @@ class Task(_Model):
     `one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`,
     `sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`,
     `subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `entity`,
-    `param`, `repeat`, `literal`, `object`, `call` and `row`; `null_rate`, `unique`, `omit_rate`
+    `param`, `repeat`, `literal`, `object`, `call`, `row`, `lookup`, `previous`,
+    `upstream` and `aggregate`; `null_rate`, `unique`, `omit_rate`
     and `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a
     mapping; `set` values and the `cause` of an interrupt are evaluated when the task
     finishes or interrupts. `vars_once` names are drawn once for each entity and task,
@@ -1258,6 +1259,17 @@ class Task(_Model):
     `next.when`, but not in `next.weights`, which read the entity and the run. A var name is an identifier, not a name an expression already uses,
     and is in one of the three groups only. Every generator node draws from its own
     stream of the run's seed, so adding a node does not change the draws of the others.
+
+    A task keeps its last `history` finished payloads (default 1,000,000) when a
+    `lookup` or `aggregate` in the file names it, or when `history` is written. A task
+    that looks up another does not start before the other has a row: an arrival's start
+    is dropped, and one INFO line says how long the task waited in simulation time. A
+    task reached by `next` that has no row to look up ends its flow in the same way.
+    `previous` reads the last finished payload of the same task on the same stream: the
+    arrival, or the entity for an arrival with `count` or `keys`. `upstream` reads the
+    payload of the task that routed here, in a task reached by `next`. `aggregate` is
+    `mean`, `sum`, `min`, `max` or `count` over the last rows of a task that `where`, an
+    expression over the row's fields, keeps.
 
     An expression uses Python's arithmetic: `/` gives a float, and `//` rounds down
     and gives an integer for two integers. `and` and `or` stop at the first operand
@@ -1328,6 +1340,7 @@ class Task(_Model):
     vars_once: Dict[str, Value] = Field(default_factory=dict)
     on_start: Dict[str, Value] = Field(default_factory=dict)
     finish_vars: Dict[str, Value] = Field(default_factory=dict)
+    history: StrictInt = Field(default=1_000_000, ge=1)
     wait: Optional[WaitBranch] = None
     signal: Optional[str] = None
     fail: Optional[str] = None

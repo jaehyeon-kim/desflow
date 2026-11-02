@@ -406,6 +406,8 @@ class Scope:
         peek: Gives the time of the next scheduled event.
         instances: Gives the scopes of the running instances of a task.
         has_item: Whether a get has given the task an item (it may be None).
+        stream: The stream `previous` follows for the entity, or None where no task
+            runs.
     """
 
     payload: Mapping[str, Any] = field(default_factory=dict)
@@ -430,6 +432,7 @@ class Scope:
     peek: Optional[Callable[[], Any]] = None
     instances: Optional[Callable[[str], List["Scope"]]] = None
     has_item: bool = False
+    stream: Any = None
 
 
 class AnyName:

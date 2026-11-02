@@ -9,18 +9,25 @@ import string
 from pathlib import Path
 from typing import Any, Collection, Dict, Iterator, List, Mapping, Optional, Set, Tuple
 
+from pydantic import BaseModel
+
 from desflow.core.expressions import Scope
 from desflow.utils import suggestion
 from desflow.values.models import (
+    Aggregate,
     Attr,
     Entity,
     Expr,
     Fake,
     Format,
+    Lookup,
     Object,
     Param,
+    Previous,
+    Repeat,
     Row,
     Sample,
+    Upstream,
     Var,
     When,
     _Gen,
@@ -40,8 +47,6 @@ def children(
         node: The generator, or the value, to act on.
         path: Where the value is written, as a path of keys.
     """
-    from pydantic import BaseModel
-
     if isinstance(node, BaseModel):
         for name, field in type(node).model_fields.items():
             if name in _FIELDS:
@@ -63,6 +68,110 @@ def children(
             yield item, path + (index,), False
 
 
+def generators_in(
+    node: Any, kinds: Tuple[type, ...], path: Tuple[Any, ...] = ()
+) -> Iterator[Tuple[Tuple[Any, ...], Any]]:
+    """Every generator of the given kinds under a value, with where it is written.
+
+    Args:
+        node: The value: a generator, a mapping, a list or a constant.
+        kinds: The generator classes to find.
+        path: Where `node` is written.
+
+    Yields:
+        Tuple[Tuple[Any, ...], Any]: The place of the generator and the generator.
+    """
+    if isinstance(node, kinds):
+        yield path, node
+    for item, item_path, _ in children(node, path):
+        yield from generators_in(item, kinds, item_path)
+
+
+def _expand_places(places: Tuple[Any, ...]) -> Iterator[Any]:
+    """The values to search in some places: a `Template` gives its `payload`, `vars`
+    and `vars_once`, a `BoundPayload` gives its template and its fields.
+
+    Raises:
+        TypeError: If a place is a set or an iterator, which are not searched.
+    """
+    from desflow.values.template import BoundPayload, Template
+
+    for place in places:
+        if isinstance(place, Template):
+            yield place.payload
+            yield place.vars
+            yield place.vars_once
+        elif isinstance(place, BoundPayload):
+            yield from _expand_places((place.template, place.fields))
+        elif isinstance(place, (set, frozenset, Iterator)):
+            # Neither is searched by `generators_in`, so a lookup inside would be
+            # missed with no message
+            raise TypeError(
+                f"a place for note_values is a generator, a mapping, a list, a "
+                f"constant or a Template, not {type(place).__name__}"
+            )
+        else:
+            yield place
+
+
+def looked_up(*places: Any) -> Tuple[Set[str], Set[str], bool]:
+    """What the values of some places read from other records.
+
+    Args:
+        places: Values: generators, mappings, lists, constants, or a `Template` (its
+            `payload`, `vars` and `vars_once` are searched).
+
+    Returns:
+        Tuple[Set[str], Set[str], bool]: The tasks a `lookup` names, the tasks a
+            `lookup` or `aggregate` names, and whether a `previous` is there.
+
+    Raises:
+        TypeError: If a place is a set or an iterator, which are not searched.
+    """
+    gates: Set[str] = set()
+    rows: Set[str] = set()
+    previous = False
+    for place in _expand_places(places):
+        for _, node in generators_in(place, (Lookup, Aggregate, Previous)):
+            if isinstance(node, Previous):
+                previous = True
+                continue
+            rows.add(node.task)
+            if isinstance(node, Lookup):
+                gates.add(node.task)
+    return gates, rows, previous
+
+
+def lookup_cycle(gates: Mapping[str, Collection[str]]) -> Optional[List[str]]:
+    """A cycle of tasks that look each other up, so none could start, or None.
+
+    Args:
+        gates: For each task, the tasks its `lookup` generators name.
+
+    Returns:
+        Optional[List[str]]: The tasks of the cycle, the first one repeated at the end.
+    """
+    done: Set[str] = set()
+
+    def walk(name: str, trail: List[str]) -> Optional[List[str]]:
+        if name in trail:
+            return trail[trail.index(name) :] + [name]
+        if name in done:
+            return None
+        for target in sorted(gates.get(name, ())):
+            found = walk(target, trail + [name])
+            if found:
+                return found
+        done.add(name)
+        return None
+
+    for task in sorted(gates):
+        found = walk(task, [])
+        if found:
+            return found
+    return None
+
+
 def check_value(
     node: Any,
     path: Tuple[Any, ...],
@@ -76,6 +185,7 @@ def check_value(
     mapping_field: bool = False,
     in_arrival: bool = False,
     run_scope: bool = False,
+    in_repeat: bool = False,
 ) -> List[Problem]:
     """The problems of the generators under a value.
 
@@ -94,6 +204,8 @@ def check_value(
         run_scope: Whether the place reads the run only, as an arrival's gap, count,
             stagger, `max_events` and `vars` do: the entity has no attributes yet,
             so `attr` is refused.
+        in_repeat: Whether the value is inside the `value` of a `repeat`, which a
+            `lookup` with `distinct` needs.
     """
     found: List[Problem] = []
     names = set(visible) | set(local)
@@ -125,6 +237,7 @@ def check_value(
             inner,
             in_arrival,
             run_scope,
+            in_repeat,
         )
     for item, item_path, is_field in children(node, path):
         found += check_value(
@@ -139,6 +252,8 @@ def check_value(
             mapping_field=is_field,
             in_arrival=in_arrival,
             run_scope=run_scope,
+            in_repeat=in_repeat
+            or (isinstance(node, Repeat) and item_path[-1] == "value"),
         )
     return found
 
@@ -239,6 +354,7 @@ def _kind_problems(
     local: Collection[str],
     in_arrival: bool = False,
     run_scope: bool = False,
+    in_repeat: bool = False,
 ) -> List[Problem]:
     found: List[Problem] = []
     known = set(names) | set(local)
@@ -250,6 +366,33 @@ def _kind_problems(
                 "no attributes yet",
             )
         )
+    elif isinstance(node, Previous):
+        if not in_task:
+            found.append(
+                (
+                    path,
+                    "previous reads the last finished payload of the task it is "
+                    "written in, so it stands in a task; there is none here",
+                )
+            )
+    elif isinstance(node, Upstream):
+        if not in_task:
+            found.append(
+                (
+                    path,
+                    "upstream reads the payload of the task that routed to this one, "
+                    "so it stands in a task; there is none here",
+                )
+            )
+    elif isinstance(node, Lookup):
+        if node.distinct and not in_repeat:
+            found.append(
+                (
+                    path + ("distinct",),
+                    "distinct draws without replacement within one repeat, so the "
+                    "lookup stands inside the value of a repeat",
+                )
+            )
     elif isinstance(node, Entity):
         if not in_task:
             found.append(

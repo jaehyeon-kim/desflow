@@ -253,6 +253,138 @@
       "title": "Add",
       "type": "object"
     },
+    "Aggregate": {
+      "additionalProperties": false,
+      "description": "`aggregate`: `mean`, `sum`, `min`, `max` or `count` over the last `last` rows of\nthe task `task` that `where` keeps. `where` is an expression over the row's own\nfields, such as `lead_days == 3 and precipitation > 0`; without it every row counts.\n`count` counts rows and takes no `path`; the others read the number at `path`. A\nreading looks back through the rows the task keeps (its `history`) until `last` rows\nare kept, and takes the rows there are when `where` keeps fewer.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "aggregate",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "task": {
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "last": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "function": {
+          "anyOf": [
+            {
+              "enum": [
+                "mean",
+                "sum",
+                "min",
+                "max",
+                "count"
+              ],
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "where": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "gen",
+        "task",
+        "last",
+        "function"
+      ],
+      "title": "Aggregate",
+      "type": "object"
+    },
     "AllWait": {
       "additionalProperties": false,
       "description": "A `wait` done when every one of its named branches is.",
@@ -2632,6 +2764,40 @@
       "title": "GetWait",
       "type": "object"
     },
+    "HistogramBin": {
+      "additionalProperties": false,
+      "description": "One bin of a `lookup` histogram: `bin` is the share of the rows it covers, in\nthe order they were written, and `frequency` is the chance that a draw falls in it.\nBoth are scaled to add up to 1, so `{bin: 2, frequency: 8}, {bin: 8, frequency: 2}`\nmeans the same as 0.2 with 0.8, and 0.8 with 0.2.",
+      "properties": {
+        "bin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "frequency": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        }
+      },
+      "required": [
+        "bin",
+        "frequency"
+      ],
+      "title": "HistogramBin",
+      "type": "object"
+    },
     "Integer": {
       "additionalProperties": false,
       "description": "`integer`: a whole number between `bounds[0]` and `bounds[1]`, both included.",
@@ -2823,6 +2989,149 @@
         "gen"
       ],
       "title": "Literal_",
+      "type": "object"
+    },
+    "Lookup": {
+      "additionalProperties": false,
+      "description": "`lookup`: a row of the finished payloads of the task `task`, or the part of it\nat `path` (dotted; an integer part indexes a list).\n\nA row is readable from the instant the task's finished record is published. The\ntask keeps its last `history` rows (default 1,000,000).\n\n`strategy` is `random` (the default), `first` (the oldest row kept) or `last` (the\nnewest). `histogram` splits the rows kept, in the order they were written, into\nbins of the stated shares; a draw picks a bin by its frequency and then a row of the\nbin at random, so it is for `random` only. A bin that holds no row yet is left out\nof the draw, and while no bin with a frequency above 0 holds a row (a few rows and\na last bin of frequency 0), the draw is over all the rows. `latest_by` keeps only\nthe newest row for each value of that field of the row, so a lookup sees a\ncustomer's latest address; `strategy` and `histogram` then choose among those rows,\noldest first by the time each was written. `distinct` draws without replacement\nwithin one `repeat`, so the items of one order differ.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "lookup",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "task": {
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "strategy": {
+          "default": "random",
+          "anyOf": [
+            {
+              "enum": [
+                "random",
+                "first",
+                "last"
+              ],
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "histogram": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/HistogramBin"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "latest_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "distinct": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        }
+      },
+      "required": [
+        "gen",
+        "task"
+      ],
+      "title": "Lookup",
       "type": "object"
     },
     "Lower": {
@@ -3875,6 +4184,97 @@
         "choices"
       ],
       "title": "Pick",
+      "type": "object"
+    },
+    "Previous": {
+      "additionalProperties": false,
+      "description": "`previous`: the last finished payload of the same task for the same stream, or\nthe part of it at `path`. The stream is the arrival, so all the entities it starts\nshare one, except for an arrival with `count` or `keys`, where each entity has its\nown. `default` is evaluated only when the stream has no finished payload yet, and\nwithout one the first reading is null.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "previous",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "default": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        }
+      },
+      "required": [
+        "gen"
+      ],
+      "title": "Previous",
       "type": "object"
     },
     "Process": {
@@ -5662,7 +6062,7 @@
     },
     "Task": {
       "additionalProperties": false,
-      "description": "A `tasks` entry, built with `SimulationContext.task`.\n\nText in a value place stays text. A time place reads a number as seconds, text\n`time_to_seconds` accepts as a duration, and other text as an expression.\n\n`payload` is the value of the `finished` event: a mapping, or a `!python`\nfunction called as `payload(task_id, context)`. `payload: null` publishes no\n`finished` record and the task runs its other steps; a store `put` on such a task\nis refused, because the put carries the payload. `id_field` adds the task id to a\nmapping payload under that key, `key_field` names the payload field whose value\nbecomes the key of the finished event, and so the Kafka message key (the\n`queued` and `started` records keep the entity's key; a payload without the\nfield fails the run), `item_field` adds the item its store `get` took,\nand `attributes` adds the named entity attributes. `key` is a value place for the\nkey of the task's records, drawn once for each instance at its first record and\nwritten as text; it replaces `key_field`, and the two are not given together. A\ntask with a `service` and no `resource` is a timed step; one with\nneither, and no `get`, emits its payload as soon as it is spawned.\n\n`service_time` is the task's own time, in place of a `service`, and the two are\nnot given together: seconds, a duration such as `30 s`, an expression, or a\n`{gen: ...}` generator, read after the task has its resource and, for a `get`, its\nitem. It may read `vars_once` and `vars` as bare names, and `item.<field>` after a\nstore get. A result below 0 fails the run. A task with a `resource` needs a\n`service` or a `service_time`.\n\n`priority` is a number or an expression such as `attr.priority`, for a resource\nwhose `queue` is `priority`. `patience` is seconds, a duration such as `30 s`, an\nexpression or a generator; `balk` is a condition checked before the task joins the queue.\n`resource` is one resource or a list, acquired in the order listed; `keep` hands\nunits to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and\n`interrupt` interrupts the running instances of a task when this one finishes.\n`wait` is what the task waits for first: a signal, a child task, a timeout or a\ncondition, or any or all of several. `signal` names a signal the task fires\nwhen it finishes. `fail` is a condition checked after the service: when it holds\nthe task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or\ncontainer. `next` is a task name, `when` rules or `weights`, whose values are numbers\nor expressions read when the task finishes, with one draw for the choice. `set` gives the\nentity attribute values when the task finishes. `set_args` writes this process's own\nlocal names, read as `arg.<name>` by this task and by the tasks that follow in the\nsame flow (not by a child flow, which has its own). It is read after `set`, so a\npayload reads the value from before the write. A parent passes names to a child with\n`args` on a `task` branch of its `wait`, or on a `spawn`; a read of a name that was\nneither passed nor written is a run failure. `activate` and `deactivate` turn the\nsources of the named arrivals on and off when the task finishes, after `set_args`.\n`cause.<name>` reads why the task was interrupted, in a task that an\n`on_interrupt_next` edge reaches: `by`, `usage_since` and `resource` after a\npreemption, `value` after an `interrupt`, and `left`, the service time that was\nleft. `upstream.<field>` is the payload of the task that routed here, `item` is the\nwhole item a store get took, and it lasts through the `next` chain.\n\nThe cause of an interrupt, the holders of a resource and the entries of a queue are\nlists and mappings an expression reads: `held(m)` and `waiting(m)` for a resource,\n`putting(s)` and `getting(s)` for a store or container, `running(task)` and\n`running(task, condition)`, `peek()`, `process.key` and `process.flow_name`,\n`signal.<name>.processed`, and in the `when` of a wait group `done_count`.\n\nA value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a\nmapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a\nmapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`,\n`one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`,\n`sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`,\n`subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `entity`,\n`param`, `repeat`, `literal`, `object`, `call` and `row`; `null_rate`, `unique`, `omit_rate`\nand `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a\nmapping; `set` values and the `cause` of an interrupt are evaluated when the task\nfinishes or interrupts. `vars_once` names are drawn once for each entity and task,\nat the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in\norder, once for each instance of the task: when it starts if `on_start` is given,\notherwise after the service, just before the payload; a `service_time` that reads\na var draws it first. `{gen: entity}` gives the entity's key, in a task only. A var reads the vars above it\nwith `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are\npublished as one event record when the task starts. `finish_vars` are drawn after\nthe service and may read the vars. A bare var name also reads in `put`, `fail` and\n`next.when`, but not in `next.weights`, which read the entity and the run. A var name is an identifier, not a name an expression already uses,\nand is in one of the three groups only. Every generator node draws from its own\nstream of the run's seed, so adding a node does not change the draws of the others.\n\nAn expression uses Python's arithmetic: `/` gives a float, and `//` rounds down\nand gives an integer for two integers. `and` and `or` stop at the first operand\nthat decides the result and do not absorb an error: an operand that cannot be\nevaluated fails the expression. `**` raises to a power (an integer power above\n10000 is refused), `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `exp`,\n`log`, `log10`, `sin`, `cos` and `tan` are calls on numbers, and `has(attr.x)` is\ntrue when the entity has the attribute `x`.\n\nAn expression also reads a process's local names `arg.<name>`, the interrupt that\nreached the task as `cause.<name>`, the payload of the task that routed here as\n`upstream.<field>` (at any depth), `process.key` and `process.flow_name`, the\nbare `item` and `item_priority` after a store get, and `signal.<name>.processed`.\n`held(<resource>)`, `waiting(<resource>)`, `putting(<store or container>)` and\n`getting(<store or container>)` give lists of mappings (with `entity`, and `rank`,\n`time`, `preempt`, `key` and `since` for a resource, `item` for a store put and\n`amount` for a container); `running(<task>[, <condition>])` counts the instances\nof a task, and `peek()` is the time of the next event. Lists `[1, 2]`, mappings\n`{'a': 1}`, one-clause comprehensions `[x * 2 for x in list if x > 1]`,\nsubscripts and slices, `is None`, `in`, and dotted reads at any depth work on\nthem. The functions `len`, `sum`, `sorted`, `range`, `any`, `all`, `str`, `int`,\n`float`, `bool`, `get_key(mapping, key, default)`, `set_key(mapping, key, value)`\nand `drop_key(mapping, key)` work on lists and mappings; `min` and `max` take a\nlist. `set_key` and `drop_key` give a new mapping. A reading makes at most\n1,000,000 items, and `%` on text is refused.",
+      "description": "A `tasks` entry, built with `SimulationContext.task`.\n\nText in a value place stays text. A time place reads a number as seconds, text\n`time_to_seconds` accepts as a duration, and other text as an expression.\n\n`payload` is the value of the `finished` event: a mapping, or a `!python`\nfunction called as `payload(task_id, context)`. `payload: null` publishes no\n`finished` record and the task runs its other steps; a store `put` on such a task\nis refused, because the put carries the payload. `id_field` adds the task id to a\nmapping payload under that key, `key_field` names the payload field whose value\nbecomes the key of the finished event, and so the Kafka message key (the\n`queued` and `started` records keep the entity's key; a payload without the\nfield fails the run), `item_field` adds the item its store `get` took,\nand `attributes` adds the named entity attributes. `key` is a value place for the\nkey of the task's records, drawn once for each instance at its first record and\nwritten as text; it replaces `key_field`, and the two are not given together. A\ntask with a `service` and no `resource` is a timed step; one with\nneither, and no `get`, emits its payload as soon as it is spawned.\n\n`service_time` is the task's own time, in place of a `service`, and the two are\nnot given together: seconds, a duration such as `30 s`, an expression, or a\n`{gen: ...}` generator, read after the task has its resource and, for a `get`, its\nitem. It may read `vars_once` and `vars` as bare names, and `item.<field>` after a\nstore get. A result below 0 fails the run. A task with a `resource` needs a\n`service` or a `service_time`.\n\n`priority` is a number or an expression such as `attr.priority`, for a resource\nwhose `queue` is `priority`. `patience` is seconds, a duration such as `30 s`, an\nexpression or a generator; `balk` is a condition checked before the task joins the queue.\n`resource` is one resource or a list, acquired in the order listed; `keep` hands\nunits to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and\n`interrupt` interrupts the running instances of a task when this one finishes.\n`wait` is what the task waits for first: a signal, a child task, a timeout or a\ncondition, or any or all of several. `signal` names a signal the task fires\nwhen it finishes. `fail` is a condition checked after the service: when it holds\nthe task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or\ncontainer. `next` is a task name, `when` rules or `weights`, whose values are numbers\nor expressions read when the task finishes, with one draw for the choice. `set` gives the\nentity attribute values when the task finishes. `set_args` writes this process's own\nlocal names, read as `arg.<name>` by this task and by the tasks that follow in the\nsame flow (not by a child flow, which has its own). It is read after `set`, so a\npayload reads the value from before the write. A parent passes names to a child with\n`args` on a `task` branch of its `wait`, or on a `spawn`; a read of a name that was\nneither passed nor written is a run failure. `activate` and `deactivate` turn the\nsources of the named arrivals on and off when the task finishes, after `set_args`.\n`cause.<name>` reads why the task was interrupted, in a task that an\n`on_interrupt_next` edge reaches: `by`, `usage_since` and `resource` after a\npreemption, `value` after an `interrupt`, and `left`, the service time that was\nleft. `upstream.<field>` is the payload of the task that routed here, `item` is the\nwhole item a store get took, and it lasts through the `next` chain.\n\nThe cause of an interrupt, the holders of a resource and the entries of a queue are\nlists and mappings an expression reads: `held(m)` and `waiting(m)` for a resource,\n`putting(s)` and `getting(s)` for a store or container, `running(task)` and\n`running(task, condition)`, `peek()`, `process.key` and `process.flow_name`,\n`signal.<name>.processed`, and in the `when` of a wait group `done_count`.\n\nA value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a\nmapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a\nmapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`,\n`one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`,\n`sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`,\n`subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `entity`,\n`param`, `repeat`, `literal`, `object`, `call`, `row`, `lookup`, `previous`,\n`upstream` and `aggregate`; `null_rate`, `unique`, `omit_rate`\nand `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a\nmapping; `set` values and the `cause` of an interrupt are evaluated when the task\nfinishes or interrupts. `vars_once` names are drawn once for each entity and task,\nat the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in\norder, once for each instance of the task: when it starts if `on_start` is given,\notherwise after the service, just before the payload; a `service_time` that reads\na var draws it first. `{gen: entity}` gives the entity's key, in a task only. A var reads the vars above it\nwith `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are\npublished as one event record when the task starts. `finish_vars` are drawn after\nthe service and may read the vars. A bare var name also reads in `put`, `fail` and\n`next.when`, but not in `next.weights`, which read the entity and the run. A var name is an identifier, not a name an expression already uses,\nand is in one of the three groups only. Every generator node draws from its own\nstream of the run's seed, so adding a node does not change the draws of the others.\n\nA task keeps its last `history` finished payloads (default 1,000,000) when a\n`lookup` or `aggregate` in the file names it, or when `history` is written. A task\nthat looks up another does not start before the other has a row: an arrival's start\nis dropped, and one INFO line says how long the task waited in simulation time. A\ntask reached by `next` that has no row to look up ends its flow in the same way.\n`previous` reads the last finished payload of the same task on the same stream: the\narrival, or the entity for an arrival with `count` or `keys`. `upstream` reads the\npayload of the task that routed here, in a task reached by `next`. `aggregate` is\n`mean`, `sum`, `min`, `max` or `count` over the last rows of a task that `where`, an\nexpression over the row's fields, keeps.\n\nAn expression uses Python's arithmetic: `/` gives a float, and `//` rounds down\nand gives an integer for two integers. `and` and `or` stop at the first operand\nthat decides the result and do not absorb an error: an operand that cannot be\nevaluated fails the expression. `**` raises to a power (an integer power above\n10000 is refused), `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `exp`,\n`log`, `log10`, `sin`, `cos` and `tan` are calls on numbers, and `has(attr.x)` is\ntrue when the entity has the attribute `x`.\n\nAn expression also reads a process's local names `arg.<name>`, the interrupt that\nreached the task as `cause.<name>`, the payload of the task that routed here as\n`upstream.<field>` (at any depth), `process.key` and `process.flow_name`, the\nbare `item` and `item_priority` after a store get, and `signal.<name>.processed`.\n`held(<resource>)`, `waiting(<resource>)`, `putting(<store or container>)` and\n`getting(<store or container>)` give lists of mappings (with `entity`, and `rank`,\n`time`, `preempt`, `key` and `since` for a resource, `item` for a store put and\n`amount` for a container); `running(<task>[, <condition>])` counts the instances\nof a task, and `peek()` is the time of the next event. Lists `[1, 2]`, mappings\n`{'a': 1}`, one-clause comprehensions `[x * 2 for x in list if x > 1]`,\nsubscripts and slices, `is None`, `in`, and dotted reads at any depth work on\nthem. The functions `len`, `sum`, `sorted`, `range`, `any`, `all`, `str`, `int`,\n`float`, `bool`, `get_key(mapping, key, default)`, `set_key(mapping, key, value)`\nand `drop_key(mapping, key)` work on lists and mappings; `min` and `max` take a\nlist. `set_key` and `drop_key` give a new mapping. A reading makes at most\n1,000,000 items, and `%` on text is refused.",
       "properties": {
         "service": {
           "anyOf": [
@@ -5964,6 +6364,18 @@
             "$ref": "#/$defs/Value"
           },
           "type": "object"
+        },
+        "history": {
+          "default": 1000000,
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
         },
         "wait": {
           "anyOf": [
@@ -6525,6 +6937,93 @@
         "value"
       ],
       "title": "Upper",
+      "type": "object"
+    },
+    "Upstream": {
+      "additionalProperties": false,
+      "description": "`upstream`: the finished payload of the task that routed to this one with\n`next`, or the part of it at `path`. A start by an arrival has no upstream, and a\ntask that `on_fail` or `on_interrupt_next` reaches is handed a failure or an\ninterrupted record, so a blueprint refuses `upstream` there.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "upstream",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "gen"
+      ],
+      "title": "Upstream",
       "type": "object"
     },
     "Uuid": {
@@ -7130,6 +7629,18 @@
         },
         {
           "$ref": "#/$defs/Row"
+        },
+        {
+          "$ref": "#/$defs/Lookup"
+        },
+        {
+          "$ref": "#/$defs/Previous"
+        },
+        {
+          "$ref": "#/$defs/Upstream"
+        },
+        {
+          "$ref": "#/$defs/Aggregate"
         }
       ]
     },

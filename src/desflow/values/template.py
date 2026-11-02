@@ -7,11 +7,14 @@ validates it with the same models, so a mistake raises Pydantic's `ValidationErr
 
 import itertools
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple
 
 from pydantic import BaseModel
 
+from desflow.values.check import generators_in
 from desflow.values.models import (
+    Lookup,
+    Previous,
     _Gen,
     generator_adapter,
     payload_adapter,
@@ -117,6 +120,10 @@ class Template:
         payload: The validated mapping.
         vars: The named values a `vars` key would hold, evaluated before the payload.
         vars_once: The same, evaluated once for each entity.
+        uses_previous (bool): Whether a generator in it is a `previous`, so the task
+            that renders it keeps its last payload.
+        looks_up (Set[str]): The tasks a `lookup` in it names. A task that renders it
+            does not go on before each of them has a row.
     """
 
     def __init__(
@@ -154,6 +161,17 @@ class Template:
         bind(self.payload, base + ("payload",), overwrite=False)
         bind(self.vars, base + ("vars",), overwrite=False)
         bind(self.vars_once, base + ("vars_once",), overwrite=False)
+        # Whether a task that renders this template keeps its last payload for it
+        self.uses_previous: bool = any(
+            True
+            for place in (self.payload, self.vars, self.vars_once)
+            for _ in generators_in(place, (Previous,))
+        )
+        self.looks_up: Set[str] = {
+            node.task
+            for place in (self.payload, self.vars, self.vars_once)
+            for _, node in generators_in(place, (Lookup,))
+        }
         if check:
             self._check(base)
 

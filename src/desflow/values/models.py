@@ -42,6 +42,7 @@ from pydantic import (
     Discriminator,
     Field,
     PrivateAttr,
+    StrictInt,
     Tag,
     field_validator,
     model_validator,
@@ -1191,7 +1192,8 @@ class Repeat(_Gen):
         times = self.whole(run.evaluate(self.times, scope), "times")
         if times < 0:
             raise self.fail(f"times must be 0 or more, got {times}")
-        return [run.evaluate(self.value, scope) for _ in range(times)]
+        with run.distinct_frame():
+            return [run.evaluate(self.value, scope) for _ in range(times)]
 
 
 class Literal_(_Gen):
@@ -1303,6 +1305,175 @@ class Row(_Gen):
         return run.pick_row(self, self._rows)
 
 
+# --- relationships between records ---------------------------------------------
+
+
+class HistogramBin(BaseModel):
+    """One bin of a `lookup` histogram: `bin` is the share of the rows it covers, in
+    the order they were written, and `frequency` is the chance that a draw falls in it.
+    Both are scaled to add up to 1, so `{bin: 2, frequency: 8}, {bin: 8, frequency: 2}`
+    means the same as 0.2 with 0.8, and 0.8 with 0.2."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    bin: float = Field(gt=0, allow_inf_nan=False)
+    frequency: float = Field(ge=0, allow_inf_nan=False)
+
+
+class Lookup(_Gen):
+    """`lookup`: a row of the finished payloads of the task `task`, or the part of it
+    at `path` (dotted; an integer part indexes a list).
+
+    A row is readable from the instant the task's finished record is published. The
+    task keeps its last `history` rows (default 1,000,000).
+
+    `strategy` is `random` (the default), `first` (the oldest row kept) or `last` (the
+    newest). `histogram` splits the rows kept, in the order they were written, into
+    bins of the stated shares; a draw picks a bin by its frequency and then a row of the
+    bin at random, so it is for `random` only. A bin that holds no row yet is left out
+    of the draw, and while no bin with a frequency above 0 holds a row (a few rows and
+    a last bin of frequency 0), the draw is over all the rows. `latest_by` keeps only
+    the newest row for each value of that field of the row, so a lookup sees a
+    customer's latest address; `strategy` and `histogram` then choose among those rows,
+    oldest first by the time each was written. `distinct` draws without replacement
+    within one `repeat`, so the items of one order differ."""
+
+    gen: Literal["lookup"]
+    task: str
+    path: Optional[str] = None
+    strategy: Literal["random", "first", "last"] = "random"
+    histogram: Optional[List[HistogramBin]] = None
+    latest_by: Optional[str] = None
+    distinct: bool = False
+
+    @model_validator(mode="after")
+    def _arguments_fit(self) -> "Lookup":
+        if self.latest_by is not None and "." in self.latest_by:
+            raise ValueError(
+                "latest_by names one field of the row, so it has no dot; "
+                f"{self.latest_by!r} reads a part of a field"
+            )
+        if self.histogram is not None:
+            if self.strategy != "random":
+                raise ValueError("a histogram applies to strategy: random only")
+            if not self.histogram:
+                raise ValueError("a histogram needs at least one bin")
+            if not sum(b.frequency for b in self.histogram) > 0:
+                raise ValueError(
+                    "the frequencies of a histogram must add up to above 0"
+                )
+        return self
+
+    def evaluate(self, run: "ValueRuntime", scope: Scope) -> Any:
+        """The value of this generator.
+
+        Args:
+            run: The value runtime, which holds the generator's random stream.
+            scope: What the expressions here read.
+
+        Returns:
+            Any: The value.
+        """
+        return run.lookup(self, scope)
+
+
+class Previous(_Gen):
+    """`previous`: the last finished payload of the same task for the same stream, or
+    the part of it at `path`. The stream is the arrival, so all the entities it starts
+    share one, except for an arrival with `count` or `keys`, where each entity has its
+    own. `default` is evaluated only when the stream has no finished payload yet, and
+    without one the first reading is null."""
+
+    gen: Literal["previous"]
+    path: Optional[str] = None
+    default: "Value" = Field(default=None)
+
+    def evaluate(self, run: "ValueRuntime", scope: Scope) -> Any:
+        """The value of this generator.
+
+        Args:
+            run: The value runtime, which holds the generator's random stream.
+            scope: What the expressions here read.
+
+        Returns:
+            Any: The value.
+        """
+        return run.previous(self, scope)
+
+
+class Upstream(_Gen):
+    """`upstream`: the finished payload of the task that routed to this one with
+    `next`, or the part of it at `path`. A start by an arrival has no upstream, and a
+    task that `on_fail` or `on_interrupt_next` reaches is handed a failure or an
+    interrupted record, so a blueprint refuses `upstream` there."""
+
+    gen: Literal["upstream"]
+    path: Optional[str] = None
+
+    def evaluate(self, run: "ValueRuntime", scope: Scope) -> Any:
+        """The value of this generator.
+
+        Args:
+            run: The value runtime, which holds the generator's random stream.
+            scope: What the expressions here read.
+
+        Returns:
+            Any: The value.
+        """
+        if scope.upstream is None:
+            raise self.fail(
+                "this task was not reached by another task, so there is no upstream "
+                "payload"
+            )
+        try:
+            return run.copy(part_of(scope.upstream, self.path))
+        except KeyError as exc:
+            raise self.fail(f"upstream: {exc.args[0]}") from None
+
+
+class Aggregate(_Gen):
+    """`aggregate`: `mean`, `sum`, `min`, `max` or `count` over the last `last` rows of
+    the task `task` that `where` keeps. `where` is an expression over the row's own
+    fields, such as `lead_days == 3 and precipitation > 0`; without it every row counts.
+    `count` counts rows and takes no `path`; the others read the number at `path`. A
+    reading looks back through the rows the task keeps (its `history`) until `last` rows
+    are kept, and takes the rows there are when `where` keeps fewer."""
+
+    gen: Literal["aggregate"]
+    task: str
+    path: Optional[str] = None
+    last: StrictInt = Field(ge=1)
+    function: Literal["mean", "sum", "min", "max", "count"]
+    where: Optional[str] = None
+
+    @field_validator("where")
+    @classmethod
+    def _where_parses(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None:
+            Expression(value, names=ANY_NAME)
+        return value
+
+    @model_validator(mode="after")
+    def _path_fits_function(self) -> "Aggregate":
+        if self.function == "count" and self.path is not None:
+            raise ValueError("count counts rows and takes no path")
+        if self.function != "count" and self.path is None:
+            raise ValueError(f"{self.function} needs the path of the number to read")
+        return self
+
+    def evaluate(self, run: "ValueRuntime", scope: Scope) -> Any:
+        """The value of this generator.
+
+        Args:
+            run: The value runtime, which holds the generator's random stream.
+            scope: What the expressions here read.
+
+        Returns:
+            Any: The value.
+        """
+        return run.aggregate(self, scope)
+
+
 _KINDS = (
     Uniform,
     Integer,
@@ -1338,6 +1509,10 @@ _KINDS = (
     Object,
     Call,
     Row,
+    Lookup,
+    Previous,
+    Upstream,
+    Aggregate,
 )
 
 Generator = Annotated[
@@ -1376,6 +1551,10 @@ Generator = Annotated[
         Object,
         Call,
         Row,
+        Lookup,
+        Previous,
+        Upstream,
+        Aggregate,
     ],
     Discriminator("gen"),
 ]
@@ -1429,7 +1608,7 @@ else:
         ],
     )
 
-for _model in (*_KINDS, WeightedChoice, SwitchRange):
+for _model in (*_KINDS, WeightedChoice, SwitchRange, HistogramBin):
     _model.model_rebuild(_types_namespace={"Value": Value})
 
 # The generator classes by the value of `gen`

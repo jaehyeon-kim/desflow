@@ -53,8 +53,23 @@ from desflow.core.task import (
 from desflow.core.context import SimulationContext
 from desflow.core.environment import in_zone, resolve_zone
 from desflow.utils import suggestion
-from desflow.values.check import check_value, children, task_value_problems
-from desflow.values.models import Expr, When, _Gen, has_generator
+from desflow.values.check import (
+    check_value,
+    children,
+    generators_in,
+    lookup_cycle,
+    task_value_problems,
+)
+from desflow.values.models import (
+    Aggregate,
+    Expr,
+    Lookup,
+    Previous,
+    Upstream,
+    When,
+    _Gen,
+    has_generator,
+)
 from desflow.values.template import BoundPayload, Template, bind as bind_values
 
 logger = logging.getLogger(__name__)
@@ -742,6 +757,43 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
             )
 
 
+def _starts(blueprint: Blueprint) -> Set[str]:
+    """The tasks an entity can start a flow from: an arrival's task, or one a spawn
+    starts. Each spawn begins a new entity, so a spawn target is a start of its own."""
+    starts = {a.spawn for a in blueprint.arrivals.values() if a.spawn is not None}
+    for task in blueprint.tasks.values():
+        if task.spawn is not None:
+            starts.add(task.spawn.task)
+        starts.update(e.spawn.task for e in task.on if e.spawn is not None)
+    for signal in blueprint.signals.values():
+        starts.update(e.spawn.task for e in signal.on if e.spawn is not None)
+    return starts
+
+
+def _reach_from(blueprint: Blueprint, start: str) -> Tuple[Set[str], bool]:
+    """The tasks reachable on one entity from `start`, and whether a reached task has a
+    `!python` payload, which can start any task with `context.call`."""
+    tasks = blueprint.tasks
+    seen: Set[str] = set()
+    unknown = False
+    frontier = [start]
+    while frontier:
+        name = frontier.pop()
+        if name in seen or name not in tasks:
+            continue
+        seen.add(name)
+        task = tasks[name]
+        if callable(task.payload):
+            unknown = True
+        frontier.extend(target for target, _ in _routes(name, task))
+        frontier.extend(n for n in (task.on_fail, task.on_interrupt_next) if n)
+        if task.wait is not None:
+            frontier.extend(Wait(task.wait).targets("task"))
+        if task.subscribe is not None:
+            frontier.extend(Wait(task.subscribe).targets("task"))
+    return seen, unknown
+
+
 def _check_events(blueprint: Blueprint, source: SourceMap) -> None:
     """Checks the `spawn`, `subscribe` and `on:` names a task or signal uses, at the
     line of each action.
@@ -769,39 +821,8 @@ def _check_events(blueprint: Blueprint, source: SourceMap) -> None:
                 f"statistics and entity numbers would merge",
             )
 
-    # The tasks an entity can start a flow from: an arrival's task, or one a spawn
-    # starts. Each spawn begins a new entity, so a spawn target is a start of its own.
-    starts = {a.spawn for a in blueprint.arrivals.values() if a.spawn is not None}
-    for task in tasks.values():
-        if task.spawn is not None:
-            starts.add(task.spawn.task)
-        starts.update(e.spawn.task for e in task.on if e.spawn is not None)
-    for signal in signals.values():
-        starts.update(e.spawn.task for e in signal.on if e.spawn is not None)
-
-    def reach_from(start: str) -> tuple:
-        """The tasks reachable on one entity from `start`, and whether a reached task
-        has a `!python` payload, which can start any task with `context.call`."""
-        seen: set = set()
-        unknown = False
-        frontier = [start]
-        while frontier:
-            name = frontier.pop()
-            if name in seen or name not in tasks:
-                continue
-            seen.add(name)
-            task = tasks[name]
-            if callable(task.payload):
-                unknown = True
-            frontier.extend(target for target, _ in _routes(name, task))
-            frontier.extend(n for n in (task.on_fail, task.on_interrupt_next) if n)
-            if task.wait is not None:
-                frontier.extend(Wait(task.wait).targets("task"))
-            if task.subscribe is not None:
-                frontier.extend(Wait(task.subscribe).targets("task"))
-        return seen, unknown
-
-    reach = {start: reach_from(start) for start in starts}
+    starts = _starts(blueprint)
+    reach = {start: _reach_from(blueprint, start) for start in starts}
 
     def firing_tasks(signal_name: str) -> set:
         """The tasks whose end fires `signal_name`, directly or through a chain of
@@ -1480,6 +1501,7 @@ def _build_context(
             set_args=task.set_args,
             activate=task.activate,
             deactivate=task.deactivate,
+            history=task.history if "history" in task.model_fields_set else None,
             vars=task.vars,
             vars_once=task.vars_once,
             on_start=task.on_start,
@@ -1494,6 +1516,17 @@ def _build_context(
             subscribe=task.subscribe,
             on=[entry.entry() for entry in task.on],
         )(_payload(task.payload, task.id_field, task.attributes, task.item_field, name))
+        # The places the context cannot see: the payload, the wait and the put
+        context.note_values(
+            name,
+            task.payload if not callable(task.payload) else None,
+            task.wait,
+            None if task.put is None else task.put.item,
+        )
+    for _location, value in _value_sites(blueprint):
+        context.note_values(None, value)
+    for _location, value, _vars, _run in _arrival_sites(blueprint):
+        context.note_values(None, value)
 
     for process in blueprint.processes:
         context.add_process(process.function, **process.kwargs)
@@ -1737,6 +1770,7 @@ def _check_values(
             registry=registry,
         ):
             problems.append((where, text))
+    problems += _check_relationships(blueprint)
     if problems:
         raise BlueprintError(
             "\n".join(
@@ -1744,6 +1778,185 @@ def _check_values(
                 for where, text in problems
             )
         )
+
+
+def _task_sites(blueprint: Blueprint) -> Iterator[Tuple[Tuple[Any, ...], Any, str]]:
+    """Every value place of a task, with where it is written and the task's name."""
+    for name, task in blueprint.tasks.items():
+        keys = [
+            "payload",
+            "set",
+            "set_args",
+            "vars",
+            "vars_once",
+            "on_start",
+            "finish_vars",
+            "interrupt",
+            "on",
+            "wait",
+            "spawn",
+            "service_time",
+            "patience",
+            "key",
+        ]
+        for key in keys:
+            value = getattr(task, key)
+            if not callable(value) or isinstance(value, (_Gen, dict, list)):
+                yield ("tasks", name, key), value, name
+        if task.put is not None and task.put.item is not None:
+            yield ("tasks", name, "put", "item"), task.put.item, name
+
+
+def _payload_keys(task: Any) -> Optional[Set[str]]:
+    """The top-level fields of a task's finished payload, or None when they are not
+    known: a `!python` function or one generator gives the payload."""
+    if task.payload is None:
+        return set()
+    if callable(task.payload) and not isinstance(task.payload, dict):
+        return None
+    if not isinstance(task.payload, dict):
+        return None
+    keys = {str(key) for key in task.payload}
+    keys |= {field for field in (task.id_field, task.item_field) if field}
+    return keys | set(task.attributes)
+
+
+def _check_relationships(
+    blueprint: Blueprint,
+) -> List[Tuple[Tuple[Any, ...], str]]:
+    """The problems of `lookup`, `aggregate`, `previous` and `upstream` that need the
+    other tasks: the task a lookup names exists, publishes a record, and has the field
+    read; tasks do not look each other up; `upstream` stands in a task that another task
+    routes to."""
+    found: List[Tuple[Tuple[Any, ...], str]] = []
+    tasks = blueprint.tasks
+    reached_by_next: Dict[str, List[str]] = {name: [] for name in tasks}
+    reached_otherwise: Set[str] = set()
+    for name, task in tasks.items():
+        for target, _ in _routes(name, task):
+            if target in tasks:
+                reached_by_next[target].append(name)
+        reached_otherwise |= {
+            target
+            for target in (task.on_fail, task.on_interrupt_next)
+            if target is not None
+        }
+
+    def field_problem(
+        where: Tuple[Any, ...], owner: str, path: Optional[str], what: str
+    ) -> None:
+        keys = _payload_keys(tasks[owner])
+        if path is None or keys is None:
+            return
+        head = str(path).split(".")[0]
+        if head not in keys:
+            found.append(
+                (
+                    where,
+                    f"{what} '{head}' is not a field of the payload of task "
+                    f"'{owner}'" + suggestion(head, keys),
+                )
+            )
+
+    runs: Set[str] = set()
+    # A `processes` entry is Python, which can start any task with `context.call`
+    unknown_start = bool(blueprint.processes)
+    for start in _starts(blueprint):
+        reached, unknown = _reach_from(blueprint, start)
+        runs |= reached
+        unknown_start = unknown_start or unknown
+    gates: Dict[str, Set[str]] = {}
+    first_lookup: Dict[str, Tuple[Any, ...]] = {}
+    sites: List[Tuple[Tuple[Any, ...], Any, Optional[str]]] = [
+        (where, item, owner) for where, item, owner in _task_sites(blueprint)
+    ]
+    sites += [(where, item, None) for where, item in _value_sites(blueprint)]
+    sites += [(where, item, None) for where, item, _v, _r in _arrival_sites(blueprint)]
+    for location, value, owner in sites:
+        for where, node in generators_in(value, (Lookup, Aggregate), location):
+            target = node.task
+            if target not in tasks:
+                found.append(
+                    (
+                        where + ("task",),
+                        f"{node.gen} names task '{target}', "
+                        + _undefined(target, tasks, "tasks"),
+                    )
+                )
+                continue
+            if tasks[target].payload is None:
+                found.append(
+                    (
+                        where + ("task",),
+                        f"{node.gen} names task '{target}', which has payload: null "
+                        "and publishes no record to read",
+                    )
+                )
+                continue
+            if target not in runs and not unknown_start:
+                found.append(
+                    (
+                        where + ("task",),
+                        f"{node.gen} names task '{target}', which no arrival, spawn, "
+                        "next or wait starts, so it never has a row",
+                    )
+                )
+                continue
+            field_problem(where + ("path",), target, node.path, "path")
+            if isinstance(node, Lookup):
+                if node.latest_by is not None:
+                    field_problem(
+                        where + ("latest_by",), target, node.latest_by, "latest_by"
+                    )
+                if owner is not None:
+                    gates.setdefault(owner, set()).add(target)
+                    first_lookup.setdefault(owner, where + ("task",))
+        if owner is None:
+            continue
+        for where, node in generators_in(value, (Previous,), location):
+            if tasks[owner].payload is None:
+                found.append(
+                    (
+                        where,
+                        "previous reads the last record of its own task, and "
+                        "payload: null publishes none",
+                    )
+                )
+            else:
+                field_problem(where + ("path",), owner, node.path, "path")
+        for where, node in generators_in(value, (Upstream,), location):
+            if owner in reached_otherwise:
+                found.append(
+                    (
+                        where,
+                        f"task '{owner}' is also reached by on_fail or "
+                        "on_interrupt_next, which hand over the failure or the "
+                        "interrupted task's record and not its payload; upstream "
+                        "reads the payload of the task that routed here with next, "
+                        "so give the task reached that way no upstream",
+                    )
+                )
+            elif not reached_by_next[owner]:
+                found.append(
+                    (
+                        where,
+                        "upstream reads the payload of the task that routed here, "
+                        f"and no task routes to '{owner}' with next",
+                    )
+                )
+            else:
+                for source in sorted(set(reached_by_next[owner])):
+                    field_problem(where + ("path",), source, node.path, "path")
+    cycle = lookup_cycle(gates)
+    if cycle:
+        found.append(
+            (
+                first_lookup[cycle[0]],
+                "tasks look each other up, so none could start before the other had "
+                "a row: " + " -> ".join(cycle),
+            )
+        )
+    return found
 
 
 def _arrival_vars(

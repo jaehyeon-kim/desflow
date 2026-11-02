@@ -10,9 +10,11 @@ every run starts with fresh state.
 import copy
 import datetime as dt
 import decimal
+import logging
 import zlib
+from contextlib import contextmanager
 from dataclasses import replace
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Set, Tuple
 
 import numpy as np
 from simpy.core import StopSimulation
@@ -21,14 +23,30 @@ from desflow.config import MIN_DELAY
 from desflow.core.distributions import get_distribution
 from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.values.models import (
+    Aggregate,
     Fake,
+    Lookup,
+    Previous,
     Row,
     ValueGenerationError,
     _Gen,
+    _is_number,
+    part_of,
 )
+
+logger = logging.getLogger(__name__)
 
 # How many draws a `unique` generator makes before it reports that its values ran out
 _UNIQUE_TRIES = 1000
+
+# Added to the INFO line of a dropped start that had already taken its `get` item
+_CONSUMED = "; the get item of each of them was consumed"
+
+# How many draws a `distinct` lookup makes before it counts the rows left
+_DISTINCT_TRIES = 50
+
+# The rows a task keeps when its `history` is not set
+DEFAULT_HISTORY = 1_000_000
 
 
 def _plain(value: Any) -> Any:
@@ -95,6 +113,16 @@ class ValueRuntime:
         self._fakers: Dict[str, Any] = {}
         self._rows: Dict[str, "_RowCursor"] = {}
         self._expressions: Dict[str, Expression] = {}
+        # The finished payloads of the tasks that something looks up, by task
+        self._kept: Dict[str, "_Rows"] = {}
+        # The tasks whose last payload `previous` reads, and that payload by stream
+        self._previous_tasks: Set[str] = set()
+        self._last: Dict[Tuple[str, Any], Mapping[str, Any]] = {}
+        # What each `repeat` being evaluated has drawn with `distinct`, innermost last
+        self._frames: List[Dict[str, Set[int]]] = []
+        # For each task whose start was refused for want of a row: when the first was
+        # and how many there have been
+        self._refused: Dict[str, List[Any]] = {}
 
     # ------------------------------------------------------------------ clock
 
@@ -452,6 +480,337 @@ class ValueRuntime:
                 result[name] = held.get(name)
         return result
 
+    # ----------------------------------------------------- relationships
+
+    def keep_rows(self, task: str, size: int) -> None:
+        """Has `task` keep the last `size` of its finished payloads, which `lookup` and
+        `aggregate` read.
+
+        Args:
+            task: The name of the task.
+            size: How many rows to keep.
+        """
+        self._kept.setdefault(task, _Rows(size))
+
+    def keep_previous(self, task: str) -> None:
+        """Has `task` keep its last finished payload for each stream, for `previous`.
+
+        Args:
+            task: The name of the task.
+        """
+        self._previous_tasks.add(task)
+
+    def record(self, task: str, payload: Any, entity: Any) -> None:
+        """Takes in the finished payload of a task, in the step its record is
+        published. Only a mapping is kept, by reference.
+
+        Args:
+            task: The name of the task.
+            payload: The payload that was published.
+            entity: The entity the task ran for, whose stream `previous` follows.
+        """
+        if not isinstance(payload, Mapping):
+            return
+        rows = self._kept.get(task)
+        if rows is not None:
+            rows.add(payload)
+        if task in self._previous_tasks:
+            self._last[(task, stream_of(entity))] = payload
+
+    def ready(self, tasks: Any) -> bool:
+        """Whether every task in `tasks` has a row.
+
+        Args:
+            tasks: Task names.
+
+        Returns:
+            bool: True when each task that keeps rows has at least one.
+        """
+        return all(len(self._kept[t]) for t in tasks if t in self._kept)
+
+    def refuse_start(
+        self, task: str, waiting_for: Any, consumed_item: bool = False
+    ) -> None:
+        """Notes that a start of `task` was refused for want of a row.
+
+        Args:
+            task: The task that was not started.
+            waiting_for: The tasks it looks up.
+            consumed_item: Whether the dropped start had already taken its `get` item,
+                which the INFO line then says is lost.
+        """
+        found = self._refused.get(task)
+        if found is None:
+            self._refused[task] = [self.env.now, 1, set(waiting_for), consumed_item]
+        else:
+            found[1] += 1
+            found[2].update(waiting_for)
+            found[3] = found[3] or consumed_item
+
+    def report_refused(self) -> None:
+        """Writes the INFO line for each task whose starts were all refused to the end
+        of the run, so an empty task has its reason in the log."""
+        for task, (since, dropped, waiting_for, consumed) in sorted(
+            self._refused.items()
+        ):
+            logger.info(
+                "task '%s' was not started from time %s to the end of the run at time "
+                "%s, a wait of %s seconds of simulation time for a row of %s that "
+                "never came; %d starts were dropped%s",
+                task,
+                since,
+                self.env.now,
+                self.env.now - since,
+                ", ".join(sorted(waiting_for)),
+                dropped,
+                _CONSUMED if consumed else "",
+            )
+        self._refused.clear()
+
+    def note_started(self, task: str, waiting_for: Any) -> None:
+        """Writes the one INFO line about a task whose starts were refused, once it
+        starts.
+
+        Args:
+            task: The task that starts.
+            waiting_for: The tasks it looks up.
+        """
+        found = self._refused.pop(task, None)
+        if found is not None:
+            logger.info(
+                "task '%s' was not started from time %s until time %s, a wait of %s "
+                "seconds of simulation time for a row of %s; %d starts were dropped%s",
+                task,
+                found[0],
+                self.env.now,
+                self.env.now - found[0],
+                ", ".join(sorted(waiting_for)),
+                found[1],
+                _CONSUMED if found[3] else "",
+            )
+
+    @contextmanager
+    def distinct_frame(self) -> Iterator[None]:
+        """Opens what a `repeat` is drawing without replacement: a `lookup` with
+        `distinct` inside it does not give the same row twice until the `repeat` ends."""
+        self._frames.append({})
+        try:
+            yield
+        finally:
+            self._frames.pop()
+
+    def _rows_of(self, node: Any, task: str) -> "_Rows":
+        rows = self._kept.get(task)
+        if rows is None:
+            raise node.fail(
+                f"task '{task}' keeps no rows; a blueprint keeps them for a task a "
+                "lookup or aggregate names, and a builder task asks for them with "
+                "history="
+            )
+        return rows
+
+    def lookup(self, node: Lookup, scope: Scope) -> Any:
+        """The value of a `lookup`.
+
+        Args:
+            node: The generator.
+            scope: What the expressions here read.
+
+        Returns:
+            Any: The value, as a copy.
+
+        Raises:
+            ValueError: If the task has no row, `distinct` stands outside a repeat or
+                has no row left, or the path is not in the row.
+        """
+        rows = self._rows_of(node, node.task)
+        if not len(rows):
+            raise node.fail(f"task '{node.task}' has no finished row yet")
+        used: Optional[Set[int]] = None
+        if node.distinct:
+            if not self._frames:
+                raise node.fail(
+                    "distinct draws without replacement within one repeat, so the "
+                    "lookup stands inside a repeat"
+                )
+            used = self._frames[-1].setdefault(node._path, set())
+        pool: _Pool = rows if node.latest_by is None else rows.latest(node.latest_by)
+        if not len(pool):
+            raise node.fail(
+                f"no row of task '{node.task}' has the field '{node.latest_by}'"
+            )
+        seq, row = self._choose(node, pool, used)
+        if used is not None:
+            used.add(seq)
+        try:
+            return self.copy(part_of(row, node.path))
+        except KeyError as exc:
+            raise node.fail(f"task '{node.task}': {exc.args[0]}") from None
+
+    def _choose(
+        self, node: Lookup, pool: "_Pool", used: Optional[Set[int]]
+    ) -> Tuple[int, Mapping[str, Any]]:
+        size = len(pool)
+        at: Callable[[int], Tuple[int, Mapping[str, Any]]] = pool.at
+        if isinstance(pool, _Latest) and (
+            node.strategy != "random" or node.histogram is not None
+        ):
+            # The newest row of each value, oldest first by when it was written
+            ordered = sorted((pool.at(i) for i in range(size)), key=lambda e: e[0])
+            at = ordered.__getitem__
+        if node.strategy != "random":
+            order = range(size) if node.strategy == "first" else range(size - 1, -1, -1)
+            for index in order:
+                entry = at(index)
+                if used is None or entry[0] not in used:
+                    return entry
+            raise node.fail(
+                f"task '{node.task}' has no row left that this repeat has not drawn"
+            )
+        rng = self.rng(node)
+        for _ in range(_DISTINCT_TRIES if used else 1):
+            if node.histogram is not None:
+                index = self._histogram_index(node, size, rng)
+            else:
+                index = int(rng.integers(size))
+            entry = at(index)
+            if used is None or entry[0] not in used:
+                return entry
+        left = [i for i in range(size) if at(i)[0] not in used]  # type: ignore[operator]
+        if not left:
+            raise node.fail(
+                f"task '{node.task}' has no row left that this repeat has not drawn"
+            )
+        return at(left[int(rng.integers(len(left)))])
+
+    @staticmethod
+    def _histogram_index(node: Lookup, size: int, rng: np.random.Generator) -> int:
+        """The index of a row: a bin by frequency, then a row of the bin.
+
+        Args:
+            node: The generator, which holds the bins.
+            size: How many rows there are to draw from.
+            rng: The generator's random stream.
+
+        Returns:
+            int: The index of the row, oldest first.
+        """
+        bins = node.histogram or []
+        total = sum(b.bin for b in bins)
+        edges, begin, share = [], 0, 0.0
+        for item in bins:
+            share += item.bin / total
+            end = size if item is bins[-1] else int(round(share * size))
+            edges.append((begin, end, item.frequency))
+            begin = end
+        open_bins = [(b, e, f) for b, e, f in edges if e > b and f > 0]
+        if not open_bins:
+            # Few rows and the bins that hold them have frequency 0: draw over all
+            return int(rng.integers(size))
+        weights = np.array([f for _, _, f in open_bins], dtype=float)
+        low, high, _ = open_bins[
+            int(rng.choice(len(open_bins), p=weights / weights.sum()))
+        ]
+        return low + int(rng.integers(high - low))
+
+    def previous(self, node: Previous, scope: Scope) -> Any:
+        """The value of a `previous`.
+
+        Args:
+            node: The generator.
+            scope: What the expressions here read.
+
+        Returns:
+            Any: The value of the last record on the stream, or the default (null when
+                none is written) when the stream has none yet.
+
+        Raises:
+            ValueError: If it is read outside a task or the path is not in the record.
+        """
+        task = scope.process.get("name")
+        if task is None or scope.stream is None:
+            raise node.fail("previous is read inside a task")
+        row = self._last.get((task, scope.stream))
+        if row is None:
+            return self.evaluate(node.default, scope)
+        try:
+            return self.copy(part_of(row, node.path))
+        except KeyError as exc:
+            raise node.fail(
+                f"the last record of task '{task}': {exc.args[0]}"
+            ) from None
+
+    def aggregate(self, node: Aggregate, scope: Scope) -> Any:
+        """The value of an `aggregate`.
+
+        Args:
+            node: The generator.
+            scope: What the expressions here read.
+
+        Returns:
+            Any: The mean, sum, minimum, maximum or count of the rows kept.
+
+        Raises:
+            ValueError: If `where` or the path cannot be read from a row, a value is not
+                a number, or there is no row for a mean, minimum or maximum.
+        """
+        rows = self._rows_of(node, node.task)
+        expression = None
+        names: Dict[str, Any] = {}
+        loops: Dict[str, Any] = {}
+        reading = scope
+        if node.where is not None:
+            expression = self._expressions.get(node.where)
+            if expression is None:
+                expression = self._expressions[node.where] = Expression(
+                    node.where, names=ANY_NAME
+                )
+            # A field of the row is read before any reserved name, such as `t`
+            reading = replace(scope, names=names, loops=loops)
+        values: List[Any] = []
+        for _, row in rows.newest():
+            if expression is not None:
+                names.clear()
+                names.update(scope.names)
+                names.update(row)
+                loops.clear()
+                loops.update(scope.loops)
+                loops.update(row)
+                try:
+                    if not expression.evaluate(reading):
+                        continue
+                except ValueError as exc:
+                    raise node.fail(f"where: {exc}") from None
+            if node.function == "count":
+                values.append(1)
+            else:
+                try:
+                    values.append(part_of(row, node.path))
+                except KeyError as exc:
+                    raise node.fail(f"task '{node.task}': {exc.args[0]}") from None
+            if len(values) == node.last:
+                break
+        return self._reduce(node, values)
+
+    @staticmethod
+    def _reduce(node: Aggregate, values: List[Any]) -> Any:
+        if node.function == "count":
+            return len(values)
+        bad = [v for v in values if not _is_number(v)]
+        if bad:
+            raise node.fail(
+                f"{node.path} must be a number in every row, got {bad[0]!r}"
+            )
+        if node.function == "sum":
+            return sum(values)
+        if not values:
+            raise node.fail(
+                f"{node.function} of no rows: task '{node.task}' has none to read"
+            )
+        if node.function == "mean":
+            return sum(values) / len(values)
+        return min(values) if node.function == "min" else max(values)
+
     # ------------------------------------------------------------------ rows
 
     def pick_row(self, node: Row, rows: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -493,6 +852,139 @@ class ValueRuntime:
             index = cursor.position
         cursor.position += 1
         return dict(rows[index])
+
+
+def stream_of(entity: Any) -> Tuple[Any, ...]:
+    """The stream `previous` follows for an entity.
+
+    Args:
+        entity: The entity a task runs for.
+
+    Returns:
+        Tuple[Any, ...]: The entity (its arrival and key) when its arrival has `count`
+            or `keys`, which is one entity that repeats, otherwise the arrival.
+    """
+    if entity.loop is not None:
+        return ("entity", entity.arrival, entity.key)
+    return ("arrival", entity.arrival)
+
+
+_MISSING = object()
+
+
+class _Pool:
+    """The rows a `lookup` draws from: a count and the entry (sequence number, row) at
+    each index."""
+
+    def __len__(self) -> int:  # pragma: no cover
+        raise NotImplementedError
+
+    def at(self, index: int) -> Tuple[int, Mapping[str, Any]]:  # pragma: no cover
+        """The entry at an index, oldest first."""
+        raise NotImplementedError
+
+
+class _Rows(_Pool):
+    """The last rows of one task, oldest first, each with a sequence number."""
+
+    def __init__(self, size: int):
+        self.size = size
+        self._entries: List[Tuple[int, Mapping[str, Any]]] = []
+        self._start = 0
+        self._written = 0
+        self._latest: Dict[str, "_Latest"] = {}
+
+    def __len__(self) -> int:
+        return len(self._entries) - self._start
+
+    def at(self, index: int) -> Tuple[int, Mapping[str, Any]]:
+        """The entry at an index, oldest first."""
+        return self._entries[self._start + index]
+
+    def add(self, row: Mapping[str, Any]) -> None:
+        """Adds a row as the newest, and drops the oldest past `size`."""
+        entry = (self._written, row)
+        self._written += 1
+        self._entries.append(entry)
+        for index in self._latest.values():
+            index.add(entry)
+        if len(self) > self.size:
+            oldest = self._entries[self._start]
+            self._start += 1
+            for index in self._latest.values():
+                index.drop(oldest)
+            # Rows that left stay referenced until the list is cut, which happens when
+            # they are an eighth of `size`, so at most 9/8 of `size` rows are held, or
+            # one row over for a `size` below 8
+            if self._start > max(self.size // 8, 1):
+                del self._entries[: self._start]
+                self._start = 0
+
+    def newest(self) -> Iterator[Tuple[int, Mapping[str, Any]]]:
+        """The entries, newest first."""
+        for index in range(len(self._entries) - 1, self._start - 1, -1):
+            yield self._entries[index]
+
+    def latest(self, field: str) -> "_Latest":
+        """The newest row for each value of `field`, kept up to date from now on."""
+        found = self._latest.get(field)
+        if found is None:
+            found = self._latest[field] = _Latest(field)
+            for index in range(len(self)):
+                found.add(self.at(index))
+        return found
+
+
+class _Latest(_Pool):
+    """The newest row for each value of a field. The oldest row kept is the only one
+    that can leave, so a value goes when its newest row is the one that leaves."""
+
+    def __init__(self, field: str):
+        self.field = field
+        self._by_value: Dict[Any, Tuple[int, Mapping[str, Any]]] = {}
+        self._values: List[Any] = []
+        self._position: Dict[Any, int] = {}
+
+    def _key(self, row: Mapping[str, Any]) -> Any:
+        value = row.get(self.field, _MISSING)
+        if value is _MISSING:
+            return _MISSING
+        try:
+            hash(value)
+        except TypeError:
+            return repr(value)
+        return value
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+    def at(self, index: int) -> Tuple[int, Mapping[str, Any]]:
+        """The entry at an index; the order is the order the values first appeared in,
+        with a swap where a value left."""
+        return self._by_value[self._values[index]]
+
+    def add(self, entry: Tuple[int, Mapping[str, Any]]) -> None:
+        """Takes in a new newest row."""
+        key = self._key(entry[1])
+        if key is _MISSING:
+            return
+        if key not in self._by_value:
+            self._position[key] = len(self._values)
+            self._values.append(key)
+        self._by_value[key] = entry
+
+    def drop(self, entry: Tuple[int, Mapping[str, Any]]) -> None:
+        """Takes out the oldest row if it is the newest of its value."""
+        key = self._key(entry[1])
+        found = self._by_value.get(key)
+        if found is None or found[0] != entry[0]:
+            return
+        del self._by_value[key]
+        index = self._position.pop(key)
+        last = self._values.pop()
+        if index < len(self._values):
+            self._values[index] = last
+            self._position[last] = index
 
 
 class _RowCursor:

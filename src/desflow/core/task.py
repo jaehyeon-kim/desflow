@@ -37,7 +37,7 @@ from desflow.models.flow import Entity, Upstream, payload_of
 from desflow.utils import suggestion
 from desflow.values.check import names_read
 from desflow.values.models import _Gen, has_generator
-from desflow.values.runtime import RunStopped
+from desflow.values.runtime import RunStopped, stream_of
 from desflow.values.template import BoundPayload, Template
 
 if TYPE_CHECKING:
@@ -136,8 +136,12 @@ class TaskSpec:
         set_args: Optional[Dict[str, Any]] = None,
         activate: Optional[List[str]] = None,
         deactivate: Optional[List[str]] = None,
+        history: Optional[int] = None,
     ):
         self.name = name
+        # How many finished payloads the task keeps for `lookup` and `aggregate`; None
+        # leaves it to whether any lookup names the task
+        self.history = history
         # Names written in this process's own locals, after `set`, read as `arg.<name>`
         self.set_args: Dict[str, Any] = dict(set_args or {})
         # The arrivals whose source the task turns on and off when it finishes
@@ -287,6 +291,8 @@ class TaskRun:
         # The priority of the item a priority store gave, which lasts with the item
         self.item_priority: Any = None
         self._taken_priority: Any = None
+        # Whether a `get` branch of the wait took an item out of its store
+        self._wait_took_item = False
         # The process's local names, read as `arg.<name>`: what a parent passed and
         # what `set_args` wrote. They are one dictionary for the whole flow, so the
         # next task of the flow shares it; None until one is passed or written
@@ -300,6 +306,8 @@ class TaskRun:
         # Whether the context lists this instance as running, which `reach` does from
         # the step the instance is started in and `_run_one` does otherwise
         self._listed = False
+        # Whether the lookup gate dropped this start, so its `on:` actions do not run
+        self._dropped = False
         # Whether the failure the task ends in is a run failure: a wait that failed,
         # or a task function that raised, as an uncaught exception ends a SimPy process
         self._raised = False
@@ -469,6 +477,7 @@ class TaskRun:
             item_priority=self.item_priority,
             peek=self.env.peek,
             instances=self.context._instance_scopes,
+            stream=stream_of(self.entity),
         )
 
     # ----------------------------------------------------------- generated values
@@ -535,6 +544,8 @@ class TaskRun:
             )
         values = self.context.values
         if isinstance(payload, BoundPayload):
+            if payload.template.uses_previous:
+                values.keep_previous(spec.name)
             return values.render(
                 payload.template,
                 payload.entity or self.entity,
@@ -543,6 +554,8 @@ class TaskRun:
                 payload.attributes,
             )
         if isinstance(payload, Template):
+            if payload.uses_previous:
+                values.keep_previous(spec.name)
             return values.render(payload, self.entity, self.scope())
         return payload
 
@@ -755,7 +768,7 @@ class TaskRun:
             self._stop_running()
         # A balk or a renege returns with the end event not yet triggered: it
         # succeeds with None, so a `running` waiter resumes with no value.
-        self._end_default(ok=True)
+        self._end_default(ok=True, actions=not self._dropped)
         return result
 
     @staticmethod
@@ -782,8 +795,58 @@ class TaskRun:
             if notify is not None:
                 notify()
 
+    def _gate_closed(self) -> bool:
+        """Whether a start waits for a row to look up: the task looks up another task
+        that has no finished row yet. The start is dropped, and a child flow is not
+        held back (its lookup reports the missing row)."""
+        gate = self.context._gates.get(self.spec.name)
+        if not gate or self.child:
+            return False
+        values = self.context.values
+        if values.ready(gate):
+            values.note_started(self.spec.name, gate)
+            return False
+        values.refuse_start(self.spec.name, gate)
+        return True
+
+    def _template_waits(self, payload: Any) -> bool:
+        """Whether the Template a task function returned looks up a task that has no
+        row yet, so the start is dropped. A function returns its Template only when
+        it is called, so the gate cannot see it when the model is built.
+
+        Args:
+            payload: What the task function returned.
+
+        Returns:
+            bool: True when the start is dropped; a child flow is never dropped.
+        """
+        template = (
+            payload.template
+            if isinstance(payload, BoundPayload)
+            else payload
+            if isinstance(payload, Template)
+            else None
+        )
+        if template is None or not template.looks_up or self.child:
+            return False
+        values = self.context.values
+        if values.ready(template.looks_up):
+            values.note_started(self.spec.name, template.looks_up)
+            return False
+        values.refuse_start(
+            self.spec.name,
+            template.looks_up,
+            consumed_item=self.spec.get is not None or self._wait_took_item,
+        )
+        return True
+
     def _run(self):
         spec, env, stats = self.spec, self.env, self.env.stats
+        if self._gate_closed():
+            self._dropped = True
+            self._release_kept(own=self.child)
+            self._end_flow("ended")
+            return None
         if spec.balk_of is not None and spec.balk_of.evaluate(self.scope()):
             self._release_kept(own=self.child)
             self.publish(self.status("balked"))
@@ -966,6 +1029,19 @@ class TaskRun:
                         failure = f"{type(error).__name__}: {error}"
                         self._fail_error = error
                         self._raised = True
+                    if failure is None and self._template_waits(payload):
+                        # The Template looks up a task with no row yet: the start is
+                        # dropped as the gate drops one, giving back the units and
+                        # the wait branches' requests. The function has run, `queued`
+                        # and `started` are published as far as the task has them, and
+                        # the item a `get` or a `wait` get branch took is consumed.
+                        self._release(held)
+                        self._release_kept(own=self.child)
+                        self._end_wait()
+                        stats.task_dropped(spec.name, self.task_id)
+                        self._dropped = True
+                        self._end_flow("ended")
+                        return None
                     if failure is None and spec.on_start:
                         try:
                             self._start_values()
@@ -1009,6 +1085,7 @@ class TaskRun:
                 if failure is None:
                     if not silent:
                         self.publish(payload, key=self._payload_key(payload))
+                        self.context.values.record(spec.name, payload, self.entity)
                     stats.task_finished(spec.name, self.task_id)
                     # A stop condition, such as `t >= 300`, is checked after every
                     # finished task as well as after every change of state
@@ -1843,6 +1920,8 @@ class TaskRun:
         value `wait.<branch>` reads: a won request keeps its unit for the task to
         release at its end; a won get gives the item; a losing branch is cancelled,
         and a losing granted request gives its unit back."""
+        if node.kind == "get" and (done or event.triggered):
+            self._wait_took_item = True
         if done:
             if node.kind == "request":
                 self._wait_held.append(event)

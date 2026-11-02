@@ -20,6 +20,7 @@ from typing import (
     List,
     Mapping,
     Optional,
+    Set,
     Tuple,
     Type,
     Union,
@@ -62,8 +63,8 @@ from desflow.core.breakdowns import run_breakdowns
 from desflow.core.replay import UNITS, Row, read_trace
 from desflow.core.scenario import apply_step, check_step, run_scenario
 from desflow.values.models import _Gen, has_generator, values_adapter
-from desflow.values.runtime import ValueRuntime
-from desflow.values.check import task_value_problems
+from desflow.values.runtime import DEFAULT_HISTORY, ValueRuntime
+from desflow.values.check import lookup_cycle, looked_up, task_value_problems
 from desflow.values.template import bind as bind_values
 from desflow.models.params import (
     BreakdownConfig,
@@ -303,6 +304,12 @@ class SimulationContext:
         # Tasks by name, with what run() checks before the clock starts
         self._tasks: Dict[str, Callable] = {}
         self._task_specs: Dict[str, TaskSpec] = {}
+        # What the values of the tasks read from other records: the tasks a task looks
+        # up (it does not start before each has a row), the tasks that must keep rows,
+        # and the tasks whose last payload `previous` reads
+        self._gates: Dict[str, Set[str]] = {}
+        self._row_targets: Set[str] = set()
+        self._previous_users: Set[str] = set()
         self._signal_names: List[str] = []
         self._signal_once: Dict[str, bool] = {}
         # Each signal's `on:` actions, in normalized form, run when it fires
@@ -1352,6 +1359,7 @@ class SimulationContext:
         set_args: Optional[Mapping[str, Any]] = None,
         activate: Union[str, List[str], None] = None,
         deactivate: Union[str, List[str], None] = None,
+        history: Optional[int] = None,
     ) -> Callable:
         """
         Transforms a standard Python function into an event-driven SimPy task.
@@ -1505,6 +1513,13 @@ class SimulationContext:
             set_args: Names written in this process's own locals after `set`, read in
                 expressions as `arg.<name>`. A child flow has its own names, and the
                 `next` chain of a flow shares them.
+            history: How many finished payloads the task keeps for `lookup` and
+                `aggregate` (a whole number of 1 or more). A task
+                keeps none unless this is given, or a generator in a `vars`,
+                `vars_once`, `on_start`, `finish_vars`, `set` or `set_args` value of a
+                task, or in a blueprint, names it. A `Template` payload is not
+                searched, so a builder task that a `Template` looks up asks for its
+                rows here.
 
         Raises:
             ValueError: If a resource is given without a service, a priority without
@@ -1535,6 +1550,15 @@ class SimulationContext:
             raise ValueError(
                 "keep names resources the task holds; list only resources in its "
                 "resource_id"
+            )
+        if history is not None and (
+            isinstance(history, bool)
+            or not isinstance(history, numbers.Integral)
+            or history < 1
+        ):
+            raise ValueError(
+                f"history is how many finished payloads to keep, a whole number "
+                f"of 1 or more, got {history!r}"
             )
         if on_interrupt not in INTERRUPT_POLICIES:
             raise ValueError(
@@ -1652,6 +1676,7 @@ class SimulationContext:
             on=[_parse_on_action(entry) for entry in on or []],
             activate=_arrival_list(activate),
             deactivate=_arrival_list(deactivate),
+            history=None if history is None else int(history),
         )
         generated = {
             "vars": vars,
@@ -1683,6 +1708,17 @@ class SimulationContext:
                 **spec_kwargs,
             )
             spec.user_func = user_func
+            self.note_values(
+                task_name,
+                *(getattr(spec, field) for field in generated),
+                spec.attribute_changes,
+                spec.on,
+                spec.interrupt,
+                spec.spawn,
+                spec.service_time,
+                spec.patience,
+                spec.key,
+            )
             for field in (*generated, "attribute_changes", "on", "interrupt"):
                 bind_values(
                     getattr(spec, field),
@@ -1747,6 +1783,33 @@ class SimulationContext:
             return wrapper
 
         return decorator
+
+    def note_values(self, task: Optional[str], *places: Any) -> None:
+        """Notes what the values of a place read from other records, so the run keeps
+        what they need: the rows of the tasks a `lookup` or `aggregate` names, and the
+        last payload of a task whose values hold a `previous`. A task with a `lookup`
+        does not start before each task it names has a row.
+
+        A blueprint calls this for the places that `task()` cannot see, such as a
+        payload and an arrival's `attributes`. A builder script needs it only to
+        search a place of its own.
+
+        Args:
+            task: The task whose values the places are, or None for a place that
+                belongs to no task.
+            places: Values: generators, mappings, lists or constants, or a `Template`
+                (its `payload`, `vars` and `vars_once` are searched).
+
+        Raises:
+            TypeError: If a place is a set or an iterator, which are not searched.
+        """
+        gates, rows, previous = looked_up(*places)
+        self._row_targets |= rows
+        if task is not None:
+            if gates:
+                self._gates.setdefault(task, set()).update(gates)
+            if previous:
+                self._previous_users.add(task)
 
     def arrival_loop(self, arrival_id: str) -> Callable:
         """
@@ -3346,6 +3409,15 @@ class SimulationContext:
         # Fresh counters, vars_once and unique history for every run; each generator
         # draws from a sequence of its own, made from the seed, never the sampler's
         self.values = ValueRuntime(seed, self._env, self.sampler, self)
+        for task_name in sorted(
+            self._row_targets
+            | {n for n, spec in self._task_specs.items() if spec.history is not None}
+        ):
+            self.values.keep_rows(
+                task_name, self._task_specs[task_name].history or DEFAULT_HISTORY
+            )
+        for task_name in self._previous_users:
+            self.values.keep_previous(task_name)
         for task_name, spec in self._task_specs.items():
             if spec.router.weighted:
                 spec.router.rng = self.sampler.generator(f"route.{task_name}")
@@ -3533,6 +3605,8 @@ class SimulationContext:
         if self._env is not None and not self._closed:
             self._closed = True
             self.started = False
+            if self.values is not None:
+                self.values.report_refused()
             self._env.teardown()
 
     def stop_arrivals(self) -> None:
@@ -3802,6 +3876,29 @@ class SimulationContext:
 
         self._ended = self._tracked | self._copied | has_on
 
+    def _check_lookups(self) -> None:
+        """Checks that every task a `lookup` or `aggregate` names is a task, and that
+        no tasks look each other up, because none of them could start. A task that
+        `note_values` names must be a task too."""
+        for target in sorted(self._row_targets):
+            if target not in self._task_specs:
+                raise ValueError(
+                    f"a lookup or aggregate names task '{target}', "
+                    + _not_added(target, self._task_specs, "@app.task()")
+                )
+        for task in sorted(self._gates):
+            if task not in self._task_specs:
+                raise ValueError(
+                    f"note_values names task '{task}', "
+                    + _not_added(task, self._task_specs, "@app.task()")
+                )
+        cycle = lookup_cycle(self._gates)
+        if cycle:
+            raise ValueError(
+                "tasks look each other up, so none could start a flow before the "
+                "other had a row: " + " -> ".join(cycle)
+            )
+
     def _check_tasks(self, overrides: Optional[Mapping[str, Any]] = None) -> None:
         """Checks what each task names, before the clock or any connector starts.
 
@@ -3810,6 +3907,7 @@ class SimulationContext:
                 scenario is checked against them, as the run will apply it.
         """
         self._build_end_sets()
+        self._check_lookups()
         if self._scenario_steps:
             known = self._scratch_registry(isolated=True)
             for path, value in (overrides or {}).items():
