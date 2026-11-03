@@ -1,0 +1,5 @@
+# case GD-R1: RealtimeEnvironment(factor=0.1): one unit takes 0.1 s (real-time-simulations.rst:36-51).
+simulation: {sim_id: R, factor: 0.1, strict: true, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: one}}
+tasks: {one: {service_time: 1, payload: {event_type: done}}}
+run: {until: 1.5}

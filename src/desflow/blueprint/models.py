@@ -918,7 +918,8 @@ class TransferStep(_Model):
     the item offered: the get takes the oldest item that matches. `wait: false` makes
     the get or put and does not wait for it: the task goes on at once. `item` is for a
     store `put`: the value to put, a constant, text, a list, a mapping or a `{gen: ...}`
-    generator read as the put is made; left out, the put adds the task's payload. The
+    generator read as the put is made, a generator nested at any depth of a mapping
+    or list included; left out, the put adds the task's payload. The
     bare name `item` in `{gen: expr, expr: item}` is the whole item a get took, so
     `item: {gen: expr, expr: item}` puts it back.
     """
@@ -930,8 +931,6 @@ class TransferStep(_Model):
     filter: Optional[str] = None
     wait: bool = True
     item: Value = None
-
-    _value_form = field_validator("item", mode="wrap")(_generator_or_data)
 
     @field_validator("priority", mode="before")
     @classmethod

@@ -1,0 +1,6 @@
+# case P34: a capacity computed from state (register r7_res2.py P34: the same flow sets the capacity to the queue length plus one).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1, max_cap: 3}}
+services: {s: {dist: constant, value: 5}}
+arrivals: {a: {dist: constant, value: 1, spawn: job, max_events: 2, first_at: 0}, boss: {dist: constant, value: 2, spawn: grow, max_events: 1}}
+tasks: {job: {resource: m, service: s, payload: {event_type: done}}, grow: {payload: {event_type: grow}, on: [{path: P.resources.m.current_cap, value: {gen: expr, expr: "queue.m + 1"}}]}}

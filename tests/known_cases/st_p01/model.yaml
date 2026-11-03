@@ -1,0 +1,7 @@
+# case ST-P01: test_get_state: pem_b reads whether pem_a is alive at 1 and at 4.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: pem_a}, b: {initial: 1, spawn: pem_b}}
+tasks:
+  pem_a: {service_time: 3, payload: {event_type: a_done}}
+  pem_b: {service_time: 1, payload: {event_type: b_first, a_alive: {gen: expr, expr: "running(pem_a) > 0"}}, next: pem_b2}
+  pem_b2: {service_time: 3, payload: {event_type: b_done, a_alive: {gen: expr, expr: "running(pem_a) > 0"}}}

@@ -1,0 +1,5 @@
+# case ST-RT4: test_rt_slow_sim_no_error: factor 0.05, strict false, the process works 0.1 s of wall time per step, run(2) takes 0.2 s and does not raise. The blueprint has no wall-time work, so its run takes 0.1 s: a timing row, by design.
+simulation: {sim_id: T, factor: 0.05, strict: false, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: pem}}
+tasks: {pem: {service_time: 1, payload: {event_type: tick}, next: pem}}
+run: {until: 2}

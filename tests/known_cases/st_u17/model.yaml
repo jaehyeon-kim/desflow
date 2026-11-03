@@ -1,0 +1,6 @@
+# case ST-U17 and ST-U18: empty any_of and all_of succeed at once.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: empty_any}}
+tasks:
+  empty_any: {wait: {any: {}}, payload: {event_type: any_empty}, next: empty_all}
+  empty_all: {wait: {all: {}}, payload: {event_type: all_empty}}

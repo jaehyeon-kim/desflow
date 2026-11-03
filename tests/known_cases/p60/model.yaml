@@ -1,0 +1,7 @@
+# case P60: children inherit attributes (patterns/g_flow.py G2b with design A7, copy_attributes).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+arrivals: {orders: {initial: 1, spawn: split, attributes: {n: 3}}}
+tasks:
+  split: {payload: {e: 1}, spawn: {task: item, count: 3, copy_attributes: true}}
+  item: {payload: {i: 1}, attributes: [n]}
+run: {until: 10}

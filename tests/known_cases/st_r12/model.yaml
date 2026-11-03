@@ -1,0 +1,7 @@
+# case ST-R12: a lower number preempts; proc_a (priority 1) is interrupted by proc_b (priority 0).
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+resources: {res: {current_cap: 1, queue: priority, preempt: true}}
+arrivals: {a: {initial: 1, spawn: proc_a}, b: {initial: 1, spawn: proc_b}}
+tasks:
+  proc_a: {resource: res, priority: 1, service_time: 0, on_interrupt: abandon, payload: {event_type: should_not_finish}}
+  proc_b: {resource: res, priority: 0, service_time: 0, payload: {event_type: got}}

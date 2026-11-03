@@ -1,0 +1,4 @@
+# case P70: log a computed message.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+arrivals: {a: {dist: constant, value: 1, spawn: t, max_events: 3, key: {gen: sequence}}}
+tasks: {t: {payload: {event_type: log, message: {gen: format, template: "entity {k} at {now:g}", names: {k: {gen: entity}, now: {gen: expr, expr: t}}}}}}

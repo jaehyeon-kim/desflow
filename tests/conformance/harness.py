@@ -199,13 +199,15 @@ def run_builder(
 def run_low_level(
     params: Optional[SimParameter],
     start: Callable[[DynamicRealtimeEnvironment], Any],
-    until: float,
+    until: Any,
     stats: Optional[str] = None,
     initial_time: float = 0.0,
     factor: float = 0.0,
     strict: bool = False,
     on_unhandled_failure: str = "stop",
     raises: bool = False,
+    drive: Optional[Callable[[], Any]] = None,
+    trace: bool = False,
 ) -> Union[Tuple[List[Dict[str, Any]], DynamicRealtimeEnvironment], Outcome]:
     """Runs a low-level model into a recording egress.
 
@@ -228,14 +230,20 @@ def run_low_level(
     if params is not None:
         env.registry.register_sim_parameter(params)
     rec = RecordingEgress()
-    env.setup_egress([rec], lag_monitor_interval=None)
+    sinks, traces = [rec], None
+    traced = RecordingEgress()
+    if trace:  # a second sink receives the trace records, and only those
+        sinks, traces = [rec, traced], [False, True]
+    env.setup_egress(sinks, lag_monitor_interval=None, traces=traces)
     if stats is not None:
         env.setup_stats(params.sim_id if params else "Sim", stats)
     start(env)
+    if callable(until):  # a run that ends with a process or an event `start` made
+        until = until()
     value: Any = None
     error: Optional[BaseException] = None
     try:
-        value = env.run(until=until)
+        value = drive() if drive is not None else env.run(until=until)
     except Exception as exc:  # returned when raises, else re-raised
         if not raises:
             raise
@@ -243,7 +251,9 @@ def run_low_level(
     finally:
         env.teardown()
     if raises:
-        return Outcome(rec.records, value, error, env)
+        outcome = Outcome(rec.records, value, error, env)
+        outcome.trace = traced.records  # type: ignore[attr-defined]
+        return outcome
     return rec.records, env
 
 

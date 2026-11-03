@@ -1,0 +1,9 @@
+# case GD-P3: yield charging | parking, then interrupt the charging process if it is not done (process_interaction.rst:151-187).
+simulation: {sim_id: EV, factor: 0, random_seed: 42}
+arrivals: {ev: {initial: 1, spawn: drive}}
+tasks:
+  drive: {service_time: {gen: integer, bounds: [20, 40]}, payload: {event_type: start_parking}, next: run_ev}
+  run_ev: {wait: {any: {charging: {task: bat_ctrl}, parking: {task: park}}}, payload: {event_type: stop_parking}, interrupt: {task: bat_ctrl, cause: Need to go!}, next: drive}
+  bat_ctrl: {service_time: {gen: integer, bounds: [60, 90]}, on_interrupt: abandon, payload: {event_type: bat_done}}
+  park: {service_time: 60, payload: {event_type: parked}}
+run: {until: 100, on_unhandled_failure: continue}

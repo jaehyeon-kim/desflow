@@ -1,0 +1,4 @@
+# case ST-C03: test_operator_or: t0 | t1 | t2: the process continues at 0 and only t0 is in the result.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: pem}}
+tasks: {pem: {wait: {any: {t0: {timeout: {after: 0, value: 0}}, t1: {timeout: {after: 1, value: 1}}, t2: {timeout: {after: 2, value: 2}}}}, payload: {event_type: done, at: {gen: expr, expr: t}, first: {gen: expr, expr: "wait.t0.value"}, in_result: {gen: expr, expr: "[wait.t0.done, wait.t1.done, wait.t2.done]"}}}}

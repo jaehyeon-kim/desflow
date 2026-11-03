@@ -1,0 +1,5 @@
+# case ST-I10: test_interrupt_self: a process interrupts itself. SimPy raises RuntimeError (the test catches it). In the blueprint an interrupt of the task's own instance is delivered at the next wait, and no variable records a refusal: the class where SimPy raises and desflow goes on, an expected difference by design pending the owner's decision.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+variables: {interrupt_raised: false}
+arrivals: {a: {initial: 1, spawn: pem}}
+tasks: {pem: {interrupt: {task: pem}, wait: {timeout: 0}, payload: {event_type: done}}}

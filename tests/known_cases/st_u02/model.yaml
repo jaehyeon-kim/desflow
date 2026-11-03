@@ -1,0 +1,8 @@
+# case ST-U02: test_subscribe: subscribe_at(child_proc): the parent, waiting for an event that never comes, is interrupted with the child's value when the child ends at 3.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+signals: {never: {once: true}}
+arrivals: {s: {initial: 1, spawn: subscriber}}
+tasks:
+  other: {service_time: 3, payload: {event_type: other_done, value: ohai}}
+  subscriber: {subscribe: {task: other}, wait: {signal: never}, on_interrupt: abandon, on_interrupt_next: told, payload: {event_type: should_not_finish}}
+  told: {payload: {event_type: interrupted, at: {gen: expr, expr: t}, value: {gen: expr, expr: "cause.value.value.value"}}}

@@ -159,8 +159,10 @@ def P49():
         while True:
             yield env.timeout(3)
             with m.request(priority=-1, preempt=True) as r:
+                L("m", None, S("down", reason="failure"))
                 yield r
                 yield env.timeout(2)
+                L("m", None, S("repaired", reason="failure"))
 
     def job(k):
         left = 1.5

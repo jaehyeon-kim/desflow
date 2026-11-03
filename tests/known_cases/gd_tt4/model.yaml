@@ -1,0 +1,8 @@
+# case GD-TT4: interrupted during service, catches it and keeps the unit (register guides/TT6_simpy.py: service 2, a second request at 0.5, interrupt at 1).
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}}
+arrivals: {a: {initial: 1, spawn: user}, b: {dist: constant, value: 0.5, spawn: waiting, max_events: 1}, i: {dist: constant, value: 1, spawn: poke, max_events: 1}}
+tasks:
+  user: {wait: {request: m}, on_interrupt: resume, service_time: 2, payload: {event_type: user_done}}
+  waiting: {resource: m, service_time: 1, payload: {event_type: waiting_done}}
+  poke: {payload: {event_type: poke}, interrupt: {task: user}}

@@ -1,0 +1,8 @@
+# case ST-R25: a filter get waits until a matching item is put.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+stores: {s: {current_cap: 2}}
+arrivals: {g: {initial: 1, spawn: want_b}, p: {initial: 1, spawn: put_a}}
+tasks:
+  want_b: {get: {store: s, filter: "item == 'b'"}, payload: {event_type: got_b}}
+  put_a: {put: {store: s, item: a}, payload: {event_type: put_a}, next: put_b}
+  put_b: {put: {store: s, item: b}, payload: {event_type: put_b}}

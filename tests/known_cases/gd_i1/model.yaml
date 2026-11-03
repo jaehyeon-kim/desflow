@@ -1,0 +1,9 @@
+# Several documents, split at '---'. Each starts with a '# case' line.
+# case GD-I1: a car parks 5, drives 2, forever (basic_concepts.rst:42-79).
+simulation: {sim_id: Car, factor: 0, random_seed: 42}
+services: {park: {dist: constant, value: 5}, drive: {dist: constant, value: 2}}
+arrivals: {car: {initial: 1, spawn: parking}}
+tasks:
+  parking: {service: park, payload: {event_type: parked}, next: driving}
+  driving: {service: drive, payload: {event_type: drove}, next: parking}
+run: {until: 15}

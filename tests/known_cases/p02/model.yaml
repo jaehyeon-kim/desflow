@@ -1,0 +1,5 @@
+# case P02: an attribute drawn per entity.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+arrivals: {a: {dist: exponential, rate: 1, spawn: t, attributes: {x: {gen: sample, dist: exponential, rate: 2}}}}
+tasks: {t: {payload: {event_type: seen, x: {gen: attr, name: x}}}}
+run: {until: 20}

@@ -202,14 +202,30 @@ class HandleTable(dict):
 
 
 class _NoRecord:
-    """What the body of a task with `payload: null` returns: the task finishes and
-    publishes no record."""
+    """What a task function returns to finish with no record: the Builder form of a
+    blueprint's `payload: null`."""
 
     def __repr__(self) -> str:
         return "NO_RECORD"
 
 
 NO_RECORD = _NoRecord()
+"""What a task function returns to finish with no record: the Builder form of a
+blueprint's `payload: null`.
+
+Return `desflow.NO_RECORD` from the function a task wraps. The task still runs its
+service, `set`, signal and `next`, and publishes no finished event.
+
+Example:
+    ```python
+    from desflow import NO_RECORD
+
+
+    @app.task(name="quiet", service_time=1)
+    def quiet(task_id):
+        return NO_RECORD
+    ```
+"""
 
 # The service still owed, in seconds, at or below which a resumed task has none left
 _NO_TIME_LEFT = 1e-9

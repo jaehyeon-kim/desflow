@@ -3104,3 +3104,31 @@ def test_a_listen_entry_cannot_read_the_item_of_a_get(tmp_path):
     )
     with pytest.raises(BlueprintError, match="item"):
         SimulationContext.from_yaml(write(tmp_path, text))
+
+
+_PUT_ITEM = """
+simulation: {sim_id: A, factor: 0}
+stores: {s: {}}
+arrivals: {a: {initial: 1, spawn: t}}
+tasks:
+  t:
+    put: {store: s, item: {x: {gen: expr, expr: "1 + 1"}, y: 3, z: [{gen: expr, expr: "2 * 3"}], w: {v: {gen: expr, expr: "7"}}}}
+    payload: {event_type: put}
+    next: g
+  g: {get: {store: s}, payload: {event_type: got, item: {gen: expr, expr: item}}}
+"""
+
+
+def test_a_put_item_mapping_evaluates_the_generators_nested_in_it(tmp_path):
+    """MF1: `put.item` is a value place, so a generator at any depth of a mapping or
+    list is read as the put is made, as a payload's is."""
+    app = SimulationContext.from_yaml(write(tmp_path, _PUT_ITEM))
+    capture = _Capture()
+    app.add_egress(capture)
+    app.run(until=5)
+    got = [
+        row["value"]["item"]
+        for row in capture.records
+        if row.get("value", {}).get("event_type") == "got"
+    ]
+    assert got == [{"x": 2, "y": 3, "z": [6], "w": {"v": 7}}]

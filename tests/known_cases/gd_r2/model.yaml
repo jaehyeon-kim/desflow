@@ -1,0 +1,5 @@
+# case GD-R2: strict=True raises when a step is slower than real time (real-time-simulations.rst:64-88). The guide's process sleeps 0.02 s of heavy computation with factor 0.01. The blueprint has no wall-time work, so the existing form is a factor of 1e-6, which the engine's own step time exceeds.
+simulation: {sim_id: R, factor: 1.0e-6, strict: true, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: one}}
+tasks: {one: {service_time: 1, payload: {event_type: done}}}
+run: {until: 2}

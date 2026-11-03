@@ -1,0 +1,9 @@
+# case ST-I09: test_concurrent_behaviour: a process waits on two timeouts of 0 in turn; another interrupts it twice at once, with no cause.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: first_wait}, b: {initial: 1, spawn: poke_twice}}
+tasks:
+  first_wait: {wait: {timeout: 0}, on_interrupt: abandon, on_interrupt_next: second_wait, payload: {event_type: finished}}
+  second_wait: {wait: {timeout: 0}, on_interrupt: abandon, on_interrupt_next: end, payload: {event_type: finished}}
+  end: {payload: {event_type: end}}
+  poke_twice: {payload: {event_type: poke}, interrupt: {task: first_wait}, next: poke_again}
+  poke_again: {payload: {event_type: poke_again}, interrupt: {task: first_wait}}

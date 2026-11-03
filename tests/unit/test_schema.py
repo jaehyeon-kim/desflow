@@ -32,6 +32,7 @@ SCHEMA = json.loads(schema_text())
 # Files in the blueprint folders that are not blueprints: experiment files, fitted
 # settings that a blueprint includes, and the settings `desflow fit` writes.
 NOT_BLUEPRINTS = {
+    "tests/known_cases/index.yaml",
     "examples/yaml/experiment.yaml",
     "examples/yaml/packing_fit.yaml",
     "docs/snippets/yaml/parameter_sweeps_experiment.yaml",
@@ -50,6 +51,7 @@ FOLDERS = (
     "examples/yaml",
     "tests/conformance/blueprints",
     "tests/conformance/yaml_only",
+    "tests/known_cases",
     "docs/snippets/yaml",
 )
 

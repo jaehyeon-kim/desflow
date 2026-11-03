@@ -1,0 +1,7 @@
+# case ST-U14: test_any_of_with_errors: any_of of a process that fails at 1 with 'crashing' and timeout(2). The condition fails at 1 and the parent catches the error.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: pem}}
+tasks:
+  pem: {wait: {any: {x: {task: child_with_error}, t: {timeout: {after: 2, value: 2}}}}, on_fail: caught, payload: {event_type: unreachable}}
+  caught: {payload: {event_type: caught, reason: {gen: expr, expr: "upstream.reason"}, at: {gen: expr, expr: t}}}
+  child_with_error: {service_time: 1, fail: "True", fail_reason: crashing, payload: {event_type: child}}

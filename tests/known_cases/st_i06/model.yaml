@@ -1,0 +1,9 @@
+# case ST-I06: test_multiple_interrupts: two concurrent interrupts reach a child that returns after the first; the second is ignored; the parent reads the first cause.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+arrivals: {p: {initial: 1, spawn: parent}}
+tasks:
+  parent: {open: {c: {task: child}}, wait: {timeout: 0}, payload: {event_type: go}, interrupt: {task: child, cause: 1}, next: second}
+  second: {payload: {event_type: second}, interrupt: {task: child, cause: 2}, next: join}
+  join: {wait: {handle: c}, payload: {event_type: joined, result: {gen: expr, expr: "wait.c.value.cause"}}}
+  child: {service_time: 1, on_interrupt: abandon, on_interrupt_next: return_cause, payload: {event_type: finished}}
+  return_cause: {payload: {cause: {gen: expr, expr: "cause.value"}}}

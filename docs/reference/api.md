@@ -31,6 +31,12 @@ A task's flow is built from the classes below. The signals and failures here are
       show_root_heading: true
 
 <!-- prettier-ignore -->
+::: desflow.core.task.NO_RECORD
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
 ::: desflow.models.flow.Entity
     options:
       heading_level: 3

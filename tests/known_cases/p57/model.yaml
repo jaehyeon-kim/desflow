@@ -1,0 +1,12 @@
+# case P57: clone with its own attributes, then join with running waits (audit2 p57.py, spawn key in two tasks).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+services: {one: {dist: constant, value: 1}, two: {dist: constant, value: 2}}
+arrivals: {a: {initial: 1, spawn: split}}
+tasks:
+  split: {spawn: {task: c1}, payload: {}, next: split2}
+  split2: {spawn: {task: c2}, payload: {}, next: join}
+  join: {wait: {all: {r1: {running: {task: c1}}, r2: {running: {task: c2}}}}, payload: {}}
+  c1: {service: one, set: {x: 1}, payload: {}, next: c1b}
+  c1b: {payload: {}, attributes: [x]}
+  c2: {service: two, set: {x: 2}, payload: {}, next: c2b}
+  c2b: {payload: {}, attributes: [x]}

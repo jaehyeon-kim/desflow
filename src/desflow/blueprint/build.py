@@ -2053,9 +2053,9 @@ def _add_to_context(
                 spawn=arrival.spawn,
             )
         elif arrival.gap is not None:
-            context._add_gap_arrival(
+            context.add_arrival(
                 name,
-                _time_place(arrival.gap),
+                gap=_time_place(arrival.gap),
                 attributes=arrival.attributes,
                 spawn=arrival.spawn,
             )

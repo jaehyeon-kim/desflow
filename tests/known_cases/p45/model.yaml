@@ -1,0 +1,13 @@
+# case P45: jockeying: wait in line a, and after a time move to the end of line b if b is shorter (register review-r2/b/own/i7_jockey.py: customers at 0, capacity 1 each, service 4, the check is made after 1). Only the end records of the source's program are published (served_a, served_b); the timer, mark, cut and unmark steps publish nothing, as the source has no record of them.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+resources: {a: {current_cap: 1}, b: {current_cap: 1}}
+services: {s: {dist: constant, value: 4}}
+arrivals: {c: {initial: 3, spawn: t, attributes: {leaving: 0}}}
+tasks:
+  t: {wait: {all: {q: {task: qa}, tm: {task: timer}}}, payload: null}
+  qa: {resource: a, service: s, on_interrupt: abandon, on_interrupt_next: qb, payload: {event_type: served_a}}
+  qb: {resource: b, service: s, payload: {event_type: served_b}}
+  timer: {service_time: 1, payload: null, next: {when: [{condition: "users.b + queue.b < queue.a", task: mark}]}}
+  mark: {set: {leaving: 1}, payload: null, next: cut}
+  cut: {payload: null, interrupt: {task: qa, where: "attr.leaving == 1 and process.target == 'resource.a'"}, next: unmark}
+  unmark: {set: {leaving: 0}, payload: null}

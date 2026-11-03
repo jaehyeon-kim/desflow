@@ -1,0 +1,5 @@
+# case ST-R18: a Container with no capacity has infinite capacity.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+containers: {c: {level: 0}}
+arrivals: {a: {initial: 1, spawn: read}}
+tasks: {read: {payload: {event_type: capacity, capacity: {gen: expr, expr: "registry['T.containers.c.current_cap']"}}}}

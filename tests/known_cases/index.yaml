@@ -1,0 +1,794 @@
+# One entry for each known case of the prefixes EX-, GD-, ST- and P of
+# release/yaml-only-prototype/known-cases.md, generated once from that file by a script.
+# A case has a folder of its own, or `runs_in` names the case whose folder holds the
+# document it shares. A row that known-cases.md lists under "Left out" carries a `reason`
+# in place of both; no row of these four prefixes is left out. Part 12b adds the other prefixes.
+
+- id: EX-1
+  topic: Resources
+  title: Bank with customers who give up waiting
+- id: EX-2
+  topic: Resources
+  title: Carwash where a car keeps its machine during the wash
+- id: EX-3
+  topic: Interrupts and Failures
+  title: Machine shop with breakdowns and a repairman
+- id: EX-4
+  topic: Stores
+  title: Movie tickets with a sold-out event that makes people leave
+- id: EX-5
+  topic: Containers
+  title: Gas station with two pumps and a tank truck
+- id: EX-6
+  topic: Events and Signals
+  title: Messages that reach a store after a fixed delay
+- id: EX-7a
+  topic: Stores
+  title: One generator and one consumer joined by a store
+- id: EX-7b
+  topic: Stores
+  title: One generator that broadcasts to several pipes
+- id: GD-B1
+  topic: Environment and Time
+  title: A timeout that carries a value
+- id: GD-E1
+  topic: Environment and Time
+  title: Run the model in segments to a series of times
+- id: GD-E2
+  topic: Environment and Time
+  title: Run until a process ends and return its value
+- id: GD-E3
+  topic: Environment and Time
+  title: Read the next event time and step one event at a time
+- id: GD-E4
+  topic: Environment and Time
+  title: Start the clock at a time other than 0
+- id: GD-E5
+  topic: Processes and Tasks
+  title: Read which process is running
+- id: GD-E6
+  topic: Processes and Tasks
+  title: Event, process, timeout, all of and any of through the environment
+- id: GD-E7
+  topic: Processes and Tasks
+  title: A process returns a value to the process that waits for it
+- id: GD-I1
+  topic: Processes and Tasks
+  title: A car that parks and drives for ever
+- id: GD-I2
+  topic: Processes and Tasks
+  title: A car that waits for a charging child flow
+- id: GD-I3
+  topic: Interrupts and Failures
+  title: A driver interrupts a car that catches the interrupt
+- id: GD-I4
+  topic: Resources
+  title: Four cars share a charging station of two spots
+- id: GD-M1
+  topic: Statistics and Monitoring
+  title: Collect a value in a list five times
+- id: GD-M2
+  topic: Statistics and Monitoring
+  title: Record the count and queue length after each call
+- id: GD-M3
+  topic: Statistics and Monitoring
+  title: Record the queue length before each request and release
+- id: GD-M4
+  topic: Statistics and Monitoring
+  title: Trace every event the run processes
+- id: GD-P1
+  topic: Processes and Tasks
+  title: A car and a battery controller that pause and wake each other
+- id: GD-P2
+  topic: Conditions and Waits
+  title: Wait for charging and parking together
+- id: GD-P3
+  topic: Interrupts and Failures
+  title: Interrupt the charging branch of a wait
+- id: GD-P4
+  topic: Interrupts and Failures
+  title: Wait again for the same request after an interrupt
+- id: GD-R1
+  topic: Real Time
+  title: One time unit takes a tenth of a second
+- id: GD-R2
+  topic: Real Time
+  title: A step slower than real time fails only in strict mode
+- id: GD-RS1
+  topic: Resources
+  title: Request, hold and release one unit
+- id: GD-RS2
+  topic: Resources
+  title: Hold one unit with the with form
+- id: GD-RS3
+  topic: Resources
+  title: Read count, capacity, users and queue around a request
+- id: GD-RS4
+  topic: Resources
+  title: Priority resource with a priority for each user
+- id: GD-RS5
+  topic: Resources
+  title: Preemptive resource that reports who preempted
+- id: GD-RS6
+  topic: Resources
+  title: A preempt flag for each request
+- id: GD-RS7
+  topic: Containers
+  title: Gas station with a monitor, a tanker and a container
+- id: GD-RS8
+  topic: Stores
+  title: A producer and two consumers on a store of two
+- id: GD-RS9
+  topic: Stores
+  title: A filter store of machines
+- id: GD-RS10
+  topic: Stores
+  title: A priority store with text priorities
+- id: GD-RS11
+  topic: Resources
+  title: A preemptive resource with its own queue or preemption rule
+- id: GD-S1
+  topic: Processes and Tasks
+  title: The SimPy 2 verbs written for SimPy 4
+- id: GD-S2
+  topic: Conditions and Waits
+  title: Wait until a condition holds
+- id: GD-S3
+  topic: Interrupts and Failures
+  title: Interrupt a process and read the cause
+- id: GD-S4
+  topic: Processes and Tasks
+  title: Return the first needle found
+- id: GD-T1
+  topic: Environment and Time
+  title: Events at one time run in the order they were scheduled
+- id: GD-TT1
+  topic: Interrupts and Failures
+  title: Interrupted while joining a child, then join it again
+- id: GD-TT2
+  topic: Interrupts and Failures
+  title: Three interrupts at one time, each with its own cause
+- id: GD-TT3
+  topic: Interrupts and Failures
+  title: Interrupted while queued, keeping the same request
+- id: GD-TT4
+  topic: Interrupts and Failures
+  title: Interrupted during service, keeping the unit
+- id: GD-TT5
+  topic: Interrupts and Failures
+  title: An event and an interrupt arrive together
+- id: GD-TT6
+  topic: Interrupts and Failures
+  title: An unhandled exception stops the run
+- id: GD-TT7
+  topic: Environment and Time
+  title: A run with no end time stops when no event is left
+- id: GD-V1
+  topic: Events and Signals
+  title: A callback added to an event
+- id: GD-V2
+  topic: Events and Signals
+  title: Succeed an event, fail an event and trigger one from another
+- id: GD-V3
+  topic: Events and Signals
+  title: A shared event made again after each firing
+- id: GD-V4
+  topic: Processes and Tasks
+  title: A process is an event and its value is returned by the run
+- id: GD-V5
+  topic: Processes and Tasks
+  title: A process started after a delay, then waited for
+- id: GD-V6
+  topic: Conditions and Waits
+  title: Any of and all of over a list of events
+- id: GD-V7
+  topic: Conditions and Waits
+  title: Or, and, nested conditions and timeout values
+- id: GD-V8
+  topic: Conditions and Waits
+  title: Read the values of an all-of condition in order
+- id: ST-C01
+  topic: Conditions and Waits
+  title: And of three timeouts reads all three values
+- id: ST-C02
+  topic: Conditions and Waits
+  title: And with an event that never triggers stays blocked
+- id: ST-C03
+  topic: Conditions and Waits
+  title: Or of three timeouts continues at the first
+- id: ST-C04
+  topic: Conditions and Waits
+  title: And nested in or
+- id: ST-C05
+  topic: Conditions and Waits
+  title: Or nested in and
+- id: ST-C06
+  topic: Interrupts and Failures
+  title: A failing event inside a nested condition reaches the waiter
+- id: ST-C07
+  topic: Interrupts and Failures
+  title: A failing event in a flat condition reaches the waiter
+  runs_in: ST-C06
+- id: ST-C08
+  topic: Interrupts and Failures
+  title: A failing event in a doubly nested condition reaches the waiter
+  runs_in: ST-C06
+- id: ST-C09
+  topic: Interrupts and Failures
+  title: A failing event in a condition that nobody handles stops the run
+- id: ST-C10
+  topic: Conditions and Waits
+  title: Build flat conditions with in-place and
+- id: ST-C11
+  topic: Conditions and Waits
+  title: Build flat conditions with in-place or
+  runs_in: ST-C10
+- id: ST-C12
+  topic: Conditions and Waits
+  title: Extend an or condition in place
+  runs_in: ST-C10
+- id: ST-C13
+  topic: Conditions and Waits
+  title: Extend an and condition in place
+  runs_in: ST-C10
+- id: ST-C14
+  topic: Conditions and Waits
+  title: The result of a condition does not change later
+- id: ST-C15
+  topic: Conditions and Waits
+  title: Two processes wait on the same and condition
+- id: ST-C16
+  topic: Conditions and Waits
+  title: Two processes wait on the same or condition
+  runs_in: ST-C15
+- id: ST-C17
+  topic: Conditions and Waits
+  title: The values of a condition
+- id: ST-C18
+  topic: Conditions and Waits
+  title: The order of the results of a condition
+  runs_in: ST-C17
+- id: ST-C19
+  topic: Conditions and Waits
+  title: The order of the results of a nested condition
+  runs_in: ST-C17
+- id: ST-C20
+  topic: Conditions and Waits
+  title: An all-of condition over no events succeeds at once
+- id: ST-C21
+  topic: Conditions and Waits
+  title: An any-of condition over no events succeeds at once
+  runs_in: ST-C20
+- id: ST-E01
+  topic: Environment and Time
+  title: The clock ends at the run time when the queue is empty
+- id: ST-E02
+  topic: Environment and Time
+  title: Run in three segments
+- id: ST-E03
+  topic: Environment and Time
+  title: Run until an event that has already been processed
+- id: ST-E04
+  topic: Environment and Time
+  title: Run until an event that never triggers
+- id: ST-E05
+  topic: Environment and Time
+  title: A periodic event that five consumers count
+- id: ST-E06
+  topic: Environment and Time
+  title: An end time written as text
+- id: ST-I01
+  topic: Interrupts and Failures
+  title: A child interrupted at 5 with a cause
+- id: ST-I02
+  topic: Interrupts and Failures
+  title: Three interrupts at one time
+  runs_in: GD-TT2
+- id: ST-I03
+  topic: Interrupts and Failures
+  title: An event and an interrupt at one time
+  runs_in: GD-TT5
+- id: ST-I04
+  topic: Interrupts and Failures
+  title: A child interrupted at the instant it is created
+- id: ST-I05
+  topic: Interrupts and Failures
+  title: Interrupt a process that has ended
+- id: ST-I06
+  topic: Interrupts and Failures
+  title: Two interrupts reach a process that ends after the first
+- id: ST-I07
+  topic: Interrupts and Failures
+  title: A child waiting on an event interrupted at time 0
+- id: ST-I08
+  topic: Interrupts and Failures
+  title: A child waiting on an event interrupted at 5
+- id: ST-I09
+  topic: Interrupts and Failures
+  title: Two interrupts at once while waiting on timeouts of 0
+- id: ST-I10
+  topic: Interrupts and Failures
+  title: A process that tries to interrupt itself
+- id: ST-P01
+  topic: Processes and Tasks
+  title: Read whether processes are alive
+- id: ST-P02
+  topic: Processes and Tasks
+  title: Read what a process waits for, then interrupt it
+- id: ST-P03
+  topic: Processes and Tasks
+  title: A waiter waits for a finisher process
+- id: ST-P04
+  topic: Processes and Tasks
+  title: Two child calls that return the time
+- id: ST-P05
+  topic: Processes and Tasks
+  title: A child returns an exception object as a value
+- id: ST-P06
+  topic: Interrupts and Failures
+  title: A parent interrupted while joining a child is not resumed by it
+- id: ST-P07
+  topic: Interrupts and Failures
+  title: Interrupted while joining a child, then join it again
+  runs_in: GD-TT1
+- id: ST-P08
+  topic: Interrupts and Failures
+  title: A failed child that nobody waits for any more stops the run
+- id: ST-R01
+  topic: Resources
+  title: Two users share one unit with explicit request and release
+- id: ST-R02
+  topic: Resources
+  title: Two users share one unit with the with form
+- id: ST-R03
+  topic: Resources
+  title: Nine users on three units
+- id: ST-R04
+  topic: Interrupts and Failures
+  title: Interrupted while queued, keeping the same request
+  runs_in: GD-TT3
+- id: ST-R05
+  topic: Interrupts and Failures
+  title: A queued victim interrupted releases its request
+- id: ST-R06
+  topic: Resources
+  title: A process that asks again does not pass the queue
+- id: ST-R07
+  topic: Resources
+  title: An exception inside the with block releases the unit
+- id: ST-R08
+  topic: Conditions and Waits
+  title: A request or a timeout, whichever comes first
+- id: ST-R09
+  topic: Resources
+  title: Priority resource with four requests
+- id: ST-R10
+  topic: Resources
+  title: A priority queue with a limit of one
+- id: ST-R11
+  topic: Statistics and Monitoring
+  title: Read the users and queue of a resource
+- id: ST-R12
+  topic: Resources
+  title: A lower number preempts a holder
+- id: ST-R13
+  topic: Resources
+  title: A preempted process waits for an event that never comes
+- id: ST-R14
+  topic: Resources
+  title: Five processes with priorities and preempt flags
+- id: ST-R15
+  topic: Resources
+  title: Nested preemption over two resources
+- id: ST-R16
+  topic: Containers
+  title: A container with a putter and a getter
+- id: ST-R17
+  topic: Statistics and Monitoring
+  title: Read the queues of a container of capacity 1
+- id: ST-R18
+  topic: Containers
+  title: A container with no capacity is unbounded
+- id: ST-R19
+  topic: Stores
+  title: A putter and a getter on a store of two
+- id: ST-R20
+  topic: Stores
+  title: A store with no capacity is unbounded
+- id: ST-R21
+  topic: Stores
+  title: A third put waits on a full store
+- id: ST-R22
+  topic: Stores
+  title: A get inside a with block is cancelled on leaving
+- id: ST-R23
+  topic: Stores
+  title: A priority store served by item value
+- id: ST-R24
+  topic: Stores
+  title: Items of equal priority come out in insertion order
+- id: ST-R25
+  topic: Stores
+  title: A filter get waits for a matching item
+- id: ST-R26
+  topic: Stores
+  title: A later get still matches after a mismatch
+- id: ST-R29
+  topic: Resources
+  title: The first request of an empty resource is granted at once
+- id: ST-R30
+  topic: Containers
+  title: A put into an empty container and two gets
+- id: ST-RT1
+  topic: Real Time
+  title: Ten steps take a second of wall time
+- id: ST-RT2
+  topic: Real Time
+  title: A real-time run called twice
+- id: ST-RT3
+  topic: Real Time
+  title: A step slower than real time fails in strict mode
+- id: ST-RT4
+  topic: Real Time
+  title: A step slower than real time does not fail when not strict
+- id: ST-RT5
+  topic: Real Time
+  title: An end time below the clock is refused
+- id: ST-RT6
+  topic: Real Time
+  title: Sync the clock after a long computation
+- id: ST-RT7
+  topic: Real Time
+  title: Run until an event that never triggers in real time
+- id: ST-T01
+  topic: Environment and Time
+  title: A loop that logs the time every second
+- id: ST-T02
+  topic: Environment and Time
+  title: A negative delay fails when the run reaches it
+- id: ST-T03
+  topic: Environment and Time
+  title: A timeout that carries a value
+  runs_in: GD-B1
+- id: ST-T04
+  topic: Environment and Time
+  title: Three processes wait for the same timeout
+- id: ST-T05
+  topic: Environment and Time
+  title: A child starts after a timeout has been processed
+- id: ST-U01
+  topic: Processes and Tasks
+  title: A child started after a delay
+- id: ST-U02
+  topic: Events and Signals
+  title: A subscriber interrupted when another process ends
+- id: ST-U03
+  topic: Events and Signals
+  title: Subscribe to a process that has ended
+- id: ST-U04
+  topic: Events and Signals
+  title: A subscriber interrupted while waiting for another child
+- id: ST-U05
+  topic: Events and Signals
+  title: A subscriber interrupted by a timeout with a value
+- id: ST-U06
+  topic: Events and Signals
+  title: A subscriber interrupted by a second timeout with a value
+  runs_in: ST-U05
+- id: ST-U07
+  topic: Conditions and Waits
+  title: All of a list of ten timeouts
+- id: ST-U08
+  topic: Conditions and Waits
+  title: All of a generator of ten timeouts
+- id: ST-U09
+  topic: Interrupts and Failures
+  title: All of with a failing process that the parent catches
+- id: ST-U10
+  topic: Conditions and Waits
+  title: Chained all-of conditions
+- id: ST-U11
+  topic: Conditions and Waits
+  title: Chained all-of conditions with intermediate results
+- id: ST-U12
+  topic: Conditions and Waits
+  title: All of events that have already been processed
+- id: ST-U13
+  topic: Conditions and Waits
+  title: Any of a list of ten timeouts
+- id: ST-U14
+  topic: Interrupts and Failures
+  title: Any of with a failing process that the parent catches
+- id: ST-U15
+  topic: Conditions and Waits
+  title: Chained any-of conditions
+- id: ST-U16
+  topic: Conditions and Waits
+  title: Any of events that have already been processed
+- id: ST-U17
+  topic: Conditions and Waits
+  title: Empty any-of and all-of conditions succeed at once
+- id: ST-U18
+  topic: Conditions and Waits
+  title: Empty any-of and all-of conditions succeed at once, second form
+  runs_in: ST-U17
+- id: ST-U19
+  topic: Conditions and Waits
+  title: An all-of expansion is one flat condition
+- id: ST-V01
+  topic: Events and Signals
+  title: A parent succeeds an event that a child waits for
+- id: ST-V02
+  topic: Interrupts and Failures
+  title: A failed event that a child catches
+- id: ST-V03
+  topic: Events and Signals
+  title: A timeout keeps its value after the run
+- id: ST-V04
+  topic: Events and Signals
+  title: Read the value of an event before it triggers
+- id: ST-V05
+  topic: Events and Signals
+  title: An event succeeded before the process waits
+- id: ST-V07
+  topic: Conditions and Waits
+  title: Run until an or condition with an event already succeeded
+- id: ST-V08
+  topic: Conditions and Waits
+  title: Run until a nested condition with an event already succeeded
+- id: ST-X01
+  topic: Interrupts and Failures
+  title: A failing child that the parent catches
+- id: ST-X02
+  topic: Interrupts and Failures
+  title: A failing child that nobody waits for stops the run
+- id: ST-X03
+  topic: Interrupts and Failures
+  title: A failed event that nobody defuses stops the run
+- id: ST-X04
+  topic: Interrupts and Failures
+  title: A failed event defused by a callback
+- id: ST-X05
+  topic: Interrupts and Failures
+  title: A failed event handled by a process
+- id: P01
+  topic: Generated Values
+  title: Fixed starting attributes
+- id: P02
+  topic: Generated Values
+  title: An attribute drawn for each entity
+- id: P03
+  topic: Arrivals and Sources
+  title: First arrival at 0, then drawn gaps
+- id: P04
+  topic: Arrivals and Sources
+  title: A fixed number of arrivals with drawn gaps
+- id: P05
+  topic: Arrivals and Sources
+  title: A group of arrivals at once with a drawn size
+- id: P06
+  topic: Arrivals and Sources
+  title: A piecewise arrival rate
+- id: P07
+  topic: Arrivals and Sources
+  title: An arrival rate that is a function of time
+- id: P08
+  topic: Arrivals and Sources
+  title: Replay of a trace of arrival times
+- id: P09
+  topic: Arrivals and Sources
+  title: Switch one source off and on
+- id: P10
+  topic: Arrivals and Sources
+  title: Change a source from a flow
+- id: P11
+  topic: Generated Values
+  title: A timeout from a named distribution
+- id: P12
+  topic: Environment and Time
+  title: A timeout of 0 or a draw clipped at 0
+- id: P13
+  topic: Generated Values
+  title: A delay from an attribute
+- id: P14
+  topic: Generated Values
+  title: A delay from the state
+- id: P15
+  topic: Generated Values
+  title: A delay from the time
+  runs_in: P14
+- id: P16
+  topic: Generated Values
+  title: Set a constant attribute
+- id: P17
+  topic: Generated Values
+  title: Set a computed attribute
+- id: P18
+  topic: Generated Values
+  title: Read a global variable
+- id: P19
+  topic: Generated Values
+  title: A global counter that is not a plain increment
+- id: P20
+  topic: Generated Values
+  title: Branch by an attribute with fixed weights
+- id: P21
+  topic: Generated Values
+  title: Branch by the state with fixed weights
+- id: P22
+  topic: Generated Values
+  title: Branch by an attribute or the state, second form
+- id: P23
+  topic: Generated Values
+  title: A probability from an attribute or the state
+- id: P24
+  topic: Processes and Tasks
+  title: A loop with a counter
+- id: P25
+  topic: Processes and Tasks
+  title: Rework chosen by weights
+- id: P26
+  topic: Processes and Tasks
+  title: A sub-process that returns a value
+- id: P27
+  topic: Processes and Tasks
+  title: A sub-process with arguments
+- id: P28
+  topic: Interrupts and Failures
+  title: Try and catch around a step
+- id: P29
+  topic: Resources
+  title: Seize two units of a pool
+- id: P30
+  topic: Resources
+  title: Hold a unit across several steps and release one of two
+- id: P31
+  topic: Resources
+  title: Hold a unit across several steps, second form
+- id: P32
+  topic: Resources
+  title: Hold several resources
+- id: P33
+  topic: Resources
+  title: Change a capacity from a flow
+- id: P34
+  topic: Resources
+  title: A capacity computed from the state
+- id: P35
+  topic: Resources
+  title: Change the queue limit at run time
+- id: P36
+  topic: Resources
+  title: A priority from an attribute that a step changes
+- id: P37
+  topic: Resources
+  title: Preemption with resume or restart
+- id: P38
+  topic: Interrupts and Failures
+  title: Balking at a long queue
+- id: P39
+  topic: Interrupts and Failures
+  title: Balk, then route to another task
+- id: P40
+  topic: Interrupts and Failures
+  title: Renege on a fixed or attribute patience
+- id: P41
+  topic: Interrupts and Failures
+  title: Renege on a drawn patience
+- id: P42
+  topic: Interrupts and Failures
+  title: Renege, then route to another task
+- id: P43
+  topic: Interrupts and Failures
+  title: Renege when a signal fires
+- id: P44
+  topic: Interrupts and Failures
+  title: One deadline across queues
+- id: P45
+  topic: Resources
+  title: Jockeying between two lines
+- id: P46
+  topic: Resources
+  title: Choose the shortest queue or the first free
+- id: P47
+  topic: Resources
+  title: Round robin
+- id: P48
+  topic: Resources
+  title: Periodic shifts
+- id: P49
+  topic: Interrupts and Failures
+  title: A breakdown on a calendar clock
+- id: P50
+  topic: Interrupts and Failures
+  title: A failure clock that runs on busy time only
+- id: P50b
+  topic: Interrupts and Failures
+  title: A job preempted at the instant its work ends
+- id: P51
+  topic: Processes and Tasks
+  title: Setup or changeover
+- id: P52
+  topic: Processes and Tasks
+  title: Batch and separate with a timeout
+- id: P53
+  topic: Processes and Tasks
+  title: Batch and separate with a rule
+- id: P54
+  topic: Stores
+  title: Assembly from two stores
+- id: P55
+  topic: Stores
+  title: Match by key with a filter
+- id: P56
+  topic: Processes and Tasks
+  title: Clone and join all
+- id: P57
+  topic: Processes and Tasks
+  title: Clone with its own attributes
+- id: P58
+  topic: Processes and Tasks
+  title: The first clone wins
+- id: P59
+  topic: Processes and Tasks
+  title: Split into a drawn number of parts
+- id: P60
+  topic: Related Records
+  title: Children inherit attributes
+- id: P61
+  topic: Stores
+  title: Blocking with a finite buffer
+- id: P62
+  topic: Events and Signals
+  title: A gate on the state
+- id: P63
+  topic: Events and Signals
+  title: Broadcast a signal
+- id: P64
+  topic: Events and Signals
+  title: Wake a specific entity chosen by the waker
+- id: P65
+  topic: Events and Signals
+  title: Suspend until resume
+- id: P66
+  topic: Environment and Time
+  title: Stop after a number of departures
+- id: P67
+  topic: Environment and Time
+  title: Stop when a condition holds
+- id: P68
+  topic: Statistics and Monitoring
+  title: A warm-up period
+- id: P69
+  topic: Processes and Tasks
+  title: Leave with a probability
+- id: P70
+  topic: Generated Values
+  title: Log a computed message
+- id: P71
+  topic: Environment and Time
+  title: Event times of 0.00001 and 0.00002 stay different
+- id: P72
+  topic: Events and Signals
+  title: A signal that wakes at most a number of waiters
+- id: P73
+  topic: Interrupts and Failures
+  title: Abort a renege
+- id: P74
+  topic: Interrupts and Failures
+  title: Handle an unfinished request
+- id: P75
+  topic: Processes and Tasks
+  title: Read the remaining duration of a component
+- id: P76
+  topic: Stores
+  title: Enter a queue sorted or at the head
+- id: P77
+  topic: Resources
+  title: Release all units at once
+- id: P78
+  topic: Events and Signals
+  title: Untrap a waiting entity
+- id: P79
+  topic: Resources
+  title: Change the priority rules with preempt and restart flags

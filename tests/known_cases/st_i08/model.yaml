@@ -1,0 +1,9 @@
+# case ST-I08: test_interrupt_event: the parent creates a child that waits on a bare event, waits 5 and interrupts it.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+signals: {never: {once: true}}
+arrivals: {parent: {initial: 1, spawn: parent}}
+tasks:
+  parent: {spawn: {task: child}, service_time: 5, payload: {event_type: waited}, next: stop}
+  stop: {payload: {event_type: interrupt}, interrupt: {task: child}}
+  child: {wait: {signal: never}, on_interrupt: abandon, on_interrupt_next: caught, payload: {event_type: finished}}
+  caught: {payload: {event_type: interrupted, at: {gen: expr, expr: t}}}

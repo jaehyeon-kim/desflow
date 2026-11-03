@@ -1,0 +1,6 @@
+# case ST-V07: test_condition_callback_removal: run(until=a | b) with a already succeeded; the condition removes its callback from b.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+signals: {a: {once: true}, b: {once: true}}
+arrivals: {m: {initial: 1, spawn: maker}}
+tasks: {maker: {payload: {event_type: made}, on: [{fire: {signal: a}}]}}
+run: {stop: {condition: "signal.a.count >= 1 or signal.b.count >= 1"}}

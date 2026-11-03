@@ -1301,7 +1301,7 @@ class SimulationContext:
     def add_arrival(
         self,
         name: str,
-        dist: str,
+        dist: Optional[str] = None,
         *,
         rate: Optional[float] = None,
         mean: Optional[float] = None,
@@ -1317,6 +1317,7 @@ class SimulationContext:
         edges: Optional[List[float]] = None,
         counts: Optional[List[float]] = None,
         p: Optional[float] = None,
+        gap: Any = None,
         attributes: Optional[Mapping[str, Any]] = None,
         key: Optional[Callable[[int], str]] = None,
         spawn: Optional[str] = None,
@@ -1335,7 +1336,8 @@ class SimulationContext:
 
         Args:
             name: The internal identifier (e.g., 'orders').
-            dist: The family, as for `add_service`.
+            dist: The family, as for `add_service`. Give `gap` instead of it for a gap
+                that is not a distribution.
             rate: Events per second, for exponential.
             mean: The mean, for normal, lognormal, truncated_normal and poisson.
             std: The standard deviation, for the first three (0 when not given).
@@ -1350,6 +1352,10 @@ class SimulationContext:
             edges: The bin edges of an empirical histogram.
             counts: One count per empirical histogram bin.
             p: The chance of success on each try, for geometric.
+            gap: The time to the next arrival in place of `dist`, as a blueprint's
+                `gap`: a number of seconds, a duration such as `"5 min"`, an
+                expression such as `"1 + t / 4"` or a generator, read at the start
+                of each gap.
             attributes: The attributes each entity starts with, read in conditions
                 as `attr.<name>`. Each entity gets its own copy.
             key: A function of the entity's counter, from 1, returning its key.
@@ -1377,7 +1383,9 @@ class SimulationContext:
 
         Raises:
             ValueError: If the family is unknown, or a parameter is missing, out of
-                range or not one the family takes, or `first_at` is below 0 or not a
+                range or not one the family takes, or both or neither of `dist` and
+                `gap` are given, or `gap` is a negative number or neither a number,
+                an expression nor a generator, or `first_at` is below 0 or not a
                 number, or `off_mode`, `active`, `group` or `initial` is malformed or
                 given with no `spawn`. A `spawn` naming no task is refused when the
                 run starts.
@@ -1395,9 +1403,46 @@ class SimulationContext:
                 "active",
                 "off_mode",
                 "initial",
+                "gap",
             )
         }
-        self._arrivals_config[name] = _distribution(dist, params)
+        if (dist is None) == (gap is None):
+            raise ValueError(
+                f"arrival '{name}' takes a dist or a gap, "
+                + ("not both" if dist is not None else "and neither is given")
+            )
+        if gap is not None:
+            given = sorted(
+                k
+                for k, v in params.items()
+                if v is not None and k not in ("self", "name", "dist")
+            )
+            if given:
+                raise ValueError(
+                    f"arrival '{name}' has a gap, which takes no distribution "
+                    f"parameter: {', '.join(given)}"
+                )
+            if isinstance(gap, str):
+                from desflow.blueprint.models import _duration_text
+
+                gap = _duration_text(gap)  # a duration or a plain number in text
+                if isinstance(gap, str):  # not a number, so an expression
+                    try:
+                        gap = Expression(gap)
+                    except ValueError as error:
+                        raise ValueError(f"arrival '{name}': gap: {error}") from None
+            if isinstance(gap, bool) or not isinstance(
+                gap, (numbers.Real, _Gen, Expression)
+            ):
+                raise ValueError(
+                    f"arrival '{name}': gap is a number of seconds, a duration, "
+                    f"an expression or a generator, got {gap!r}"
+                )
+            if isinstance(gap, numbers.Real) and not float(gap) >= 0:
+                raise ValueError(f"arrival '{name}': gap is 0 or more, got {gap!r}")
+        else:
+            assert dist is not None
+            self._arrivals_config[name] = _distribution(dist, params)
         self._bind_values(
             attributes or {}, ("arrivals", name, "attributes"), overwrite=False
         )
@@ -1415,29 +1460,14 @@ class SimulationContext:
         if first_at is not None:
             plan = plan or ArrivalPlan()
             plan.first_at = first_at
+        if gap is not None:
+            plan = plan or ArrivalPlan()
+            plan.gap = gap
+            self._bind_values(gap, ("arrivals", name, "gap"), overwrite=False)
         if plan is not None:
             self._arrival_plans[name] = plan
         else:
             self._arrival_plans.pop(name, None)  # a second call replaces the first
-        self._add_spawn(name, spawn)
-        return self
-
-    def _add_gap_arrival(
-        self,
-        name: str,
-        gap: Any,
-        *,
-        attributes: Optional[Mapping[str, Any]] = None,
-        spawn: Optional[str] = None,
-        first_at: Optional[float] = None,
-    ) -> "SimulationContext":
-        """Registers an arrival whose gap is an expression or a generator, read at
-        the start of each gap, in place of a distribution. A blueprint's `gap`."""
-        self._bind_values(
-            attributes or {}, ("arrivals", name, "attributes"), overwrite=False
-        )
-        self._arrival_entities[name] = (dict(attributes or {}), None)
-        self._arrival_plans[name] = ArrivalPlan(gap=gap, first_at=first_at)
         self._add_spawn(name, spawn)
         return self
 
@@ -1448,31 +1478,48 @@ class SimulationContext:
         *,
         spawn: str,
         attributes: Optional[Mapping[str, Any]] = None,
+        key: Optional[Callable[[int], str]] = None,
+        gap: Any = None,
     ) -> "SimulationContext":
         """
         Registers an arrival that has only `initial` entities and no source: `initial`
         entities exist when the run starts, in creation order, before any step runs,
-        each keyed `<name>-n`, and each starts `spawn`. A blueprint's arrival with
-        `initial` alone.
+        each keyed `<name>-n` unless `key` gives another, and each starts `spawn`. A
+        blueprint's arrival with `initial` alone.
 
         Args:
             name: The arrival's name.
             initial: How many entities, 1 or more.
             spawn: The task each entity starts.
             attributes: The attributes each entity starts with.
+            key: A function of the entity's counter, from 1, returning its key, as for
+                `add_arrival`.
+            gap: With a gap the arrival is not sourceless: it also starts an entity
+                after each gap once the first `initial` exist, as
+                `add_arrival(name, gap=gap, initial=initial, ...)` does.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If `initial` is not a whole number above 0.
+            ValueError: If `initial` is not a whole number above 0, or `gap` is
+                refused as for `add_arrival`.
         """
         if isinstance(initial, bool) or not isinstance(initial, int) or initial < 1:
             raise ValueError(f"initial is a whole number above 0, got {initial!r}")
+        if gap is not None:
+            return self.add_arrival(
+                name,
+                gap=gap,
+                attributes=attributes,
+                key=key,
+                spawn=spawn,
+                initial=initial,
+            )
         self._bind_values(
             attributes or {}, ("arrivals", name, "attributes"), overwrite=False
         )
-        self._arrival_entities[name] = (dict(attributes or {}), None)
+        self._arrival_entities[name] = (dict(attributes or {}), key)
         self._arrival_plans[name] = ArrivalPlan(initial=initial, sourceless=True)
         self._add_spawn(name, spawn)
         return self
@@ -4034,6 +4081,9 @@ class SimulationContext:
         stop: Any = None,
         drain: Any = None,
         on_unhandled_failure: Optional[str] = None,
+        segments: Any = None,
+        steps: Optional[bool] = None,
+        sync: Optional[bool] = None,
     ) -> Any:
         """
         Compiles the defined infrastructure architecture and triggers the simulation loop.
@@ -4057,6 +4107,15 @@ class SimulationContext:
             drain: At `until`, stop the arrivals and keep running until no entity
                 is in the model: True, or `{"limit": duration}` to stop at the
                 latest that long after `until`. Needs `until`.
+            on_unhandled_failure: `"stop"` or `"continue"`, as `run.on_unhandled_failure`.
+            segments: Runs the model in parts and publishes `system.simulation.segment`
+                after each, as `run.segments` does: a list of mappings with the keys
+                `until`, `stop`, `look` and `sync` of a blueprint's entry, or
+                `{"every": seconds}` for equal parts up to `until`. A context built
+                by `from_yaml` uses the blueprint's `run.segments` when this is None.
+            steps: True publishes `system.simulation.step` after each model event,
+                as `run.steps` does. Not with `segments`, `stop` or `drain`.
+            sync: True calls `env.sync()` as the run starts, as `run.sync` does.
 
         Returns:
             Any: The value of the event that stopped the run, as SimPy's `env.run`
@@ -4071,7 +4130,15 @@ class SimulationContext:
                 failed stop event is raised the same way. The run closes first, and
                 the sinks receive the records.
         """
-        self.start(until, stop, drain, on_unhandled_failure=on_unhandled_failure)
+        self.start(
+            until,
+            stop,
+            drain,
+            on_unhandled_failure=on_unhandled_failure,
+            segments=segments,
+            steps=steps,
+            sync=sync,
+        )
         return self.finish()
 
     def finish(self) -> Any:
@@ -4349,6 +4416,9 @@ class SimulationContext:
         source: Optional[str] = None,
         actor: Optional[str] = None,
         reason: Optional[str] = None,
+        segments: Any = None,
+        steps: Optional[bool] = None,
+        sync: Optional[bool] = None,
     ) -> DynamicRealtimeEnvironment:
         """
         Builds and starts everything `run()` does before the clock moves.
@@ -4387,13 +4457,20 @@ class SimulationContext:
                 came from, such as `"user"`.
             actor: How the `ParamChange` of each override describes it: who made it.
             reason: How the `ParamChange` of each override describes it: why.
+            segments: As for `run()`. The segments and the steps run in `finish()`,
+                and only when `advance` and `step` have not moved the run.
+            steps: As for `run()`.
+            sync: As for `run()`.
 
         Returns:
             DynamicRealtimeEnvironment: The environment, also `context.env`.
 
         Raises:
-            ValueError: As for `run()`; or `stats` is not a level, or an override's
-                path does not exist or its value is refused, or a trace sink has no
+            ValueError: As for `run()`; or `segments` is malformed, a segment's
+                `look` names a task that does not exist, or `{"every": ...}` has no
+                `until`; or `steps` is used with `segments`, or `steps` or `sync` is
+                not a bool; or `stats` is not a level, or an override's path does not
+                exist or its value is refused, or a trace sink has no
                 `with_stats(trace=True)`.
         """
         if until is None and run_settings:
@@ -4406,9 +4483,18 @@ class SimulationContext:
             on_unhandled_failure = (
                 self._default_unhandled if run_settings else "continue"
             )
-        self._segments = self._default_segments if run_settings else None
-        self._steps = self._default_steps if run_settings else False
-        self._sync = self._default_sync if run_settings else False
+        if segments is not None:
+            self._segments = _segments_arg(segments)
+        elif run_settings:
+            self._segments = self._default_segments
+        else:
+            self._segments = None
+        self._steps = _flag_arg(
+            "steps", steps, self._default_steps if run_settings else False
+        )
+        self._sync = _flag_arg(
+            "sync", sync, self._default_sync if run_settings else False
+        )
         self._moved = False
         self._on_unhandled_failure = on_unhandled_failure
         # Read before any connector starts its thread, so a bad value stops the run
@@ -4432,6 +4518,20 @@ class SimulationContext:
                 "run.steps cannot be used with run.stop or run.drain: steps already "
                 "reads the run after each event"
             )
+        if self._steps and self._segments is not None:
+            raise ValueError(
+                "run.steps cannot be used with run.segments: steps already reads "
+                "the run after each event"
+            )
+        if isinstance(self._segments, Mapping) and until is None:
+            raise ValueError("segments {'every': ...} needs an until to divide")
+        for entry in self._segments if isinstance(self._segments, list) else ():
+            look = entry.get("look")
+            if look is not None and look not in self._tasks:
+                raise ValueError(
+                    f"a segment's look names task '{look}', "
+                    + _not_added(look, self._tasks, f"@app.task(name='{look}')")
+                )
         if isinstance(drain, Mapping) and drain.get("limit") is not None:
             _seconds(drain["limit"])
         if stats is not None and stats not in STATS_LEVELS:
@@ -6038,6 +6138,44 @@ def _segment_plan(run: Any) -> Any:
     if hasattr(segments, "every"):
         return {"every": segments.every}
     return [segment.model_dump(exclude_none=True) for segment in segments]
+
+
+def _segments_arg(segments: Any) -> Any:
+    """`segments` as `run()` takes it, as plain data like `_segment_plan` gives: a list
+    of mappings with the keys that are set, or `{"every": seconds}`.
+
+    Raises:
+        ValueError: If it is not a list of segment mappings or an `every` mapping, or
+            an entry takes a key a segment does not.
+    """
+    from desflow.blueprint.models import RunSegment, SegmentEvery
+
+    if isinstance(segments, Mapping):
+        try:
+            return {"every": SegmentEvery.model_validate(dict(segments)).every}
+        except ValueError as error:
+            raise ValueError(f"segments: {error}") from None
+    if isinstance(segments, (str, bytes)) or not isinstance(segments, (list, tuple)):
+        raise ValueError(
+            "segments is a list of segment mappings or {'every': seconds}, "
+            f"got {segments!r}"
+        )
+    plan = []
+    for index, entry in enumerate(segments):
+        try:
+            plan.append(RunSegment.model_validate(entry).model_dump(exclude_none=True))
+        except ValueError as error:  # a pydantic error is a ValueError
+            raise ValueError(f"segments[{index}]: {error}") from None
+    return plan
+
+
+def _flag_arg(name: str, value: Any, default: bool) -> bool:
+    """A `run()` switch: `value` when it is given, else `default`."""
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} is True or False, got {value!r}")
+    return value
 
 
 def _check_end(until: Any, stop: Any, drain: Any, signals: List[str]) -> None:

@@ -1,0 +1,8 @@
+# case P43: renege_if a signal: a bell interrupts every waiting customer (register audit2/patterns/mine/p43_fix.py "interrupt key": capacity 1, service 2.5, entities at one instant, a bell at 2.0 sends the waiting ones to other).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}}
+arrivals: {a: {initial: 3, spawn: job}, bell: {dist: constant, value: 2, spawn: ring, max_events: 1}}
+tasks:
+  job: {resource: m, service_time: 2.5, on_interrupt: abandon, on_interrupt_next: other, payload: {event_type: served}}
+  other: {payload: {event_type: other}}
+  ring: {payload: {event_type: bell}, interrupt: {task: job, where: "process.target != 'service'"}}

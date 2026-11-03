@@ -1,0 +1,4 @@
+# case ST-T04: test_shared_timeout: three processes wait for the same Timeout of 1; they continue in creation order. A blueprint wait makes its own timeout, so each process has its own, which triggers at the same time.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+arrivals: {kids: {initial: 3, spawn: child}}
+tasks: {child: {wait: {timeout: 1}, payload: {event_type: woke, at: {gen: expr, expr: t}}}}

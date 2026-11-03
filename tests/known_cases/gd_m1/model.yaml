@@ -1,0 +1,12 @@
+# case GD-M1: collect val += env.now in a list, five times (monitoring.rst:59-74).
+simulation: {sim_id: M, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: add, attributes: {val: 0, i: 0}}}
+tasks:
+  add:
+    set: {val: {gen: expr, expr: "attr.val + t"}, i: {gen: expr, expr: "attr.i + 1"}}
+    payload: {event_type: added, val: {gen: expr, expr: "attr.val + t"}}
+    next: pause
+  pause:
+    service_time: 1
+    payload: {event_type: waited}
+    next: {when: [{condition: "attr.i < 5", task: add}]}

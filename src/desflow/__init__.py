@@ -49,7 +49,7 @@ from desflow.core.flow import Router, Transfer
 from desflow.core.registry import ParamChange, ParamRejected, SimulationRegistry
 from desflow.core.sampler import Sampler
 from desflow.core.signals import Signal, SignalFailed
-from desflow.core.task import TaskFailed
+from desflow.core.task import NO_RECORD, TaskFailed
 from desflow.models.flow import Entity, Upstream
 from desflow.core.breakdowns import run_breakdowns
 from desflow.core.replay import read_trace
@@ -87,6 +87,7 @@ __all__ = [
     "Signal",
     "SignalFailed",
     "TaskFailed",
+    "NO_RECORD",
     "SimulationContext",
     "load_context",
     "ParamChange",

@@ -1,0 +1,16 @@
+# EX-7a Process communication, one-to-one part (SimPy docs/examples/code/process_communication.py). One generator, one consumer, one unbounded store.
+simulation: {sim_id: Pipe, factor: 0, random_seed: 42}
+stores: {pipe: {}}
+arrivals:
+  generator: {gap: {gen: integer, bounds: [6, 10]}, spawn: speak}
+  consumer: {initial: 1, spawn: listen}
+tasks:
+  speak:
+    payload: {event_type: said}
+    put: {store: pipe, wait: false, item: {sent: {gen: expr, expr: t}, text: {gen: format, template: "Generator A says hello at {now:g}", names: {now: {gen: expr, expr: t}}}}}
+  listen:
+    get: {store: pipe}
+    payload: {event_type: received, late: {gen: expr, expr: "item.sent < t"}, text: {gen: expr, expr: "item.text"}}
+    next: busy
+  busy: {service_time: {gen: integer, bounds: [4, 8]}, payload: {event_type: handled}, next: listen}
+run: {until: 100}

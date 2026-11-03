@@ -1,0 +1,12 @@
+# case P54: assembly from two stores (patterns/f_flow.py F2).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+stores: {sa: {current_cap: 10}, sb: {current_cap: 10}}
+arrivals:
+  a: {dist: constant, value: 1, spawn: pa}
+  b: {dist: constant, value: 2, spawn: pb}
+  asm: {dist: constant, value: 0.5, spawn: assemble}
+tasks:
+  pa: {payload: {part: a}, put: {store: sa}}
+  pb: {payload: {part: b}, put: {store: sb}}
+  assemble: {wait: {all: {x: {get: {store: sa}}, y: {get: {store: sb}}}}, payload: {done: 1}}
+run: {until: 4.2}

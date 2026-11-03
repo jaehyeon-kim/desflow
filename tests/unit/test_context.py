@@ -1249,6 +1249,13 @@ class _Records:
             except queue.Empty:
                 await asyncio.sleep(0.01)
 
+    def events(self, name):
+        return [
+            row
+            for row in self.records
+            if row.get("value", {}).get("event_type") == name
+        ]
+
 
 def _busy_hour(spawn: bool) -> list:
     """The shop of the Queues and Capacity snippet, with spawn= or its hand loop."""
@@ -1610,3 +1617,202 @@ def test_registry_paths_of_a_refused_model_raise_an_ordinary_exception():
     assert isinstance(raised.value, ValueError)
     assert not isinstance(raised.value, SystemExit)
     assert threading.active_count() == threads
+
+
+def _entry_times(app, until, **run):
+    capture = _Records()
+    app.add_egress(capture)
+    app.run(until=until, **run)
+    return capture
+
+
+def _noting(app):
+    @app.task(name="note")
+    def note(task_id):
+        return {"event_type": "arrived"}
+
+    return app
+
+
+def test_add_arrival_takes_a_gap_expression_in_place_of_a_distribution():
+    """A `gap` of `"1 + t / 4"` gives the gaps 1, 1.25, ... as a blueprint's `gap` does."""
+    app = SimulationContext("G", factor=0)
+    app.add_arrival("a", gap="1 + t / 4", spawn="note")
+    capture = _entry_times(_noting(app), 4)
+    assert [row["sim_ts"] for row in capture.events("arrived")] == [1.0, 2.25, 3.8125]
+
+
+def test_add_arrival_takes_a_gap_that_is_a_number():
+    app = SimulationContext("G", factor=0).add_arrival("a", gap=2, spawn="note")
+    capture = _entry_times(_noting(app), 7)
+    assert [row["sim_ts"] for row in capture.events("arrived")] == [2, 4, 6]
+
+
+def test_add_arrival_takes_a_gap_that_is_a_duration():
+    """A text gap that is a duration, as `"2s"` or `"1 min"`, is read as seconds, as
+    a blueprint's `gap` and a task's `service_time` read it."""
+    for gap, seconds in (("2s", 2), ("1 min", 60)):
+        app = SimulationContext("G", factor=0).add_arrival("a", gap=gap, spawn="note")
+        capture = _entry_times(_noting(app), 3 * seconds + 1)
+        assert [row["sim_ts"] for row in capture.events("arrived")] == [
+            seconds,
+            2 * seconds,
+            3 * seconds,
+        ]
+
+
+@pytest.mark.parametrize(
+    "arguments, message",
+    [
+        ({}, "neither is given"),
+        ({"dist": "constant", "value": 1, "gap": 1}, "not both"),
+        ({"gap": 1, "rate": 2}, "takes no distribution parameter: rate"),
+        ({"gap": -1}, "arrival 'a': gap is 0 or more"),
+        ({"gap": float("nan")}, "arrival 'a': gap is 0 or more"),
+        ({"gap": "-5"}, "arrival 'a': gap is 0 or more"),
+        ({"gap": "-5 min"}, "arrival 'a': gap"),
+        ({"gap": True}, "arrival 'a': gap is a number of seconds"),
+        ({"gap": [1]}, "arrival 'a': gap is a number of seconds"),
+    ],
+)
+def test_add_arrival_refuses_a_gap_that_does_not_fit(arguments, message):
+    with pytest.raises(ValueError, match=message):
+        SimulationContext("G").add_arrival("a", **arguments)
+
+
+def test_add_initial_arrival_takes_a_key():
+    app = SimulationContext("K", factor=0)
+    app.add_initial_arrival("m", 3, spawn="note", key=lambda n: f"Machine {n - 1}")
+    capture = _entry_times(_noting(app), 1)
+    keys = [row["key"] for row in capture.events("arrived")]
+    assert keys == ["Machine 0", "Machine 1", "Machine 2"]
+
+
+def test_add_initial_arrival_with_a_gap_goes_on_arriving():
+    app = SimulationContext("K", factor=0)
+    app.add_initial_arrival("m", 2, spawn="note", gap=5)
+    capture = _entry_times(_noting(app), 11)
+    assert [row["sim_ts"] for row in capture.events("arrived")] == [0, 0, 5, 10]
+
+
+def _ticking(app):
+    @app.task(name="tick", service_time=1)
+    def tick(task_id):
+        return {"event_type": "ticked"}
+
+    app.add_arrival("a", "constant", value=2, spawn="tick")
+    return app
+
+
+def _readings(capture, path):
+    return [
+        row["value"] for row in capture.records if row.get("stream_path") == path
+    ] or [
+        row["value"]
+        for row in capture.records
+        if row.get("path") == path or row.get("telemetry_path") == path
+    ]
+
+
+def test_run_segments_publish_a_reading_after_each_segment():
+    app = _ticking(SimulationContext("S", factor=0))
+    capture = _entry_times(
+        app, 10, segments=[{"until": 3}, {"until": 6}, {}], sync=False
+    )
+    readings = [
+        row for row in capture.records if "system.simulation.segment" in str(row)
+    ]
+    assert len(readings) == 3
+    assert [row["value"]["index"] for row in readings] == [0, 1, 2]
+    assert [row["value"]["now"] for row in readings] == [3, 6, 10]
+
+
+def test_run_segments_every_divides_until():
+    app = _ticking(SimulationContext("S", factor=0))
+    capture = _entry_times(app, 10, segments={"every": 4})
+    readings = [r for r in capture.records if "system.simulation.segment" in str(r)]
+    assert [row["value"]["now"] for row in readings] == [4, 8, 10]
+
+
+def test_run_steps_publish_a_reading_after_each_event():
+    app = _ticking(SimulationContext("S", factor=0))
+    capture = _entry_times(app, 5, steps=True)
+    readings = [r for r in capture.records if "system.simulation.step" in str(r)]
+    assert readings
+    assert [row["value"]["step"] for row in readings] == list(
+        range(1, len(readings) + 1)
+    )
+
+
+def test_run_without_segments_or_steps_publishes_no_reading():
+    app = _ticking(SimulationContext("S", factor=0))
+    capture = _entry_times(app, 5)
+    assert not [r for r in capture.records if "system.simulation.s" in str(r)]
+
+
+def test_run_sync_calls_the_environment_sync(monkeypatch):
+    from desflow.core.environment import DynamicRealtimeEnvironment
+
+    calls = []
+    original = DynamicRealtimeEnvironment.sync
+    monkeypatch.setattr(
+        DynamicRealtimeEnvironment,
+        "sync",
+        lambda self: (calls.append(self.now), original(self))[1],
+    )
+    app = _ticking(SimulationContext("S", factor=0))
+    app.run(until=3, sync=True)
+    assert calls == [0]
+    calls.clear()
+    _ticking(SimulationContext("S", factor=0)).run(until=3)
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "arguments, message",
+    [
+        ({"segments": 3}, "segments is a list of segment mappings"),
+        ({"segments": [{"until": 1, "stop": {"signal": "x"}}]}, "not both"),
+        ({"segments": [{"until": 1}, {"untill": 1}]}, r"(?s)segments\[1\].*untill"),
+        ({"segments": {"every": 0}}, "(?s)segments: .*every must be above 0"),
+        ({"segments": [{"until": 1, "look": "nowhere"}]}, "look names task 'nowhere'"),
+        ({"steps": True, "segments": [{"until": 1}]}, "run.steps cannot be used"),
+        ({"steps": "yes"}, "steps is True or False"),
+        ({"sync": 1}, "sync is True or False"),
+    ],
+)
+def test_run_refuses_segments_steps_and_sync_that_do_not_fit(arguments, message):
+    app = _ticking(SimulationContext("S", factor=0))
+    with pytest.raises(ValueError, match=message):
+        app.run(until=5, **arguments)
+
+
+def test_run_segments_every_needs_until():
+    app = _ticking(SimulationContext("S", factor=0))
+    with pytest.raises(ValueError, match="needs an until"):
+        app.run(segments={"every": 2})
+
+
+def test_a_task_that_returns_no_record_finishes_with_no_finished_event():
+    """`desflow.NO_RECORD` is the Builder form of `payload: null`: the task still runs
+    its service and starts its `next`, and publishes no finished event."""
+    from desflow import NO_RECORD
+
+    app = SimulationContext("N", factor=0)
+    app.add_initial_arrival("a", 1, spawn="quiet")
+
+    @app.task(name="quiet", service_time=2, next="after")
+    def quiet(task_id):
+        return NO_RECORD
+
+    @app.task(name="after")
+    def after(task_id):
+        return {"event_type": "after"}
+
+    capture = _entry_times(app, 10)
+    assert [row["sim_ts"] for row in capture.events("after")] == [2.0]
+    assert not [
+        row
+        for row in capture.records
+        if row.get("task") == "quiet" and "event_type" in row.get("value", {})
+    ]

@@ -1,0 +1,8 @@
+# case ST-P06: test_interrupted_join: the parent is interrupted while joining a child and is not resumed when the child ends; it waits 5 more.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+arrivals: {p: {initial: 1, spawn: parent}, i: {initial: 1, spawn: interruptor}}
+tasks:
+  parent: {wait: {task: child}, on_interrupt: abandon, on_interrupt_next: after, payload: {event_type: joined}}
+  after: {service_time: 5, payload: {event_type: after_interrupt}}
+  child: {service_time: 2, payload: {event_type: child_done}}
+  interruptor: {service_time: 1, payload: {event_type: interrupt}, interrupt: {task: parent}}

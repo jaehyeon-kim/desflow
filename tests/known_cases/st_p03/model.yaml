@@ -1,0 +1,6 @@
+# case ST-P03: a waiter waits for a finisher process (5).
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+arrivals: {w: {initial: 1, spawn: waiter}}
+tasks:
+  waiter: {wait: {task: finisher}, payload: {event_type: waiter_done}}
+  finisher: {service_time: 5, payload: {event_type: finisher_done}}

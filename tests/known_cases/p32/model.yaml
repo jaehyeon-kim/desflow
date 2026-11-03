@@ -1,0 +1,5 @@
+# case P32: hold several resources (a list on one task).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+resources: {m1: {current_cap: 1}, m2: {current_cap: 1}}
+arrivals: {a: {dist: constant, value: 1, spawn: job, max_events: 2, first_at: 0}}
+tasks: {job: {resource: [m1, m2], service_time: 2, payload: {event_type: done}}}

@@ -1,0 +1,8 @@
+# case P28: try and except around a step.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}}
+services: {s: {dist: constant, value: 1}}
+arrivals: {o: {replay: {path: rows.csv, time: time, unit: s, fields: [i]}, spawn: k}}
+tasks:
+  k: {service: s, resource: m, fail: "attr.i % 2 == 0", fail_reason: bad, on_fail: handled, payload: {event_type: ok}}
+  handled: {payload: {event_type: handled}}

@@ -1,0 +1,7 @@
+# case GD-E7: a process returns 42 to the process that waits for it (environments.rst:178-189).
+simulation: {sim_id: E, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: parent}}
+tasks:
+  parent: {wait: {task: my_proc}, payload: {event_type: parent_done}, next: {when: [{condition: "wait.my_proc.value.ret == 42", task: ok}]}}
+  my_proc: {service_time: 1, payload: {ret: 42}}
+  ok: {payload: {assert: passed}}

@@ -1,0 +1,4 @@
+# case ST-U19: test_all_of_expansion: all_of over timeouts 3, 2, 1 gives three values in that order.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: pem}}
+tasks: {pem: {wait: {all: {a: {timeout: 3}, b: {timeout: 2}, c: {timeout: 1}}}, payload: {event_type: done, count: {gen: expr, expr: "int(wait.a.done) + int(wait.b.done) + int(wait.c.done)"}}}}

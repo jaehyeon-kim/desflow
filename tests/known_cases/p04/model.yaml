@@ -1,0 +1,5 @@
+# case P04: a fixed number of arrivals with drawn gaps (shared with design A1).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+arrivals: {a: {dist: exponential, rate: 1, spawn: t, max_events: 3}}
+tasks: {t: {payload: {event_type: arrived}}}
+run: {until: 100}

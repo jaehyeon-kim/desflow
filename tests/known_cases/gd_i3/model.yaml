@@ -1,0 +1,12 @@
+# case GD-I3: a driver interrupts the car at 3; the car catches it and drives (process_interaction.rst:85-134).
+simulation: {sim_id: Car, factor: 0, random_seed: 42}
+services: {charge: {dist: constant, value: 5}, drive: {dist: constant, value: 2}}
+arrivals:
+  car: {initial: 1, spawn: park_and_charge}
+  driver: {dist: constant, value: 3, spawn: interrupt_car, max_events: 1}
+tasks:
+  park_and_charge: {wait: {task: charge_task}, on_interrupt: abandon, on_interrupt_next: drive, payload: {event_type: charged_and_parked}, next: drive}
+  charge_task: {service: charge, payload: {event_type: charge_done}}
+  drive: {service: drive, payload: {event_type: drove}, next: park_and_charge}
+  interrupt_car: {payload: {event_type: interrupted}, interrupt: {task: park_and_charge}}
+run: {until: 15}

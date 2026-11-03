@@ -29,7 +29,10 @@ jobs:
         run: uv python install 3.12
 
       - name: Run Unit and Conformance Tests
-        run: uv run --python 3.12 --all-extras pytest tests/unit tests/conformance -q -n auto --tb=short
+        run: uv run --python 3.12 --all-extras pytest tests/unit tests/conformance tests/benchtop tests/known_cases -m "not paced" -q -n auto --tb=short
+
+      - name: Run Paced Known Cases
+        run: uv run --python 3.12 --all-extras pytest tests/known_cases -m paced -q --tb=short
 
   core-install:
     # --all-extras installs pandas, which brings tzdata, so the job above cannot show

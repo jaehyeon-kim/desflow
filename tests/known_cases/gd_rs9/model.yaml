@@ -1,0 +1,8 @@
+# case GD-RS9: FilterStore of machines, hold for machine.duration, put the machine back (resources.rst:465-491).
+simulation: {sim_id: R, factor: 0, random_seed: 42}
+stores: {machines: {current_cap: 2, items: [{size: 1, duration: 2}, {size: 2, duration: 1}]}}
+arrivals: {u0: {initial: 1, spawn: take, attributes: {size: 1}}, u1: {initial: 1, spawn: take, attributes: {size: 2}}, u2: {initial: 1, spawn: take, attributes: {size: 1}}}
+tasks:
+  take: {get: {store: machines, filter: "item.size == attr.size"}, payload: {event_type: took, size: {gen: expr, expr: "item.size"}, duration: {gen: expr, expr: "item.duration"}}, next: use}
+  use: {service_time: "item.duration", payload: {event_type: used}, next: back}
+  back: {put: {store: machines, item: {gen: expr, expr: item}}, payload: {event_type: released}}

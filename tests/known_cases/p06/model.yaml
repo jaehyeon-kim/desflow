@@ -1,0 +1,6 @@
+# case P06: a piecewise rate.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+arrivals: {o: {dist: constant, value: 1.3, spawn: t}}
+scenario: [{at: 2.6, path: P.arrival.o.value, value: 0.5}, {at: 5, path: P.arrival.o.value, value: 2}]
+tasks: {t: {payload: {event_type: arrived}}}
+run: {until: 15}

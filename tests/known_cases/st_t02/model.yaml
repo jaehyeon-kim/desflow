@@ -1,0 +1,5 @@
+# case ST-T02: a negative delay is an error when the run reaches it.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+variables: {delay: -1}
+arrivals: {a: {initial: 1, spawn: pem}}
+tasks: {pem: {wait: {timeout: "registry['T.variables.delay']"}, payload: {event_type: unreachable}}}

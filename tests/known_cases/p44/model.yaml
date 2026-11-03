@@ -1,0 +1,8 @@
+# case P44: one deadline across several queues (register patterns/m_renege.py M1 SimPy: three customers at 0, a deadline of 5 for the whole path, a for 2 then b for 4, capacity 1 each).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+resources: {a: {current_cap: 1}, b: {current_cap: 1}}
+services: {two: {dist: constant, value: 2}, four: {dist: constant, value: 4}}
+arrivals: {c: {initial: 3, spawn: first, attributes: {deadline: 5}}}
+tasks:
+  first: {resource: a, patience: "attr.deadline - t", service: two, payload: {event_type: first_done}, next: second}
+  second: {resource: b, patience: "max(0, attr.deadline - t)", service: four, payload: {event_type: done}}

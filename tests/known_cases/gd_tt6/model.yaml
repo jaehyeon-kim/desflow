@@ -1,0 +1,5 @@
+# case GD-TT6: an unhandled exception in a process stops env.run().
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: boom}}
+tasks: {boom: {service_time: 1, fail: "True", fail_reason: boom, payload: {event_type: boom}}}
+run: {until: 5, on_unhandled_failure: stop}

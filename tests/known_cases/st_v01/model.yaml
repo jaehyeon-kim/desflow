@@ -1,0 +1,7 @@
+# case ST-V01: test_succeed: the parent creates a child that waits for an event; the parent succeeds it at 5 with 'ohai'.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+signals: {ev: {once: true}}
+arrivals: {p: {initial: 1, spawn: parent}}
+tasks:
+  child: {wait: {signal: ev}, payload: {event_type: got, value: {gen: expr, expr: "wait.ev.value"}}}
+  parent: {spawn: {task: child}, service_time: 5, payload: {event_type: parent}, on: [{fire: {signal: ev, value: ohai}}]}

@@ -355,6 +355,8 @@ nav:
   - Command Line:
       - cli/index.md
       - desflow run: cli/run.md
+      - desflow check: cli/check.md
+      - desflow test: cli/test.md
       - desflow explain: cli/explain.md
       - desflow experiment: cli/experiment.md
       - desflow report: cli/report.md

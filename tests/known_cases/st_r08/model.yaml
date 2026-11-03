@@ -1,0 +1,5 @@
+# case ST-R08: result = yield req | timeout(1); the request is in the result.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+resources: {res: {current_cap: 1}}
+arrivals: {a: {initial: 1, spawn: pem}}
+tasks: {pem: {wait: {any: {req: {request: res}, t: {timeout: 1}}}, payload: {event_type: done, got_it: {gen: expr, expr: "wait.req.done"}}}}

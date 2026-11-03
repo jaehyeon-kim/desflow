@@ -1,0 +1,8 @@
+# case GD-E6: shortcuts event, process, timeout, all_of, any_of (environments.rst:157-165).
+simulation: {sim_id: E, factor: 0, random_seed: 42}
+signals: {ev: {once: true}}
+arrivals: {a: {initial: 1, spawn: use_all}}
+tasks:
+  use_all: {wait: {all: {t: {timeout: 3}, p: {task: child}, e: {signal: ev}}}, payload: {event_type: all_done}, next: use_any}
+  use_any: {wait: {any: {t: {timeout: 1}, e: {signal: ev}}}, payload: {event_type: any_done}}
+  child: {service_time: 2, payload: {event_type: child_done}, on: [{fire: {signal: ev}}]}

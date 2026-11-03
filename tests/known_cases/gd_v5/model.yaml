@@ -1,0 +1,7 @@
+# case GD-V5: start_delayed(sub, delay=3), then wait for it (events.rst:219-231).
+simulation: {sim_id: V, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: parent}}
+tasks:
+  parent: {wait: {task: delayed_sub}, payload: {event_type: parent_done, ret: {gen: expr, expr: "wait.delayed_sub.value.ret"}}}
+  delayed_sub: {service_time: 3, payload: {event_type: starting}, next: sub}
+  sub: {service_time: 1, payload: {ret: 23}}

@@ -268,7 +268,12 @@ jobs:
         # --python is what selects the interpreter. `uv python install` above only
         # downloads it, so without this every leg of the matrix would run the
         # version in .python-version and the other four would test nothing new.
-        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ tests/conformance/ tests/benchtop/ -n auto --cov=src/desflow --cov-report=xml
+        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ tests/conformance/ tests/benchtop/ tests/known_cases/ -m "not paced" -n auto --cov=src/desflow --cov-report=xml
+
+      # The known cases that run against the wall clock, apart from the parallel run
+      # above, so the CPU time of other tests cannot make a strict case late.
+      - name: Run Paced Known Cases
+        run: uv run --python ${{ matrix.python-version }} --all-extras pytest tests/known_cases/ -m paced -q
 
   # SimPy is what desflow is checked against, so the conformance tests run at both
   # ends of the `simpy` requirement: the floor in pyproject.toml and the newest

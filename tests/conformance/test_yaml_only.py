@@ -14,6 +14,7 @@ still runs as its smallest model. V3 and V4 are the generated values of Batch 4.
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -45,12 +46,27 @@ from tests.conformance.yaml_only.programs import (
 )
 
 FOLDER = Path(__file__).parent / "yaml_only"
+KNOWN_CASES = Path(__file__).parents[1] / "known_cases"
 SIZES = [1, 3, 10]
 TASKS = ("ticking", "looking")
 
 
 def _blueprint(name: str) -> str:
+    """A document of `yaml_only/`, or, for a row of the known-case list that moved, the
+    `model.yaml` of its folder in `tests/known_cases/`."""
+    moved = (
+        KNOWN_CASES / {"bank_renege": "ex_1"}.get(name[:-5], name[:-5]) / "model.yaml"
+    )
+    if moved.exists():
+        return moved.read_text(encoding="utf-8")
     return (FOLDER / name).read_text(encoding="utf-8")
+
+
+def _known_document(folder: str, document: str) -> Path:
+    """The document of a known-case row: in its folder of `tests/known_cases/`, or
+    still in `yaml_only/<folder>/` for a row that part 12b moves."""
+    moved = KNOWN_CASES / document / "model.yaml"
+    return moved if moved.exists() else FOLDER / folder / f"{document}.yaml"
 
 
 def _published(records: List[Dict[str, Any]]) -> List[Tuple[Any, ...]]:
@@ -2365,6 +2381,18 @@ run: {{until: 100}}
 
 # ------------------------------------------------- Batch 8: the known cases that run now
 
+
+def _not_in_known_cases(table):
+    """The rows of a batch's table that `tests/known_cases` does not run: the rows with
+    the prefixes EX-, GD-, ST- and P run there in all three APIs, from the same
+    documents and programs, so this file runs the other prefixes."""
+    return sorted(
+        row
+        for row in table
+        if not row.startswith(("EX-", "GD-", "ST-")) and not re.match(r"P\d", row)
+    )
+
+
 KNOWN8 = {
     # row: (document of known8/, program, files of the document)
     "EX-2": ("ex_2", "EX_2", {}),
@@ -2484,7 +2512,7 @@ def _known_run(module, table, folder, tmp_path, row, size=None):
     import re
 
     document, program, files = table[row]
-    text = (FOLDER / folder / f"{document}.yaml").read_text()
+    text = _known_document(folder, document).read_text()
     for name, content in files.items():
         (tmp_path / name).write_text(content)
     if size is not None:
@@ -2517,7 +2545,7 @@ def _known8_compare(tmp_path, row, size=None):
     return _known_compare(known8, KNOWN8, "known8", tmp_path, row, size)
 
 
-@pytest.mark.parametrize("row", sorted(KNOWN8))
+@pytest.mark.parametrize("row", _not_in_known_cases(KNOWN8))
 def test_known_case_of_batch_8_runs_as_its_simpy_program(tmp_path, row):
     """Each known case of Batch 8 that its keys allow now runs from its blueprint (no
     `!python`) and gives the records of the SimPy program written from the original:
@@ -2528,7 +2556,10 @@ def test_known_case_of_batch_8_runs_as_its_simpy_program(tmp_path, row):
 
 
 @pytest.mark.parametrize("size", [1, 3, 10])
-@pytest.mark.parametrize("row", sorted(r for r in KNOWN8 if not r.startswith("CV-")))
+@pytest.mark.parametrize(
+    "row",
+    [r for r in _not_in_known_cases(KNOWN8) if not r.startswith("CV-")],
+)
 def test_known_case_of_batch_8_runs_at_other_sizes(tmp_path, row, size):
     """As the base run, with `size` entities in the first arrival that starts a number
     of them at once, in the document and in the program (the rows whose program takes
@@ -2583,7 +2614,7 @@ def test_known_case_of_batch_8_document_equals_the_docs_snippet(tmp_path, row):
     assert wanted.error is None, repr(wanted.error)
     own = tmp_path / "own"
     own.mkdir()
-    got = run_yaml_text(own, (FOLDER / "known8" / f"{document}.yaml").read_text(), {})
+    got = run_yaml_text(own, _known_document("known8", document).read_text(), {})
     assert got.error is None, repr(got.error)
     assert _finished(got.records) == _finished(wanted.records)
     assert _finished(got.records)
@@ -2639,7 +2670,7 @@ BATCH_9_ROWS = (
 ).split()
 
 
-@pytest.mark.parametrize("row", sorted(KNOWN9))
+@pytest.mark.parametrize("row", _not_in_known_cases(KNOWN9))
 def test_known_case_of_batch_9_runs_as_its_simpy_program(tmp_path, row):
     """Each known case of Batch 9 that its keys allow now runs from its blueprint (no
     `!python`) and gives the records of the SimPy program written from the original:
@@ -2649,7 +2680,7 @@ def test_known_case_of_batch_9_runs_as_its_simpy_program(tmp_path, row):
 
 
 @pytest.mark.parametrize("size", [1, 3, 10])
-@pytest.mark.parametrize("row", sorted(KNOWN9))
+@pytest.mark.parametrize("row", _not_in_known_cases(KNOWN9))
 def test_known_case_of_batch_9_runs_at_other_sizes(tmp_path, row, size):
     """As the base run, with `size` entities in the first arrival that starts a number
     of them at once, in the document and in the program (the rows whose program takes
@@ -3019,7 +3050,7 @@ BATCH_10_ROWS = (
 ).split()
 
 
-@pytest.mark.parametrize("row", sorted(KNOWN10))
+@pytest.mark.parametrize("row", _not_in_known_cases(KNOWN10))
 def test_known_case_of_batch_10_runs_as_its_simpy_program(tmp_path, row):
     """Each known case of Batch 10 runs from its blueprint (no `!python`) and gives the
     records of the SimPy program written from the original: the same times, keys, tasks
@@ -3029,7 +3060,7 @@ def test_known_case_of_batch_10_runs_as_its_simpy_program(tmp_path, row):
 
 
 @pytest.mark.parametrize("size", [1, 3, 10])
-@pytest.mark.parametrize("row", sorted(KNOWN10))
+@pytest.mark.parametrize("row", _not_in_known_cases(KNOWN10))
 def test_known_case_of_batch_10_runs_at_other_sizes(tmp_path, row, size):
     """As the base run, with `size` entities in the first arrival that starts a number
     of them at once, in the document and in the program (the rows whose program takes
@@ -3086,7 +3117,7 @@ def _run_with_trace(tmp_path, row):
     """Runs the document of a row with a sink that keeps the trace records."""
     from tests.conformance.harness import RecordingEgress
 
-    text = (FOLDER / "known10" / f"{KNOWN10[row][0]}.yaml").read_text()
+    text = _known_document("known10", KNOWN10[row][0]).read_text()
     sink = RecordingEgress()
     outcome = run_yaml_text(
         tmp_path, text, {}, prepare=lambda app: app.add_egress(sink, when="trace")
@@ -3106,7 +3137,7 @@ def _trace_events(records):
     ]
 
 
-@pytest.mark.parametrize("row", ["GD-M2", "GD-M3", "DS-M1"])
+@pytest.mark.parametrize("row", ["DS-M1"])
 def test_on_change_publishes_the_reading_after_each_call_as_simpy_records_it(
     tmp_path, row
 ):
@@ -3121,7 +3152,7 @@ def test_on_change_publishes_the_reading_after_each_call_as_simpy_records_it(
     known10.TELE.clear()
 
 
-@pytest.mark.parametrize("row", ["GD-M4", "DS-M1"])
+@pytest.mark.parametrize("row", ["DS-M1"])
 def test_trace_publishes_each_event_the_run_processes_as_simpy_steps_it(tmp_path, row):
     """M1, MF5: the trace gives one record per processed model event, with its time,
     priority and class, to the sinks that ask for `when: trace` only. The blueprint's
@@ -3517,7 +3548,7 @@ BATCH_11_ROWS = (
 ).split()
 
 
-@pytest.mark.parametrize("row", sorted(KNOWN11))
+@pytest.mark.parametrize("row", _not_in_known_cases(KNOWN11))
 def test_known_case_of_batch_11_runs_as_its_simpy_program(tmp_path, row):
     """Each known case of Batch 11 that its keys allow runs from its blueprint (no
     `!python`) and gives the records of the SimPy program written from the original:
@@ -3527,7 +3558,7 @@ def test_known_case_of_batch_11_runs_as_its_simpy_program(tmp_path, row):
 
 
 @pytest.mark.parametrize("size", [1, 3, 10])
-@pytest.mark.parametrize("row", sorted(KNOWN11))
+@pytest.mark.parametrize("row", _not_in_known_cases(KNOWN11))
 def test_known_case_of_batch_11_runs_at_other_sizes(tmp_path, row, size):
     """As the base run, with `size` entities in the first arrival that starts a number
     of them at once, in the document and in the program (the rows whose program takes

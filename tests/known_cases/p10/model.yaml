@@ -1,0 +1,6 @@
+# case P10: set_source from a flow: a task changes the arrival rate.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+services: {s: {dist: constant, value: 4}}
+arrivals: {o: {dist: constant, value: 2, spawn: k}}
+tasks: {k: {payload: {event_type: arrived}, next: w}, w: {service: s, payload: {event_type: changed}, on: [{path: P.arrival.o.value, value: 3}]}}
+run: {until: 14}

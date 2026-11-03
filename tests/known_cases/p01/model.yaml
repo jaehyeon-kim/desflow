@@ -1,0 +1,6 @@
+# Documents for patterns P01 to P10 (simmer, salabim and textbook arrivals).
+# case P01: fixed start attributes.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+arrivals: {a: {dist: exponential, rate: 1, spawn: t, attributes: {kind: standard, size: 3}}}
+tasks: {t: {payload: {event_type: seen, kind: {gen: attr, name: kind}}}}
+run: {until: 20}

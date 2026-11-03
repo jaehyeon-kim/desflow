@@ -1,0 +1,6 @@
+# case ST-V04: test_unavailable_value: reading the value of an event before it is triggered raises AttributeError in SimPy (the test catches it). the blueprint cannot catch an error, so it asks whether the signal has fired (signal.ev.count == 0, a fired event has its value before it is processed) and sets value_raised to true when it is not; the payload value stays None.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+variables: {value_raised: false}
+signals: {ev: {once: true}}
+arrivals: {a: {initial: 1, spawn: pem}}
+tasks: {pem: {payload: {event_type: early, value: {gen: expr, expr: "signal.ev.value"}}, on: [{path: T.variables.value_raised, value: {gen: expr, expr: "signal.ev.count == 0"}}]}}

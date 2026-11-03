@@ -1,0 +1,9 @@
+# Documents of SimPy tests/test_interrupts.py and tests/test_process.py. ST-I02 is GD-TT2, ST-I03 is GD-TT5 and ST-P07 is GD-TT1 (gd-tests.yaml).
+# case ST-I01: test_interruption: the interruptor creates a child that waits 10, waits 5 and interrupts it with the cause 'interrupt!'.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+arrivals: {boss: {initial: 1, spawn: interruptor}}
+tasks:
+  interruptor: {spawn: {task: interruptee}, service_time: 5, payload: {event_type: waited}, next: stop}
+  stop: {payload: {event_type: interrupt}, interrupt: {task: interruptee, cause: "interrupt!"}}
+  interruptee: {service_time: 10, on_interrupt: abandon, on_interrupt_next: caught, payload: {event_type: finished}}
+  caught: {payload: {event_type: interrupted, cause: {gen: expr, expr: "cause.value"}}}

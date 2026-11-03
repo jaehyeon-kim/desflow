@@ -1,0 +1,7 @@
+# case ST-R07: an exception raised and caught (pytest.raises) inside the with block does not fail the process; both processes get the unit in turn (log [1, 2]).
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+resources: {res: {current_cap: 1}}
+arrivals: {raising: {initial: 1, spawn: raising}, plain: {initial: 1, spawn: plain}}
+tasks:
+  raising: {resource: res, service_time: 1, payload: {event_type: logged}}
+  plain: {resource: res, service_time: 1, payload: {event_type: logged}}
