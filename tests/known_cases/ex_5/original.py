@@ -1,4 +1,7 @@
-"""EX-5: Gas station with two pumps and a tank truck. The plain SimPy program: from the SimPy program."""
+"""EX-5: Gas station with two pumps and a tank truck. The plain SimPy program: from the SimPy program.
+
+The three forms are the files of the example `simpy-gas-station-refuel`.
+"""
 
 import simpy
 import simpy.rt
@@ -6,6 +9,7 @@ from tests.known_cases import simpy_harness
 from tests.known_cases.simpy_harness import arrival, go, new
 
 HARNESS = simpy_harness  # the module that holds the harness state the test sets
+EXAMPLE = "gas_station_refuel"  # the forms are the files of SimPy's Gas Station Refueling example
 
 
 def program():

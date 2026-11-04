@@ -88,7 +88,8 @@ def _run_low_level(module, until, processes):
     instead of a fixed `until`.
     """
     env = DynamicRealtimeEnvironment(factor=0.0)
-    env.registry.register_sim_parameter(module.PARAMS)
+    if hasattr(module, "PARAMS"):  # SimPy's examples keep their settings as constants
+        env.registry.register_sim_parameter(module.PARAMS)
     sampler = Sampler(rng=np.random.default_rng(42))
     capture, labels = _Capture(), _Capture()
     env.setup_egress(
@@ -188,6 +189,13 @@ def _ending(m, env, sampler):
     return m.processes(env, sampler, env.example_shop)
 
 
+def _simpy(m, env, sampler):
+    """One of SimPy's examples: `build(env)` starts its processes, which draw from the
+    example's own `Sampler`."""
+    m.build(env)
+    return []
+
+
 # How the builder version of an example that ends by its own rules is run
 RUN = {
     "end_conditions": {
@@ -252,6 +260,32 @@ EXAMPLE_CASES = [
     ("replications", "replications.yaml", None, 1200, _typical),
     ("experiment", "experiment_shop.yaml", None, 600, _built),
     ("fitting", "fitting.yaml", "scipy", 1200, _typical),
+    ("simpy/bank_renege", "simpy/bank_renege.yaml", None, None, _simpy),
+    ("simpy/carwash", "simpy/carwash.yaml", None, 20, _simpy),
+    ("simpy/machine_shop", "simpy/machine_shop.yaml", None, 40320, _simpy),
+    ("simpy/movie_renege", "simpy/movie_renege.yaml", None, 120, _simpy),
+    (
+        "simpy/gas_station_refuel",
+        "simpy/gas_station_refuel.yaml",
+        None,
+        1000,
+        _simpy,
+    ),
+    (
+        "simpy/process_communication",
+        "simpy/process_communication.yaml",
+        None,
+        100,
+        _simpy,
+    ),
+    (
+        "simpy/process_communication_broadcast",
+        "simpy/process_communication_broadcast.yaml",
+        None,
+        100,
+        _simpy,
+    ),
+    ("simpy/latency", "simpy/latency.yaml", None, 100, _simpy),
 ]
 
 
@@ -300,8 +334,11 @@ def test_yaml_matches_builder(name, yaml_file, extra, until, processes, no_catal
 
 def test_every_example_is_compared():
     """A new example must join the comparison, in all three APIs."""
+    builder = EXAMPLES / "builder"
     names = {
-        p.stem.removesuffix("_example") for p in (EXAMPLES / "builder").glob("*.py")
+        p.relative_to(builder).as_posix().removesuffix("_example.py")
+        for p in builder.rglob("*.py")
+        if "__pycache__" not in p.parts
     }
     assert names == {case[0] for case in EXAMPLE_CASES}
 

@@ -43,18 +43,19 @@ def arrival_results(graph: Graph) -> List[ArrivalResult]:
         graph: The graph.
 
     Returns:
-        List[ArrivalResult]: One per arrival, a replayed one unknown.
+        List[ArrivalResult]: One per arrival; a replayed one, one with computed
+            gaps and one with `initial` alone are unknown.
     """
     results = []
     for node in graph.nodes:
         if node.kind != "arrival":
             continue
         if node.distribution is None:
-            what = (
-                "computed gaps"
-                if features.COMPUTED_GAPS in node.features
-                else "replayed rows"
-            )
+            what = "replayed rows"
+            if features.COMPUTED_GAPS in node.features:
+                what = "computed gaps"
+            elif features.INITIAL_ONLY in node.features:
+                what = "it starts only its initial entities, at the start of the run"
             results.append(ArrivalResult(name=node.label, reason=what + VERIFY_HINT))
             continue
         if features.LIMITED_ARRIVALS in node.features:

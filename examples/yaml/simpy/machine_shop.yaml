@@ -1,0 +1,71 @@
+# Machine Shop: SimPy's machine_shop.py example, in YAML.
+#
+# The YAML version of machine_shop_example.py, which --api builder downloads. A shop
+# has ten machines, each making parts without end; a part's time is normal with
+# standard deviation 2, never below 0. Each machine breaks down after an exponential
+# time, unless it is already broken. A broken machine waits for the one repairman, at
+# priority 1, for its repair, and then finishes its part. Between repairs the
+# repairman does other jobs at priority 2, which a repair preempts and which resume
+# afterwards.
+#
+# SimPy's example counts minutes, and here each of its minutes is one second. So a
+# part takes about 10 seconds, a machine breaks down about every 300 seconds, a repair
+# and another job each take 30 seconds, and the run ends after 40320 seconds, SimPy's
+# four weeks. Each value is drawn from desflow's random sequence for its place in the
+# file, so the numbers differ from those SimPy prints.
+#
+# The breakdowns are written as tasks: each machine's `break_loop` waits for the
+# next failure and interrupts the machine's `part`, whose `on_interrupt_run` starts the
+# repair. `MachineShop.variables.parts_made` counts the parts of each machine.
+#
+# Needs no containers. Runs unpaced and ends after 40320 simulation seconds.
+# Run it from its folder with: desflow run machine_shop.yaml
+
+simulation: {sim_id: MachineShop, factor: 0, random_seed: 42}
+
+egress:
+  - type: Console
+
+variables: {target: -1, parts_made: {}}
+
+resources:
+  repairman: {current_cap: 1, queue: priority, preempt: true}
+
+services: {repair_time: {dist: constant, value: 30}}
+
+arrivals:
+  machines:
+    initial: 10
+    spawn: start_machine
+    key: {gen: sequence, format: "Machine {}"}
+    attributes: {id: {gen: sequence}, parts_made: 0, broken: 0}
+  others: {initial: 1, spawn: other_job}
+
+tasks:
+  start_machine:
+    payload: {event_type: machine_started}
+    spawn: {task: break_loop, copy_attributes: true}
+    next: part
+  part:
+    service_time: {gen: sample, dist: truncated_normal, mean: 10, std: 2, low: 0}
+    on_interrupt: resume
+    on_interrupt_run: begin_repair
+    set: {parts_made: {gen: expr, expr: "attr.parts_made + 1"}}
+    on:
+      - path: MachineShop.variables.parts_made
+        value: {gen: expr, expr: "set_key(registry['MachineShop.variables.parts_made'], process.key, get_key(registry['MachineShop.variables.parts_made'], process.key, 0) + 1)"}
+    payload: {event_type: part_made}
+    next: part
+  begin_repair: {payload: {event_type: broken}, set: {broken: 1}, next: repair}
+  repair: {resource: repairman, priority: 1, service: repair_time, set: {broken: 0}, payload: {event_type: repaired}}
+  # The machine's failures: one wait for each, then an interrupt of its part
+  break_loop:
+    wait: {timeout: {gen: sample, dist: exponential, rate: 0.0033333333333333335}}
+    payload: {event_type: tick}
+    on:
+      - {path: MachineShop.variables.target, value: {gen: expr, expr: "attr.id"}}
+      - {interrupt: {task: part, where: "attr.id == registry['MachineShop.variables.target'] and attr.broken == 0"}}
+    next: break_loop
+  other_job: {resource: repairman, priority: 2, service_time: 30, on_interrupt: resume, payload: {event_type: other_done}, next: other_job}
+
+run: {until: 40320}

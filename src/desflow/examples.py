@@ -48,6 +48,16 @@ def _three(yaml: str, python: str, *yaml_helpers: str) -> Dict[str, List[str]]:
     }
 
 
+def _simpy(*names: str) -> Dict[str, List[str]]:
+    """The files of a port of SimPy's examples, under each API's `simpy/` folder; the
+    first name is the version a run command names."""
+    return {
+        "yaml": [f"yaml/simpy/{name}.yaml" for name in names],
+        "builder": [f"builder/simpy/{name}_example.py" for name in names],
+        "low-level": [f"low-level/simpy/{name}_example.py" for name in names],
+    }
+
+
 EXAMPLES: Dict[str, Example] = {
     e.name: e
     for e in (
@@ -265,6 +275,49 @@ EXAMPLES: Dict[str, Example] = {
             profile="postgres",
             extras="postgres",
             until_stopped=True,
+        ),
+        # SimPy 4.1.2's own examples, written in desflow
+        Example(
+            "simpy-bank-renege",
+            "Bank Renege",
+            "SimPy's bank: customers who wait too long at the counter go away",
+            _simpy("bank_renege"),
+        ),
+        Example(
+            "simpy-carwash",
+            "Carwash",
+            "SimPy's carwash: cars keep a washing machine while the wash runs",
+            _simpy("carwash"),
+        ),
+        Example(
+            "simpy-machine-shop",
+            "Machine Shop",
+            "SimPy's machine shop: machines break down and preempt a repairman's other jobs",
+            _simpy("machine_shop"),
+        ),
+        Example(
+            "simpy-movie-renege",
+            "Movie Renege",
+            "SimPy's movie theatre: a sold-out movie sends its queue away",
+            _simpy("movie_renege"),
+        ),
+        Example(
+            "simpy-gas-station-refuel",
+            "Gas Station Refueling",
+            "SimPy's gas station: cars drain a tank that a tank truck refills",
+            _simpy("gas_station_refuel"),
+        ),
+        Example(
+            "simpy-process-communication",
+            "Process Communication",
+            "SimPy's pipes: messages through a store, one to one and broadcast",
+            _simpy("process_communication", "process_communication_broadcast"),
+        ),
+        Example(
+            "simpy-latency",
+            "Event Latency",
+            "SimPy's cable: each message reaches the receiver after a fixed delay",
+            _simpy("latency"),
         ),
     )
 }

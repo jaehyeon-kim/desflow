@@ -3,7 +3,10 @@
 A case folder `tests/known_cases/<case-id>/` holds `model.yaml` (the YAML form),
 `builder.py` (`build(...)` returns the model and `run(app)` runs it), `low_level.py`
 (`build(env, ...)` starts the processes on a `DynamicRealtimeEnvironment`, and `UNTIL`
-is the end), and `original.py` or `expected.json`. The `original.py` holds one of:
+is the end), and `original.py` or `expected.json`. A case whose forms are one of
+SimPy's examples (the EX- rows) holds only `original.py`, whose `EXAMPLE` names the
+example; its three forms are the example's files under `examples/`, so the model is
+written once (`form_paths`). The `original.py` holds one of:
 
 - a plain SimPy program: `program()` returns the log and the error text, and `DRAWS`
   fixes the random draws of `model.yaml` for the comparison;
@@ -24,6 +27,7 @@ program logs them, because only then does the original show the moment of a gran
 import ast
 import contextlib
 import importlib
+import importlib.util
 import inspect
 import re
 import shutil
@@ -40,6 +44,8 @@ from tests.conformance.harness import Outcome, RecordingEgress
 from tests.conformance.harness import run_low_level as low_level_run
 
 FOLDER = Path(__file__).parent
+REPOSITORY = FOLDER.parents[1]
+EXAMPLES = REPOSITORY / "examples"
 SIZES = [1, 3, 10]
 TOPICS = [
     "Environment and Time",
@@ -139,9 +145,70 @@ def folder_of(case: str) -> str:
     return case.lower().replace("-", "_")
 
 
+def example_of(case: str) -> str | None:
+    """The SimPy example whose files are the case's three forms: `EXAMPLE` of its
+    `original.py`, such as `carwash` for `examples/yaml/simpy/carwash.yaml`.
+
+    Args:
+        case: The case's id, such as `EX-2`.
+
+    Returns:
+        str | None: The example's name, such as `carwash`, which its three files carry;
+            None for a case whose forms are in its own folder.
+    """
+    if not (FOLDER / folder_of(case) / "original.py").exists():
+        return None
+    return getattr(form(case, "original"), "EXAMPLE", None)
+
+
+def form_paths(case: str) -> dict[str, Path]:
+    """The files of the case's three forms: `model.yaml`, `builder.py` and
+    `low_level.py` of its folder, or the example's files that `example_of` names.
+
+    Args:
+        case: The case's id, such as `EX-2`.
+
+    Returns:
+        dict[str, Path]: The file of each form, by the name of the form's file in a
+            case folder.
+    """
+    example = example_of(case)
+    if example is None:
+        folder = FOLDER / folder_of(case)
+        return {
+            name: folder / name for name in ("model.yaml", "builder.py", "low_level.py")
+        }
+    return {
+        "model.yaml": EXAMPLES / "yaml" / "simpy" / f"{example}.yaml",
+        "builder.py": EXAMPLES / "builder" / "simpy" / f"{example}_example.py",
+        "low_level.py": EXAMPLES / "low-level" / "simpy" / f"{example}_example.py",
+    }
+
+
 def form(case: str, name: str) -> Any:
-    """The module `builder`, `low_level` or `original` of a case."""
-    return importlib.import_module(f"tests.known_cases.{folder_of(case)}.{name}")
+    """The module `builder`, `low_level` or `original` of a case. The forms of a case
+    that runs an example are imported from the example's files by their paths, because
+    the examples are scripts, not a package.
+
+    Args:
+        case: The case's id, such as `EX-2`.
+        name: `builder`, `low_level` or `original`.
+
+    Returns:
+        ModuleType: The imported module.
+    """
+    module_name = f"tests.known_cases.{folder_of(case)}.{name}"
+    if name == "original" or example_of(case) is None:
+        return importlib.import_module(module_name)
+    if module_name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(
+            module_name, form_paths(case)[f"{name}.py"]
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[module_name]
 
 
 SHARED = "the program names an entity or a process by a fixed key, or its entities share one event or flag, so another size is another scenario"
@@ -182,7 +249,7 @@ NOT_SIZED = {
 def needs_size(case: str) -> bool:
     """Whether the case's document has an arrival that starts a number of entities at
     once (`initial: <n>`), which the test runs at other sizes."""
-    text = (FOLDER / folder_of(case) / "model.yaml").read_text(encoding="utf-8")
+    text = form_paths(case)["model.yaml"].read_text(encoding="utf-8")
     return re.search(r"initial: \d+", text) is not None
 
 
@@ -250,7 +317,7 @@ def is_paced(case: str) -> bool:
         form(case, "original"), "PACED", False
     ):
         return True
-    text = (FOLDER / folder_of(case) / "model.yaml").read_text(encoding="utf-8")
+    text = form_paths(case)["model.yaml"].read_text(encoding="utf-8")
     return re.search(r"factor: (0\.\d*[1-9]|[1-9])", text) is not None
 
 
@@ -295,25 +362,27 @@ _PARALLEL = (
 )
 
 
-def _without_sinks(app: SimulationContext) -> None:
+def _without_sinks(app: SimulationContext, console: bool = True) -> None:
     """Takes the sinks that need a service away, as `scripts/regression.py capture`
     replaces them: the ingress, the set-up that runs before the run (such as the topics
     of a broker), and every egress but the console. The case's recording egress takes
-    their place, so the run needs no broker, database or bucket."""
+    their place, so the run needs no broker, database or bucket. Without `console`
+    the console goes as well: an example prints every record, which a test does not
+    need to see."""
     app._ingress_providers = []
     app._before_run = []
     keep = [
         i
         for i, provider in enumerate(app._egress_providers)
-        if type(provider).__name__ == "ConsoleEgress"
+        if console and type(provider).__name__ == "ConsoleEgress"
     ]
     for name in _PARALLEL:
         entries = getattr(app, name)
         setattr(app, name, [entries[i] for i in keep])
 
 
-def _outcome(app: SimulationContext, run: Any) -> Outcome:
-    _without_sinks(app)
+def _outcome(app: SimulationContext, run: Any, console: bool = True) -> Outcome:
+    _without_sinks(app, console)
     recording = RecordingEgress()
     app.add_egress(recording)
     traced = RecordingEgress()
@@ -343,10 +412,11 @@ def run_yaml(
     fixed: bool = False,
     variables: dict[str, str] | None = None,
 ) -> Outcome:
-    """Runs the case's `model.yaml` from a copy of its folder, with `size` entities in
-    the first arrival that starts a number of them at once. With `fixed`, the random
-    draws are replaced by the values `DRAWS` of `original.py` names, which the original
-    program uses as well, and by what its function `fix(document)` returns.
+    """Runs the case's YAML form (`form_paths`) as `model.yaml` in a copy of its
+    folder, with `size` entities in the first arrival that starts a number of them at
+    once. With `fixed`, the random draws are replaced by the values `DRAWS` of
+    `original.py` names, which the original program uses as well, and by what its
+    function `fix(document)` returns.
 
     `VARIABLES` of `original.py` gives the values of `${NAME}` in the document (a case
     that runs unpaced sets `FACTOR`), and `variables` adds to them or replaces them.
@@ -361,7 +431,7 @@ def run_yaml(
             shutil.copy(path, work / path.name)
         elif path.is_dir() and path.name != "__pycache__":  # such as `catalogs/`
             shutil.copytree(path, work / path.name)
-    text = (source / "model.yaml").read_text(encoding="utf-8")
+    text = form_paths(case)["model.yaml"].read_text(encoding="utf-8")
     if fixed and (source / "original.py").exists():
         for old, new in getattr(form(case, "original"), "DRAWS", []):
             assert old in text, f"{case}: the text {old!r} is not in model.yaml"
@@ -388,14 +458,14 @@ def run_yaml(
             error=exc,
             app_or_env=None,  # type: ignore[arg-type]
         )
-    return _outcome(app, lambda app: app.run())
+    return _outcome(app, lambda app: app.run(), console=example_of(case) is None)
 
 
 def run_builder(case: str, size: int | None = None) -> Outcome:
     """Runs the case's `builder.py`."""
     module = form(case, "builder")
     app = module.build() if size is None else module.build(size)
-    return _outcome(app, module.run)
+    return _outcome(app, module.run, console=example_of(case) is None)
 
 
 def run_low_level(case: str, size: int | None = None) -> Outcome:
@@ -599,9 +669,6 @@ def same_within(
             and all(same_within(x, y, relative, absolute) for x, y in zip(a, b))
         )
     return a == b
-
-
-REPOSITORY = FOLDER.parents[1]
 
 
 def has_a_snippet(case: str) -> bool:

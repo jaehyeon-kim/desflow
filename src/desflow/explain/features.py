@@ -30,6 +30,8 @@ COMPUTED_GAPS = "computed gaps"
 # `count`, `keys`, a `key` that can repeat or `max_events` change how many entities an
 # arrival starts, because a start whose key is still running is skipped
 LIMITED_ARRIVALS = "limited or repeated arrivals"
+# `initial` with no gap: the entities start when the run is built, and none follow
+INITIAL_ONLY = "entities at the start only"
 
 
 def arrival_features(context: "SimulationContext", name: str) -> List[str]:
@@ -48,6 +50,8 @@ def arrival_features(context: "SimulationContext", name: str) -> List[str]:
     found = []
     if plan.gap is not None:
         found.append(COMPUTED_GAPS)
+    if plan.sourceless:
+        found.append(INITIAL_ONLY)
     repeating_key = plan.key is not None and not isinstance(plan.key, (Sequence, Uuid))
     if plan.has_entities or plan.max_events is not None or repeating_key:
         found.append(LIMITED_ARRIVALS)

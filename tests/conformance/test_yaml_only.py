@@ -53,10 +53,11 @@ TASKS = ("ticking", "looking")
 
 def _blueprint(name: str) -> str:
     """A document of `yaml_only/`, or, for a row of the known-case list that moved, the
-    `model.yaml` of its folder in `tests/known_cases/`."""
-    moved = (
-        KNOWN_CASES / {"bank_renege": "ex_1"}.get(name[:-5], name[:-5]) / "model.yaml"
-    )
+    `model.yaml` of its folder in `tests/known_cases/`. The Bank Renege document (EX-1)
+    is the example `examples/yaml/simpy/bank_renege.yaml`."""
+    moved = KNOWN_CASES / name[:-5] / "model.yaml"
+    if name == "bank_renege.yaml":
+        moved = KNOWN_CASES.parent.parent / "examples" / "yaml" / "simpy" / name
     if moved.exists():
         return moved.read_text(encoding="utf-8")
     return (FOLDER / name).read_text(encoding="utf-8")

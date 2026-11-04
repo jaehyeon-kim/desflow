@@ -1,4 +1,7 @@
-"""EX-7a: One generator and one consumer joined by a store. The plain SimPy program: from the SimPy program."""
+"""EX-7a: One generator and one consumer joined by a store. The plain SimPy program: from the SimPy program.
+
+The three forms are the files of the example `simpy-process-communication`.
+"""
 
 import simpy
 import simpy.rt
@@ -6,6 +9,7 @@ from tests.known_cases import simpy_harness
 from tests.known_cases.simpy_harness import arrival, go, new
 
 HARNESS = simpy_harness  # the module that holds the harness state the test sets
+EXAMPLE = "process_communication"  # the forms are the files of SimPy's Process Communication example
 
 
 def program():

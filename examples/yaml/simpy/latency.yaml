@@ -1,0 +1,41 @@
+# Event Latency: SimPy's latency.py example, in YAML.
+#
+# The YAML version of latency_example.py, which --api builder downloads. A sender
+# sends a message every 5 seconds over a cable. The cable delivers each message into a
+# store 10 seconds later, and a receiver takes each message as it arrives.
+#
+# Needs no containers. Runs unpaced and ends after 100 simulation seconds.
+# Run it from its folder with: desflow run latency.yaml
+
+simulation: {sim_id: Cable, factor: 0, random_seed: 42}
+
+egress:
+  - type: Console
+
+stores: {cable: {}}
+
+arrivals:
+  sender: {dist: constant, value: 5, spawn: send}
+  receiver: {initial: 1, spawn: receive}
+
+tasks:
+  send:
+    payload: {event_type: sent}
+    # Each message travels on its own, so the sender goes on at once
+    spawn:
+      task: latency
+      args:
+        msg:
+          gen: format
+          template: "Sender sent this at {now:g}"
+          names: {now: {gen: expr, expr: t}}
+  latency:
+    service_time: 10
+    put: {store: cable, item: {gen: expr, expr: "arg.msg"}}
+    payload: {event_type: delivered}
+  receive:
+    get: {store: cable}
+    payload: {event_type: received, msg: {gen: expr, expr: item}}
+    next: receive
+
+run: {until: 100}

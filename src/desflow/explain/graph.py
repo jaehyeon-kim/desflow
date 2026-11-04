@@ -55,7 +55,8 @@ def build_graph(context: "SimulationContext") -> Graph:
             )
         )
     for name, plan in context._arrival_plans.items():
-        if plan.gap is not None:
+        # An arrival with `initial` alone draws no gaps, and still starts its task
+        if plan.gap is not None or plan.sourceless:
             nodes.append(
                 Node(
                     id=node_id("arrival", name),

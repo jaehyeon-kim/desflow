@@ -1,7 +1,9 @@
 """Every known case of the list runs in all three APIs and gives its original's result.
 
 A case is a folder `tests/known_cases/<case-id>/` (the id in lower case, `-` as `_`) with
-`model.yaml`, `builder.py`, `low_level.py` and `original.py` or `expected.json`. The
+`model.yaml`, `builder.py`, `low_level.py` and `original.py` or `expected.json`. A case
+whose forms are one of SimPy's examples, as the EX- rows are, holds only `original.py`,
+whose `EXAMPLE` names the example's files under `examples/`. The
 `original.py` is one of four kinds: a plain SimPy program; a function `check` that states
 the checks of the row, as GA-, BT-OS, BT-WL and some DX- rows do; a project's own
 generator, `generate` with `CONFIGS` and `compare`, as HR-01 and the other BT- rows do;
@@ -248,12 +250,13 @@ def test_every_index_entry_has_a_folder_or_names_the_folder_it_shares():
             raise AssertionError(f"{entry['id']} is left out and has no reason")
         elif "runs_in" in entry:
             assert not folder.exists(), f"{entry['id']} has a folder and runs_in"
-            home = FOLDER / harness.folder_of(entry["runs_in"])
-            assert (home / "model.yaml").exists(), (
-                f"{entry['id']} runs_in {entry['runs_in']}, which has no folder"
+            home = harness.form_paths(entry["runs_in"])["model.yaml"]
+            assert home.exists(), (
+                f"{entry['id']} runs_in {entry['runs_in']}, which has no YAML form"
             )
         else:
-            assert (folder / "model.yaml").exists(), f"{entry['id']} has no folder"
+            assert folder.is_dir(), f"{entry['id']} has no folder"
+            assert harness.form_paths(entry["id"])["model.yaml"].exists(), entry["id"]
 
 
 def test_every_index_entry_is_a_row_of_known_cases():
@@ -269,11 +272,11 @@ def test_every_index_entry_is_a_row_of_known_cases():
 
 
 def test_no_python_in_known_cases():
-    """No `model.yaml` of a case holds `!python`: a case is a model with no Python in it."""
+    """No YAML form of a case holds `!python`: a case is a model with no Python in it."""
     found = [
-        path.parent.name
-        for path in sorted(FOLDER.glob("*/model.yaml"))
-        if "!python" in harness.python_tags(path)
+        case
+        for case in CASES
+        if "!python" in harness.python_tags(harness.form_paths(case)["model.yaml"])
     ]
     assert found == []
 
@@ -290,9 +293,14 @@ def test_every_folder_has_an_index_entry():
 
 @pytest.mark.parametrize("case", CASES)
 def test_case_folder_holds_the_files_of_its_forms(case):
+    """A case has its three forms, and an original or the records it expects. The forms
+    of a case that runs an example are the example's files, and its folder holds no
+    second copy of them."""
     folder = FOLDER / harness.folder_of(case)
-    for name in ("model.yaml", "builder.py", "low_level.py"):
-        assert (folder / name).exists(), f"{case}: {name}"
+    for name, path in harness.form_paths(case).items():
+        assert path.exists(), f"{case}: {name}"
+        if harness.example_of(case) is not None:
+            assert not (folder / name).exists(), f"{case}: a second {name}"
     assert (folder / "original.py").exists() != (folder / "expected.json").exists(), (
         f"{case}: one of original.py and expected.json"
     )

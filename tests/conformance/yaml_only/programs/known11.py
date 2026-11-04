@@ -381,7 +381,7 @@ def EX_4():
             turn.cancel()
             if turn.triggered:
                 counter.release(turn)
-            L(k, "leave", {"event_type": "reneged"})
+            L(k, "leave", {"event_type": "reneged", "movie": movie})
             return
         L(k, "serve", {"event_type": "served"})
         if available[movie] < tickets:
@@ -393,7 +393,7 @@ def EX_4():
         available[movie] -= tickets
         L(k, "check", {"event_type": "checked"})
         if available[movie] < 2:
-            L(k, "sold", {"event_type": "sold_out"})
+            L(k, "sold", {"event_type": "sold_out", "movie": movie})
             sold_out[movie].succeed()
             available[movie] = 0
         yield env.timeout(1)

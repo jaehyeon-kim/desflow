@@ -122,13 +122,14 @@ def test_every_example_is_plain_yaml():
     """Only the advanced examples reference Python."""
     from desflow.examples import EXAMPLES as LISTED
 
-    plain = sorted(EXAMPLES.glob("*.yaml"))
-    # Every example's blueprint outside advanced/ is here, and nothing else
-    assert {p.name for p in plain} == {
-        Path(f).name
+    plain = sorted([*EXAMPLES.glob("*.yaml"), *EXAMPLES.glob("simpy/*.yaml")])
+    # Every example's blueprint outside advanced/ is here, SimPy's examples included,
+    # and nothing else
+    assert {p.relative_to(EXAMPLES).as_posix() for p in plain} == {
+        f.removeprefix("yaml/")
         for example in LISTED.values()
         for f in example.files["yaml"]
-        if f.endswith(".yaml") and f.count("/") == 1
+        if f.endswith(".yaml") and not f.startswith("yaml/advanced/")
     }
     for path in plain:
         assert "!python" not in path.read_text(encoding="utf-8"), path.name

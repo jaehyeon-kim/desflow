@@ -396,4 +396,4 @@ def EX_3():
 
     arrival(env, "machines", machine, initial=10, keyfn=keyfn)
     arrival(env, "others", other_jobs, initial=1)
-    return go(env, log, 3000)
+    return go(env, log, 4 * 7 * 24 * 60)  # four weeks, SimPy's run length

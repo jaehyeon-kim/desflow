@@ -1,0 +1,44 @@
+# Process Communication: SimPy's process_communication.py example, broadcast, in YAML.
+#
+# The YAML version of process_communication_broadcast_example.py, which --api builder
+# downloads. A generator makes a message every 6 to 10 seconds, stamped with the time it
+# was sent, and puts a copy into each of two pipes without waiting. Two consumers each
+# take the messages of their own pipe and work on each for 4 to 8 seconds, so they are
+# late for some messages: `late` is true when the message waited in its pipe.
+#
+# Each value is drawn from desflow's random sequence for its place in the file, so the
+# numbers differ from those SimPy prints.
+#
+# Needs no containers. Runs unpaced and ends after 100 simulation seconds.
+# Run it from its folder with: desflow run process_communication_broadcast.yaml
+
+simulation: {sim_id: Pipes, factor: 0, random_seed: 42}
+
+egress:
+  - type: Console
+
+stores: {pipe: {family: true, members: 2}}
+
+arrivals:
+  generator: {gap: {gen: integer, bounds: [6, 10]}, spawn: speak}
+  consumer_a: {initial: 1, spawn: listen, attributes: {idx: 0}}
+  consumer_b: {initial: 1, spawn: listen, attributes: {idx: 1}}
+
+tasks:
+  # The message is the payload of `speak`, which each put of `send` takes as its item
+  speak:
+    payload:
+      event_type: said
+      sent: {gen: expr, expr: t}
+      text: {gen: format, template: "Generator A says hello at {now:g}", names: {now: {gen: expr, expr: t}}}
+    next: send
+  send:
+    open: {sends: {each: "members(pipe)", branch: {put: {store: {of: pipe, key: "each.value"}}}}}
+    payload: {event_type: sent}
+  listen:
+    get: {store: {of: pipe, key: "attr.idx"}}
+    payload: {event_type: received, late: {gen: expr, expr: "item.sent < t"}, text: {gen: expr, expr: "item.text"}}
+    next: busy
+  busy: {service_time: {gen: integer, bounds: [4, 8]}, payload: {event_type: handled}, next: listen}
+
+run: {until: 100}

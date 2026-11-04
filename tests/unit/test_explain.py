@@ -357,6 +357,26 @@ def test_a_replayed_arrival_is_unknown():
     assert explanation.tasks[0].rate is None
 
 
+def test_an_arrival_with_initial_alone_is_unknown(tmp_path):
+    """An arrival with `initial` and no gap starts its entities when the run is built
+    and draws no gaps: it is a node of the graph, with no rate, and the task it starts
+    has none either."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: C, factor: 0}\n"
+        "arrivals:\n  workers: {initial: 2, spawn: t}\n"
+        "tasks:\n  t: {payload: {}}\n",
+        encoding="utf-8",
+    )
+    explanation = SimulationContext.from_yaml(path).analyze()
+    features = {node.id: node.features for node in explanation.graph.nodes}
+    assert features["arrival:workers"] == ["entities at the start only"]
+    assert explanation.arrivals[0].reason == (
+        "it starts only its initial entities, at the start of the run; run --verify to measure it"
+    )
+    assert explanation.tasks[0].rate is None
+
+
 def test_a_hand_written_arrival_loop_and_a_process_are_opaque():
     app = SimulationContext(sim_id="Shop", factor=0)
     app.add_arrival("orders", dist="exponential", rate=1.0)
