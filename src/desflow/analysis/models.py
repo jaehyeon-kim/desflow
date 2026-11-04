@@ -384,7 +384,13 @@ def _run_low_level(
         horizon = env.internal_event()
         horizon._ok, horizon._value = True, None
         env.schedule(horizon, URGENT, until - env.now)
-        env.run(until=stop(env) | horizon)
+        # The run has its own end at `until`, as a run of `SimulationContext` has, so
+        # the environment does not end it when no model event is left before it
+        previous, env._end_is_set = env._end_is_set, True
+        try:
+            env.run(until=stop(env) | horizon)
+        finally:
+            env._end_is_set = previous
     if not drain or (stop is not None and env.now < until):
         return
     processes = list(arrivals or [])

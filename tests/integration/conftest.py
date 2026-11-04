@@ -307,9 +307,18 @@ def azurite(check_docker):
 
     Yields a `filesystem` mapping for it. The account and key are Azurite's
     well-known development account, published in Azurite's README and the same on
-    every installation, so the key is not a secret.
+    every installation, so the key is not a secret. `--skipApiVersionCheck` lets
+    Azurite take a newer API version than it knows: pyarrow 26.0.1 sends
+    2026-10-06, which Azurite 3.37.0, the newest image, refuses.
     """
-    for address in _run_container(AZURITE_IMAGE, 10000):
+    for address in _run_container(
+        AZURITE_IMAGE,
+        10000,
+        "azurite-blob",
+        "--blobHost",
+        "0.0.0.0",
+        "--skipApiVersionCheck",
+    ):
         yield {
             "type": "azure",
             "account_name": "devstoreaccount1",

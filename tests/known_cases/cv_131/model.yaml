@@ -1,0 +1,5 @@
+# case CV-131: a callback that interrupts or spawns.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+signals: {bell: {once: true, on: [{interrupt: {task: sleeper, cause: bell}}, {spawn: {task: helper}}]}}
+arrivals: {s: {initial: 1, spawn: sleeper}, r: {dist: constant, value: 2, spawn: ring, max_events: 1}}
+tasks: {sleeper: {service_time: 10, on_interrupt: abandon, payload: {event_type: slept}}, helper: {payload: {event_type: helper}}, ring: {signal: bell, payload: {event_type: ring}}}

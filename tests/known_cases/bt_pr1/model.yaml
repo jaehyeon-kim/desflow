@@ -1,0 +1,67 @@
+# case BT-PR (rows PR1 to PR10): preparation step in YAML, live ranking loop as an external call (PR8).
+simulation: {sim_id: Rec, factor: "${FACTOR:-0}", random_seed: 42, logical_start_time: "${START:-2025-10-03T00:00:00+00:00}", timezone: UTC}   # the 90 days before the history end, 1 January 2026
+run: {until: 7776000}
+egress:
+  - {type: Parquet, config: {default_path: out/pr.parquet}}   # PR7: Parquet in place of CSV (the key is default_path, found by sink_checks.py)
+  - type: Kafka                                              # PR9: recommender/stores/kafka.py sends each feedback event to Kafka in Avro, keyed by product_id (the key_field of the rank task)
+    when: {expr: "record.task == 'rank' and record.value.event_id != None"}   # the feedback events only
+    envelope: false                                          # the Avro value is the five fields of FeedbackEvent
+    config:
+      bootstrap_servers: "${KAFKA_BROKER:-127.0.0.1:9092}"
+      event_topic: feedback-events
+      serializer: {type: confluent_avro, registry_url: "${REGISTRY_URL:-http://127.0.0.1:8081}", schema_file: feedback.avsc}
+arrivals:
+  users: {dist: constant, value: 1, spawn: user, max_events: 1000}     # PR1: config.py NUM_USERS
+  history: {dist: exponential, rate: 0.001286, spawn: event, max_events: 10000}   # PR4: 10,000 events at random times over 90 days (10,000 / (90 * 86,400) per second)
+  live: {dist: constant, value: 0.1, spawn: rank, max_events: 50}   # PR10: 50 visits, one every 0.1 s
+tasks:
+  user:
+    vars:
+      place: {gen: row, file: world_pop.csv, where: "country == 'Australia' and city == 'Melbourne'", weight: population}   # PR3: config.py CITY
+      person: {gen: one_of, choices: [{gender: F, first: {gen: fake, method: first_name_female}}, {gender: M, first: {gen: fake, method: first_name_male}}]}
+      last: {gen: fake, method: last_name_nonbinary}
+    payload:
+      __table__: users
+      user_id: {gen: sequence, start: 1}
+      first_name: {gen: var, name: person, path: first}
+      last_name: {gen: var, name: last}
+      email: {gen: format, template: "{f}.{l}@{d}", names: {f: {gen: lower, value: {gen: var, name: person, path: first}}, l: {gen: lower, value: {gen: var, name: last}}, d: {gen: fake, method: safe_domain_name}}}   # PR2: users.py new_user
+      age: {gen: integer, bounds: [16, 70]}
+      gender: {gen: var, name: person, path: gender}
+      street_address: {gen: fake, method: street_address}
+      postal_code: {gen: var, name: place, path: postal_code}
+      city: {gen: var, name: place, path: city}
+      state: {gen: var, name: place, path: state}
+      country: {gen: var, name: place, path: country}
+      latitude: {gen: var, name: place, path: latitude}
+      longitude: {gen: var, name: place, path: longitude}
+      traffic_source: {gen: weighted, options: {Organic: 0.15, Facebook: 0.06, Search: 0.7, Email: 0.05, Display: 0.04}}
+  event:
+    vars:
+      u: {gen: lookup, task: user}
+      uage: {gen: var, name: u, path: age}
+      usrc: {gen: var, name: u, path: traffic_source}
+      epoch_s: {gen: format_time, format: epoch_s}
+      hour: {gen: format_time, format: "%H", time: {gen: now}}
+      product: {gen: row, file: products.csv}
+      pid: {gen: var, name: product, path: product_id}
+      pcat: {gen: var, name: product, path: category}
+      pprice: {gen: var, name: product, path: price}
+      morning: {gen: expr, expr: "1 if int(hour) >= 6 and int(hour) < 12 else 0"}                        # PR5
+      evening: {gen: expr, expr: "1 if int(hour) >= 18 else 0"}
+      weekend: {gen: expr, expr: "1 if ((epoch_s // 86400 + 3) % 7) >= 5 else 0"}                         # 1 January 1970 was a Thursday
+      score: {gen: expr, expr: "-2.5 + (2.5 if morning == 1 and pid >= 189 and pid <= 194 else 0) + (1.8 if weekend == 1 and (pcat == 'Pizzas' or pcat == 'Burgers & Sandwiches') else 0) - (3.0 if (uage - 16) / 54 < 0.25 and (pprice - 3.0) / 35.99 > 0.8 else 0) + (0.5 if usrc == 'Search' else 0)"}   # PR6: engine/simulation.py click_probability, with the scalers of features.py (age 16 to 70, price 3.0 to 38.99)
+      p: {gen: expr, expr: "1 / (1 + exp(-score))"}
+    payload: {__table__: training_log, user: {gen: var, name: u, path: user_id}, product: {gen: var, name: pid}, morning: {gen: var, name: morning}, evening: {gen: var, name: evening}, weekend: {gen: var, name: weekend}, click: {gen: boolean, p: {gen: var, name: p}}}
+  rank:                                                      # PR8 moved after 1.0: the ranking is the models' work. The visit here shows a drawn product, and the rest is the feedback event of live.py
+    vars:
+      product: {gen: row, file: products.csv}
+      pid: {gen: var, name: product, path: product_id}
+      reward: {gen: boolean, p: 0.2}
+    payload:
+      event_id: {gen: format, template: "evt_{ms}", names: {ms: {gen: format_time, format: epoch_ms, time: {gen: now}}}}
+      product_id: {gen: expr, expr: "str(pid)"}
+      reward: {gen: expr, expr: "1 if reward else 0"}
+      context_vector: [0.5, 0.25, 0.0, 1.0, 0.0]
+      timestamp: {gen: format_time, format: epoch_ms, time: {gen: now}}
+    key_field: product_id                                    # PR9: recommender/stores/kafka.py keys by product_id; the Avro value is the five fields of FeedbackEvent

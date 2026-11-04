@@ -1,0 +1,8 @@
+# GA-2: a machine slows down as it wears, then is repaired. Wear raises the mean stamping time in steps at 1, 2 and 3 hours, a repair at 4 hours sets it back (yaml-only.md Part 4).
+simulation: {sim_id: Press, factor: 0, random_seed: 42}
+resources: {station: {current_cap: 1}}
+services: {stamp: {dist: normal, mean: 10, std: 1}}
+arrivals: {blanks: {dist: exponential, rate: 0.05, spawn: blank}}
+scenario: [{at: 3600, path: Press.service.stamp.mean, value: 12}, {at: 7200, path: Press.service.stamp.mean, value: 14}, {at: 10800, path: Press.service.stamp.mean, value: 16}, {at: 14400, path: Press.service.stamp.mean, value: 10}]
+tasks: {blank: {resource: station, service: stamp, payload: {event_type: stamped}}}
+run: {until: 18000}

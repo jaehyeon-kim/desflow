@@ -1,0 +1,25 @@
+# Design M5: a custom queue order and preemption rule; a preempted job ends, as in the original. Source: research/yaml-only/programs/M5.py, four of its cases as independent resources: "ties lifo" (m1: four jobs without preempt), "when with a time rule, not yet" (m2) and "met" (m3) (preempt only when the request ranks above the holder, the request's key, SimPy's `(rank, time, not preempt)`, sorts before the holder's, and the holder has had the unit for more than 1 at the request's time; the rule reads `request.key` and `request.time` for CV-079), and "victim value holder.rank" (m4: capacity 2, three jobs of 9, the victim is the holder with the highest rank value, the first granted among equals). The source stops the m4 case at 3; here the run goes to 30. The other cases of the source are not in this row. The source logs the grant; a record comes at the end of the hold.
+simulation: {sim_id: M5, factor: 0, random_seed: 42}
+resources:
+  m1: {current_cap: 1, queue: {rank: "attr.rank", ties: lifo}, preempt: true}
+  m2: {current_cap: 1, queue: {rank: "attr.rank"}, preempt: {when: "request.rank < holder.rank and request.key < holder.key and request.time - holder.since > 1"}}
+  m3: {current_cap: 1, queue: {rank: "attr.rank"}, preempt: {when: "request.rank < holder.rank and request.key < holder.key and request.time - holder.since > 1"}}
+  m4: {current_cap: 2, queue: {rank: "attr.rank"}, preempt: {victim: "holder.rank"}}
+arrivals:
+  a1: {dist: constant, value: 1, spawn: j1, max_events: 1, first_at: 0, attributes: {rank: 1, pre: false, span: 2}}
+  b1: {dist: constant, value: 1, spawn: j1, max_events: 1, first_at: 1, attributes: {rank: 1, pre: false, span: 1}}
+  c1: {dist: constant, value: 1, spawn: j1, max_events: 1, first_at: 1, attributes: {rank: 1, pre: false, span: 1}}
+  d1: {dist: constant, value: 1, spawn: j1, max_events: 1, first_at: 1.5, attributes: {rank: 1, pre: false, span: 1}}
+  a2: {dist: constant, value: 1, spawn: j2, max_events: 1, first_at: 0, attributes: {rank: 5, pre: true, span: 5}}
+  b2: {dist: constant, value: 1, spawn: j2, max_events: 1, first_at: 1, attributes: {rank: 1, pre: true, span: 1}}
+  a3: {dist: constant, value: 1, spawn: j3, max_events: 1, first_at: 0, attributes: {rank: 5, pre: true, span: 5}}
+  b3: {dist: constant, value: 1, spawn: j3, max_events: 1, first_at: 2, attributes: {rank: 1, pre: true, span: 1}}
+  old: {dist: constant, value: 1, spawn: j4, max_events: 1, first_at: 0, attributes: {rank: 5, pre: true, span: 9}}
+  new: {dist: constant, value: 1, spawn: j4, max_events: 1, first_at: 1, attributes: {rank: 5, pre: true, span: 9}}
+  hi: {dist: constant, value: 1, spawn: j4, max_events: 1, first_at: 2, attributes: {rank: 1, pre: true, span: 9}}
+tasks:
+  j1: {resource: m1, preempt: "attr.pre", service_time: "attr.span", on_interrupt: abandon, payload: {event_type: done}}
+  j2: {resource: m2, preempt: "attr.pre", service_time: "attr.span", on_interrupt: abandon, payload: {event_type: done}}
+  j3: {resource: m3, preempt: "attr.pre", service_time: "attr.span", on_interrupt: abandon, payload: {event_type: done}}
+  j4: {resource: m4, preempt: "attr.pre", service_time: "attr.span", on_interrupt: abandon, payload: {event_type: done}}
+run: {until: 30}

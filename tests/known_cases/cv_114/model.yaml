@@ -1,0 +1,6 @@
+# case CV-114: raising again after cleanup.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: body}}
+tasks:
+  body: {fail: "True", fail_reason: body failed, on_fail: cleanup, payload: {event_type: body}}
+  cleanup: {payload: {event_type: cleanup}, fail: "upstream.status == 'failed'", fail_reason: again}

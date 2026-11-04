@@ -2930,8 +2930,9 @@ def _connector(
     """
 
     def construct(source: SourceMap, location: Tuple[Union[str, int], ...]) -> Any:
+        beside = _files_beside(config, source)
         if isinstance(kind, type):
-            return _instantiate(kind, config, source, location)
+            return _instantiate(kind, beside, source, location)
         _check_connector_type(kind, types, source, location)
         module_name, class_name, extra = types[kind]
         try:
@@ -2944,9 +2945,61 @@ def _connector(
                 location + ("type",),
                 f"{kind} needs a package that is missing: {exc}.{hint}",
             ) from None
-        return _instantiate(cls, config, source, location)
+        return _instantiate(cls, beside, source, location)
 
     return construct
+
+
+_SERIALIZER_FILES = ("schema_file", "descriptor_file", "verify", "cert")
+_SSL_FILES = ("cafile", "certfile", "keyfile")
+
+
+def _files_beside(config: Dict[str, Any], source: SourceMap) -> Dict[str, Any]:
+    """The connector's config with its file paths read from the blueprint's folder, as
+    a `row` file and an `!include` are, not from the working directory.
+
+    The paths are `schema_file`, `descriptor_file`, `verify` and `cert` of a Kafka
+    `serializer` and of each `topics.<name>.serializer`, and `cafile`, `certfile` and
+    `keyfile` of `ssl`. `topic_serializers` holds serializer objects, which read no
+    file.
+
+    Args:
+        config: The connector's `config` mapping.
+        source: The blueprint file the connector is in.
+
+    Returns:
+        Dict[str, Any]: The config, a copy where a path was changed.
+    """
+
+    def beside(value: Any) -> Any:
+        if isinstance(value, str):
+            return str(_relative(value, source))
+        if isinstance(value, list):
+            # A `cert` of the certificate file, the key file and the key's password
+            return [beside(part) for part in value[:2]] + value[2:]
+        return value
+
+    def files(spec: Any, keys: Tuple[str, ...]) -> Any:
+        if not isinstance(spec, Mapping):
+            return spec
+        return {key: beside(v) if key in keys else v for key, v in spec.items()}
+
+    def topic(settings: Any) -> Any:
+        if not isinstance(settings, Mapping) or "serializer" not in settings:
+            return settings
+        return {
+            **settings,
+            "serializer": files(settings["serializer"], _SERIALIZER_FILES),
+        }
+
+    made = dict(config)
+    if "serializer" in made:
+        made["serializer"] = files(made["serializer"], _SERIALIZER_FILES)
+    if isinstance(made.get("topics"), Mapping):
+        made["topics"] = {name: topic(s) for name, s in made["topics"].items()}
+    if "ssl" in made:
+        made["ssl"] = files(made["ssl"], _SSL_FILES)
+    return made
 
 
 def _check_connector_type(

@@ -1,0 +1,7 @@
+# DX-6: the same model with the snippet's own Python: `breaks` of docs/snippets/yaml/shop_logic.py as a process.
+simulation: {sim_id: Shop, factor: 0, random_seed: 1}
+resources: {packers: {current_cap: 3, max_cap: 3}}
+processes:
+  - function: !python shop_logic.breaks
+    kwargs: {resource: packers, every: 50, duration: 5}
+run: {until: 180}

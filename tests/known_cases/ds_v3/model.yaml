@@ -1,0 +1,33 @@
+# Design V3: computed values in a write, an action, a cause and a timeout value. Source: research/yaml-only/programs/V3.py: the main part (state writes before the run, a store built from the state, a worker interrupted at 1 with a cause read from the state, which then changes, and two timeouts whose value is fixed when each is created) and the returned part (a number through a field). The built-once part is not in this row. The store items are written out as 0, 2, 4, the values the source computes from n = 2.
+simulation: {sim_id: V3, factor: 0, random_seed: 42}
+variables: {n: 1, total: 10, reason: r1}
+stores: {built: {items: [0, 2, 4]}}
+arrivals:
+  wr: {dist: constant, value: 1, spawn: writes, max_events: 1, first_at: 0}
+  wk: {dist: constant, value: 1, spawn: worker, max_events: 1, first_at: 0}
+  ct: {dist: constant, value: 1, spawn: cutter, max_events: 1, first_at: 0}
+  tm: {dist: constant, value: 1, spawn: timed, max_events: 1, first_at: 0}
+  rt: {dist: constant, value: 1, spawn: parent, max_events: 1, first_at: 0}
+tasks:
+  writes:
+    payload: null
+    on:
+      - {path: V3.variables.n, value: {gen: expr, expr: "registry['V3.variables.n'] + 1"}}
+      - {path: V3.variables.total, value: {gen: expr, expr: "registry['V3.variables.total'] - 3"}}
+    next: writes_report
+  writes_report: {payload: {event_type: writes, n: {gen: expr, expr: "registry['V3.variables.n']"}, total: {gen: expr, expr: "registry['V3.variables.total']"}, items: {gen: expr, expr: "items(built)"}}}
+  worker: {wait: {timeout: 9}, on_interrupt: abandon, on_interrupt_next: worker_cause, payload: null}
+  worker_cause: {payload: {event_type: cause, cause: {gen: expr, expr: "cause.value"}}}
+  cutter:
+    wait: {timeout: 1}
+    payload: {event_type: cutter_goes_on_first}
+    on:
+      - {interrupt: {task: worker, cause: {gen: expr, expr: "registry['V3.variables.reason']"}}}
+      - {path: V3.variables.reason, value: changed in the same step}
+  timed: {payload: null, set: {made: {gen: expr, expr: t}}, next: timed1}
+  timed1: {wait: {timeout: {after: 2, value: {gen: expr, expr: "t * 2"}}}, payload: {event_type: value_fixed, v: {gen: expr, expr: "wait.timeout.value"}, made: {gen: expr, expr: "attr.made"}, now: {gen: expr, expr: t}}, next: timed_mark}
+  timed_mark: {payload: null, set: {made: {gen: expr, expr: t}}, next: timed2}
+  timed2: {wait: {timeout: {after: 2, value: {gen: expr, expr: "t * 2"}}}, payload: {event_type: value_fixed, v: {gen: expr, expr: "wait.timeout.value"}, made: {gen: expr, expr: "attr.made"}, now: {gen: expr, expr: t}}}
+  parent: {wait: {task: child}, set: {plain: {gen: expr, expr: "wait.child.value.v"}}, payload: null, next: parent2}
+  parent2: {wait: {task: child}, payload: {event_type: returned, plain: {gen: attr, name: plain}, field: {gen: expr, expr: "wait.child.value.v"}, same: {gen: expr, expr: "attr.plain == wait.child.value.v"}}}
+  child: {wait: {timeout: 1}, payload: {v: 10}}

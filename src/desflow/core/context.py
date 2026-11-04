@@ -1319,13 +1319,15 @@ class SimulationContext:
         p: Optional[float] = None,
         gap: Any = None,
         attributes: Optional[Mapping[str, Any]] = None,
-        key: Optional[Callable[[int], str]] = None,
+        key: Any = None,
         spawn: Optional[str] = None,
         first_at: Optional[float] = None,
         group: Any = 1,
         active: bool = True,
         off_mode: str = "drop",
         initial: int = 0,
+        max_events: Any = None,
+        vars: Optional[Mapping[str, Any]] = None,
     ) -> "SimulationContext":
         """
         Registers a statistical distribution defining the inter-arrival times of entities.
@@ -1358,7 +1360,12 @@ class SimulationContext:
                 of each gap.
             attributes: The attributes each entity starts with, read in conditions
                 as `attr.<name>`. Each entity gets its own copy.
-            key: A function of the entity's counter, from 1, returning its key.
+            key: The entity's key. A function of the entity's counter, from 1, returning
+                its key; or a value as a blueprint's `key` reads it: text or a number
+                is the key itself, and a generator is read once for each entity, after
+                `vars` and the attributes. An expression key is
+                `generator({"gen": "expr", "expr": "..."})`. `wait_for_arrival` reads
+                it too, so it needs no `spawn`.
             spawn: The task each arrival starts, with the arrival's entity and the
                 task's next instance id, as YAML's `spawn` key does. None leaves
                 the arrival to an `arrival_loop` written by hand.
@@ -1377,6 +1384,17 @@ class SimulationContext:
                 whole new gap.
             initial: With `spawn`, how many entities exist, in creation order, when
                 the run starts, before any gap passes.
+            max_events: With `spawn`, how many times the arrival starts its task, in
+                all, as a blueprint's `max_events`: a whole number of 0 or more, an
+                expression such as `"int(t / 5)"` or a generator, read when the
+                source starts. The arrival stops after the last, and its last start
+                draws no further gap.
+            vars: Named values read once for each entity, before its attributes and
+                key, as a blueprint's arrival `vars`. Each is a constant or a
+                generator such as `generator({"gen": "boolean", "p": 0.1})`; a plain
+                mapping with `gen` is refused. A name is one an expression can read
+                and does not already use. An attribute and the `key` read them with
+                `generator({"gen": "var", "name": ...})`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
@@ -1386,9 +1404,12 @@ class SimulationContext:
                 range or not one the family takes, or both or neither of `dist` and
                 `gap` are given, or `gap` is a negative number or neither a number,
                 an expression nor a generator, or `first_at` is below 0 or not a
-                number, or `off_mode`, `active`, `group` or `initial` is malformed or
-                given with no `spawn`. A `spawn` naming no task is refused when the
-                run starts.
+                number, or `off_mode`, `active`, `group`, `initial`, `max_events` or
+                `vars` is malformed, or `group`, `active`, `off_mode`, `initial` or
+                `max_events` is given with no `spawn`, or `gap`, `group` or
+                `max_events` is an expression that reads the entity, or a `vars`
+                name is not one an expression can read. A `spawn` naming no task is
+                refused when the run starts.
         """
         params = {
             k: v
@@ -1404,6 +1425,8 @@ class SimulationContext:
                 "off_mode",
                 "initial",
                 "gap",
+                "max_events",
+                "vars",
             )
         }
         if (dist is None) == (gap is None):
@@ -1427,10 +1450,7 @@ class SimulationContext:
 
                 gap = _duration_text(gap)  # a duration or a plain number in text
                 if isinstance(gap, str):  # not a number, so an expression
-                    try:
-                        gap = Expression(gap)
-                    except ValueError as error:
-                        raise ValueError(f"arrival '{name}': gap: {error}") from None
+                    gap = _run_expression(name, "gap", gap)
             if isinstance(gap, bool) or not isinstance(
                 gap, (numbers.Real, _Gen, Expression)
             ):
@@ -1446,6 +1466,7 @@ class SimulationContext:
         self._bind_values(
             attributes or {}, ("arrivals", name, "attributes"), overwrite=False
         )
+        value_key, key = self._arrival_key_and_vars(name, key, vars)
         self._arrival_entities[name] = (dict(attributes or {}), key)
         if first_at is not None:
             if (
@@ -1454,9 +1475,20 @@ class SimulationContext:
                 or not first_at >= 0
             ):
                 raise ValueError(f"first_at is a time of 0 or more, got {first_at!r}")
-        plan = _source_plan(spawn, group, active, off_mode, initial)
+        from desflow.blueprint.models import check_count_place
+
+        for what, count in (("group", group), ("max_events", max_events)):
+            try:
+                check_count_place(count, what)  # _source_plan reads a text group
+            except ValueError as error:
+                raise ValueError(f"arrival '{name}': {error}") from None
+        try:
+            plan = _source_plan(spawn, group, active, off_mode, initial)
+        except ValueError as error:
+            raise ValueError(f"arrival '{name}': {error}") from None
         if plan is not None:
             self._bind_values(plan.group, ("arrivals", name, "group"), overwrite=False)
+        plan = self._with_key_and_vars(plan, value_key, vars)
         if first_at is not None:
             plan = plan or ArrivalPlan()
             plan.first_at = first_at
@@ -1464,12 +1496,89 @@ class SimulationContext:
             plan = plan or ArrivalPlan()
             plan.gap = gap
             self._bind_values(gap, ("arrivals", name, "gap"), overwrite=False)
+        if max_events is not None:
+            if spawn is None:
+                raise ValueError(f"arrival '{name}': max_events needs a spawn")
+            if isinstance(max_events, str):
+                max_events = Expression(max_events)
+            elif not isinstance(max_events, (numbers.Integral, _Gen, Expression)):
+                raise ValueError(
+                    f"arrival '{name}': max_events is a whole number of 0 or more, "
+                    f"an expression or a generator, got {max_events!r}"
+                )
+            plan = plan or ArrivalPlan()
+            plan.max_events = (
+                int(max_events)
+                if isinstance(max_events, numbers.Integral)
+                else max_events
+            )
+            self._bind_values(
+                plan.max_events, ("arrivals", name, "max_events"), overwrite=False
+            )
         if plan is not None:
             self._arrival_plans[name] = plan
         else:
             self._arrival_plans.pop(name, None)  # a second call replaces the first
         self._add_spawn(name, spawn)
         return self
+
+    def _arrival_key_and_vars(
+        self, name: str, key: Any, vars: Optional[Mapping[str, Any]]
+    ) -> Tuple[Any, Optional[Callable[[int], str]]]:
+        """Checks an arrival's `key` and `vars` and binds their generators at the
+        places a blueprint gives them, for every Builder form of an arrival.
+
+        Args:
+            name: The arrival's name.
+            key: A function of the entity's counter, or a value as a blueprint's
+                `key` reads it.
+            vars: The arrival's `vars`, or None.
+
+        Returns:
+            Tuple: The value key, or None, and the function key, or None.
+
+        Raises:
+            ValueError: If `vars` is not a mapping of names to values, a name is not
+                one an expression can read, or a value is a plain mapping with `gen`.
+        """
+        value_key = None
+        if key is not None and not callable(key):
+            value_key, key = key, None  # a value place, as the blueprint's key
+            self._bind_values(value_key, ("arrivals", name, "key"), overwrite=False)
+        if vars is not None:
+            from desflow.blueprint.models import check_var_names
+
+            if not isinstance(vars, Mapping) or not all(
+                isinstance(k, str) for k in vars
+            ):
+                raise ValueError(
+                    f"arrival '{name}': vars is a mapping of names to values, "
+                    f"got {vars!r}"
+                )
+            try:
+                check_var_names(vars, "vars")
+            except ValueError as error:
+                raise ValueError(f"arrival '{name}': {error}") from None
+            for var, value in vars.items():
+                if isinstance(value, Mapping) and "gen" in value:
+                    raise ValueError(
+                        f"arrival '{name}': vars: '{var}' is a mapping with a gen, "
+                        f"which is kept as data; write generator({dict(value)!r})"
+                    )
+            self._bind_values(dict(vars), ("arrivals", name, "vars"), overwrite=False)
+        return value_key, key
+
+    @staticmethod
+    def _with_key_and_vars(
+        plan: Optional[ArrivalPlan], value_key: Any, vars: Optional[Mapping[str, Any]]
+    ) -> Optional[ArrivalPlan]:
+        """The arrival's plan with its value key and `vars`, made when it has either
+        and no plan yet."""
+        if value_key is not None or vars:
+            plan = plan or ArrivalPlan()
+            plan.key = value_key
+            plan.vars = dict(vars or {})
+        return plan
 
     def add_initial_arrival(
         self,
@@ -1478,8 +1587,9 @@ class SimulationContext:
         *,
         spawn: str,
         attributes: Optional[Mapping[str, Any]] = None,
-        key: Optional[Callable[[int], str]] = None,
+        key: Any = None,
         gap: Any = None,
+        vars: Optional[Mapping[str, Any]] = None,
     ) -> "SimulationContext":
         """
         Registers an arrival that has only `initial` entities and no source: `initial`
@@ -1492,18 +1602,21 @@ class SimulationContext:
             initial: How many entities, 1 or more.
             spawn: The task each entity starts.
             attributes: The attributes each entity starts with.
-            key: A function of the entity's counter, from 1, returning its key, as for
-                `add_arrival`.
+            key: The entity's key, in every form `add_arrival` takes: a function of
+                the entity's counter, from 1, or a value as a blueprint's `key`
+                reads it.
             gap: With a gap the arrival is not sourceless: it also starts an entity
                 after each gap once the first `initial` exist, as
                 `add_arrival(name, gap=gap, initial=initial, ...)` does.
+            vars: Named values read once for each entity, before its attributes and
+                key, as for `add_arrival`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If `initial` is not a whole number above 0, or `gap` is
-                refused as for `add_arrival`.
+            ValueError: If `initial` is not a whole number above 0, or `gap` or
+                `vars` is refused as for `add_arrival`.
         """
         if isinstance(initial, bool) or not isinstance(initial, int) or initial < 1:
             raise ValueError(f"initial is a whole number above 0, got {initial!r}")
@@ -1515,12 +1628,18 @@ class SimulationContext:
                 key=key,
                 spawn=spawn,
                 initial=initial,
+                vars=vars,
             )
         self._bind_values(
             attributes or {}, ("arrivals", name, "attributes"), overwrite=False
         )
+        value_key, key = self._arrival_key_and_vars(name, key, vars)
         self._arrival_entities[name] = (dict(attributes or {}), key)
-        self._arrival_plans[name] = ArrivalPlan(initial=initial, sourceless=True)
+        plan = self._with_key_and_vars(
+            ArrivalPlan(initial=initial, sourceless=True), value_key, vars
+        )
+        assert plan is not None  # it was given one
+        self._arrival_plans[name] = plan
         self._add_spawn(name, spawn)
         return self
 
@@ -2263,29 +2382,10 @@ class SimulationContext:
                 self._bind_values(
                     getattr(spec, field), ("tasks", task_name, field), overwrite=False
                 )
-            for key, parsed in (
-                ("wait", spec.wait),
-                ("open", None if spec.open is None else spec.open.wait),
-            ):
-                for node in parsed.branches.values() if parsed else ():
-                    if node.kind == "task" and node.args:
-                        self._bind_values(
-                            node.args,
-                            ("tasks", task_name, key, node.name, "args"),
-                            overwrite=False,
-                        )
-                    if node.kind == "timeout":
-                        seconds, value = node.target
-                        self._bind_values(
-                            seconds,
-                            ("tasks", task_name, key, node.name, "timeout"),
-                            overwrite=False,
-                        )
-                        self._bind_values(
-                            value,
-                            ("tasks", task_name, key, node.name),
-                            overwrite=False,
-                        )
+            for key, given in (("wait", wait), ("open", open)):
+                # Each generator of a wait or an open at the place a blueprint gives
+                # it, such as `wait.all.<name>.each`, as the YAML binds them
+                self._bind_values(given, ("tasks", task_name, key), overwrite=False)
             spec.declared = inspect.signature(user_func).parameters
             if "item" in spec.declared and take is not None and not take.wait:
                 raise ValueError(
@@ -2607,10 +2707,11 @@ class SimulationContext:
         fields: Union[str, List[str]] = "all",
         on_invalid: str = "error",
         attributes: Optional[Mapping[str, Any]] = None,
-        key: Optional[Callable[[int], str]] = None,
+        key: Any = None,
         spawn: Optional[str] = None,
         active: bool = True,
         off_mode: str = "drop",
+        vars: Optional[Mapping[str, Any]] = None,
     ) -> "SimulationContext":
         """
         Registers an arrival taken from recorded rows instead of a distribution.
@@ -2636,17 +2737,22 @@ class SimulationContext:
                 out with a warning.
             attributes: Attributes every entity starts with; a row's fields of the
                 same name replace them.
-            key: A function of the entity's counter, from 1, returning its key.
+            key: The entity's key, in every form `add_arrival` takes: a function of
+                the entity's counter, from 1, or a value as a blueprint's `key`
+                reads it.
             spawn: The task each row starts, as for `add_arrival`.
             active: False starts the source off, as for `add_arrival`.
             off_mode: `"drop"` or `"restart"`, as for `add_arrival`.
+            vars: Named values read once for each entity, before its attributes and
+                key, as for `add_arrival`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If `unit` or `on_invalid` is unknown. A `spawn` naming no
-                task is refused when the run starts.
+            ValueError: If `unit` or `on_invalid` is unknown, or `vars` is refused as
+                for `add_arrival`. A `spawn` naming no task is refused when the run
+                starts.
         """
         if unit not in UNITS and unit != "timestamp":
             raise ValueError(
@@ -2660,8 +2766,11 @@ class SimulationContext:
         self._bind_values(
             attributes or {}, ("arrivals", name, "attributes"), overwrite=False
         )
+        value_key, key = self._arrival_key_and_vars(name, key, vars)
         self._arrival_entities[name] = (dict(attributes or {}), key)
-        plan = _source_plan(spawn, 1, active, off_mode, 0)
+        plan = self._with_key_and_vars(
+            _source_plan(spawn, 1, active, off_mode, 0), value_key, vars
+        )
         if plan is not None:
             self._arrival_plans[name] = plan
         else:
@@ -4351,6 +4460,7 @@ class SimulationContext:
         env = self._env
         assert env is not None  # the callers checked that the run has started
         previous, env._until_none = env._until_none, self._until is None
+        previous_end, env._end_is_set = env._end_is_set, True
         try:
             return env.run(until=until)
         except RunStopped:
@@ -4359,6 +4469,7 @@ class SimulationContext:
             return None
         finally:
             env._until_none = previous
+            env._end_is_set = previous_end
 
     def _run_ended(self) -> bool:
         """Whether the run has reached its own end: the end event of a `stop` or
@@ -6265,6 +6376,27 @@ def _defuse(event: Any) -> None:
         event.defused = True
 
 
+def _run_expression(arrival: str, what: str, text: str) -> Expression:
+    """The expression of a Builder arrival's `gap` given as text, checked as a
+    blueprint checks it: it reads the run only, so not `attr`.
+
+    Args:
+        arrival: The arrival's name, for the message.
+        what: The argument.
+        text: The expression.
+
+    Raises:
+        ValueError: If the text is not an expression, or reads the entity or a task.
+    """
+    from desflow.blueprint.models import check_run_text
+
+    try:
+        check_run_text(text, what, True)
+        return Expression(text)
+    except ValueError as error:
+        raise ValueError(f"arrival '{arrival}': {error}") from None
+
+
 def _source_plan(
     spawn: Optional[str],
     group: Any = 1,
@@ -6280,9 +6412,9 @@ def _source_plan(
     """
     if isinstance(group, str):
         group = Expression(group)
-    elif isinstance(group, bool) or not (
-        isinstance(group, (int, _Gen)) or callable(group)
-    ):
+    elif isinstance(group, numbers.Integral) and not isinstance(group, bool):
+        group = int(group)  # a NumPy integer too, as `max_events` takes it
+    elif isinstance(group, bool) or not (isinstance(group, _Gen) or callable(group)):
         raise ValueError(
             f"group is a whole number, an expression or a generator, got {group!r}"
         )

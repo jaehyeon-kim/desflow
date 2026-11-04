@@ -82,8 +82,10 @@ def DS_B1():
             if left[0] <= 1e-12:
                 holding[0] = 0
                 with m.request(priority=-1) as q:
+                    L("m", None, S("down", reason="failure"))
                     yield q
                     yield env.timeout(repair)
+                    L("m", None, S("repaired", reason="failure"))
                 left[0] = ttf
 
     env.process(clock())

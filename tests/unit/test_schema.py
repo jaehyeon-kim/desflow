@@ -33,6 +33,8 @@ SCHEMA = json.loads(schema_text())
 # settings that a blueprint includes, and the settings `desflow fit` writes.
 NOT_BLUEPRINTS = {
     "tests/known_cases/index.yaml",
+    "tests/known_cases/dx_22/catalogs/rest.yaml",
+    "tests/known_cases/dx_22/catalogs/sqlite.yaml",
     "examples/yaml/experiment.yaml",
     "examples/yaml/packing_fit.yaml",
     "docs/snippets/yaml/parameter_sweeps_experiment.yaml",

@@ -32,42 +32,6 @@ def round_robin(n: int, members: int = 3) -> Marks:
     return marks
 
 
-def per_entity(n: int) -> Marks:
-    """Y1: no member exists at the start. The entity `i` uses the key `i % 2` and asks
-    for a capacity of `i + 1`; the first entity of a key makes the member, and a
-    second user of that key finds the first one's capacity, as `setdefault` does. A
-    read of a key that does not exist yet gives 0 and makes nothing."""
-    env = simpy.Environment()
-    marks: Marks = []
-    desks: dict = {}
-
-    def job(i):
-        key = i % 2
-        desk = desks.setdefault(key, simpy.Resource(env, capacity=i + 1))
-        with desk.request() as request:
-            yield request
-            yield env.timeout(2)
-            other = desks.get(7)
-            marks.append(
-                (
-                    env.now,
-                    f"a-{i + 1}",
-                    "done",
-                    [
-                        len(desk.users),
-                        len(desk.queue),
-                        0 if other is None else len(other.users),
-                        sorted(desks),
-                    ],
-                )
-            )
-
-    for i in range(n):
-        env.process(job(i))
-    env.run()
-    return marks
-
-
 def stores(n: int) -> Marks:
     """Y1: a store for each key `i % 2`, made at the first put, at time 3. The entity
     `i` waits 3 s, puts `i` into its store, waits 10 s and gets from the same store, so
@@ -264,45 +228,6 @@ def each_requests(n: int, count: int) -> Marks:
         for j, q in enumerate(qs):
             if q in res:
                 rs[j].release(q)
-
-    for j in range(count):
-        env.process(holder(j))
-    for i in range(n):
-        env.process(job(i))
-    env.run()
-    return marks
-
-
-def open_requests(n: int, count: int = 3) -> Marks:
-    """Y3 and Y4: each entity makes a request on each of `count` resources at 0.5 and
-    keeps them in a list; it waits for the last one, cancels the list in order (a
-    granted request stays), reads which are processed and the queues, and releases the
-    last. The resource `j` is held until `count - j`."""
-    env = simpy.Environment()
-    marks: Marks = []
-    rs = [simpy.Resource(env, capacity=1) for _ in range(count)]
-
-    def holder(j):
-        with rs[j].request() as request:
-            yield request
-            yield env.timeout(count - j)
-
-    def job(i):
-        yield env.timeout(0.5)
-        qs = [r.request() for r in rs]
-        yield qs[count - 1]
-        for q in qs:
-            if not q.triggered:
-                q.cancel()
-        marks.append(
-            (
-                env.now,
-                f"a-{i + 1}",
-                "done",
-                [[q.processed for q in qs], [len(r.queue) for r in rs]],
-            )
-        )
-        rs[count - 1].release(qs[count - 1])
 
     for j in range(count):
         env.process(holder(j))

@@ -1,0 +1,9 @@
+# case CV-117: a nested generator called recursively: a task waits for itself, with the depth in an argument and the result in the payload. research/yaml-only/programs/Y6.py recursion(2): f(k) waits 1, then calls f(k-1), logs (now, k, v) and returns v + k; f(0) returns 0.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+arrivals: {a: {initial: 1, spawn: g}}
+tasks:
+  g: {wait: {task: f, args: {k: 2}}, payload: {event_type: total, total: {gen: expr, expr: "wait.f.value.ret"}}}
+  f: {payload: {event_type: call, k: {gen: expr, expr: "arg.k"}}, next: {when: [{condition: "arg.k > 0", task: step}], default: base}}
+  step: {service_time: 1, payload: {event_type: tick, k: {gen: expr, expr: "arg.k"}}, next: down}
+  down: {wait: {task: f, args: {k: {gen: expr, expr: "arg.k - 1"}}}, payload: {event_type: level, k: {gen: expr, expr: "arg.k"}, v: {gen: expr, expr: "wait.f.value.ret"}, ret: {gen: expr, expr: "wait.f.value.ret + arg.k"}}}
+  base: {payload: {event_type: base, ret: 0}}

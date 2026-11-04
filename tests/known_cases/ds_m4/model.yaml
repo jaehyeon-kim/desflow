@@ -1,0 +1,11 @@
+# Design M4: several entities start at one instant in creation order, then a source goes on. One check and then four cars start at 0, each logs its first step and goes on after its step (0 for the check, 5 for a car). The cars' source starts before its four cars, so its first gap, which ties with the cars' first step at 5, ends first, as in Carwash's `setup` (research/yaml-only/programs/M4.py order("setup")). The gap is drawn from an exponential distribution of rate 1; the comparison with the program fixes it to 5 (`DRAWS` of original.py).
+simulation: {sim_id: M4, factor: 0, random_seed: 42}
+arrivals:
+  control: {initial: 1, spawn: check}
+  cars: {initial: 4, dist: exponential, rate: 1, spawn: car}
+tasks:
+  check: {payload: {event_type: first_step}, next: check_on}
+  check_on: {service_time: 0, payload: {event_type: goes_on}}
+  car: {payload: {event_type: first_step}, next: car_on}
+  car_on: {service_time: 5, payload: {event_type: goes_on}}
+run: {until: 12}

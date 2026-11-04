@@ -1,8 +1,7 @@
-# One entry for each known case of the prefixes EX-, GD-, ST- and P of
-# release/yaml-only-prototype/known-cases.md, generated once from that file by a script.
-# A case has a folder of its own, or `runs_in` names the case whose folder holds the
-# document it shares. A row that known-cases.md lists under "Left out" carries a `reason`
-# in place of both; no row of these four prefixes is left out. Part 12b adds the other prefixes.
+# One entry for each known case of release/yaml-only-prototype/known-cases.md, generated once from that
+# file by a script. A case has a folder of its own, or `runs_in` names the case whose folder holds the
+# document it shares. A row that known-cases.md lists under "Left out" carries a `reason` in place of
+# both. BT-PR8 moved after 1.0 and is not listed.
 
 - id: EX-1
   topic: Resources
@@ -792,3 +791,1165 @@
 - id: P79
   topic: Resources
   title: Change the priority rules with preempt and restart flags
+- id: DS-A1
+  topic: Arrivals and Sources
+  title: A fixed number of arrivals
+- id: DS-A3
+  topic: Arrivals and Sources
+  title: A group size drawn for each arrival
+- id: DS-A4
+  topic: Arrivals and Sources
+  title: An arrival gap computed from the time
+- id: DS-A5
+  topic: Arrivals and Sources
+  title: Turn one source off and on from a flow
+- id: DS-A7
+  topic: Arrivals and Sources
+  title: A spawn count and copied attributes
+- id: DS-B1
+  topic: Interrupts and Failures
+  title: A failure clock that counts busy time only
+- id: DS-B3
+  topic: Statistics and Monitoring
+  title: A batch that keeps member identity and closes on size, a timeout or a rule
+- id: DS-H1
+  topic: Resources
+  title: A unit held across several steps
+- id: DS-H5
+  topic: Resources
+  title: Tasks that take resources in opposite orders
+- id: DS-H6
+  topic: Resources
+  title: Release a unit that another entity holds
+- id: DS-H8
+  topic: Resources
+  title: A queue limit that changes during the run
+- id: DS-H9
+  topic: Resources
+  title: A cancel after the grant and a release by handle
+- id: DS-I3
+  topic: Interrupts and Failures
+  title: A flow after an interrupt, then the time left
+- id: DS-I4
+  topic: Interrupts and Failures
+  title: Suspend until another task resumes
+- id: DS-I6
+  topic: Interrupts and Failures
+  title: Go on after reneging or balking
+- id: DS-I10
+  topic: Interrupts and Failures
+  title: A wait through a handle that goes on after an interrupt
+- id: DS-M1
+  topic: Statistics and Monitoring
+  title: A reading at each change of a resource and an event trace
+- id: DS-M3
+  topic: Interrupts and Failures
+  title: Handle a failed wait with on_fail
+- id: DS-M4
+  topic: Arrivals and Sources
+  title: Several entities start at one instant, then a source goes on
+- id: DS-M5
+  topic: Resources
+  title: A custom queue order and preemption rule
+- id: DS-M6
+  topic: Processes and Tasks
+  title: The flow name of a process
+- id: DS-M7
+  topic: Conditions and Waits
+  title: Wait for the whole flow that a task belongs to
+- id: DS-V1
+  topic: Generated Values
+  title: A service time computed for each entity
+- id: DS-V2
+  topic: Conditions and Waits
+  title: A wait timeout computed for each entity
+- id: DS-V3
+  topic: Generated Values
+  title: Computed values in a write, a cause and a timeout value
+- id: DS-V4
+  topic: Generated Values
+  title: A random value drawn for each entity and used as a priority
+- id: DS-V7
+  topic: Related Records
+  title: Names for a cause, holders, an item priority and nested values
+- id: DS-V9
+  topic: Processes and Tasks
+  title: Arguments for a child flow
+- id: DS-V10
+  topic: Generated Values
+  title: Routing weights from an expression
+- id: DS-V11
+  topic: Conditions and Waits
+  title: A wait group with a predicate of its own
+- id: DS-V12
+  topic: Stores
+  title: Put back the item a get took
+- id: DS-Y1
+  topic: Events and Signals
+  title: Resources, stores and signals in a computed number
+- id: DS-Y2
+  topic: Resources
+  title: A member picked by a computed rule
+- id: DS-Y3
+  topic: Conditions and Waits
+  title: A wait on a computed number of events
+- id: DS-Y4
+  topic: Events and Signals
+  title: An event made now and used later through a local name
+- id: DS-Y5
+  topic: Generated Values
+  title: Lists and mappings in expressions
+- id: DS-Y6
+  topic: Processes and Tasks
+  title: A local variable that two children change at once
+- id: DS-Y7
+  topic: Related Records
+  title: Names for another process, an event state and a queue's entries
+- id: DS-Y8
+  topic: Resources
+  title: A preempt flag and a priority for each request
+- id: DS-Y9
+  topic: Interrupts and Failures
+  title: Fail an event with a computed reason
+- id: DS-Y10
+  topic: Events and Signals
+  title: An event scheduled with a numeric priority
+- id: DS-Y11
+  topic: Events and Signals
+  title: A callback added during the run
+- id: DS-Y12
+  topic: Stores
+  title: A rank on the waiting gets and puts of a store and a container
+- id: CV-001
+  topic: Events and Signals
+  title: A bare event
+  runs_in: ST-V01
+- id: CV-002
+  topic: Events and Signals
+  title: Read whether a signal has fired
+- id: CV-003
+  topic: Events and Signals
+  title: Read whether a signal has been processed
+  runs_in: DS-Y7
+- id: CV-004
+  topic: Events and Signals
+  title: Read whether a signal or a wait branch succeeded
+- id: CV-005
+  topic: Events and Signals
+  title: Read the value of a signal or a wait branch
+  runs_in: ST-V01
+- id: CV-006
+  topic: Interrupts and Failures
+  title: A failed event that is defused
+  runs_in: DS-Y9
+- id: CV-007
+  topic: Events and Signals
+  title: Fire a signal from another signal
+  runs_in: GD-V2
+- id: CV-008
+  topic: Events and Signals
+  title: Fire a signal with a value
+  runs_in: DS-V3
+- id: CV-009
+  topic: Interrupts and Failures
+  title: Fail a signal from a task that goes on
+  runs_in: DS-Y9
+- id: CV-010
+  topic: Interrupts and Failures
+  title: A computed failure message
+  runs_in: DS-Y9
+- id: CV-011
+  topic: Events and Signals
+  title: A callback added before the run
+  runs_in: GD-V1
+- id: CV-012
+  topic: Events and Signals
+  title: A callback added during the run
+  runs_in: DS-Y11
+- id: CV-013
+  topic: Events and Signals
+  title: A condition inside a callback
+  runs_in: DS-Y11
+- id: CV-014
+  topic: Events and Signals
+  title: A callback on a timeout
+- id: CV-015
+  topic: Conditions and Waits
+  title: Combine events with and and or
+  runs_in: GD-V7
+- id: CV-016
+  topic: Conditions and Waits
+  title: A timeout with a value
+  runs_in: DS-V2
+- id: CV-017
+  topic: Processes and Tasks
+  title: Initialize and Interruption
+  reason: "no meaning for a simulation model"
+- id: CV-018
+  topic: Conditions and Waits
+  title: A condition with a rule of its own
+  runs_in: DS-V11
+- id: CV-019
+  topic: Conditions and Waits
+  title: All of and any of
+  runs_in: GD-V6
+- id: CV-020
+  topic: Conditions and Waits
+  title: All of and any of an empty set
+  runs_in: ST-C20
+- id: CV-021
+  topic: Conditions and Waits
+  title: The events of a condition and at least
+- id: CV-022
+  topic: Conditions and Waits
+  title: Read the value of a condition
+  runs_in: DS-Y3
+- id: CV-023
+  topic: Processes and Tasks
+  title: Equality and events of a condition value
+  reason: "no meaning for a simulation model"
+- id: CV-024
+  topic: Conditions and Waits
+  title: A count of what a condition holds
+  runs_in: DS-V11
+- id: CV-025
+  topic: Environment and Time
+  title: Start the clock at a time other than 0
+  runs_in: GD-E4
+- id: CV-026
+  topic: Environment and Time
+  title: Read the time
+  runs_in: ST-C20
+- id: CV-027
+  topic: Processes and Tasks
+  title: Read which process is running
+  runs_in: DS-Y7
+- id: CV-028
+  topic: Processes and Tasks
+  title: Start a process and wait for it
+  runs_in: DS-V9
+- id: CV-029
+  topic: Environment and Time
+  title: A timeout and an event of the environment
+  runs_in: GD-E6
+- id: CV-030
+  topic: Events and Signals
+  title: Schedule an event as urgent
+- id: CV-031
+  topic: Events and Signals
+  title: Schedule an event with another priority
+  runs_in: DS-Y10
+- id: CV-032
+  topic: Environment and Time
+  title: Read the next event time from a driver
+  runs_in: GD-E3
+- id: CV-033
+  topic: Environment and Time
+  title: Read the next event time inside a process
+  runs_in: DS-Y7
+- id: CV-034
+  topic: Environment and Time
+  title: Step one event at a time
+  runs_in: GD-E3
+- id: CV-035
+  topic: Environment and Time
+  title: Run with no end time
+- id: CV-036
+  topic: Environment and Time
+  title: Run until a time
+  runs_in: ST-E01
+- id: CV-037
+  topic: Environment and Time
+  title: Run until an event and return its value
+  runs_in: GD-E2
+- id: CV-038
+  topic: Environment and Time
+  title: Run until an event that never fires
+  runs_in: ST-E04
+- id: CV-039
+  topic: Environment and Time
+  title: Run until a time that is not ahead
+  runs_in: ST-RT5
+- id: CV-040
+  topic: Environment and Time
+  title: Run in segments
+  runs_in: GD-E1
+- id: CV-041
+  topic: Processes and Tasks
+  title: BoundClass and bind_early
+  reason: "no meaning for a simulation model"
+- id: CV-042
+  topic: Processes and Tasks
+  title: Event priorities and constants
+  reason: "no meaning for a simulation model"
+- id: CV-043
+  topic: Statistics and Monitoring
+  title: Monitor a resource as a subclass of the environment does
+  runs_in: DS-M1
+- id: CV-044
+  topic: Processes and Tasks
+  title: The return value of a process
+  runs_in: DS-V3
+- id: CV-045
+  topic: Processes and Tasks
+  title: Wait for a process
+  runs_in: GD-E7
+- id: CV-046
+  topic: Processes and Tasks
+  title: Read the name of a process
+  runs_in: GD-E5
+- id: CV-047
+  topic: Processes and Tasks
+  title: Read the target of a process
+  runs_in: ST-P02
+- id: CV-048
+  topic: Processes and Tasks
+  title: The is_alive of the process itself
+  reason: "owned by the engine; always true while a task runs"
+- id: CV-049
+  topic: Processes and Tasks
+  title: Read whether another process is alive
+  runs_in: DS-Y4
+- id: CV-050
+  topic: Processes and Tasks
+  title: Read the state of a process without a wait
+  runs_in: DS-Y4
+- id: CV-051
+  topic: Interrupts and Failures
+  title: Interrupt a process with a cause
+  runs_in: DS-V3
+- id: CV-052
+  topic: Interrupts and Failures
+  title: Interrupt through a reference to the process
+  runs_in: DS-Y4
+- id: CV-053
+  topic: Interrupts and Failures
+  title: Read the cause of an interrupt
+  runs_in: DS-V7
+- id: CV-054
+  topic: Interrupts and Failures
+  title: Catch an interrupt in a loop and keep the time left
+  runs_in: DS-I3
+- id: CV-055
+  topic: Interrupts and Failures
+  title: An interrupt during a wait
+  runs_in: GD-P4
+- id: CV-056
+  topic: Interrupts and Failures
+  title: Decide on the cause, then resume
+- id: CV-057
+  topic: Processes and Tasks
+  title: The SimPy exception class
+  reason: "no meaning for a simulation model"
+- id: CV-058
+  topic: Processes and Tasks
+  title: The empty schedule error
+  reason: "owned by the engine; the run ends, or T8's `step` reports it"
+- id: CV-059
+  topic: Environment and Time
+  title: Stop the run from a process with a value
+  runs_in: GD-E2
+- id: CV-060
+  topic: Interrupts and Failures
+  title: An exception that leaves the run
+- id: CV-061
+  topic: Resources
+  title: Read the capacity of a resource
+  runs_in: ST-R01
+- id: CV-062
+  topic: Resources
+  title: Read how many units are in use
+  runs_in: GD-RS3
+- id: CV-063
+  topic: Resources
+  title: Read who holds a resource
+  runs_in: DS-V7
+- id: CV-064
+  topic: Resources
+  title: Read the fields of a holder
+  runs_in: DS-V7
+- id: CV-065
+  topic: Resources
+  title: Read the length of a queue
+  runs_in: GD-RS3
+- id: CV-066
+  topic: Resources
+  title: Read the entries of a queue
+  runs_in: DS-Y7
+- id: CV-067
+  topic: Resources
+  title: A request inside a with block
+  runs_in: DS-H1
+- id: CV-068
+  topic: Resources
+  title: Release a unit later
+  runs_in: DS-H1
+- id: CV-069
+  topic: Resources
+  title: Release a unit and wait for the release
+- id: CV-070
+  topic: Resources
+  title: A request made now and waited for later
+  runs_in: DS-Y4
+- id: CV-071
+  topic: Resources
+  title: Two units held by one process
+- id: CV-072
+  topic: Resources
+  title: Wait on several requests
+- id: CV-073
+  topic: Resources
+  title: Wait on several requests with a priority each
+  runs_in: DS-Y8
+- id: CV-074
+  topic: Resources
+  title: Wait on a computed number of requests
+- id: CV-075
+  topic: Resources
+  title: A priority resource
+  runs_in: ST-R09
+- id: CV-076
+  topic: Resources
+  title: A preemptive resource
+  runs_in: ST-R12
+- id: CV-077
+  topic: Resources
+  title: A preempt flag computed for each request
+  runs_in: DS-Y8
+- id: CV-078
+  topic: Interrupts and Failures
+  title: Read who preempted a holder
+  runs_in: DS-V7
+- id: CV-079
+  topic: Resources
+  title: Read the key, time and priority of a request
+  runs_in: DS-M5
+- id: CV-080
+  topic: Resources
+  title: A resource with a queue or preemption rule of its own
+  runs_in: DS-M5
+- id: CV-081
+  topic: Resources
+  title: A sorted queue with a length limit
+  runs_in: DS-H8
+- id: CV-082
+  topic: Stores
+  title: Subclasses that only rank the waiting puts and gets
+  runs_in: DS-M5
+- id: CV-083
+  topic: Containers
+  title: A resource with a grant rule of its own
+- id: CV-084
+  topic: Stores
+  title: A store
+  runs_in: ST-R19
+- id: CV-085
+  topic: Stores
+  title: Count the items of a store and test membership
+- id: CV-086
+  topic: Stores
+  title: Read an item of a store by index
+  runs_in: DS-Y5
+- id: CV-087
+  topic: Stores
+  title: Remove an item by value
+- id: CV-088
+  topic: Stores
+  title: A get that is cancelled on leaving
+  runs_in: ST-R22
+- id: CV-089
+  topic: Stores
+  title: Cancel a get or put directly
+  runs_in: DS-Y4
+- id: CV-090
+  topic: Stores
+  title: A put item that is computed or not a mapping
+  runs_in: DS-V12
+- id: CV-091
+  topic: Stores
+  title: A store with a filter
+  runs_in: ST-R25
+- id: CV-092
+  topic: Stores
+  title: A priority store
+  runs_in: DS-V7
+- id: CV-093
+  topic: Stores
+  title: A last in, first out store
+- id: CV-094
+  topic: Containers
+  title: A container
+  runs_in: ST-R16
+- id: CV-095
+  topic: Containers
+  title: Read the length of the put and get queues
+  runs_in: ST-R17
+- id: CV-096
+  topic: Containers
+  title: Read the entries of the put and get queues
+  runs_in: DS-Y7
+- id: CV-097
+  topic: Stores
+  title: Read the value of a get
+- id: CV-098
+  topic: Real Time
+  title: A real-time environment with factor and strict
+  runs_in: ST-RT1
+- id: CV-099
+  topic: Real Time
+  title: Synchronise the real-time clock
+  runs_in: ST-RT6
+- id: CV-100
+  topic: Processes and Tasks
+  title: Start a process after a delay
+  runs_in: GD-V5
+- id: CV-101
+  topic: Events and Signals
+  title: Subscribe to an event
+  runs_in: ST-U05
+- id: CV-102
+  topic: Processes and Tasks
+  title: A while loop
+  runs_in: DS-V3
+- id: CV-103
+  topic: Processes and Tasks
+  title: A for loop with a computed count
+  runs_in: DS-V3
+- id: CV-104
+  topic: Processes and Tasks
+  title: A conditional branch
+  runs_in: GD-E7
+- id: CV-105
+  topic: Processes and Tasks
+  title: A local variable in one flow
+  runs_in: P16
+- id: CV-106
+  topic: Processes and Tasks
+  title: A local variable that children change at once
+  runs_in: DS-Y6
+- id: CV-107
+  topic: Statistics and Monitoring
+  title: A shared number or flag
+  runs_in: ST-E05
+- id: CV-108
+  topic: Generated Values
+  title: A shared list or mapping
+  runs_in: DS-Y5
+- id: CV-109
+  topic: Generated Values
+  title: A nested mapping read by path
+  runs_in: DS-Y5
+- id: CV-110
+  topic: Interrupts and Failures
+  title: Handle a failure of one step
+  runs_in: DS-M3
+- id: CV-111
+  topic: Interrupts and Failures
+  title: Handle a failure of several steps
+- id: CV-112
+  topic: Interrupts and Failures
+  title: Handle a failure by its type
+- id: CV-113
+  topic: Interrupts and Failures
+  title: A cleanup that always runs
+- id: CV-114
+  topic: Interrupts and Failures
+  title: Raise again after cleanup
+- id: CV-115
+  topic: Interrupts and Failures
+  title: A failed child that reaches its parent
+  runs_in: ST-X01
+- id: CV-116
+  topic: Processes and Tasks
+  title: A nested generator
+- id: CV-117
+  topic: Processes and Tasks
+  title: A nested generator called recursively
+- id: CV-118
+  topic: Conditions and Waits
+  title: A computed list of events to wait on
+  runs_in: DS-Y3
+- id: CV-119
+  topic: Conditions and Waits
+  title: A computed number of children, joined, without values
+  runs_in: DS-A7
+- id: CV-120
+  topic: Conditions and Waits
+  title: A computed number of children, joined, with values
+  runs_in: DS-Y3
+- id: CV-121
+  topic: Events and Signals
+  title: An event made for each entity
+  runs_in: DS-Y1
+- id: CV-122
+  topic: Events and Signals
+  title: An event passed in a store item
+  runs_in: DS-Y1
+- id: CV-123
+  topic: Events and Signals
+  title: An event held and waited for later
+  runs_in: DS-Y4
+- id: CV-124
+  topic: Resources
+  title: A resource for each entity
+  runs_in: DS-Y1
+- id: CV-125
+  topic: Resources
+  title: A computed number of resources, stores, containers or signals
+  runs_in: DS-Y1
+- id: CV-126
+  topic: Resources
+  title: A computed number of members made during the run
+- id: CV-127
+  topic: Containers
+  title: A capacity or level computed at the start
+- id: CV-128
+  topic: Resources
+  title: A resource picked by a computed name
+- id: CV-129
+  topic: Resources
+  title: A resource picked by a computed index or rule
+  runs_in: DS-Y2
+- id: CV-130
+  topic: Processes and Tasks
+  title: A generator function picked by a computed name
+- id: CV-131
+  topic: Events and Signals
+  title: A callback that interrupts or spawns
+- id: CV-132
+  topic: Conditions and Waits
+  title: A process waited for by two waiters
+- id: CV-133
+  topic: Interrupts and Failures
+  title: An interrupt during a queued request
+- id: CV-134
+  topic: Conditions and Waits
+  title: A computed list of events made now and waited for later
+- id: CV-135
+  topic: Processes and Tasks
+  title: A class with fields and methods
+- id: CV-136
+  topic: Events and Signals
+  title: An event made again after each firing
+  runs_in: GD-V3
+- id: CV-137
+  topic: Generated Values
+  title: The same seed gives the same run
+- id: CV-138
+  topic: Generated Values
+  title: Random integers, choices, samples and shuffles
+- id: CV-139
+  topic: Generated Values
+  title: Text built from values
+- id: DX-1
+  topic: Generated Values
+  title: An order with random items and a total, run with its Python function
+- id: DX-2
+  topic: Stores
+  title: A lane that gives back the newest truck
+- id: DX-3
+  topic: Generated Values
+  title: A delivery choice computed by a Python function
+- id: DX-4
+  topic: Generated Values
+  title: The order record of the sink examples
+- id: DX-5
+  topic: Conditions and Waits
+  title: A payload that reads which branches of a wait were done
+- id: DX-6
+  topic: Resources
+  title: Every 50 seconds the packers go off for 5 seconds
+- id: DX-7
+  topic: Statistics and Monitoring
+  title: A telemetry report of the orders waiting for each packer
+- id: DX-8
+  topic: Resources
+  title: A resource added at 12 seconds with a job on every resource
+- id: DX-9
+  topic: Generated Values
+  title: A service time computed for each car
+- id: DX-10
+  topic: Resources
+  title: A job that keeps its unit through two steps
+- id: DX-11
+  topic: Arrivals and Sources
+  title: A fixed number of arrivals
+- id: DX-12
+  topic: Processes and Tasks
+  title: Arguments passed to a child flow and its value read
+- id: DX-13
+  topic: Interrupts and Failures
+  title: A wait on the same event again after an interrupt
+- id: DX-14
+  topic: Interrupts and Failures
+  title: A request yielded again after an interrupt
+- id: DX-15
+  topic: Conditions and Waits
+  title: A wait for the whole flow of a process
+- id: DX-18
+  topic: Sinks and Connectors
+  title: A sink that receives only some records
+- id: DX-20
+  topic: Sinks and Connectors
+  title: A file path chosen for each record
+- id: DX-21
+  topic: Sinks and Connectors
+  title: Kafka serializers for Avro, JSON Schema and Protobuf
+- id: DX-22
+  topic: Sinks and Connectors
+  title: Connector settings that come from an included file
+- id: DX-23
+  topic: Sinks and Connectors
+  title: An SSL context and an MSK IAM token provider
+- id: GA-1
+  topic: Generated Values
+  title: Orders wait for busy packers
+- id: GA-2
+  topic: Generated Values
+  title: Machine slows as it wears
+- id: GA-3
+  topic: Generated Values
+  title: Capacity drops and queue grows
+- id: GA-4
+  topic: Generated Values
+  title: Orders belong to existing customers
+- id: GA-5
+  topic: Generated Values
+  title: Votes favour one option
+- id: GA-6
+  topic: Generated Values
+  title: Sensors drift from previous value
+- id: GA-7
+  topic: Generated Values
+  title: Day of history then live
+- id: GA-8
+  topic: Generated Values
+  title: Arrival rate from kafka
+- id: HR-01
+  topic: Arrivals and Sources
+  title: Arrivals, services and mill resources for a product line
+- id: HR-02
+  topic: Processes and Tasks
+  title: Three product lines with the same structure
+  runs_in: HR-01
+- id: HR-03
+  topic: Arrivals and Sources
+  title: One slab for each line at time 0
+  runs_in: HR-01
+- id: HR-04
+  topic: Generated Values
+  title: A slab id from a sequence
+  runs_in: HR-01
+- id: HR-05
+  topic: Generated Values
+  title: Slab constants and starting state drawn once
+  runs_in: HR-01
+- id: HR-06
+  topic: Generated Values
+  title: A number of passes, fixed or drawn
+  runs_in: HR-01
+- id: HR-07
+  topic: Resources
+  title: Several passes through one mill, released between passes
+  runs_in: HR-01
+- id: HR-08
+  topic: Processes and Tasks
+  title: A service time chosen by the pass phase
+  runs_in: HR-01
+- id: HR-09
+  topic: Processes and Tasks
+  title: Slab state carried from pass to pass
+  runs_in: HR-01
+- id: HR-10
+  topic: Generated Values
+  title: Physics formulas in expressions
+  runs_in: HR-01
+- id: HR-11
+  topic: Generated Values
+  title: Choices that depend on a value
+  runs_in: HR-01
+- id: HR-12
+  topic: Generated Values
+  title: Random noise and spread in an expression
+  runs_in: HR-01
+- id: HR-13
+  topic: Related Records
+  title: A prediction when the mill is seized and a ground truth when the pass ends
+  runs_in: HR-01
+- id: HR-14
+  topic: Generated Values
+  title: Wear read at the end of the pass
+  runs_in: HR-01
+- id: HR-15
+  topic: Generated Values
+  title: Record timestamps
+  runs_in: HR-01
+- id: HR-16
+  topic: Related Records
+  title: Lifecycle events for each pass
+  runs_in: HR-01
+- id: HR-17
+  topic: Containers
+  title: Wear level as a number written by control
+  runs_in: HR-01
+- id: HR-18
+  topic: Containers
+  title: Gradual drift that turns at 60 and 0.001
+  runs_in: HR-01
+- id: HR-19
+  topic: Sinks and Connectors
+  title: Abrupt drift and live control from the dashboard
+  runs_in: HR-01
+- id: HR-20
+  topic: Environment and Time
+  title: A scripted drift experiment
+  runs_in: HR-01
+- id: HR-21
+  topic: Statistics and Monitoring
+  title: Wear telemetry every 2 seconds
+  runs_in: HR-01
+- id: HR-22
+  topic: Sinks and Connectors
+  title: Four Kafka topics chosen for each record
+  runs_in: HR-01
+- id: HR-23
+  topic: Sinks and Connectors
+  title: Topics created with their partition counts
+  runs_in: HR-01
+- id: HR-24
+  topic: Generated Values
+  title: Record shape for Flink
+  runs_in: HR-01
+- id: HR-25
+  topic: Generated Values
+  title: Range checks on fields
+  runs_in: HR-01
+- id: HR-26
+  topic: Environment and Time
+  title: Seed, speed and pass options
+  runs_in: HR-01
+- id: DX-16
+  topic: Processes and Tasks
+  title: Drift, wear readings and first slabs as tasks
+  runs_in: HR-01
+- id: DX-17
+  topic: Sinks and Connectors
+  title: A topic chosen from the record
+  runs_in: HR-01
+- id: DX-19
+  topic: Sinks and Connectors
+  title: Topics created before the run
+  runs_in: HR-01
+- id: BT-OS1
+  topic: Arrivals and Sources
+  title: One order a second
+- id: BT-OS2
+  topic: Generated Values
+  title: Order id as a UUID
+  runs_in: BT-OS1
+- id: BT-OS3
+  topic: Generated Values
+  title: Bid time before now
+  runs_in: BT-OS1
+- id: BT-OS4
+  topic: Generated Values
+  title: Price from 1 to 150
+  runs_in: BT-OS1
+- id: BT-OS5
+  topic: Generated Values
+  title: Product name from three lists
+  runs_in: BT-OS1
+- id: BT-OS6
+  topic: Generated Values
+  title: Supplier from eight names
+  runs_in: BT-OS1
+- id: BT-OS7
+  topic: Sinks and Connectors
+  title: Kafka key equal to the order id
+  runs_in: BT-OS1
+- id: BT-OS8
+  topic: Sinks and Connectors
+  title: JSON value without the envelope
+  runs_in: BT-OS1
+- id: BT-OS9
+  topic: Sinks and Connectors
+  title: Avro value through a registry
+  runs_in: BT-OS1
+- id: BT-OS10
+  topic: Sinks and Connectors
+  title: Topic with three partitions
+  runs_in: BT-OS1
+- id: BT-WL1
+  topic: Generated Values
+  title: Tenants, services, ratios and error rates as variables
+- id: BT-WL2
+  topic: Arrivals and Sources
+  title: Visit arrivals
+  runs_in: BT-WL1
+- id: BT-WL3
+  topic: Processes and Tasks
+  title: Page hit that may continue to a confirmation
+  runs_in: BT-WL1
+- id: BT-WL4
+  topic: Conditions and Waits
+  title: One request for each serving service
+  runs_in: BT-WL1
+- id: BT-WL5
+  topic: Generated Values
+  title: Status code from a live error rate
+  runs_in: BT-WL1
+- id: BT-WL6
+  topic: Generated Values
+  title: Level from the status code
+  runs_in: BT-WL1
+- id: BT-WL7
+  topic: Related Records
+  title: Hit and requests share the visit's tenant
+  runs_in: BT-WL1
+- id: BT-WL8
+  topic: Sinks and Connectors
+  title: Faults at planned times with a ground truth row
+  runs_in: BT-WL1
+- id: BT-WL9
+  topic: Arrivals and Sources
+  title: Bot sessions with a label
+  runs_in: BT-WL1
+- id: BT-WL10
+  topic: Sinks and Connectors
+  title: Reference rows written once at start
+  runs_in: BT-WL1
+- id: BT-WL11
+  topic: Sinks and Connectors
+  title: Three Kafka topics in one run
+  runs_in: BT-WL1
+- id: BT-WL12
+  topic: Sinks and Connectors
+  title: Avro through a registry
+  runs_in: BT-WL1
+- id: BT-PR1
+  topic: Arrivals and Sources
+  title: One thousand users
+- id: BT-PR2
+  topic: Generated Values
+  title: Names by gender and lowercased email
+  runs_in: BT-PR1
+- id: BT-PR3
+  topic: Generated Values
+  title: Postal area from a file
+  runs_in: BT-PR1
+- id: BT-PR4
+  topic: Arrivals and Sources
+  title: History of events over 90 days
+  runs_in: BT-PR1
+- id: BT-PR5
+  topic: Generated Values
+  title: Time of day flags
+  runs_in: BT-PR1
+- id: BT-PR6
+  topic: Generated Values
+  title: Click with four hidden rules
+  runs_in: BT-PR1
+- id: BT-PR7
+  topic: Sinks and Connectors
+  title: Users and history written as files
+  runs_in: BT-PR1
+- id: BT-PR9
+  topic: Sinks and Connectors
+  title: Feedback keyed by the clicked product
+  runs_in: BT-PR1
+- id: BT-PR10
+  topic: Arrivals and Sources
+  title: One visit every 0.1 seconds
+  runs_in: BT-PR1
+- id: BT-GL1
+  topic: Arrivals and Sources
+  title: Player arrivals with a live robot share
+- id: BT-GL2
+  topic: Generated Values
+  title: Player id from one counter
+  runs_in: BT-GL1
+- id: BT-GL3
+  topic: Processes and Tasks
+  title: Session of rounds until it ends
+  runs_in: BT-GL1
+- id: BT-GL4
+  topic: Generated Values
+  title: Round gap by the robot flag
+  runs_in: BT-GL1
+- id: BT-GL5
+  topic: Generated Values
+  title: Score and earned time
+  runs_in: BT-GL1
+- id: BT-GL6
+  topic: Related Records
+  title: Teams that form and dissolve
+  runs_in: BT-GL1
+- id: BT-GL7
+  topic: Processes and Tasks
+  title: Late scores after an offline delay
+  runs_in: BT-GL1
+- id: BT-GL8
+  topic: Sinks and Connectors
+  title: Kafka key per player
+  runs_in: BT-GL1
+- id: BT-GL9
+  topic: Sinks and Connectors
+  title: Avro of the value only
+  runs_in: BT-GL1
+- id: BT-GL10
+  topic: Sinks and Connectors
+  title: Control topic created before the run
+  runs_in: BT-GL1
+- id: BT-AQ1
+  topic: Environment and Time
+  title: Hourly step over a window at factor 0
+- id: BT-AQ2
+  topic: Related Records
+  title: Hidden weather carried from hour to hour
+  runs_in: BT-AQ1
+- id: BT-AQ3
+  topic: Generated Values
+  title: Rain amount drawn from an exponential
+  runs_in: BT-AQ1
+- id: BT-AQ4
+  topic: Generated Values
+  title: Daily and yearly cycles with an evening peak
+  runs_in: BT-AQ1
+- id: BT-AQ5
+  topic: Generated Values
+  title: Weekday effect
+  runs_in: BT-AQ1
+- id: BT-AQ6
+  topic: Related Records
+  title: Forecasts one to seven days ahead
+  runs_in: BT-AQ1
+- id: BT-AQ7
+  topic: Processes and Tasks
+  title: Eight rows per hour
+  runs_in: BT-AQ1
+- id: BT-AQ8
+  topic: Related Records
+  title: Daily rows from 24 readings
+  runs_in: BT-AQ1
+- id: BT-AQ9
+  topic: Sinks and Connectors
+  title: Rows sent to four Iceberg tables
+  runs_in: BT-AQ1
+- id: BT-AQ10
+  topic: Sinks and Connectors
+  title: Upsert on each table's keys
+  runs_in: BT-AQ1
+- id: BT-AQ11
+  topic: Sinks and Connectors
+  title: Timestamps written to timestamp columns
+  runs_in: BT-AQ1
+- id: BT-AQ12
+  topic: Environment and Time
+  title: Rerun from the stored first hour
+  runs_in: BT-AQ1
+- id: BT-AQ13
+  topic: Statistics and Monitoring
+  title: Lag metric every 3,600 seconds
+  runs_in: BT-AQ1
+- id: BT-EC1
+  topic: Generated Values
+  title: City chosen by population
+- id: BT-EC2
+  topic: Generated Values
+  title: First name matching the gender
+  runs_in: BT-EC1
+- id: BT-EC3
+  topic: Generated Values
+  title: Email from the lowercased names
+  runs_in: BT-EC1
+- id: BT-EC4
+  topic: Generated Values
+  title: Street address and IP address
+  runs_in: BT-EC1
+- id: BT-EC5
+  topic: Arrivals and Sources
+  title: One hundred users and ten distribution centres at start
+  runs_in: BT-EC1
+- id: BT-EC6
+  topic: Related Records
+  title: A user moves and keeps the new address
+  runs_in: BT-EC1
+- id: BT-EC7
+  topic: Related Records
+  title: Session of pages ending in a purchase
+  runs_in: BT-EC1
+- id: BT-EC8
+  topic: Generated Values
+  title: Status time column
+  runs_in: BT-EC1
+- id: BT-EC9
+  topic: Sinks and Connectors
+  title: Control topic created before the run
+  runs_in: BT-EC1
+- id: BT-LD1
+  topic: Arrivals and Sources
+  title: Visitor arrivals, rate changed live
+- id: BT-LD2
+  topic: Generated Values
+  title: Lognormal times for page views, picking, transit, return and patience, changed live
+  runs_in: BT-LD1
+- id: BT-LD3
+  topic: Resources
+  title: Pickers with live capacity
+  runs_in: BT-LD1
+- id: BT-LD4
+  topic: Generated Values
+  title: Chances to return, buy and send back, changed live and read per event
+  runs_in: BT-LD1
+- id: BT-LD5
+  topic: Arrivals and Sources
+  title: Catalogue of 260 products written once at start
+  runs_in: BT-LD1
+- id: BT-LD6
+  topic: Processes and Tasks
+  title: Two to five page views, each a lognormal wait, not published
+  runs_in: BT-LD1
+- id: BT-LD7
+  topic: Related Records
+  title: Returning visitor picks an earlier user; a new user is created only on a purchase
+  runs_in: BT-LD1
+- id: BT-LD8
+  topic: Generated Values
+  title: New user's id, age, gender, country and traffic source
+  runs_in: BT-LD1
+- id: BT-LD9
+  topic: Conditions and Waits
+  title: Order of 1 to 4 items, one row per item, price from the product
+  runs_in: BT-LD1
+- id: BT-LD10
+  topic: Related Records
+  title: Items of one order are different products
+  runs_in: BT-LD1
+- id: BT-LD11
+  topic: Related Records
+  title: Order id and user id kept through every step
+  runs_in: BT-LD1
+- id: BT-LD12
+  topic: Interrupts and Failures
+  title: Cancelled when no picker comes within the patience time
+  runs_in: BT-LD1
+- id: BT-LD13
+  topic: Processes and Tasks
+  title: Shipped, Complete and sometimes Returned, after timed steps
+  runs_in: BT-LD1
+- id: BT-LD14
+  topic: Sinks and Connectors
+  title: Status change rewrites rows with the same id
+  runs_in: BT-LD1
+- id: BT-LD15
+  topic: Sinks and Connectors
+  title: Four tables from one run
+  runs_in: BT-LD1
+- id: BT-LD16
+  topic: Sinks and Connectors
+  title: Dashboard schema created before the tables
+  runs_in: BT-LD1
+- id: BT-LD17
+  topic: Sinks and Connectors
+  title: Live changes from the params table, batching
+  runs_in: BT-LD1

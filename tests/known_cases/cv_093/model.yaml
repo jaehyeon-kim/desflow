@@ -1,0 +1,8 @@
+# case CV-093: a last-in, first-out store by a priority that falls with a counter.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+variables: {n: 0}
+stores: {s: {priority: true}}
+arrivals: {p: {dist: constant, value: 1, spawn: put_it, max_events: 4}, g: {dist: constant, value: 6, spawn: get_it, max_events: 4}}
+tasks:
+  put_it: {put: {store: s, priority: "-registry['C.variables.n']", item: {gen: expr, expr: "registry['C.variables.n']"}}, payload: {event_type: put}, on: [{path: C.variables.n, value: {gen: expr, expr: "registry['C.variables.n'] + 1"}}]}
+  get_it: {get: {store: s}, payload: {event_type: got, item: {gen: expr, expr: item}}}

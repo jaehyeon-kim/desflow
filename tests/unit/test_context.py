@@ -1384,6 +1384,18 @@ def test_builder_file_ingress_change_carries_its_source(tmp_path):
     ]
 
 
+def test_a_context_run_leaves_the_end_flag_it_found_on_the_environment():
+    """`_run_low_level` and a context's run both set `_end_is_set`; a context's run
+    restores the value it found, as `_run_low_level` does, so it does not clear the
+    flag an outer run set."""
+    app, _ = _app_with_speed()
+    env = app.start(until=5)
+    env._end_is_set = True
+    app.advance(env.timeout(2))
+    assert env._end_is_set is True
+    app.finish()
+
+
 def test_builder_scenario_step_has_the_scenario_source():
     """A scenario step is reported as source "scenario"."""
     app, changes = _app_with_speed()

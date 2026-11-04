@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "ScoreEvent",
+  "namespace": "game",
+  "fields": [
+    {"name": "user_id", "type": "string"},
+    {"name": "team_id", "type": "string"},
+    {"name": "team_name", "type": "string"},
+    {"name": "score", "type": "int"},
+    {"name": "event_time_millis", "type": "long"},
+    {"name": "event_type", "type": "string"}
+  ]
+}

@@ -1,0 +1,5 @@
+# GA-7: a day of history is written in seconds, then events continue in real time. Shop visits, one every second, from a day ago, with the live tail at now; the run ends 3 s after go-live (yaml-only.md Part 4, and `run` from its test asserts).
+simulation: {sim_id: Shop, factor: 0, random_seed: 42, logical_start_time: -1d, go_live_at: now}
+arrivals: {visits: {dist: constant, value: 1, spawn: visit}}
+tasks: {visit: {payload: {event_type: visit}}}
+run: {until: 86403}

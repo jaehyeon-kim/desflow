@@ -2382,14 +2382,28 @@ run: {{until: 100}}
 # ------------------------------------------------- Batch 8: the known cases that run now
 
 
+def _known_case_rows() -> set:
+    """The ids of `tests/known_cases/index.yaml` that have a case (a folder or a
+    `runs_in`) and are not left out."""
+    import yaml
+
+    entries = yaml.safe_load((KNOWN_CASES / "index.yaml").read_text(encoding="utf-8"))
+    return {entry["id"] for entry in entries if "reason" not in entry}
+
+
+_KNOWN_CASE_ROWS = _known_case_rows()
+
+
 def _not_in_known_cases(table):
     """The rows of a batch's table that `tests/known_cases` does not run: the rows with
-    the prefixes EX-, GD-, ST- and P run there in all three APIs, from the same
-    documents and programs, so this file runs the other prefixes."""
+    the prefixes EX-, GD-, ST- and P and every row of the index run there in all three
+    APIs, from the same documents and programs, so this file runs the others."""
     return sorted(
         row
         for row in table
-        if not row.startswith(("EX-", "GD-", "ST-")) and not re.match(r"P\d", row)
+        if not row.startswith(("EX-", "GD-", "ST-"))
+        and not re.match(r"P\d", row)
+        and row not in _KNOWN_CASE_ROWS
     )
 
 
@@ -2652,7 +2666,6 @@ KNOWN9: Dict[str, Tuple[str, str, Dict[str, str]]] = {
     "DS-I3": ("ds_i3", "DS_I3", {}),
     "DS-I4": ("ds_i4", "DS_I4", {}),
     "DS-I6": ("ds_i6", "DS_I6", {}),
-    "CV-110": ("ds_m3", "DS_M3", {}),
 }
 KNOWN9_SHARED = {
     # row: the row whose document and program it runs in, the same form with the same
@@ -2696,7 +2709,10 @@ def test_every_known_case_of_batch_9_runs_or_names_the_key_it_waits_for():
     assert len(BATCH_9_ROWS) == 15
     assert set(KNOWN9_SHARED.values()) <= set(KNOWN9)
     assert not set(KNOWN9_SHARED) & set(KNOWN9)
-    assert sorted({*KNOWN9, *KNOWN9_SHARED, *KNOWN9_WAITING}) == sorted(BATCH_9_ROWS)
+    moved = {row for row in BATCH_9_ROWS if row in _KNOWN_CASE_ROWS}
+    assert sorted({*KNOWN9, *KNOWN9_SHARED, *KNOWN9_WAITING, *moved}) == sorted(
+        BATCH_9_ROWS
+    )
 
 
 # ------------------------------------------------- Batch 9: interrupts of holders
@@ -3203,29 +3219,6 @@ def test_y1_members_made_from_a_number_serve_in_turn(tmp_path, n):
 
 
 @pytest.mark.parametrize("n", SIZES)
-def test_y1_a_member_is_made_at_its_first_use_with_the_capacity_of_its_creator(
-    tmp_path, n
-):
-    """Y1: no member exists at the start. The first entity of a key makes the member with
-    a capacity read from its attributes, a second user of the key finds that capacity,
-    and a read of a key that does not exist gives 0 and makes nothing."""
-    _rows_i(tmp_path, n)
-    text = """
-simulation: {sim_id: S, factor: 0, random_seed: 42}
-resources: {desk: {family: true, current_cap: "attr.i + 1"}}
-arrivals:
-  a: {replay: {path: a.csv}, spawn: job}
-tasks:
-  job:
-    resource: {of: desk, key: "attr.i % 2"}
-    service_time: 2
-    payload: {e: done, x: {gen: expr, expr: "[users.desk[attr.i % 2], queue.desk[attr.i % 2], users.desk[7], members(desk)]"}}
-run: {until: 500}
-"""
-    _same(tmp_path, text, batch11.per_entity(n))
-
-
-@pytest.mark.parametrize("n", SIZES)
 def test_y1_a_store_family_is_made_at_its_first_put(tmp_path, n):
     """Y1 stores: a store for each key, made at time 3, when the first entity puts."""
     _rows_i(tmp_path, n)
@@ -3442,38 +3435,6 @@ run: {until: 500}
     assert [(m[0], m[1], m[3]) for m in found] == [(t, k, x) for t, k, _, x in expected]
 
 
-@pytest.mark.parametrize("n", SIZES)
-def test_y4_an_opened_each_of_requests_is_named_one_by_one_by_its_index(tmp_path, n):
-    """Y4 with Y3's `each`: a request for each of three members is opened under one name,
-    a wait names the last by `index`, `cancel` of the name cancels each in order and
-    leaves the granted one, `handle.pool.flags` reads which are done, and `release`
-    names one unit by `index`."""
-    _rows_i(tmp_path, n)
-    text = """
-simulation: {sim_id: S, factor: 0, random_seed: 42}
-resources: {r: {family: true, members: 3, current_cap: 1}}
-arrivals:
-  h: {replay: {path: h.csv}, spawn: hold}
-  a: {replay: {path: a.csv}, spawn: begin}
-tasks:
-  hold: {resource: {of: r, key: "attr.i"}, service_time: "3 - attr.i", payload: {e: held}}
-  begin: {wait: {timeout: 0.5}, payload: {e: half}, next: opener}
-  opener: {open: {pool: {each: 3, branch: {request: {of: r, key: each.index}}}}, payload: {e: opened}, next: waiter}
-  waiter: {wait: {handle: pool, index: 2}, payload: {e: got}, next: closer}
-  closer:
-    cancel: {handle: pool}
-    payload: {e: done, x: {gen: expr, expr: "[handle.pool.flags, [queue.r[0], queue.r[1], queue.r[2]]]"}}
-    release: {handle: pool, index: 2}
-run: {until: 500}
-"""
-    _csv(tmp_path, "h", ["time", "i"], [(0, j) for j in range(3)])
-    outcome = run_yaml_text(tmp_path, text, {})
-    assert outcome.error is None, repr(outcome.error)
-    found = [m for m in _trace(outcome.records) if m[2] == "done"]
-    expected = _expect(batch11.open_requests(n))
-    assert [(m[0], m[1], m[3]) for m in found] == [(t, k, x) for t, k, _, x in expected]
-
-
 # --------------------------------------------- Batch 11: the known cases that run now
 
 KNOWN11: Dict[str, Tuple[str, str, Dict[str, str]]] = {
@@ -3510,6 +3471,7 @@ KNOWN11_SHARED = {
     # assertions
     "CV-121": "DS-Y1",
     "CV-122": "DS-Y1",
+    "CV-124": "DS-Y1",
     "CV-125": "DS-Y1",
     "CV-129": "DS-Y2",
     "CV-022": "DS-Y3",
@@ -3526,9 +3488,8 @@ KNOWN11_SHARED = {
 }
 # row: the test that runs it, where it is not a document of known11/ with a SimPy program
 KNOWN11_OTHER = {
-    "CV-124": "tests/conformance/test_yaml_only.py::test_y1_a_member_is_made_at_its_first_use_with_the_capacity_of_its_creator",
-    "CV-126": "tests/conformance/test_yaml_only.py::test_y1_a_member_is_made_at_its_first_use_with_the_capacity_of_its_creator",
-    "CV-134": "tests/conformance/test_yaml_only.py::test_y4_an_opened_each_of_requests_is_named_one_by_one_by_its_index",
+    "CV-126": "tests/known_cases/test_known_cases.py::test_case_runs_in_three_forms_and_gives_its_original_result",
+    "CV-134": "tests/known_cases/test_known_cases.py::test_case_runs_in_three_forms_and_gives_its_original_result",
     "BT-AQ6": "tests/benchtop/test_each.py::test_each_hour_has_seven_forecasts_and_a_reading",
     "BT-AQ7": "tests/benchtop/test_each.py::test_each_hour_has_seven_forecasts_and_a_reading",
     "BT-LD9": "tests/benchtop/test_each.py::test_an_order_has_one_row_for_each_item_and_each_item_is_a_different_product",

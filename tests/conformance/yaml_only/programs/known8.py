@@ -1060,12 +1060,16 @@ def DS_M5():
     m2 = _M5Custom(
         env,
         1,
-        when=lambda r, h: r.priority < h.priority and env.now - h.usage_since > 1,
+        when=lambda r, h: (
+            r.priority < h.priority and r.key < h.key and r.time - h.usage_since > 1
+        ),
     )
     m3 = _M5Custom(
         env,
         1,
-        when=lambda r, h: r.priority < h.priority and env.now - h.usage_since > 1,
+        when=lambda r, h: (
+            r.priority < h.priority and r.key < h.key and r.time - h.usage_since > 1
+        ),
     )
     m4 = _M5Custom(env, 2, victim=lambda h: h.priority)
 

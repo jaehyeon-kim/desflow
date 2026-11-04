@@ -1,0 +1,6 @@
+# Design V11: a wait group with a predicate of its own. Source: research/yaml-only/programs/V11.py first(): a timeout of 1 and a timeout of 3, predicate count == 1 and now < 5 (the other six scenarios are not in this row).
+simulation: {sim_id: V11, factor: 0, random_seed: 42}
+arrivals:
+  a: {dist: constant, value: 1, spawn: gate, max_events: 1, first_at: 0}
+tasks:
+  gate: {wait: {when: "done_count == 1 and t < 5", of: {a: {timeout: 1}, b: {timeout: 3}}}, payload: {event_type: opened, at: {gen: expr, expr: "t"}}}

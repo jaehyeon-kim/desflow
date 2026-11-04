@@ -1,0 +1,6 @@
+# DX-8: the same model with the snippet's own Python: `supervisor` of docs/snippets/yaml/dynamic_topology_logic.py as a process.
+simulation: {sim_id: Shop, factor: 0, strict: false}
+resources: {packers: {current_cap: 1, max_cap: 5}}
+processes:
+  - function: !python dynamic_topology_logic.supervisor
+run: {until: 20}

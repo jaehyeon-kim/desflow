@@ -1,0 +1,5 @@
+# case CV-085: Store.items: count and membership.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+stores: {q: {items: [a, b]}}
+arrivals: {a: {initial: 1, spawn: look}}
+tasks: {look: {payload: {event_type: look, n: {gen: expr, expr: "count(q)"}, has_a: {gen: expr, expr: "'a' in items(q)"}}}}

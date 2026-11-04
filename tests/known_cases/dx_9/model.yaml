@@ -1,0 +1,10 @@
+# DX-9: simpy_forms.py fill (simpy_computed_time.yaml): a service time computed per car, half its litres, on one pump. Same form as DS-V1.
+simulation: {sim_id: Station, factor: 0}
+resources: {pump: {current_cap: 1}}
+arrivals:
+  car1: {dist: constant, value: 1, spawn: fill, max_events: 1, first_at: 0, attributes: {car: car-1, litres: 4}}
+  car2: {dist: constant, value: 1, spawn: fill, max_events: 1, first_at: 1, attributes: {car: car-2, litres: 6}}
+  car3: {dist: constant, value: 1, spawn: fill, max_events: 1, first_at: 2, attributes: {car: car-3, litres: 2}}
+tasks:
+  fill: {resource: pump, service_time: "attr.litres / 2", payload: {car: {gen: attr, name: car}}}
+run: {until: 10}

@@ -18,6 +18,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterable,
     List,
     Literal,
     Mapping,
@@ -162,12 +163,27 @@ def _check_time_place(value: Any, what: str, run_scope: bool = False) -> None:
         run_scope: Whether the place reads the run only, so `attr` is refused.
     """
     if isinstance(value, str):
-        _check_run_text(value, what, run_scope)
+        check_run_text(value, what, run_scope)
     elif isinstance(value, numbers.Real) and not float(value) >= 0:
         raise ValueError(f"{what} must be 0 or more, got {value!r}")
 
 
-def _check_run_text(text: str, what: str, run_scope: bool) -> None:
+def check_run_text(text: str, what: str, run_scope: bool) -> None:
+    """Refuses text that is not an expression, or that reads the entity or a task
+    where the place reads the run only.
+
+    A blueprint's places and the `add_arrival` arguments that mirror them both check
+    through this.
+
+    Args:
+        text: The expression.
+        what: The key, for the message.
+        run_scope: Whether the place reads the run only, so `attr` is refused.
+
+    Raises:
+        ValueError: If the text does not parse, or reads outside the run where
+            `run_scope` is True.
+    """
     try:
         parsed = Expression(text, names=ANY_NAME)
     except ValueError as exc:
@@ -178,6 +194,59 @@ def _check_run_text(text: str, what: str, run_scope: bool) -> None:
             f"{what} '{text}' reads {outside}, but this place reads the run (level, "
             f"users, queue, signal, registry and t), not the entity or a task"
         )
+
+
+def check_var_names(names: Iterable[str], what: str) -> None:
+    """Refuses a variable name that an expression cannot read, or that it already uses.
+
+    An arrival's `vars` in a blueprint and in `add_arrival` both check through this.
+
+    Args:
+        names: The names.
+        what: The key they are under, for the message.
+
+    Raises:
+        ValueError: If a name is not an identifier, is a keyword, or is one of the
+            names an expression already reads.
+    """
+    for name in names:
+        if not name.isidentifier() or keyword.iskeyword(name):
+            raise ValueError(
+                f"{what}: '{name}' is not a name an expression can read; use "
+                "letters, digits and _, not starting with a digit"
+            )
+        if name in RESERVED_NAMES:
+            raise ValueError(
+                f"{what}: '{name}' is a name an expression already uses; pick another"
+            )
+
+
+def check_count_place(value: Any, what: str) -> None:
+    """Refuses what a count place does not take: text that is not an expression of the
+    run, a bool, a number that is not whole, and a number below 0.
+
+    A count place is an arrival's `count`, `max_events` or `group`. The `Arrival`
+    validator and `add_arrival` both check through this; a generator, an
+    `Expression` and None pass.
+
+    Args:
+        value: The place as given.
+        what: The key, for the message.
+
+    Raises:
+        ValueError: If the value is one of those the place refuses.
+    """
+    if isinstance(value, str):
+        check_run_text(value, what, True)
+    elif isinstance(value, bool) or (
+        isinstance(value, numbers.Real) and not float(value).is_integer()
+    ):
+        raise ValueError(
+            f"{what} is a whole number of 0 or more, an expression or a generator, "
+            f"got {value!r}"
+        )
+    elif isinstance(value, numbers.Real) and value < 0:
+        raise ValueError(f"{what} must be 0 or more, got {value!r}")
 
 
 _DATETIME = TypeAdapter(datetime)
@@ -402,7 +471,7 @@ class Arrival(Distribution):
     for its key; `vars` are named values read once for each entity before its
     attributes and key, which read them as bare names. Every one of these places reads
     the run only: `attr` is refused in them, because the entity has none yet. `count`
-    and `max_events` are keys of a blueprint, with no argument of `add_arrival`.
+    has no argument of `add_arrival`; `max_events` and `vars` do.
     `count`, `keys`, `first_at` and `stagger` do not apply to a replay. `count`,
     `keys`, `max_events` and `stagger` set how the arrival starts its task, so each
     needs `spawn`; `stagger` also needs `count` or `keys`. `key`, `vars`, `gap` and
@@ -536,23 +605,10 @@ class Arrival(Distribution):
         for name in ("gap", "stagger"):
             _check_time_place(getattr(self, name), name, run_scope=True)
         for name in ("count", "max_events", "group"):
-            value = getattr(self, name)
-            if isinstance(value, str):
-                _check_run_text(value, name, True)
-            elif isinstance(value, int) and value < 0:
-                raise ValueError(f"{name} must be 0 or more, got {value!r}")
+            check_count_place(getattr(self, name), name)
         if self.first_at is not None and not self.first_at >= 0:
             raise ValueError(f"first_at must be 0 or more, got {self.first_at!r}")
-        for name, var in self.vars.items():
-            if not name.isidentifier() or keyword.iskeyword(name):
-                raise ValueError(
-                    f"vars: '{name}' is not a name an expression can read; use "
-                    "letters, digits and _, not starting with a digit"
-                )
-            if name in RESERVED_NAMES:
-                raise ValueError(
-                    f"vars: '{name}' is a name an expression already uses; pick another"
-                )
+        check_var_names(self.vars, "vars")
         return self
 
 
@@ -1148,7 +1204,7 @@ class BatchSpec(_Model):
     @model_validator(mode="after")
     def _expressions_parse(self) -> "BatchSpec":
         if isinstance(self.size, str):
-            _check_run_text(self.size, "batch size", False)
+            check_run_text(self.size, "batch size", False)
         _check_time_place(self.timeout, "batch timeout")
         if self.close_when is not None:
             try:
@@ -2562,7 +2618,7 @@ class Telemetry(_Model):
         for name, text in (self.readings or {}).items():
             if not name:
                 raise ValueError("a reading needs a name")
-            _check_run_text(text, f"reading '{name}'", True)
+            check_run_text(text, f"reading '{name}'", True)
         return self
 
 

@@ -1,0 +1,4 @@
+# Design A1: a fixed number of arrivals.
+simulation: {sim_id: A1, factor: 0, random_seed: 42}
+arrivals: {a: {dist: constant, value: 2, spawn: t, max_events: 3}}
+tasks: {t: {payload: {event_type: arrived}}}

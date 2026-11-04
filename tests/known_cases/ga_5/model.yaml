@@ -1,0 +1,5 @@
+# GA-5: one option gets 60 percent of votes. One vote a second, 60 percent for the first option and 40 percent for the second (yaml-only.md Part 4).
+simulation: {sim_id: Vote, factor: 0, random_seed: 42}
+arrivals: {votes: {dist: constant, value: 1, spawn: vote}}
+tasks: {vote: {payload: {choice: {gen: weighted, options: {a: 0.6, b: 0.4}}}}}
+run: {until: 10000}

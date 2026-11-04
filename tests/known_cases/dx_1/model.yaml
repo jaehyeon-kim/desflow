@@ -1,0 +1,23 @@
+# DX-1: an order with 1 to 5 random items and a total, as examples/yaml/advanced/postgres_orders.yaml publishes them: the items first, then the order. The example draws them in a Python process; here generators draw them. The test runs it unpaced to 6 s with its Postgres sink taken away, so it needs no database.
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+egress:
+  - type: Postgres
+    config:
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
+      tables:
+        orders:
+          columns: {order_id: INT, customer_id: INT, total_amount: REAL, status: TEXT, timestamp: TIMESTAMP}
+          primary_key: order_id
+  - type: Postgres
+    config:
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
+      tables:
+        order_items:
+          columns: {order_item_id: INT, order_id: INT, product_id: INT, quantity: INT, unit_price: REAL}
+          primary_key: order_item_id
+arrivals: {orders: {dist: exponential, rate: 1.0, spawn: order, attributes: {order_id: {gen: sequence, start: 1}}}}
+tasks:
+  order: {set: {lines: {gen: repeat, times: {gen: integer, bounds: [1, 5]}, value: {price: {gen: uniform, low: 10.0, high: 50.0, decimals: 2}, quantity: {gen: integer, bounds: [1, 3]}}}}, payload: {event_type: drawn}, next: items}
+  items: {wait: {each: "attr.lines", branch: {task: item, args: {line: {gen: expr, expr: each.value}}}}, payload: {__table__: orders, order_id: {gen: attr, name: order_id}, customer_id: {gen: integer, bounds: [1, 100]}, total_amount: {gen: expr, expr: "sum([l.price * l.quantity for l in attr.lines])", decimals: 2}, status: pending}}
+  item: {payload: {__table__: order_items, order_item_id: {gen: sequence, start: 1}, order_id: {gen: attr, name: order_id}, product_id: {gen: integer, bounds: [1, 50]}, quantity: {gen: expr, expr: arg.line.quantity}, unit_price: {gen: expr, expr: arg.line.price}}}
+run: {until: 6}

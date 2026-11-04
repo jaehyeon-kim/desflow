@@ -1,0 +1,66 @@
+# case BT-GL (rows GL1 to GL10): game-leaderboard. GL3 is an attribute and a `next` test, GL6 is a mapping variable with Y5, and GL7 keeps the earned time with `upstream`. Service values are from leaderboard/simulation/run.py.
+simulation: {sim_id: game, factor: "${FACTOR:-1}", random_seed: 42, logical_start_time: "2026-01-01T00:00:00+00:00", timezone: UTC}
+run: {until: 600}
+scenario: [{at: 300, path: game.variables.robot_share, value: 0.5}]   # GL1: the robot share changes live, as `control.py` sends it
+variables:   # GL1, GL6; `team_names` are game.py COLORS x ANIMALS, written out because an expression takes one clause of a comprehension
+  robot_share: 0.05
+  late_share: 0.01
+  teams: {}
+  team_names: ["Amber-Bilby", "Amber-Dingo", "Amber-Emu", "Amber-Koala", "Amber-Kookaburra", "Amber-Numbat", "Amber-Platypus", "Amber-Quokka", "Amber-Wallaby", "Amber-Wombat", "Azure-Bilby", "Azure-Dingo", "Azure-Emu", "Azure-Koala", "Azure-Kookaburra", "Azure-Numbat", "Azure-Platypus", "Azure-Quokka", "Azure-Wallaby", "Azure-Wombat", "Coral-Bilby", "Coral-Dingo", "Coral-Emu", "Coral-Koala", "Coral-Kookaburra", "Coral-Numbat", "Coral-Platypus", "Coral-Quokka", "Coral-Wallaby", "Coral-Wombat", "Fuchsia-Bilby", "Fuchsia-Dingo", "Fuchsia-Emu", "Fuchsia-Koala", "Fuchsia-Kookaburra", "Fuchsia-Numbat", "Fuchsia-Platypus", "Fuchsia-Quokka", "Fuchsia-Wallaby", "Fuchsia-Wombat", "Indigo-Bilby", "Indigo-Dingo", "Indigo-Emu", "Indigo-Koala", "Indigo-Kookaburra", "Indigo-Numbat", "Indigo-Platypus", "Indigo-Quokka", "Indigo-Wallaby", "Indigo-Wombat", "Jade-Bilby", "Jade-Dingo", "Jade-Emu", "Jade-Koala", "Jade-Kookaburra", "Jade-Numbat", "Jade-Platypus", "Jade-Quokka", "Jade-Wallaby", "Jade-Wombat", "Magenta-Bilby", "Magenta-Dingo", "Magenta-Emu", "Magenta-Koala", "Magenta-Kookaburra", "Magenta-Numbat", "Magenta-Platypus", "Magenta-Quokka", "Magenta-Wallaby", "Magenta-Wombat", "Olive-Bilby", "Olive-Dingo", "Olive-Emu", "Olive-Koala", "Olive-Kookaburra", "Olive-Numbat", "Olive-Platypus", "Olive-Quokka", "Olive-Wallaby", "Olive-Wombat", "Ruby-Bilby", "Ruby-Dingo", "Ruby-Emu", "Ruby-Koala", "Ruby-Kookaburra", "Ruby-Numbat", "Ruby-Platypus", "Ruby-Quokka", "Ruby-Wallaby", "Ruby-Wombat", "Teal-Bilby", "Teal-Dingo", "Teal-Emu", "Teal-Koala", "Teal-Kookaburra", "Teal-Numbat", "Teal-Platypus", "Teal-Quokka", "Teal-Wallaby", "Teal-Wombat"]
+services: {session: {dist: lognormal, mean: 300, std: 120}, round: {dist: lognormal, mean: 6, std: 2}, robot_round: {dist: normal, mean: 1.5, std: 0.3}, offline: {dist: normal, mean: 420, std: 120}}
+egress:   # GL9: the Avro value is the score event alone
+  - type: Kafka
+    envelope: false
+    config: {bootstrap_servers: "${KAFKA_BROKER:-localhost:9092}", event_topic: game-scores, serializer: {type: confluent_avro, registry_url: "${REGISTRY_URL:-http://localhost:8081}", schema_file: score.avsc}}
+ingress: [{type: Kafka, config: {bootstrap_servers: "${KAFKA_BROKER:-localhost:9092}", topic: game-control}}]   # GL10: the control topic is created by the ingress's default topic_policy
+arrivals:
+  player:
+    dist: exponential
+    rate: 0.5
+    spawn: join_team
+    vars: {robot: {gen: boolean, p: {gen: param, path: game.variables.robot_share}}}   # GL1
+    key: {gen: format, template: "{p}-{n:06d}", names: {p: {gen: when, condition: robot, then: RBT, else: USR}, n: {gen: sequence, start: 1}}}   # GL2, GL8
+    attributes:
+      robot: {gen: var, name: robot}
+      born: {gen: expr, expr: t}
+      session_len: {gen: sample, service: session}           # GL3
+tasks:
+  join_team:                                                 # game.py join: a team with room (chance 0.9, chosen at random) or a new team with a random free name
+    vars:
+      teams: {gen: param, path: game.variables.teams}
+      room: {gen: expr, expr: "[k for k in teams if teams[k] < 15]"}   # game.py: TEAM_SIZE = 15
+      names: {gen: param, path: game.variables.team_names}   # game.py: COLORS x ANIMALS
+      free2: {gen: expr, expr: "[f for f in names if f not in teams]"}
+      form_new: {gen: boolean, p: 0.1}                       # game.py: NEW_TEAM_SHARE = 0.1
+      u1: {gen: uniform, low: 0, high: 1}
+      u2: {gen: uniform, low: 0, high: 1}
+      team: {gen: expr, expr: "room[int(u1 * len(room))] if len(room) > 0 and not form_new else free2[int(u2 * len(free2))]"}
+    payload: {event_type: joined, team: {gen: var, name: team}}
+    set: {team: {gen: var, name: team}}
+    on: [{path: game.variables.teams, value: {gen: expr, expr: "set_key(teams, team, get_key(teams, team, 0) + 1)"}}]
+    next: tick
+  tick:                                                      # run.py _session: wait one round, then stop when the session has ended (before any score), else draw the score
+    service_time: {gen: expr, expr: "robot_round if attr.robot else human_round", names: {robot_round: {gen: sample, service: robot_round}, human_round: {gen: sample, service: round}}}   # GL4
+    vars:
+      is_late: {gen: boolean, p: {gen: param, path: game.variables.late_share}}
+      score: {gen: integer, bounds: [0, 20]}                 # GL5
+      ended: {gen: expr, expr: "t - attr.born > attr.session_len"}
+    payload: {}
+    set: {score: {gen: var, name: score}}
+    spawn: {task: late, count: {gen: expr, expr: "1 if is_late and not ended else 0"}, args: {player: {gen: entity}, score: {gen: var, name: score}, earned_ms: {gen: format_time, format: epoch_ms, time: {gen: now}}, team: {gen: attr, name: team}}}   # GL7: a late score is sent by its own process, the session goes on
+    next: {when: [{condition: "ended", task: leave_team}, {condition: "is_late", task: tick}], default: round}
+  round:
+    payload:
+      player: {gen: entity}
+      score: {gen: attr, name: score}
+      earned_ms: {gen: format_time, format: epoch_ms, time: {gen: now}}
+      team: {gen: attr, name: team}
+    next: tick
+  late:
+    service: offline
+    key: {gen: expr, expr: arg.player}
+    payload: {event_type: late, player: {gen: expr, expr: arg.player}, score: {gen: expr, expr: arg.score}, earned_ms: {gen: expr, expr: arg.earned_ms}, team: {gen: expr, expr: arg.team}}   # GL7
+  leave_team:                                                # GL6: a team with no player is removed
+    vars: {teams: {gen: param, path: game.variables.teams}}
+    payload: {event_type: left, team: {gen: attr, name: team}}
+    on: [{path: game.variables.teams, value: {gen: expr, expr: "drop_key(teams, attr.team) if teams[attr.team] == 1 else set_key(teams, attr.team, teams[attr.team] - 1)"}}]

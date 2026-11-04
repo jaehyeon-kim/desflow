@@ -31,8 +31,21 @@ jobs:
       - name: Run Unit and Conformance Tests
         run: uv run --python 3.12 --all-extras pytest tests/unit tests/conformance tests/benchtop tests/known_cases -m "not paced" -q -n auto --tb=short
 
+      # The paced cases time themselves below one tick of the Windows clock, which is
+      # 15.6 ms before Python 3.13 and 1 microsecond from it (the Python 3.13 changelog,
+      # "time"), so the Windows runner runs them on 3.13. Linux keeps 3.12, as the step
+      # above does.
       - name: Run Paced Known Cases
+        if: runner.os != 'Windows'
         run: uv run --python 3.12 --all-extras pytest tests/known_cases -m paced -q --tb=short
+
+      - name: Fetch Python 3.13
+        if: runner.os == 'Windows'
+        run: uv python install 3.13
+
+      - name: Run Paced Known Cases on Python 3.13
+        if: runner.os == 'Windows'
+        run: uv run --python 3.13 --all-extras pytest tests/known_cases -m paced -q --tb=short
 
   core-install:
     # --all-extras installs pandas, which brings tzdata, so the job above cannot show

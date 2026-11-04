@@ -1,0 +1,15 @@
+# case CV-134: a computed list of events made now and waited for later (Y4 `open` of a Y3 `each` group of requests). The document of the Batch 11 conformance test that held the row, with `initial` arrivals in place of its replay files, so the sized tests change the number of entities: each entity opens a request on each of three members at 0.5 under one name, waits for the last by its `index`, cancels the name (the granted request stays), reads `handle.pool.flags` and the queues, and releases the last by its `index`. The member `j` is held until `3 - j`.
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {r: {family: true, members: 3, current_cap: 1}}
+arrivals:
+  a: {initial: 1, spawn: begin}
+  h: {initial: 3, spawn: hold, attributes: {i: {gen: sequence, start: 0}}}
+tasks:
+  hold: {resource: {of: r, key: "attr.i"}, service_time: "3 - attr.i", payload: {e: held}}
+  begin: {wait: {timeout: 0.5}, payload: {e: half}, next: opener}
+  opener: {open: {pool: {each: 3, branch: {request: {of: r, key: each.index}}}}, payload: {e: opened}, next: waiter}
+  waiter: {wait: {handle: pool, index: 2}, payload: {e: got}, next: closer}
+  closer:
+    cancel: {handle: pool}
+    payload: {e: done, x: {gen: expr, expr: "[handle.pool.flags, [queue.r[0], queue.r[1], queue.r[2]]]"}}
+    release: {handle: pool, index: 2}

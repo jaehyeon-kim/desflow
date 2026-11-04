@@ -1,0 +1,62 @@
+# case BT-WL (rows WL1 to WL12): web-and-logs, as planning/benchtop/plan-series-web-and-logs.md, Part 1, describes its generator. The world is smaller than the plan's: two tenants, each with one or two domains and two or three services, where the plan gives five tenants with two to four domains and three to five services. The plan gives no names, rates or fault times, so those are the document's chosen values.
+simulation: {sim_id: Web, factor: "${FACTOR:-1}", random_seed: 42, logical_start_time: "2026-01-01T00:00:00+00:00", timezone: UTC}
+run: {until: 700}
+variables:                                                   # WL1: the world, with the three mappings the reference data writes
+  tenants: [acme, globex]
+  domains: {acme: [acme.com, shop.acme.com], globex: [globex.io]}                                  # a tenant's domains
+  services: {acme.com: [acme-api, acme-web, acme-pay], shop.acme.com: [acme-web, acme-pay], globex.io: [globex-api, globex-web]}   # the services of a domain
+  paths: {acme-api: [/], acme-web: [/], acme-pay: [/checkout, /confirmation], globex-api: [/, /checkout, /confirmation], globex-web: [/]}   # the paths a service serves; one service of a tenant serves /checkout
+  ratio: {acme: 2, globex: 1}                                # requests per hit for each service that serves the path
+  error_rate: {acme-api: 0.02, acme-web: 0.005, acme-pay: 0.01, globex-api: 0.02, globex-web: 0.005}
+  level_of: {"200": INFO, "500": ERROR}
+egress:
+  - type: Kafka                                              # WL11: the topics web_events and logs are `__topic__` in the payload; WL12: Avro through the registry
+    config: {bootstrap_servers: "${KAFKA_BROKER:-localhost:9092}", serializer: {type: confluent_avro, registry_url: "${REGISTRY_URL:-http://localhost:8081}", schema_file: web.avsc}}
+  - {type: Kafka, when: labels, config: {bootstrap_servers: "${KAFKA_BROKER:-localhost:9092}", event_topic: ground_truth}}   # WL8, WL11: the ground truth rows of the faults go to their own topic
+  - {type: Postgres, config: {connection_dsn: "${PG_DSN:-postgresql://user:password@127.0.0.1:5432/odctl}", table_name: tenant_domains, tables: {tenant_domains: {columns: {name: TEXT, items: "TEXT[]"}, primary_key: name}}}}   # WL10: one table for each mapping, routed by __table__
+  - {type: Postgres, config: {connection_dsn: "${PG_DSN:-postgresql://user:password@127.0.0.1:5432/odctl}", table_name: domain_services, tables: {domain_services: {columns: {name: TEXT, items: "TEXT[]"}, primary_key: name}}}}
+  - {type: Postgres, config: {connection_dsn: "${PG_DSN:-postgresql://user:password@127.0.0.1:5432/odctl}", table_name: service_paths, tables: {service_paths: {columns: {name: TEXT, items: "TEXT[]"}, primary_key: name}}}}
+arrivals:                                                    # WL2: one visit arrival for each domain
+  acme_com: {dist: exponential, rate: 1, spawn: hit, attributes: {tenant: acme, domain: acme.com}}
+  shop_acme_com: {dist: exponential, rate: 0.5, spawn: hit, attributes: {tenant: acme, domain: shop.acme.com}}
+  globex_io: {dist: exponential, rate: 0.5, spawn: hit, attributes: {tenant: globex, domain: globex.io}}
+  bots: {dist: exponential, rate: 0.2, spawn: bot_hit}       # WL9
+  reference: {initial: 1, spawn: tenant_domains}             # WL10: the mappings, once at the start
+scenario:                                                    # WL8: a fault of the checkout service of acme, with its ground truth row
+  - {at: 600, path: Web.variables.error_rate, value: {acme-api: 0.02, acme-web: 0.005, acme-pay: 0.4, globex-api: 0.02, globex-web: 0.005}}
+  - {at: 600, record: {event_type: ground_truth, type: service_fault, start: 600, end: 700, tenants: [acme], domains: [acme.com, shop.acme.com], services: [acme-pay]}}
+tasks:
+  hit:                                                       # WL3: a page hit
+    vars_once: {path: {gen: weighted, options: {/: 5, /checkout: 1}}, goes_on: {gen: boolean, p: 0.5}}
+    payload: {event_type: hit, tenant: {gen: attr, name: tenant}, domain: {gen: attr, name: domain}, path: {gen: var, name: path}, __topic__: web_events}
+    set: {path: {gen: var, name: path}, goes_on: {gen: var, name: goes_on}}
+    next: requests
+  requests:                                                  # WL4: the services of the domain that serve the path, each called `ratio` times
+    payload: null
+    wait: {each: "[s for s in registry['Web.variables.services'][attr.domain] if attr.path in registry['Web.variables.paths'][s]]", branch: {task: calls, args: {service: {gen: expr, expr: each.value}}}}
+    next: {when: [{condition: "attr.path == '/checkout' and attr.goes_on", task: confirmation}]}
+  calls:
+    payload: null
+    wait: {each: "range(registry['Web.variables.ratio'][attr.tenant])", branch: {task: request, args: {service: {gen: expr, expr: arg.service}}}}
+  request:                                                   # WL5: the status from the service's live error rate; WL6: the level from the status
+    vars:
+      err: {gen: boolean, p: {gen: param, path: Web.variables.error_rate, field: {gen: expr, expr: arg.service}}}
+      code: {gen: expr, expr: "500 if err else 200"}
+    payload: {event_type: request, tenant: {gen: attr, name: tenant}, domain: {gen: attr, name: domain}, path: {gen: attr, name: path}, service: {gen: expr, expr: arg.service}, status: {gen: var, name: code}, level: {gen: param, path: Web.variables.level_of, field: {gen: expr, expr: "str(code)"}}, __topic__: logs}   # WL7: the visit's fields
+  confirmation:                                              # WL3: a visit at /checkout may go on to /confirmation
+    payload: {event_type: hit, tenant: {gen: attr, name: tenant}, domain: {gen: attr, name: domain}, path: /confirmation, __topic__: web_events}
+    set: {path: /confirmation}
+    next: requests
+  bot_hit: {payload: {event_type: hit, label: bot, __topic__: web_events}}   # WL9: a headless session, labelled
+  tenant_domains:
+    payload: null
+    wait: {each: "[k for k in registry['Web.variables.domains']]", branch: {task: mapping_row, args: {table: tenant_domains, name: {gen: expr, expr: each.value}, items: {gen: expr, expr: "registry['Web.variables.domains'][each.value]"}}}}
+    next: domain_services
+  domain_services:
+    payload: null
+    wait: {each: "[k for k in registry['Web.variables.services']]", branch: {task: mapping_row, args: {table: domain_services, name: {gen: expr, expr: each.value}, items: {gen: expr, expr: "registry['Web.variables.services'][each.value]"}}}}
+    next: service_paths
+  service_paths:
+    payload: null
+    wait: {each: "[k for k in registry['Web.variables.paths']]", branch: {task: mapping_row, args: {table: service_paths, name: {gen: expr, expr: each.value}, items: {gen: expr, expr: "registry['Web.variables.paths'][each.value]"}}}}
+  mapping_row: {payload: {__table__: {gen: expr, expr: arg.table}, name: {gen: expr, expr: arg.name}, items: {gen: expr, expr: arg.items}}}

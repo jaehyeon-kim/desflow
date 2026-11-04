@@ -1105,6 +1105,11 @@ class DynamicRealtimeEnvironment(
         # True while a run has no end of its own: `step()` then ends the run when
         # no model event is left
         self._until_none = False
+        # True while a run has an end of its own that `run()` does not see: set by
+        # `SimulationContext` while it runs, as it sets `_until_none` itself, and by
+        # `_run_low_level` of `analysis.models` while a model with a `stop` runs to
+        # its `until`
+        self._end_is_set = False
         # The event `run()` is running to, so a step knows it is already triggered
         self._until_event: Optional[Event] = None
         self._go_live_sim_time: Optional[float] = None
@@ -1334,14 +1339,25 @@ class DynamicRealtimeEnvironment(
         Args:
             until: A time, an event, or None to run until no model event is left.
                 The events of desflow's own, such as statistics readings and flush
-                timers, do not keep the run going.
+                timers, do not keep the run going. A run to an event that is not
+                triggered when no model event is left, and no ingress is set up,
+                raises SimPy's `RuntimeError`. While an ingress is set up, a run to
+                an event goes on, because a change the ingress sends can trigger it.
 
         Returns:
             Any: The value of the `until` event, or None for a time.
         """
         previous, self._in_run = self._in_run, True
         previous_open, previous_event = self._until_none, self._until_event
-        self._until_none = previous_open or until is None
+        if not self._end_is_set:
+            # A run to an event ends with SimPy's RuntimeError when no model event is
+            # left, as a run of `SimulationContext` does, instead of on the timers of
+            # desflow's own for ever. An ingress is a source of model events, so
+            # while one is set up the run goes on
+            to_an_event = isinstance(until, Event) and not getattr(
+                self, "ingress_providers", None
+            )
+            self._until_none = previous_open or until is None or to_an_event
         self._until_event = until if isinstance(until, Event) else previous_event
         try:
             return super().run(until)

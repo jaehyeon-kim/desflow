@@ -199,7 +199,6 @@
     - tests/conformance/test_yaml_only.py::test_y3_a_when_group_is_done_when_its_expression_holds
     - tests/conformance/test_yaml_only.py::test_y3_each_child_flow_of_a_number_returns_its_value
     - tests/conformance/test_yaml_only.py::test_y3_each_request_of_a_computed_number_keeps_the_first_unit
-    - tests/conformance/test_yaml_only.py::test_y4_an_opened_each_of_requests_is_named_one_by_one_by_its_index
     - tests/conformance/test_yaml_only.py::test_known_case_of_batch_11_runs_as_its_simpy_program
     - tests/conformance/test_yaml_only.py::test_known_case_of_batch_11_runs_at_other_sizes
     - tests/conformance/test_yaml_only.py::test_every_known_case_of_batch_11_runs_or_shares_or_has_its_own_test
@@ -781,7 +780,6 @@
   checks:
     - tests/conformance/test_c6_initial_state.py::test_c6_initial_resources
     - tests/conformance/test_yaml_only.py::test_y1_members_made_from_a_number_serve_in_turn
-    - tests/conformance/test_yaml_only.py::test_y1_a_member_is_made_at_its_first_use_with_the_capacity_of_its_creator
     - tests/conformance/test_yaml_only.py::test_y1_a_store_family_is_made_at_its_first_put
     - tests/conformance/test_yaml_only.py::test_y1_a_container_family_starts_each_member_at_its_level
     - tests/conformance/test_yaml_only.py::test_y1_a_signal_family_wakes_the_waiter_of_its_key

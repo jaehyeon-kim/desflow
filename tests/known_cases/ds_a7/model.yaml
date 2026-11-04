@@ -1,0 +1,6 @@
+# Design A7: a spawn count and copied attributes.
+simulation: {sim_id: A7, factor: 0, random_seed: 42}
+arrivals: {a: {dist: constant, value: 3, spawn: parent, max_events: 2, first_at: 0, attributes: {n: 3, tag: x}}}
+tasks:
+  parent: {payload: {event_type: parent}, spawn: {task: clone, count: "attr.n", copy_attributes: true}}
+  clone: {payload: {event_type: clone, tag: {gen: attr, name: tag}}}

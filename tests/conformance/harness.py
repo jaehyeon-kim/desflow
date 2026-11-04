@@ -200,7 +200,7 @@ def run_low_level(
     params: Optional[SimParameter],
     start: Callable[[DynamicRealtimeEnvironment], Any],
     until: Any,
-    stats: Optional[str] = None,
+    stats: Optional[Any] = None,
     initial_time: float = 0.0,
     factor: float = 0.0,
     strict: bool = False,
@@ -208,6 +208,7 @@ def run_low_level(
     raises: bool = False,
     drive: Optional[Callable[[], Any]] = None,
     trace: bool = False,
+    environment: Optional[Dict[str, Any]] = None,
 ) -> Union[Tuple[List[Dict[str, Any]], DynamicRealtimeEnvironment], Outcome]:
     """Runs a low-level model into a recording egress.
 
@@ -226,6 +227,7 @@ def run_low_level(
         factor=factor,
         strict=strict,
         on_unhandled_failure=on_unhandled_failure,
+        **(environment or {}),  # such as `logical_start_time` and `go_live_at`
     )
     if params is not None:
         env.registry.register_sim_parameter(params)
@@ -236,7 +238,10 @@ def run_low_level(
         sinks, traces = [rec, traced], [False, True]
     env.setup_egress(sinks, lag_monitor_interval=None, traces=traces)
     if stats is not None:
-        env.setup_stats(params.sim_id if params else "Sim", stats)
+        level, *interval = (
+            (stats,) if isinstance(stats, str) else stats
+        )  # (level, interval)
+        env.setup_stats(params.sim_id if params else "Sim", level, *interval)
     start(env)
     if callable(until):  # a run that ends with a process or an event `start` made
         until = until()

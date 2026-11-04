@@ -1,0 +1,16 @@
+# Design V12: put back the item that a get took; a number as an item; nested item names. Source: research/yaml-only/programs/V12.py parts 1 and 4 (parts 2 and 3 are not in this row).
+simulation: {sim_id: V12, factor: 0, random_seed: 42}
+stores:
+  tools: {items: [{req: {id: 7}}, {req: {id: 8}}, 5, 0]}
+  plan: {items: [{d: 3}]}
+arrivals:
+  p: {dist: constant, value: 3, spawn: take, max_events: 1, first_at: 0}
+  q: {dist: constant, value: 3, spawn: after_get, max_events: 1, first_at: 0}
+tasks:
+  take: {get: {store: tools, filter: "item.req.id == 7"}, set: {kept: {gen: expr, expr: item}}, payload: {event_type: took, item: {gen: expr, expr: item}}, next: second}
+  second: {get: {store: tools, filter: "item == 5"}, payload: {event_type: second, item: {gen: expr, expr: item}}, next: third}
+  third: {get: {store: tools, filter: "item == 0"}, payload: {event_type: third, item: {gen: expr, expr: item}}, next: back}
+  back: {put: {store: tools, item: {gen: attr, name: kept}}, payload: {event_type: back}, next: num}
+  num: {put: {store: tools, item: 5}, payload: {event_type: num}, next: report}
+  report: {payload: {event_type: items, items: {gen: expr, expr: "items(tools)"}}}
+  after_get: {get: {store: plan}, service_time: "item.d", payload: {event_type: used, at: {gen: expr, expr: t}}}

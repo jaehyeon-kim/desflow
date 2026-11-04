@@ -1,0 +1,18 @@
+{
+      "type": "record", "name": "PredictionEvent", "namespace": "com.desflow.ml",
+      "fields": [
+        {"name": "key", "type": "string"},
+        {"name": "task", "type": ["null", "string"], "default": null},
+        {"name": "instance", "type": ["null", "long"], "default": null},
+        {"name": "sim_ts", "type": "double"},
+        {"name": "timestamp", "type": "string"},
+        {"name": "value", "type": {
+          "type": "record", "name": "MLPrediction",
+          "fields": [
+            {"name": "event_type", "type": "string"},
+            {"name": "task_id", "type": "string"},
+            {"name": "confidence", "type": "double"}
+          ]
+        }}
+      ]
+    }

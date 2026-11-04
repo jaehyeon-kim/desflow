@@ -1,0 +1,10 @@
+# case CV-126: a computed number of members made during the run (Y1): no member exists at the start. The document of the Batch 11 conformance test that held the row, with an `initial` arrival in place of its replay file, so the sized tests change the number of entities: the entity `i` uses the key `i % 2` and asks for a capacity of `i + 1`; the first entity of a key makes the member, a second user of the key finds the first one's capacity, and a read of a key that does not exist (7) gives 0 and makes nothing.
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {desk: {family: true, current_cap: "attr.i + 1"}}
+arrivals:
+  a: {initial: 3, spawn: job, attributes: {i: {gen: sequence, start: 0}}}
+tasks:
+  job:
+    resource: {of: desk, key: "attr.i % 2"}
+    service_time: 2
+    payload: {e: done, x: {gen: expr, expr: "[users.desk[attr.i % 2], queue.desk[attr.i % 2], users.desk[7], members(desk)]"}}

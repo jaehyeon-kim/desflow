@@ -1,0 +1,12 @@
+# case CV-133: an interrupt during a queued request: abandon leaves the queue; a request wait branch with resume keeps the place; resource with resume queues again.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+resources: {m: {current_cap: 1}}
+arrivals: {h: {initial: 1, spawn: hold}, a: {dist: constant, value: 0.5, spawn: left, max_events: 1}, b: {dist: constant, value: 0.5, spawn: kept, max_events: 1}, c: {dist: constant, value: 0.5, spawn: again, max_events: 1}, i: {dist: constant, value: 1, spawn: poke, max_events: 1}}
+tasks:
+  hold: {resource: m, service_time: 3, payload: {event_type: hold}}
+  left: {resource: m, service_time: 1, on_interrupt: abandon, payload: {event_type: left_served}}
+  kept: {wait: {request: m}, on_interrupt: resume, service_time: 1, payload: {event_type: kept_served}}
+  again: {resource: m, service_time: 1, on_interrupt: resume, payload: {event_type: again_served}}
+  poke: {payload: {event_type: poke}, interrupt: {task: left, cause: x}, next: poke_kept}
+  poke_kept: {payload: {event_type: poke_kept}, interrupt: {task: kept, cause: x}, next: poke_again}
+  poke_again: {payload: {event_type: poke_again}, interrupt: {task: again, cause: x}}

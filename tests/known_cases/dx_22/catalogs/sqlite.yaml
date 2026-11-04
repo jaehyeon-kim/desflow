@@ -1,0 +1,4 @@
+name: sqlite
+type: sql
+uri: sqlite:///iceberg/catalog.db
+warehouse: file://iceberg/warehouse

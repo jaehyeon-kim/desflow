@@ -1,0 +1,9 @@
+# GA-3: capacity drops to one at 20 seconds, and the queue grows. Three packers, an order a second, a packing time that is normal with mean 2.5 s (yaml-only.md Part 4).
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+stats: {level: minimal, interval: 1}
+resources: {packers: {current_cap: 3}}
+services: {pack: {dist: normal, mean: 2.5, std: 0.3}}
+arrivals: {orders: {dist: exponential, rate: 1, spawn: order}}
+scenario: [{at: 20, path: Shop.resources.packers.current_cap, value: 1}]
+tasks: {order: {resource: packers, service: pack, payload: {event_type: packed}}}
+run: {until: 60}

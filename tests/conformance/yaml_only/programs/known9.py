@@ -111,46 +111,6 @@ def P65():
     return go(env, log)
 
 
-def DS_M3():
-    # M3.py run("event"): t waits on an event that another flow fails with
-    # ValueError("event"); the failed flow's handler goes on. The breaker fails the
-    # signal with a `fail` condition, because `fire.fail` is a later batch's key.
-    env, log, L = new()
-    event = env.event()
-    went = []
-
-    def t(k):
-        try:
-            yield event
-            L(k, "t", {"event_type": "fine"})
-        except Exception as error:  # noqa: BLE001
-            L(k, "t", S("failed", reason=str(error)))
-            L(
-                k,
-                "handle",
-                {
-                    "event_type": "handled",
-                    "reason": str(error),
-                    "st": "failed",
-                },
-            )
-            yield env.timeout(0)
-            went.append(env.now)
-
-    def breaker(k):
-        L(k, "breaker", S("failed", reason="event"))
-        L(k, "broke", {"event_type": "broke"})
-        event.fail(ValueError("event"))
-        yield env.timeout(0)
-
-    arrival(env, "a", t, gap=1, max_events=1, first=0)
-    arrival(env, "b", breaker, gap=1, max_events=1)
-    log, error = go(env, log)
-    if not MODE["on"]:
-        assert error is None and went == [1]
-    return log, error
-
-
 def P74():
     # I6.py run(4): the holder keeps the unit 5 s from 0; a late entity at 1 has
     # patience 4, which ends at the release instant 5; elsewhere follows a renege

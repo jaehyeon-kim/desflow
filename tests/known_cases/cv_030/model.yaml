@@ -1,0 +1,5 @@
+# case CV-030: env.schedule(ev, URGENT) with a delay: an urgent fire after 2.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+signals: {x: {once: true}}
+arrivals: {m: {initial: 1, spawn: make}, w: {initial: 1, spawn: wait_x}}
+tasks: {make: {payload: {event_type: made}, on: [{fire: {signal: x, urgent: true, after: 2}}]}, wait_x: {wait: {signal: x}, payload: {event_type: got, at: {gen: expr, expr: t}}}}

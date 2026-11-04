@@ -1,0 +1,15 @@
+# DX-4: a payload that is constants and the instance number. The snippet's `order_record` (docs/snippets/yaml/iceberg_tables_logic.py) returns the order id and an amount, and `prediction` (avro_and_pydantic_logic.py) returns the model `MLPrediction` with the entity's key as `task_id`; here a `gen: expr`, a `gen: entity` and constants give the fields of both. `packed` of complex_routing_logic.py is the same form and is not run.
+simulation: {sim_id: Shop, factor: 0, random_seed: 1}
+resources: {packers: {current_cap: 1, max_cap: 3}}
+arrivals: {orders: {dist: constant, value: 5, spawn: pack}}
+tasks:
+  pack:
+    service_time: 2
+    resource: packers
+    payload:
+      order_id: {gen: expr, expr: process.instance}
+      amount: 19.99
+      event_type: prediction
+      task_id: {gen: entity}
+      confidence: 0.9
+run: {until: 40}

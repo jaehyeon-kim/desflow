@@ -1,0 +1,8 @@
+# GA-1: orders wait for busy packers. Three packers, orders about once a minute, a packing time that is normal with mean 240 s (yaml-only.md Part 4).
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+stats: {level: minimal}
+resources: {packers: {current_cap: 3}}
+services: {pack: {dist: normal, mean: 240, std: 60}}
+arrivals: {orders: {dist: exponential, rate: 0.015, spawn: order}}
+tasks: {order: {resource: packers, service: pack, id_field: order_id, payload: {event_type: packed}}}
+run: {until: 7200}

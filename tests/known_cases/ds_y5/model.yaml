@@ -1,0 +1,34 @@
+# Design Y5: lists and mappings in expressions. Source: research/yaml-only/programs/Y5.py counts(), lists() and peek_store() (the error cases, alias, conversions and sorted-by-field lines print without a process and are not in this row).
+simulation: {sim_id: Y5, factor: 0, random_seed: 42}
+variables: {seen: {}, q: []}
+stores: {jobs: {items: [{v: 1}, {v: 2}]}}
+arrivals:
+  c1: {dist: constant, value: 1, spawn: cnt, max_events: 1, first_at: 1, attributes: {k: a}}
+  c2: {dist: constant, value: 1, spawn: cnt, max_events: 1, first_at: 1, attributes: {k: b}}
+  c3: {dist: constant, value: 1, spawn: cnt, max_events: 1, first_at: 2, attributes: {k: a}}
+  l0: {dist: constant, value: 1, spawn: lst, max_events: 1, first_at: 0, attributes: {i: 0}}
+  l1: {dist: constant, value: 1, spawn: lst, max_events: 1, first_at: 1, attributes: {i: 1}}
+  l2: {dist: constant, value: 1, spawn: lst, max_events: 1, first_at: 2, attributes: {i: 2}}
+  s: {dist: constant, value: 1, spawn: peek_store, max_events: 1, first_at: 0}
+tasks:
+  cnt:
+    payload: null
+    on: [{path: Y5.variables.seen, value: {gen: expr, expr: "set_key(registry['Y5.variables.seen'], attr.k, get_key(registry['Y5.variables.seen'], attr.k, 0) + 1)"}}]
+    next: cnt_log
+  cnt_log: {payload: {event_type: cnt, k: {gen: expr, expr: "attr.k"}, seen: {gen: expr, expr: "registry['Y5.variables.seen']"}, has_k: {gen: expr, expr: "attr.k in registry['Y5.variables.seen']"}, has_z: {gen: expr, expr: "'z' in registry['Y5.variables.seen']"}}}
+  lst:
+    payload: null
+    on: [{path: Y5.variables.q, value: {gen: expr, expr: "registry['Y5.variables.q'] + [attr.i * 10]"}}]
+    next: lst_log
+  lst_log:
+    payload:
+      event_type: lst
+      q: {gen: expr, expr: "registry['Y5.variables.q']"}
+      first: {gen: expr, expr: "registry['Y5.variables.q'][0]"}
+      last: {gen: expr, expr: "registry['Y5.variables.q'][-1]"}
+      n: {gen: expr, expr: "len(registry['Y5.variables.q'])"}
+      total: {gen: expr, expr: "sum(registry['Y5.variables.q'])"}
+      ordered: {gen: expr, expr: "sorted(registry['Y5.variables.q'])"}
+      plus_one: {gen: expr, expr: "[x + 1 for x in registry['Y5.variables.q'] if x > 0]"}
+      rest: {gen: expr, expr: "registry['Y5.variables.q'][1:]"}
+  peek_store: {payload: {event_type: peek_store, first_v: {gen: expr, expr: "items(jobs)[0].v"}, n: {gen: expr, expr: "len(items(jobs))"}, values: {gen: expr, expr: "[x.v for x in items(jobs)]"}}}

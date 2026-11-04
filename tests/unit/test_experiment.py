@@ -14,12 +14,13 @@ from desflow import (
     LowLevelModel,
     SimParameter,
     SimulationContext,
+    replicate,
     run_experiment,
 )
 from desflow.cli import app as cli
 from desflow.blueprint.loader import BlueprintError
 from desflow.analysis import results as found
-from desflow.analysis.models import RunResult
+from desflow.analysis.models import RunResult, run_once
 from desflow.analysis.spec import ExperimentSpec, load_experiment
 
 SHOP = """\
@@ -446,6 +447,50 @@ def test_the_experiment_file_sets_stop_and_drain(tmp_path):
     assert [r["value"] for r in rows] == [0] * 4
     summary = [r for r in result.summary if r["statistic"] == "flows.orders.in_system"]
     assert len(summary) == 1
+
+
+def _two_steps(env, sampler):
+    """A low-level model whose last event is at 2 s."""
+    env.registry.register_sim_parameter(
+        SimParameter(
+            sim_id="S", arrival={"a": DistributionConfig(dist="constant", value=1)}
+        )
+    )
+
+    def two():
+        yield env.timeout(1)
+        yield env.timeout(1)
+        env.stats.flow_finished("a")
+
+    env.process(two())
+
+
+def test_a_low_level_model_with_a_stop_that_never_fires_runs_to_until(tmp_path):
+    """The stop is an event, so the run has only the `until` of its own after the
+    model's last event: each entry point runs to it and not to SimPy's error."""
+    model = LowLevelModel(_two_steps, "S")
+
+    def never(env):
+        return env.event()
+
+    result = run_once(model, seed=1, until=30, stop=never)
+    assert result.readings
+    replicate(model, 2, seed=1, until=30, stop=never)
+    run_experiment(
+        _settings(
+            model=model,
+            until=30,
+            warmup=None,
+            stop=never,
+            replications=2,
+            measures=["flows.a.finished"],
+            variants={"base": {}},
+            inputs={},
+            compare=[],
+            checks=[],
+            output=str(tmp_path / "out"),
+        )
+    )
 
 
 def test_bad_settings_are_refused_with_their_line(folder):

@@ -1,0 +1,7 @@
+# DX-1: the same model with the example's own Python: `order_generator` of examples/yaml/advanced/postgres_orders_logic.py, a process that waits on the arrival itself.
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+arrivals: {orders: {dist: exponential, rate: 1.0}}
+processes:
+  - function: !python postgres_orders_logic.order_generator
+    kwargs: {arrival: orders, max_items: 5}
+run: {until: 6}

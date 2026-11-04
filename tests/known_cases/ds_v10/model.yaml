@@ -1,0 +1,9 @@
+# Design V10: routing weights from an expression. Source: research/yaml-only/programs/V10.py, the two lines that draw: weights [1, 0] four times, then [0.5, 0.5] four times. The three weights that raise (0 and 0, -1 and -1, 2 and -1) are in step-2-results.md.
+simulation: {sim_id: V10, factor: 0, random_seed: 42}
+arrivals:
+  a: {dist: constant, value: 1, spawn: pick, max_events: 4, first_at: 0, attributes: {w: 1}}
+  b: {dist: constant, value: 1, spawn: pick, max_events: 4, first_at: 4, attributes: {w: 0.5}}
+tasks:
+  pick: {payload: {event_type: pick}, next: {weights: {fast: "attr.w", slow: "1 - attr.w"}}}
+  fast: {payload: {event_type: fast}}
+  slow: {payload: {event_type: slow}}

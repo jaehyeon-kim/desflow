@@ -1,0 +1,10 @@
+# Design V9: arguments for a child flow. Source: research/yaml-only/programs/V9.py: the parent starts child a with k * 3 where k is 2, sets k to 100, starts child b with k * 3, logs that it goes on first, then waits for a and for b; each child returns x + 1 after 1 s.
+simulation: {sim_id: V9, factor: 0, random_seed: 42}
+arrivals: {a: {dist: constant, value: 4, spawn: parent, max_events: 1, first_at: 0, attributes: {k: 2}}}
+tasks:
+  parent: {open: {a: {task: child, args: {x: {gen: expr, expr: "attr.k * 3"}}}}, set: {k: 100}, payload: null, next: start_b}
+  start_b: {open: {b: {task: child, args: {x: {gen: expr, expr: "attr.k * 3"}}}}, payload: {event_type: parent_goes_on_first}, next: wait_a}
+  wait_a: {wait: {handle: a}, set: {va: {gen: expr, expr: "wait.a.value.v"}}, payload: null, next: wait_b}
+  wait_b: {wait: {handle: b}, payload: {event_type: results, va: {gen: attr, name: va}, vb: {gen: expr, expr: "wait.b.value.v"}}}
+  child: {payload: {event_type: starts, x: {gen: expr, expr: "arg.x"}}, next: child_end}
+  child_end: {service_time: 1, payload: {event_type: ended, v: {gen: expr, expr: "arg.x + 1"}}}
