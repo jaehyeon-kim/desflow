@@ -2043,7 +2043,12 @@ class Task(_Model):
     `param`, `repeat`, `literal`, `object`, `call`, `row`, `lookup`, `previous`,
     `upstream` and `aggregate`; `null_rate`, `unique`, `omit_rate`
     and `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a
-    mapping; `set` values and the `cause` of an interrupt are evaluated when the task
+    mapping or null. A null gives a `finished` record whose value is null, which a
+    Kafka sink with `envelope: false` writes as a tombstone. `id_field`, `item_field`
+    and `attributes` need a mapping, so with them a null fails the task, which
+    `on_fail` handles as any failure. `key_field` needs a mapping too, and with it a
+    null fails the run, as a payload without the field does. A store `put` on the
+    task puts the null as its item. `set` values and the `cause` of an interrupt are evaluated when the task
     finishes or interrupts. `vars_once` names are drawn once for each entity and task,
     at the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in
     order, once for each instance of the task: when it starts if `on_start` is given,
@@ -2106,8 +2111,9 @@ class Task(_Model):
                 _payload_form,
                 custom_error_type="payload_kind",
                 custom_error_message=(
-                    "a payload is a mapping, a generator that gives a mapping, a "
-                    "!python function, or null for no record"
+                    "a payload is a mapping, a generator that gives a mapping or "
+                    "null (a record whose value is null), a !python function, or "
+                    "null for no record"
                 ),
             ),
         ]
@@ -2553,8 +2559,11 @@ class EgressConnector(Connector):
     `envelope: false` makes the entry plain output: the sink writes each event's
     value without the record around it (`stream_type`, `sim_ts`, `timestamp`, `key`,
     `task` and `instance`), and it receives no telemetry record and no `queued` or
-    `started` record of a task. A Kafka or Redis sink sends a value that is not a
-    mapping as JSON. A storage or PostgreSQL sink skips it, with one warning. The
+    `started` record of a task. A Kafka sink sends a null value as a tombstone, a
+    message with the record's key and a null value, and sends any other value that
+    is not a mapping as JSON. A Redis sink sends a value that is not a mapping as
+    JSON, null included. A storage, Iceberg or PostgreSQL sink skips it, with one
+    warning. The
     message key of Kafka stays the record's key, and a `topic_router` still receives
     the whole record. Ground-truth records of a `when: labels` entry are not
     affected.

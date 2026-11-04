@@ -19,14 +19,11 @@ def program():
 
     arrival(env, "a", process, initial=2)
     go(env, log, 2)
-    first = WALL[0]
     result = go(env, log, 4)
     assert olog == [1, 1, 2, 2, 3, 3], olog
-    # The paced clock runs from the start of the environment, so a first call that
-    # sleeps a little late shortens the second: the two calls take the wall time of
-    # their four units together. SimPy's clock on Windows before Python 3.13 moves in
-    # steps of 15.6 ms, so the margin is 40 ms.
-    assert 4 * 0.1 - 0.04 <= first + WALL[0]
+    # The paced clock runs from the start of the environment, and so does WALL, so
+    # after the second call it holds the wall time of all four units
+    assert 4 * 0.1 <= WALL[0]
     return result
 
 

@@ -264,7 +264,7 @@ async def test_file_ingress_skips_a_null_value_with_a_warning(tmp_path, caplog):
 @pytest.mark.asyncio
 async def test_console_envelope_false_prints_the_value_alone(capsys):
     """With `envelope` off the json format writes each event's value and nothing
-    else, and a label record stays whole."""
+    else, a null value as `null`, and a label record stays whole."""
     import orjson
 
     egress_queue = queue.Queue()
@@ -273,6 +273,7 @@ async def test_console_envelope_false_prints_the_value_alone(capsys):
     egress_queue.put(
         [
             {"stream_type": "event", "key": "o-1", "value": {"n": 2}},
+            {"stream_type": "event", "key": "o-2", "value": None},
             {"stream_type": "label", "path_id": "x", "value": 1},
         ]
     )
@@ -286,5 +287,6 @@ async def test_console_envelope_false_prints_the_value_alone(capsys):
     lines = capsys.readouterr().out.splitlines()
     assert [orjson.loads(line) for line in lines] == [
         {"n": 2},
+        None,
         {"stream_type": "label", "path_id": "x", "value": 1},
     ]

@@ -51,7 +51,8 @@ def make_scope(
     Builds what an expression's names read.
 
     Args:
-        upstream: What the previous task handed on; its payload is `payload`.
+        upstream: What the previous task handed on; its payload is `payload`, None
+            when the payload is null.
         attributes: The entity's attributes, read as `attr`. Defaults to the
             upstream's.
         env: The environment, for `registry[...]` and `t`.
@@ -87,7 +88,11 @@ def make_scope(
     if attributes is None:
         attributes = {} if upstream is None else upstream.attributes
     return Scope(
-        payload=payload_of(upstream),
+        payload=(
+            None
+            if upstream is not None and upstream.payload is None
+            else payload_of(upstream)
+        ),
         attributes=attributes,
         levels=levels or {},
         resources=resources or {},

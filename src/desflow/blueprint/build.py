@@ -2135,6 +2135,7 @@ def _add_to_context(
             subscribe=task.subscribe,
             on=[entry.entry() for entry in task.on],
         )(_payload(task.payload, task.id_field, task.attributes, task.item_field, name))
+        _locate_payload_reads(context._task_specs[name], task, name, source)
         # The places the context cannot see: the payload, the wait and the put
         context.note_values(
             name,
@@ -2272,6 +2273,40 @@ def _locator(source: SourceMap) -> Callable[[Tuple[Any, ...]], str]:
         )
 
     return locate
+
+
+def _locate_payload_reads(spec: Any, task: Any, name: str, source: SourceMap) -> None:
+    """Gives each expression of the task that reads `payload` its place in the file,
+    which its evaluation errors name, as a generator's errors do."""
+    locate = _locator(source)
+    places: List[Tuple[Optional[Expression], Tuple[Any, ...]]] = [
+        (spec.rank_of, ("priority",)),
+        (spec.preempt_of, ("preempt",)),
+        (spec.patience_of, ("patience",)),
+        (spec.service_time_of, ("service_time",)),
+        (spec.balk_of, ("balk",)),
+        (spec.fail_of, ("fail",)),
+    ]
+    for direction, transfer in (("get", spec.get), ("put", spec.put)):
+        if transfer is not None:
+            places.extend(
+                [
+                    (transfer._expression, (direction, "amount")),
+                    (transfer._priority_expression, (direction, "priority")),
+                    (transfer._filter_expression, (direction, "filter")),
+                ]
+            )
+    if task.next is not None and not isinstance(task.next, str):
+        # The router lists the `when` conditions first, in rule order
+        places.extend(
+            (condition, ("next", "when", index, "condition"))
+            for index, condition in enumerate(
+                spec.router.conditions[: len(task.next.when)]
+            )
+        )
+    for expression, key in places:
+        if expression is not None and expression.references["payload"]:
+            expression.where = locate(("tasks", name, *key))
 
 
 def _value_sites(blueprint: Blueprint) -> Iterator[Tuple[Tuple[Any, ...], Any]]:

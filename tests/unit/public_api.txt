@@ -425,10 +425,10 @@ desflow.values.BoundPayload = desflow.values.template.BoundPayload
 desflow.values.Template = desflow.values.template.Template
 desflow.values.generator = desflow.values.template.generator
 desflow.values.template.BoundPayload(template: desflow.values.template.Template, entity: Any = None, fields: collections.abc.Mapping[str, Any] | None = None, attributes: list[str] | None = None)
-desflow.values.template.BoundPayload.render(context: Any) -> dict[str, Any]
+desflow.values.template.BoundPayload.render(context: Any) -> dict[str, Any] | None
 desflow.values.template.Template(payload: Any, name: str | None = None, vars: collections.abc.Mapping[str, Any] | None = None, vars_once: collections.abc.Mapping[str, Any] | None = None, check: bool = True)
 desflow.values.template.Template.bind(entity: Any = None, **fields: Any) -> BoundPayload
-desflow.values.template.Template.render(context: Any, entity: Any = None) -> dict[str, Any]
+desflow.values.template.Template.render(context: Any, entity: Any = None) -> dict[str, Any] | None
 desflow.values.template.generator(spec: Any) -> Any
 [cli]
 desflow :: exit codes 0

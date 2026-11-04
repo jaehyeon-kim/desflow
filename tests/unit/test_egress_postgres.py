@@ -466,7 +466,8 @@ async def test_envelope_false_writes_the_value_alone(
     mock_create_pool, mock_pool, run_until, caplog
 ):
     """With `envelope` off the row is the value: no `sim_ts`, `event_id` or `task`
-    columns are added, and a value that is not a mapping is skipped with one warning."""
+    columns are added, and a value that is not a mapping, null included, is skipped
+    with one warning."""
     pool, conn = mock_pool
     mock_create_pool.return_value = pool
     conn.fetch.return_value = [
@@ -479,6 +480,7 @@ async def test_envelope_false_writes_the_value_alone(
         [
             {**_event({"id": 1}), "task": "pack"},
             _event("text"),
+            _event(None),
         ]
     )
 
@@ -490,4 +492,37 @@ async def test_envelope_false_writes_the_value_alone(
     query, values = conn.executemany.call_args[0]
     assert query.startswith("INSERT INTO orders (id) VALUES ($1)")
     assert values == [(1,)]
-    assert "1 had a value that is not a mapping" in caplog.text
+    assert "2 had a value that is not a mapping" in caplog.text
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_envelope_on_skips_an_event_whose_value_is_not_a_mapping(
+    mock_create_pool, mock_pool, run_until, caplog
+):
+    """With `envelope` on, an event whose value is null is skipped with the same
+    warning as with `envelope` off; a telemetry reading, a number, is skipped
+    without one."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.return_value = [{"column_name": name} for name in ("id", "event_id")]
+    egress = PostgresEgress("postgresql://u:p@localhost/db", "orders")
+    egress_queue = queue.Queue()
+    egress_queue.put(
+        [
+            _event({"id": 1}),
+            _event(None, key="orders-2"),
+            {"stream_type": "telemetry", "path_id": "p", "sim_ts": 1.0, "value": 3},
+        ]
+    )
+
+    await run_until(
+        egress.run(egress_queue),
+        lambda: conn.executemany.called and egress_queue.empty(),
+    )
+
+    query, values = conn.executemany.call_args[0]
+    assert values == [(1, "orders-1")]
+    assert "skipped records in this flush: 1 had a value that is not a mapping" in (
+        caplog.text
+    )

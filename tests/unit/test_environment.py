@@ -76,6 +76,95 @@ class StalledEgress(BaseEgress):
             pass
 
 
+def test_providers_load_their_libraries_before_their_thread_starts():
+    """`setup_egress` calls each provider's `_load_libraries` in its own thread,
+    before the egress thread starts: a first import in the egress thread holds the
+    interpreter lock during a paced run and fails a strict one."""
+    import threading
+
+    seen = []
+
+    class Loading(StalledEgress):
+        def _load_libraries(self):
+            seen.append(("load", threading.current_thread().name))
+
+        async def run(self, egress_queue):
+            seen.append(("run", threading.current_thread().name))
+            await super().run(egress_queue)
+
+    env = DynamicRealtimeEnvironment(strict=False)
+    env.setup_egress(providers=[Loading(), StalledEgress()])
+    env.teardown()
+
+    assert seen[0] == ("load", threading.main_thread().name)
+    assert seen[1][0] == "run" and seen[1][1] != threading.main_thread().name
+
+
+def test_a_load_that_raises_leaves_no_egress_set():
+    """`setup_egress` loads the libraries before it sets any egress attribute, so
+    a `_load_libraries` that raises leaves no queue that a later `publish_event`
+    would fill with records no thread reads."""
+
+    class FailingLoad(StalledEgress):
+        def _load_libraries(self):
+            raise OSError("cannot load")
+
+    env = DynamicRealtimeEnvironment(strict=False)
+    with pytest.raises(OSError, match="cannot load"):
+        env.setup_egress(providers=[StalledEgress(), FailingLoad()])
+
+    assert not hasattr(env, "egress_queues")
+    assert not hasattr(env, "egress_providers")
+
+
+def test_a_strict_paced_run_does_not_count_the_load_as_lag(tmp_path):
+    """A Low-level program sets up its egress after the environment has read its
+    clock, and nothing syncs the clock afterwards. The load time is taken out of
+    the pacing by `setup_egress` itself, so the first step of a strict run at
+    `factor` 0.5 does not fail after a load of 1 second. Without that, the load
+    alone is twice the lag a strict run allows; with it, a stall of up to 0.5
+    seconds on a loaded worker still passes."""
+    from desflow.connectors.egress.storage import ParquetStorageEgress
+
+    class SlowLoading(ParquetStorageEgress):
+        def _load_libraries(self):
+            super()._load_libraries()
+            time.sleep(1.0)
+
+    env = DynamicRealtimeEnvironment(factor=0.5)
+    assert env.strict
+    env.setup_egress([SlowLoading(default_path=str(tmp_path / "x.parquet"))])
+
+    def tick():
+        while True:
+            yield env.timeout(1)
+
+    env.process(tick())
+    try:
+        env.run(until=1)
+    finally:
+        env.teardown()
+
+    assert env.now == 1
+
+
+def test_a_run_that_is_not_strict_keeps_the_load_in_its_lag():
+    """Only a strict environment moves `real_start` by the load time. A run with
+    `strict` False counts the load as lag and catches up, as in 0.28.0, so its
+    records stay on the wall clock."""
+
+    class SlowLoading(StalledEgress):
+        def _load_libraries(self):
+            time.sleep(0.2)
+
+    env = DynamicRealtimeEnvironment(factor=0.5, strict=False)
+    real_start = env.real_start
+    env.setup_egress(providers=[SlowLoading()])
+    env.teardown()
+
+    assert env.real_start == real_start
+
+
 def test_teardown_waits_for_a_slow_sink():
     """Teardown drains the queue rather than abandoning it on a deadline."""
     env = DynamicRealtimeEnvironment(strict=False)

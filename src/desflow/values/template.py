@@ -102,7 +102,9 @@ class Template:
     Return it from a task function and the task renders it when the finished event is
     published, or call `render` in your own code. It is the same mapping a blueprint's
     `payload` takes: a mapping whose values may be generators (`{"gen": "uniform",
-    "low": 2, "high": 200}`), or one generator that gives a mapping.
+    "low": 2, "high": 200}`), or one generator that gives a mapping or null. A null
+    gives an event whose value is null, which a Kafka sink with `envelope` off writes
+    as a tombstone.
 
     Example:
         ```python
@@ -138,7 +140,7 @@ class Template:
     ):
         """
         Args:
-            payload: A mapping, or one generator that gives a mapping.
+            payload: A mapping, or one generator that gives a mapping or null.
             name: What the template is called.
             vars: Named values, each seeing the ones before it by name.
             vars_once: Named values made once for each entity.
@@ -202,7 +204,7 @@ class Template:
         if problems:
             raise ValueError("; ".join(problems))
 
-    def render(self, context: Any, entity: Any = None) -> Dict[str, Any]:
+    def render(self, context: Any, entity: Any = None) -> Optional[Dict[str, Any]]:
         """Evaluates the template at the simulation time now.
 
         Args:
@@ -210,7 +212,8 @@ class Template:
             entity: The entity whose attributes `attr` reads; none by default.
 
         Returns:
-            Dict[str, Any]: The mapping, as plain Python data.
+            Optional[Dict[str, Any]]: The mapping, as plain Python data, or None when
+            the payload is one generator that gave null.
         """
         return _runtime(context).render(self, entity)
 
@@ -250,11 +253,20 @@ class BoundPayload:
         self.fields: Dict[str, Any] = dict(fields or {})
         self.attributes: List[str] = list(attributes or [])
 
-    def render(self, context: Any) -> Dict[str, Any]:
+    def render(self, context: Any) -> Optional[Dict[str, Any]]:
         """Evaluates the template, then writes `fields` over it.
 
         Args:
             context: The simulation context that holds the value runtime.
+
+        Returns:
+            Optional[Dict[str, Any]]: The mapping, or None when the template gave
+            null and there are no fields or attributes to write over it.
+
+        Raises:
+            ValueGenerationError: If the template gives something other than a
+                mapping or null, or gives null while there are fields or attributes
+                to write over it.
         """
         values = _runtime(context)
         return values.render(

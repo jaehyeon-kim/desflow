@@ -17,6 +17,7 @@ import pytest
 
 from desflow import SimulationContext
 from desflow.blueprint import BlueprintError
+from desflow.core.task import TaskFailed
 from desflow.values import Template
 from tests.conformance.harness import RecordingEgress, run_yaml_text
 
@@ -830,12 +831,91 @@ def test_a_scenario_value_and_record_are_generated_when_the_step_is_due(tmp_path
     assert labels[0]["new"] == 5
 
 
-def test_a_payload_that_is_a_generator_must_give_a_mapping(tmp_path):
+def test_a_payload_that_is_a_generator_must_give_a_mapping_or_null(tmp_path):
+    """A null gives a finished record whose value is null, a tombstone on Kafka with
+    `envelope: false`; `payload: null` still publishes no record."""
     assert payloads(run(tmp_path, "payload: {gen: object, fields: {a: 1}}", n=1)) == [
         {"a": 1}
     ]
+    body = (
+        "vars: {n: {gen: sequence}}\n"
+        "payload: {gen: when, condition: 'n == 1', then: null, "
+        "else: {gen: object, fields: {a: 1}}}"
+    )
+    outcome = run(tmp_path, body, n=3)
+    assert outcome.error is None, outcome.error
+    finished = [
+        (r["key"], r["value"])
+        for r in outcome.records
+        if r["stream_type"] == "event" and r["task"] == "t"
+    ]
+    assert finished == [("a-1", {"a": 1}), ("a-2", None), ("a-3", {"a": 1})]
+    silent = run(tmp_path, "payload: null", n=1)
+    assert [r for r in silent.records if r["stream_type"] == "event"] == []
     message = error_of(tmp_path, "payload: {gen: integer, bounds: [1, 2]}")
-    assert "a payload must give a mapping" in message
+    assert "a payload must give a mapping or null" in message
+    message = error_of(tmp_path, "id_field: n\npayload: {gen: literal, value: null}")
+    assert re.search(
+        r"model\.yaml:\d+: tasks\.t\.payload: the payload gave null, so it has no "
+        r"field to write n into \(id_field, item_field and attributes need a mapping\)",
+        message,
+    )
+    # `attributes` is checked apart from `id_field` and `item_field`, which reach
+    # the payload as fields
+    text = model("attributes: [k]\npayload: {gen: literal, value: null}").replace(
+        "spawn: t}", "spawn: t, attributes: {k: 1}}"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"a": [0.0]})
+    assert "tasks.t.payload: the payload gave null, so it has no field to write k" in (
+        str(outcome.error)
+    )
+
+
+def test_an_expression_that_reads_a_null_payload_names_its_place(tmp_path):
+    """An expression that reads a field of a null payload names its place and says
+    the payload is null: a `fail`, a `next` condition, and the `service_time` of the
+    task the payload is routed to. A `fail` that cannot be evaluated fails the
+    task, as a `fail_reason` that cannot be made does: the task publishes its
+    `failed` record, and with no `on_fail` the run stops with `TaskFailed`."""
+    null_second = (
+        "vars: {n: {gen: sequence}}\n"
+        "payload: {gen: when, condition: 'n == 1', then: null, "
+        "else: {gen: object, fields: {a: 1}}}\n"
+    )
+    outcome = run(tmp_path, null_second + "fail: 'payload.a == 2'")
+    assert isinstance(outcome.error, TaskFailed)
+    ends = [
+        (r["key"], r["value"]) for r in outcome.records if r["stream_type"] == "event"
+    ]
+    assert [key for key, _ in ends] == ["a-1", "a-2"]
+    assert ends[1][1]["status"] == "failed"
+    assert re.fullmatch(
+        r"ValueError: .*model\.yaml:\d+: tasks\.t\.fail: cannot evaluate "
+        r"'payload\.a == 2': the payload is null",
+        ends[1][1]["reason"],
+    )
+    routed = model(
+        null_second + "next: {when: [{condition: 'payload.a == 1', task: u}]}"
+    )
+    outcome = run_yaml_text(
+        tmp_path, routed + "  u: {payload: {b: 1}}\n", {"a": [0.0, 1.0, 2.0]}
+    )
+    assert re.fullmatch(
+        r".*model\.yaml:\d+: tasks\.t\.next\.when\.0\.condition: cannot evaluate "
+        r"'payload\.a == 1': the payload is null",
+        str(outcome.error),
+    )
+    timed = model(null_second + "next: u")
+    outcome = run_yaml_text(
+        tmp_path,
+        timed + "  u: {service_time: 'payload.a', payload: {b: 1}}\n",
+        {"a": [0.0, 1.0, 2.0]},
+    )
+    assert re.fullmatch(
+        r".*model\.yaml:\d+: tasks\.u\.service_time: cannot evaluate "
+        r"'payload\.a': the payload is null",
+        str(outcome.error),
+    )
 
 
 def test_id_field_and_attributes_are_written_over_a_generated_payload(tmp_path):
@@ -896,6 +976,32 @@ def test_template_in_a_builder_task():
     assert [r["value"] for r in second.records if r["stream_type"] == "event"] == [
         r["value"] for r in recorder.records if r["stream_type"] == "event"
     ]
+
+
+def test_a_builder_template_that_gives_null_publishes_a_null_value():
+    """The Builder form of a YAML payload generator that gives null."""
+    delete = Template({"gen": "literal", "value": None}, name="delete")
+    app = SimulationContext(sim_id="B", random_seed=5, factor=0)
+    app.add_arrival("orders", "constant", value=1, spawn="delete")
+    app.task(name="delete")(lambda task_id: delete)
+    recorder = RecordingEgress()
+    app.add_egress(recorder)
+    app.run(until=2.5)
+    assert [
+        (r["key"], r["value"]) for r in recorder.records if r["stream_type"] == "event"
+    ] == [("orders-1", None), ("orders-2", None)]
+    # A field given to `bind` needs a mapping, and the error names no blueprint key
+    bound = SimulationContext(sim_id="B", random_seed=5, factor=0)
+    bound.add_arrival("orders", "constant", value=1, spawn="delete")
+    bound.task(name="delete")(lambda task_id: delete.bind(id=task_id))
+    with pytest.raises(
+        TaskFailed,
+        match=re.escape(
+            "delete.payload: the payload gave null, so it has no field to write id into "
+            "(the fields and attributes written over it need a mapping)"
+        ),
+    ):
+        bound.run(until=1.5)
 
 
 def test_template_renders_in_a_process_and_binds_fields():

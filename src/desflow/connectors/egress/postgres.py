@@ -397,8 +397,10 @@ class PostgresEgress(BaseEgress):
                     # The actual user data is in `item["value"]`.
                     payload = item.get("value")
                     if not isinstance(payload, dict):
-                        # PostgresEgress requires dictionaries (or Pydantic models dumped to dicts)
-                        if not self.envelope:
+                        # PostgresEgress requires dictionaries (or Pydantic models
+                        # dumped to dicts). A telemetry reading that is a number
+                        # is not written either, and is skipped without a warning
+                        if item.get("stream_type") != "telemetry":
                             skipped["not_mapping"] += 1
                         continue
                     # Merge the simulation metadata into the payload so it CAN be inserted if the user configured their schema to accept it

@@ -440,9 +440,12 @@ class ValueRuntime:
         scope: Optional[Scope] = None,
         extras: Optional[Dict[str, Any]] = None,
         attributes: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         """Evaluates a `Template`: its `vars_once` once for the entity, its `vars`,
-        then its payload, which must give a mapping.
+        then its payload, which must give a mapping or null.
+
+        A null gives an event whose value is null, which a Kafka sink with
+        `envelope` off writes as a tombstone.
 
         Args:
             template: The `Template`.
@@ -451,6 +454,14 @@ class ValueRuntime:
                 follow; without it a scope outside a task is made.
             extras: Fields written over the result.
             attributes: Names of entity attributes written over the result, read now.
+
+        Returns:
+            Optional[Dict[str, Any]]: The mapping, or None when the payload gave null.
+
+        Raises:
+            ValueGenerationError: If the payload gives something other than a mapping
+                or null, or gives null while `extras` or `attributes` have fields to
+                write over it.
         """
         scope = scope or self.scope_of(entity, keyed=True)
         known = dict(scope.names)
@@ -468,10 +479,27 @@ class ValueRuntime:
         if template.vars:
             known.update(self.evaluate_vars(template.vars, scope, known))
         result = self.evaluate(template.payload, replace(scope, names=known))
+        located = getattr(template.payload, "_where", "")
+        where = located or "the payload"
+        if result is None and (extras or attributes):
+            names = sorted({*(extras or {}), *(attributes or [])})
+            # A blueprint's place has its file and line; a Builder template's place
+            # is its name alone, and its fields come from `bind` or `BoundPayload`
+            in_file = bool(located) and located != template.payload._path
+            needs = (
+                "id_field, item_field and attributes need a mapping"
+                if in_file
+                else "the fields and attributes written over it need a mapping"
+            )
+            raise ValueGenerationError(
+                f"{where}: the payload gave null, so it has no field to write "
+                f"{', '.join(names)} into ({needs})"
+            )
+        if result is None:
+            return None
         if not isinstance(result, dict):
             raise ValueGenerationError(
-                f"{getattr(template.payload, '_where', '') or 'the payload'}: a "
-                f"payload must give a mapping, got {result!r}"
+                f"{where}: a payload must give a mapping or null, got {result!r}"
             )
         if extras:
             result.update(extras)

@@ -1,3 +1,4 @@
+import importlib
 import logging
 import queue
 from collections import Counter
@@ -292,7 +293,7 @@ def warn_skipped(sink: Any, skipped: Counter, route_key: Optional[str] = None) -
         "no_route": f"had no {route_key}",
         "no_key": "had none of the key columns of their table",
         "not_mapping": "had a value that is not a mapping, which this sink cannot "
-        "write without the record around it",
+        "write as a row",
     }
     once = sink.__dict__.setdefault("_not_mapping_warned", False)
     if skipped.get("not_mapping") and once:
@@ -404,6 +405,31 @@ def rows_table(records: List[dict], pa: Any) -> Any:
     return pa.Table.from_pydict(
         {column: [record.get(column) for record in records] for column in columns}
     )
+
+
+def load_arrow(*modules: str, tables: bool = True) -> None:
+    """
+    Imports `pyarrow` and `modules`, and with `tables` builds one small table, so
+    that what `pyarrow` loads on its first table (pandas, when it is installed) is
+    loaded too.
+
+    A storage sink calls it from `_load_libraries`. A missing package is left to
+    the sink's `run`, which raises the `ImportError` that names its extra.
+
+    Args:
+        *modules (str): Further modules to import, such as `pyarrow.parquet`.
+        tables (bool): Whether the sink builds Arrow tables, so the first one is
+            built here.
+    """
+    try:
+        import pyarrow as pa
+
+        for module in modules:
+            importlib.import_module(module)
+    except ImportError:
+        return
+    if tables:
+        rows_table([{"x": 1}], pa)
 
 
 def widen_schema(known: Any, batch: Any, pa: Any) -> Any:
@@ -533,6 +559,17 @@ class BaseEgress:
     """
 
     envelope: bool = True
+
+    def _load_libraries(self) -> None:
+        """Imports the libraries the provider writes with, before the run starts.
+
+        `setup_egress` calls it in the thread that sets up the egress, before the
+        provider's own thread starts. A library imported for the first time holds
+        the interpreter lock while it loads its compiled code, and a first load of
+        `pyarrow` can take seconds. Loaded in the provider's thread during a
+        paced run, it stops the simulation for that time, and a strict run fails
+        with "Simulation too slow for real time". The default imports nothing.
+        """
 
     async def run(self, egress_queue: queue.Queue) -> None:
         """

@@ -679,24 +679,195 @@ async def test_a_topic_field_that_is_not_a_name_is_ignored_with_a_warning(
 async def test_envelope_false_sends_the_value_alone(MockProducer, run_until):
     """With `envelope` off the message is the event's value, keyed by the record key.
 
-    A value that is not a mapping is sent as JSON. A ground-truth record is sent whole.
+    A value that is not a mapping is sent as JSON, and a null value as a tombstone:
+    the key with a null value, which no serializer encodes. A ground-truth record is
+    sent whole.
     """
     producer = MockProducer.return_value = AsyncMock()
-    egress = KafkaEgress(bootstrap_servers="b:9092", topic_policy="manual")
+    serializer = MagicMock()
+    serializer.serialize.side_effect = lambda topic, data: json.dumps(data).encode()
+    egress = KafkaEgress(
+        bootstrap_servers="b:9092", topic_policy="manual", serializer=serializer
+    )
     egress.envelope = False
     batch = [
         {"stream_type": "event", "key": "k1", "value": {"a": 1}},
         {"stream_type": "event", "key": "k2", "value": "text"},
+        {"stream_type": "event", "key": "k4", "value": None},
         {"stream_type": "label", "key": "k3", "path": "p"},
     ]
 
     await _publish(egress, batch, producer, run_until)
 
-    assert _sent(producer) == [
-        ("sim-events", b"k1", {"a": 1}),
-        ("sim-events", b"k2", "text"),
-        ("sim-events", b"k3", {"key": "k3", "path": "p"}),
+    sent = [
+        (call.args[0], call.kwargs["key"], call.kwargs["value"])
+        for call in producer.send.call_args_list
     ]
+    assert sent == [
+        ("sim-events", b"k1", b'{"a": 1}'),
+        ("sim-events", b"k2", b'"text"'),
+        ("sim-events", b"k4", None),
+        ("sim-events", b"k3", b'{"key": "k3", "path": "p"}'),
+    ]
+    assert len(serializer.serialize.call_args_list) == 3
+
+
+def _shop_message(tmp_path):
+    """A Protobuf class `shop.Row` with a `key` text field and a `value` message
+    field `shop.Value` holding `n`, built from a descriptor file."""
+    from google.protobuf import descriptor_pb2
+
+    from desflow.connectors.egress.kafka import _message_class
+
+    field = descriptor_pb2.FieldDescriptorProto
+    file_proto = descriptor_pb2.FileDescriptorProto(
+        name="row.proto", package="shop", syntax="proto3"
+    )
+    # `Row` comes first, so its Confluent message index is the one byte 0
+    row = file_proto.message_type.add(name="Row")
+    row.field.add(
+        name="key", number=1, type=field.TYPE_STRING, label=field.LABEL_OPTIONAL
+    )
+    row.field.add(
+        name="value",
+        number=2,
+        type=field.TYPE_MESSAGE,
+        type_name=".shop.Value",
+        label=field.LABEL_OPTIONAL,
+    )
+    value = file_proto.message_type.add(name="Value")
+    value.field.add(
+        name="n", number=1, type=field.TYPE_INT64, label=field.LABEL_OPTIONAL
+    )
+    descriptor_file = tmp_path / "row.desc"
+    descriptor_file.write_bytes(
+        descriptor_pb2.FileDescriptorSet(file=[file_proto]).SerializeToString()
+    )
+    return _message_class(
+        {"descriptor_file": str(descriptor_file), "message": "shop.Row"}
+    )
+
+
+_ROW_AVRO = json.dumps(
+    {
+        "type": "record",
+        "name": "Row",
+        "fields": [
+            {"name": "key", "type": "string"},
+            {
+                "name": "value",
+                "type": {
+                    "type": "record",
+                    "name": "Value",
+                    "fields": [{"name": "n", "type": "long"}],
+                },
+            },
+        ],
+    }
+)
+_ROW_JSON_SCHEMA = json.dumps(
+    {"type": "object", "properties": {"value": {"type": "object"}}}
+)
+
+
+@pytest.mark.parametrize(
+    "kind, refused",
+    [
+        pytest.param("json", None, id="json-writes-it"),
+        pytest.param("protobuf", None, id="protobuf-writes-it-unset"),
+        pytest.param("avro", "on field value", id="avro-refuses-it"),
+        pytest.param(
+            "json_schema", "None is not of type 'object'", id="json-schema-refuses-it"
+        ),
+    ],
+)
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_a_null_value_with_the_envelope_on_is_written_or_skipped(
+    MockProducer, kind, refused, run_until, registry_transport, tmp_path, caplog
+):
+    """With `envelope` on a null value stays in the record, which each serializer
+    writes or refuses. A refused record is skipped with a warning that names its key
+    and the reason, and the rest of the batch is sent."""
+    registry_transport(lambda request: httpx.Response(200, json={"id": 1}))
+    url = "http://localhost:65535"
+    serializer = {
+        "json": lambda: None,
+        "protobuf": lambda: ConfluentProtobufSerializer(url, _shop_message(tmp_path)),
+        "avro": lambda: ConfluentAvroSerializer(url, schema_str=_ROW_AVRO),
+        "json_schema": lambda: ConfluentJsonSchemaSerializer(
+            url, schema_str=_ROW_JSON_SCHEMA
+        ),
+    }[kind]()
+    producer = MockProducer.return_value = AsyncMock()
+    egress = KafkaEgress(
+        bootstrap_servers="b:9092", topic_policy="manual", serializer=serializer
+    )
+    batch = [
+        {"stream_type": "event", "key": "k1", "value": {"n": 1}},
+        {"stream_type": "event", "key": "k2", "value": None},
+        {"stream_type": "event", "key": "k3", "value": {"n": 3}},
+    ]
+    sends = 2 if refused else 3
+    batches = queue.Queue()
+    batches.put(batch)
+
+    await run_until(
+        egress.run(batches),
+        lambda: batches.empty() and producer.send.call_count >= sends,
+    )
+
+    sent = {
+        call.kwargs["key"]: call.kwargs["value"]
+        for call in producer.send.call_args_list
+    }
+    assert "connection failed" not in caplog.text
+    if refused:
+        assert list(sent) == [b"k1", b"k3"]
+        assert "skipped the record with key k2 for topic sim-events" in caplog.text
+        assert refused in caplog.text
+    elif kind == "json":
+        assert json.loads(sent[b"k2"])["value"] is None
+    else:
+        message = _shop_message(tmp_path).FromString(sent[b"k2"][6:])
+        assert message.key == "k2" and not message.HasField("value")
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_a_registry_error_ends_the_batch_and_retries_the_connection(
+    MockProducer, run_until, caplog
+):
+    """A `SchemaRegistryError` is not a refusal of the record: it ends the batch,
+    whose rest is not sent, and the sink retries the connection."""
+    from desflow.connectors._schema_registry.errors import SchemaRegistryError
+
+    def serialize(topic, payload):
+        if payload["key"] == "k2":
+            raise SchemaRegistryError(409, 409, "incompatible schema")
+        return payload["key"].encode()
+
+    serializer = MagicMock()
+    serializer.serialize.side_effect = serialize
+    producer = MockProducer.return_value = AsyncMock()
+    egress = KafkaEgress(
+        bootstrap_servers="b:9092", topic_policy="manual", serializer=serializer
+    )
+    batches = queue.Queue()
+    batches.put(
+        [
+            {"stream_type": "event", "key": "k1", "value": {"n": 1}},
+            {"stream_type": "event", "key": "k2", "value": {"n": 2}},
+            {"stream_type": "event", "key": "k3", "value": {"n": 3}},
+        ]
+    )
+
+    await run_until(egress.run(batches), lambda: "connection failed" in caplog.text)
+
+    sent = [call.kwargs["key"] for call in producer.send.call_args_list]
+    assert sent == [b"k1"]
+    assert "incompatible schema" in caplog.text
+    assert "skipped the record" not in caplog.text
 
 
 def test_topic_policy_modes_are_read(mock_admin):

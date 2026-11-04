@@ -39,5 +39,9 @@ def check(records):
 
     app._ingress_providers = [_MessageIngress()]
     app.factor = 0.001  # real time for the ingress thread to deliver
+    # The case checks that the ingress delivers the change, not the timing, so a
+    # stall of more than 1 ms on a slow runner must not stop the run
+    # with "Simulation too slow for real time"
+    app.strict = False
     app.run(until=600)
     assert app.env.registry.get_config("Shop.arrival.orders").rate == 0.05

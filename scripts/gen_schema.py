@@ -376,7 +376,10 @@ def _generators(schema: Dict[str, Any]) -> None:
         },
     }
     defs["Payload"] = {
-        "description": "A mapping of values, or one generator that gives a mapping.",
+        "description": (
+            "A mapping of values, or one generator that gives a mapping or null; "
+            "a null publishes a record whose value is null."
+        ),
         "if": has_gen,
         "then": {"$ref": "#/$defs/Generator"},
         "else": {"type": "object", "additionalProperties": {"$ref": "#/$defs/Value"}},

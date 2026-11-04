@@ -784,12 +784,58 @@ def test_envelope_false_writes_the_value_as_the_row(caplog):
     egress.envelope = False
 
     egress._write_batch(
-        [_event({"n": 1}), _event("text"), _event({"__table__": "sim.u", "n": 2})], pa
+        [
+            _event({"n": 1}),
+            _event("text"),
+            _event(None),
+            _event({"__table__": "sim.u", "n": 2}),
+        ],
+        pa,
     )
 
     assert catalog.tables["sim.t"].appended[0].to_pylist() == [{"n": 1}]
     assert catalog.tables["sim.u"].appended[0].to_pylist() == [{"n": 2}]
-    assert "1 had a value that is not a mapping" in caplog.text
+    assert "2 had a value that is not a mapping" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "values, rows",
+    [
+        pytest.param(
+            [{"id": 7}, None],
+            [
+                {"stream_type": "event", "key": "orders-0", "id": 7},
+                {"stream_type": "event", "key": "orders-1", "id": None},
+            ],
+            id="after-a-mapping",
+        ),
+        pytest.param([None], [{"stream_type": "event", "key": "orders-0"}], id="alone"),
+    ],
+)
+def test_envelope_on_writes_a_null_value_as_the_envelope_columns(
+    tmp_path, values, rows
+):
+    """With `envelope` on, a record whose value is null keeps its envelope columns.
+    A table the sink creates has no `value` column, because a column that holds
+    only null is not created."""
+    from pyiceberg.catalog import load_catalog
+
+    properties = {
+        "type": "sql",
+        "uri": f"sqlite:///{tmp_path}/catalog.db",
+        "warehouse": f"file://{tmp_path}/warehouse",
+    }
+    egress = IcebergStorageEgress(
+        catalog={"name": "local", **properties}, default_table="sim.rows"
+    )
+
+    egress._write_batch(
+        [_event(value, key=f"orders-{i}") for i, value in enumerate(values)], pa
+    )
+
+    table = load_catalog("local", **properties).load_table("sim.rows")
+    assert table.scan().to_arrow().to_pylist() == rows
+    assert "value" not in [field.name for field in table.schema().fields]
 
 
 def test_envelope_false_leaves_a_label_record_whole():

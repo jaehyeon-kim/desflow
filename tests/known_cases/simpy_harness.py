@@ -80,7 +80,23 @@ def start(env: Any, function: Callable[[], Any]) -> None:
 
 
 def go(env: Any, log: list[Any], until: Any = None, expect_error: bool = False) -> Any:
-    """Runs the environment; an error it ends with is a result of the program."""
+    """Runs the environment; an error it ends with is a result of the program.
+
+    `WALL` is the wall time of the run. A real-time environment paces itself from its
+    own start (`real_start`, which SimPy reads from `time.monotonic` when the
+    environment is made). Its `WALL` is the larger of two readings:
+
+    - the time from that start on that clock, which holds the set-up time before `go`
+      too, as SimPy's own `test_rt` times it. A lower bound that SimPy's own wait
+      sets, as in ST-RT1 and ST-RT2, holds by construction, because SimPy waits until
+      `time.monotonic` reaches the event's time and `WALL` reads the same clock
+      afterwards;
+    - the time from `go` on `time.perf_counter`, which holds a lower bound that the
+      program's own `time.sleep` sets, as in ST-RT4. A `time.monotonic` that moves in
+      steps, as on Windows before Python 3.13, can read such a bound one step short.
+
+    Another environment's `WALL` runs from `go`.
+    """
     flush()
     error = None
     began = time.perf_counter()
@@ -92,6 +108,8 @@ def go(env: Any, log: list[Any], until: Any = None, expect_error: bool = False) 
         error = f"{type(exc).__name__}: {str(exc)[:300]}"
         ERRT[0] = float(env.now)
     WALL[0] = time.perf_counter() - began
+    if isinstance(env, simpy.rt.RealtimeEnvironment):
+        WALL[0] = max(WALL[0], time.monotonic() - env.real_start)
     return log, error
 
 

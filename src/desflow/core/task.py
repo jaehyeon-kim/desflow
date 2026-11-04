@@ -3188,7 +3188,9 @@ class TaskRun:
 
     def _failure(self, payload: Any) -> Any:
         """The reason the task fails after its service, or None when it does not: its
-        `fail_reason` (text, or a generator read now), or the text of its `fail`."""
+        `fail_reason` (text, or a generator read now), or the text of its `fail`. A
+        `fail` expression or a `fail_reason` that cannot be evaluated fails the task
+        with the error as its reason."""
         spec = self.spec
         if spec.fail is None:
             return None
@@ -3196,7 +3198,12 @@ class TaskRun:
             self.task_id, self.entity.key, self.entity.attributes, payload
         )
         if spec.fail_of is not None:
-            failed = spec.fail_of.evaluate(self.scope(handed))
+            try:
+                failed = spec.fail_of.evaluate(self.scope(handed))
+            except ValueError as error:  # as a reason that cannot be made, below
+                self._fail_error = error
+                self._raised = True
+                return f"{type(error).__name__}: {error}"
             text = spec.fail_of.text
         else:
             failed = spec.fail(self.task_id, payload)

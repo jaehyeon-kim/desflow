@@ -15,6 +15,7 @@ from desflow.connectors.egress.base import (
     BaseEgress,
     drop_reserved_keys,
     group_rows,
+    load_arrow,
     warn_skipped,
     write_error,
     rows_table,
@@ -241,6 +242,10 @@ class JsonlStorageEgress(BaseEgress):
         self.path_router = path_router
         self._folders: set = set()
 
+    def _load_libraries(self) -> None:
+        """Imports `pyarrow.fs`, which `run` reads the file system from."""
+        load_arrow("pyarrow.fs", tables=False)
+
     async def run(self, egress_queue: queue.Queue) -> None:
         """
         The main execution loop that consumes the egress queue and writes JSONL chunks.
@@ -409,6 +414,11 @@ class ParquetStorageEgress(BaseEgress):
         self.path_router = path_router
         self._folders: set = set()
         self.schemas: Dict[str, Any] = {}
+
+    def _load_libraries(self) -> None:
+        """Imports `pyarrow`, `pyarrow.parquet` and `pyarrow.fs`, and what `pyarrow`
+        loads on its first table."""
+        load_arrow("pyarrow.parquet", "pyarrow.fs")
 
     async def run(self, egress_queue: queue.Queue) -> None:
         """

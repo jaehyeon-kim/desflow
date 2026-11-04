@@ -284,6 +284,12 @@ class EgressMixIn:
         """
         Initializes the egress buffers and starts the background publisher threads.
 
+        It first calls each provider's `_load_libraries()` in the calling thread. In a
+        strict environment it then moves `real_start` forward by the time that takes,
+        so the load is not counted as lag, and a paced run's records trail the wall
+        clock by the load time. A run with `strict` False counts the load as lag and
+        catches up, so its records stay on the wall clock.
+
         Args:
             providers (List[BaseEgress]): A list of initialized egress connector instances.
             batch_size (int, optional): The maximum number of events to buffer before flushing. Defaults to 500.
@@ -339,6 +345,23 @@ class EgressMixIn:
         providers competed for batches instead of each receiving them, and a run with
         two sinks wrote part of the data to each with no error and exit code 0.
         """
+        # Each provider imports its libraries here, before the run, and not in the
+        # egress thread: a first import holds the interpreter lock while it loads,
+        # which in a paced run stops the simulation and fails a strict one
+        loading_began = simpy.rt.monotonic()
+        for provider in providers:
+            load = getattr(provider, "_load_libraries", None)
+            if load is not None:
+                load()
+        # The environment has read its clock already, so a strict one moves its
+        # wall-clock anchor forward by the load time, which is then not counted as
+        # lag, whichever API calls this. This is the rule of the `sync()` that
+        # `SimulationContext` makes after the build. A run that is not strict counts
+        # the load as lag and catches up, as in 0.28.0. Both come first, so a load
+        # that raises leaves no egress attribute set
+        if getattr(self, "strict", False) and hasattr(self, "real_start"):
+            self.real_start += simpy.rt.monotonic() - loading_began
+
         self.egress_drain_stall_seconds = drain_stall_seconds
         self.egress_providers = providers
         self.egress_queues: List[queue.Queue[Any]] = [
@@ -691,8 +714,10 @@ class EgressMixIn:
         Args:
             event_key (str): The record key: the entity's key, such as `orders-1`.
             value (Any): A dictionary or a Pydantic model containing the event
-                payload. It is made JSON-serializable on the way out, so a nested model
-                is flattened and a datetime becomes an ISO string, exactly as before.
+                payload, or None, which a Kafka sink with `envelope` off sends as a
+                tombstone. It is made JSON-serializable on the way out, so a nested
+                model is flattened and a datetime becomes an ISO string, exactly as
+                before.
             task (str, optional): The name of the task the event belongs to, written
                 as the record's `task` field, so the payload stays the user's own.
             instance (Any, optional): The task's instance id, written as the record's

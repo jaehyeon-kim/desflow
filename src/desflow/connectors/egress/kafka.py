@@ -886,7 +886,9 @@ class KafkaEgress(BaseEgress):
     and `topics.<topic>.serializer` set the serializers from a mapping, `ssl` and
     `sasl_oauth_token_provider` build the connection settings from a mapping, and
     an entry added with `envelope=False` sends the event's value alone as the
-    message.
+    message. An event whose value is null is then sent as a tombstone: a message
+    with the record's key and a null value, which a compacted topic reads as a
+    delete of that key.
 
     Attributes:
         bootstrap_servers (str): Comma-separated list of Kafka brokers.
@@ -1102,6 +1104,16 @@ class KafkaEgress(BaseEgress):
                 chosen,
             )
 
+    def _warn_refused(self, key: Optional[bytes], topic: str, error: Exception) -> None:
+        """Warns that the serializer refused one record, which is not sent."""
+        logger.warning(
+            "KafkaEgress skipped the record with key %s for topic %s: the "
+            "serializer refused it: %s",
+            None if key is None else key.decode(errors="replace"),
+            topic,
+            error,
+        )
+
     async def run(self, egress_queue: queue.Queue) -> None:
         """
         The main execution loop that consumes the egress queue and publishes to Kafka.
@@ -1110,7 +1122,9 @@ class KafkaEgress(BaseEgress):
         is lost, it implements an exponential backoff retry strategy. It polls
         the internal `egress_queue` for batches of data, determines the target
         topic based on the 'stream_type', and performs asynchronous sends using
-        the configured serializers.
+        the configured serializers. A record that its serializer refuses, with a
+        `TypeError` or `ValueError` such as a `SerializationError`, is skipped with a
+        warning that names its key and the reason, and the rest of the batch is sent.
 
         Args:
             egress_queue: A thread-safe queue containing lists of dictionaries
@@ -1200,11 +1214,26 @@ class KafkaEgress(BaseEgress):
                                             if k != "stream_type"
                                         }
 
-                                    # Apply configured Serializer strategy
+                                    # Apply configured Serializer strategy. With the
+                                    # envelope off, a null value is a tombstone: a
+                                    # message with the key and no value, which no
+                                    # serializer encodes
                                     serializer = self.topic_serializers.get(
                                         topic, self.default_serializer
                                     )
-                                    payload_bytes = serializer.serialize(topic, payload)
+                                    try:
+                                        payload_bytes = (
+                                            None
+                                            if payload is None
+                                            else serializer.serialize(topic, payload)
+                                        )
+                                    except (TypeError, ValueError) as error:
+                                        # A record the serializer refuses is
+                                        # skipped, as the other sinks skip a record
+                                        # they cannot write; a registry or network
+                                        # error still retries the connection
+                                        self._warn_refused(key, topic, error)
+                                        continue
 
                                     await producer.send(
                                         topic, value=payload_bytes, key=key

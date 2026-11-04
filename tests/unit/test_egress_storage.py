@@ -385,6 +385,10 @@ async def test_run_builds_the_mapping_and_creates_the_folder(tmp_path: Path):
     )
     q: queue.Queue = queue.Queue()
     q.put([EVENT])
+    # The first table imports pandas, which takes seconds in a new environment;
+    # `setup_egress` loads it before the run, and so does the test,
+    # so the wait below times the write alone
+    egress._load_libraries()
 
     task = asyncio.create_task(egress.run(q))
     for _ in range(50):
@@ -696,11 +700,13 @@ def test_path_router_wins_over_the_path_field(tmp_path: Path):
 
 
 def test_envelope_false_writes_the_value_as_the_row(tmp_path: Path, caplog):
-    """With `envelope` off a row is the event's value. A value that is not a mapping
-    is skipped, and one warning per sink says so, however many flushes meet one."""
+    """With `envelope` off a row is the event's value. A value that is not a mapping,
+    null included, is skipped, and one warning per sink says so, however many
+    flushes meet one."""
     batch = [
         _event({"n": 1}),
         _event("text"),
+        _event(None),
         _event({"__path__": f"{tmp_path}/by_path.jsonl", "n": 2}),
     ]
     jsonl = JsonlStorageEgress(default_path=str(tmp_path / "plain.jsonl"))
@@ -724,7 +730,7 @@ def test_envelope_false_writes_the_value_as_the_row(tmp_path: Path, caplog):
     assert written == [{"n": 2}, {"n": 2}]
     warnings = [r for r in caplog.records if "skipped records" in r.getMessage()]
     assert len(warnings) == 1
-    assert "1 had a value that is not a mapping" in warnings[0].getMessage()
+    assert "2 had a value that is not a mapping" in warnings[0].getMessage()
 
     parquet = ParquetStorageEgress(default_path=str(tmp_path / "plain.parquet"))
     parquet.filesystem = fs.LocalFileSystem()
@@ -732,6 +738,34 @@ def test_envelope_false_writes_the_value_as_the_row(tmp_path: Path, caplog):
     parquet._write_batch([_event({"n": 1, "m": "x"})], pa, pq)
     [table] = tmp_path.glob("plain_*.parquet")
     assert pq.read_table(table).to_pylist() == [{"n": 1, "m": "x"}]
+
+
+def test_envelope_on_writes_a_null_value_in_a_value_column(tmp_path: Path):
+    """With `envelope` on, a null value is not a mapping to flatten, so Parquet
+    writes it in a `value` column, which every row of that file then has, and JSONL
+    writes `"value": null` in that record's line only."""
+    batch = [_event({"id": 7}), _event(None, key="orders-2")]
+    parquet = ParquetStorageEgress(default_path=str(tmp_path / "rows.parquet"))
+    parquet.filesystem = fs.LocalFileSystem()
+    jsonl = JsonlStorageEgress(default_path=str(tmp_path / "rows.jsonl"))
+    jsonl.filesystem = fs.LocalFileSystem()
+
+    parquet._write_batch(batch, pa, pq)
+    jsonl._write_batch(batch)
+
+    [table] = tmp_path.glob("rows_*.parquet")
+    rows = pq.read_table(table).to_pylist()
+    assert [(row["key"], row["id"], row["value"]) for row in rows] == [
+        ("orders-1", 7, None),
+        ("orders-2", None, None),
+    ]
+    [chunk] = tmp_path.glob("rows_*.jsonl")
+    lines = [json.loads(line) for line in chunk.read_text().splitlines()]
+    assert [(line["key"], line.get("id"), "value" in line) for line in lines] == [
+        ("orders-1", 7, False),
+        ("orders-2", None, True),
+    ]
+    assert lines[1]["value"] is None
 
 
 def _label():
@@ -769,3 +803,56 @@ def test_envelope_false_leaves_a_label_record_whole(tmp_path: Path):
     routed._write_batch([_label()])
     [again] = tmp_path.glob("routed_*.jsonl")
     assert json.loads(again.read_text().splitlines()[0])["stream_type"] == "label"
+
+
+@pytest.mark.parametrize(
+    "sink, loaded, not_loaded",
+    [
+        (
+            "ParquetStorageEgress(default_path='x.parquet')",
+            ["pyarrow.parquet", "pyarrow.fs", "pandas"],
+            [],
+        ),
+        ("JsonlStorageEgress(default_path='x.jsonl')", ["pyarrow.fs"], ["pandas"]),
+        (
+            "IcebergStorageEgress(catalog={'type': 'sql'}, default_table='a.b')",
+            ["pyarrow", "pyiceberg.io.pyarrow", "pyiceberg.catalog.sql", "pandas"],
+            [],
+        ),
+        (
+            "IcebergStorageEgress(catalog={'uri': 'sqlite:///x.db'}, "
+            "default_table='a.b')",
+            ["pyiceberg.io.pyarrow", "pyiceberg.catalog.sql"],
+            ["pyiceberg.catalog.rest"],
+        ),
+    ],
+)
+def test_a_storage_sink_loads_its_libraries_before_the_run(sink, loaded, not_loaded):
+    """In a new interpreter, `_load_libraries` imports what the sink's thread would
+    import on its first write: `pyarrow`'s modules, and pandas, which `pyarrow` loads
+    on its first table when it is installed. The JSONL sink builds no table, so it
+    does not load pandas. The Iceberg sink also loads `pyiceberg.io.pyarrow` and the
+    module of its catalog's type, given as `type` or read from the `uri` as PyIceberg
+    reads it."""
+    import importlib.util
+    import subprocess
+    import sys
+
+    if importlib.util.find_spec("pandas") is None:
+        loaded = [module for module in loaded if module != "pandas"]
+
+    code = (
+        "import sys\n"
+        "from desflow.connectors.egress.storage import ParquetStorageEgress, "
+        "JsonlStorageEgress\n"
+        "from desflow.connectors.egress.iceberg import IcebergStorageEgress\n"
+        f"sink = {sink}\n"
+        f"before = [m for m in {loaded + not_loaded!r} if m in sys.modules]\n"
+        "sink._load_libraries()\n"
+        "print(before, sorted(m for m in "
+        f"{loaded + not_loaded!r} if m in sys.modules))\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    ).stdout
+    assert out.strip() == f"[] {sorted(loaded)!r}"

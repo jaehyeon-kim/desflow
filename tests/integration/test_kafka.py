@@ -134,6 +134,65 @@ async def test_envelope_false_writes_the_payload_alone(kafka_container):
     assert message.key == b"o-1"
 
 
+def _tombstone_yaml(tmp_path, bootstrap_servers, topic):
+    """A blueprint whose second change of customer `c-7` is a delete: its payload
+    gives null, and its Kafka sink has `envelope: false`."""
+    from desflow import SimulationContext
+
+    path = tmp_path / "cdc.yaml"
+    path.write_text(
+        json.dumps(
+            {
+                "simulation": {"sim_id": "Cdc", "factor": 0, "random_seed": 3},
+                "arrivals": {
+                    "changes": {"dist": "constant", "value": 1, "spawn": "change"}
+                },
+                "tasks": {
+                    "change": {
+                        "vars": {"n": {"gen": "sequence"}},
+                        "key": "c-7",
+                        "payload": {
+                            "gen": "when",
+                            "condition": "n == 1",
+                            "then": None,
+                            "else": {"gen": "object", "fields": {"id": 7}},
+                        },
+                    }
+                },
+                "egress": [
+                    {
+                        "type": "Kafka",
+                        "when": "events",
+                        "envelope": False,
+                        "config": {
+                            "bootstrap_servers": bootstrap_servers,
+                            "event_topic": topic,
+                        },
+                    }
+                ],
+                "run": {"until": 2.5},
+            }
+        ),
+        encoding="utf-8",
+    )
+    SimulationContext.from_yaml(path).run()
+
+
+@pytest.mark.asyncio
+async def test_a_null_value_is_a_tombstone_with_envelope_false(
+    kafka_container, tmp_path
+):
+    """A CDC delete: with `envelope` off an event whose value is null is a message
+    on the event topic with the key and a null value. The Builder and Low-level
+    forms reach the same sink call, which the unit tests check."""
+    topic = _name("cdc")
+    # Read after the run: a consumer started first would race the sink to the topic
+    await asyncio.to_thread(_tombstone_yaml, tmp_path, kafka_container, topic)
+    insert, delete = await _read_messages(kafka_container, topic, 2)
+    assert (insert.key, json.loads(insert.value)) == (b"c-7", {"id": 7})
+    assert (delete.key, delete.value) == (b"c-7", None)
+
+
 # The two projects below send these messages with their own generators, which this
 # test cannot run. Their output is fixed here from the code, as read on 2 Nov 2026:
 #

@@ -1568,7 +1568,10 @@ def _kind(value: Any) -> str:
     return "<list>" if isinstance(value, list) else "<const>"
 
 
-_NOT_A_PAYLOAD = "a payload is a mapping or a generator that gives a mapping"
+_NOT_A_PAYLOAD = (
+    "a payload is a mapping or a generator that gives a mapping or null "
+    "(a record whose value is null)"
+)
 
 # mypy cannot resolve a recursive `TypeAliasType`, so it reads both as `Any`; Pydantic
 # reads the definitions below

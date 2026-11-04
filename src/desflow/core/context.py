@@ -607,10 +607,15 @@ class SimulationContext:
                 because simulation time is then detached from the wall clock.
             envelope: False makes this a plain-output provider. It receives no
                 telemetry record and no `queued` or `started` record, and it writes
-                each event's `value` without the record around it. Kafka and Redis
-                send a value that is not a mapping as JSON, and the storage and
-                PostgreSQL sinks skip it with one warning. Ground-truth records
-                are not affected. Defaults to True.
+                each event's `value` without the record around it. A Kafka sink
+                sends a null value as a tombstone, a message with the record's key
+                and a null value, and sends any other value that is not a mapping
+                as JSON. A Redis sink sends a value that is not a mapping as JSON,
+                null included. A storage, Iceberg or PostgreSQL sink skips it, with
+                one warning. Ground-truth records are not affected. Defaults to
+                True. With the envelope on, a null value stays in the record, and a
+                Kafka serializer whose schema has no null for `value` refuses it:
+                the record is skipped with a warning.
 
         Returns:
             SimulationContext: The current instance for method chaining.

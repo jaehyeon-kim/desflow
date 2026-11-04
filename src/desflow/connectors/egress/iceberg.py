@@ -1,14 +1,16 @@
 import asyncio
+import importlib
 import logging
 import queue
 from collections import Counter
 from collections.abc import Mapping
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from desflow.connectors.egress.base import (
     BaseEgress,
     drop_reserved_keys,
     group_rows,
+    load_arrow,
     warn_skipped,
     write_error,
     parse_iso_columns,
@@ -19,6 +21,10 @@ logger = logging.getLogger(__name__)
 
 
 TABLE_POLICIES = ("create", "drop_and_create", "manual")
+
+# PyIceberg's catalog types whose module, under `pyiceberg.catalog`, has another
+# name; every other type's module is named after the type
+_CATALOG_MODULES = {"in-memory": "memory", "bigquery": "bigquery_metastore"}
 
 # Iceberg's primitive type names, as accepted in a `schemas` mapping, and the
 # PyArrow type each one is created with.
@@ -360,6 +366,31 @@ class IcebergStorageEgress(BaseEgress):
         # so another writer changing the table does not lose this one's records.
         self._tables: Dict[str, Any] = {}
 
+    def _load_libraries(self) -> None:
+        """Imports `pyarrow` and what it loads on its first table, and
+        `pyiceberg.io.pyarrow`, which the first write imports. When the catalog is
+        built from `catalog_properties`, it also imports `pyiceberg.catalog` and the
+        module of the catalog's type, such as `pyiceberg.catalog.sql`."""
+        load_arrow("pyiceberg.io.pyarrow")
+        if self.catalog is None:
+            try:
+                from pyiceberg.catalog import CatalogType, infer_catalog_type
+
+                name, properties = self._catalog_arguments()
+                name = name or "default"
+                given = properties.get("type")
+                if given:
+                    catalog_type = str(given).lower()
+                else:
+                    inferred = infer_catalog_type(name, properties)
+                    catalog_type = inferred.value if inferred else ""
+                if catalog_type in {kind.value for kind in CatalogType}:
+                    module = _CATALOG_MODULES.get(catalog_type, catalog_type)
+                    importlib.import_module(f"pyiceberg.catalog.{module}")
+            except (ImportError, ValueError):
+                # `run` builds the catalog and reports what is missing or wrong
+                return
+
     async def run(self, egress_queue: queue.Queue) -> None:
         """
         The main execution loop that consumes the egress queue and commits to Iceberg.
@@ -584,10 +615,20 @@ class IcebergStorageEgress(BaseEgress):
         if self.catalog is None:
             from pyiceberg.catalog import load_catalog
 
-            properties = {
-                key: _catalog_property(value)
-                for key, value in (self.catalog_properties or {}).items()
-            }
-            name = properties.pop("name", None)
+            name, properties = self._catalog_arguments()
             self.catalog = load_catalog(name, **properties)
         return self.catalog
+
+    def _catalog_arguments(self) -> Tuple[Optional[str], Dict[str, Any]]:
+        """
+        Renders `catalog_properties` as PyIceberg reads them.
+
+        Returns:
+            Tuple[Optional[str], Dict[str, Any]]: The catalog's `name`, or None when
+            none is given, and the other properties, each scalar as a string.
+        """
+        properties = {
+            key: _catalog_property(value)
+            for key, value in (self.catalog_properties or {}).items()
+        }
+        return properties.pop("name", None), properties

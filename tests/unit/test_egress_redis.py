@@ -85,12 +85,14 @@ async def test_stream_key_is_read_from_the_nested_payload(run_until):
 @pytest.mark.asyncio
 async def test_envelope_false_stores_the_value_alone(run_until):
     """With `envelope` off the `payload` field holds the event's value as JSON,
-    without `__stream__`, and a value that is not a mapping is stored too."""
+    without `__stream__`, and a value that is not a mapping is stored too, a null
+    value as JSON `null`."""
     egress_queue = queue.Queue()
     egress_queue.put(
         [
             {"stream_type": "event", "key": "e1", "value": {"__stream__": "s", "n": 1}},
             {"stream_type": "event", "key": "e2", "value": "text"},
+            {"stream_type": "event", "key": "e3", "value": None},
         ]
     )
     egress = RedisEgress(url="redis://localhost:6379/0", stream_name="default")
@@ -112,4 +114,5 @@ async def test_envelope_false_stores_the_value_alone(run_until):
     ] == [
         ("s", {"n": 1}),
         ("default", "text"),
+        ("default", None),
     ]

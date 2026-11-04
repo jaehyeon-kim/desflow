@@ -34,5 +34,6 @@ def program():
 
     arrival(env, "a", pem, initial=1)
     r = go(env, log, 2)
+    # WALL, like SimPy's own test, includes the set-up before `go`
     assert 2 * 0.1 <= WALL[0] < 2 * 0.1 + 0.02 and olog == [1]
     return r

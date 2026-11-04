@@ -492,7 +492,8 @@ class Scope:
     What the names in an expression read.
 
     Attributes:
-        payload: The upstream payload, read as `payload.<field>`.
+        payload: The upstream payload, read as `payload.<field>`; None when it is
+            null.
         attributes: The entity's attributes, read as `attr.<name>`.
         levels: Stores and containers by name, read as `level.<name>`, `putters.<name>`
             and `getters.<name>` (the puts and gets waiting), and, for a store,
@@ -541,7 +542,7 @@ class Scope:
             member that does not exist yet use.
     """
 
-    payload: Mapping[str, Any] = field(default_factory=dict)
+    payload: Optional[Mapping[str, Any]] = field(default_factory=dict)
     attributes: Mapping[str, Any] = field(default_factory=dict)
     levels: Mapping[str, Any] = field(default_factory=dict)
     resources: Mapping[str, Any] = field(default_factory=dict)
@@ -598,6 +599,9 @@ class Expression:
             them, which read each item the store holds and not the item of a get.
             `has` holds the attribute names `has(attr.<name>)` tests, which need not
             exist.
+        where (str): The place of the expression in a blueprint, such as
+            `model.yaml:12: tasks.t.fail`, which an evaluation error names first;
+            empty when it has none.
     """
 
     def __init__(
@@ -636,6 +640,7 @@ class Expression:
         if not isinstance(text, str):
             raise ValueError(f"an expression must be text, got {text!r}")
         self.text = text
+        self.where = ""
         self._records = records
         self._names = names
         self._rule = rule
@@ -761,20 +766,25 @@ class Expression:
 
         Raises:
             ValueError: If a name it reads is missing, or the arithmetic fails, such
-                as a division by zero. The message names the expression.
+                as a division by zero. The message names the expression, after its
+                place when it has one.
         """
         if _WORK.depth == 0:
             _WORK.made = 0
         _WORK.depth += 1
+        place = f"{self.where}: " if self.where else ""
         try:
             return self._value(self._tree, scope)
         except MemoryError:
             raise ValueError(
-                f"cannot evaluate '{self.text}': it needs more memory than there is"
+                f"{place}cannot evaluate '{self.text}': it needs more memory than "
+                "there is"
             ) from None
         except (KeyError, IndexError, ArithmeticError, TypeError, ValueError) as exc:
             reason = exc.args[0] if isinstance(exc, KeyError) else exc
-            raise ValueError(f"cannot evaluate '{self.text}': {reason}") from None
+            raise ValueError(
+                f"{place}cannot evaluate '{self.text}': {reason}"
+            ) from None
         finally:
             _WORK.depth -= 1
 
@@ -1667,6 +1677,8 @@ class Expression:
             container = scope.cause
         else:
             container, message = sources[source]
+            if source == "payload" and container is None:
+                raise KeyError("the payload is null")
             if container is None or first not in container:
                 raise KeyError(message.format(first))
         value = container[first]
