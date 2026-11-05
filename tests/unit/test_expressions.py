@@ -6,7 +6,9 @@ from types import SimpleNamespace
 import pytest
 
 from desflow.core.environment import DynamicRealtimeEnvironment
-from desflow.core.expressions import ANY_NAME, Expression, Scope
+from desflow.blueprint.models import check_var_names
+from desflow.core.expressions import ANY_NAME, RESERVED_NAMES, Expression, Scope
+from desflow.values.models import Expr
 from desflow.models.params import DistributionConfig, SimParameter
 
 
@@ -533,6 +535,20 @@ def test_a_comprehension_loop_name_is_local_to_it():
     assert Expression("[x + 1 for y in [1]]", names={"x"}).evaluate(scope) == [8]
     with pytest.raises(ValueError, match="the loop name 'x'"):
         Expression("[x for x in [1, 2]]", names={"x"})
+
+
+@pytest.mark.parametrize("name", ["sumprod", "prod"])
+def test_the_list_function_names_are_reserved_for_a_later_release(name):
+    """`sumprod` and `prod` are the list functions planned after 1.0. A var, a loop
+    name and a generator name may not take them, so adding the functions refuses no
+    1.x blueprint."""
+    assert name in RESERVED_NAMES
+    with pytest.raises(ValueError, match=f"'{name}' is a name an expression already"):
+        check_var_names([name], "vars")
+    with pytest.raises(ValueError, match=f"the loop name '{name}'"):
+        Expression(f"[{name} for {name} in [1, 2]]")
+    with pytest.raises(ValueError, match=f"'{name}' cannot be a name here"):
+        Expr(expr="1", names={name: 1})
 
 
 @pytest.mark.parametrize(

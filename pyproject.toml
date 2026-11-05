@@ -208,6 +208,12 @@ dev = [
     # The known case DX-23 and the unit tests of the `ssl` files make a CA and a
     # key pair with it.
     "cryptography>=50.0.2",
+    # scripts/blueprint_layout.py writes the YAML blueprint layout with its
+    # round-trip mode, which keeps comments, anchors, tags and quotes.
+    "ruamel.yaml>=0.19.1",
+    # Checks what the layout script leaves as written: line length, blank lines,
+    # spacing and indentation.
+    "yamllint>=1.38.0",
 ]
 
 [tool.ruff]

@@ -235,7 +235,8 @@ _FUNCTIONS: Dict[str, Tuple[Callable[..., Any], int, Optional[int]]] = {
 # Names an expression gives a meaning, so a var cannot take them. The words from `all`
 # to `waiting` are the functions and names of Batch 6, and the words that the Facts
 # table keeps for the handles and resource names of later batches (`batch`, `each`,
-# `handle`, `holder`, `member`, `members`, `request`)
+# `handle`, `holder`, `member`, `members`, `request`). `prod` and `sumprod` are the
+# list functions a later 1.x release adds, so no var may take them now
 RESERVED_NAMES = frozenset(
     _PREFIXES
     + _CALLS
@@ -263,6 +264,7 @@ RESERVED_NAMES = frozenset(
         "member",
         "members",
         "peek",
+        "prod",
         "putting",
         "range",
         "request",
@@ -271,6 +273,7 @@ RESERVED_NAMES = frozenset(
         "sorted",
         "str",
         "sum",
+        "sumprod",
         "upstream",
         "waiting",
     )  # fmt: skip

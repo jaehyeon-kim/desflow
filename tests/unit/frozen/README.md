@@ -1,0 +1,1 @@
+`blueprint.schema.1.0.json` is the JSON Schema of the YAML blueprint format as 1.0 froze it. It is the 1.0 contract, a copy of `src/desflow/blueprint/blueprint.schema.json` at the end of Batch 12 part 12d1, and it is never regenerated. `tests/unit/test_yaml_format_frozen.py` compares the committed schema with it, and every difference must be a listed widening.

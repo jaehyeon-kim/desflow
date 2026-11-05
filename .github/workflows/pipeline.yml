@@ -534,10 +534,12 @@ jobs:
   # its entry with the next version. The baseline is the newest `v*` tag in the
   # history, so once a release is tagged, later pushes are compared with it. The
   # baseline side runs from outside the repository, because uv run --no-project
-  # inside it imports the working tree's desflow.
+  # inside it imports the working tree's desflow. The steps from "Check out v1.0.0"
+  # on pin 1.0 once the tag v1.0.0 exists.
   regression:
     needs: [lint, extras-isolation, core-install]
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
         with:
@@ -564,10 +566,42 @@ jobs:
             python "$GITHUB_WORKSPACE/scripts/regression.py" capture \
             --root "$RUNNER_TEMP/baseline" \
             --scenarios "$GITHUB_WORKSPACE/tests/regression/scenarios" \
+            --left-out "$GITHUB_WORKSPACE/tests/regression/left_out.yaml" \
             --out "$RUNNER_TEMP/old.json"
 
       - name: Compare the two captures
         run: uv run --all-extras python scripts/regression.py compare "$RUNNER_TEMP/old.json" "$RUNNER_TEMP/new.json" --baseline "$BASELINE"
+
+      # From the tag v1.0.0 on, the output of every 1.0 blueprint is pinned: both sides
+      # run the files of v1.0.0 (its examples, blueprints, scenarios and its own
+      # list of left-out files), one with the released desflow and one with this
+      # commit's, so an edit to an example cannot hide a change in what a 1.0
+      # blueprint does. A difference fails the job unless expected.yaml lists it
+      # with a `since` above 1.0.0.
+      - name: Check out v1.0.0 beside the repository
+        id: pin
+        run: |
+          if git rev-parse --quiet --verify refs/tags/v1.0.0 > /dev/null; then
+            git worktree add "$RUNNER_TEMP/v1.0.0" v1.0.0
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Capture the files of v1.0.0 on this commit
+        if: steps.pin.outputs.exists == 'true'
+        run: uv run --all-extras python scripts/regression.py capture --root "$RUNNER_TEMP/v1.0.0" --out "$RUNNER_TEMP/pin-new.json"
+
+      - name: Capture the files of v1.0.0 on desflow 1.0.0
+        if: steps.pin.outputs.exists == 'true'
+        working-directory: ${{ runner.temp }}
+        run: |
+          uv run --no-project --python 3.12 --with "desflow[all]==1.0.0" --with pytest \
+            python "$GITHUB_WORKSPACE/scripts/regression.py" capture \
+            --root "$RUNNER_TEMP/v1.0.0" \
+            --out "$RUNNER_TEMP/pin-old.json"
+
+      - name: Compare the two captures of the v1.0.0 files
+        if: steps.pin.outputs.exists == 'true'
+        run: uv run --all-extras python scripts/regression.py compare "$RUNNER_TEMP/pin-old.json" "$RUNNER_TEMP/pin-new.json" --baseline 1.0.0 --set-aside-absent
 
   docs:
     needs: [unit-test, integration-test, service-examples, parquet-s3-example, blueprint, simpy-range, pydantic-floor, docs-build, docs-strict-build, regression]

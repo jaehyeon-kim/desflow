@@ -1,0 +1,60 @@
+# Files that `scripts/regression.py capture` does not run as blueprints (`_all_blueprints`), each with its reason.
+# A file is left out when it is not a blueprint, has no end, needs a service, gives only
+# an import error because its `!python` module is neither beside it nor in a folder it
+# names, or gives a different capture on two runs of one commit. `capture` restores
+# `sys.modules` and `sys.path` after each file, so each file is decided by running it alone.
+# Paths are relative to the checkout.
+
+tests/conformance/register.yaml: "a list of data, not a blueprint (it has no `simulation` section)"
+tests/conformance/simpy_constructs.yaml: "a list of data, not a blueprint (it has no `simulation` section)"
+tests/known_cases/index.yaml: "a list of data, not a blueprint (it has no `simulation` section)"
+tests/regression/expected.yaml: "a list of data, not a blueprint (it has no `simulation` section)"
+tests/regression/left_out.yaml: "a list of data, not a blueprint (it has no `simulation` section)"
+
+docs/snippets/yaml/checking_a_model_experiment.yaml: "an experiment file of `desflow experiment`, which names a blueprint, not a blueprint"
+docs/snippets/yaml/comparing_designs_experiment.yaml: "an experiment file of `desflow experiment`, which names a blueprint, not a blueprint"
+docs/snippets/yaml/complete_model_experiment.yaml: "an experiment file of `desflow experiment`, which names a blueprint, not a blueprint"
+docs/snippets/yaml/parameter_sweeps_experiment.yaml: "an experiment file of `desflow experiment`, which names a blueprint, not a blueprint"
+examples/yaml/experiment.yaml: "an experiment file of `desflow experiment`, which names a blueprint, not a blueprint"
+
+docs/snippets/yaml/fitted/complete_orders.yaml: "a distribution fitted by `desflow fit` that a blueprint includes, not a blueprint"
+docs/snippets/yaml/fitted/complete_packing.yaml: "a distribution fitted by `desflow fit` that a blueprint includes, not a blueprint"
+docs/snippets/yaml/fitted/complete_picking.yaml: "a distribution fitted by `desflow fit` that a blueprint includes, not a blueprint"
+docs/snippets/yaml/fitted/orders.yaml: "a distribution fitted by `desflow fit` that a blueprint includes, not a blueprint"
+docs/snippets/yaml/fitted/packing.yaml: "a distribution fitted by `desflow fit` that a blueprint includes, not a blueprint"
+docs/snippets/yaml/fitted/packing_gamma.yaml: "a distribution fitted by `desflow fit` that a blueprint includes, not a blueprint"
+docs/snippets/yaml/fitted/packing_times.yaml: "a distribution fitted by `desflow fit` that a blueprint includes, not a blueprint"
+examples/yaml/packing_fit.yaml: "a distribution fitted by `desflow fit` that a blueprint includes, not a blueprint"
+
+examples/params.yaml: "the parameter file of `desflow run --params`, not a blueprint"
+
+tests/known_cases/dx_22/catalogs/rest.yaml: "an Iceberg catalog file that the model of case DX-22 includes, not a blueprint"
+tests/known_cases/dx_22/catalogs/sqlite.yaml: "an Iceberg catalog file that the model of case DX-22 includes, not a blueprint"
+
+docs/snippets/yaml/check_against_theory_constant.yaml: "has no `run.until`, so an unpaced run never ends (it is for `desflow explain`)"
+
+docs/snippets/yaml/complex_routing.yaml: "its Kafka admin connector connects to a broker when the run starts"
+
+docs/snippets/yaml/environment.yaml: "a strict run: the capture stops it with \"too slow for real time\", and the lag in the message depends on the wall clock"
+tests/known_cases/gd_r1/model.yaml: "a strict run: the capture stops it with \"too slow for real time\", and the lag in the message depends on the wall clock"
+tests/known_cases/gd_r2/model.yaml: "a strict run: the capture stops it with \"too slow for real time\", and the lag in the message depends on the wall clock"
+tests/known_cases/st_rt1/model.yaml: "a strict run: the capture stops it with \"too slow for real time\", and the lag in the message depends on the wall clock"
+tests/known_cases/st_rt2/model.yaml: "a strict run: the capture stops it with \"too slow for real time\", and the lag in the message depends on the wall clock"
+tests/known_cases/st_rt3/model.yaml: "a strict run: the capture stops it with \"too slow for real time\", and the lag in the message depends on the wall clock"
+
+tests/known_cases/st_e04/model.yaml: "its error text holds the memory address of an event, which differs from run to run"
+tests/known_cases/st_rt7/model.yaml: "its error text holds the memory address of an event, which differs from run to run"
+
+docs/snippets/yaml/avro_and_pydantic.yaml: "one of its `!python` modules is kept in `docs/snippets/guides/`, and the page has the reader put it beside the blueprint, so the capture is only an import error"
+docs/snippets/yaml/cloud_storage.yaml: "one of its `!python` modules is kept in `docs/snippets/guides/`, and the page has the reader put it beside the blueprint, so the capture is only an import error"
+docs/snippets/yaml/iceberg_tables.yaml: "one of its `!python` modules is kept in `docs/snippets/guides/`, and the page has the reader put it beside the blueprint, so the capture is only an import error"
+docs/snippets/yaml/json_schema_and_protobuf.yaml: "one of its `!python` modules is kept in `docs/snippets/guides/`, and the page has the reader put it beside the blueprint, so the capture is only an import error"
+
+tests/known_cases/dx_1/original.yaml: "its `!python` module is kept in `examples/yaml/advanced/`, and the known-case test puts that folder on the path, so the capture is only an import error"
+
+tests/known_cases/dx_3/original.yaml: "its `!python` module is kept in `docs/snippets/yaml/`, and the known-case test puts that folder on the path, so the capture is only an import error"
+tests/known_cases/dx_4/original.yaml: "its `!python` module is kept in `docs/snippets/yaml/`, and the known-case test puts that folder on the path, so the capture is only an import error"
+tests/known_cases/dx_5/original.yaml: "its `!python` module is kept in `docs/snippets/yaml/`, and the known-case test puts that folder on the path, so the capture is only an import error"
+tests/known_cases/dx_6/original.yaml: "its `!python` module is kept in `docs/snippets/yaml/`, and the known-case test puts that folder on the path, so the capture is only an import error"
+tests/known_cases/dx_7/original.yaml: "its `!python` module is kept in `docs/snippets/yaml/`, and the known-case test puts that folder on the path, so the capture is only an import error"
+tests/known_cases/dx_8/original.yaml: "its `!python` module is kept in `docs/snippets/yaml/`, and the known-case test puts that folder on the path, so the capture is only an import error"
