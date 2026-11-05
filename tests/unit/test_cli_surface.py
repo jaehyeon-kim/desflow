@@ -773,7 +773,9 @@ def _small_app(
     new_argument: bool = False,
 ) -> typer.Typer:
     settings = {"help_option_names": help_names} if help_names is not None else None
-    small = typer.Typer(no_args_is_help=True, context_settings=settings)
+    small = typer.Typer(
+        no_args_is_help=True, add_completion=False, context_settings=settings
+    )
     members = {name: name for name in (*modes, *(["extra"] * new_choice))}
     mode_type = Enum("Mode", members, type=str)  # type: ignore[misc]
     all_names = (*names, *(["--tag"] * new_alias))
