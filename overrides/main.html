@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+
+{#- Material shows this banner on a docs version that is not the default, `latest`. -#}
+{% block outdated %}
+  This is the documentation of an older version.
+  <a href="{{ '../' ~ base_url }}"><strong>Go to the latest.</strong></a>
+{% endblock %}

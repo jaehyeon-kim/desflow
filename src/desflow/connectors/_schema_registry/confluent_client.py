@@ -6,7 +6,6 @@ import random
 import ssl
 import threading
 import time
-import warnings
 from collections.abc import Mapping, Sequence
 from typing import Any
 from urllib.parse import quote, unquote, urlparse, urlunparse
@@ -432,8 +431,7 @@ def _error_of(response: httpx.Response) -> SchemaRegistryError:
         )
 
 
-def resolve_legacy_options(
-    options: Mapping[str, Any],
+def given_arguments(
     *,
     auth: tuple[str, str] | None = UNSET,
     verify: VerifyType = UNSET,
@@ -443,18 +441,12 @@ def resolve_legacy_options(
     proxy: str | None = UNSET,
     max_retries: int = UNSET,
 ) -> dict[str, Any]:
-    """Maps the confluent-kafka keys of `**registry_kwargs` to named arguments.
+    """Returns the named arguments a caller gave.
 
-    An argument that is not given holds `UNSET`, so a key is refused whenever its
-    argument is given, even with its default value. It returns only the values
-    that were given; `ConfluentRegistryClient` fills in the defaults.
-
-    Each accepted key warns with a `FutureWarning`. The warning names the key and
-    its replacement, never the value, so a secret is not printed. The keys are
-    removed in desflow 0.41.0.
+    An argument that is not given holds `UNSET`, and `ConfluentRegistryClient` fills
+    in its default.
 
     Args:
-        options (Mapping[str, Any]): The keys that were passed as `**registry_kwargs`.
         auth (tuple[str, str] | None): The named argument of the same name.
         verify (VerifyType): The named argument of the same name.
         cert (CertType | None): The named argument of the same name.
@@ -465,12 +457,8 @@ def resolve_legacy_options(
 
     Returns:
         dict[str, Any]: The arguments for `ConfluentRegistryClient` that were given,
-            by argument or by key, among `auth`, `verify`, `cert`, `timeout`,
-            `headers`, `proxy` and `max_retries`.
-
-    Raises:
-        ValueError: If a key is given and so is its named argument, if a key has no
-            replacement, if a key holds an invalid value, or if a key is unknown.
+            among `auth`, `verify`, `cert`, `timeout`, `headers`, `proxy` and
+            `max_retries`.
     """
     arguments: dict[str, Any] = {
         "auth": auth,
@@ -481,140 +469,8 @@ def resolve_legacy_options(
         "proxy": proxy,
         "max_retries": max_retries,
     }
-    given = {name: value is not UNSET for name, value in arguments.items()}
-    resolved = {name: value for name, value in arguments.items() if given[name]}
-    remaining = dict(options)
-    notices: list[str] = []
-
-    def take(key: str, argument: str) -> Any:
-        """Removes a key, notes it, and refuses it when its argument is also given."""
-        if given[argument]:
-            raise ValueError(f"'{key}' and {argument}= are both given. Use {argument}=")
-        notices.append(_notice(key, f"{argument}="))
-        return remaining.pop(key)
-
-    if "url" in remaining:
-        raise ValueError("The key 'url' is not accepted. Pass registry_url")
-    for key in ("retries.wait.ms", "retries.max.wait.ms"):
-        if key in remaining:
-            raise ValueError(
-                f"The key '{key}' is not accepted. desflow waits with a random "
-                "backoff; set the number of tries with max_retries="
-            )
-
-    if "basic.auth.user.info" in remaining:
-        user_info = take("basic.auth.user.info", "auth")
-        parts = str(user_info).split(":", 1)
-        if len(parts) != 2:
-            raise ValueError("basic.auth.user.info must be in the form user:password")
-        resolved["auth"] = (parts[0], parts[1])
-    if "ssl.ca.location" in remaining:
-        resolved["verify"] = take("ssl.ca.location", "verify")
-    notices += _resolve_certificate(remaining, resolved, given["cert"])
-    if "max.retries" in remaining:
-        resolved["max_retries"] = int(take("max.retries", "max_retries"))
-    for key in ("cache.capacity", "cache.latest.ttl.sec"):
-        if key in remaining:
-            notices.append(_notice(key, None))
-            del remaining[key]
-
-    notices += _resolve_bearer(remaining, resolved, given["headers"])
-
-    if remaining:
-        raise ValueError(f"Unrecognized properties: {', '.join(sorted(remaining))}")
-    for notice in notices:
-        warnings.warn(notice, FutureWarning, stacklevel=3)
-    return resolved
-
-
-def _resolve_certificate(
-    remaining: dict[str, Any], resolved: dict[str, Any], cert_given: bool
-) -> list[str]:
-    """Turns the `ssl.certificate.location` and key keys into `cert`.
-
-    Returns:
-        list[str]: One deprecation notice for each key it took.
-    """
-    certificate = remaining.get("ssl.certificate.location")
-    key_file = remaining.get("ssl.key.location")
-    key_password = remaining.get("ssl.key.password")
-    if certificate is None and (key_file is not None or key_password is not None):
-        raise ValueError(
-            "ssl.certificate.location is required with ssl.key.location "
-            "or ssl.key.password"
-        )
-    if certificate is None:
-        return []
-    if cert_given:
-        raise ValueError("The ssl.* keys and cert= are both given. Use cert=")
-    notices = []
-    for key in ("ssl.certificate.location", "ssl.key.location", "ssl.key.password"):
-        if key in remaining:
-            notices.append(_notice(key, "cert="))
-            del remaining[key]
-    resolved["cert"] = (
-        (certificate, key_file, key_password)
-        if key_password is not None
-        else (certificate, key_file)
-    )
-    return notices
-
-
-def _resolve_bearer(
-    remaining: dict[str, Any], resolved: dict[str, Any], headers_given: bool
-) -> list[str]:
-    """Turns the static bearer token keys into `headers`, and refuses other sources.
-
-    Returns:
-        list[str]: One deprecation notice for each key it took.
-    """
-    bearer = [key for key in remaining if key.startswith("bearer.auth.")]
-    if not bearer:
-        return []
-    source = remaining.get("bearer.auth.credentials.source")
-    if source != "STATIC_TOKEN":
-        raise ValueError(
-            "Only bearer.auth.credentials.source STATIC_TOKEN is accepted. "
-            "Obtain the token yourself and pass it in headers="
-        )
-    if headers_given:
-        raise ValueError(
-            "The bearer.auth.* keys and headers= are both given. Use headers="
-        )
-    token = remaining.get("bearer.auth.token")
-    cluster = remaining.get("bearer.auth.logical.cluster")
-    if token is None or cluster is None:
-        raise ValueError(
-            "bearer.auth.token and bearer.auth.logical.cluster are required "
-            "with STATIC_TOKEN"
-        )
-    pool = remaining.get("bearer.auth.identity.pool.id")
-    unknown = set(bearer) - {
-        "bearer.auth.credentials.source",
-        "bearer.auth.token",
-        "bearer.auth.logical.cluster",
-        "bearer.auth.identity.pool.id",
-    }
-    if unknown:
-        raise ValueError(
-            "These keys are not accepted with STATIC_TOKEN: "
-            f"{', '.join(sorted(unknown))}. Pass the token in headers="
-        )
-    resolved["headers"] = {
-        "Authorization": f"Bearer {token}",
-        "target-sr-cluster": cluster,
-        **({"Confluent-Identity-Pool-Id": pool} if pool is not None else {}),
-    }
-    notices = [_notice(key, "headers=") for key in bearer]
-    for key in bearer:
-        del remaining[key]
-    return notices
-
-
-def _notice(key: str, replacement: str | None) -> str:
-    """Words the deprecation of a confluent-kafka key, without its value."""
-    if replacement is None:
-        text = f"The registry option '{key}' has no effect in desflow"
-    else:
-        text = f"The registry option '{key}' is replaced by {replacement}"
-    return f"{text}, and desflow 0.41.0 removes it."
+    given: dict[str, Any] = {}
+    for name, value in arguments.items():
+        if value is not UNSET:
+            given[name] = value
+    return given

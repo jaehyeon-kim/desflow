@@ -79,17 +79,3 @@ for _module in (
     examples,
 ):
     _module.register(app)
-
-
-def ddes() -> None:
-    """Run the `desflow` command under its old name, `ddes`, after a warning.
-
-    `ddes` was the command before the package was renamed from dynamic-des to
-    desflow. It is removed in a later release, as the Changelog says.
-    """
-    typer.echo(
-        "Warning: the ddes command is deprecated and will be removed in a later "
-        "release. Use desflow instead.",
-        err=True,
-    )
-    app(prog_name="desflow")

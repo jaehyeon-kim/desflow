@@ -62,8 +62,6 @@ dependencies = [
 
 [project.scripts]
 desflow = "desflow.cli:app"
-# The command before the rename. It warns, then runs desflow.
-ddes = "desflow.blueprint.cli:ddes"
 
 [project.urls]
 Homepage = "https://jaehyeon.me/desflow/"
@@ -160,11 +158,6 @@ all = [
 [build-system]
 requires = ["uv_build>=0.9.16,<0.14.0"]
 build-backend = "uv_build"
-
-[tool.uv.build-backend]
-# dynamic_des is the import name before the rename. It warns and loads desflow, so
-# code written for dynamic-des keeps running until it is removed in a later release.
-module-name = ["desflow", "dynamic_des"]
 
 [dependency-groups]
 dev = [

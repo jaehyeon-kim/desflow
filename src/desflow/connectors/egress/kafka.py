@@ -122,7 +122,6 @@ class ConfluentAvroSerializer:
         headers: Optional[Mapping[str, str]] = UNSET,
         proxy: Optional[str] = UNSET,
         max_retries: int = UNSET,
-        **registry_kwargs: Any,
     ):
         """
         Initializes the Confluent Avro serializer. It makes no request to the registry.
@@ -153,14 +152,9 @@ class ConfluentAvroSerializer:
             max_retries (int): How many times a request is repeated after a
                 transport error or a status of 408, 429, 500, 502, 503 or 504. The
                 default is 3.
-            **registry_kwargs: Deprecated confluent-kafka keys, such as
-                `{'basic.auth.user.info': 'user:pass'}`, which desflow accepts with a
-                `FutureWarning` and removes in 0.41.0. Use the named arguments.
 
         Raises:
             ImportError: If the 'fastavro' or 'httpx' package is not installed.
-            ValueError: If a deprecated key is not accepted, or is given together with
-                its named argument.
         """
         try:
             import fastavro  # noqa: F401
@@ -169,7 +163,7 @@ class ConfluentAvroSerializer:
             from desflow.connectors._schema_registry import avro
             from desflow.connectors._schema_registry.confluent_client import (
                 ConfluentRegistryClient,
-                resolve_legacy_options,
+                given_arguments,
             )
             from desflow.connectors._schema_registry.wire import frame_confluent
         except ImportError:
@@ -179,8 +173,7 @@ class ConfluentAvroSerializer:
                 "Install them using: pip install desflow[confluent]"
             )
 
-        options = resolve_legacy_options(
-            registry_kwargs,
+        options = given_arguments(
             auth=auth,
             verify=verify,
             cert=cert,
@@ -367,7 +360,7 @@ class ConfluentJsonSchemaSerializer:
             from desflow.connectors._schema_registry import json_schema
             from desflow.connectors._schema_registry.confluent_client import (
                 ConfluentRegistryClient,
-                resolve_legacy_options,
+                given_arguments,
             )
             from desflow.connectors._schema_registry.wire import frame_confluent
         except ImportError:
@@ -377,8 +370,7 @@ class ConfluentJsonSchemaSerializer:
                 "Install them using: pip install desflow[confluent]"
             )
 
-        options = resolve_legacy_options(
-            {},
+        options = given_arguments(
             auth=auth,
             verify=verify,
             cert=cert,
@@ -486,7 +478,7 @@ class ConfluentProtobufSerializer:
             from desflow.connectors._schema_registry import protobuf
             from desflow.connectors._schema_registry.confluent_client import (
                 ConfluentRegistryClient,
-                resolve_legacy_options,
+                given_arguments,
             )
             from desflow.connectors._schema_registry.wire import frame_confluent
         except ImportError:
@@ -496,8 +488,7 @@ class ConfluentProtobufSerializer:
                 "Install them using: pip install desflow[confluent]"
             )
 
-        options = resolve_legacy_options(
-            {},
+        options = given_arguments(
             auth=auth,
             verify=verify,
             cert=cert,
