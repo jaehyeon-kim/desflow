@@ -21,6 +21,7 @@ from typing import (
     List,
     Mapping,
     Optional,
+    Sequence,
     Set,
     Tuple,
     Type,
@@ -40,6 +41,7 @@ from desflow.config import (
     QUEUE_ORDERS,
     STATS_LEVELS,
 )
+from desflow.core.distributions import TIME_LIST_PARAMETERS, TIME_PARAMETERS
 from desflow.core.environment import DynamicRealtimeEnvironment, resolve_zone
 from desflow.core.expressions import (
     ANY_NAME,
@@ -138,7 +140,7 @@ from desflow.resources.resource import (
     check_resource_type,
 )
 from desflow.resources.store import DynamicStore, StoreBase, check_store_type
-from desflow.utils import suggestion, time_to_seconds
+from desflow.utils import _seconds, suggestion, time_to_seconds
 
 if TYPE_CHECKING:
     # build.py imports this module, so the import is for type checkers only
@@ -1206,8 +1208,11 @@ class SimulationContext:
         Args:
             resource: The resource's name.
             time_to_failure: A distribution, such as
-                `{"dist": "weibull", "shape": 1.5, "scale": 3600}`.
-            repair: A distribution, such as `{"dist": "exponential", "rate": 0.01}`.
+                `{"dist": "weibull", "shape": 1.5, "scale": "1 hour"}`, whose
+                time-valued parameters take seconds or a duration, as for
+                `add_service`.
+            repair: A distribution, such as `{"dist": "exponential", "rate": 0.01}`,
+                with the same durations.
             work: `interrupt` (the default) interrupts the tasks being served, which
                 follow their `on_interrupt`; `finish` lets them finish.
             clock: `calendar` (the default) or `busy`, the time the time to failure
@@ -1251,17 +1256,17 @@ class SimulationContext:
         dist: str,
         *,
         rate: Optional[float] = None,
-        mean: Optional[float] = None,
-        std: Optional[float] = None,
-        low: Optional[float] = None,
-        value: Optional[float] = None,
-        high: Optional[float] = None,
-        mode: Optional[float] = None,
+        mean: Optional[Union[float, str]] = None,
+        std: Optional[Union[float, str]] = None,
+        low: Optional[Union[float, str]] = None,
+        value: Optional[Union[float, str]] = None,
+        high: Optional[Union[float, str]] = None,
+        mode: Optional[Union[float, str]] = None,
         shape: Optional[float] = None,
-        scale: Optional[float] = None,
-        values: Optional[List[float]] = None,
+        scale: Optional[Union[float, str]] = None,
+        values: Optional[Sequence[Union[float, str]]] = None,
         weights: Optional[List[float]] = None,
-        edges: Optional[List[float]] = None,
+        edges: Optional[Sequence[Union[float, str]]] = None,
         counts: Optional[List[float]] = None,
         p: Optional[float] = None,
     ) -> "SimulationContext":
@@ -1270,7 +1275,10 @@ class SimulationContext:
 
         The parameters are keyword-only, so their order never changes the meaning.
         Give only those `dist` takes; `desflow.core.distributions.DISTRIBUTIONS`
-        lists each family's parameters and rules.
+        lists each family's parameters and rules. A time-valued parameter (`mean`,
+        `std`, `low`, `mode`, `high`, `scale`, `value`, and the `values` and `edges`
+        of an empirical) takes seconds or a duration such as `"4 min"`, as a
+        blueprint's does.
 
         Args:
             name: The internal identifier (e.g., 'packing').
@@ -1309,17 +1317,17 @@ class SimulationContext:
         dist: Optional[str] = None,
         *,
         rate: Optional[float] = None,
-        mean: Optional[float] = None,
-        std: Optional[float] = None,
-        low: Optional[float] = None,
-        value: Optional[float] = None,
-        high: Optional[float] = None,
-        mode: Optional[float] = None,
+        mean: Optional[Union[float, str]] = None,
+        std: Optional[Union[float, str]] = None,
+        low: Optional[Union[float, str]] = None,
+        value: Optional[Union[float, str]] = None,
+        high: Optional[Union[float, str]] = None,
+        mode: Optional[Union[float, str]] = None,
         shape: Optional[float] = None,
-        scale: Optional[float] = None,
-        values: Optional[List[float]] = None,
+        scale: Optional[Union[float, str]] = None,
+        values: Optional[Sequence[Union[float, str]]] = None,
         weights: Optional[List[float]] = None,
-        edges: Optional[List[float]] = None,
+        edges: Optional[Sequence[Union[float, str]]] = None,
         counts: Optional[List[float]] = None,
         p: Optional[float] = None,
         gap: Any = None,
@@ -1343,8 +1351,9 @@ class SimulationContext:
 
         Args:
             name: The internal identifier (e.g., 'orders').
-            dist: The family, as for `add_service`. Give `gap` instead of it for a gap
-                that is not a distribution.
+            dist: The family, as for `add_service`, with the same parameters and the
+                same durations. Give `gap` instead of it for a gap that is not a
+                distribution.
             rate: Events per second, for exponential.
             mean: The mean, for normal, lognormal, truncated_normal and poisson.
             std: The standard deviation, for the first three (0 when not given).
@@ -6689,10 +6698,17 @@ def _parse_resume(spec: Mapping[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _seconds(value: Union[int, float, str]) -> Union[int, float]:
-    """Reads seconds, or a duration such as `"10 min"`. A number is returned as given,
-    so an integer stays an integer."""
-    return time_to_seconds(value) if isinstance(value, str) else value
+def _in_seconds(given: Mapping[str, Any]) -> Dict[str, Any]:
+    """The parameters of a distribution with each time-valued one read as seconds, so a
+    duration such as `"4 min"` is accepted as the YAML `Distribution` accepts it."""
+    read = dict(given)
+    for key in TIME_PARAMETERS:
+        if key in read and read[key] is not None:
+            read[key] = _seconds(read[key])
+    for key in TIME_LIST_PARAMETERS:
+        if isinstance(read.get(key), (list, tuple)):
+            read[key] = [_seconds(item) for item in read[key]]
+    return read
 
 
 def _distribution_of(spec: Mapping[str, Any]) -> DistributionConfig:
@@ -6700,7 +6716,7 @@ def _distribution_of(spec: Mapping[str, Any]) -> DistributionConfig:
     if not isinstance(spec, Mapping) or "dist" not in spec:
         raise ValueError(f"a distribution is a mapping with a dist, got {spec!r}")
     given = {key: value for key, value in spec.items() if key != "dist"}
-    return DistributionConfig(dist=spec["dist"], **given)
+    return DistributionConfig(dist=spec["dist"], **_in_seconds(given))
 
 
 def _distribution(dist: str, params: Mapping[str, Any]) -> DistributionConfig:
@@ -6710,4 +6726,4 @@ def _distribution(dist: str, params: Mapping[str, Any]) -> DistributionConfig:
         for key, value in params.items()
         if key not in ("self", "name", "dist") and value is not None
     }
-    return DistributionConfig(dist=dist, **given)
+    return DistributionConfig(dist=dist, **_in_seconds(given))

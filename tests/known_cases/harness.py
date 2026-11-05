@@ -4,9 +4,9 @@ A case folder `tests/known_cases/<case-id>/` holds `model.yaml` (the YAML form),
 `builder.py` (`build(...)` returns the model and `run(app)` runs it), `low_level.py`
 (`build(env, ...)` starts the processes on a `DynamicRealtimeEnvironment`, and `UNTIL`
 is the end), and `original.py` or `expected.json`. A case whose forms are one of
-SimPy's examples (the EX- rows) holds only `original.py`, whose `EXAMPLE` names the
-example; its three forms are the example's files under `examples/`, so the model is
-written once (`form_paths`). The `original.py` holds one of:
+SimPy's examples (the EX- rows) or a gallery example (GA-1 to GA-3) holds only
+`original.py`, whose `EXAMPLE` names the example; its three forms are the example's
+files under `examples/`, so the model is written once (`form_paths`). The `original.py` holds one of:
 
 - a plain SimPy program: `program()` returns the log and the error text, and `DRAWS`
   fixes the random draws of `model.yaml` for the comparison;
@@ -146,8 +146,9 @@ def folder_of(case: str) -> str:
 
 
 def example_of(case: str) -> str | None:
-    """The SimPy example whose files are the case's three forms: `EXAMPLE` of its
-    `original.py`, such as `carwash` for `examples/yaml/simpy/carwash.yaml`.
+    """The example whose files are the case's three forms: `EXAMPLE` of its
+    `original.py`, such as `carwash` for `examples/yaml/simpy/carwash.yaml`, or the slug
+    of a gallery example, such as `orders_wait_for_busy_packers`.
 
     Args:
         case: The case's id, such as `EX-2`.
@@ -163,7 +164,9 @@ def example_of(case: str) -> str | None:
 
 def form_paths(case: str) -> dict[str, Path]:
     """The files of the case's three forms: `model.yaml`, `builder.py` and
-    `low_level.py` of its folder, or the example's files that `example_of` names.
+    `low_level.py` of its folder, or the example's files that `example_of` names: the
+    three files `examples/gallery/<slug>.yaml`, `<slug>_builder.py` and
+    `<slug>_low_level.py` when the gallery has the slug, else the SimPy example's.
 
     Args:
         case: The case's id, such as `EX-2`.
@@ -177,6 +180,13 @@ def form_paths(case: str) -> dict[str, Path]:
         folder = FOLDER / folder_of(case)
         return {
             name: folder / name for name in ("model.yaml", "builder.py", "low_level.py")
+        }
+    gallery = EXAMPLES / "gallery"
+    if (gallery / f"{example}.yaml").exists():
+        return {
+            "model.yaml": gallery / f"{example}.yaml",
+            "builder.py": gallery / f"{example}_builder.py",
+            "low_level.py": gallery / f"{example}_low_level.py",
         }
     return {
         "model.yaml": EXAMPLES / "yaml" / "simpy" / f"{example}.yaml",
@@ -465,7 +475,9 @@ def run_builder(case: str, size: int | None = None) -> Outcome:
     """Runs the case's `builder.py`."""
     module = form(case, "builder")
     app = module.build() if size is None else module.build(size)
-    return _outcome(app, module.run, console=example_of(case) is None)
+    # A gallery file has no `run(app)`: it ends at its `UNTIL`
+    run = getattr(module, "run", None) or (lambda app: app.run(until=module.UNTIL))
+    return _outcome(app, run, console=example_of(case) is None)
 
 
 def run_low_level(case: str, size: int | None = None) -> Outcome:

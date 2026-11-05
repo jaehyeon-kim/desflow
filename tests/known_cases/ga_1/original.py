@@ -1,8 +1,11 @@
 """GA-1: Orders wait for busy packers.
 
 The original is the test asserts of the section of yaml-only.md Part 4: `check` states
-them and the test runs it on the records of the YAML form.
+them and the test runs it on the records of the YAML form. The three forms are the
+files of the gallery example `orders_wait_for_busy_packers`.
 """
+
+EXAMPLE = "orders_wait_for_busy_packers"
 
 
 def check(records):

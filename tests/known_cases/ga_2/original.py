@@ -1,8 +1,11 @@
 """GA-2: A machine slows down as it wears, then is repaired.
 
 The original is the test asserts of the section of yaml-only.md Part 4: `check` states
-them and the test runs it on the records of the YAML form.
+them and the test runs it on the records of the YAML form. The three forms are the
+files of the gallery example `machine_slows_as_it_wears`.
 """
+
+EXAMPLE = "machine_slows_as_it_wears"
 
 
 def check(records):

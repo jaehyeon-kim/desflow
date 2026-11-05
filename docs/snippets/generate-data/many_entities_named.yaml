@@ -1,0 +1,32 @@
+# Many entities, by name: one entity for each key in a list.
+#
+# `keys` starts one entity for each name, here three warehouses, and each reports the
+# orders waiting every 2 seconds under its own name.
+#
+# Needs: nothing.
+# Run it with: desflow run docs/snippets/generate-data/many_entities_named.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - type: Console
+
+arrivals:
+  warehouses:
+    dist: constant
+    value: 2
+    spawn: report
+    keys: [north, south, east]
+
+tasks:
+  report:
+    payload:
+      warehouse: {gen: entity}
+      orders_waiting: {gen: integer, bounds: [0, 40]}
+
+run:
+  until: 10

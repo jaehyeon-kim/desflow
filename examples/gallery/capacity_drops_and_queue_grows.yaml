@@ -1,0 +1,41 @@
+# Capacity drops to one at 20 seconds, and the queue grows.
+#
+# A shop has 3 packers. An order arrives about every second, and packing takes a
+# normal time with a mean of 2.5 s. A scenario step at 20 s sets the capacity to 1, so
+# the orders queue. The statistics publish the capacity and the queue length every
+# second.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/capacity_drops_and_queue_grows.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - type: Console
+
+stats: {level: minimal, interval: 1}
+
+resources:
+  packers: {current_cap: 3}
+
+services:
+  pack: {dist: normal, mean: 2.5, std: 0.3}
+
+arrivals:
+  orders: {dist: exponential, rate: 1, spawn: order}
+
+tasks:
+  order:
+    resource: packers
+    service: pack
+    payload: {event_type: packed}
+
+scenario:
+  - {at: 20, path: Shop.resources.packers.current_cap, value: 1}
+
+run:
+  until: 60

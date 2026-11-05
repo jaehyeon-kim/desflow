@@ -1,0 +1,39 @@
+# Orders wait in a queue when all packers are busy.
+#
+# A shop has 3 packers. Orders arrive about once a minute, and packing takes a normal
+# time with a mean of 240 s and a standard deviation of 60 s. The run lasts 2 hours.
+# When all three packers are busy an order waits, and the minimal statistics publish
+# the queue length and the units in use.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/orders_wait_for_busy_packers.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - type: Console
+
+stats: {level: minimal}
+
+resources:
+  packers: {current_cap: 3}
+
+services:
+  pack: {dist: normal, mean: 240, std: 60}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.015, spawn: order}
+
+tasks:
+  order:
+    resource: packers
+    service: pack
+    id_field: order_id
+    payload: {event_type: packed}
+
+run:
+  until: 2 hours

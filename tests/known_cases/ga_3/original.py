@@ -1,8 +1,11 @@
 """GA-3: Capacity drops to one at 20 seconds, and the queue grows.
 
 The original is the test asserts of the section of yaml-only.md Part 4: `check` states
-them and the test runs it on the records of the YAML form.
+them and the test runs it on the records of the YAML form. The three forms are the
+files of the gallery example `capacity_drops_and_queue_grows`.
 """
+
+EXAMPLE = "capacity_drops_and_queue_grows"
 
 
 def check(records):

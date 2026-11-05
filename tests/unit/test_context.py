@@ -1828,3 +1828,64 @@ def test_a_task_that_returns_no_record_finishes_with_no_finished_event():
         for row in capture.records
         if row.get("task") == "quiet" and "event_type" in row.get("value", {})
     ]
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        {"dist": "normal", "mean": "4 min", "std": "1 min"},
+        {"dist": "constant", "value": "1 day"},
+        {"dist": "uniform", "low": "1 min", "high": 120},
+        {"dist": "triangular", "low": "1 min", "mode": "2 min", "high": "3 min"},
+        {"dist": "gamma", "shape": 2, "scale": "30 s"},
+        {"dist": "empirical", "values": ["1 min", 120], "weights": [1, 1]},
+        {"dist": "empirical", "edges": ["1 min", "2 min", 180], "counts": [1, 2]},
+    ],
+)
+def test_builder_reads_a_duration_in_a_distribution_as_the_blueprint_does(spec):
+    """A time-valued parameter of `add_service`, `add_arrival` and a breakdown takes a
+    duration, and gives the config the blueprint's `Distribution` gives."""
+    from desflow.blueprint.models import Distribution
+
+    expected = Distribution(**spec).config()
+    given = {key: value for key, value in spec.items() if key != "dist"}
+    app = SimulationContext("D", factor=0)
+    app.add_service("s", spec["dist"], **given)
+    app.add_arrival("a", spec["dist"], **given)
+    assert app._services_config["s"] == expected
+    assert app._arrivals_config["a"] == expected
+    app.add_breakdown(
+        "r", time_to_failure=spec, repair={"dist": "constant", "value": 1}
+    )
+    assert app._breakdowns_config["r"].time_to_failure == expected
+
+
+def test_builder_takes_a_real_number_other_than_a_bool_as_a_time():
+    """A NumPy number and a `Decimal` were taken as seconds before the Builder read
+    durations, and still are, as the number it was given (a `Decimal` as a float)."""
+    from decimal import Decimal
+
+    import numpy
+
+    app = SimulationContext("D", factor=0, initial_time=numpy.int64(5))
+    assert app.initial_time == 5
+    app = SimulationContext("D", factor=0, warmup=Decimal(7))
+    assert app.warmup == 7.0
+    app = SimulationContext("D", factor=0)
+    app.add_service("s", "constant", value=numpy.int64(5))
+    app.add_service("d", "constant", value=Decimal("2.5"))
+    assert app._services_config["s"].value == 5
+    assert app._services_config["d"].value == 2.5
+
+
+def test_builder_refuses_a_value_that_is_not_a_duration_in_a_distribution():
+    with pytest.raises(ValueError, match="soon"):
+        SimulationContext("D").add_service("s", "constant", value="soon")
+    with pytest.raises(ValueError, match="expected seconds or a duration"):
+        SimulationContext("D").add_service("s", "constant", value=True)
+    with pytest.raises(ValueError, match="expected seconds or a duration"):
+        SimulationContext("D").add_breakdown(
+            "r",
+            time_to_failure={"dist": "constant", "value": True},
+            repair={"dist": "constant", "value": 1},
+        )

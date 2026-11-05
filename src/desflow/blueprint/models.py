@@ -80,22 +80,10 @@ from desflow.resources.container import ContainerBase, check_container_type
 from desflow.resources.resource import ResourceBase, check_resource_type
 from desflow.resources.store import StoreBase, check_store_type
 from desflow.values.models import GENERATORS, Generator, Payload, Value, _Gen
-from desflow.utils import suggestion, time_to_seconds
+from desflow.utils import _seconds, suggestion, time_to_seconds
 
 # The names an egress `when` takes instead of a `!python` function.
 WHEN_NAMES = ("history", "live", "events", "telemetry", LABELS, TRACE)
-
-
-def _seconds(value: Union[int, float, str]) -> Union[int, float]:
-    """Accepts a number of seconds or a duration such as `"10 min"`.
-
-    A number is returned as given, so an integer stays an integer, as in SimPy; a
-    duration in text is a float."""
-    if isinstance(value, str):
-        return time_to_seconds(value)
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return value
-    raise ValueError("expected seconds or a duration such as '10 min'")
 
 
 def _place_kind(value: Any) -> str:

@@ -1,0 +1,34 @@
+# Many entities: ten tills, each with its own key, report their takings every minute.
+#
+# `count: 10` starts ten entities from the one arrival, and `key` gives each its own
+# key, till-1 to till-10, which the task reads with `entity`. The key is the record key
+# too, so a Kafka topic puts each till's records in one partition, in order.
+#
+# Needs: nothing.
+# Run it with: desflow run docs/snippets/generate-data/many_entities.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - type: Console
+
+arrivals:
+  tills:
+    dist: constant
+    value: 60
+    spawn: report
+    count: 10
+    key: {gen: sequence, start: 1, format: "till-{}"}
+
+tasks:
+  report:
+    payload:
+      till: {gen: entity}
+      takings: {gen: normal, mean: 400, std: 60, decimals: 2}
+
+run:
+  until: 300

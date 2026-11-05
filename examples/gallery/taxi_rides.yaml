@@ -1,0 +1,42 @@
+# Taxi rides with a pickup, a drop-off, a distance and a fare.
+#
+# A ride starts about every 10 seconds. Its distance is 0.5 to 20 km, its duration is
+# 3 to 40 minutes, and the fare is 3 plus 2.2 for each km and 0.4 for each minute. The
+# pickup is in a box about 10 km across. Each ride is one record, written at the pickup
+# with the drop-off time that follows from the duration.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/taxi_rides.yaml
+
+simulation:
+  sim_id: Taxi
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - type: Console
+
+arrivals:
+  rides: {dist: exponential, rate: 0.1, spawn: ride}
+
+tasks:
+  ride:
+    vars:
+      distance: {gen: uniform, low: 0.5, high: 20, decimals: 2}
+      minutes: {gen: uniform, low: 3, high: 40, decimals: 1}
+    payload:
+      ride_id: {gen: sequence, start: 1}
+      pickup_time: {gen: now}
+      dropoff_time:
+        gen: add
+        args: [{gen: now}, {gen: expr, expr: "minutes * 60"}]
+      passengers: {gen: weighted, options: {1: 70, 2: 15, 3: 5, 4: 5, 5: 5}}
+      pickup_latitude: {gen: uniform, low: 40.7, high: 40.8, decimals: 5}
+      pickup_longitude: {gen: uniform, low: -74.02, high: -73.93, decimals: 5}
+      distance_km: {gen: var, name: distance}
+      fare: {gen: expr, expr: "round(3 + 2.2 * distance + 0.4 * minutes, 2)"}
+      payment: {gen: weighted, options: {card: 65, cash: 33, dispute: 2}}
+
+run:
+  until: 10 min

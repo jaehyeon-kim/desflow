@@ -1,6 +1,8 @@
 import difflib
+import numbers
 import re
-from typing import Iterable
+from decimal import Decimal
+from typing import Iterable, Union
 
 MULTIPLIERS = {
     "s": 1,
@@ -68,6 +70,21 @@ def time_to_seconds(time_str: str) -> float:
         return value * MULTIPLIERS[unit]
     except KeyError:
         raise ValueError(f"Unknown time unit: {unit!r}") from None
+
+
+def _seconds(value: Union[float, Decimal, str]) -> float:
+    """Accepts a number of seconds or a duration such as `"10 min"`.
+
+    A real number other than a bool (an `int`, a `float`, a NumPy number, a
+    `Fraction`) is returned as given, so an integer stays an integer, as in SimPy. A
+    `Decimal` is returned as a float. A duration in text is a float."""
+    if isinstance(value, str):
+        return time_to_seconds(value)
+    if isinstance(value, numbers.Real) and not isinstance(value, bool):
+        return value
+    if isinstance(value, Decimal):
+        return float(value)
+    raise ValueError("expected seconds or a duration such as '10 min'")
 
 
 def suggestion(name: str, choices: Iterable[str]) -> str:

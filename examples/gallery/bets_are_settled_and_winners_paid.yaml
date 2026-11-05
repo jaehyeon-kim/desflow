@@ -1,0 +1,50 @@
+# Each bet is settled after the match, and a winner is paid the stake times the odds.
+#
+# A bet is placed with a stake and odds. One to two minutes later it is settled: 45
+# percent win and are paid the stake times the odds, the rest lose and are paid
+# nothing, and the settled record repeats the bet id.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/bets_are_settled_and_winners_paid.yaml
+
+simulation:
+  sim_id: Book
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - type: Console
+
+arrivals:
+  bets: {dist: exponential, rate: 0.2, spawn: place_bet}
+
+tasks:
+  place_bet:
+    payload:
+      bet_id: {gen: sequence, start: 1}
+      stake:
+        gen: weighted
+        options: {5: 50, 10: 30, 50: 15, 100: 5}
+      odds: {gen: uniform, low: 1.5, high: 4, decimals: 2}
+    next: settle_bet
+  settle_bet:
+    vars:
+      won: {gen: boolean, p: 0.45}
+    service_time: {gen: uniform, low: 60, high: 120}
+    payload:
+      bet_id: {gen: upstream, path: bet_id}
+      result: {gen: when, condition: won, then: won, else: lost}
+      payout:
+        gen: when
+        condition: won
+        then:
+          gen: multiply
+          args:
+            - {gen: upstream, path: stake}
+            - {gen: upstream, path: odds}
+          decimals: 2
+        else: 0
+
+run:
+  until: 20 min

@@ -1,0 +1,45 @@
+# Visitors drop out at each step of a signup funnel.
+#
+# Of every 100 visitors, 40 sign up, 20 of those start a trial, and 5 of those pay. A
+# visitor who drops out ends in one `left` task, whose record names the step the
+# visitor left after.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/visitors_drop_out_at_each_signup_step.yaml
+
+simulation:
+  sim_id: Funnel
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - type: Console
+
+arrivals:
+  visitors: {dist: exponential, rate: 0.5, spawn: visited}
+
+tasks:
+  visited:
+    payload: {stage: visited}
+    next:
+      weights: {signed_up: 40, left: 60}
+  signed_up:
+    service_time: {gen: uniform, low: 5, high: 30}
+    payload: {stage: signed_up}
+    next:
+      weights: {trial_started: 50, left: 50}
+  trial_started:
+    service_time: {gen: uniform, low: 10, high: 60}
+    payload: {stage: trial_started}
+    next:
+      weights: {paid: 25, left: 75}
+  paid:
+    payload: {stage: paid}
+  left:
+    payload:
+      stage: left
+      after: {gen: upstream, path: stage}
+
+run:
+  until: 20 min

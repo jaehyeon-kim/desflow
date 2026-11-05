@@ -1,0 +1,35 @@
+# Send data to a sink: the orders of send_data_to_a_sink.yaml, written to a PostgreSQL
+# table.
+#
+# Only the egress differs from that file.
+#
+# Needs: a database, with odctl up postgres, and the postgres extra.
+# Run it with: desflow run docs/snippets/generate-data/send_data_to_postgres.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - type: Postgres
+    config:
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
+      tables:
+        orders:
+          columns: {order_id: INT, customer_id: INT, total: REAL}
+          primary_key: order_id
+
+arrivals:
+  orders: {dist: exponential, rate: 1, spawn: order}
+
+tasks:
+  order:
+    payload:
+      order_id: {gen: sequence, start: 1}
+      customer_id: {gen: integer, bounds: [1, 100]}
+      total: {gen: uniform, low: 5, high: 200, decimals: 2}
+
+run:
+  until: 10

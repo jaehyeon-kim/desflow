@@ -51,10 +51,12 @@ NOT_BLUEPRINTS = {
 }
 FOLDERS = (
     "examples/yaml",
+    "examples/gallery",
     "tests/conformance/blueprints",
     "tests/conformance/yaml_only",
     "tests/known_cases",
     "docs/snippets/yaml",
+    "docs/snippets/generate-data",
 )
 
 
@@ -247,7 +249,65 @@ def test_a_generator_nested_in_a_value_is_checked_by_the_schema():
     assert refused({"a": [1, {"gen": "nosuch"}]})
 
 
+# Keywords that can tie one place of a document to another
+_TYING_KEYWORDS = (
+    "if",
+    "then",
+    "else",
+    "allOf",
+    "anyOf",
+    "oneOf",
+    "dependentSchemas",
+    "dependentRequired",
+    "unevaluatedProperties",
+)
+
+
+def _sections_are_independent() -> None:
+    """The check of `_refusals` is right only while no keyword at the top of the schema
+    ties one section to another, and a section it narrows to one entry holds nothing
+    but its type and the schema of its entries."""
+    tied = [key for key in _TYING_KEYWORDS if key in SCHEMA]
+    assert not tied, f"the schema's top level has {tied}"
+    for name, section in SCHEMA["properties"].items():
+        if section.get("type") in ("object", "array"):
+            assert set(section) in (
+                {"type", "additionalProperties"},
+                {"type", "items"},
+            ), f"section {name} has {sorted(section)}"
+
+
+def _refusals(validator: Draft202012Validator, data: Any, where: tuple) -> list:
+    """The `additionalProperties` errors for `not_a_key` at `where`.
+
+    The sections of a blueprint validate on their own, and so do the entries of a
+    section that is a mapping of names or a list, so the schema is run over the one
+    entry that holds the place and not over the whole file. Checking the whole file for
+    each of its mappings would make the work grow with the square of the file's size."""
+    shown, place = data, where
+    if where:
+        section = SCHEMA["properties"][where[0]]
+        entries = section.get("type") == "object" and "additionalProperties" in section
+        items = section.get("type") == "array" and "items" in section
+        if entries and len(where) > 1:
+            shown = {where[0]: {where[1]: data[where[0]][where[1]]}}
+        elif items and len(where) > 1:
+            shown = {where[0]: [data[where[0]][where[1]]]}
+            place = (where[0], 0, *where[2:])
+        else:
+            shown = {where[0]: data[where[0]]}
+    return [
+        inner
+        for error in validator.iter_errors(shown)
+        for inner in _walk(error)
+        if inner.validator == "additionalProperties"
+        and tuple(inner.absolute_path) == place
+        and "not_a_key" in inner.message
+    ]
+
+
 def test_unknown_key_is_refused_at_every_level():
+    _sections_are_independent()
     validator = Draft202012Validator(SCHEMA)
     defs = SCHEMA["$defs"]
     modelled = {name for name, node in defs.items() if "properties" in node}
@@ -262,14 +322,7 @@ def test_unknown_key_is_refused_at_every_level():
                 continue
             node["not_a_key"] = 1
             try:
-                refusals = [
-                    inner
-                    for error in validator.iter_errors(data)
-                    for inner in _walk(error)
-                    if inner.validator == "additionalProperties"
-                    and tuple(inner.absolute_path) == where
-                    and "not_a_key" in inner.message
-                ]
+                refusals = _refusals(validator, data, where)
                 # The model reports a new error at that place or inside it: at the key
                 # for most nodes, and at the node itself for a `wait` or `subscribe`
                 # (`next: {when: [...]}` is read as `next.rules.when` by the model)

@@ -13,6 +13,8 @@ test that runs its files:
 - `docs/snippets/editor/`: test_docs_guides.py, test_editor_settings_hold_the_schema_and_the_three_tags.
 - `docs/snippets/simpy/`: test_simpy_examples.py runs each of SimPy's files and
   compares what it prints with its `.out` file.
+- `docs/snippets/generate-data/`: test_generate_data_snippets.py runs the three forms of
+  each snippet and asserts what its page shows.
 - `docs/snippets/yaml/` and `yaml_build/`: test_docs_snippets.py runs or builds each
   blueprint that test_docs_tutorials.py and test_docs_guides.py do not run.
 
@@ -62,7 +64,16 @@ def test_every_guide_script_has_a_test():
 
 def test_snippet_folders_are_all_run():
     """A new snippet folder needs a test that runs it, listed here."""
-    run = {"pages", "tutorials", "guides", "yaml", "yaml_build", "editor", "simpy"}
+    run = {
+        "pages",
+        "tutorials",
+        "guides",
+        "yaml",
+        "yaml_build",
+        "editor",
+        "simpy",
+        "generate-data",
+    }
     not_runnable = {"hot_rolling"}  # imports another project's modules
     folders = {
         p.name for p in SNIPPETS.iterdir() if p.is_dir() and p.name != "__pycache__"

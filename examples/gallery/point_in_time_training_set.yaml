@@ -1,0 +1,52 @@
+# A point-in-time training set: feature records and the label that follows each.
+#
+# Five customers each get a feature record every day (sessions and spend over the last
+# 30 days). Seven days after each one a label record says whether the customer left,
+# with a high chance when the sessions were few. The label carries `as_of`, the time of
+# the feature record it follows. To build the training set, join each label to the
+# newest feature record of the same customer whose `sim_ts` is at or before the label's
+# `sim_ts` less 7 days, so no feature that came after the start of the label's window
+# reaches it.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/point_in_time_training_set.yaml
+
+simulation:
+  sim_id: Churn
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - type: Console
+
+arrivals:
+  customers:
+    count: 5
+    key: {gen: sequence, format: "customer-{}", start: 1}
+    dist: constant
+    value: 1 day
+    spawn: features
+
+tasks:
+  features:
+    payload:
+      customer_id: {gen: entity}
+      as_of: {gen: now}
+      sessions_30d: {gen: integer, bounds: [0, 30]}
+      spend_30d: {gen: uniform, low: 0, high: 500, decimals: 2}
+    next: label
+
+  label:
+    wait: {timeout: 7 days}
+    payload:
+      customer_id: {gen: entity}
+      as_of: {gen: upstream, path: as_of}
+      churned:
+        gen: when
+        condition: upstream.sessions_30d < 5
+        then: {gen: boolean, p: 0.6}
+        else: {gen: boolean, p: 0.05}
+
+run:
+  until: 40 days

@@ -1,0 +1,49 @@
+# Auction streams: people, auctions and bids.
+#
+# The three streams have the shape of the Nexmark benchmark, with about 1 new person
+# for 3 new auctions and 46 bids. Each auction names a seller who exists and each bid
+# names an auction and a bidder who exist. Ten people and five auctions exist at the
+# start, so a bid always has something to name. The run lasts 10 minutes.
+#
+# Needs: the fake extra.
+# Run it with: desflow run examples/gallery/auction_streams.yaml
+
+simulation:
+  sim_id: Auction
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - type: Console
+
+arrivals:
+  people: {initial: 10, dist: exponential, rate: 0.02, spawn: person}
+  auctions: {initial: 5, dist: exponential, rate: 0.06, spawn: auction}
+  bids: {dist: exponential, rate: 0.92, spawn: bid}
+
+tasks:
+  person:
+    payload:
+      person_id: {gen: sequence, start: 1000}
+      name: {gen: fake, method: name}
+      city: {gen: one_of, choices: [Phoenix, Boise, Cheyenne, Portland, Kent]}
+      state: {gen: weighted, options: {AZ: 3, ID: 2, WY: 1, OR: 3, WA: 3}}
+
+  auction:
+    payload:
+      auction_id: {gen: sequence, start: 1}
+      seller: {gen: lookup, task: person, path: person_id}
+      category: {gen: integer, bounds: [1, 10]}
+      reserve: {gen: integer, bounds: [100, 1000]}
+      expires: {gen: now, offset: 1 hour}
+
+  bid:
+    payload:
+      auction: {gen: lookup, task: auction, path: auction_id}
+      bidder: {gen: lookup, task: person, path: person_id}
+      price: {gen: integer, bounds: [100, 2000]}
+      bid_time: {gen: now}
+
+run:
+  until: 10 min
