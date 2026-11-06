@@ -711,7 +711,7 @@ def declared_names(holders: "Holders", signals: "Signals") -> Dict[str, Dict[str
         "resource": holders.resources_config,
         "store": holders.stores_config,
         "container": holders.containers_config,
-        "signal": {name: None for name in signals.names},
+        "signal": {name: None for name in signals.entries},
     }
 
 

@@ -1177,6 +1177,23 @@ def trace_event_name(event: Any) -> str:
     return "Event"
 
 
+def trigger(event: Event, ok: bool = True, value: Any = None) -> Event:
+    """Marks an event triggered with its outcome, without scheduling it, so the
+    caller schedules it with its own priority and delay. This and `schedule_urgent`
+    are the only places that write SimPy's private event fields.
+
+    Args:
+        event: A pending event.
+        ok: Whether the event succeeds.
+        value: The event's value, or its exception when it fails.
+
+    Returns:
+        Event: The event.
+    """
+    event._ok, event._value = ok, value
+    return event
+
+
 def schedule_urgent(
     env: Environment,
     event: Event,
@@ -1198,7 +1215,7 @@ def schedule_urgent(
     Returns:
         Event: The event.
     """
-    event._ok, event._value = ok, value
+    trigger(event, ok, value)
     env.schedule(event, URGENT, delay)
     return event
 

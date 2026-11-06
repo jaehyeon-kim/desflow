@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional
 from simpy import Environment, Event
 from simpy.events import NORMAL, URGENT
 
+from desflow.core.environment import trigger
 from desflow.core.families import family_of
 from desflow.models.flow import Entity
 
@@ -330,7 +331,7 @@ class Signal:
         """Triggers the one-shot event with a priority and a delay, as
         `env.schedule(event, priority, delay)` does after `succeed()` or `fail()`."""
         event = self._event
-        event._ok, event._value = ok, value
+        trigger(event, ok, value)
         if urgent:
             priority = URGENT
         elif priority is None:
@@ -346,28 +347,40 @@ class Signal:
         return f"Signal({self.name!r}, count={self.count}, ok={self.ok})"
 
 
+@dataclass(frozen=True)
+class SignalDeclaration:
+    """One signal's settings, as the model declares them.
+
+    Attributes:
+        once: Whether the signal fires once.
+        defused: Whether the signal's failures are defused, as `event.defused =
+            True` does.
+    """
+
+    once: bool = True
+    defused: bool = False
+
+
+_UNDECLARED = SignalDeclaration()
+
+
 class Signals:
     """What a model declares for its signals.
 
     Attributes:
-        names: The signals, in the order they were declared.
-        once: Whether each signal fires once.
-        defused: Whether each signal's failures are defused, as `event.defused =
-            True` does.
+        entries: Each signal's settings, in the order the signals were declared.
         on: Each signal's `on:` actions, in normalized form, run when it fires.
     """
 
     def __init__(self) -> None:
-        self.names: List[str] = []
-        self.once: Dict[str, bool] = {}
-        self.defused: Dict[str, bool] = {}
+        self.entries: Dict[str, SignalDeclaration] = {}
         self.on: Dict[str, List[Dict[str, Any]]] = {}
 
     def declare(
         self, name: str, once: bool, defused: bool, on: Iterable[Dict[str, Any]]
     ) -> None:
         """Keeps a signal's declaration; a second declaration of a name replaces the
-        first and keeps its place in `names`.
+        first and keeps its place in `entries`.
 
         Args:
             name: The signal's name.
@@ -376,11 +389,19 @@ class Signals:
             on: Its `on:` actions in normalized form, read after the other settings
                 are kept, so an action that is refused leaves them kept.
         """
-        if name not in self.names:
-            self.names.append(name)
-        self.once[name] = once
-        self.defused[name] = defused
+        self.entries[name] = SignalDeclaration(once, defused)
         self.on[name] = list(on)
+
+    def declaration(self, name: str) -> SignalDeclaration:
+        """Returns a signal's settings, or the defaults for a name not declared.
+
+        Args:
+            name: The signal's name.
+
+        Returns:
+            SignalDeclaration: Its settings.
+        """
+        return self.entries.get(name, _UNDECLARED)
 
     def new_run(
         self,
@@ -400,7 +421,7 @@ class Signals:
             end_processed: Counts out an entity whose pending end has run.
         """
         run = SignalRun(self, env, families, run_action, end_processed)
-        for name in self.names:
+        for name in self.entries:
             if name not in families:
                 run.make(name, name)
         return run
@@ -438,8 +459,8 @@ class SignalRun:
         signal = Signal(
             self.env,
             name,
-            once=self.signals.once.get(base, True),
-            defused=self.signals.defused.get(base, False),
+            once=self.signals.declaration(base).once,
+            defused=self.signals.declaration(base).defused,
         )
         if self.signals.on.get(base):
             signal.attach([functools.partial(self.fired, name)])

@@ -34,6 +34,7 @@ from typing import (
 import simpy
 
 from desflow.models.distributions import TIME_LIST_PARAMETERS, TIME_PARAMETERS
+from desflow.core.environment import trigger
 from desflow.core.expressions import Expression
 from desflow.core.replay import UNITS, Row, check_fields
 from desflow.models.flow import Entity
@@ -792,7 +793,7 @@ class ArrivalRun:
         their entities in one step, in file order, as a SimPy loop that starts them
         one after another does, before any of them takes its first step."""
         event = self.env.event()
-        event._ok, event._value = True, entity
+        trigger(event, True, entity)
         event.callbacks = None  # type: ignore[assignment]
         return event
 

@@ -2256,7 +2256,7 @@ class SimulationContext:
                 elif kind in ("count", "items"):
                     known = name in self._holders.stores_config
                 elif kind == "signal":
-                    known = name in self._signals.names
+                    known = name in self._signals.entries
                 elif kind == "running":
                     known = name in self._tasks.specs
                 elif member_path(name, self._families.by_name, self.sim_id) is not None:
@@ -2809,10 +2809,10 @@ class SimulationContext:
             if self._run.stopped:
                 return None
             if self._run.end is not None:
-                if self._run.end.callbacks is None and not self._run.end._ok:
+                if self._run.end.callbacks is None and not self._run.end.ok:
                     # `env.run(until=...)` returns the value of a processed event,
                     # so a failed stop that advance() reached is raised here
-                    raise self._run.end._value
+                    raise self._run.end.value
                 return self._run_env(self._run.end)
             if self._run_ended():
                 # advance() or step() already reached until, where a run ends
@@ -3173,7 +3173,7 @@ class SimulationContext:
             raise ValueError(
                 f"stats must be one of {', '.join(STATS_LEVELS)}, got {stats!r}"
             )
-        _check_end(until, stop, drain, self._signals.names)
+        _check_end(until, stop, drain, self._signals.entries)
         self._check_tasks(overrides)
         if self._sinks.traces and not self._sinks.stats_trace:
             raise ValueError(
@@ -3540,9 +3540,9 @@ class SimulationContext:
                     # value, True for a condition, or the exception of a failed
                     # stop, which `end` raises once. The stop event is defused so
                     # the run does not raise it a second time.
-                    if not event._ok:
+                    if not event.ok:
                         event.defused = True
-                    schedule_urgent(env, end, ok=event._ok, value=event._value)
+                    schedule_urgent(env, end, ok=event.ok, value=event.value)
 
         self._run.finish_run = finish
         limit = None
@@ -3683,11 +3683,11 @@ class SimulationContext:
                     )
             if "fire" in action:
                 signal = action["fire"]["signal"]
-                if signal not in self._signals.names:
+                if signal not in self._signals.entries:
                     raise ValueError(
                         f"the on: action of {owner} fires signal '{signal}', "
                         + _not_added(
-                            signal, self._signals.names, f"add_signal('{signal}')"
+                            signal, self._signals.entries, f"add_signal('{signal}')"
                         )
                     )
                 fire = action["fire"]
@@ -3695,7 +3695,7 @@ class SimulationContext:
                     fire.get("urgent", False),
                     fire.get("after"),
                     fire.get("priority"),
-                    self._signals.once.get(signal, True),
+                    self._signals.declaration(signal).once,
                     "`once=True`",
                 )
                 if problem is not None:
@@ -3704,7 +3704,7 @@ class SimulationContext:
                     check_from(fire["from"], owner)
 
         def check_from(source: str, owner: str) -> None:
-            is_signal = source in self._signals.names
+            is_signal = source in self._signals.entries
             is_task = source in self._tasks.specs
             if is_signal and is_task:
                 raise ValueError(
@@ -3727,11 +3727,11 @@ class SimulationContext:
                             + _not_added(target, self._tasks.specs, "@app.task()")
                         )
                 for target in spec.subscribe.targets("signal"):
-                    if target not in self._signals.names:
+                    if target not in self._signals.entries:
                         raise ValueError(
                             f"task '{name}' subscribes to signal '{target}', "
                             + _not_added(
-                                target, self._signals.names, f"add_signal('{target}')"
+                                target, self._signals.entries, f"add_signal('{target}')"
                             )
                         )
             if spec.spawn is not None:
@@ -4315,7 +4315,7 @@ class SimulationContext:
         for expression in expressions:
             signals |= expression.references["signal"]
         for signal in signals:
-            if signal not in self._signals.names:
+            if signal not in self._signals.entries:
                 raise ValueError(
                     f"task '{name}' uses signal '{signal}', which is not added; "
                     f"add it with add_signal('{signal}')"
@@ -4733,7 +4733,7 @@ def _flag_arg(name: str, value: Any, default: bool) -> bool:
     return value
 
 
-def _check_end(until: Any, stop: Any, drain: Any, signals: List[str]) -> None:
+def _check_end(until: Any, stop: Any, drain: Any, signals: Mapping[str, Any]) -> None:
     """Checks `stop` and `drain` before anything is built."""
     if drain and until is None:
         raise ValueError("a drain starts at until, so it needs until")

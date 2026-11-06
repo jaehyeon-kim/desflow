@@ -8,7 +8,7 @@ member of a family added to it, makes the second run differ.
 
 Every attribute of the context is also compared before and after the first run, apart
 from the state of a run (`RUN_STATE`), because a write into a declaration that no
-later read meets changes no record: a member's entry added to `_signals.once`, or a
+later read meets changes no record: a member's entry added to `_signals.entries`, or a
 change written into a breakdown's distribution of a model whose second run ends
 before the repair it changes. And no registry may hold a declared
 config object itself, because a write the load checks make into one comes before

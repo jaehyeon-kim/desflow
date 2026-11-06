@@ -435,8 +435,8 @@ def test_a_signal_is_one_shot_unless_told_otherwise():
     app = SimulationContext("S", factor=0.0)
     app.add_signal("one")
     app.add_signal("again", once=False)
-    assert app._signals.once["one"] is True
-    assert app._signals.once["again"] is False
+    assert app._signals.declaration("one").once is True
+    assert app._signals.declaration("again").once is False
 
 
 # -------------------------------------------------- on: fire-from load checks (V4-V6)
@@ -588,7 +588,7 @@ def test_a_signal_declared_again_keeps_its_place_and_takes_the_new_settings():
     app.add_signal("s")
     app.add_signal("s", once=False)
     app.start(until=1)
-    assert app._signals.names == ["s"]
+    assert list(app._signals.entries) == ["s"]
     assert app.signal("s").once is False
 
 
