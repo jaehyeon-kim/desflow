@@ -45,7 +45,7 @@ def check(records):
             else:
                 os.environ.pop("ICEBERG_CATALOG", None)
             app = SimulationContext.from_yaml(HERE / "model.yaml")
-            made = app._egress_providers[0].catalog_properties
+            made = app._sinks.egress[0].provider.catalog_properties
             assert made["name"] == name
             assert made["type"] == snippet[name]["type"]
             assert made["uri"].split(":")[0] == snippet[name]["uri"].split(":")[0]

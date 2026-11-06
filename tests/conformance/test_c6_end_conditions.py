@@ -27,7 +27,7 @@ from desflow import (
     SimParameter,
 )
 from desflow.core.context import SimulationContext
-from desflow.core.internal import is_internal
+from desflow.internal import is_internal
 from tests.conformance.batch5_scripts import pinger
 from tests.conformance.harness import (
     BLUEPRINTS,
@@ -1223,7 +1223,7 @@ def test_c6_advance_to_events_adds_one_internal_event_to_the_queue():
     app.step()
     assert app.peek() == 34
     at_until = [event for t, _p, _i, event in app.env._queue if t == 20]
-    assert at_until == [app._limit_event]
+    assert at_until == [app._run.limit_event]
     app.close()
 
 

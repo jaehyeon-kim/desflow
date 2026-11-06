@@ -22,7 +22,7 @@ from desflow import (
 )
 from desflow.blueprint.loader import BlueprintError
 from desflow.core.context import SimulationContext
-from desflow.core.internal import is_internal
+from desflow.internal import is_internal
 from tests.conformance.batch5_scripts import TracingEnvironment, start_go
 from tests.conformance.harness import (
     BLUEPRINTS,
@@ -190,7 +190,7 @@ def _builder_firing():
     app.add_process(start_go)
     trace = []
     for func in _observers(
-        trace, lambda c: {n: c.signal(n).wait() for n in c._signals}
+        trace, lambda c: {n: c.signal(n).wait() for n in c._run.signals.made}
     ):
         app.add_process(func)
     app.run(until=20)
@@ -202,7 +202,7 @@ def _yaml_firing():
 
     def prepare(app):
         for func in _observers(
-            trace, lambda c: {n: c.signal(n).wait() for n in c._signals}
+            trace, lambda c: {n: c.signal(n).wait() for n in c._run.signals.made}
         ):
             app.add_process(func)
 

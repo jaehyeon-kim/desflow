@@ -15,7 +15,7 @@ from desflow import (
 )
 from desflow.cli import app as cli
 from desflow.blueprint.loader import BlueprintError
-from desflow.core.distributions import get_distribution
+from desflow.models.distributions import get_distribution
 from desflow.analysis import fit as fitting
 
 pytest.importorskip("scipy")

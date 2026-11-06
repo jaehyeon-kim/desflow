@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from desflow import Entity, SimulationContext
+from tests.conformance.harness import run_yaml_text
 
 
 def test_builder_state_management():
@@ -21,12 +22,12 @@ def test_builder_state_management():
     )
 
     # Check discrete resources
-    assert "packers" in app._resources_config
-    assert app._resources_config["packers"].max_cap == 5
+    assert "packers" in app._holders.resources_config
+    assert app._holders.resources_config["packers"].max_cap == 5
 
     # Check continuous containers (NEW)
-    assert "wear_structural" in app._containers_config
-    assert app._containers_config["wear_structural"].max_cap == 100.0
+    assert "wear_structural" in app._holders.containers_config
+    assert app._holders.containers_config["wear_structural"].max_cap == 100.0
 
     # Check dynamic variables (NEW)
     assert "velocity" in app._variables_config
@@ -35,12 +36,12 @@ def test_builder_state_management():
     # Check statistical distributions
     assert "packing" in app._services_config
     assert app._services_config["packing"].mean == 5.0
-    assert "standard" in app._arrivals_config
-    assert app._arrivals_config["standard"].rate == 2.0
+    assert "standard" in app._arrivals.configs
+    assert app._arrivals.configs["standard"].rate == 2.0
 
     # Check batching state
-    assert app._batch_size == 100
-    assert app._flush_interval == 0.5
+    assert app._sinks.batch_size == 100
+    assert app._sinks.flush_interval == 0.5
 
 
 def test_runtime_errors_before_build():
@@ -193,8 +194,8 @@ def test_with_batching_defaults_the_egress_bounds():
         batch_size=100, flush_interval=0.5
     )
 
-    assert app._max_queued_batches == 2000
-    assert app._drain_stall_seconds == 30.0
+    assert app._sinks.max_queued_batches == 2000
+    assert app._sinks.drain_stall_seconds == 30.0
 
 
 @patch("desflow.core.context.DynamicRealtimeEnvironment")
@@ -674,7 +675,7 @@ def test_a_failed_start_tears_the_connectors_down():
     app = SimulationContext("Shop", factor=0).add_egress(_Sink())
     app.add_resource("packers", current_cap=1, max_cap=1)
     with patch(
-        "desflow.core.context.DynamicResource", side_effect=RuntimeError("broken")
+        "desflow.core.holders.DynamicResource", side_effect=RuntimeError("broken")
     ):
         with pytest.raises(RuntimeError, match="broken"):
             app.run(until=10)
@@ -743,13 +744,39 @@ def test_a_second_run_keeps_no_flow_or_held_request_of_the_first(tmp_path):
         )
         stale = [
             request
-            for listed in app._held_by_task.values()
+            for listed in app._run.held_by_task.values()
             for request in listed
             if request.resource.env is not app.env
         ]
         assert stale == []
     assert runs[0] == runs[1]
     assert any(value.get("event_type") == "flow_done" for _, value in runs[1])
+
+
+def test_the_requests_a_release_task_reaches_drop_those_that_reneged(tmp_path):
+    """The requests a `release: {task}` reaches are listed by task, and the list drops
+    those that no longer hold or wait once it reaches 64: of 100 requests that
+    reneged, the 36 made after the drop are left, and the drop length stays 64."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: Prune, factor: 0, random_seed: 1}\n"
+        "resources: {m: {current_cap: 1}}\n"
+        "arrivals:\n"
+        "  b: {initial: 1, spawn: block}\n"
+        "  h: {gap: 1, max_events: 100, spawn: hold}\n"
+        "  f: {first_at: 500, max_events: 1, gap: 1000, spawn: free_it}\n"
+        "tasks:\n"
+        "  block: {seize: m, service_time: 1000, payload: {event_type: blocked},"
+        " release: m}\n"
+        "  hold: {resource: m, patience: 0.5, service_time: 1,"
+        " payload: {event_type: held}}\n"
+        "  free_it: {payload: {event_type: freed},"
+        " release: {resource: m, task: hold}}\n"
+    )
+    app = SimulationContext.from_yaml(path)
+    app.run(until=200)
+    assert len(app._run.held_by_task["hold"]) == 36
+    assert app._run.held_prune == {"hold": 64}
 
 
 def test_a_variable_that_cannot_be_copied_runs_twice():
@@ -1763,7 +1790,7 @@ def test_registry_paths_of_a_refused_model_raise_an_ordinary_exception():
     import threading
 
     app = _shop_with_ingress()
-    config = app._resources_config["packers"]
+    config = app._holders.resources_config["packers"]
     config.current_cap, config.max_cap = None, 0.5
     threads = threading.active_count()
 
@@ -1997,11 +2024,11 @@ def test_builder_reads_a_duration_in_a_distribution_as_the_blueprint_does(spec):
     app.add_service("s", spec["dist"], **given)
     app.add_arrival("a", spec["dist"], **given)
     assert app._services_config["s"] == expected
-    assert app._arrivals_config["a"] == expected
+    assert app._arrivals.configs["a"] == expected
     app.add_breakdown(
         "r", time_to_failure=spec, repair={"dist": "constant", "value": 1}
     )
-    assert app._breakdowns_config["r"].time_to_failure == expected
+    assert app._holders.breakdowns_config["r"].time_to_failure == expected
 
 
 def test_builder_takes_a_real_number_other_than_a_bool_as_a_time():
@@ -2033,3 +2060,670 @@ def test_builder_refuses_a_value_that_is_not_a_duration_in_a_distribution():
             time_to_failure={"dist": "constant", "value": True},
             repair={"dist": "constant", "value": 1},
         )
+
+
+@pytest.mark.parametrize(
+    "declare, message",
+    [
+        (
+            lambda app: app.add_arrival(
+                "a", "constant", value=1, spawn="t", max_events=2.0
+            ),
+            "arrival 'a': max_events is a whole number of 0 or more, an expression "
+            "or a generator, got 2.0",
+        ),
+        (
+            lambda app: app.add_arrival("a", "constant", value=1, spawn="t", group=[1]),
+            "arrival 'a': group is a whole number, an expression or a generator, "
+            "got [1]",
+        ),
+        (
+            lambda app: app.add_arrival_replay("r", [], unit="weeks"),
+            "unit must be one of ms, s, min, h, timestamp, got 'weeks'",
+        ),
+        (
+            lambda app: app.add_arrival_replay("r", [], on_invalid="drop"),
+            "on_invalid must be error or skip, got 'drop'",
+        ),
+        (
+            lambda app: app.add_breakdown(
+                "r", time_to_failure="x", repair={"dist": "constant", "value": 1}
+            ),
+            "a distribution is a mapping with a dist, got 'x'",
+        ),
+        (
+            lambda app: app.start(until=1, stats="bogus"),
+            "stats must be one of none, minimal, basic, typical, all, got 'bogus'",
+        ),
+        (
+            lambda app: app.add_egress(MagicMock(), when="later"),
+            "when takes a function, 'labels' or 'trace', got 'later'",
+        ),
+        (
+            lambda app: app.with_stats("most"),
+            "stats level must be one of none, minimal, basic, typical, all, got 'most'",
+        ),
+        (
+            lambda app: app.with_stats("basic", interval=0),
+            "stats interval must be greater than 0, got 0",
+        ),
+    ],
+    ids=[
+        "max_events a whole float",
+        "group a list",
+        "replay unit",
+        "replay on_invalid",
+        "breakdown without dist",
+        "stats level",
+        "egress when",
+        "with_stats level",
+        "with_stats interval",
+    ],
+)
+def test_a_builder_value_its_check_refuses(declare, message):
+    """Each refusal of a builder value that the earlier checks let through, with its
+    exact text."""
+    with pytest.raises(ValueError) as refused:
+        declare(SimulationContext("S", factor=0))
+    assert str(refused.value) == message
+
+
+def test_stores_and_containers_are_read_only_from_a_run():
+    """A store or a container is made by the run, so reading one before it is
+    refused; stopping the arrivals before a run does nothing."""
+    app = SimulationContext("S", factor=0)
+    with pytest.raises(RuntimeError, match="Stores are not instantiated"):
+        app.get_store("s")
+    with pytest.raises(RuntimeError, match="Containers are not instantiated"):
+        app.get_container("c")
+    app.stop_arrivals()
+
+
+def test_a_start_whose_environment_fails_raises_its_error():
+    """A start that fails before it has an environment has no connector to stop, so
+    the error of the environment is the one raised."""
+    app = SimulationContext("S", factor=0)
+
+    def broken(**settings):
+        raise OSError("no environment")
+
+    app.environment = broken
+    with pytest.raises(OSError, match="no environment"):
+        app.run(until=1)
+
+
+def test_a_replay_with_no_row_left_logs_its_end_once(caplog):
+    """A replay with no row left gives a wait that never ends, and logs that it
+    stopped once, however often it is asked."""
+    app = SimulationContext("S", factor=0)
+    app.add_arrival_replay("r", [])
+
+    def ask_twice(context):
+        context.wait_for_arrival("r")
+        context.wait_for_arrival("r")
+        yield context.env.timeout(1)
+
+    app.add_process(ask_twice)
+    with caplog.at_level("INFO", logger="desflow.core.context"):
+        app.run(until=2)
+    ended = [r for r in caplog.records if "replayed its last row" in r.getMessage()]
+    assert len(ended) == 1
+
+
+def _yaml_records(tmp_path, text, until):
+    """The values of a blueprint's run that have an `n`, with their times."""
+    path = tmp_path / "model.yaml"
+    path.write_text(text)
+    app = SimulationContext.from_yaml(path)
+    sink = _Records()
+    app.add_egress(sink)
+    app.run(until=until)
+    return app, [
+        (row["sim_ts"], row["value"])
+        for row in sink.records
+        if isinstance(row.get("value"), dict) and "n" in row["value"]
+    ]
+
+
+@pytest.mark.parametrize(
+    "model, message",
+    [
+        (
+            "stores: {s: {priority: true, items: [{gen: expr, expr: '5'}]}}\n"
+            "arrivals: {a: {initial: 1, spawn: t}}\n"
+            "tasks: {t: {payload: {}}}\n",
+            "priority store 's' starts with (priority, item) pairs; a generator in "
+            "its items gave [5]",
+        ),
+        (
+            "resources: {m: {current_cap: 1, queue: priority,"
+            " preempt: {when: 't / 0 > 1'}}}\n"
+            "arrivals: {a: {gap: 1, max_events: 2, spawn: t}}\n"
+            "tasks: {t: {seize: m, service_time: 5, payload: {}, release: m}}\n",
+            "the preempt rule of resource 'm': cannot evaluate 't / 0 > 1': "
+            "division by zero",
+        ),
+        (
+            "arrivals: {a: {gap: 't >= 0', spawn: t}}\ntasks: {t: {payload: {n: 1}}}\n",
+            "arrival 'a' gap gave True, which is not a number of seconds",
+        ),
+    ],
+    ids=["priority store items", "preempt rule", "gap not a number"],
+)
+def test_a_place_read_in_the_run_that_gives_a_wrong_value_stops_it(
+    tmp_path, model, message
+):
+    """A place the run reads, a store's generated items, a preempt rule or a gap,
+    that gives a value it cannot take stops the run with a message naming it."""
+    with pytest.raises(Exception) as stopped:
+        _yaml_records(
+            tmp_path,
+            "simulation: {sim_id: S, factor: 0, random_seed: 1}\n" + model,
+            20,
+        )
+    assert message in str(stopped.value)
+
+
+def test_an_arrival_with_keys_forgets_the_keys_of_entities_that_left(tmp_path):
+    """An arrival with a `key` remembers which keys are in use, and once 2,048 keys
+    are listed it forgets those whose entities have left, so 2,100 one-off keys
+    leave 53 listed."""
+    app, _ = _yaml_records(
+        tmp_path,
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "arrivals: {a: {gap: 1, max_events: 2100, spawn: t,"
+        " key: {gen: expr, expr: t}}}\n"
+        "tasks: {t: {payload: {}}}\n",
+        3000,
+    )
+    assert len(app._run.arrivals.live_keys["a"]) == 53
+
+
+@pytest.mark.parametrize(
+    "off_mode, times",
+    [("drop", [1.0, 2.0, 6.0, 7.0, 8.0]), ("restart", [1.0, 2.0, 6.2, 7.2, 8.2])],
+)
+def test_an_arrival_that_falls_while_its_source_is_off_draws_no_attribute(
+    tmp_path, off_mode, times
+):
+    """An arrival due while its source is off, or dropped by a restarting source,
+    starts nobody and draws no attribute, so the sequence goes on with the next
+    entity that starts."""
+    _, records = _yaml_records(
+        tmp_path,
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "arrivals:\n"
+        f"  a: {{gap: 1, spawn: t, off_mode: {off_mode},"
+        " attributes: {n: {gen: sequence, start: 1}}}\n"
+        "  stopper: {first_at: 2.5, max_events: 1, gap: 100, spawn: stop_a}\n"
+        "  starter: {first_at: 5.2, max_events: 1, gap: 100, spawn: start_a}\n"
+        "tasks:\n"
+        "  t: {payload: {n: {gen: expr, expr: attr.n}}}\n"
+        "  stop_a: {deactivate: [a], payload: {}}\n"
+        "  start_a: {activate: [a], payload: {}}\n",
+        9,
+    )
+    assert records == [(at, {"n": n}) for n, at in enumerate(times, start=1)]
+
+
+def test_a_signal_resume_reads_its_limit_in_the_run_scope(tmp_path):
+    """A signal's `resume` whose `limit` is an expression and that has no scope of
+    its own reads the limit in the run's scope: `1 + 0` wakes one of two."""
+    _, records = _yaml_records(
+        tmp_path,
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "signals: {go: {on: [{resume: {task: w, limit: '1 + 0'}}]}}\n"
+        "arrivals:\n"
+        "  a: {initial: 2, spawn: w}\n"
+        "  b: {first_at: 3, max_events: 1, gap: 100, spawn: g}\n"
+        "tasks:\n"
+        "  w: {wait: {suspend: true}, payload: {n: {gen: expr, expr: t}}}\n"
+        "  g: {signal: go, payload: {}}\n",
+        20,
+    )
+    assert records == [(3.0, {"n": 3})]
+
+
+def test_a_preemption_made_outside_any_process_names_no_entity(tmp_path):
+    """A request that preempts a task from an event callback, outside any process,
+    has no entity, so the preempted record's `preempted_by` is None."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "resources: {m: {current_cap: 1, queue: priority, preempt: true}}\n"
+        "arrivals: {a: {initial: 1, spawn: t}}\n"
+        "tasks: {t: {seize: m, service_time: 10, payload: {e: done}, release: m}}\n"
+    )
+    app = SimulationContext.from_yaml(path)
+
+    def preempt_from_a_callback(context):
+        timer = context.env.timeout(2)
+        timer.callbacks.append(
+            lambda _event: context.get_resource("m").request(priority=-1, preempt=True)
+        )
+        yield timer
+
+    app.add_process(preempt_from_a_callback)
+    sink = _Records()
+    app.add_egress(sink)
+    app.run(until=20)
+    preempted = [
+        row["value"]
+        for row in sink.records
+        if isinstance(row.get("value"), dict)
+        and row["value"].get("status") == "preempted"
+    ]
+    assert preempted == [
+        {"status": "preempted", "resource": "m", "preempted_by": None, "usage_since": 0}
+    ]
+
+
+def _start_refusal(declare):
+    """The refusal of `start()` for a model with one arrival, `a`, that spawns `t`,
+    a signal `s`, and what `declare` adds."""
+    app = SimulationContext("S", factor=0)
+    app.add_arrival("a", "constant", value=1, spawn="t")
+    app.add_signal("s")
+    declare(app)
+    with pytest.raises(ValueError) as refused:
+        app.start(until=1)
+    return str(refused.value)
+
+
+def _builder_task(app, name, **settings):
+    app.task(name=name, service_time=0, **settings)(lambda task_id: {})
+
+
+@pytest.mark.parametrize(
+    "declare, message",
+    [
+        (
+            lambda app: _builder_task(app, "t", spawn={"task": "nosuch"}),
+            "task 't' spawns task 'nosuch', which is not added; add it with "
+            "@app.task()",
+        ),
+        (
+            lambda app: (
+                _builder_task(app, "t", spawn={"task": "a"}),
+                _builder_task(app, "a"),
+            ),
+            "task 'a', which task 't' spawns, has the name of arrival 'a'; rename the "
+            "task or the arrival, because their flow statistics and entity numbers "
+            "would merge",
+        ),
+        (
+            lambda app: (
+                _builder_task(app, "t", on=[{"fire": {"signal": "s", "from": "x"}}]),
+                app.add_signal("x"),
+                _builder_task(app, "x"),
+            ),
+            "the on: action of task 't' fires from 'x', which is both a signal and a "
+            "task; rename one",
+        ),
+        (
+            lambda app: _builder_task(
+                app, "t", on=[{"fire": {"signal": "s", "from": "nowhere"}}]
+            ),
+            "the on: action of task 't' fires from 'nowhere', which is neither a "
+            "signal nor a task",
+        ),
+    ],
+    ids=["spawn unknown", "spawn an arrival's name", "from both", "from neither"],
+)
+def test_a_builder_name_the_start_refuses(declare, message):
+    """Each refusal of a `spawn` or `fire from` name at the start of a builder run,
+    which a blueprint refuses at load."""
+    assert _start_refusal(declare) == message
+
+
+def test_an_on_action_deactivates_and_activates_an_arrival(tmp_path):
+    """`deactivate` stops an arrival's events and `activate` starts them again."""
+    outcome = run_yaml_text(
+        tmp_path,
+        """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+arrivals:
+  a: {dist: constant, value: 1, first_at: 0, spawn: t}
+  s: {initial: 1, spawn: stop}
+tasks:
+  t: {payload: {e: a}}
+  stop: {wait: {timeout: 2.5}, payload: {e: s}, on: [{deactivate: a}], next: go}
+  go: {wait: {timeout: 2}, payload: {e: g}, on: [{activate: a}]}
+run: {until: 6}
+""",
+        {},
+    )
+    assert outcome.error is None
+    assert [
+        (round(r["sim_ts"], 2), r["value"]["e"])
+        for r in outcome.records
+        if r["stream_type"] == "event" and "status" not in r["value"]
+    ] == [(0.0, "a"), (1.0, "a"), (2.0, "a"), (2.5, "s"), (4.5, "g"), (5.0, "a")]
+
+
+# A-U3: each unknown name an expression reads is refused with its own message, and in
+# one expression the first refused follows the order each check reads the kinds in
+_UNKNOWN_REFERENCES = [
+    (
+        "task",
+        "users.nope > 0",
+        "task 't' reads users.nope, but no resource is called 'nope'; add it with add_resource()",
+    ),
+    (
+        "task",
+        "queue.nope > 0",
+        "task 't' reads queue.nope, but no resource is called 'nope'; add it with add_resource()",
+    ),
+    (
+        "task",
+        "held(nope) > 0",
+        "task 't' reads held.nope, but no resource is called 'nope'; add it with add_resource()",
+    ),
+    (
+        "task",
+        "waiting(nope) > 0",
+        "task 't' reads waiting.nope, but no resource is called 'nope'; add it with add_resource()",
+    ),
+    (
+        "task",
+        "level.nope > 0",
+        "task 't' reads level.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "task",
+        "putters.nope > 0",
+        "task 't' reads putters.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "task",
+        "getters.nope > 0",
+        "task 't' reads getters.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "task",
+        "putting(nope) > 0",
+        "task 't' reads putting(nope), but no store or container is called 'nope'",
+    ),
+    (
+        "task",
+        "getting(nope) > 0",
+        "task 't' reads getting(nope), but no store or container is called 'nope'",
+    ),
+    (
+        "task",
+        "count(nope) > 0",
+        "task 't' reads count(nope), but no store is called 'nope'",
+    ),
+    (
+        "task",
+        "len(items(nope)) > 0",
+        "task 't' reads items(nope), but no store is called 'nope'",
+    ),
+    (
+        "task",
+        "running(nope) > 0",
+        "task 't' reads running(nope), but no task is called 'nope'",
+    ),
+    (
+        "task",
+        'registry["S.nope"].value > 0',
+        "task 't' reads registry[\"S.nope\"], which is not a registry path",
+    ),
+    (
+        "task",
+        'registry["S.nope"] > 0',
+        "task 't' reads registry[\"S.nope\"], which is not a registry path",
+    ),
+    (
+        "task",
+        "users.nope > 0 and level.nope2 > 0",
+        "task 't' reads level.nope2, but no store or container is called 'nope2'",
+    ),
+    (
+        "task",
+        "level.nope2 > 0 and users.nope > 0",
+        "task 't' reads level.nope2, but no store or container is called 'nope2'",
+    ),
+    (
+        "task",
+        "running(nope) > 0 and count(nope2) > 0",
+        "task 't' reads running(nope), but no task is called 'nope'",
+    ),
+    (
+        "task",
+        "count(nope2) > 0 and running(nope) > 0",
+        "task 't' reads running(nope), but no task is called 'nope'",
+    ),
+    (
+        "task",
+        'registry["S.nope"] > 0 and users.nope > 0',
+        "task 't' reads users.nope, but no resource is called 'nope'; add it with add_resource()",
+    ),
+    (
+        "task",
+        "users.packer > 0",
+        "task 't' reads users.packer, but no resource is called 'packer'; did you mean 'packers'?",
+    ),
+    (
+        "task",
+        "level.shel > 0",
+        "task 't' reads level.shel, but no store or container is called 'shel'",
+    ),
+    (
+        "rule",
+        "users.nope > 0",
+        "signal 's' on entry 0 when reads users.nope, but no resource is called 'nope'",
+    ),
+    (
+        "rule",
+        "queue.nope > 0",
+        "signal 's' on entry 0 when reads queue.nope, but no resource is called 'nope'",
+    ),
+    (
+        "rule",
+        "held(nope) > 0",
+        "signal 's' on entry 0 when reads held.nope, but no resource is called 'nope'",
+    ),
+    (
+        "rule",
+        "waiting(nope) > 0",
+        "signal 's' on entry 0 when reads waiting.nope, but no resource is called 'nope'",
+    ),
+    (
+        "rule",
+        "level.nope > 0",
+        "signal 's' on entry 0 when reads level.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "rule",
+        "putters.nope > 0",
+        "signal 's' on entry 0 when reads putters.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "rule",
+        "getters.nope > 0",
+        "signal 's' on entry 0 when reads getters.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "rule",
+        "putting(nope) > 0",
+        "signal 's' on entry 0 when reads putting.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "rule",
+        "getting(nope) > 0",
+        "signal 's' on entry 0 when reads getting.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "rule",
+        "count(nope) > 0",
+        "signal 's' on entry 0 when reads count or items of 'nope', but no store is called 'nope'",
+    ),
+    (
+        "rule",
+        "len(items(nope)) > 0",
+        "signal 's' on entry 0 when reads count or items of 'nope', but no store is called 'nope'",
+    ),
+    (
+        "rule",
+        "signal.nope.count > 0",
+        "signal 's' on entry 0 when reads signal.nope, but no signal is called 'nope'",
+    ),
+    (
+        "rule",
+        "running(nope) > 0",
+        "signal 's' on entry 0 when reads running(nope), but no task is called 'nope'",
+    ),
+    (
+        "rule",
+        'registry["S.nope"].value > 0',
+        "signal 's' on entry 0 when reads registry[\"S.nope\"], which is not a registry path",
+    ),
+    (
+        "rule",
+        'registry["S.nope"] > 0',
+        "signal 's' on entry 0 when reads registry[\"S.nope\"], which is not a registry path",
+    ),
+    (
+        "rule",
+        "users.nope > 0 and level.nope2 > 0",
+        "signal 's' on entry 0 when reads users.nope, but no resource is called 'nope'",
+    ),
+    (
+        "rule",
+        "level.nope2 > 0 and users.nope > 0",
+        "signal 's' on entry 0 when reads users.nope, but no resource is called 'nope'",
+    ),
+    (
+        "rule",
+        "running(nope) > 0 and count(nope2) > 0",
+        "signal 's' on entry 0 when reads count or items of 'nope2', but no store is called 'nope2'",
+    ),
+    (
+        "rule",
+        "count(nope2) > 0 and running(nope) > 0",
+        "signal 's' on entry 0 when reads count or items of 'nope2', but no store is called 'nope2'",
+    ),
+    (
+        "rule",
+        'registry["S.nope"] > 0 and users.nope > 0',
+        "signal 's' on entry 0 when reads users.nope, but no resource is called 'nope'",
+    ),
+    (
+        "rule",
+        "users.packer > 0",
+        "signal 's' on entry 0 when reads users.packer, but no resource is called 'packer'; did you mean 'packers'?",
+    ),
+    (
+        "rule",
+        "level.shel > 0",
+        "signal 's' on entry 0 when reads level.shel, but no store or container is called 'shel'; did you mean 'shelf'?",
+    ),
+]
+
+
+def _reading_model(kind, form):
+    """A model whose task balk, or whose signal on entry, reads `form`."""
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_resource("packers", current_cap=1, max_cap=1)
+    app.add_store("shelf", current_cap=5, max_cap=5)
+    app.add_arrival_replay("a", [{"time": 0}], spawn="t")
+    if kind == "task":
+        app.add_service("s", "constant", value=1.0)
+        app.task(service_id="s", resource_id="packers", name="t", balk=form)(
+            lambda task_id: {}
+        )
+    else:
+        app.add_signal("s", on=[{"when": form, "fire": {"signal": "s"}}])
+        app.task(name="t", wait={"timeout": 1})(lambda task_id: {"e": "t"})
+    return app
+
+
+@pytest.mark.parametrize("kind,form,message", _UNKNOWN_REFERENCES)
+def test_an_unknown_name_an_expression_reads_is_refused_with_its_message(
+    kind, form, message
+):
+    with pytest.raises(ValueError) as refused:
+        _reading_model(kind, form).run(until=1)
+    assert str(refused.value).startswith(message)
+
+
+@pytest.mark.parametrize(
+    "steps,message",
+    [
+        (
+            [{"at": 1, "interrupt": {"task": "nope"}}],
+            "scenario step at 1 s interrupts task 'nope', which is not added; "
+            "add it with @app.task()",
+        ),
+        (
+            [
+                {"at": 2, "interrupt": {"task": "nope"}},
+                {"at": 1, "path": "S.nope", "value": 1},
+            ],
+            "scenario step at 1 s sets 'S.nope', which is not a registry path",
+        ),
+        (
+            [
+                {"at": 1, "interrupt": {"task": "nope"}},
+                {"at": 2, "path": "S.nope", "value": 1},
+            ],
+            "scenario step at 1 s interrupts task 'nope', which is not added; "
+            "add it with @app.task()",
+        ),
+        (
+            [
+                {"at": 1, "path": "S.resources.packers.max_cap", "value": 3},
+                {"at": 1, "path": "S.nope", "value": 1},
+            ],
+            "scenario step at 1 s sets 'S.nope', which is not a registry path",
+        ),
+    ],
+)
+def test_the_scenario_check_refuses_the_first_step_in_time_order(steps, message):
+    """A-U4: the steps are checked in the order the run applies them, and steps at
+    one time in the order they are written."""
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_resource("packers", current_cap=1, max_cap=1)
+    app.add_service("s", "constant", value=1.0)
+    app.add_arrival_replay("a", [{"time": 0}], spawn="t")
+    app.task(service_id="s", resource_id="packers", name="t")(lambda task_id: {})
+    app.add_scenario(steps)
+    with pytest.raises(ValueError) as refused:
+        app.run(until=1)
+    assert str(refused.value) == message
+
+
+def test_the_scenario_walk_yields_each_step_with_its_problem():
+    """A-U4: the walk the scenario checks share takes the steps in time order, skips a
+    step with no path, a member's path or a generated value, and ends at the first
+    problem; `convert` adds the YAML loader's type check, which a queue limit skips."""
+    from desflow.core.scenario import walk_steps
+    from desflow.values.models import Expr
+
+    app = SimulationContext("S", factor=0)
+    app.add_resource("m", current_cap=1, max_cap=2, queue_limit=3)
+
+    def walk(steps, convert=False):
+        member = lambda path: path.startswith("S.resources.desk[")  # noqa: E731
+        return list(walk_steps(steps, app._scratch_registry(), member, convert=convert))
+
+    cap = "S.resources.m.current_cap"
+    assert walk([(1, cap, "x")], convert=True) == [(0, "type", 1)]
+    assert walk([(1, cap, "x")]) == [
+        (0, "value", f"'{cap}' holds a int, and 'x' cannot be converted to one")
+    ]
+    assert walk(
+        [(2, "S.nope", 1), (1, None, None), (1, "S.resources.desk[3].current_cap", 1)]
+    ) == [(1, None, None), (2, None, None), (0, "path", None)]
+    assert walk([(1, cap, Expr(gen="expr", expr="1"))], convert=True) == [
+        (0, None, None)
+    ]
+    assert walk([(1, cap, 2.0), (1, cap, 2)], convert=True) == [
+        (0, None, None),
+        (1, None, None),
+    ]
+    assert walk([(1, "S.resources.m.queue_limit", "x")], convert=True)[0][:2] == (
+        0,
+        "value",
+    )

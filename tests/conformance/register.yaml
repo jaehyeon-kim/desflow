@@ -466,6 +466,7 @@
     - tests/conformance/test_c7_patience.py::test_c7_queue_limit_fails_a_request_wait_branch
     - tests/conformance/test_c7_patience.py::test_c7_a_type_with_its_own_queue_limit_balks_before_queued
     - tests/conformance/test_c7_patience.py::test_c7_a_preempted_request_wait_balks_when_the_line_is_full
+    - tests/conformance/test_c7_patience.py::test_c7_a_preempted_seize_balks_when_the_line_is_full
     - tests/conformance/test_c7_patience.py::test_c7_a_interrupt_while_a_preempted_request_waits_leaves_no_stale_request
     - tests/conformance/test_c7_patience.py::test_c7_a_preempted_request_wait_reneges_when_the_patience_runs_out
     - tests/conformance/test_c7_patience.py::test_c7_a_preempted_request_wait_targets_the_resource_while_it_asks_again

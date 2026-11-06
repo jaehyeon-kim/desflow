@@ -15,7 +15,7 @@ from typer.testing import CliRunner
 
 from desflow import SimulationContext
 from desflow.cli import app as cli
-from desflow.core.distributions import clamped_normal_moments
+from desflow.models.distributions import clamped_normal_moments
 from desflow.explain.capacity import _requests
 from desflow.explain.models import Explanation
 

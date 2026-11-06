@@ -20,7 +20,7 @@ import numpy as np
 from simpy.core import StopSimulation
 
 from desflow.config import MIN_DELAY
-from desflow.core.distributions import get_distribution
+from desflow.models.distributions import get_distribution
 from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.values.models import (
     Aggregate,
@@ -91,6 +91,8 @@ class ValueRuntime:
         env: Any,
         sampler: Any = None,
         context: Any = None,
+        scope: Any = None,
+        stop: Optional[Callable[[], None]] = None,
     ):
         """
         Args:
@@ -98,11 +100,17 @@ class ValueRuntime:
             env: The environment, for the simulation clock, its start and its zone.
             sampler: The run's `Sampler`, for `sample` of a service.
             context: The `SimulationContext`.
+            scope: The run's `LiveScope`, for the scope a generator reads outside a
+                task; None gives a scope of the environment alone.
+            stop: Stops the run, for a replay whose rows end with `on_end: stop`;
+                None stops the environment.
         """
         self.seed = seed
         self.env = env
         self.sampler = sampler
         self.context = context
+        self._live = scope
+        self._stop = stop
         # With no seed the sequences still differ from node to node
         self._entropy = seed if seed is not None else np.random.SeedSequence().entropy
         self._streams: Dict[str, np.random.Generator] = {}
@@ -398,21 +406,17 @@ class ValueRuntime:
             keyed: Whether `gen: entity` gives the key of `entity`. The places that
                 make an entity's key and attributes leave it off.
         """
-        from desflow.core.flow import make_scope
-
-        context = self.context
-        return make_scope(
-            None,
-            {} if entity is None else entity.attributes,
-            self.env,
-            context._levels() if context is not None else None,
-            signals=None if context is None else context._signals,
-            resources=None if context is None else context._resources_map,
-            families=None if context is None else context._families,
-            names=names,
-            entity=entity.key if keyed and entity is not None else None,
+        attributes = {} if entity is None else entity.attributes
+        key = entity.key if keyed and entity is not None else None
+        if self._live is not None:
+            return self._live.scope(None, attributes, names=names, entity=key)
+        return Scope(
+            attributes=attributes,
+            registry=self.env.registry,
+            now=self.env.now,
+            names=names or {},
+            entity=key,
             peek=self.env.peek,
-            instances=None if context is None else context._instance_scopes,
         )
 
     def value(self, spec: Any, entity: Any = None) -> Any:
@@ -867,9 +871,9 @@ class ValueRuntime:
                         "to loop or stop to say what happens then"
                     )
                 if node.on_end == "stop":
-                    if self.context is None:
+                    if self._stop is None:
                         raise StopSimulation(None)
-                    self.context._stop_run()
+                    self._stop()
                     raise RunStopped()
             cursor.position = 0
             cursor.order = None

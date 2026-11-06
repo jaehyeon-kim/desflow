@@ -61,7 +61,7 @@ WEIGHTS = {  # the document's routes by weights, as the engine reads them
 def build(env: DynamicRealtimeEnvironment) -> None:
     sampler = Sampler(seed=42)
     context = Run("sales")
-    values = ValueRuntime(42, env, sampler, context)
+    values = ValueRuntime(42, env, sampler, context, stop=context._stop_run)
     context.values = values
     templates = {
         name: Template(

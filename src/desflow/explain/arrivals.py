@@ -22,7 +22,7 @@ def moments(parameters: Dict) -> Tuple[float, float]:
     Returns:
         Tuple[float, float]: The effective mean and variance.
     """
-    from desflow.core.distributions import clamped_normal_moments, get_distribution
+    from desflow.models.distributions import clamped_normal_moments, get_distribution
     from desflow.models.params import DistributionConfig
 
     config = DistributionConfig(**parameters)

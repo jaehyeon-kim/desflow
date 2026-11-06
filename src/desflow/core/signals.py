@@ -6,14 +6,22 @@ and keeps that event, so a waiter that starts after the firing resumes at once. 
 `once=False` the event is replaced by a fresh one at the firing, so the signal can fire
 again; every waiter of one firing resumes, and a waiter that starts after a firing
 waits for the next.
+
+`Signals` holds what a model declares for its signals, and each run's `SignalRun` the
+signals of that run, which it fires and whose `on:` actions it runs.
 """
 
+import functools
 import logging
 import operator
-from typing import Any, Callable, List, Optional
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
 from simpy import Environment, Event
 from simpy.events import NORMAL, URGENT
+
+from desflow.core.families import family_of
+from desflow.models.flow import Entity
 
 logger = logging.getLogger(__name__)
 
@@ -336,3 +344,164 @@ class Signal:
 
     def __repr__(self) -> str:
         return f"Signal({self.name!r}, count={self.count}, ok={self.ok})"
+
+
+class Signals:
+    """What a model declares for its signals.
+
+    Attributes:
+        names: The signals, in the order they were declared.
+        once: Whether each signal fires once.
+        defused: Whether each signal's failures are defused, as `event.defused =
+            True` does.
+        on: Each signal's `on:` actions, in normalized form, run when it fires.
+    """
+
+    def __init__(self) -> None:
+        self.names: List[str] = []
+        self.once: Dict[str, bool] = {}
+        self.defused: Dict[str, bool] = {}
+        self.on: Dict[str, List[Dict[str, Any]]] = {}
+
+    def new_run(
+        self,
+        env: Environment,
+        families: Mapping[str, Any],
+        run_action: Callable[..., None],
+        end_processed: Callable[[Any], None],
+    ) -> "SignalRun":
+        """The signals of a new run: one for each declared signal that is not a
+        family, whose members the run makes as it names them.
+
+        Args:
+            env: The run's environment.
+            families: The model's families, by name.
+            run_action: Runs one `on:` action, given the action, its owner for the
+                messages, the entity and the upstream.
+            end_processed: Counts out an entity whose pending end has run.
+        """
+        run = SignalRun(self, env, families, run_action, end_processed)
+        for name in self.names:
+            if name not in families:
+                run.make(name, name)
+        return run
+
+
+@dataclass
+class SignalRun:
+    """The signals of one run, by name. Each run's build makes a new one.
+
+    Attributes:
+        signals: The declarations.
+        env: The run's environment.
+        families: The model's families, by name.
+        run_action: Runs one `on:` action.
+        end_processed: Counts out an entity whose pending end has run.
+        made: The signals the run has made, members included.
+    """
+
+    signals: Signals
+    env: Environment
+    families: Mapping[str, Any]
+    run_action: Callable[..., None]
+    end_processed: Callable[[Any], None]
+    made: Dict[str, Signal] = field(default_factory=dict)
+
+    def make(self, name: str, base: str) -> Signal:
+        """Makes a signal with the settings of the declared signal `base`, which is
+        the signal itself or the family it is a member of, so the run adds nothing to
+        the declarations.
+
+        Args:
+            name: The signal's name.
+            base: The declared signal whose settings it takes.
+        """
+        signal = Signal(
+            self.env,
+            name,
+            once=self.signals.once.get(base, True),
+            defused=self.signals.defused.get(base, False),
+        )
+        if self.signals.on.get(base):
+            signal.attach([functools.partial(self.fired, name)])
+        self.made[name] = signal
+        return signal
+
+    def fire(
+        self,
+        name: str,
+        ok: bool,
+        value: Any,
+        entity: Optional[Entity],
+        urgent: bool = False,
+        after: Optional[float] = None,
+        priority: Optional[int] = None,
+        defused: bool = False,
+    ) -> None:
+        """Fires or fails a signal through one path, counting its `on:` actions
+        against `entity` so a drain waits for them.
+
+        When the firing is new, the signal has `on:` actions, and `entity` has not
+        left, 1 is added to `entity.ends_pending` and the entity is stored on the
+        pending event, so the signal's last callback counts it back out.
+
+        A firing with `urgent`, `after` or a `priority` is for a one-shot signal and is
+        scheduled with that priority and delay. `defused` is for a failure nobody waits
+        for. With `after` it is not counted against
+        `entity`, because the entity may leave before the signal fires, so a drain
+        can end before the signal's `on:` actions run.
+
+        Args:
+            name: The signal's name.
+            ok: True fires the signal, False fails it.
+            value: The value it fires with, or the reason of the failure.
+            entity: The entity its `on:` actions count against; None for none.
+            urgent: Schedules the firing as urgent.
+            after: The delay before it fires; None for now.
+            priority: The priority it is scheduled with; None for the default.
+            defused: Marks a failure nobody waits for.
+        """
+        signal = self.made[name]
+        pending = signal.wait()
+        if (
+            after is None
+            and not pending.triggered
+            and self.signals.on.get(self.declared(name))
+            and entity is not None
+            and not entity.left
+        ):
+            entity.ends_pending += 1
+            pending._desflow_entity = entity  # type: ignore[attr-defined]
+        if ok:
+            signal.fire(value, urgent=urgent, after=after or 0.0, priority=priority)
+        else:
+            signal.fail(
+                value,
+                urgent=urgent,
+                after=after or 0.0,
+                priority=priority,
+                defused=defused,
+            )
+
+    def declared(self, name: str) -> str:
+        """The declared signal whose settings a signal takes: a member's family, or
+        the signal itself.
+
+        Args:
+            name: The signal's name.
+        """
+        return family_of(name, self.families) or name
+
+    def fired(self, name: str, event: Any) -> None:
+        """The signal's last `on:` callback: runs its actions, then counts the firing
+        task's entity out, as a pending `ended` is counted out.
+
+        Args:
+            name: The signal's name.
+            event: The fired event.
+        """
+        entity = getattr(event, "_desflow_entity", None)
+        for action in self.signals.on.get(self.declared(name), []):
+            self.run_action(action, f"signal '{name}'", entity, None)
+        if entity is not None:
+            self.end_processed(entity)

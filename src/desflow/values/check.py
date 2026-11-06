@@ -579,7 +579,7 @@ def load_rows(node: Row, base_dir: Path) -> Optional[str]:
         Optional[str]: The problem, or None when the rows were read.
     """
     from desflow.core.expressions import ANY_NAME, Expression
-    from desflow.core.replay import _records, _value
+    from desflow.core.replay import plain_value, read_records
 
     path = Path(node.file)
     if not path.is_absolute():
@@ -591,7 +591,7 @@ def load_rows(node: Row, base_dir: Path) -> Optional[str]:
     if not path.is_file():
         return f"{node.file} does not exist (looked for {path})"
     try:
-        records = _records(path)
+        records = read_records(path)
     except ImportError:
         return (
             f"{node.file} is a Parquet file, which needs the parquet extra: "
@@ -599,7 +599,9 @@ def load_rows(node: Row, base_dir: Path) -> Optional[str]:
         )
     except (OSError, UnicodeDecodeError, ValueError) as exc:
         return f"{node.file} cannot be read: {exc}"
-    rows = [{key: _value(value) for key, value in record.items()} for record in records]
+    rows = [
+        {key: plain_value(value) for key, value in record.items()} for record in records
+    ]
     if node.where is not None:
         try:
             expression = Expression(node.where, names=ANY_NAME)

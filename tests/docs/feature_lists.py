@@ -117,6 +117,6 @@ def extras():
 
 
 def families():
-    from desflow.core.distributions import DISTRIBUTIONS
+    from desflow.models.distributions import DISTRIBUTIONS
 
     return sorted(DISTRIBUTIONS)

@@ -55,7 +55,7 @@ from desflow.config import (
     STATS_LEVELS,
     TRACE,
 )
-from desflow.core.distributions import (
+from desflow.models.distributions import (
     PARAMETERS,
     TIME_LIST_PARAMETERS,
     TIME_PARAMETERS,

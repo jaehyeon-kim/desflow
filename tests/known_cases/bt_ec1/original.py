@@ -199,7 +199,7 @@ def _settings() -> tuple[dict[str, Any], dict[str, Any]]:
     from ecommerce.simulation import run as project
 
     app = project.build(START, seed=7, factor=0.0)
-    return app._arrivals_config, app._services_config
+    return app._arrivals.configs, app._services_config
 
 
 class _FixedRng:
@@ -531,7 +531,7 @@ def compare(
     # BT-EC9: the control topic the project creates, and the one the document's ingress does
     created_topics, built = _topic_calls(project)
     app = SimulationContext.from_yaml(HERE / "model.yaml", variables=VARIABLES)
-    (ingress,) = app._ingress_providers
+    (ingress,) = app._sinks.ingress
     assert ingress.topic == built[0]["topic"] == project.config.CONTROL_TOPIC
     assert (
         ingress.bootstrap_servers

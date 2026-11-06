@@ -76,7 +76,7 @@ def _dist(
 
     Exits 1 for a family with no formula from a mean and std.
     """
-    from desflow.core.distributions import DISTRIBUTIONS, parameters_from_moments
+    from desflow.models.distributions import DISTRIBUTIONS, parameters_from_moments
     from desflow.utils import suggestion
 
     if family is None:
@@ -165,7 +165,7 @@ def _values_text(family: Any, parameters: Dict[str, float]) -> str:
     Raises `ValueError` when a parameter breaks the family's rules.
     """
     from desflow.config import MIN_DELAY
-    from desflow.core.distributions import clamped_normal_moments, variability
+    from desflow.models.distributions import clamped_normal_moments, variability
     from desflow.models.params import DistributionConfig
 
     config = DistributionConfig(dist=family.name, **parameters)  # type: ignore[arg-type]

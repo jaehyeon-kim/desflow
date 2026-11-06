@@ -279,3 +279,13 @@ def test_initial_and_replay_arrivals_take_key_and_vars_as_the_yaml_does(
     else:
         assert built[1] == from_yaml[1]
         assert built[1], "the case runs no event, so it shows nothing"
+
+
+def test_an_initial_arrival_with_a_gap_runs_as_the_yaml_does(tmp_path):
+    """An `initial` arrival with a `gap` is a source that starts its `initial`
+    entities and then one at each gap, in the builder as in YAML."""
+    arrival = _initial_or_replay("initial", {"gap": 4}, tmp_path)
+    from_yaml = _yaml(arrival, tmp_path)
+    built = _builder_initial_or_replay("initial", arrival, tmp_path)
+    assert built == from_yaml
+    assert built[0] != "refused" and built[1], built

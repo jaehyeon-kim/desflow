@@ -1,3 +1,4 @@
+from desflow.core.sinks import Sink
 import asyncio
 import json
 import queue
@@ -120,14 +121,8 @@ async def test_collect_data_files_events_under_names_that_hold_a_dot(
         )
         app = SimulationContext.from_yaml(path)
         capture = _Capture()
-        app._ingress_providers = []
-        app._egress_providers = [capture]
-        app._egress_predicates = [None]
-        app._egress_batch_sizes = [None]
-        app._egress_flush_intervals = [None]
-        app._egress_labels = [False]
-        app._egress_traces = [False]
-        app._egress_envelopes = [True]
+        app._sinks.ingress = []
+        app._sinks.egress = [Sink(capture)]
         app.run()
         return [
             types.SimpleNamespace(

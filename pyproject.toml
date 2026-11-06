@@ -171,6 +171,8 @@ dev = [
     # Runs the tests in parallel worker processes (-n auto in CI).
     "pytest-xdist>=3.8.0",
     "ruff>=0.15.5",
+    # Checks the import contracts in [tool.importlinter], in the lint job.
+    "import-linter>=2.15",
     # Integration tests and the examples get their containers from odctl. 1.x
     # keeps profile names, ports and commands stable, and versions before 0.5.1
     # created the Valkey user without a channel grant (odctl#76).
@@ -217,6 +219,57 @@ extend-exclude = ["*_pb2.py", "*_pb2.pyi"]
 # SimPy's own example files, kept byte for byte as SimPy ships them apart from the
 # notice and the snippet markers, so the page shows SimPy's code (test_simpy_examples.py)
 exclude = ["docs/snippets/simpy/*"]
+
+[tool.importlinter]
+root_package = "desflow"
+# An import that only an annotation needs is not a dependency at run time.
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+name = "connectors import no other desflow package"
+type = "forbidden"
+source_modules = ["desflow.connectors"]
+forbidden_modules = [
+    "desflow.analysis",
+    "desflow.blueprint",
+    "desflow.cli",
+    "desflow.config",
+    "desflow.core",
+    "desflow.examples",
+    "desflow.explain",
+    "desflow.internal",
+    "desflow.loading",
+    "desflow.models",
+    "desflow.resources",
+    "desflow.utils",
+    "desflow.values",
+]
+
+[[tool.importlinter.contracts]]
+name = "resources import neither core nor blueprint"
+type = "forbidden"
+source_modules = ["desflow.resources"]
+forbidden_modules = ["desflow.core", "desflow.blueprint"]
+
+[[tool.importlinter.contracts]]
+name = "models import no core"
+type = "forbidden"
+source_modules = ["desflow.models"]
+forbidden_modules = ["desflow.core"]
+
+[[tool.importlinter.contracts]]
+name = "values import no module of core that runs a model"
+type = "forbidden"
+# Only the imports of values itself: core also holds the layer below values
+# (expressions, environment, replay), whose function-level imports reach these.
+allow_indirect_imports = true
+source_modules = ["desflow.values"]
+forbidden_modules = [
+    "desflow.core.context",
+    "desflow.core.task",
+    "desflow.core.flow",
+    "desflow.core.scenario",
+]
 
 [tool.pytest.ini_options]
 # docs/snippets holds a reader's test_a_model.py, which a run of the suite must not collect

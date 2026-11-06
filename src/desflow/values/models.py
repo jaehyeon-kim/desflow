@@ -49,7 +49,7 @@ from pydantic import (
 )
 from typing_extensions import TypeAliasType
 
-from desflow.core.distributions import (
+from desflow.models.distributions import (
     LIST_PARAMETERS,
     PARAMETERS,
     TIME_LIST_PARAMETERS,

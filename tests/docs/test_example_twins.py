@@ -6,6 +6,7 @@ compared with the builder version's: the same keys and paths, the same values, a
 same simulation times. Nothing here contacts a database, a broker or a catalog.
 """
 
+from desflow.core.sinks import Sink
 import asyncio
 import importlib.util
 import queue
@@ -68,14 +69,8 @@ def _run_builder(app, until, **run):
     app.factor = 0.0
     app.go_live_at = None  # the backfill example stays unpaced for the comparison
     capture, labels = _Capture(), _Capture()
-    app._ingress_providers = []
-    app._egress_providers = [capture, labels]
-    app._egress_predicates = [None, None]
-    app._egress_batch_sizes = [None, None]
-    app._egress_flush_intervals = [None, None]
-    app._egress_labels = [False, True]
-    app._egress_traces = [False, False]
-    app._egress_envelopes = [True, True]
+    app._sinks.ingress = []
+    app._sinks.egress = [Sink(capture), Sink(labels, label=True)]
     app.run(until=until, **run)
     return _records(capture.records + labels.records)
 

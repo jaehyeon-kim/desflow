@@ -339,11 +339,13 @@ def compare(
         assert abs(record["sim_ts"] - 0.1 * number) < 1e-9
     # BT-PR7: the files for later steps are written by a Parquet sink
     app = SimulationContext.from_yaml(HERE / "model.yaml", variables=VARIABLES)
-    parquet, kafka = app._egress_providers
+    parquet, kafka = [sink.provider for sink in app._sinks.egress]
     assert isinstance(parquet, ParquetStorageEgress)
     # BT-PR9: the feedback events go to Kafka in Avro, with the project's schema, topic
     # and key; the value is the event alone
-    assert isinstance(kafka, KafkaEgress) and app._egress_envelopes == [True, False]
+    assert isinstance(kafka, KafkaEgress) and [
+        sink.envelope for sink in app._sinks.egress
+    ] == [True, False]
     assert kafka.event_topic == result.config.FEEDBACK_TOPIC
     serializer = kafka.default_serializer
     assert isinstance(serializer, ConfluentAvroSerializer)

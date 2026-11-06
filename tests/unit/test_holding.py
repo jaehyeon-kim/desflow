@@ -496,7 +496,7 @@ run: {until: 40}
 """
     outcome = run_yaml_text(tmp_path, text, {})
     assert outcome.error is None, repr(outcome.error)
-    resource = outcome.app_or_env._resources_map["m"]
+    resource = outcome.app_or_env._run.holders.resources["m"]
     assert not resource.queue and not resource.users
     statuses = {
         r["value"].get("status") for r in outcome.records if r["stream_type"] == "event"

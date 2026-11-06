@@ -9,7 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from desflow.cli import app
-from desflow.core.distributions import (
+from desflow.models.distributions import (
     DISTRIBUTIONS,
     clamped_normal_moments,
     parameters_from_moments,

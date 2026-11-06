@@ -1,5 +1,6 @@
 """Built-in statistics, the warm-up and ground-truth records."""
 
+from dataclasses import replace
 import asyncio
 import queue
 import textwrap
@@ -243,7 +244,10 @@ def test_ground_truth_reaches_only_the_labels_sink(tmp_path):
     path.write_text(SCENARIO, encoding="utf-8")
     app = SimulationContext.from_yaml(path)
     data, labels = _Capture(), _Capture()
-    app._egress_providers[:] = [data, labels]
+    app._sinks.egress[:] = [
+        replace(sink, provider=provider)
+        for sink, provider in zip(app._sinks.egress, [data, labels])
+    ]
     app.run()
 
     assert [

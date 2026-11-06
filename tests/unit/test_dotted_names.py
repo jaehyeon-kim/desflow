@@ -27,6 +27,7 @@ model that holds it in a text other than a registry path.
 import contextlib
 import importlib.util
 import logging
+import os
 import re
 import zlib
 from pathlib import Path
@@ -354,12 +355,16 @@ def test_a_model_with_every_name_dotted_runs_as_written(name, make, until, run):
         with (
             regression._restored_imports(),
             contextlib.chdir(ROOT),
+            # A blueprint may read ${PWD}, which Windows does not set
+            patch.dict(os.environ, {"PWD": str(ROOT)}),
             patch("pyiceberg.catalog.rest.RestCatalog", MagicMock()),
         ):
             plain = _outcome(make, until, run)
         with (
             regression._restored_imports(),
             contextlib.chdir(ROOT),
+            # A blueprint may read ${PWD}, which Windows does not set
+            patch.dict(os.environ, {"PWD": str(ROOT)}),
             patch("pyiceberg.catalog.rest.RestCatalog", MagicMock()),
             patch.object(
                 build_module,

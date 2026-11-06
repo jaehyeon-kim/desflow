@@ -50,6 +50,7 @@ def verify(
     from desflow.analysis.intervals import interval
     from desflow.analysis.models import context_of, run_once, seconds
     from desflow.analysis.runner import run_replications, spawn_seeds
+    from desflow.core.context import parts_of
     from desflow.core.statistics import published_value
 
     if replications is not None and replications < 2:
@@ -58,7 +59,7 @@ def verify(
     assert context is not None
     end = seconds(until)
     if end is None:
-        end = seconds(context._default_until)
+        end = seconds(parts_of(context).defaults.until)
     if end is None:
         raise ValueError(
             "verify needs an end time: pass until, or set run.until in the blueprint"

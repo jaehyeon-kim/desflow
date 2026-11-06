@@ -9,7 +9,7 @@ from simpy.core import BoundClass
 from simpy.resources.resource import Preempted, PriorityRequest
 
 from desflow.config import DEFAULT_QUEUE_ORDER, QUEUE_ORDERS
-from desflow.core.internal import InternalEvent
+from desflow.internal import InternalEvent
 from desflow.resources.base import BaseDynamicResource, RankedQueue
 
 

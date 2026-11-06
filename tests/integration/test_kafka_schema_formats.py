@@ -536,7 +536,7 @@ def test_glue_serializer_from_yaml(floci, tmp_path):
         },
     )
     serializer = (
-        SimulationContext.from_yaml(path)._egress_providers[0].default_serializer
+        SimulationContext.from_yaml(path)._sinks.egress[0].provider.default_serializer
     )
 
     framed = serializer.serialize("orders", {"order_id": 1, "amount": 100.0})

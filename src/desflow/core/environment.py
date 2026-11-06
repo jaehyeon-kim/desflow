@@ -1,12 +1,14 @@
 import asyncio
+import contextlib
 import logging
 import math
 import queue
 import threading
 import time
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, tzinfo
 from datetime import timezone as dt_timezone
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import TypeAdapter
@@ -14,16 +16,18 @@ from pydantic_core import to_jsonable_python
 
 import simpy.rt
 from simpy import Environment, Event, Process, RealtimeEnvironment, Timeout
+from simpy.events import URGENT
 from simpy.core import EmptySchedule
 
 from desflow.config import DEFAULT_STATS_INTERVAL, UNHANDLED_FAILURE_POLICIES
-from desflow.core.internal import (
+from desflow.internal import (
     InternalEvent,
     InternalProcess,
     InternalTimeout,
     is_internal,
 )
 from desflow.core.registry import SimulationRegistry
+from desflow.core.sinks import Sink
 from desflow.core.statistics import Statistics
 
 logger = logging.getLogger(__name__)
@@ -256,6 +260,30 @@ class IngressMixIn:
             loop.call_soon_threadsafe(loop.stop)
 
 
+@dataclass
+class _SinkRun:
+    """One sink of a run: its settings, with the batch size and flush interval it
+    uses, the queue of batches its thread reads, its buffer, and how many timer
+    flushes in a row came in far below its batch size.
+
+    Attributes:
+        sink: The sink's settings.
+        batches: The batches waiting for the sink's thread; its own lock guards it.
+        buffer: The records not flushed yet.
+        starved_flushes: Timer flushes in a row far below the batch size.
+        starved_totals: The records of those flushes.
+        starvation_warned: Whether the warning that the batch size never governs
+            has been logged.
+    """
+
+    sink: Sink
+    batches: "queue.Queue[Any]"
+    buffer: List[Dict[str, Any]] = field(default_factory=list)
+    starved_flushes: int = 0
+    starved_totals: int = 0
+    starvation_warned: bool = False
+
+
 class EgressMixIn:
     """
     Handles high-throughput data egress to external systems.
@@ -348,6 +376,50 @@ class EgressMixIn:
         # Each provider imports its libraries here, before the run, and not in the
         # egress thread: a first import holds the interpreter lock while it loads,
         # which in a paced run stops the simulation and fails a strict one
+        self._load_provider_libraries(providers)
+        given, sizes, intervals, label_flags, trace_flags, envelope_flags = (
+            self._resolve_sink_settings(
+                providers,
+                batch_size,
+                flush_interval,
+                drain_stall_seconds,
+                predicates,
+                batch_sizes,
+                flush_intervals,
+                labels,
+                envelopes,
+                traces,
+            )
+        )
+        given = self._set_warmup_and_lag(warmup, lag_monitor_interval, given)
+        # One buffer and one queue per provider. The buffers were shared until
+        # batching moved behind the fan-out, which meant a single cadence for every
+        # sink and no way to give a stream sink low latency while a lake sink built
+        # large files.
+        self._egress_sinks: List[_SinkRun] = [
+            _SinkRun(
+                Sink(provider, predicate, size, interval, label, trace, envelope),
+                queue.Queue(maxsize=max_queued_batches),
+            )
+            for provider, predicate, size, interval, label, trace, envelope in zip(
+                providers,
+                given,
+                sizes,
+                intervals,
+                label_flags,
+                trace_flags,
+                envelope_flags,
+            )
+        ]
+        self._egress_traced = any(trace_flags)
+        self._egress_loop: Optional[asyncio.AbstractEventLoop] = (
+            None  # Store loop reference
+        )
+
+        self._start_egress(len(providers))
+
+    def _load_provider_libraries(self, providers: List[Any]) -> None:
+        """Loads each provider's client library, before any egress attribute is set."""
         loading_began = simpy.rt.monotonic()
         for provider in providers:
             load = getattr(provider, "_load_libraries", None)
@@ -362,17 +434,28 @@ class EgressMixIn:
         if getattr(self, "strict", False) and hasattr(self, "real_start"):
             self.real_start += simpy.rt.monotonic() - loading_began
 
+    def _resolve_sink_settings(
+        self,
+        providers: List[Any],
+        batch_size: int,
+        flush_interval: float,
+        drain_stall_seconds: Any,
+        predicates: Any,
+        batch_sizes: Any,
+        flush_intervals: Any,
+        labels: Any,
+        envelopes: Any,
+        traces: Any,
+    ) -> Tuple[List[Any], List[int], List[float], List[bool], List[bool], List[bool]]:
+        """Each provider's predicate, batch size, flush interval and flags, matched by
+        position; a provider with `envelope: false` is told so."""
         self.egress_drain_stall_seconds = drain_stall_seconds
-        self.egress_providers = providers
-        self.egress_queues: List[queue.Queue[Any]] = [
-            queue.Queue(maxsize=max_queued_batches) for _ in providers
-        ]
-        self.egress_predicates: List[Optional[Callable[[Dict[str, Any]], bool]]] = (
+        given: List[Optional[Callable[[Dict[str, Any]], bool]]] = (
             list(predicates) if predicates else [None] * len(providers)
         )
-        if len(self.egress_predicates) != len(providers):
+        if len(given) != len(providers):
             raise ValueError(
-                f"predicates has {len(self.egress_predicates)} entries for "
+                f"predicates has {len(given)} entries for "
                 f"{len(providers)} providers; they are matched by position"
             )
         # The fallback a provider gets when it names no value of its own. Read
@@ -380,31 +463,34 @@ class EgressMixIn:
         # uses, since either can differ from this.
         self.egress_batch_size = batch_size
         self.egress_flush_interval = flush_interval
-        self.egress_batch_sizes: List[int] = self._resolve_per_provider(
+        sizes: List[int] = self._resolve_per_provider(
             batch_sizes, batch_size, len(providers), "batch_sizes"
         )
-        self.egress_flush_intervals: List[float] = self._resolve_per_provider(
+        intervals: List[float] = self._resolve_per_provider(
             flush_intervals, flush_interval, len(providers), "flush_intervals"
         )
-        self.egress_labels: List[bool] = [
+        # What each provider uses, in the order they were set up
+        self.egress_batch_sizes = sizes
+        self.egress_flush_intervals = intervals
+        label_flags = [
             bool(flag)
             for flag in self._resolve_per_provider(
                 labels, False, len(providers), "labels"
             )
         ]
-        self.egress_traces: List[bool] = [
+        trace_flags = [
             bool(flag)
             for flag in self._resolve_per_provider(
                 traces, False, len(providers), "traces"
             )
         ]
-        self.egress_envelopes: List[bool] = [
+        envelope_flags = [
             bool(flag)
             for flag in self._resolve_per_provider(
                 envelopes, True, len(providers), "envelopes"
             )
         ]
-        for provider, envelope in zip(providers, self.egress_envelopes):
+        for provider, envelope in zip(providers, envelope_flags):
             if not envelope:
                 provider.envelope = False
                 logger.info(
@@ -412,13 +498,20 @@ class EgressMixIn:
                     "and started records, and writes each event's value alone.",
                     type(provider).__name__,
                 )
+        return given, sizes, intervals, label_flags, trace_flags, envelope_flags
+
+    def _set_warmup_and_lag(
+        self, warmup: Optional[float], lag_monitor_interval: Any, given: List[Any]
+    ) -> List[Any]:
+        """Sets the warm-up, which drops the records before it, and the lag
+        monitor's interval. Returns the predicates with the warm-up applied."""
         self.egress_warmup = warmup
         if warmup is not None:
             # The warm-up counts from the start of the run, as the statistics reset
             # below does, so a run with an initial_time drops the right records
-            self.egress_predicates = [
+            given = [
                 _after_warmup(self.now + warmup, predicate)  # type: ignore[attr-defined]
-                for predicate in self.egress_predicates
+                for predicate in given
             ]
             self.start_internal(self._end_warmup(warmup))  # type: ignore[attr-defined]
         # "auto": off while the clock is detached from the wall clock, once a second
@@ -436,20 +529,12 @@ class EgressMixIn:
                 lag_monitor_interval = None
                 self._lag_on_go_live = True
         self.egress_lag_monitor_interval: Optional[float] = lag_monitor_interval
-        # One buffer per provider. They shared one until batching moved behind the
-        # fan-out, which meant a single cadence for every sink and no way to give a
-        # stream sink low latency while a lake sink built large files.
-        self._event_buffers: List[List[Dict[str, Any]]] = [[] for _ in providers]
-        # Counts consecutive timer-driven flushes that came in far below batch_size,
-        # so a configuration where the size never governs is reported once per run.
-        self._starved_flushes: List[int] = [0] * len(providers)
-        self._starved_totals: List[int] = [0] * len(providers)
-        self._starvation_warned: List[bool] = [False] * len(providers)
-        self._egress_loop: Optional[asyncio.AbstractEventLoop] = (
-            None  # Store loop reference
-        )
+        return given
 
-        # Start background threads for providers
+    def _start_egress(self, count: int) -> None:
+        """Starts the egress thread, the periodic flush of each of the `count`
+        providers and the lag monitor."""
+        # Start the background thread for the providers
         self._egress_thread = threading.Thread(
             target=self._run_egress_loop, daemon=True
         )
@@ -464,7 +549,7 @@ class EgressMixIn:
         # not started. Teardown flushes whatever is left in the buffer.
         self._periodic_flush_running = bool(getattr(self, "factor", 1.0))
         if self._periodic_flush_running:
-            for index in range(len(providers)):
+            for index in range(count):
                 self.start_internal(self._periodic_flush(index))  # type: ignore[attr-defined]
         # Only start the lag monitor if an interval > 0 is provided
         if self.egress_lag_monitor_interval and self.egress_lag_monitor_interval > 0:
@@ -483,21 +568,19 @@ class EgressMixIn:
     def _event_buffer(self) -> List[Dict[str, Any]]:
         """The first provider's buffer, kept so single-sink callers and tests still read.
 
-        Each provider now buffers separately in `_event_buffers`, so that a stream
-        sink and a lake sink can flush at different sizes. Read `_event_buffers` when
-        the number of providers matters.
+        Each provider buffers separately, in its own record in `_egress_sinks`, so
+        that a stream sink and a lake sink can flush at different sizes.
         """
-        return self._event_buffers[0]
+        return self._egress_sinks[0].buffer
 
     @property
     def egress_queue(self) -> "queue.Queue[Any]":
         """The first provider's queue, kept so single-sink callers and tests still read.
 
-        Each provider now has its own queue in `egress_queues`. With one provider the
-        two are the same thing. With several, this returns only the first, so use
-        `egress_queues` when the number of providers matters.
+        Each provider has its own queue. With one provider the two are the same
+        thing. With several, this returns only the first.
         """
-        return self.egress_queues[0]
+        return self._egress_sinks[0].batches
 
     def _lag_monitor(self, delay: float = 0.0):
         """Internal: Monitors how far the simulation time has drifted from the real-world clock."""
@@ -527,13 +610,11 @@ class EgressMixIn:
         # One queue per provider, so every provider sees every batch routed to it.
         # Sharing one queue made them competing consumers of the same batches.
         tasks = [
-            loop.create_task(provider.run(provider_queue))
-            for provider, provider_queue in zip(
-                self.egress_providers, self.egress_queues
-            )
+            loop.create_task(run.sink.provider.run(run.batches))
+            for run in self._egress_sinks
         ]
-        for provider, task in zip(self.egress_providers, tasks):
-            task.add_done_callback(_report_stopped("Egress", provider))
+        for run, task in zip(self._egress_sinks, tasks):
+            task.add_done_callback(_report_stopped("Egress", run.sink.provider))
 
         try:
             # Run the loop until teardown() calls loop.stop()
@@ -562,7 +643,7 @@ class EgressMixIn:
     def _periodic_flush(self, index: int):
         """Internal: SimPy process flushing one provider's buffer on its own interval."""
         while True:
-            yield self.internal_timeout(self.egress_flush_intervals[index])  # type: ignore[attr-defined]
+            yield self.internal_timeout(self._egress_sinks[index].sink.flush_interval)  # type: ignore[attr-defined]
             self._note_timer_flush(index)
             self._flush_buffer(index)
 
@@ -575,30 +656,32 @@ class EgressMixIn:
         can catch it because the arrival rate is unknown until the run starts.
         Consecutive rather than cumulative, so a quiet period does not trip it.
         """
-        if self._starvation_warned[index]:
+        run = self._egress_sinks[index]
+        if run.starvation_warned:
             return
-        pending = len(self._event_buffers[index])
-        target = self.egress_batch_sizes[index]
+        pending = len(run.buffer)
+        target = run.sink.batch_size
+        assert target is not None  # setup_egress resolves it
         if pending and pending < target * _STARVED_BATCH_RATIO:
-            self._starved_flushes[index] += 1
-            self._starved_totals[index] += pending
-            if self._starved_flushes[index] >= _STARVED_FLUSHES_BEFORE_WARNING:
-                average = self._starved_totals[index] / self._starved_flushes[index]
+            run.starved_flushes += 1
+            run.starved_totals += pending
+            if run.starved_flushes >= _STARVED_FLUSHES_BEFORE_WARNING:
+                average = run.starved_totals / run.starved_flushes
                 logger.warning(
                     "%s (provider %d) flushed on its timer %d times in a row "
                     "averaging %.0f records against a batch_size of %d, so batch_size "
                     "never governs for this sink. Raise flush_interval or lower "
                     "batch_size.",
-                    type(self.egress_providers[index]).__name__,
+                    type(run.sink.provider).__name__,
                     index,
-                    self._starved_flushes[index],
+                    run.starved_flushes,
                     average,
                     target,
                 )
-                self._starvation_warned[index] = True
+                run.starvation_warned = True
         else:
-            self._starved_flushes[index] = 0
-            self._starved_totals[index] = 0
+            run.starved_flushes = 0
+            run.starved_totals = 0
 
     def _flush_buffer(self, index: Optional[int] = None):
         """Internal: Pushes one provider's buffered data to its thread-safe queue.
@@ -611,11 +694,12 @@ class EgressMixIn:
         the failure is raised instead of hidden.
         """
         if index is None:
-            for position in range(len(self._event_buffers)):
+            for position in range(len(self._egress_sinks)):
                 self._flush_buffer(position)
             return
 
-        batch = self._event_buffers[index]
+        run = self._egress_sinks[index]
+        batch = run.buffer
         if not batch:
             return
 
@@ -625,7 +709,7 @@ class EgressMixIn:
         # The predicate was applied on the way in, so the buffer already holds only
         # what this provider takes.
         try:
-            self.egress_queues[index].put(batch, timeout=stall_limit)
+            run.batches.put(batch, timeout=stall_limit)
         except queue.Full:
             logger.error(
                 "An egress queue has been full for %.0fs, so that sink has stopped "
@@ -636,7 +720,7 @@ class EgressMixIn:
                 "Egress queue full: the sink stopped consuming events"
             ) from None
 
-        self._event_buffers[index] = []
+        run.buffer = []
 
     def _append_record(self, record: Dict[str, Any], lifecycle: bool = False):
         """Internal: routes one record into each provider's buffer.
@@ -650,21 +734,22 @@ class EgressMixIn:
         """
         is_label = record["stream_type"] == "label"
         is_trace = record["stream_type"] == "trace"
-        for index, predicate in enumerate(self.egress_predicates):
-            if self.egress_labels[index] is not is_label:
+        for index, run in enumerate(self._egress_sinks):
+            sink = run.sink
+            if sink.label is not is_label:
                 continue
-            if self.egress_traces[index] is not is_trace:
+            if sink.trace is not is_trace:
                 continue
             if (
-                not self.egress_envelopes[index]
+                not sink.envelope
                 and not is_label
                 and (lifecycle or record["stream_type"] == "telemetry")
             ):
                 continue
-            if predicate is not None and not predicate(record):
+            if sink.predicate is not None and not sink.predicate(record):
                 continue
-            self._event_buffers[index].append(record)
-            if len(self._event_buffers[index]) >= self.egress_batch_sizes[index]:
+            run.buffer.append(record)
+            if len(run.buffer) >= sink.batch_size:  # type: ignore[operator]
                 self._flush_buffer(index)
 
     def publish_telemetry(self, path_id: str, value: Any):
@@ -678,7 +763,7 @@ class EgressMixIn:
             path_id: The value's name, written as the record's `path_id`.
             value: The value, made a JSON value on the way out, as an event's is.
         """
-        if not hasattr(self, "egress_queues"):
+        if not hasattr(self, "_egress_sinks"):
             return  # Fail silently if no egress is configured
 
         # Built directly rather than through TelemetryPayload. See publish_event.
@@ -727,7 +812,7 @@ class EgressMixIn:
             lifecycle (bool, optional): True for a task's `queued` or `started`
                 record, which a provider with `envelope` off does not receive.
         """
-        if not hasattr(self, "_event_buffers"):
+        if not hasattr(self, "_egress_sinks"):
             return  # Fail silently if no egress is configured
 
         # Built directly rather than through EventPayload.model_dump(mode="json").
@@ -783,7 +868,7 @@ class EgressMixIn:
             old (Any, optional): The value before the change.
             new (Any, optional): The value after the change.
         """
-        if not hasattr(self, "_event_buffers"):
+        if not hasattr(self, "_egress_sinks"):
             return  # Fail silently if no egress is configured
 
         self._append_record(
@@ -831,7 +916,7 @@ class EgressMixIn:
     def teardown_egress(self):
         """Flushes final buffer contents and safely stops the egress event loop."""
         logger.info("Tearing down egress connectors, flushing final events...")
-        if hasattr(self, "_event_buffers"):
+        if hasattr(self, "_egress_sinks"):
             try:
                 self._flush_buffer()
             except RuntimeError:
@@ -839,17 +924,17 @@ class EgressMixIn:
                 # Shutdown still has to complete, so report the loss and carry on.
                 logger.warning(
                     "Could not flush the final %d events: a sink is not consuming.",
-                    sum(len(buffer) for buffer in self._event_buffers),
+                    sum(len(run.buffer) for run in self._egress_sinks),
                 )
 
         # Drain the queue to empty. A fixed deadline here silently discarded the
         # backlog of any sink slower than the simulation, so the wait ends only when
         # the queue stops shrinking.
-        if hasattr(self, "egress_queues"):
+        if hasattr(self, "_egress_sinks"):
             stall_limit = getattr(self, "egress_drain_stall_seconds", 30.0)
 
             def total_queued() -> int:
-                return sum(q.qsize() for q in self.egress_queues)
+                return sum(run.batches.qsize() for run in self._egress_sinks)
 
             remaining = total_queued()
             last_progress = time.time()
@@ -875,9 +960,9 @@ class EgressMixIn:
                     "records are lost. A sink is not keeping up: %s",
                     total_queued(),
                     ", ".join(
-                        f"{type(p).__name__}={q.qsize()}"
-                        for p, q in zip(self.egress_providers, self.egress_queues)
-                        if q.qsize()
+                        f"{type(run.sink.provider).__name__}={run.batches.qsize()}"
+                        for run in self._egress_sinks
+                        if run.batches.qsize()
                     ),
                 )
             else:
@@ -891,8 +976,8 @@ class EgressMixIn:
         last_progress = time.time()
         while True:
             active = sum(
-                getattr(provider, "active_tasks", 0)
-                for provider in getattr(self, "egress_providers", [])
+                getattr(run.sink.provider, "active_tasks", 0)
+                for run in getattr(self, "_egress_sinks", [])
             )
             if active == 0:
                 break
@@ -1034,6 +1119,47 @@ def trace_event_name(event: Any) -> str:
         if named is not None:
             return named
     return "Event"
+
+
+def schedule_urgent(
+    env: Environment,
+    event: Event,
+    delay: float = 0.0,
+    *,
+    ok: bool = True,
+    value: Any = None,
+) -> Event:
+    """Triggers an event and schedules it urgent after a delay, so it runs before the
+    normal events of its time, as SimPy schedules its own `until`.
+
+    Args:
+        env: The environment that processes the event.
+        event: A pending event: desflow's own (`internal_event()`) or a model event.
+        delay: Simulation seconds from now.
+        ok: Whether the event succeeds.
+        value: The event's value, or its exception when it fails.
+
+    Returns:
+        Event: The event.
+    """
+    event._ok, event._value = ok, value
+    env.schedule(event, URGENT, delay)
+    return event
+
+
+@contextlib.contextmanager
+def end_is_set(env: "DynamicRealtimeEnvironment") -> Iterator[None]:
+    """Marks a run whose end is its own event, so a run to that event does not end
+    with SimPy's `RuntimeError` when no model event is left before it.
+
+    Args:
+        env: The environment that runs.
+    """
+    previous, env._end_is_set = env._end_is_set, True
+    try:
+        yield
+    finally:
+        env._end_is_set = previous
 
 
 class DynamicRealtimeEnvironment(
@@ -1248,11 +1374,11 @@ class DynamicRealtimeEnvironment(
         # rather than as events happen, which is the whole point of going live.
         # A run that started at a non-zero factor already has its timers, and starting
         # a second set would flush each buffer twice per interval.
-        if hasattr(self, "egress_queues") and not self._periodic_flush_running:
-            for index in range(len(self.egress_queues)):
+        if hasattr(self, "_egress_sinks") and not self._periodic_flush_running:
+            for index in range(len(self._egress_sinks)):
                 self.start_internal(self._periodic_flush(index))
             self._periodic_flush_running = True
-        if hasattr(self, "egress_queues") and self._lag_on_go_live:
+        if hasattr(self, "_egress_sinks") and self._lag_on_go_live:
             self.egress_lag_monitor_interval = 1.0
             # The switch runs just before the first event at or after go-live, so
             # the first reading waits for the go-live instant itself
@@ -1475,7 +1601,7 @@ class DynamicRealtimeEnvironment(
     def _trace_head(self) -> None:
         """Publishes the `trace` record of the event `step` is about to process, unless
         it is one of desflow's own or no sink asks for the trace."""
-        if not self._queue or not any(getattr(self, "egress_traces", ())):
+        if not self._queue or not getattr(self, "_egress_traced", False):
             return
         when, priority, event_id, event = self._queue[0]
         if is_internal(event):

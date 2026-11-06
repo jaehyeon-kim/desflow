@@ -31,13 +31,13 @@ def check(records):
     ingress replaced by the stand-in, a run at `factor: 0.001` with `until: 10 min` ends
     with 0.05 at that path."""
     app = SimulationContext.from_yaml(HERE / "model.yaml")
-    assert [type(p) for p in app._ingress_providers] == [KafkaIngress]
-    assert app._ingress_providers[0].topic == "sim-config"
+    assert [type(p) for p in app._sinks.ingress] == [KafkaIngress]
+    assert app._sinks.ingress[0].topic == "sim-config"
     rate = app.compile_parameters().arrival["orders"].rate
     assert isinstance(rate, float)
     assert any(r["stream_type"] == "event" for r in records)
 
-    app._ingress_providers = [_MessageIngress()]
+    app._sinks.ingress = [_MessageIngress()]
     app.factor = 0.001  # real time for the ingress thread to deliver
     # The case checks that the ingress delivers the change, not the timing, so a
     # stall of more than 1 ms on a slow runner must not stop the run

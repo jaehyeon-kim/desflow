@@ -5,6 +5,7 @@ them. A script that needs a broker runs here with a capturing sink in place of i
 Kafka egress, so no service is needed.
 """
 
+from dataclasses import replace
 import ast
 import asyncio
 import importlib.util
@@ -44,7 +45,10 @@ def _captured(app, until):
     """Runs a builder app unpaced with its one egress replaced by a capture."""
     capture = _Capture()
     app.factor = 0.0
-    app._egress_providers = [capture]
+    app._sinks.egress = [
+        replace(sink, provider=provider)
+        for sink, provider in zip(app._sinks.egress, [capture])
+    ]
     app.run(until=until)
     return capture.records
 
@@ -463,7 +467,7 @@ def test_secure_egress_passes_its_settings_to_the_client(monkeypatch):
         ROOT / "docs" / "snippets" / "yaml" / "kafka_security.yaml"
     )
     assert connections.connection["sasl_plain_username"] == "test-key"
-    for egress in (module.egress, blueprint._egress_providers[0]):
+    for egress in (module.egress, blueprint._sinks.egress[0].provider):
         config = egress.producer_config
         assert config["security_protocol"] == "SASL_SSL"
         assert config["sasl_plain_username"] == "test-key"
@@ -630,7 +634,7 @@ def _run_shop_form(form, tmp_path, monkeypatch):
             app = SimulationContext.from_yaml(
                 tmp_path / "json_schema_and_protobuf.yaml"
             )
-            serializers = app._egress_providers[0].topic_serializers
+            serializers = app._sinks.egress[0].provider.topic_serializers
             return _captured(app, until=30), serializers
         module = _load_from(tmp_path, "json_schema_and_protobuf_low_level")
         capture = _Capture()

@@ -167,7 +167,7 @@ def _settings() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
         from leaderboard.simulation import run as project
     app = SimulationContext("game", factor=0.0)
     project.build(app)
-    return app._arrivals_config, app._services_config, app._variables_config
+    return app._arrivals.configs, app._services_config, app._variables_config
 
 
 class _Rng:
@@ -386,14 +386,14 @@ def compare(
     assert f"game.arrival.{next(iter(document['arrivals']))}.rate" in result.parameters
     # BT-GL9 and BT-GL10: the sinks the project has, as the file builds them
     app = SimulationContext.from_yaml(HERE / "model.yaml", variables=VARIABLES)
-    (sink,) = app._egress_providers
-    assert app._egress_envelopes == [False]
+    (sink,) = [sink.provider for sink in app._sinks.egress]
+    assert [sink.envelope for sink in app._sinks.egress] == [False]
     serializer = (
         sink.default_serializer
     )  # BT-GL9: Avro through the registry, the project's schema
     assert isinstance(serializer, ConfluentAvroSerializer)
     assert json.loads(serializer._schema_str) == json.loads(result.models.AVRO_SCHEMA)
-    assert [p.topic for p in app._ingress_providers] == ["game-control"]
+    assert [p.topic for p in app._sinks.ingress] == ["game-control"]
 
 
 def _got_start() -> int:

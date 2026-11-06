@@ -1,5 +1,6 @@
 """YAML blueprints: validation, error lines and the builder calls they make."""
 
+from dataclasses import replace
 import json
 import re
 import textwrap
@@ -63,7 +64,7 @@ def test_blueprint_builds_through_the_builder(tmp_path):
     app = SimulationContext.from_yaml(write(tmp_path, MINIMAL))
 
     assert (app.sim_id, app.factor, app.random_seed) == ("Shop", 0, 7)
-    assert app._resources_config["packers"].current_cap == 2
+    assert app._holders.resources_config["packers"].current_cap == 2
     packing = app._services_config["packing"]
     # Only the parameters the family takes are set
     assert (packing.dist, packing.mean, packing.std, packing.rate) == (
@@ -72,8 +73,8 @@ def test_blueprint_builds_through_the_builder(tmp_path):
         0.5,
         None,
     )
-    assert app._arrivals_config["standard"].rate == 1.0
-    assert app._default_until == 30.0
+    assert app._arrivals.configs["standard"].rate == 1.0
+    assert app._defaults.until == 30.0
 
 
 def test_tasks_spawned_from_an_arrival_publish_the_payload(tmp_path):
@@ -702,9 +703,9 @@ def test_egress_type_and_when_take_python_objects(tmp_path, logic):
             when: !python {logic}.keep_events
         """)
     app = SimulationContext.from_yaml(write(tmp_path, text))
-    provider = app._egress_providers[0]
+    provider = app._sinks.egress[0].provider
     assert type(provider).__name__ == "Sink" and provider.label == "one"
-    assert app._egress_predicates[0]({"stream_type": "event"}) is True
+    assert app._sinks.egress[0].predicate({"stream_type": "event"}) is True
 
 
 def test_run_before_is_called_before_the_run(tmp_path, logic):
@@ -1002,7 +1003,7 @@ def test_environment_variables_are_substituted(tmp_path, monkeypatch):
     monkeypatch.delenv("NOT_A_VARIABLE", raising=False)
     app = SimulationContext.from_yaml(write(tmp_path, ENV_BLUEPRINT))
 
-    assert (app.sim_id, app.factor, app._default_until) == ("Warehouse", 0, 60.0)
+    assert (app.sim_id, app.factor, app._defaults.until) == ("Warehouse", 0, 60.0)
     variables = app._variables_config
     assert variables["host"] == "db.internal"
     assert variables["url"] == "postgres://db.internal:5432/sim"
@@ -1123,7 +1124,10 @@ def test_history_and_live_split_records_at_go_live(tmp_path):
     app = SimulationContext.from_yaml(write(tmp_path, text))
     history, live = _Capture(), _Capture()
     # The YAML providers are swapped for captures; the predicates stay as built.
-    app._egress_providers[:] = [history, live]
+    app._sinks.egress[:] = [
+        replace(sink, provider=provider)
+        for sink, provider in zip(app._sinks.egress, [history, live])
+    ]
     # Ten simulation seconds of history, then a short live tail in real time.
     app.run(until=10.3)
 
@@ -1137,7 +1141,7 @@ def test_history_and_live_split_records_at_go_live(tmp_path):
 def test_live_is_compared_in_the_zone_of_the_start_time(tmp_path):
     text = _with_times("2026-01-01T00:00:00+00:00", "2026-01-01T10:00:10+10:00") + SPLIT
     app = SimulationContext.from_yaml(write(tmp_path, text))
-    history, live = app._egress_predicates
+    history, live = [sink.predicate for sink in app._sinks.egress]
     record = {"timestamp": "2026-01-01T00:00:10.000+00:00"}
     assert live(record) and not history(record)
     record = {"timestamp": "2026-01-01T00:00:09.999+00:00"}
@@ -2020,7 +2024,10 @@ def _run_with_sinks(tmp_path, sinks, text=TWO_TASKS):
     egress = "".join(f"  - type: Console\n    {entry}\n" for entry in sinks)
     app = SimulationContext.from_yaml(write(tmp_path, text + "egress:\n" + egress))
     captures = [_Capture() for _ in sinks]
-    app._egress_providers[:] = captures
+    app._sinks.egress[:] = [
+        replace(sink, provider=provider)
+        for sink, provider in zip(app._sinks.egress, captures)
+    ]
     app.run()
     return captures
 
@@ -2083,7 +2090,10 @@ def test_when_expr_failure_is_a_run_failure(tmp_path):
             + 'egress:\n  - type: Console\n    when: {expr: "record.value.total > 1"}\n',
         )
     )
-    app._egress_providers[:] = [_Capture()]
+    app._sinks.egress[:] = [
+        replace(sink, provider=provider)
+        for sink, provider in zip(app._sinks.egress, [_Capture()])
+    ]
 
     with pytest.raises(
         ValueError, match="egress when: cannot evaluate 'record.value.total > 1'"
@@ -2147,7 +2157,7 @@ def test_key_field_missing_is_a_run_failure(tmp_path):
         "    id_field: order_id\n    key_field: nope\n    next: ship",
     )
     app = SimulationContext.from_yaml(write(tmp_path, text))
-    app._egress_providers[:] = []
+    app._sinks.egress[:] = []
 
     with pytest.raises(
         ValueError,
@@ -2175,12 +2185,12 @@ egress:
 """,
     )
     app = SimulationContext.from_yaml(path)
-    kafka = app._egress_providers[0]
+    kafka = app._sinks.egress[0].provider
 
     assert kafka.topic_policy["mode"] == "drop_and_create"
     assert kafka.topics["orders"]["partitions"] == 6
     assert "orders" in kafka.topic_serializers
-    assert app._egress_envelopes == [False]
+    assert [sink.envelope for sink in app._sinks.egress] == [False]
 
 
 def test_a_bad_sink_option_names_the_line(tmp_path):

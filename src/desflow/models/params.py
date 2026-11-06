@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
-from desflow.core.distributions import (
+from desflow.models.distributions import (
     LIST_PARAMETERS,
     PARAMETERS,
     get_distribution,
@@ -28,7 +28,7 @@ class DistributionConfig:
     Numbers are stored as given: an integer stays an integer, as in SimPy, and a live
     update to 0.5 is not cast to an integer.
     The family and its parameters are checked when the config is built, against the
-    registry of distributions in `desflow.core.distributions`.
+    registry of distributions in `desflow.models.distributions`.
 
     Attributes:
         dist (str): The family: exponential, normal, lognormal, truncated_normal,

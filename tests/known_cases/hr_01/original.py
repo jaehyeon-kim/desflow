@@ -492,9 +492,9 @@ def _topics_of_the_yaml(config: dict[str, Any]) -> dict[str, int]:
         mock.patch("desflow.connectors.egress.kafka.KafkaAdminConnector", Admin),
         mock.patch("desflow.connectors.ingress.kafka.KafkaAdminConnector", Admin),
     ):
-        for ingress in app._ingress_providers:
+        for ingress in app._sinks.ingress:
             ingress._create_topic()
-        for egress in app._egress_providers:
+        for egress in [sink.provider for sink in app._sinks.egress]:
             if type(egress).__name__ == "KafkaEgress":
                 egress._create_topics()
     return {t["name"]: t.get("partitions", 1) for t in created}

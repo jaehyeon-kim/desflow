@@ -11,7 +11,7 @@ import pytest
 
 from desflow import SimulationContext
 from desflow.blueprint.models import Distribution
-from desflow.core.distributions import DISTRIBUTIONS
+from desflow.models.distributions import DISTRIBUTIONS
 from desflow.core.environment import DynamicRealtimeEnvironment
 from desflow.core.sampler import Sampler
 from desflow.models.params import DistributionConfig, SimParameter, check_distribution

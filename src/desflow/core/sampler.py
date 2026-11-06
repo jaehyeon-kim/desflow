@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 
 from desflow.config import MIN_DELAY
-from desflow.core.distributions import get_distribution
+from desflow.models.distributions import get_distribution
 from desflow.models.params import DistributionConfig
 
 

@@ -467,7 +467,7 @@ def test_c1_wait_for_a_process_two_instances():
         return {"event": "drove"}
 
     def script(context):
-        entity = context._new_entity("car", None)
+        entity = context._run.arrivals.new_entity("car", None)
         context.spawn(charge_task(context.next_instance("charge"), entity=entity))
         context.spawn(charge_task(context.next_instance("charge"), entity=entity))
         context.spawn(driver_task(context.next_instance("driver"), entity=entity))
@@ -639,7 +639,7 @@ def test_c1_wait_for_a_process_abandoned_in_a_child_flow():
             return {"event": "drove"}
 
         def script(context):
-            entity = context._new_entity("car", None)
+            entity = context._run.arrivals.new_entity("car", None)
             context.call("charge", entity=entity)  # a child flow
             context.spawn(driver_task(context.next_instance("driver"), entity=entity))
             yield context.env.timeout(2)

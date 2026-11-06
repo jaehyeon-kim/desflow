@@ -17,10 +17,13 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 
 from simpy import Environment
-from simpy.events import URGENT
 
 from desflow.core.context import SimulationContext
-from desflow.core.environment import DynamicRealtimeEnvironment
+from desflow.core.environment import (
+    DynamicRealtimeEnvironment,
+    end_is_set,
+    schedule_urgent,
+)
 from desflow.core.sampler import Sampler
 from desflow.utils import time_to_seconds
 
@@ -381,16 +384,11 @@ def _run_low_level(
     else:
         # Urgent, as SimPy schedules its own `until`, so no event due at `until`
         # runs before the run ends there
-        horizon = env.internal_event()
-        horizon._ok, horizon._value = True, None
-        env.schedule(horizon, URGENT, until - env.now)
+        horizon = schedule_urgent(env, env.internal_event(), until - env.now)
         # The run has its own end at `until`, as a run of `SimulationContext` has, so
         # the environment does not end it when no model event is left before it
-        previous, env._end_is_set = env._end_is_set, True
-        try:
+        with end_is_set(env):
             env.run(until=stop(env) | horizon)
-        finally:
-            env._end_is_set = previous
     if not drain or (stop is not None and env.now < until):
         return
     processes = list(arrivals or [])

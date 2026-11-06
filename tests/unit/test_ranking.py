@@ -562,7 +562,7 @@ def test_a_write_to_queue_limit_takes_a_whole_number_or_null(written, stored):
     change = app._env.registry.change(LIMIT_PATH, written)
     assert change.new == stored
     assert app._env.registry.get(LIMIT_PATH).value == stored
-    assert app._resources_map["m"].queue_limit == stored
+    assert app._run.holders.resources["m"].queue_limit == stored
 
 
 @pytest.mark.parametrize(
@@ -636,7 +636,7 @@ run: {until: 100}
     # j-1 holds; j-2 to j-5 wait (4); the limit is 1 at 4.5 and nobody leaves; j-6 at 5
     # and j-7 at 6 find 4 waiting and balk; j-8 at 7 is let in under no limit
     assert seen == [(5.0, "j-6"), (6.0, "j-7")]
-    assert outcome.app_or_env._resources_map["m"].queue_limit is None
+    assert outcome.app_or_env._run.holders.resources["m"].queue_limit is None
     waiting = [
         r["value"]["x"] for r in outcome.records if r["value"].get("e") == "probe"
     ]
@@ -650,7 +650,7 @@ def test_a_limit_of_zero_balks_even_at_a_free_unit(tmp_path):
         r["value"].get("status") for r in outcome.records if r["stream_type"] == "event"
     ]
     assert statuses.count("balked") == 8
-    resource = outcome.app_or_env._resources_map["m"]
+    resource = outcome.app_or_env._run.holders.resources["m"]
     assert not resource.queue and not resource.users
 
 
@@ -784,9 +784,11 @@ def test_a_flow_that_leaves_a_ranked_line_leaves_nothing_in_it(tmp_path, name):
     outcome = run_yaml_text(tmp_path, text, {})
     assert outcome.error is None, repr(outcome.error)
     app = outcome.app_or_env
-    for resource in app._resources_map.values():
+    for resource in app._run.holders.resources.values():
         assert not resource.queue and not resource.users, name
-    for holder in list(app._stores_map.values()) + list(app._containers_map.values()):
+    for holder in list(app._run.holders.stores.values()) + list(
+        app._run.holders.containers.values()
+    ):
         assert not holder.get_queue and not holder.put_queue, name
     # a get or put that is made after the line was left is not given to the one that left
     statuses = {

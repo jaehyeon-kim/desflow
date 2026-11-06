@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 from desflow.config import STATS_LEVELS
-from desflow.core.distributions import DISTRIBUTIONS
+from desflow.models.distributions import DISTRIBUTIONS
 
 _SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "gen_pages.py"
 _spec = importlib.util.spec_from_file_location("gen_pages", _SCRIPT)

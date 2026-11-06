@@ -4,7 +4,7 @@ from simpy import Container, Environment, Event
 from simpy.resources.base import BoundClass
 from simpy.resources.container import ContainerGet, ContainerPut
 
-from desflow.core.internal import internal_process
+from desflow.internal import internal_process
 from desflow.resources.base import (
     BaseDynamicResource,
     RankedQueue,

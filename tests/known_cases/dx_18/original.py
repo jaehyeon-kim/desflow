@@ -22,7 +22,7 @@ def check(records):
     finally:
         sys.path.remove(str(SNIPPETS))
     app = SimulationContext.from_yaml(HERE / "model.yaml")
-    keep = app._egress_predicates[0]
+    keep = app._sinks.egress[0].predicate
     kept = [r for r in records if keep(r)]
     assert kept == [r for r in records if packed_only(r)]
     assert kept and all(r["value"]["event_type"] == "order_packed" for r in kept)

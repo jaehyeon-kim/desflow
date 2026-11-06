@@ -21,8 +21,9 @@ The integration tests and the examples that need a service get it from [odctl](h
 | Path | Contents |
 |---|---|
 | `src/desflow/config.py` | settings shared by more than one module: queue orders, statistics levels, the `labels` sink value, `MIN_DELAY` (the shortest time a draw gives) |
-| `src/desflow/core/` | `environment.py` (`DynamicRealtimeEnvironment`, egress buffering, record building), `context.py` (the `SimulationContext` builder), `registry.py` (live parameters), `distributions.py` (every distribution family, `DISTRIBUTIONS`), `sampler.py` (one random stream per distribution), `expressions.py` (conditions and amounts), `flow.py` (`Router`, `Transfer`), `statistics.py` (built-in statistics), `task.py` (`TaskSpec`, `TaskRun`: the life of one task instance), `signals.py` (`Signal`), `scenario.py` (`run_scenario`), `breakdowns.py` (`run_breakdowns`), `replay.py` (arrivals from a recorded file), `internal.py` (marks the events desflow creates for its own work) |
-| `src/desflow/models/` | `params.py` (`SimParameter`, `DistributionConfig`, `CapacityConfig`, `ContainerConfig`), `flow.py` (`Entity`, `Upstream`), `schemas.py` (`EventPayload`, `TelemetryPayload`, `LabelPayload`: the published record schema) |
+| `src/desflow/internal.py` | marks the events desflow creates for its own work |
+| `src/desflow/core/` | `environment.py` (`DynamicRealtimeEnvironment`, egress buffering, record building), `context.py` (the `SimulationContext` builder), `runs.py` (`RunState`: the state of one run, and `EndSets`), `arrivals.py` (`Arrivals`: a model's arrivals, and `ArrivalRun`: their loops in one run), `holders.py` (`Holders`: a model's resources, stores, containers and breakdowns, and `HolderRun`: those of one run), `sinks.py` (`Sinks`: a model's egress and ingress providers, their batching and its statistics, with one `Sink` record per egress), `registry.py` (live parameters), `sampler.py` (one random stream per distribution), `expressions.py` (conditions and amounts), `flow.py` (`Router`, `Transfer`, `LiveScope`: what every scope of a run reads), `statistics.py` (built-in statistics), `task.py` (`TaskSpec`, `TaskRun`: the life of one task instance), `tasks.py` (`Tasks`: a model's tasks, and the start of their instances in a run), `signals.py` (`Signal`; `Signals`: a model's signals, and `SignalRun`: those of one run), `scenario.py` (`run_scenario`), `breakdowns.py` (`run_breakdowns`), `replay.py` (arrivals from a recorded file) |
+| `src/desflow/models/` | `params.py` (`SimParameter`, `DistributionConfig`, `CapacityConfig`, `ContainerConfig`), `flow.py` (`Entity`, `Upstream`), `schemas.py` (`EventPayload`, `TelemetryPayload`, `LabelPayload`: the published record schema), `distributions.py` (every distribution family, `DISTRIBUTIONS`) |
 | `src/desflow/resources/` | `DynamicResource`, `DynamicContainer`, `DynamicStore`, with capacities driven by the registry |
 | `src/desflow/connectors/` | `ingress/` (parameter changes in), `egress/` (records out), `admin/`, `_schema_registry/` (the code of the Confluent and Glue serializers and deserializers: the two registry clients, the wire framing, the Avro, JSON Schema and Protobuf codecs, and the errors) |
 | `src/desflow/blueprint/` | YAML blueprints: `models.py` (Pydantic models), `loader.py` (`!python`, `!include`), `build.py`, `schema.py` (reads `blueprint.schema.json`, the committed blueprint JSON Schema that `scripts/gen_schema.py` writes) |
@@ -52,6 +53,7 @@ DOCS_STORE_DURATIONS=1 uv run --all-extras pytest tests/docs -q -n auto  # recor
 uv run --all-extras pytest tests/integration -ra  # needs Docker; starts odctl profiles and emulators on demand, and also runs the service examples against the profiles the other tests started; -m <group> runs one group: services, storage, floci, azure, gcp or examples
 uv run odctl up <profile> && uv run --all-extras pytest tests/integration/test_service_examples.py -m examples -k <example> -ra  # one service example in its three versions; start the profile first, and stop it with uv run odctl down <profile> --volumes
 uvx pre-commit run --all-files                    # ruff, ruff format, mypy, whitespace, YAML
+uv run --all-extras lint-imports                  # the import contracts in pyproject.toml, [tool.importlinter]
 DISABLE_MKDOCS_2_WARNING=true uv run --all-extras mkdocs build --strict
 uv run --all-extras mkdocs serve -a 127.0.0.1:8001             # docs at http://127.0.0.1:8001/desflow/
 ```
@@ -90,7 +92,7 @@ Run the unit suite in full once before each commit. While fixing, run only the f
 
 ## Add a Distribution
 
-Every distribution family is one `Distribution` in `DISTRIBUTIONS`, in `src/desflow/core/distributions.py`. It declares the parameters, their rules and check, the draw, the mean and variance, the value with no random generator, and, where it has one, the formula from a mean and a standard deviation. The sampler, the registry, the builder, the YAML models and `desflow dist` all read that table, so nothing else needs registering. Add unit tests for the draw and the check, a labelled docs block that draws from it, then run `scripts/gen_skill.py` and `scripts/charts.py`. The Distributions reference page is generated from the table.
+Every distribution family is one `Distribution` in `DISTRIBUTIONS`, in `src/desflow/models/distributions.py`. It declares the parameters, their rules and check, the draw, the mean and variance, the value with no random generator, and, where it has one, the formula from a mean and a standard deviation. The sampler, the registry, the builder, the YAML models and `desflow dist` all read that table, so nothing else needs registering. Add unit tests for the draw and the check, a labelled docs block that draws from it, then run `scripts/gen_skill.py` and `scripts/charts.py`. The Distributions reference page is generated from the table.
 
 ## Write the Docs
 
@@ -102,7 +104,7 @@ Every distribution family is one `Distribution` in `DISTRIBUTIONS`, in `src/desf
 
 ## Pull Requests
 
-Work on a branch from `main` and open a pull request against `main`. Before you push, run `uvx pre-commit run --all-files`, the unit suite, and the docs tests for what you changed. The pipeline then runs every test job on the pull request. A pull request merges when they all pass. Describe each change to behaviour in the pull request, so that the release can add it to the Changelog (`docs/about/changelog.md`).
+Work on a branch from `main` and open a pull request against `main`. Before you push, run `uvx pre-commit run --all-files`, `uv run --all-extras lint-imports`, the unit suite, and the docs tests for what you changed. The pipeline then runs every test job on the pull request. A pull request merges when they all pass. Describe each change to behaviour in the pull request, so that the release can add it to the Changelog (`docs/about/changelog.md`).
 
 ## Releases
 

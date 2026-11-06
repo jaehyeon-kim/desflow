@@ -64,8 +64,8 @@ run: {until: 50}
     outcome = run_yaml_text(tmp_path, text, {})
     held = [(t, v["i"]) for t, _k, v in _done(outcome) if v["e"] == "held"]
     assert held == [(2.0, 0), (2.0, 1), (4.0, 2), (4.0, 3)]
-    assert outcome.app_or_env._resources_map["desk[0]"].count == 0
-    assert outcome.app_or_env._resources_map["desk[1]"].count == 0
+    assert outcome.app_or_env._run.holders.resources["desk[0]"].count == 0
+    assert outcome.app_or_env._run.holders.resources["desk[1]"].count == 0
 
 
 def test_a_task_level_signal_names_a_member_and_a_stop_signal_ends_the_run(tmp_path):
@@ -156,14 +156,16 @@ run: {until: 20}
     first = _done(outcome)
     context = outcome.app_or_env
     assert [v["x"] for _t, _k, v in first] == [[0, 1], [0, 1]]
-    assert context._families["desk"].keys == [0, 1]
+    assert context._families.by_name["desk"].keys == [0, 1]
     before = len(outcome.records)
     context.run()
     second = [r for r in outcome.records[before:] if r["stream_type"] == "event"]
     done = [r["value"]["x"] for r in second if "x" in r["value"]]
     assert done == [[0, 1], [0, 1]]
-    assert context._families["desk"].keys == [0, 1]
-    assert sorted(n for n in context._resources_map if n.startswith("desk[")) == [
+    assert context._families.by_name["desk"].keys == [0, 1]
+    assert sorted(
+        n for n in context._run.holders.resources if n.startswith("desk[")
+    ) == [
         "desk[0]",
         "desk[1]",
     ]
@@ -291,8 +293,8 @@ run: {until: 20}
     outcome = run_yaml_text(tmp_path, text, {})
     context = outcome.app_or_env
     assert outcome.error is None, repr(outcome.error)
-    assert len(context._resources_map["b"].queue) == 0
-    assert len(context._resources_map["a"].queue) == 0
+    assert len(context._run.holders.resources["b"].queue) == 0
+    assert len(context._run.holders.resources["a"].queue) == 0
 
 
 def test_an_order_of_one_to_five_items_with_a_total_needs_no_python(tmp_path):
@@ -739,3 +741,106 @@ def test_a_member_name_reads_its_family_by_the_whole_name():
     assert family_of("desk['x[1]']", families) == "desk"
     assert family_of("a[0]", families) is None
     assert family_of("desk", families) is None
+
+
+@pytest.mark.parametrize(
+    "capacity, message",
+    [
+        (
+            '"x"',
+            "resources.desk.current_cap for desk[0] gave 'x', which is not a number",
+        ),
+        ("1.5", "resources.desk.current_cap for desk[0] gave 1.5, not a whole number"),
+    ],
+)
+def test_a_member_capacity_that_is_not_a_whole_number_fails_the_run(
+    tmp_path, capacity, message
+):
+    """A family's capacity written as an expression is read for each new member, and a
+    value that is not a number, or not a whole number for a resource, fails the task
+    that makes the member."""
+    outcome = run_yaml_text(
+        tmp_path,
+        HEAD
+        + f"""
+resources: {{desk: {{family: true, current_cap: "attr.c"}}}}
+arrivals: {{a: {{initial: 1, spawn: t, attributes: {{c: {capacity}}}}}}}
+tasks:
+  t: {{seize: {{resource: {{of: desk, key: "0"}}}}, service_time: 1, payload: {{e: 1}}}}
+run: {{until: 5}}
+""",
+        {},
+    )
+    assert message in str(outcome.error)
+
+
+def test_a_lowest_over_an_empty_family_fails_the_run(tmp_path):
+    outcome = run_yaml_text(
+        tmp_path,
+        HEAD
+        + """
+resources: {desk: {family: true, current_cap: 1}}
+arrivals: {a: {initial: 1, spawn: t}}
+tasks:
+  t: {wait: {request: {of: desk, lowest: member.queue}}, service_time: 1, payload: {e: 1}}
+run: {until: 5}
+""",
+        {},
+    )
+    assert isinstance(outcome.error, ValueError)
+    assert "has no member to pick from: the family is empty" in str(outcome.error)
+
+
+def test_members_written_as_an_expression_make_that_many_members(tmp_path):
+    """`members: "1 + 1"` makes desk[0] and desk[1], so two entities that ask for the
+    member with the fewest users are served at once."""
+    outcome = run_yaml_text(
+        tmp_path,
+        HEAD
+        + """
+resources: {desk: {family: true, members: "1 + 1", current_cap: 1}}
+arrivals: {a: {initial: 2, spawn: t}}
+tasks:
+  t: {wait: {request: {of: desk, lowest: member.users}}, service_time: 1, payload: {e: 1}}
+run: {until: 5}
+""",
+        {},
+    )
+    assert [t for t, _k, _v in _done(outcome)] == [1.0, 1.0]
+
+
+def test_a_lowest_reads_the_count_of_a_signal_member_and_the_level_of_a_container_member(
+    tmp_path,
+):
+    signal = run_yaml_text(
+        tmp_path,
+        HEAD
+        + """
+signals: {bell: {family: true, members: 2, once: false}}
+arrivals:
+  a: {initial: 1, spawn: t}
+  b: {dist: constant, value: 1, first_at: 1, max_events: 1, spawn: f}
+tasks:
+  t: {wait: {signal: {of: bell, lowest: member.count}}, payload: {e: woke}}
+  f: {payload: {e: fired}, signal: {of: bell, key: "0"}}
+run: {until: 5}
+""",
+        {},
+    )
+    assert [(t, v["e"]) for t, _k, v in _done(signal)] == [
+        (1.0, "fired"),
+        (1.0, "woke"),
+    ]
+    container = run_yaml_text(
+        tmp_path,
+        HEAD
+        + """
+containers: {tank: {family: true, members: 2, max_cap: 10, level: 5}}
+arrivals: {a: {initial: 1, spawn: t}}
+tasks:
+  t: {get: {container: {of: tank, lowest: member.level}, amount: 1}, payload: {e: got}}
+run: {until: 5}
+""",
+        {},
+    )
+    assert [(t, v["e"]) for t, _k, v in _done(container)] == [(0.0, "got")]

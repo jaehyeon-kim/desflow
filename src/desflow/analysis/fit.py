@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
-from desflow.core.distributions import DISTRIBUTIONS, get_distribution
+from desflow.models.distributions import DISTRIBUTIONS, get_distribution
 from desflow.core.sampler import Sampler
 from desflow.models.params import DistributionConfig
 

@@ -8,6 +8,7 @@ both; low-level code uses `Router` directly and calls `get` and `put` itself.
 import inspect
 import numbers
 import re
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple, Union
 
 import numpy as np
@@ -121,6 +122,55 @@ def make_scope(
     )
 
 
+@dataclass(frozen=True)
+class LiveScope:
+    """What every scope of a run reads, in one place: the run's clock and registry,
+    its stores, containers, resources, signals and running instances, and the
+    model's families.
+
+    The context makes one in `_build` for each run. It reads the run's parts each
+    time it builds a scope, so a part made after it, such as the run's signals,
+    is read as it is then.
+
+    Attributes:
+        env: The run's environment.
+        run: The run's `RunState`, for its holders, its signals and its instances.
+        families: The declared families by name.
+    """
+
+    env: Any
+    run: Any
+    families: Mapping[str, Any]
+
+    def scope(
+        self,
+        upstream: Optional[Upstream] = None,
+        attributes: Optional[Mapping[str, Any]] = None,
+        **given: Any,
+    ) -> Scope:
+        """Builds a scope with `make_scope`, from the run's parts as they are now.
+
+        Args:
+            upstream: What the previous task handed on, or None.
+            attributes: The entity's attributes, read as `attr`.
+            **given: The other arguments of `make_scope`, such as `names`, `item`
+                or `process`.
+        """
+        run = self.run
+        return make_scope(
+            upstream,
+            attributes,
+            env=self.env,
+            levels=run.holders.levels(),
+            signals=run.signals.made,
+            resources=run.holders.resources,
+            families=self.families,
+            peek=self.env.peek,
+            instances=run.instance_scopes,
+            **given,
+        )
+
+
 class Router:
     """
     Chooses the task that follows a finished one.
@@ -141,8 +191,9 @@ class Router:
     Attributes:
         tasks (Optional[Set[str]]): Every task the rules can name, so a loader can
             check they exist; None for a function.
-        rng (Optional[np.random.Generator]): The generator weights draw from. The
-            builder sets it when the run starts.
+        rng (Optional[np.random.Generator]): The generator `choose` draws weights
+            from. A run of a `SimulationContext` draws from a generator of its own
+            for each task and leaves this one as it is.
     """
 
     def __init__(self, rules: NextSpec, rng: Optional[np.random.Generator] = None):
@@ -265,26 +316,7 @@ class Router:
         Raises:
             ValueError: If a condition reads a name that is missing.
         """
-        if self._function is not None:
-            return self._function(upstream)
-        if self._weights is not None:
-            if scope is None:
-                scope = make_scope(upstream, env=env, levels=levels, item=item)
-            cumulative = _share_of(self._names, self._weights, scope)
-        else:
-            cumulative = self._cumulative
-        if cumulative is not None:
-            if self.rng is None:
-                raise ValueError("weights need a random generator to draw from")
-            index = int(np.searchsorted(cumulative, self.rng.random(), "right"))
-            return self._names[min(index, len(self._names) - 1)]
-        if self._when:
-            if scope is None:
-                scope = make_scope(upstream, env=env, levels=levels, item=item)
-            for condition, task in self._when:
-                if condition.evaluate(scope):
-                    return task
-        return self._default
+        return next_task(self, upstream, self.rng, env, levels, item, scope)
 
     def _set_weights(self, weights: Any) -> None:
         if not isinstance(weights, Mapping) or not weights:
@@ -302,6 +334,55 @@ class Router:
             ]
             return
         self._cumulative = _cumulative(self._names, list(weights.values()))
+
+
+def next_task(
+    router: Router,
+    upstream: Upstream,
+    rng: Optional[np.random.Generator],
+    env: Any = None,
+    levels: Optional[Mapping[str, Any]] = None,
+    item: Any = None,
+    scope: Optional[Scope] = None,
+) -> Optional[str]:
+    """The next task's name that `router` chooses, or None when the flow ends, with
+    weights drawn from `rng`: `Router.choose` with the router's own `rng`, and a
+    task run with the generator its run made for the task, so a run binds no
+    generator into the declared router.
+
+    Args:
+        router: The task's router.
+        upstream: What the task hands on, which the conditions read.
+        rng: The generator the weights are drawn from.
+        env: The run's environment, for the conditions.
+        levels: The levels of the run's stores and containers, for the conditions.
+        item: The item the task took, for the conditions.
+        scope: The task's names, for the conditions; None when the router has none.
+
+    Raises:
+        ValueError: If a condition reads a name that is missing, or the rules are
+            weights and `rng` is None.
+    """
+    if router._function is not None:
+        return router._function(upstream)
+    if router._weights is not None:
+        if scope is None:
+            scope = make_scope(upstream, env=env, levels=levels, item=item)
+        cumulative = _share_of(router._names, router._weights, scope)
+    else:
+        cumulative = router._cumulative
+    if cumulative is not None:
+        if rng is None:
+            raise ValueError("weights need a random generator to draw from")
+        index = int(np.searchsorted(cumulative, rng.random(), "right"))
+        return router._names[min(index, len(router._names) - 1)]
+    if router._when:
+        if scope is None:
+            scope = make_scope(upstream, env=env, levels=levels, item=item)
+        for condition, task in router._when:
+            if condition.evaluate(scope):
+                return task
+    return router._default
 
 
 def _checked_weight(name: Any, weight: Any) -> Union[int, float]:

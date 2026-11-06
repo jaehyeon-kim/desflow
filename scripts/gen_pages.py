@@ -6,7 +6,7 @@ functions return Markdown, so tests/docs/test_gen_pages.py checks them without a
 build. They are in `scripts/reference_pages/`, one module for each page or group of
 pages:
 
-- Distributions: every family in `desflow.core.distributions.DISTRIBUTIONS`, with its
+- Distributions: every family in `desflow.models.distributions.DISTRIBUTIONS`, with its
   parameters, rules and registry paths, and the mean, variance and value with no
   random generator of one example, computed by the family's own functions.
 - Statistics: every name each level publishes, found by running the statistics on a

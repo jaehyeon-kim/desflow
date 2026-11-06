@@ -1008,6 +1008,33 @@ def test_c7_a_preempted_request_wait_balks_when_the_line_is_full(tmp_path):
     ]
 
 
+def test_c7_a_preempted_seize_balks_when_the_line_is_full(tmp_path):
+    """B-U2: a `seize` unit lost to a preemption is asked for again on resume; the
+    line is full by then, so the task balks, as a `request` wait branch does."""
+
+    def prepare(app):
+        def script(context):
+            env = context.env
+            yield env.timeout(1)
+            machine = context.get_resource("machine")
+            first = machine.request(priority=-1)  # preempts the task's unit
+            machine.request(priority=4)  # takes the one place in the line
+            yield env.timeout(1)
+            machine.release(first)
+
+        app.add_process(script)
+
+    text = PREEMPTED_LINE.replace("wait: {request: machine}", "seize: machine")
+    outcome = run_yaml_text(tmp_path, text, {"los": [0]}, prepare)
+    assert outcome.error is None
+    assert _statuses(outcome.records, "lo") == [
+        "queued",
+        "started",
+        "preempted",
+        "balked",
+    ]
+
+
 PREEMPTED_WAIT = """
 simulation: {sim_id: T3, factor: 0}
 resources:

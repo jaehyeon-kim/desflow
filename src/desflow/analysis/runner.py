@@ -44,6 +44,7 @@ from desflow.analysis.models import (
     run_once,
     seconds,
 )
+from desflow.core.context import parts_of
 from desflow.core.statistics import published_value
 from desflow.utils import suggestion
 
@@ -433,7 +434,7 @@ def _publish(model: Model, replications: Replications, until: Any) -> None:
         return
     context = context_of(model)
     assert context is not None
-    if not context._egress_providers:
+    if not parts_of(context).sinks.egress:
         return
     stop = seconds(until)
     if stop is None:

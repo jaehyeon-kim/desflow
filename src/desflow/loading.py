@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import List, Mapping, Optional, Union
 
 from desflow.blueprint.build import Preview
-from desflow.core.context import SimulationContext
+from desflow.core.context import SimulationContext, parts_of
 
 _PYTHON_SUFFIX = ".py"
 # Each Python entry is imported under a new name, so two loads never share a module
@@ -74,7 +74,7 @@ def load_context(
         )
     context = _python_context(path)
     # analyze(verify=True) builds a new copy from the local file
-    context._source = functools.partial(load_context, local, entry)
+    parts_of(context).defaults.source = functools.partial(load_context, local, entry)
     return context
 
 

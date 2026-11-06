@@ -13,7 +13,7 @@ from pathlib import Path
 import yaml
 
 from desflow.blueprint.build import EGRESS_TYPES, INGRESS_TYPES
-from desflow.core.distributions import DISTRIBUTIONS
+from desflow.models.distributions import DISTRIBUTIONS
 
 _ROOT = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location(

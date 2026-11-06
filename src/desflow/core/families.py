@@ -13,10 +13,28 @@ or signal named after the family and the key: `desk[3]`, `desk['north']`. A refe
 member calls `resolve`.
 """
 
+from dataclasses import dataclass, replace
 from numbers import Integral
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    Union,
+)
 
-from desflow.core.expressions import Expression
+from desflow.core.arrivals import whole
+from desflow.core.expressions import Expression, Scope
+
+if TYPE_CHECKING:
+    from desflow.core.arrivals import ArrivalRun
+    from desflow.core.holders import HolderRun
+    from desflow.core.signals import SignalRun
+    from desflow.values.runtime import ValueRuntime
 
 # The kinds a family can be, and the section of a blueprint each one is written in
 KINDS = ("resource", "store", "container", "signal")
@@ -408,3 +426,232 @@ class Family:
 
     # The starting level a container family declares as a number; set by the context
     starting_level: Any = 0
+
+
+class Families:
+    """The families a model declares, by name.
+
+    Attributes:
+        by_name: Each family, by the name of its entry.
+    """
+
+    def __init__(self) -> None:
+        self.by_name: Dict[str, Family] = {}
+
+    def new_run(
+        self,
+        values: "ValueRuntime",
+        arrival_run: "ArrivalRun",
+        holder_run: "HolderRun",
+        signal_run: "SignalRun",
+    ) -> "FamilyRun":
+        """The part of one run that makes the members, from the run's parts.
+
+        Args:
+            values: The run's values, for the run scope.
+            arrival_run: The run's arrivals, which read `members`.
+            holder_run: The run's resources, stores and containers.
+            signal_run: The run's signals.
+        """
+        return FamilyRun(self, values, arrival_run, holder_run, signal_run)
+
+    def declare(
+        self,
+        kind: str,
+        name: str,
+        family: bool,
+        members: Any,
+        texts: Mapping[str, str],
+        start: Any = 0,
+    ) -> None:
+        """Keeps or drops the family of an entry that `add_resource`, `add_store`,
+        `add_container` or `add_signal` registered, as it was written.
+
+        Args:
+            kind: `resource`, `store`, `container` or `signal`.
+            name: The entry's name.
+            family: Whether the entry was written as a family.
+            members: The family's count place, as `Family.members` holds it; text is read
+                as an expression.
+            texts: The capacities written as text, by field.
+            start: The starting level of a container member.
+        """
+        if not family:
+            self.by_name.pop(name, None)
+            return
+        if isinstance(members, str):
+            members = Expression(members)
+        made = Family(name, kind, members, texts)
+        made.starting_level = start
+        self.by_name[name] = made
+
+    def origin(self, name: str) -> str:
+        """The entry whose settings a store or container takes: the family of a member,
+        or the name itself.
+
+        Args:
+            name: The store's or container's name.
+        """
+        return family_of(name, self.by_name) or name
+
+    def without(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """The entries of a section that are not families: a family's entry is the
+        template of its members and has no paths of its own.
+
+        Args:
+            config: The section's entries, by name.
+        """
+        if not self.by_name:
+            return config
+        return {k: v for k, v in config.items() if k not in self.by_name}
+
+
+@dataclass
+class FamilyRun:
+    """Makes and picks the members of the families in one run. The members are
+    kept with the run's other resources, stores, containers and signals.
+
+    Attributes:
+        families: The declarations.
+        values: The run's values, for the run scope.
+        arrival_run: The run's arrivals, which read `members`.
+        holder_run: The run's resources, stores and containers.
+        signal_run: The run's signals.
+    """
+
+    families: Families
+    values: "ValueRuntime"
+    arrival_run: "ArrivalRun"
+    holder_run: "HolderRun"
+    signal_run: "SignalRun"
+
+    def start_members(self) -> None:
+        """Makes the members `members` asks for, in family order, keys 0 to n - 1, in
+        run scope."""
+        for family in self.families.by_name.values():
+            if family.members is None:
+                continue
+            count = whole(
+                self.arrival_run.value(family.members),
+                f"{SECTIONS[family.kind]}.{family.name}.members",
+            )
+            scope = self.values.scope_of()
+            for key in range(max(count, 0)):
+                self.open_member(family, key, scope)
+
+    def open_member(self, family: Family, key: Any, scope: Optional[Scope]) -> str:
+        """Gives the name of a family's member, making the member when this is the
+        first use of its key. The member lasts to the end of the run.
+
+        Args:
+            family: The family.
+            key: The member's key, an integer or text; a boolean is 1 or 0.
+            scope: What a capacity written as text reads. A family with `members`
+                reads the run scope for every member.
+
+        Returns:
+            str: The member's name, such as `desk[3]`.
+
+        Raises:
+            TypeError: If `key` is not an integer or text.
+            ValueError: If a capacity written as text gives an unusable value.
+        """
+        key = normal_key(key)
+        name = member_name(family.name, key)
+        holders = self.holders_of(family)
+        if name in holders:
+            return name
+        base = family.name
+        if family.kind == "signal":
+            # A member takes the family's settings, read from the family's entry,
+            # so the run adds no member to the declarations
+            self.signal_run.make(name, base)
+            family.keys.append(key)
+            return name
+        if family.members is not None or scope is None:
+            scope = self.values.scope_of()
+        self.holder_run.make_member(family, name, scope)
+        family.keys.append(key)
+        return name
+
+    def open_reference(self, reference: Reference, scope: Scope) -> str:
+        """The name a reference gives now: the member of its `key`, made when it is
+        new, or the member with the lowest `lowest`. A key and a lowest are read once.
+
+        Args:
+            reference: The reference.
+            scope: What its expression reads: the step of the reference.
+
+        Returns:
+            str: The name of the resource, store, container or signal.
+
+        Raises:
+            KeyError: If `key` gives a name that `of` does not list.
+            ValueError: If the family has no member to pick from.
+            TypeError: If `key` is not an integer or text.
+        """
+        if reference.listed:
+            chosen = reference.key_expression.evaluate(scope)  # type: ignore[union-attr]
+            if chosen not in reference.names:
+                raise KeyError(
+                    f"the key of {reference.mapping()} gave {chosen!r}, which is not "
+                    f"one of {list(reference.names)}"
+                )
+            return str(chosen)
+        family = self.families.by_name[str(reference.of)]
+        if reference.key_expression is not None:
+            return self.open_member(
+                family, reference.key_expression.evaluate(scope), scope
+            )
+        if not family.keys:
+            raise ValueError(
+                f"{reference.mapping()} has no member to pick from: the family is empty"
+            )
+        best: Any = None
+        found: Any = None
+        for key in list(family.keys):
+            value = reference.lowest_expression.evaluate(  # type: ignore[union-attr]
+                replace(scope, member=self.member_row(family, key))
+            )
+            if best is None or value < best:
+                best, found = value, key
+        return self.open_member(family, found, scope)
+
+    def member_row(self, family: Family, key: Any) -> Dict[str, Any]:
+        """What `member.<name>` reads for one member.
+
+        Args:
+            family: The family.
+            key: The member's key.
+        """
+        name = member_name(family.name, key)
+        row: Dict[str, Any] = {"key": key}
+        if family.kind == "resource":
+            resource = self.holder_run.resources[name]
+            row.update(users=len(resource.users), queue=len(resource.queue))
+        elif family.kind == "signal":
+            signal = self.signal_run.made[name]
+            row.update(count=signal.count)
+        else:
+            holder = self.holder_run.levels()[name]
+            row.update(
+                level=getattr(holder, "level", None),
+                count=len(getattr(holder, "items", [])),
+                putters=len(holder.put_queue),
+                getters=len(holder.get_queue),
+            )
+        return row
+
+    def holders_of(self, family: Family) -> Dict[str, Any]:
+        """The map a family's members are kept in.
+
+        Args:
+            family: The family.
+        """
+        holders: Dict[str, Dict[str, Any]] = {
+            "resource": self.holder_run.resources,  # type: ignore[dict-item]
+            "store": self.holder_run.stores,  # type: ignore[dict-item]
+            "container": self.holder_run.containers,  # type: ignore[dict-item]
+            "signal": self.signal_run.made,  # type: ignore[dict-item]
+        }
+        return holders[family.kind]

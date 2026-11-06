@@ -1394,9 +1394,9 @@ def test_c1_closing_a_task_that_is_still_serving_runs_no_on_action(tmp_path):
     outcome = run_yaml_text(tmp_path, text, {"a": [0]})
     app = outcome.app_or_env
     registry = app._env.registry
-    (running,) = app._running["job"]
-    assert running.process.is_alive
-    running.process._generator.close()
+    (running,) = app._run.running["job"]
+    assert running.flow.process.is_alive
+    running.flow.process._generator.close()
     assert registry.get("C1.variables.flag").value == 0
 
 

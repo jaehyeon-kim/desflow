@@ -244,6 +244,7 @@ def _run_once(path: str, options: _RunOptions) -> None:
     """
     from desflow.blueprint.build import Preview
     from desflow.blueprint.loader import BlueprintError
+    from desflow.core.context import parts_of
     from desflow.loading import load_context
 
     file = Path(path)
@@ -270,10 +271,12 @@ def _run_once(path: str, options: _RunOptions) -> None:
 
     if seed is not None:
         context.random_seed = seed
-    if context._repeat_hint is not None:
+    if parts_of(context).defaults.repeat_hint is not None:
         # The run's seed is filled in later, so braces in the until are doubled
         repeat = _run_options(options)
-        context._repeat_hint += repeat.replace("{", "{{").replace("}", "}}")
+        parts_of(context).defaults.repeat_hint += repeat.replace("{", "{{").replace(
+            "}", "}}"
+        )
     if replications is not None:
         with quiet_builds():
             _replicate(file, replications, context, stop_at, options)
@@ -289,14 +292,17 @@ def _run_once(path: str, options: _RunOptions) -> None:
         context.finish()
     except KeyboardInterrupt:
         logger.info("Simulation stopped by user.")
-    if sample is not None and context._sample_seen < sample:
+    if sample is not None and parts_of(context).run.sample_seen < sample:
         _report_short_sample(context, sample)
 
 
 def _report_short_sample(context: Any, sample: int) -> None:
     """Says on stderr that the run ended before it printed `sample` events."""
-    seen = context._sample_seen
-    ended = context._until is not None and context.env.now >= context._until
+    from desflow.core.context import parts_of
+
+    run = parts_of(context).run
+    seen = run.sample_seen
+    ended = run.until is not None and context.env.now >= run.until
     where = " at until" if ended else ""
     typer.echo(f"sample ended{where} with {seen} of {sample} events", err=True)
 
@@ -319,7 +325,7 @@ def _replicate(
         options: What `desflow run` was given besides the file.
     """
     from desflow.analysis.runner import replicate
-    from desflow.core.context import SimulationContext
+    from desflow.core.context import SimulationContext, parts_of
 
     seed = context.random_seed
     if seed is None:
@@ -331,7 +337,7 @@ def _replicate(
             SimulationContext.from_yaml, file, variables=options.variables
         )
         if until is None:
-            until = context._default_until
+            until = parts_of(context).defaults.until
     try:
         result = replicate(
             model,

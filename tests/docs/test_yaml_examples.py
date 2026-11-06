@@ -10,6 +10,7 @@ Postgres and Redis write through a mocked client.
 Nothing here contacts a broker, database or catalog.
 """
 
+from dataclasses import replace
 import asyncio
 import importlib.util
 import itertools
@@ -84,11 +85,13 @@ def _run(context, until, start=START):
     context.logical_start_time = start
     # The run stays unpaced, so a live tail costs no real time.
     context.go_live_at = None
-    context._before_run = []
-    context._ingress_providers = []
-    context._egress_providers = [_Capture() for _ in context._egress_providers]
+    context._defaults.before_run = []
+    context._sinks.ingress = []
+    context._sinks.egress = [
+        replace(sink, provider=_Capture()) for sink in context._sinks.egress
+    ]
     context.run(until=until)
-    return [capture.records for capture in context._egress_providers]
+    return [sink.provider.records for sink in context._sinks.egress]
 
 
 def _events(records):
@@ -142,7 +145,7 @@ def test_every_example_is_plain_yaml():
 
 def test_local():
     app = _build("local.yaml")
-    assert app._default_until == 30.0
+    assert app._defaults.until == 30.0
     [records] = _run(app, 30)
 
     finished = _finished(records)
@@ -166,9 +169,9 @@ def test_local():
 
 def test_kafka():
     app = _build("kafka.yaml")
-    [ingress] = app._ingress_providers
-    [egress] = app._egress_providers
-    assert app._default_until is None
+    [ingress] = app._sinks.ingress
+    [egress] = [sink.provider for sink in app._sinks.egress]
+    assert app._defaults.until is None
     assert ingress.topic == "sim-config"
     assert ingress.bootstrap_servers == "127.0.0.1:9092"
     assert (egress.event_topic, egress.telemetry_topic) == (
@@ -204,7 +207,7 @@ def test_kafka():
 def test_kafka_reads_the_broker_from_the_environment(monkeypatch):
     monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker:29092")
     app = _build("kafka.yaml")
-    assert app._egress_providers[0].producer_config["bootstrap_servers"] == (
+    assert app._sinks.egress[0].provider.producer_config["bootstrap_servers"] == (
         "broker:29092"
     )
 
@@ -212,12 +215,12 @@ def test_kafka_reads_the_broker_from_the_environment(monkeypatch):
 def test_parquet(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     app = _build("parquet.yaml")
-    [egress] = app._egress_providers
-    assert app._default_until == 604800.0
+    [egress] = [sink.provider for sink in app._sinks.egress]
+    assert app._defaults.until == 604800.0
     assert egress.default_path == "data/events.parquet"
     assert egress.path_router is None
     assert isinstance(_build_filesystem(egress.filesystem, fs), fs.LocalFileSystem)
-    assert (app._batch_size, app._flush_interval) == (5000, 86400)
+    assert (app._sinks.batch_size, app._sinks.flush_interval) == (5000, 86400)
 
     [records] = _run(app, 3600)
     egress.filesystem = _build_filesystem(egress.filesystem, fs)
@@ -247,7 +250,7 @@ def test_parquet_on_s3(monkeypatch):
     monkeypatch.setenv("S3_ENDPOINT", "http://127.0.0.1:8333")
     monkeypatch.setenv("S3_ACCESS_KEY", "user")
     monkeypatch.setenv("S3_SECRET_KEY", "password")
-    [egress] = _build("parquet.yaml")._egress_providers
+    [egress] = [sink.provider for sink in _build("parquet.yaml")._sinks.egress]
 
     assert egress.default_path == "odctl-dev/history/events.parquet"
     built = _build_filesystem(egress.filesystem, fs)
@@ -287,9 +290,9 @@ class _Catalog:
 
 def test_iceberg():
     app = _build("iceberg.yaml")
-    [egress] = app._egress_providers
-    assert app._default_until == 86400.0
-    assert app._egress_batch_sizes == [200000]
+    [egress] = [sink.provider for sink in app._sinks.egress]
+    assert app._defaults.until == 86400.0
+    assert [sink.batch_size for sink in app._sinks.egress] == [200000]
     # The catalog is a mapping until the first write, so loading contacts nothing.
     assert egress.catalog is None
     assert egress.catalog_properties == {
@@ -378,8 +381,8 @@ def _written(conn, table):
 @pytest.mark.asyncio
 async def test_postgres(postgres):
     app = _build("postgres.yaml")
-    [ingress] = app._ingress_providers
-    [egress] = app._egress_providers
+    [ingress] = app._sinks.ingress
+    [egress] = [sink.provider for sink in app._sinks.egress]
     assert ingress.table_name == "simulation_params"
     assert egress.table_name == "orders"
     postgres.egresses = [egress]
@@ -404,8 +407,8 @@ async def test_postgres(postgres):
 @pytest.mark.asyncio
 async def test_redis():
     app = _build("redis.yaml")
-    [ingress] = app._ingress_providers
-    [egress] = app._egress_providers
+    [ingress] = app._sinks.ingress
+    [egress] = [sink.provider for sink in app._sinks.egress]
     assert ingress.channel_name == "simulation_params"
     assert egress.stream_name == "events"
 
@@ -443,12 +446,12 @@ async def test_redis():
 
 def test_backfill_live():
     app = _build("backfill_live.yaml")
-    history, live = app._egress_providers
-    assert app._default_until == 660.0
+    history, live = [sink.provider for sink in app._sinks.egress]
+    assert app._defaults.until == 660.0
     assert (app.go_live_at - app.logical_start_time).total_seconds() == 600
     assert history.default_path == "data/backfill/events.parquet"
     assert live.producer_config["bootstrap_servers"] == "127.0.0.1:9092"
-    assert (app._batch_size, app._flush_interval) == (2000, 10.0)
+    assert (app._sinks.batch_size, app._sinks.flush_interval) == (2000, 10.0)
 
     go_live_iso = app.go_live_at.isoformat(timespec="milliseconds")
     history_records, live_records = _run(app, 660, start=app.logical_start_time)
@@ -463,7 +466,7 @@ def test_backfill_live():
 @pytest.mark.asyncio
 async def test_advanced_postgres_orders(postgres):
     app = _build("advanced/postgres_orders.yaml")
-    orders, items = app._egress_providers
+    orders, items = [sink.provider for sink in app._sinks.egress]
     assert (orders.table_name, items.table_name) == ("orders", "order_items")
     assert app.random_seed == 42
     postgres.egresses = [orders, items]
@@ -533,18 +536,6 @@ def _gallery_yaml(slug):
     return SimulationContext.from_yaml(GALLERY / f"{slug}.yaml")
 
 
-# The lists of a context that hold one entry for each egress sink
-_SINK_LISTS = (
-    "_egress_providers",
-    "_egress_predicates",
-    "_egress_labels",
-    "_egress_traces",
-    "_egress_batch_sizes",
-    "_egress_flush_intervals",
-    "_egress_envelopes",
-)
-
-
 def _gallery_records(slug, form):
     """The records of one form of a gallery example, run unpaced into a capture.
 
@@ -569,10 +560,9 @@ def _gallery_records(slug, form):
         context = module.build()
         end = module.UNTIL
     context.factor = 0.0
-    context._before_run = []
-    context._ingress_providers = []
-    for name in _SINK_LISTS:  # every sink, with its `when`, gives way to one capture
-        setattr(context, name, [])
+    context._defaults.before_run = []
+    context._sinks.ingress = []
+    context._sinks.egress = []  # every sink, with its `when`, gives way to one capture
     capture = _Capture()
     context.add_egress(capture)
     context.run(until=end)
@@ -665,12 +655,23 @@ def test_gallery_forms_publish_the_same_records(slug):
     assert _stream(_gallery_records(slug, "low_level")) == yaml_records
     tasks = {r["task"] for r in records if r.get("task")}
     context = _gallery_yaml(slug)
-    sinks = _sinks(context._egress_providers, context._egress_predicates, tasks)
+    sinks = _sinks(
+        [sink.provider for sink in context._sinks.egress],
+        [sink.predicate for sink in context._sinks.egress],
+        tasks,
+    )
     built = _gallery_module(slug, "builder").build()
-    assert _sinks(built._egress_providers, built._egress_predicates, tasks) == sinks
+    assert (
+        _sinks(
+            [sink.provider for sink in built._sinks.egress],
+            [sink.predicate for sink in built._sinks.egress],
+            tasks,
+        )
+        == sinks
+    )
     seen = _low_level_run(slug)
     assert _sinks(*seen["sinks"], tasks) == sinks
-    assert seen["until"] == context._default_until
+    assert seen["until"] == context._defaults.until
     stats = getattr(_gallery_module(slug, "low_level"), "STATS", None)
     if stats is None:
         assert seen["stats"] is None
@@ -716,7 +717,7 @@ def test_every_gallery_file_has_its_forms_and_a_test():
             if form == "builder":  # a blueprint keeps 1_000_000 rows, as in the YAML
                 assert set(re.findall(r"history=(\S+?)[,)]", source)) <= {"1_000_000"}
         assert not re.search(r"^#? ?Needs: nothing\.", text, re.MULTILINE), slug
-        end = yaml_context._default_until
+        end = yaml_context._defaults.until
         assert _gallery_module(slug, "builder").UNTIL == end, slug
         assert _gallery_module(slug, "low_level").UNTIL == end, slug
     assert set(slugs) <= _TESTED | _known_case_examples(), sorted(
@@ -749,17 +750,17 @@ def test_gallery_retail_records_to_three_sinks():
     """Each sink gets the records of its own tasks only, and the records agree: an
     order names a customer and a product that exist, and its invoice repeats it."""
     context = _gallery_yaml("retail_records_to_three_sinks")
-    assert [type(p).__name__ for p in context._egress_providers] == [
+    assert [type(sink.provider).__name__ for sink in context._sinks.egress] == [
         "PostgresEgress",
         "PostgresEgress",
         "KafkaEgress",
         "ParquetStorageEgress",
     ]
-    assert [p.table_name for p in context._egress_providers[:2]] == [
+    assert [sink.provider.table_name for sink in context._sinks.egress[:2]] == [
         "customers",
         "products",
     ]
-    assert context._egress_providers[2].event_topic == "retail-orders"
+    assert context._sinks.egress[2].provider.event_topic == "retail-orders"
     customers, products, orders, invoices = _run(context, 600)
     for sink, task in zip(
         (customers, products, orders, invoices),
@@ -1093,10 +1094,10 @@ def test_gallery_customer_deletes_become_kafka_tombstones():
     # The sink is a Kafka sink that writes each event's value alone, in the YAML, the
     # Builder and the Low-level form
     for app in (_gallery_yaml(slug), _gallery_module(slug, "builder").build()):
-        [egress] = app._egress_providers
+        [egress] = [sink.provider for sink in app._sinks.egress]
         assert type(egress).__name__ == "KafkaEgress"
         assert egress.event_topic == "customers-cdc"
-        assert app._egress_envelopes == [False]
+        assert [sink.envelope for sink in app._sinks.egress] == [False]
     seen = _low_level_run(slug)
     [egress] = seen["sinks"][0]
     assert type(egress).__name__ == "KafkaEgress"

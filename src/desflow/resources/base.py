@@ -1,13 +1,15 @@
 import bisect
 import functools
 import itertools
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 import simpy
 
-from desflow.core.internal import internal_process
-from desflow.core.registry import DynamicValue
+from desflow.internal import internal_process
 from desflow.models.params import CapacityConfig
+
+if TYPE_CHECKING:
+    from desflow.core.registry import DynamicValue
 
 # The kinds that register themselves, and the registry method that does it
 _SELF_REGISTERING = {

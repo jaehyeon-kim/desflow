@@ -90,10 +90,13 @@ def test_var_beats_the_environment(tmp_path, monkeypatch):
     path = _write(tmp_path, "shop.yaml", SHOP)
     monkeypatch.setenv("PACKERS", "2")
     both = SimulationContext.from_yaml(path, variables={"PACKERS": "3"})
-    assert both._resources_config["packers"].current_cap == 3
+    assert both._holders.resources_config["packers"].current_cap == 3
     monkeypatch.delenv("PACKERS")
     assert (
-        SimulationContext.from_yaml(path)._resources_config["packers"].current_cap == 1
+        SimulationContext.from_yaml(path)
+        ._holders.resources_config["packers"]
+        .current_cap
+        == 1
     )
     _write(tmp_path, "resources.yaml", "packers: {current_cap: '${PACKERS:-1}'}\n")
     included = _write(
@@ -105,9 +108,11 @@ def test_var_beats_the_environment(tmp_path, monkeypatch):
         ),
     )
     context = SimulationContext.from_yaml(included, variables={"PACKERS": "4"})
-    assert context._resources_config["packers"].current_cap == 4
+    assert context._holders.resources_config["packers"].current_cap == 4
     assert (
-        SimulationContext.from_yaml(included)._resources_config["packers"].current_cap
+        SimulationContext.from_yaml(included)
+        ._holders.resources_config["packers"]
+        .current_cap
         == 1
     )
 

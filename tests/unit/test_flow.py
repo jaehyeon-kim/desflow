@@ -729,3 +729,11 @@ def test_a_losing_child_flow_that_fails_later_does_not_stop_the_run():
     # running and fails at 10, which does not stop the run.
     assert (5.0, "order", "ordered") in events
     assert app.env.now == 30.0
+
+
+def test_a_weighted_router_with_no_generator_refuses_to_choose():
+    """`Router.choose` draws weights from the router's own generator, so a weighted
+    router made without one refuses to choose."""
+    router = Router({"weights": {"ship": 1, "rework": 1}})
+    with pytest.raises(ValueError, match="weights need a random generator"):
+        router.choose(Upstream(0, "e", {}))

@@ -812,36 +812,8 @@ class Expression:
                 )
             raise self._refuse(f"the constant {node.value!r}")
         if isinstance(node, ast.Name):
-            if node.id in self._local:
-                return
-            if node.id == "t" and not self._records:
-                return
-            if node.id in _FLAGS and not self._records:
-                self.references["flag"].add(node.id)
-                return
-            if not self._records and self._names is not None and node.id in self._names:
-                self.references["name"].add(node.id)
-                return
-            if self._records and node.id == "t":
-                raise self._refuse(
-                    "the name 't': an egress when reads only the record, whose "
-                    "time is not a name (write record.stream_type, record.key, "
-                    "record.task or record.value.<field>)"
-                )
-            if self._records and node.id == "record":
-                raise self._refuse(
-                    "the name 'record' alone (write record.stream_type, "
-                    "record.key, record.task or record.value.<field>)"
-                )
-            raise self._refuse(
-                f"the name '{node.id}' (write payload.<field>, attr.<name>, "
-                f"level.<name>, users.<name>, queue.<name>, putters.<name>, "
-                f"getters.<name>, item.<field>, item, item_priority, arg.<name>, "
-                f"cause.<name>, upstream.<field>, count(<store>), items(<store>), "
-                f"held(<resource>), waiting(<resource>), putting(<store>), "
-                f"getting(<store>), running(<task>), peek(), wait.<branch>.<part>, "
-                f'signal.<name>.<part>, process.<name>, registry["<path>"] or t)'
-            )
+            self._check_name(node)
+            return
         if isinstance(node, ast.Attribute):
             self._check_attribute(node)
             return
@@ -855,47 +827,7 @@ class Expression:
                 "an index, a call or a list, which an egress when cannot"
             )
         if isinstance(node, ast.Subscript):
-            index = node.slice
-            if (
-                isinstance(node.value, ast.Name)
-                and node.value.id == "registry"
-                and isinstance(index, ast.Constant)
-                and isinstance(index.value, str)
-            ):
-                self.references["registry"].add(index.value)
-                return
-            if isinstance(node.value, ast.Name) and node.value.id == "registry":
-                raise self._refuse('an index other than registry["<path>"]')
-            held_number = node.value
-            base, parts = _chain(held_number)
-            if (
-                isinstance(base, ast.Name)
-                and parts
-                and base.id in _NUMBERS
-                and len(parts) == 1
-                and not isinstance(index, ast.Slice)
-            ):
-                # `users.desk[attr.k]`: a member of a family
-                self.references[base.id].add(parts[0])
-                self.indexed.add((base.id, parts[0]))
-                self._check(index, True)
-                return
-            if (
-                isinstance(base, ast.Name)
-                and parts
-                and base.id in _NUMBERS
-                and len(parts) == 1
-            ):
-                raise self._refuse(
-                    f"an index on {base.id}.{parts[0]}, which is a number"
-                )
-            self._check(node.value, False)
-            if isinstance(index, ast.Slice):
-                for part in (index.lower, index.upper, index.step):
-                    if part is not None:
-                        self._check(part, False)
-            else:
-                self._check(index, True)
+            self._check_subscript(node)
             return
         if isinstance(node, ast.BinOp):
             if type(node.op) not in _ARITHMETIC:
@@ -952,6 +884,82 @@ class Expression:
             self._check_comprehension(node)
             return
         raise self._refuse(f"a {type(node).__name__}")
+
+    def _check_name(self, node: ast.Name) -> None:
+        """Checks a bare name: a loop name, `t`, a flag or a var, and nothing else."""
+        if node.id in self._local:
+            return
+        if node.id == "t" and not self._records:
+            return
+        if node.id in _FLAGS and not self._records:
+            self.references["flag"].add(node.id)
+            return
+        if not self._records and self._names is not None and node.id in self._names:
+            self.references["name"].add(node.id)
+            return
+        if self._records and node.id == "t":
+            raise self._refuse(
+                "the name 't': an egress when reads only the record, whose "
+                "time is not a name (write record.stream_type, record.key, "
+                "record.task or record.value.<field>)"
+            )
+        if self._records and node.id == "record":
+            raise self._refuse(
+                "the name 'record' alone (write record.stream_type, "
+                "record.key, record.task or record.value.<field>)"
+            )
+        raise self._refuse(
+            f"the name '{node.id}' (write payload.<field>, attr.<name>, "
+            f"level.<name>, users.<name>, queue.<name>, putters.<name>, "
+            f"getters.<name>, item.<field>, item, item_priority, arg.<name>, "
+            f"cause.<name>, upstream.<field>, count(<store>), items(<store>), "
+            f"held(<resource>), waiting(<resource>), putting(<store>), "
+            f"getting(<store>), running(<task>), peek(), wait.<branch>.<part>, "
+            f'signal.<name>.<part>, process.<name>, registry["<path>"] or t)'
+        )
+
+    def _check_subscript(self, node: ast.Subscript) -> None:
+        """Checks an index: `registry["<path>"]`, a member of a family such as
+        `users.desk[attr.k]`, or an index or a slice of a value."""
+        index = node.slice
+        if (
+            isinstance(node.value, ast.Name)
+            and node.value.id == "registry"
+            and isinstance(index, ast.Constant)
+            and isinstance(index.value, str)
+        ):
+            self.references["registry"].add(index.value)
+            return
+        if isinstance(node.value, ast.Name) and node.value.id == "registry":
+            raise self._refuse('an index other than registry["<path>"]')
+        held_number = node.value
+        base, parts = _chain(held_number)
+        if (
+            isinstance(base, ast.Name)
+            and parts
+            and base.id in _NUMBERS
+            and len(parts) == 1
+            and not isinstance(index, ast.Slice)
+        ):
+            # `users.desk[attr.k]`: a member of a family
+            self.references[base.id].add(parts[0])
+            self.indexed.add((base.id, parts[0]))
+            self._check(index, True)
+            return
+        if (
+            isinstance(base, ast.Name)
+            and parts
+            and base.id in _NUMBERS
+            and len(parts) == 1
+        ):
+            raise self._refuse(f"an index on {base.id}.{parts[0]}, which is a number")
+        self._check(node.value, False)
+        if isinstance(index, ast.Slice):
+            for part in (index.lower, index.upper, index.step):
+                if part is not None:
+                    self._check(part, False)
+        else:
+            self._check(index, True)
 
     def _check_comprehension(self, node: ast.ListComp) -> None:
         """Checks a one-clause comprehension: its loop name is not a name of the

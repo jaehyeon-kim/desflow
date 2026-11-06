@@ -813,7 +813,7 @@ def test_numeric_text_weights_load_as_numbers(tmp_path):
             + "run: {until: 5}\n",
         )
     )
-    router = app._task_specs["t"].router
+    router = app._tasks.specs["t"].router
     assert router.computed is False
     assert router.probabilities == {"u": 0.5, "v": 0.5}
 
@@ -986,7 +986,7 @@ def test_the_builder_takes_numpy_numbers_for_times():
     def t(task_id):
         return {"event_type": "ran"}
 
-    assert app._task_specs["t"].service_time == 1.5
+    assert app._tasks.specs["t"].service_time == 1.5
 
 
 @pytest.mark.parametrize("bad", [-1, True, "x +", float("nan")])

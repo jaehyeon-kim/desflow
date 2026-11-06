@@ -45,6 +45,10 @@ jobs:
       - name: Run pre-commit
         run: uvx pre-commit run --show-diff-on-failure --color=always --all-files
 
+      # The import contracts in pyproject.toml, [tool.importlinter].
+      - name: Check the import contracts
+        run: uv run --all-extras lint-imports
+
   # Each leg installs exactly one extra into an empty environment, then imports and
   # constructs the connectors that extra exists to enable. Running the suite with
   # --all-extras hides a missing transitive dependency in one extra, because another

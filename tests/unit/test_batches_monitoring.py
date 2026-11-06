@@ -1045,7 +1045,7 @@ def test_a_batch_is_named_as_a_feature_the_queueing_formulas_leave_out(tmp_path)
         "simulation: {sim_id: S, factor: 0}\narrivals: {a: {dist: constant, value: 1, spawn: job}}\n"
         "tasks: {job: {batch: {size: 2}, payload: {e: 1}}}\nrun: {until: 5}\n",
     )
-    assert "batch" in task_features(app, app._task_specs["job"])
+    assert "batch" in task_features(app, app._tasks.specs["job"])
 
 
 def test_a_busy_clock_run_with_no_end_time_ends_when_the_work_does(tmp_path):
@@ -1181,7 +1181,7 @@ def units_left(text: str, tmp_path: Path, resource: str = "m") -> List[int]:
     """Runs the model to the end and returns [users, queue] of a resource."""
     app = load(tmp_path, text)
     run_builder(app, 30)
-    found = app._resources_map[resource]
+    found = app._run.holders.resources[resource]
     return [len(found.users), len(found.queue)]
 
 
@@ -1470,7 +1470,7 @@ def test_a_resource_that_never_goes_idle_keeps_no_waiting_event_for_each_failure
     app.add_arrival("a", dist="constant", value=100, initial=1, spawn="t")
     app.task(name="t", resource_id="m", service_time=60)(lambda task_id: {"e": "done"})
     app.run(until=40)
-    assert len(app._resources_map["m"]._idle_waiters) <= 1
+    assert len(app._run.holders.resources["m"]._idle_waiters) <= 1
 
 
 SHARING = """\

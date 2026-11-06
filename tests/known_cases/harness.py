@@ -361,17 +361,6 @@ def normal(
     return found
 
 
-_PARALLEL = (
-    "_egress_providers",
-    "_egress_predicates",
-    "_egress_labels",
-    "_egress_traces",
-    "_egress_batch_sizes",
-    "_egress_flush_intervals",
-    "_egress_envelopes",
-)
-
-
 def _without_sinks(app: SimulationContext, console: bool = True) -> None:
     """Takes the sinks that need a service away, as `scripts/regression.py capture`
     replaces them: the ingress, the set-up that runs before the run (such as the topics
@@ -379,16 +368,13 @@ def _without_sinks(app: SimulationContext, console: bool = True) -> None:
     their place, so the run needs no broker, database or bucket. Without `console`
     the console goes as well: an example prints every record, which a test does not
     need to see."""
-    app._ingress_providers = []
-    app._before_run = []
-    keep = [
-        i
-        for i, provider in enumerate(app._egress_providers)
-        if console and type(provider).__name__ == "ConsoleEgress"
+    app._sinks.ingress = []
+    app._defaults.before_run = []
+    app._sinks.egress = [
+        sink
+        for sink in app._sinks.egress
+        if console and type(sink.provider).__name__ == "ConsoleEgress"
     ]
-    for name in _PARALLEL:
-        entries = getattr(app, name)
-        setattr(app, name, [entries[i] for i in keep])
 
 
 def _outcome(app: SimulationContext, run: Any, console: bool = True) -> Outcome:
@@ -396,7 +382,9 @@ def _outcome(app: SimulationContext, run: Any, console: bool = True) -> Outcome:
     recording = RecordingEgress()
     app.add_egress(recording)
     traced = RecordingEgress()
-    if app._stats_trace:  # a sink for the trace records, as the program's trace needs
+    if (
+        app._sinks.stats_trace
+    ):  # a sink for the trace records, as the program's trace needs
         app.add_egress(traced, when="trace")
     labelled = RecordingEgress()  # the ground-truth rows of scenario steps, which no
     app.add_egress(labelled, when="labels")  # other sink receives

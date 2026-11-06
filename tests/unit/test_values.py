@@ -14,11 +14,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pytest
+from simpy.core import StopSimulation
 
 from desflow import SimulationContext
 from desflow.blueprint import BlueprintError
 from desflow.core.task import TaskFailed
-from desflow.values import Template
+from desflow.core.environment import DynamicRealtimeEnvironment
+from desflow.values import Template, ValueRuntime, generator
+from desflow.values.check import load_rows
 from tests.conformance.harness import RecordingEgress, run_yaml_text
 
 HEAD = (
@@ -445,6 +448,20 @@ def test_row_on_end_error_loop_and_stop(tmp_path):
     assert [p["x"]["id"] for p in payloads(stopped)] == ["A", "B"]
 
 
+def test_a_row_file_that_ends_with_stop_stops_an_environment_with_no_model(tmp_path):
+    """A `ValueRuntime` that a low-level script makes with no model to stop stops
+    its environment when the rows of an `on_end: stop` run out."""
+    tmp_path.joinpath("rows.csv").write_text("id\nA\n")
+    values = ValueRuntime(1, DynamicRealtimeEnvironment(factor=0))
+    spec = generator(
+        {"gen": "row", "file": "rows.csv", "order": "sequential", "on_end": "stop"}
+    )
+    assert load_rows(spec, tmp_path) is None
+    assert values.value(spec)["id"] == "A"
+    with pytest.raises(StopSimulation):
+        values.value(spec)
+
+
 def test_row_reads_parquet(tmp_path):
     pq = pytest.importorskip("pyarrow.parquet")
     import pyarrow as pa
@@ -656,6 +673,56 @@ def test_vars_are_evaluated_after_the_service_and_on_start_publishes_at_the_star
     )
     assert (
         payloads(run(tmp_path, without, n=1))[0]["a"] == "2026-01-01T00:00:05.000+00:00"
+    )
+
+
+@pytest.mark.parametrize(
+    "body,statuses",
+    [
+        (
+            """
+            vars_once: {x: {gen: expr, expr: '1 / (attr.k - 1)'}}
+            payload: {x: {gen: var, name: x}}
+            """,
+            ["failed"],
+        ),
+        (
+            """
+            service: s1
+            vars: {a: {gen: expr, expr: '1 / (attr.k - 1)'}}
+            on_start: {event_type: began, at: {gen: var, name: a}}
+            payload: {a: {gen: var, name: a}}
+            """,
+            ["started", "failed"],
+        ),
+        (
+            """
+            service: s1
+            resource: r
+            vars: {a: {gen: expr, expr: '1 / (attr.k - 1)'}}
+            on_start: {event_type: began, at: {gen: var, name: a}}
+            payload: {a: {gen: var, name: a}}
+            """,
+            ["queued", "started", "failed"],
+        ),
+    ],
+)
+def test_a_value_that_raises_at_the_start_fails_the_task(tmp_path, body, statuses):
+    """B-U1: a `vars_once` made at the first event, or the vars an `on_start` reads,
+    that raise fail the task with the error as its reason."""
+    text = model(body, extra="resources: {r: {current_cap: 1, max_cap: 1}}\n")
+    text = text.replace("spawn: t}}", "spawn: t, attributes: {k: 1}}}", 1)
+    outcome = run_yaml_text(tmp_path, text, {"a": [0.0]})
+    assert type(outcome.error).__name__ == "TaskFailed"
+    found = [
+        r["value"]
+        for r in outcome.records
+        if r["stream_type"] == "event" and r["task"] == "t"
+    ]
+    assert [value["status"] for value in found] == statuses
+    assert found[-1]["reason"].startswith("ValueGenerationError: ")
+    assert found[-1]["reason"].endswith(
+        "gen expr: cannot evaluate '1 / (attr.k - 1)': division by zero"
     )
 
 
@@ -1012,7 +1079,7 @@ def test_template_renders_in_a_process_and_binds_fields():
     seen: List[Any] = []
 
     def process(context):
-        entity = context._new_entity("x", ({"k": 3}, None))
+        entity = context._run.arrivals.new_entity("x", ({"k": 3}, None))
         seen.append(template.render(context, entity))
         seen.append(template.bind(entity, extra=1).render(context))
         yield context.env.timeout(1)
@@ -1554,7 +1621,7 @@ def test_a_blueprint_payload_writes_attributes_after_the_service(tmp_path):
 def _change_k(app: Any):
     def process(context):
         yield context.env.timeout(2)
-        for runs in context._running.values():
+        for runs in context._run.running.values():
             for running in runs:
                 running.entity.attributes["k"] = 7
 
@@ -1590,7 +1657,7 @@ def test_low_level_value_evaluates_a_generator_in_a_process():
     seen: List[Any] = []
 
     def process(context):
-        entity = context._new_entity("x", ({"k": 3}, None))
+        entity = context._run.arrivals.new_entity("x", ({"k": 3}, None))
         seen.append(context.values.value({"gen": "attr", "name": "k"}, entity))
         seen.append(context.values.value({"gen": "sequence"}))
         yield context.env.timeout(1)
@@ -2650,7 +2717,7 @@ def test_a_dropped_template_start_gives_back_its_units(options):
     app = SimulationContext(sim_id="B", random_seed=1, factor=0)
     _drop_model(app, **options)
     events = _builder_events(app, 10)
-    resource = app._resources_map["r"]
+    resource = app._run.holders.resources["r"]
     assert (len(resource.users), len(resource.queue)) == (0, 0)
     assert [r["sim_ts"] for r in events if r["task"] == "useit"] == [7.0]
 
@@ -2690,7 +2757,7 @@ def test_a_dropped_template_start_has_consumed_its_get_item(caplog):
     app.add_egress(recorder)
     with caplog.at_level(logging.INFO, logger="desflow.values.runtime"):
         app.run(until=4)
-    assert list(app._stores_map["st"].items) == [2, 3]
+    assert list(app._run.holders.stores["st"].items) == [2, 3]
     assert len(calls) == 1
     statuses = [
         r["value"].get("status")
@@ -2747,7 +2814,7 @@ def test_a_dropped_template_start_says_whether_a_wait_get_took_an_item(
     app.add_egress(RecordingEgress())
     with caplog.at_level(logging.INFO, logger="desflow.values.runtime"):
         app.run(until=4)
-    assert list(app._stores_map["st"].items) == left
+    assert list(app._run.holders.stores["st"].items) == left
     lines = [
         r.getMessage() for r in caplog.records if "was not started" in r.getMessage()
     ]
@@ -2837,7 +2904,7 @@ def test_note_values_with_a_template_whose_vars_hold_no_lookup_gates_nothing():
     app = SimulationContext(sim_id="B", random_seed=1, factor=0)
     template = Template({"x": 1}, vars={"u": 2}, vars_once={"v": 3}, name="read")
     app.note_values("read", template)
-    assert app._gates == {} and app._row_targets == set()
+    assert app._tasks.gates == {} and app._tasks.row_targets == set()
 
 
 def test_note_values_searches_the_vars_once_of_a_template():
@@ -2848,7 +2915,7 @@ def test_note_values_searches_the_vars_once_of_a_template():
         name="read",
     )
     app.note_values("read", template)
-    assert app._gates == {"read": {"make"}}
+    assert app._tasks.gates == {"read": {"make"}}
 
 
 def test_note_values_searches_a_bound_template_and_its_fields():
@@ -2859,13 +2926,13 @@ def test_note_values_searches_a_bound_template_and_its_fields():
     lookup = {"gen": "lookup", "task": "make", "path": "id"}
     inside = BoundPayload(Template({"x": 1}, vars={"u": lookup}, name="a"))
     app.note_values("a", inside)
-    assert app._gates == {"a": {"make"}}
+    assert app._tasks.gates == {"a": {"make"}}
     field = BoundPayload(
         Template({"x": 1}, name="b"),
         fields=values_adapter().validate_python({"y": lookup}),
     )
     app.note_values("b", field)
-    assert app._gates["b"] == {"make"}
+    assert app._tasks.gates["b"] == {"make"}
 
 
 def test_note_values_refuses_a_place_it_does_not_search():
@@ -3224,7 +3291,7 @@ def test_a_builder_row_added_to_a_loaded_blueprint_is_read_from_the_working_dir(
     )
     monkeypatch.chdir(tmp_path)
     app = SimulationContext.from_yaml(path)
-    assert app._rows_deferred is False
+    assert app._tasks.rows_deferred is False
 
     app.add_store("st", items=[_row()])
     app.run(until=2)
@@ -3268,7 +3335,7 @@ def test_step_and_peek_after_a_stop_do_not_run_the_model_on(
         app.start(until=100)
         app.advance(50)
     ended = app.env.now
-    assert app._stopped and app.peek() == float("inf")
+    assert app._run.stopped and app.peek() == float("inf")
 
     if place != "run.segments":  # finish() has closed that run
         with pytest.raises(RuntimeError, match=f"the run ended at {ended:g}"):

@@ -26,7 +26,7 @@ def _number(value: float) -> str:
 
 def distributions_page() -> str:
     """The Distributions reference page, as Markdown."""
-    from desflow.core.distributions import TIME_LIST_PARAMETERS, TIME_PARAMETERS
+    from desflow.models.distributions import TIME_LIST_PARAMETERS, TIME_PARAMETERS
 
     lines: List[str] = [
         "# Distributions",
@@ -56,7 +56,7 @@ def distribution_sections() -> List[str]:
     The Distributions page and the skill's `references/distributions.md` both use
     these lines.
     """
-    from desflow.core.distributions import DISTRIBUTIONS
+    from desflow.models.distributions import DISTRIBUTIONS
     from desflow.models.params import DistributionConfig
 
     lines: List[str] = [

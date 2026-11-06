@@ -428,7 +428,7 @@ def compare(
     app = SimulationContext.from_yaml(
         HERE / "model.yaml", variables=config["variables"]
     )
-    sink = app._egress_providers[0]
+    sink = app._sinks.egress[0].provider
     assert isinstance(sink, IcebergStorageEgress)
     assert sink.upsert_keys == keys
     pinned = sink.schemas[tables[project.models.Observation]]

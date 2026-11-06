@@ -51,16 +51,9 @@ class _Run:
     """What the value runtime asks of a running model: its id and no signals."""
 
     sim_id = "game"
-    _signals = None
-    _resources_map = None
-    _families = None
-    _instance_scopes = None
 
     def __init__(self) -> None:
         self.values: Any = None
-
-    def _levels(self) -> None:
-        return None
 
     def _stop_run(self) -> None:
         pass
@@ -69,7 +62,7 @@ class _Run:
 def build(env: DynamicRealtimeEnvironment) -> None:
     sampler = Sampler(seed=42)
     run = _Run()
-    values = ValueRuntime(42, env, sampler, run)
+    values = ValueRuntime(42, env, sampler, run, stop=run._stop_run)
     run.values = values
     arrival = ARRIVALS["player"]
     once = deep(arrival["vars"])

@@ -26,7 +26,7 @@ def check(records):
     """The first sink's `ssl_context` is a context made as the guide makes it, from the
     certificate files, and the second sink's token provider gives the guide's token."""
     app = SimulationContext.from_yaml(HERE / "model.yaml")
-    tls, msk = (p.producer_config for p in app._egress_providers)
+    tls, msk = (sink.provider.producer_config for sink in app._sinks.egress)
     wanted = create_ssl_context(
         cafile=os.environ["KAFKA_CA_FILE"],
         certfile=os.environ["KAFKA_CERT_FILE"],

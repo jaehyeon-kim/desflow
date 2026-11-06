@@ -7,12 +7,27 @@ applies before every other model event at that time: an arrival gap drawn at tha
 moment already uses a new rate. A step at or after the run's `until` never applies.
 """
 
-from typing import Any, Callable, Iterable, List, Mapping, Optional
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+)
 
-from simpy.events import URGENT, Event
+from simpy.events import Event
 
+from desflow.core.environment import schedule_urgent
+from desflow.core.registry import ParamRejected
 from desflow.utils import suggestion, time_to_seconds
 from desflow.values.models import has_generator
+
+if TYPE_CHECKING:
+    from desflow.core.registry import SimulationRegistry
 
 STEP_KEYS = ("at", "path", "value", "record", "interrupt")
 
@@ -186,9 +201,69 @@ def apply_step(
         interrupt(action["task"], where=action.get("where"), cause=cause)
 
 
+def walk_steps(
+    steps: Iterable[Tuple[float, Optional[str], Any]],
+    registry: "SimulationRegistry",
+    is_member: Callable[[str], bool],
+    *,
+    convert: bool = False,
+) -> Iterator[Tuple[int, Optional[str], Any]]:
+    """Applies scenario steps to a scratch registry in the order the run applies
+    them, and yields each step's index with the problem found, so each caller words
+    its own message.
+
+    The steps go in time order, and `sorted` is stable, so steps at one time keep
+    the order they are written in. A step with no path or with the path of a family
+    member is not applied, and nor is a generated value, which is known only when
+    the step is due.
+
+    Args:
+        steps: Each step's time, path and value, in the order they are written.
+        registry: The scratch registry, which the walk changes.
+        is_member: Whether a path names an attribute of a member of a family.
+        convert: Whether a value must also convert to the type of the path's
+            current value, as the YAML loader checks.
+
+    Yields:
+        Tuple[int, Optional[str], Any]: `(index, None, None)` for a step with no
+        problem; `(index, "path", None)` when its path is not in the registry;
+        `(index, "type", current)` when its value cannot be converted to the type of
+        `current`; `(index, "value", reason)` when the registry refuses the value.
+        The walk ends after the first problem.
+    """
+    ordered = sorted(enumerate(steps), key=lambda item: item[1][0])
+    for index, (_at, path, value) in ordered:
+        if path is None or is_member(path):
+            yield index, None, None
+            continue
+        try:
+            entry = registry.get(path)
+        except KeyError:
+            yield index, "path", None
+            return
+        if has_generator(value):
+            yield index, None, None
+            continue
+        if convert:
+            current = entry.value
+            if (
+                current is not None
+                and not registry._is_queue_limit(path)
+                and not isinstance(value, type(current))
+            ):
+                try:
+                    type(current)(value)
+                except (TypeError, ValueError):
+                    yield index, "type", current
+                    return
+        try:
+            registry.change(path, value)
+        except ParamRejected as exc:
+            yield index, "value", exc.reason
+            return
+        yield index, None, None
+
+
 def _urgent_timeout(env: Any, delay: float) -> Event:
     """A timeout scheduled urgent, so it runs before normal events at its time."""
-    event = Event(env)
-    event._ok, event._value = True, None
-    env.schedule(event, URGENT, delay)
-    return event
+    return schedule_urgent(env, Event(env), delay)

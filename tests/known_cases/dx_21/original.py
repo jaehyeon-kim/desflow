@@ -48,7 +48,9 @@ def check(records):
     with guide_avro_models() as models:
         avro_serializer = models.prediction_serializer
     app = SimulationContext.from_yaml(HERE / "model.yaml")
-    protobuf, avro, json = (p.default_serializer for p in app._egress_providers)
+    protobuf, avro, json = (
+        sink.provider.default_serializer for sink in app._sinks.egress
+    )
 
     assert type(protobuf) is type(protobuf_serializer)
     assert protobuf._schema_str == protobuf_serializer._schema_str

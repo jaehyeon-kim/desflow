@@ -204,9 +204,15 @@ def _sinks_and_faults() -> None:
     assert step["path"] == "Web.variables.error_rate"
     assert step["value"] == {s: _rate_after(s, r) for s, r in ERROR_RATE.items()}
     app = SimulationContext.from_yaml(HERE / "model.yaml", variables=VARIABLES)
-    events, truth, *tables = app._egress_providers
+    events, truth, *tables = [sink.provider for sink in app._sinks.egress]
     assert isinstance(events, KafkaEgress) and isinstance(truth, KafkaEgress)
-    assert app._egress_labels == [False, True, False, False, False]
+    assert [sink.label for sink in app._sinks.egress] == [
+        False,
+        True,
+        False,
+        False,
+        False,
+    ]
     assert truth.event_topic == "ground_truth"
     assert isinstance(events.default_serializer, ConfluentAvroSerializer)  # WL12
     assert all(isinstance(sink, PostgresEgress) for sink in tables)  # WL10

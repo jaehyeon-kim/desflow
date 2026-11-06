@@ -9,7 +9,7 @@ time the resource holds a unit. The builder's `add_breakdown` and a YAML resourc
 
 from typing import Any, Generator
 
-from desflow.core.internal import InternalTimeout
+from desflow.internal import InternalTimeout
 from desflow.core.sampler import Sampler
 from desflow.resources.resource import ResourceBase
 

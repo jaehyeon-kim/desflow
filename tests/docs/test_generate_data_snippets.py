@@ -78,18 +78,6 @@ def _context(slug, form="yaml"):
     return _module(slug, form).build()
 
 
-# The lists of a context that hold one entry for each egress sink
-_SINK_LISTS = (
-    "_egress_providers",
-    "_egress_predicates",
-    "_egress_labels",
-    "_egress_traces",
-    "_egress_batch_sizes",
-    "_egress_flush_intervals",
-    "_egress_envelopes",
-)
-
-
 def _run(slug, form="yaml", until=None):
     """The data records and the label records of one form of a snippet, run unpaced.
 
@@ -114,10 +102,9 @@ def _run(slug, form="yaml", until=None):
         end = until or _module(slug, form).UNTIL
     context.factor = 0.0
     context.go_live_at = None
-    context._before_run = []
-    context._ingress_providers = []
-    for name in _SINK_LISTS:
-        setattr(context, name, [])
+    context._defaults.before_run = []
+    context._sinks.ingress = []
+    context._sinks.egress = []
     context.add_egress(captures[0])
     context.add_egress(captures[1], when="labels")
     context.run(until=end)
@@ -208,12 +195,14 @@ def test_send_data_to_a_sink_sends_the_same_records_to_each_sink():
         ("send_data_to_kafka", "KafkaEgress"),
         ("send_data_to_postgres", "PostgresEgress"),
     ):
-        [egress] = _context(slug)._egress_providers
+        [egress] = [sink.provider for sink in _context(slug)._sinks.egress]
         assert type(egress).__name__ == class_name, slug
         assert _stream(_records(slug)) == _stream(_records("send_data_to_a_sink")), slug
-    [kafka] = _context("send_data_to_kafka")._egress_providers
+    [kafka] = [sink.provider for sink in _context("send_data_to_kafka")._sinks.egress]
     assert kafka.event_topic == "orders"
-    [postgres] = _context("send_data_to_postgres")._egress_providers
+    [postgres] = [
+        sink.provider for sink in _context("send_data_to_postgres")._sinks.egress
+    ]
     assert list(postgres.tables) == ["orders"]
     columns, primary_key = postgres.tables["orders"]
     assert list(columns) == ["order_id", "customer_id", "total"]
@@ -257,9 +246,11 @@ def test_send_data_to_a_sink_forms_make_each_sink():
         assert type(module.file_sink()).__name__ == "JsonlStorageEgress"
         assert module.kafka_sink().event_topic == "orders"
     module = _module("send_data_to_a_sink", "builder")
-    [egress] = module.build(sink=module.kafka_sink)._egress_providers
+    [egress] = [
+        sink.provider for sink in module.build(sink=module.kafka_sink)._sinks.egress
+    ]
     assert type(egress).__name__ == "KafkaEgress"
-    [egress] = module.build()._egress_providers
+    [egress] = [sink.provider for sink in module.build()._sinks.egress]
     assert type(egress).__name__ == "ConsoleEgress"
 
 
@@ -389,7 +380,7 @@ def _events_of(records, task):
 @_snippet("stop_after_a_count")
 def test_stop_after_a_count_ends_the_run_after_12_records():
     context = _context("stop_after_a_count")
-    assert context._default_until is None  # the blueprint has no `run`
+    assert context._defaults.until is None  # the blueprint has no `run`
     records = _events_of(_records("stop_after_a_count", until=1000), "order")
     # A run to 1,000 s still ends at the 12th record, which is at 24 s
     assert [r["value"]["order_id"] for r in records] == list(range(1, 13))
@@ -605,8 +596,10 @@ def test_join_across_sinks_yaml_and_builder_sinks_each_take_one_task(
     monkeypatch.setenv("DEST_PATH", str(tmp_path))
     for form in ("yaml", "builder"):
         context = _context("join_across_sinks", form)
-        assert len(context._egress_providers) == 2
-        for predicate, task in zip(context._egress_predicates, ("customer", "order")):
+        assert len(context._sinks.egress) == 2
+        for predicate, task in zip(
+            [sink.predicate for sink in context._sinks.egress], ("customer", "order")
+        ):
             assert predicate({"task": task, "stream_type": "event"})
             other = "order" if task == "customer" else "customer"
             assert not predicate({"task": other, "stream_type": "event"})
@@ -654,7 +647,10 @@ def test_change_the_schema_during_a_run_labels_go_only_to_the_labels_sink(monkey
     `run()` is run with its two console sinks replaced by captures."""
     slug = "change_the_schema_during_a_run"
     for form in ("yaml", "builder"):
-        assert _context(slug, form)._egress_labels == [False, True], form
+        assert [sink.label for sink in _context(slug, form)._sinks.egress] == [
+            False,
+            True,
+        ], form
     module = _module(slug, "low_level")
     made = []
 

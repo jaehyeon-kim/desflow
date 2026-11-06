@@ -3,10 +3,12 @@ import enum
 import logging
 import queue
 import time
+import types
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from datetime import time as dt_time
 from decimal import Decimal
+from unittest.mock import patch
 
 import numpy as np
 import orjson
@@ -113,8 +115,7 @@ def test_a_load_that_raises_leaves_no_egress_set():
     with pytest.raises(OSError, match="cannot load"):
         env.setup_egress(providers=[StalledEgress(), FailingLoad()])
 
-    assert not hasattr(env, "egress_queues")
-    assert not hasattr(env, "egress_providers")
+    assert not hasattr(env, "_egress_sinks")
 
 
 def test_a_strict_paced_run_does_not_count_the_load_as_lag(tmp_path):
@@ -210,6 +211,37 @@ def test_teardown_gives_up_when_the_queue_stops_shrinking():
     env.teardown()
 
     assert not env.egress_queue.empty()
+
+
+def test_teardown_reports_the_drain_and_names_the_sink_that_stopped(caplog):
+    """While the queues drain, teardown logs the batches left every five seconds,
+    and when they stop shrinking it names each sink that still holds batches. The
+    clock is a counter of one second per reading, so the test waits for no time."""
+    env = DynamicRealtimeEnvironment(strict=False)
+    env.setup_egress(providers=[StalledEgress()], batch_size=1, drain_stall_seconds=8)
+    env.egress_queue.put([{"stream_type": "telemetry"}])
+    seconds = iter(range(10_000))
+    clock = types.SimpleNamespace(
+        time=lambda: float(next(seconds)), sleep=lambda _: None
+    )
+    with patch("desflow.core.environment.time", clock), caplog.at_level("INFO"):
+        env.teardown()
+    messages = [record.getMessage() for record in caplog.records]
+    assert "Draining egress queues, 1 batches left." in messages
+    assert (
+        "Egress queues stopped draining with 1 batches left, so some final records "
+        "are lost. A sink is not keeping up: StalledEgress=1"
+    ) in messages
+
+
+def test_a_lag_interval_that_is_no_number_is_refused():
+    """`lag_monitor_interval` takes a number of seconds, None or `auto`."""
+    env = DynamicRealtimeEnvironment(strict=False)
+    with pytest.raises(ValueError) as refused:
+        env.setup_egress(providers=[StalledEgress()], lag_monitor_interval="often")
+    assert str(refused.value) == (
+        "lag_monitor_interval must be a number of seconds, None or 'auto', got 'often'"
+    )
 
 
 def test_flush_fails_loudly_when_the_sink_stops_consuming():
@@ -898,7 +930,7 @@ def test_two_providers_flush_at_their_own_sizes():
         env.publish_event(f"task-{index}", {"n": index})
 
     # The small sink flushed three batches of two; the large one is still buffering.
-    assert [len(batch) for batch in env._event_buffers] == [0, 6]
+    assert [len(run.buffer) for run in env._egress_sinks] == [0, 6]
     env.teardown_egress()
 
     assert [len(batch) for batch in small.received_batches] == [2, 2, 2]
@@ -942,7 +974,7 @@ def test_a_predicate_keeps_records_out_of_the_other_buffer():
     for index in range(6):
         env.publish_event(f"task-{index}", {"n": index})
 
-    assert [len(buffer) for buffer in env._event_buffers] == [3, 3]
+    assert [len(run.buffer) for run in env._egress_sinks] == [3, 3]
     env.teardown_egress()
     assert [record["value"]["n"] for record in evens.received_batches[0]] == [0, 2, 4]
     assert [record["value"]["n"] for record in odds.received_batches[0]] == [1, 3, 5]

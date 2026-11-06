@@ -7,8 +7,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 from simpy import Environment
 
-from desflow.core.distributions import get_distribution
-from desflow.core.internal import InternalStore
+from desflow.models.distributions import get_distribution
+from desflow.internal import InternalStore
 from desflow.utils import suggestion
 from desflow.models.params import (
     CapacityConfig,
@@ -433,6 +433,17 @@ class SimulationRegistry:
             ParamRejected: For the three refusals, carrying the level and the text
                 that `update` logs.
         """
+        validated_value = self._value_to_store(path, new_value)
+        return self._store(path, new_value, validated_value, source, actor, reason)
+
+    def _value_to_store(self, path: str, new_value: Any) -> Any:
+        """The first phase of `_apply`: the value a change stores, cast to the
+        path's type, rounded for a store's capacity, and checked for a distribution.
+
+        Raises:
+            ParamRejected: For an unknown path, a value of a wrong type, or a
+                distribution parameter the distribution refuses.
+        """
         if path not in self._values:
             rejected = ParamRejected(
                 path,
@@ -445,7 +456,6 @@ class SimulationRegistry:
 
         current_val = self._values[path].value
         validated_value = new_value
-        changes: List[ParamChange] = []
         registered = self._kinds[path]
         kind, parent_path, attr = registered.kind, registered.config, registered.attr
 
@@ -513,6 +523,24 @@ class SimulationRegistry:
                 )
                 rejected._log = f"Invalid value for '{path}': {exc}. Update ignored."
                 raise rejected from exc
+        return validated_value
+
+    def _store(
+        self,
+        path: str,
+        new_value: Any,
+        validated_value: Any,
+        source: Optional[str],
+        actor: Optional[str],
+        reason: Optional[str],
+    ) -> ParamChange:
+        """The second phase of `_apply`: clamps the value to its range, stores it,
+        keeps the config in step, and calls the callbacks."""
+        current_val = self._values[path].value
+        changes: List[ParamChange] = []
+        registered = self._kinds[path]
+        parent_path, attr = registered.config, registered.attr
+        parent_obj = self._configs.get(parent_path)
 
         # Keep a container level within [0, current_cap], what the container holds
         if (

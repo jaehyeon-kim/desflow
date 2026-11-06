@@ -9,7 +9,7 @@ member of a family added to it, makes the second run differ.
 Every attribute of the context is also compared before and after the first run, apart
 from the state of a run (`RUN_STATE` and `PARTS_OF_A_RUN`), because a write into a
 declaration that no later read meets changes no record: a member's entry added to
-`_signal_once`, or a change written into a breakdown's distribution of a model whose
+`_signals.once`, or a change written into a breakdown's distribution of a model whose
 second run ends before the repair it changes. And no registry may hold a declared
 config object itself, because a write the load checks make into one comes before
 the first fingerprint.
@@ -21,6 +21,7 @@ import functools
 import importlib.util
 import inspect
 import logging
+import os
 import textwrap
 from pathlib import Path
 from typing import Any, Callable, Dict, FrozenSet, List, Set, Tuple
@@ -179,22 +180,11 @@ RUN_STATE: Dict[str, str] = {
     **{
         name: _BY_THE_CAPTURE
         for name in (
-            "_egress_providers",
-            "_egress_predicates",
-            "_egress_batch_sizes",
-            "_egress_flush_intervals",
-            "_egress_labels",
-            "_egress_traces",
-            "_egress_envelopes",
-            "_ingress_providers",
+            "_sinks",
             "factor",
             "go_live_at",
         )
     },
-    "_resources_map": "the run's SimPy resources, which `_build` makes again",
-    "_stores_map": "the run's SimPy stores, which `_build` makes again",
-    "_containers_map": "the run's SimPy containers, which `_build` makes again",
-    "_task_args": "it holds the context itself, which a YAML task's function takes",
     "_runs_of": "the run's task generators, held weakly",
     "_finish_run": "the end of the run, which each `run()` sets",
     "_order_warned": "the messages logged once, so a second run does not log again",
@@ -202,10 +192,6 @@ RUN_STATE: Dict[str, str] = {
 # The parts of a declaration a run may change, each with its reason
 PARTS_OF_A_RUN: Dict[Tuple[type, str], str] = {
     (Family, "keys"): "the keys of the members a run made, which each `_build` empties",
-    (
-        Router,
-        "rng",
-    ): "the generator a weighted `next` draws from, which each start binds",
 }
 
 
@@ -318,6 +304,8 @@ def test_a_second_run_gives_what_a_fresh_context_gives(name, make, until, run):
         with (
             regression._restored_imports(),
             contextlib.chdir(ROOT),
+            # A blueprint may read ${PWD}, which Windows does not set
+            patch.dict(os.environ, {"PWD": str(ROOT)}),
             patch("pyiceberg.catalog.rest.RestCatalog", MagicMock()),
         ):
             app = make()

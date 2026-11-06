@@ -51,7 +51,7 @@ HIDDEN = {  # what a task's `set` and `next` read from its vars, given as payloa
 def build(env: DynamicRealtimeEnvironment, size: int = 10) -> None:
     sampler = Sampler(seed=42)
     context = Run("ecommerce")
-    values = ValueRuntime(42, env, sampler, context)
+    values = ValueRuntime(42, env, sampler, context, stop=context._stop_run)
     context.values = values
     templates = {
         name: Template(

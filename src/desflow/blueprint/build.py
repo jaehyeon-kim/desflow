@@ -51,9 +51,10 @@ from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.core.arrivals import ArrivalPlan
 from desflow.core.families import member_path, name_of, references
 from desflow.core.flow import Open, Release, Wait
+from desflow.core.holders import limit_path
 from desflow.core.registry import ParamRejected, queue_limit_value
-from desflow.core.task import (
-    NO_RECORD,
+from desflow.core.task import NO_RECORD
+from desflow.core.task_checks import (
     Holding,
     batch_mismatch,
     batch_mismatch_text,
@@ -63,7 +64,11 @@ from desflow.core.task import (
     handle_problem,
     scope_problem,
 )
-from desflow.core.context import SimulationContext, _generator_expressions
+from desflow.core.context import (
+    SimulationContext,
+    _generator_expressions,
+    parts_of,
+)
 from desflow.core.signals import timing_problem
 from desflow.core.environment import in_zone, resolve_zone
 from desflow.utils import suggestion
@@ -1052,10 +1057,10 @@ def _check_families(
     """
     found = (
         family_problem(
-            context._task_specs,
-            context._families,
+            parts_of(context).tasks.specs,
+            parts_of(context).families.by_name,
             context._declared_names(),
-            context._signal_on,
+            parts_of(context).signals.on,
         )
         or context._family_read_problem()
     )
@@ -1086,12 +1091,12 @@ def _check_families(
             raise source.error(
                 ("signals", name, "on"), f"signal '{name}': {key} {message}"
             )
-        if name not in context._task_specs:
+        if name not in parts_of(context).tasks.specs:
             raise source.error((), f"{name} {key} {message}")
         raise source.error(("tasks", name, key), f"task '{name}': {key} {message}")
     for section in ("resources", "stores", "containers", "signals"):
         for name in getattr(blueprint, section):
-            for family in context._families:
+            for family in parts_of(context).families.by_name:
                 if name != family and name.startswith(f"{family}["):
                     raise source.error(
                         (section, name),
@@ -1104,7 +1109,7 @@ def _check_families(
 def _check_batches(context: Any, source: SourceMap) -> None:
     """Refuses two tasks that share a batch name but differ in `size`, `timeout`,
     `close_when`, `resource` or service, at the second task's `batch` line."""
-    found = batch_mismatch(context._task_specs)
+    found = batch_mismatch(parts_of(context).tasks.specs)
     if found is not None:
         raise source.error(("tasks", found[2], "batch"), batch_mismatch_text(*found))
 
@@ -1897,11 +1902,8 @@ def _build_context(
     finished context reads them from the working directory again.
     """
     context = SimulationContext(**blueprint.simulation.model_dump(exclude_unset=True))
-    context._rows_deferred = True
-    try:
+    with parts_of(context).tasks.deferred_rows():
         _add_to_context(context, blueprint, source, preview)
-    finally:
-        context._rows_deferred = False
     return context
 
 
@@ -2022,7 +2024,7 @@ def _add_to_context(
             defused=signal.defused,
         )
     # A YAML task's function takes the context after its id, also in a child flow
-    context._task_args = (context,)
+    parts_of(context).tasks.takes_context = True
     for name, dist in blueprint.services.items():
         context.add_service(name, dist.dist, **dist.parameters())
     targeted = _targeted_arrivals(blueprint)
@@ -2065,7 +2067,7 @@ def _add_to_context(
             )
         plan = _arrival_plan(arrival, name in targeted)
         if plan is not None:
-            context._arrival_plans[name] = plan
+            parts_of(context).arrivals.plans[name] = plan
 
     for name, task in blueprint.tasks.items():
         context.task(
@@ -2130,7 +2132,7 @@ def _add_to_context(
             subscribe=task.subscribe,
             on=[entry.entry() for entry in task.on],
         )(_payload(task.payload, task.id_field, task.attributes, task.item_field, name))
-        _locate_payload_reads(context._task_specs[name], task, name, source)
+        _locate_payload_reads(parts_of(context).tasks.specs[name], task, name, source)
         # The places the context cannot see: the payload, the wait and the put
         context.note_values(
             name,
@@ -2369,10 +2371,10 @@ def _check_values(
     """Checks the generators of the file: var names and their order, `expr` names,
     `fake` methods, `sample` services, `param` paths, `row` files and where
     `omit_rate` and `omit_when` stand."""
-    registry = context._scratch_registry()
+    registry = parts_of(context).scratch_registry()
     services = set(blueprint.services)
     base_dir = source.path.parent
-    written = context._written_paths()
+    written = parts_of(context).written_paths()
     problems: List[Tuple[Tuple[Any, ...], str]] = []
     for name, task in blueprint.tasks.items():
         found = task_value_problems(
@@ -2409,7 +2411,7 @@ def _check_values(
                 or task.on_interrupt == "abandon"
                 or any(
                     blueprint.resources[resource].queue_limit is not None
-                    or context._limit_path(resource) in written
+                    or limit_path(context.sim_id, resource) in written
                     for resource in (
                         *task.resources(),
                         *task.seized(),
@@ -2699,7 +2701,10 @@ def _names_a_member(path: str, context: SimulationContext) -> bool:
     Returns:
         bool: True when the path names an attribute of a member of a family.
     """
-    return member_path(str(path), context._families, context.sim_id) is not None
+    return (
+        member_path(str(path), parts_of(context).families.by_name, context.sim_id)
+        is not None
+    )
 
 
 def _check_scenario(
@@ -2718,7 +2723,7 @@ def _check_scenario(
     if not blueprint.scenario:
         return
 
-    registry = context._scratch_registry()
+    registry = parts_of(context).scratch_registry()
 
     # sorted is stable, so steps at equal times keep the order they are written in
     steps = sorted(enumerate(blueprint.scenario), key=lambda item: item[1].at)
@@ -2766,7 +2771,7 @@ def _warn_on_paths(
     wrong path ends the run with `KeyError` when the entry first runs, and a value
     the registry cannot convert is logged and ignored.
     """
-    registry = context._scratch_registry()
+    registry = parts_of(context).scratch_registry()
     owners: List[Tuple[str, str, Tuple[str, ...], List[Any]]] = [
         ("tasks", name, at_where, entries)
         for name, task in blueprint.tasks.items()
@@ -2829,7 +2834,7 @@ def _check_registry_reads(
     blueprint: Blueprint, context: SimulationContext, source: SourceMap
 ) -> None:
     """Checks every `registry["<path>"]` an expression reads against the registry."""
-    registry = context._scratch_registry()
+    registry = parts_of(context).scratch_registry()
     found = [
         pair
         for name, task in blueprint.tasks.items()
@@ -2872,7 +2877,7 @@ def _preview_predicate(
     """The preview console's predicate. It leaves out the lag readings, which
     describe the wall clock rather than the model.
 
-    With a `limit` it counts the events into `context._sample_seen`, ends the run at
+    With a `limit` it counts the events into the open run's `sample_seen`, ends the run at
     the limit-th, and refuses every record after it, so the events at the same
     instant after the last one are not printed.
     """
@@ -2882,12 +2887,13 @@ def _preview_predicate(
             return False
         if limit is None:
             return True
-        if context._sample_seen >= limit:
+        run = parts_of(context).run
+        if run.sample_seen >= limit:
             return False
         if record["stream_type"] == "event":
-            context._sample_seen += 1
-            if context._sample_seen == limit and context._finish_run is not None:
-                context._finish_run()
+            run.sample_seen += 1
+            if run.sample_seen == limit and run.finish_run is not None:
+                run.finish_run()
         return True
 
     return take

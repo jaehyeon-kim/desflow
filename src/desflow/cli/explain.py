@@ -91,6 +91,7 @@ def _explain(
 ) -> None:
     """Show the model in SOURCE as a graph, with its utilisation, status, waits and tuning hints where the queueing formulas apply, and why where they do not."""
     from desflow.blueprint.loader import BlueprintError
+    from desflow.core.context import parts_of
     from desflow.explain.render import render_terminal, to_json
     from desflow.loading import load_context
 
@@ -117,13 +118,15 @@ def _explain(
     except ValueError as exc:
         # A Python file with no SimulationContext, such as a low-level script
         refuse(str(exc))
-    if verify and stop_at is None and context._default_until is None:
+    if verify and stop_at is None and parts_of(context).defaults.until is None:
         refuse("--verify needs an end time: pass --until, or set run.until in the file")
     if verify:
         from desflow.analysis.models import seconds
         from desflow.explain.verify import window_error
 
-        end = seconds(stop_at if stop_at is not None else context._default_until)
+        end = seconds(
+            stop_at if stop_at is not None else parts_of(context).defaults.until
+        )
         start = context.initial_time + (context.warmup or 0.0)
         if end is not None and end <= start:
             refuse(window_error(end, start, "--verify"))

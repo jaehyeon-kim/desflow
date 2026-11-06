@@ -108,7 +108,7 @@ def blueprint_keys() -> str:
 
 def distributions() -> str:
     """`references/distributions.md`: the families, as on the Distributions page."""
-    from desflow.core.distributions import TIME_LIST_PARAMETERS, TIME_PARAMETERS
+    from desflow.models.distributions import TIME_LIST_PARAMETERS, TIME_PARAMETERS
 
     times = ", ".join(f"`{p}`" for p in TIME_PARAMETERS + TIME_LIST_PARAMETERS)
     lines = [

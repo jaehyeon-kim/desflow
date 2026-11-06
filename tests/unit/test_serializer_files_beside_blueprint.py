@@ -52,7 +52,7 @@ def test_schema_file_is_read_from_the_blueprints_folder(tmp_path, monkeypatch):
         "      serializer: {type: confluent_avro, registry_url: 'http://r:8081', "
         "schema_file: s.avsc}",
     )
-    assert '"name": "R"' in app._egress_providers[0].default_serializer._schema_str
+    assert '"name": "R"' in app._sinks.egress[0].provider.default_serializer._schema_str
 
 
 def test_descriptor_file_is_read_from_the_blueprints_folder(tmp_path, monkeypatch):
@@ -67,7 +67,7 @@ def test_descriptor_file_is_read_from_the_blueprints_folder(tmp_path, monkeypatc
         "      serializer: {type: confluent_protobuf, registry_url: 'http://r:8081', "
         "descriptor_file: shop_record.desc, message: com.desflow.shop.ShopRecord}",
     )
-    made = app._egress_providers[0].default_serializer
+    made = app._sinks.egress[0].provider.default_serializer
     assert made._message_type.DESCRIPTOR.full_name == "com.desflow.shop.ShopRecord"
 
 
@@ -85,7 +85,7 @@ def test_a_topic_serializer_file_is_read_from_the_blueprints_folder(
         "      topics:\n        orders:\n          serializer: {type: confluent_avro, "
         "registry_url: 'http://r:8081', schema_file: s.avsc}",
     )
-    made = app._egress_providers[0].topic_serializers["orders"]
+    made = app._sinks.egress[0].provider.topic_serializers["orders"]
     assert '"name": "R"' in made._schema_str
 
 
@@ -104,7 +104,7 @@ def test_the_registry_files_of_a_serializer_are_read_from_the_blueprints_folder(
         "      serializer: {type: confluent_avro, registry_url: 'https://r:8081', "
         "schema_file: s.avsc, verify: ca.pem, cert: [service.cert, service.key]}",
     )
-    assert app._egress_providers[0].default_serializer._client is not None
+    assert app._sinks.egress[0].provider.default_serializer._client is not None
 
 
 @pytest.mark.parametrize("side", ["egress", "ingress"])
@@ -124,9 +124,9 @@ def test_the_ssl_files_are_read_from_the_blueprints_folder(side, tmp_path, monke
         side,
     )
     if side == "egress":
-        context = app._egress_providers[0].producer_config["ssl_context"]
+        context = app._sinks.egress[0].provider.producer_config["ssl_context"]
     else:
-        context = app._ingress_providers[0].kwargs["ssl_context"]
+        context = app._sinks.ingress[0].kwargs["ssl_context"]
     assert [c["subject"] for c in context.get_ca_certs()] == [
         ((("commonName", "known-cases CA"),),)
     ]

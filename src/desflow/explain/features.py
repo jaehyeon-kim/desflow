@@ -1,17 +1,19 @@
 """What a model does that the queueing formulas leave out, read from the builder.
 
 Each feature is a short name, such as `abandonment (patience)`, that the analysis
-gives as the reason a wait is not estimated. It reads these private attributes of
-`SimulationContext`, so a rename of any of them must be made here too
-(`tests/unit/test_explain.py` covers each): `_task_specs`, `_resource_preempt`,
-`_resource_queues`, `_resource_queue_limits`, `_resource_types`,
-`_breakdowns_config`, `_scenario_steps`, `_signal_on`, `_ingress_providers`.
+gives as the reason a wait is not estimated. It reads the model through
+`parts_of(context)` (`tests/unit/test_explain.py` covers each read): `tasks` (its
+`specs`), `holders` (its `resource_preempt`, `resource_queues`, `resource_queue_limits`,
+`resource_types` and `breakdowns_config`), `arrivals` (its `plans`), `scenario_steps`,
+`signals` (its `on`) and `sinks` (its `ingress`).
 """
 
 from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Set
 
 from desflow.explain.edges import used_resources
 from desflow.values.models import Sequence, Uuid
+
+from desflow.core.context import parts_of
 
 if TYPE_CHECKING:
     from desflow.core.context import SimulationContext
@@ -47,7 +49,7 @@ def arrival_features(context: "SimulationContext", name: str) -> List[str]:
     Returns:
         List[str]: The features, in a fixed order.
     """
-    plan = context._arrival_plans.get(name)
+    plan = parts_of(context).arrivals.plans.get(name)
     if plan is None:
         return []
     found = []
@@ -79,7 +81,9 @@ def task_features(context: "SimulationContext", spec: "TaskSpec") -> List[str]:
         features.append("abandonment (balk)")
     if spec.service_time is not None:
         features.append(COMPUTED_SERVICE_TIME)
-    if spec.preempt and any(context._resource_preempt.get(r) for r in held):
+    if spec.preempt and any(
+        parts_of(context).holders.resource_preempt.get(r) for r in held
+    ):
         features.append("preemption")
     if _holds_several(spec):
         features.append("several resources")
@@ -120,13 +124,13 @@ def _interrupted(context: "SimulationContext") -> Set[str]:
     """The tasks an `interrupt` names: a task's own, one in the `on:` or `listen`
     list of a task or a signal, or a scenario step's."""
     actions: List[Mapping[str, Any]] = [
-        action for found in context._signal_on.values() for action in found
+        action for found in parts_of(context).signals.on.values() for action in found
     ]
-    for spec in context._task_specs.values():
+    for spec in parts_of(context).tasks.specs.values():
         if spec.interrupt is not None:
             actions.append({"interrupt": spec.interrupt})
         actions += [*spec.on, *(spec.listen.on if spec.listen else [])]
-    actions += context._scenario_steps
+    actions += parts_of(context).scenario_steps
     return {
         action["interrupt"]["task"]
         for action in actions
@@ -171,7 +175,7 @@ def _request_with_timeout(spec: "TaskSpec") -> bool:
 
 def _receives_kept(context: "SimulationContext", spec: "TaskSpec") -> bool:
     """True when a task before this one keeps a unit of a resource it uses."""
-    for other in context._task_specs.values():
+    for other in parts_of(context).tasks.specs.values():
         following = other.router.tasks or set()
         if spec.name in following and set(other.keep) & set(used_resources(spec)):
             return True
@@ -204,11 +208,11 @@ def resource_features(context: "SimulationContext", name: str) -> List[str]:
         List[str]: The features, in a fixed order.
     """
     features = []
-    if context._resource_queue_limits.get(name) is not None:
+    if parts_of(context).holders.resource_queue_limits.get(name) is not None:
         features.append("abandonment (queue_limit)")
-    if context._resource_types.get(name) is not None:
+    if parts_of(context).holders.resource_types.get(name) is not None:
         features.append("custom resource type")
-    if name in context._breakdowns_config:
+    if name in parts_of(context).holders.breakdowns_config:
         features.append("breakdowns")
     return features
 
@@ -223,7 +227,7 @@ def queue_order(context: "SimulationContext", name: str) -> Optional[str]:
     Returns:
         Optional[str]: The order, or None when it was not given.
     """
-    return context._resource_queues.get(name)
+    return parts_of(context).holders.resource_queues.get(name)
 
 
 def model_features(context: "SimulationContext") -> List[str]:
@@ -236,8 +240,8 @@ def model_features(context: "SimulationContext") -> List[str]:
         List[str]: The features, in a fixed order.
     """
     features = []
-    if any(set(step) - {"at", "record"} for step in context._scenario_steps):
+    if any(set(step) - {"at", "record"} for step in parts_of(context).scenario_steps):
         features.append("scenario steps")
-    if context._ingress_providers:
+    if parts_of(context).sinks.ingress:
         features.append("live ingress")
     return features

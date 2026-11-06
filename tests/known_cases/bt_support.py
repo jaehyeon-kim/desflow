@@ -246,17 +246,9 @@ class Run:
     """What the value runtime asks of a running model: its id and no signals, for a
     low-level form whose generators read the registry and draw from a service."""
 
-    _signals = None
-    _resources_map = None
-    _families = None
-    _instance_scopes = None
-
     def __init__(self, sim_id: str) -> None:
         self.sim_id = sim_id
         self.values: Any = None
-
-    def _levels(self) -> None:
-        return None
 
     def _stop_run(self) -> None:
         pass

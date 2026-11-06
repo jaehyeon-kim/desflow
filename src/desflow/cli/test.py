@@ -98,7 +98,7 @@ def _test_file(file: Path, fix: bool, variables: Mapping[str, str]) -> bool:
     """
     from desflow.blueprint.build import load_blueprint, read_tests_file
     from desflow.blueprint.expectations import fix_expectations
-    from desflow.core.context import SimulationContext
+    from desflow.core.context import SimulationContext, parts_of
     from desflow.core.statistics import published_value
     from desflow.loading import load_context
 
@@ -117,7 +117,7 @@ def _test_file(file: Path, fix: bool, variables: Mapping[str, str]) -> bool:
             )
         tests, source = read_tests_file(holder)
         context = load_context(file.parent, file.name)
-        end = context._default_until
+        end = parts_of(context).defaults.until
         model = functools.partial(load_context, file.parent, file.name)
     else:
         built = load_blueprint(file, None, variables)

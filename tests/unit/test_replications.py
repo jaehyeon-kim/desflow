@@ -376,7 +376,7 @@ def test_run_before_runs_once_more_only_with_sinks():
 
     def model(sinks) -> SimulationContext:
         app = shop()
-        app._before_run = [lambda: calls.append(1)]
+        app._defaults.before_run = [lambda: calls.append(1)]
         return app.add_egress(_Capture()) if sinks else app
 
     replicate(

@@ -130,9 +130,12 @@ def check(records: list[dict[str, Any]]) -> None:
     assert supplier["options"] == WEIGHTS, supplier
     # BT-OS8 to BT-OS10: the two sinks of the project's two producers, as the file builds them
     app = SimulationContext.from_yaml(HERE / "model.yaml", variables=VARIABLES)
-    json_sink, avro_sink = app._egress_providers
+    json_sink, avro_sink = [sink.provider for sink in app._sinks.egress]
     assert all(isinstance(s, KafkaEgress) for s in (json_sink, avro_sink))
-    assert app._egress_envelopes == [False, False]  # OS8: the value is the order alone
+    assert [sink.envelope for sink in app._sinks.egress] == [
+        False,
+        False,
+    ]  # OS8: the value is the order alone
     assert (json_sink.event_topic, avro_sink.event_topic) == (
         "orders-json",
         "orders-avro",

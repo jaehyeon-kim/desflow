@@ -104,7 +104,7 @@ def read_trace(
     check_fields(fields)
     rows: List[Row] = []
     last: Optional[float] = None
-    for number, record in enumerate(_records(source), start=1):
+    for number, record in enumerate(read_records(source), start=1):
         when = _time(record.get(time), unit, start, initial_time)
         if when is None:
             message = f"row {number} has no valid {time}: {record.get(time)!r}"
@@ -126,7 +126,7 @@ def read_trace(
             )
         last = when
         if fields == "all":
-            kept = {key: _value(value) for key, value in record.items()}
+            kept = {key: plain_value(value) for key, value in record.items()}
         else:
             missing = [name for name in fields if name not in record]
             if missing:
@@ -134,13 +134,17 @@ def read_trace(
                     f"row {number} has no field {', '.join(missing)}; add it to the "
                     f"row, or leave it out of fields"
                 )
-            kept = {name: _value(record[name]) for name in fields}
+            kept = {name: plain_value(record[name]) for name in fields}
         rows.append(Row(when, number, kept))
     return rows
 
 
-def _records(source: Any) -> Iterable[Mapping[str, Any]]:
-    """The rows of a source, as mappings."""
+def read_records(source: Any) -> Iterable[Mapping[str, Any]]:
+    """The rows of a source, as mappings.
+
+    Args:
+        source: A CSV or Parquet file, or an iterable of mappings.
+    """
     if isinstance(source, (str, Path)):
         path = Path(source)
         if path.suffix.lower() == ".parquet":
@@ -188,8 +192,12 @@ def _time(
         return None
 
 
-def _value(value: Any) -> Any:
-    """A CSV field as a number when it reads as one; other values as they are."""
+def plain_value(value: Any) -> Any:
+    """A CSV field as a number when it reads as one; other values as they are.
+
+    Args:
+        value: The field's value.
+    """
     if not isinstance(value, str):
         return value
     for kind in (int, float):

@@ -586,7 +586,7 @@ def _sinks(result: types.SimpleNamespace) -> None:
     project, store = result.project, result.store
     app = SimulationContext.from_yaml(HERE / "model.yaml", variables=VARIABLES)
     tables = {}
-    for sink in app._egress_providers:
+    for sink in (each.provider for each in app._sinks.egress):
         (name,) = sink.tables  # one table made at start
         tables[sink.table_name] = (sink, name)
     assert set(tables) == set(store.TABLES)  # BT-LD15: four tables from one run
@@ -608,8 +608,8 @@ def _sinks(result: types.SimpleNamespace) -> None:
         columns, key = sink.tables[name]
         assert columns == ddl[table], (table, columns, ddl[table])
         assert key == ["id"]
-    (ingress,) = app._ingress_providers  # BT-LD17
+    (ingress,) = app._sinks.ingress  # BT-LD17
     assert ingress.table_name == store.PARAMS_TABLE
-    assert (app._batch_size, app._flush_interval) == (4, 1.0)
+    assert (app._sinks.batch_size, app._sinks.flush_interval) == (4, 1.0)
     source = inspect.getsource(project.run)
     assert re.search(r"with_batching\(batch_size=4, flush_interval=1\.0\)", source)

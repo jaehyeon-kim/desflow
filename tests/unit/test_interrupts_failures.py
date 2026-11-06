@@ -376,7 +376,7 @@ run: {until: UNTIL}
     assert [(m[0], m[2]) for m in marks] == [(2.0, "left"), (5.0, "wake")]
     app = SimulationContext.from_yaml(_write(tmp_path, yaml.replace("UNTIL", "20")))
     run_builder(app, 20)
-    assert app._suspended.get("park", []) == []
+    assert app._run.suspended.get("park", []) == []
 
 
 def _write(tmp_path: Path, text: str) -> Path:
@@ -398,7 +398,7 @@ run: {until: 10}
 """
     app = SimulationContext.from_yaml(_write(tmp_path, yaml))
     records = run_builder(app, 10)
-    assert app._suspended.get("park", []) == []
+    assert app._run.suspended.get("park", []) == []
     statuses = [
         r["value"].get("status") for r in records if r["stream_type"] == "event"
     ]
@@ -428,7 +428,7 @@ run: {until: 5}
     app = SimulationContext.from_yaml(path)
     first = run_builder(app, 5)
     assert not [r for r in first if _is(r, "woke")]
-    assert len(app._suspended["park"]) == 1
+    assert len(app._run.suspended["park"]) == 1
     second = run_builder(app, 10)
     woke = [r["sim_ts"] for r in second if _is(r, "woke")]
     assert woke == [8.0]
@@ -721,6 +721,39 @@ run: {until: 10}
     marks = run_marks(tmp_path, text)
     away = [(m[1], m[3]) for m in marks if m[2] == "away"]
     assert sorted(away) == [("a-3", "balked"), ("b-3", "balked")]
+
+
+def test_a_restart_on_a_line_that_is_full_by_then_balks(tmp_path):
+    """B-U2: an interrupt with `on_interrupt: restart` asks again at the back of the
+    line; the scenario lowered the line's limit to 0, so the task balks."""
+    text = """
+simulation: {sim_id: S, factor: 0}
+resources: {m: {current_cap: 1, queue_limit: 2}}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: h}
+  b: {replay: {path: b.csv}, spawn: w}
+scenario:
+  - {at: 2, path: S.resources.m.queue_limit, value: 0}
+  - {at: 3, interrupt: {task: w}}
+tasks:
+  h: {seize: m, service_time: 10, payload: {e: h_done}, release: m}
+  w: {seize: m, on_interrupt: restart, service_time: 1, on_balk: away, payload: {e: w_done}, release: m}
+  away: {payload: {e: away, x: {gen: expr, expr: "upstream.status"}}}
+run: {until: 20}
+"""
+    outcome = run_yaml_text(tmp_path, text, {"a": [0.0], "b": [1.0]})
+    assert outcome.error is None, repr(outcome.error)
+    found = [
+        (r["sim_ts"], r["task"], r["value"])
+        for r in outcome.records
+        if r["stream_type"] == "event" and r["task"] in ("w", "away")
+    ]
+    assert found == [
+        (1.0, "w", {"status": "queued"}),
+        (3.0, "w", {"status": "interrupted", "cause": None}),
+        (3.0, "w", {"status": "balked", "resource": "m"}),
+        (3.0, "away", {"e": "away", "x": "balked"}),
+    ]
 
 
 def test_the_open_row_of_the_schema_leaves_out_the_suspend_branch():
