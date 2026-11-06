@@ -682,17 +682,31 @@ def test_a_failed_start_tears_the_connectors_down():
     assert not thread.is_alive()
 
 
-def test_a_start_that_fails_in_the_build_leaves_no_holder_to_get():
-    """After a good run, a start whose build fails leaves no holders, and each
-    getter raises KeyError with the name, as for a name the model does not have."""
+@pytest.mark.parametrize(
+    "start, error, message",
+    [
+        ({"seed": "x"}, TypeError, "SeedSequence"),
+        (
+            {"until": 1, "overrides": {"Shop.resources.packers.current_cap": -1}},
+            ValueError,
+            "cannot be set to -1",
+        ),
+    ],
+)
+def test_a_start_that_fails_before_it_makes_the_holders_leaves_none_to_get(
+    start, error, message
+):
+    """After a good run, a start that fails before it makes the run's holders
+    leaves none, and each getter raises KeyError with the name, as for a name the
+    model does not have."""
     app = SimulationContext("Shop", factor=0)
     app.add_resource("packers", current_cap=1, max_cap=1)
     app.add_store("shelf", current_cap=2)
     app.add_container("tank", current_cap=5)
     app.run(until=1)
     assert app.get_resource("packers") is not None
-    with pytest.raises(TypeError, match="SeedSequence"):
-        app.start(seed="x")
+    with pytest.raises(error, match=message):
+        app.start(**start)
     for get, name in [
         (app.get_resource, "packers"),
         (app.get_store, "shelf"),

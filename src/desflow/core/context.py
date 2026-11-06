@@ -2283,13 +2283,13 @@ class SimulationContext:
         Raises:
             RuntimeError: If called during the Builder Phase.
             KeyError: If the model has no such holder, or the last start failed
-                during the build.
+                before it made the run's holders.
         """
         if not self._env:
             raise RuntimeError("Stores are not instantiated until context is run.")
         holders = self._run.holder_run
         if holders is None:
-            # A start that failed during the build made no holders
+            # The last start failed before it made the run's holders
             raise KeyError(store_id)
         return holders.stores[store_id]
 
@@ -2306,13 +2306,13 @@ class SimulationContext:
         Raises:
             RuntimeError: If called during the Builder Phase.
             KeyError: If the model has no such holder, or the last start failed
-                during the build.
+                before it made the run's holders.
         """
         if not self._env:
             raise RuntimeError("Containers are not instantiated until context is run.")
         holders = self._run.holder_run
         if holders is None:
-            # A start that failed during the build made no holders
+            # The last start failed before it made the run's holders
             raise KeyError(container_id)
         return holders.containers[container_id]
 
@@ -2329,13 +2329,13 @@ class SimulationContext:
         Raises:
             RuntimeError: If called before the run has started.
             KeyError: If the model has no such holder, or the last start failed
-                during the build.
+                before it made the run's holders.
         """
         if not self._env:
             raise RuntimeError("Resources are not instantiated until context is run.")
         holders = self._run.holder_run
         if holders is None:
-            # A start that failed during the build made no holders
+            # The last start failed before it made the run's holders
             raise KeyError(resource_id)
         return holders.resources[resource_id]
 
