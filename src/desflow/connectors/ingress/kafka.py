@@ -1,5 +1,4 @@
 import asyncio
-import inspect
 import json
 import logging
 import queue
@@ -10,7 +9,6 @@ from functools import partial
 from typing import Any, Callable, Dict, Optional, Protocol, Tuple, Union
 
 from aiokafka import AIOKafkaConsumer
-from aiokafka.admin import AIOKafkaAdminClient
 
 from desflow.connectors._schema_registry.unset import UNSET
 from desflow.connectors._schema_registry.errors import (  # noqa: F401
@@ -19,9 +17,9 @@ from desflow.connectors._schema_registry.errors import (  # noqa: F401
 )
 from desflow.connectors.admin.kafka import (
     KafkaAdminConnector,
+    admin_settings,
     apply_topic_policies,
-    build_ssl_context,
-    build_token_provider,
+    with_security,
 )
 from desflow.connectors.admin.kafka import topic_policy as read_topic_policy
 from desflow.connectors.ingress.base import BaseIngress, parse_change
@@ -843,14 +841,7 @@ class KafkaIngress(BaseIngress):
         self.default_deserializer = default_deserializer or JsonDeserializer()
 
         self.topic_policy = read_topic_policy(topic_policy)
-        if ssl is not None:
-            kwargs["ssl_context"] = build_ssl_context(ssl)
-        if sasl_oauth_token_provider is not None:
-            kwargs["sasl_oauth_token_provider"] = build_token_provider(
-                sasl_oauth_token_provider
-            )
-
-        self.kwargs = kwargs
+        self.kwargs = with_security(kwargs, ssl, sasl_oauth_token_provider)
 
     def _create_topic(self) -> None:
         """
@@ -860,16 +851,11 @@ class KafkaIngress(BaseIngress):
         settings, are passed on to it. A failure is logged rather than raised,
         because the consumer loop that follows retries the connection itself.
         """
-        accepted = inspect.signature(AIOKafkaAdminClient.__init__).parameters
-        admin_settings = {
-            key: value
-            for key, value in self.kwargs.items()
-            if key in accepted and key not in ("bootstrap_servers", "client_id")
-        }
         try:
             apply_topic_policies(
                 KafkaAdminConnector(
-                    bootstrap_servers=self.bootstrap_servers, **admin_settings
+                    bootstrap_servers=self.bootstrap_servers,
+                    **admin_settings(self.kwargs),
                 ),
                 {self.topic: self.topic_policy},
             )

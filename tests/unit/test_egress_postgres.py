@@ -526,3 +526,42 @@ async def test_envelope_on_skips_an_event_whose_value_is_not_a_mapping(
     assert "skipped records in this flush: 1 had a value that is not a mapping" in (
         caplog.text
     )
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_a_batch_that_writes_nothing_or_fails_leaves_the_sink_running(
+    mock_create_pool, mock_pool, run_until, caplog
+):
+    """An empty batch, a batch with no row, and a batch with no column of the table
+    write nothing; a batch the database refuses is logged. Each leaves the sink
+    going on with the next batch, and no write counted as in progress. A telemetry
+    reading that is a mapping carries its `path_id`."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.return_value = [{"column_name": n} for n in ("id", "x", "path_id")]
+    conn.executemany.side_effect = [Exception("down"), None]
+    egress = PostgresEgress("postgresql://u:p@localhost/db", "orders")
+    egress_queue = queue.Queue()
+    reading = {"stream_type": "telemetry", "path_id": "p", "sim_ts": 1.0}
+    for batch in (
+        [],
+        [{**reading, "value": 3}],
+        [_event({"other": 1})],
+        [{**reading, "value": {"x": 1}}],
+        [_event({"id": 7})],
+    ):
+        egress_queue.put(batch)
+
+    await run_until(
+        egress.run(egress_queue),
+        lambda: conn.executemany.call_count == 2,
+    )
+
+    first, second = conn.executemany.call_args_list
+    assert first[0][0].startswith("INSERT INTO orders (x, path_id)")
+    assert first[0][1] == [(1, "p")]
+    assert second[0][1] == [(7,)]
+    assert "No matching columns for table orders. Skipping." in caplog.text
+    assert "Error inserting batch into orders: down" in caplog.text
+    assert egress.active_tasks == 0

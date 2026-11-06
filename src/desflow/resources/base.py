@@ -259,3 +259,64 @@ class BaseDynamicResource:
 
     def _handle_capacity_change(self, new_target: float):
         pass  # To be implemented by subclasses
+
+
+class _WrappedHolder(BaseDynamicResource):
+    """A store or container: a SimPy holder, `_holder`, whose capacity follows the
+    registry and whose waiting puts and gets this object shows.
+
+    `DynamicStore` and `DynamicContainer` build on it. `DynamicResource` does not,
+    because it is the SimPy resource itself and assigns its own `put_queue`.
+    """
+
+    _holder: Any
+
+    def _wrap(
+        self,
+        build: Callable[[Any], Any],
+        capacity: Any,
+        smallest: Any,
+        on_change: Callable[[], None],
+        get_ties: Optional[str],
+        put_ties: Optional[str],
+    ) -> None:
+        """Builds the SimPy holder and ranks its queues as `get_ties` and `put_ties`
+        say.
+
+        Args:
+            build: Builds the holder from the capacity it is given.
+            capacity: The capacity the run starts with, which may be 0.
+            smallest: The capacity to build with when `capacity` is 0, 1 in the
+                holder's own number type.
+            on_change: Called once each time a put or get changes the holder.
+            get_ties: None, `fifo` or `lifo`, as `check_ties` allows.
+            put_ties: None, `fifo` or `lifo`, as `check_ties` allows.
+        """
+        # SimPy refuses a capacity of 0, which desflow accepts because a capacity
+        # changes during a run; the holder is built with 1 and held at 0, as a
+        # capacity change sets it
+        self._holder = build(capacity or smallest)
+        self._holder._on_change = on_change
+        self._holder._capacity = capacity
+        if get_ties is not None:
+            self._holder.get_queue = RankedQueue(ties=get_ties)
+        if put_ties is not None:
+            self._holder.put_queue = RankedQueue(ties=put_ties)
+        self.PutQueue = self._holder.put_queue.__class__
+        self.GetQueue = self._holder.get_queue.__class__
+
+    @property
+    def put_queue(self) -> list:
+        """list: The waiting puts, SimPy's `put_queue`."""
+        return self._holder.put_queue
+
+    @property
+    def get_queue(self) -> list:
+        """list: The waiting gets, SimPy's `get_queue`."""
+        return self._holder.get_queue
+
+    @staticmethod
+    def _waiting(events: list) -> int:
+        """The events of a queue that still wait. A put or get granted at once is
+        not counted, although SimPy removes it from its queue only after the grant."""
+        return sum(1 for event in events if not event.triggered)

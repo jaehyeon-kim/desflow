@@ -37,7 +37,6 @@ from desflow.config import (
     DEFAULT_STATS_INTERVAL,
     LABELS,
     TRACE,
-    QUEUE_ORDERS,
     STATS_LEVELS,
 )
 from desflow.core.environment import (
@@ -133,6 +132,7 @@ from desflow.resources.container import (
 from desflow.resources.resource import (
     ResourceBase,
     _default_put_queue,
+    check_resource_queue,
     check_resource_type,
 )
 from desflow.resources.store import DynamicStore, StoreBase, check_store_type
@@ -788,14 +788,7 @@ class SimulationContext:
         if isinstance(preempt, Mapping):
             rule = _preempt_rule(preempt, f"resource '{name}' preempt")
             preempt = True
-        if queue not in QUEUE_ORDERS:
-            raise ValueError(
-                f"queue must be one of {', '.join(QUEUE_ORDERS)}, got '{queue}'"
-            )
-        if preempt and queue != "priority":
-            raise ValueError(
-                "preempt ranks users by priority, so it needs queue='priority'"
-            )
+        check_resource_queue(queue, preempt)
         check_resource_type(type, queue_limit)
         for field, value in (("current_cap", current_cap), ("max_cap", max_cap)):
             if value is not None and not (

@@ -1221,3 +1221,32 @@ def test_only_a_step_or_segment_reading_has_its_times_as_doubles(path_id, double
     )
     assert type(value["now"]) is (float if doubled else int)
     assert type(value["other"]) is int
+
+
+@pytest.mark.asyncio
+async def test_the_run_logs_a_batch_it_cannot_write_and_goes_on(
+    run_until, caplog, monkeypatch
+):
+    """A batch whose write raises in the run is logged at ERROR, the next batch is
+    written, and no write is left counted as in progress."""
+    import queue
+
+    egress = IcebergStorageEgress(catalog=FakeCatalog(), default_table="sim.orders")
+    results = [RuntimeError("catalog down"), 1]
+    written = []
+
+    def write(batch, pa_module):
+        result = results.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        written.append(batch)
+        return result
+
+    monkeypatch.setattr(egress, "_write_batch", write)
+    q: queue.Queue = queue.Queue()
+    q.put([{"a": 1}])
+    q.put([{"a": 2}])
+    await run_until(egress.run(q), lambda: bool(written))
+    assert written == [[{"a": 2}]]
+    assert "Iceberg Writer: batch not written: catalog down" in caplog.text
+    assert egress.active_tasks == 0

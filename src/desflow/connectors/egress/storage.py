@@ -277,15 +277,13 @@ class JsonlStorageEgress(BaseEgress):
             while True:
                 try:
                     batch = egress_queue.get_nowait()
-                    self.active_tasks = getattr(self, "active_tasks", 0) + 1
-                    try:
-                        await asyncio.to_thread(self._write_batch, batch)
-                    except Exception as exc:
-                        # A batch that fails is logged, and the sink goes on
-                        logger.error(f"JSONL Writer: batch not written: {exc}")
-                        continue
-                    finally:
-                        self.active_tasks -= 1
+                    with self._writing():
+                        try:
+                            await asyncio.to_thread(self._write_batch, batch)
+                        except Exception as exc:
+                            # A batch that fails is logged, and the sink goes on
+                            logger.error(f"JSONL Writer: batch not written: {exc}")
+                            continue
                     # Log a progress heartbeat every 10 batches
                     batches_processed += 1
                     if batches_processed % 10 == 0:
@@ -464,17 +462,15 @@ class ParquetStorageEgress(BaseEgress):
             while True:
                 try:
                     batch = egress_queue.get_nowait()
-                    self.active_tasks = getattr(self, "active_tasks", 0) + 1
                     written = 0
-                    try:
-                        written = await asyncio.to_thread(
-                            self._write_batch, batch, pa, pq
-                        )
-                    except Exception as exc:
-                        # A batch that fails is logged, and the sink goes on
-                        logger.error(f"Parquet Writer: batch not written: {exc}")
-                    finally:
-                        self.active_tasks -= 1
+                    with self._writing():
+                        try:
+                            written = await asyncio.to_thread(
+                                self._write_batch, batch, pa, pq
+                            )
+                        except Exception as exc:
+                            # A batch that fails is logged, and the sink goes on
+                            logger.error(f"Parquet Writer: batch not written: {exc}")
                     if not written:
                         continue
                     # Only what was written counts; log a heartbeat every 10

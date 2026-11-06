@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -133,6 +134,59 @@ def build_token_provider(spec: Any) -> Any:
             return token
 
     return MSKTokenProvider()
+
+
+def with_security(
+    settings: Dict[str, Any], ssl: Any, sasl_oauth_token_provider: Any
+) -> Dict[str, Any]:
+    """
+    Returns a producer's or consumer's settings with its security settings built.
+
+    Args:
+        settings: The client settings.
+        ssl: An `ssl` setting, as `build_ssl_context` takes, or None.
+        sasl_oauth_token_provider: A `sasl_oauth_token_provider` setting, as
+            `build_token_provider` takes, or None.
+
+    Returns:
+        Dict[str, Any]: The settings, with `ssl_context` and
+            `sasl_oauth_token_provider` added for those that are not None.
+
+    Raises:
+        ValueError: If `ssl` or the token provider is malformed.
+        ImportError: If the token provider asks for `aws_msk_iam` and
+            `aws-msk-iam-sasl-signer-python` is not installed.
+    """
+    settings = dict(settings)
+    if ssl is not None:
+        settings["ssl_context"] = build_ssl_context(ssl)
+    if sasl_oauth_token_provider is not None:
+        settings["sasl_oauth_token_provider"] = build_token_provider(
+            sasl_oauth_token_provider
+        )
+    return settings
+
+
+def admin_settings(settings: Mapping[str, Any]) -> Dict[str, Any]:
+    """
+    Returns the client settings that `AIOKafkaAdminClient` also takes, such as the
+    security settings.
+
+    `bootstrap_servers` and `client_id` are left out, because `KafkaAdminConnector`
+    sets them itself.
+
+    Args:
+        settings: A producer's or consumer's settings.
+
+    Returns:
+        Dict[str, Any]: The settings the admin client takes, in their order.
+    """
+    accepted = inspect.signature(AIOKafkaAdminClient.__init__).parameters
+    return {
+        key: value
+        for key, value in settings.items()
+        if key in accepted and key not in ("bootstrap_servers", "client_id")
+    }
 
 
 def apply_topic_policies(

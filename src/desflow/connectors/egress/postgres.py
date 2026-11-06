@@ -366,6 +366,65 @@ class PostgresEgress(BaseEgress):
         assignments = ", ".join(f"{k} = EXCLUDED.{k}" for k in updates)
         return f"{query} ON CONFLICT ({conflict}) DO UPDATE SET {assignments}"
 
+    def _rows(self, batch: list) -> list[dict]:
+        """
+        Turns a batch into the rows of this sink's table.
+
+        A label record becomes a row of its own. An event or telemetry record whose
+        value is a mapping becomes that mapping, with the envelope fields when
+        `envelope` is on, unless its `__table__` names another table or a keyed
+        entry finds none of its key columns. One warning gives the counts of the
+        records skipped.
+
+        Args:
+            batch: The batch's records, in the order they arrived.
+
+        Returns:
+            list[dict]: The rows, in the order of their records.
+        """
+        # Support multi-table multiplexing using a __table__ key
+        clean_batch = []
+        skipped: Counter = Counter()
+        keyed = bool(self.upsert_keys)
+        for item in batch:
+            if item.get("stream_type") == "label":
+                clean_batch.append(_label_row(item))
+                continue
+            # `item` is an EventPayload or TelemetryPayload dict.
+            # The actual user data is in `item["value"]`.
+            payload = item.get("value")
+            if not isinstance(payload, dict):
+                # PostgresEgress requires dictionaries (or Pydantic models
+                # dumped to dicts). A telemetry reading that is a number
+                # is not written either, and is skipped without a warning
+                if item.get("stream_type") != "telemetry":
+                    skipped["not_mapping"] += 1
+                continue
+            # Merge the simulation metadata into the payload so it CAN be inserted if the user configured their schema to accept it
+            payload_copy = payload.copy()
+            if self.envelope:
+                payload_copy["sim_ts"] = item.get("sim_ts")
+                payload_copy["timestamp"] = item.get("timestamp")
+                if "key" in item:
+                    payload_copy["event_id"] = item["key"]
+                    # A payload field of the same name wins, as in flat files
+                    for field in ("task", "instance"):
+                        payload_copy.setdefault(field, item.get(field))
+                if "path_id" in item:
+                    payload_copy["path_id"] = item["path_id"]
+            # Determine target table, defaulting to self.table_name if not specified
+            target = payload_copy.get("__table__", self.table_name)
+            if target == self.table_name:
+                payload_copy.pop("__table__", None)
+                if keyed and not any(
+                    payload_copy.get(k) is not None for k in self.upsert_keys or ()
+                ):
+                    skipped["no_key"] += 1
+                    continue
+                clean_batch.append(payload_copy)
+        warn_skipped(self, skipped, "__table__")
+        return clean_batch
+
     async def run(self, egress_queue: queue.Queue) -> None:
         """
         Main execution loop for PostgreSQL data persistence.
@@ -385,48 +444,7 @@ class PostgresEgress(BaseEgress):
                 if not batch:
                     continue
 
-                # Support multi-table multiplexing using a __table__ key
-                clean_batch = []
-                skipped: Counter = Counter()
-                keyed = bool(self.upsert_keys)
-                for item in batch:
-                    if item.get("stream_type") == "label":
-                        clean_batch.append(_label_row(item))
-                        continue
-                    # `item` is an EventPayload or TelemetryPayload dict.
-                    # The actual user data is in `item["value"]`.
-                    payload = item.get("value")
-                    if not isinstance(payload, dict):
-                        # PostgresEgress requires dictionaries (or Pydantic models
-                        # dumped to dicts). A telemetry reading that is a number
-                        # is not written either, and is skipped without a warning
-                        if item.get("stream_type") != "telemetry":
-                            skipped["not_mapping"] += 1
-                        continue
-                    # Merge the simulation metadata into the payload so it CAN be inserted if the user configured their schema to accept it
-                    payload_copy = payload.copy()
-                    if self.envelope:
-                        payload_copy["sim_ts"] = item.get("sim_ts")
-                        payload_copy["timestamp"] = item.get("timestamp")
-                        if "key" in item:
-                            payload_copy["event_id"] = item["key"]
-                            # A payload field of the same name wins, as in flat files
-                            for field in ("task", "instance"):
-                                payload_copy.setdefault(field, item.get(field))
-                        if "path_id" in item:
-                            payload_copy["path_id"] = item["path_id"]
-                    # Determine target table, defaulting to self.table_name if not specified
-                    target = payload_copy.get("__table__", self.table_name)
-                    if target == self.table_name:
-                        payload_copy.pop("__table__", None)
-                        if keyed and not any(
-                            payload_copy.get(k) is not None
-                            for k in self.upsert_keys or ()
-                        ):
-                            skipped["no_key"] += 1
-                            continue
-                        clean_batch.append(payload_copy)
-                warn_skipped(self, skipped, "__table__")
+                clean_batch = self._rows(batch)
                 if not clean_batch:
                     continue
 
@@ -445,17 +463,13 @@ class PostgresEgress(BaseEgress):
                     continue
 
                 assert self.pool is not None
-                # Teardown waits for this, or it would cancel the last batch
-                self.active_tasks = getattr(self, "active_tasks", 0) + 1
-                try:
+                with self._writing():
                     async with self.pool.acquire() as conn:
                         for keys, records in runs:
                             values = [
                                 tuple(data.get(k) for k in keys) for data in records
                             ]
                             await conn.executemany(self._insert_query(keys), values)
-                finally:
-                    self.active_tasks -= 1
 
                 written = sum(len(records) for _, records in runs)
                 logger.debug(f"Inserted {written} records into {self.table_name}")

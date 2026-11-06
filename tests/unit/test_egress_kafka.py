@@ -457,11 +457,13 @@ async def test_topics_are_created_at_start(MockProducer, mock_admin):
         security_protocol="SASL_PLAINTEXT",
         sasl_mechanism="PLAIN",
         linger_ms=5,
+        client_id="sim",
     )
 
     await _run_until_started(egress, MockProducer.return_value)
 
-    # Only settings the admin client knows are passed; linger_ms is producer-only.
+    # Only settings the admin client knows are passed; linger_ms is producer-only,
+    # and the admin connector sets its own client_id.
     mock_admin.assert_called_once_with(
         bootstrap_servers="broker:9092",
         security_protocol="SASL_PLAINTEXT",

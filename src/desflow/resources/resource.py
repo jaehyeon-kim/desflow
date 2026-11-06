@@ -250,20 +250,7 @@ class ResourceBase(BaseDynamicResource):
                 without `queue="priority"`, or `queue_limit` is negative or is set on a
                 class whose `PutQueue` is not the default.
         """
-        if queue not in QUEUE_ORDERS:
-            raise ValueError(
-                f"queue must be one of {', '.join(QUEUE_ORDERS)}, got '{queue}'"
-            )
-        if preempt and queue != "priority":
-            raise ValueError(
-                "preempt ranks users by priority, so it needs queue='priority'"
-            )
-        if ties not in ("fifo", "lifo"):
-            raise ValueError(f"ties must be 'fifo' or 'lifo', got '{ties}'")
-        if ties == "lifo" and queue != "priority":
-            raise ValueError(
-                "ties orders requests of one priority, so it needs queue='priority'"
-            )
+        check_resource_queue(queue, preempt, ties)
         check_resource_type(type(self), queue_limit)
         self.preempt = bool(preempt)
         self.preempt_rule = preempt if isinstance(preempt, PreemptRule) else None
@@ -635,6 +622,35 @@ class ResourceBase(BaseDynamicResource):
         # request is granted until the busy count is within it.
         self._grant_all()
         self._changed()
+
+
+def check_resource_queue(queue: str, preempt: Any, ties: str = "fifo") -> None:
+    """Checks the queue order, `preempt` and `ties` a resource is declared with.
+
+    Args:
+        queue: The queue order: `fifo`, `lifo` or `priority`.
+        preempt: Whether a request may take a unit from a user, or a preempt rule.
+        ties: How requests of one priority are ordered: `fifo` or `lifo`.
+
+    Raises:
+        ValueError: If `queue` is not one of the three orders, `preempt` is set
+            without `queue="priority"`, `ties` is not `fifo` or `lifo`, or `ties` is
+            `lifo` without `queue="priority"`.
+    """
+    if queue not in QUEUE_ORDERS:
+        raise ValueError(
+            f"queue must be one of {', '.join(QUEUE_ORDERS)}, got '{queue}'"
+        )
+    if preempt and queue != "priority":
+        raise ValueError(
+            "preempt ranks users by priority, so it needs queue='priority'"
+        )
+    if ties not in ("fifo", "lifo"):
+        raise ValueError(f"ties must be 'fifo' or 'lifo', got '{ties}'")
+    if ties == "lifo" and queue != "priority":
+        raise ValueError(
+            "ties orders requests of one priority, so it needs queue='priority'"
+        )
 
 
 def check_resource_type(

@@ -1,5 +1,4 @@
 import asyncio
-import inspect
 import json
 import logging
 import queue
@@ -18,13 +17,12 @@ from typing import (
 
 import orjson
 from aiokafka import AIOKafkaProducer
-from aiokafka.admin import AIOKafkaAdminClient
 
 from desflow.connectors.admin.kafka import (
     KafkaAdminConnector,
+    admin_settings,
     apply_topic_policies,
-    build_ssl_context,
-    build_token_provider,
+    with_security,
 )
 from desflow.connectors.admin.kafka import topic_policy as read_topic_policy
 from desflow.connectors._schema_registry.unset import UNSET
@@ -1028,12 +1026,7 @@ class KafkaEgress(BaseEgress):
                     else per_topic
                 )
 
-        if ssl is not None:
-            kwargs["ssl_context"] = build_ssl_context(ssl)
-        if sasl_oauth_token_provider is not None:
-            kwargs["sasl_oauth_token_provider"] = build_token_provider(
-                sasl_oauth_token_provider
-            )
+        kwargs = with_security(kwargs, ssl, sasl_oauth_token_provider)
 
         # High-performance defaults for 100k/sec
         self.producer_config = {
@@ -1056,13 +1049,6 @@ class KafkaEgress(BaseEgress):
         settings, are passed on to it. A failure is logged rather than raised,
         because the producer loop that follows retries the connection itself.
         """
-        # bootstrap_servers and client_id are set by KafkaAdminConnector itself.
-        accepted = inspect.signature(AIOKafkaAdminClient.__init__).parameters
-        admin_settings = {
-            key: value
-            for key, value in self.producer_config.items()
-            if key in accepted and key not in ("bootstrap_servers", "client_id")
-        }
         # The event and telemetry topics, unless a topic_router names the topics, and
         # every topic in `topics`; each follows the sink's policy with its own
         # settings on top
@@ -1078,7 +1064,7 @@ class KafkaEgress(BaseEgress):
             apply_topic_policies(
                 KafkaAdminConnector(
                     bootstrap_servers=self.producer_config["bootstrap_servers"],
-                    **admin_settings,
+                    **admin_settings(self.producer_config),
                 ),
                 policies,
             )
@@ -1104,6 +1090,81 @@ class KafkaEgress(BaseEgress):
             topic,
             error,
         )
+
+    def _message(
+        self, data: dict
+    ) -> Optional[Tuple[str, Optional[bytes], Optional[bytes]]]:
+        """
+        Returns the topic, the key and the value of the message for one record.
+
+        The topic is the router's, or the telemetry topic, the record's `__topic__`
+        or the event topic. The key is the `path_id` of a telemetry record and the
+        `key` of any other. The value is the record encoded by its topic's
+        serializer, or None, a tombstone, for a null value with the envelope off.
+
+        Args:
+            data: One record, with the reserved keys other than `__topic__`
+                dropped.
+
+        Returns:
+            Optional[Tuple[str, Optional[bytes], Optional[bytes]]]: The topic, the
+                key and the value, or None when the serializer refuses the record,
+                which is then skipped with a warning.
+        """
+        data, chosen = take_route(data, "__topic__")
+        if chosen is not None and (type(chosen) is not str or not chosen):
+            self._warn_topic_field(chosen)
+            chosen = None
+        if self.topic_router:
+            # Use externalized logic if provided
+            topic = self.topic_router(data)
+            stream = data.get("stream_type", "event")
+        else:
+            # Fallback to standard desflow routing
+            stream = data["stream_type"]
+            topic = (
+                self.telemetry_topic
+                if stream == "telemetry"
+                else chosen or self.event_topic
+            )
+
+        # Extract the Kafka Key
+        key = None
+        if stream == "telemetry":
+            key = str(data["path_id"]).encode() if "path_id" in data else None
+        else:
+            key = str(data["key"]).encode() if "key" in data else None
+
+        # Build the payload without touching the record itself.
+        # Every egress provider receives the same dictionary
+        # objects, so removing a key here would also remove it
+        # from what a Parquet or Redis sink writes.
+        if not self.envelope and stream != "label":
+            # The event's value alone, whatever its type
+            payload = data.get("value")
+        elif self.include_stream_type:
+            payload = data
+        else:
+            payload = {k: v for k, v in data.items() if k != "stream_type"}
+
+        # Apply configured Serializer strategy. With the
+        # envelope off, a null value is a tombstone: a
+        # message with the key and no value, which no
+        # serializer encodes
+        serializer = self.topic_serializers.get(topic, self.default_serializer)
+        try:
+            payload_bytes = (
+                None if payload is None else serializer.serialize(topic, payload)
+            )
+        except (TypeError, ValueError) as error:
+            # A record the serializer refuses is
+            # skipped, as the other sinks skip a record
+            # they cannot write; a registry or network
+            # error still retries the connection
+            self._warn_refused(key, topic, error)
+            return None
+
+        return topic, key, payload_bytes
 
     async def run(self, egress_queue: queue.Queue) -> None:
         """
@@ -1145,9 +1206,7 @@ class KafkaEgress(BaseEgress):
                         try:
                             # 'batch' is a list of dictionaries from the EgressMixIn
                             batch = egress_queue.get_nowait()
-                            # Teardown waits for this, or it would cancel the last batch
-                            self.active_tasks = getattr(self, "active_tasks", 0) + 1
-                            try:
+                            with self._writing():
                                 # Kafka routes by __topic__, and writes no other
                                 # reserved key
                                 batch = drop_reserved_keys(
@@ -1155,82 +1214,13 @@ class KafkaEgress(BaseEgress):
                                 )
 
                                 for data in batch:
-                                    data, chosen = take_route(data, "__topic__")
-                                    if chosen is not None and (
-                                        type(chosen) is not str or not chosen
-                                    ):
-                                        self._warn_topic_field(chosen)
-                                        chosen = None
-                                    if self.topic_router:
-                                        # Use externalized logic if provided
-                                        topic = self.topic_router(data)
-                                        stream = data.get("stream_type", "event")
-                                    else:
-                                        # Fallback to standard desflow routing
-                                        stream = data["stream_type"]
-                                        topic = (
-                                            self.telemetry_topic
-                                            if stream == "telemetry"
-                                            else chosen or self.event_topic
-                                        )
-
-                                    # Extract the Kafka Key
-                                    key = None
-                                    if stream == "telemetry":
-                                        key = (
-                                            str(data["path_id"]).encode()
-                                            if "path_id" in data
-                                            else None
-                                        )
-                                    else:
-                                        key = (
-                                            str(data["key"]).encode()
-                                            if "key" in data
-                                            else None
-                                        )
-
-                                    # Build the payload without touching the record itself.
-                                    # Every egress provider receives the same dictionary
-                                    # objects, so removing a key here would also remove it
-                                    # from what a Parquet or Redis sink writes.
-                                    if not self.envelope and stream != "label":
-                                        # The event's value alone, whatever its type
-                                        payload = data.get("value")
-                                    elif self.include_stream_type:
-                                        payload = data
-                                    else:
-                                        payload = {
-                                            k: v
-                                            for k, v in data.items()
-                                            if k != "stream_type"
-                                        }
-
-                                    # Apply configured Serializer strategy. With the
-                                    # envelope off, a null value is a tombstone: a
-                                    # message with the key and no value, which no
-                                    # serializer encodes
-                                    serializer = self.topic_serializers.get(
-                                        topic, self.default_serializer
-                                    )
-                                    try:
-                                        payload_bytes = (
-                                            None
-                                            if payload is None
-                                            else serializer.serialize(topic, payload)
-                                        )
-                                    except (TypeError, ValueError) as error:
-                                        # A record the serializer refuses is
-                                        # skipped, as the other sinks skip a record
-                                        # they cannot write; a registry or network
-                                        # error still retries the connection
-                                        self._warn_refused(key, topic, error)
+                                    message = self._message(data)
+                                    if message is None:
                                         continue
-
+                                    topic, key, payload_bytes = message
                                     await producer.send(
                                         topic, value=payload_bytes, key=key
                                     )
-                            finally:
-                                self.active_tasks -= 1
 
                         except queue.Empty:
                             # Yield to loop if queue is empty

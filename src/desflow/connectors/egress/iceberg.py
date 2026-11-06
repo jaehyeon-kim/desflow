@@ -424,15 +424,15 @@ class IcebergStorageEgress(BaseEgress):
             while True:
                 try:
                     batch = egress_queue.get_nowait()
-                    self.active_tasks = getattr(self, "active_tasks", 0) + 1
                     written = 0
-                    try:
-                        written = await asyncio.to_thread(self._write_batch, batch, pa)
-                    except Exception as exc:
-                        # A batch that fails is logged, and the sink goes on
-                        logger.error(f"Iceberg Writer: batch not written: {exc}")
-                    finally:
-                        self.active_tasks -= 1
+                    with self._writing():
+                        try:
+                            written = await asyncio.to_thread(
+                                self._write_batch, batch, pa
+                            )
+                        except Exception as exc:
+                            # A batch that fails is logged, and the sink goes on
+                            logger.error(f"Iceberg Writer: batch not written: {exc}")
                     if not written:
                         continue
                     # Only what was written counts; log a heartbeat every 10

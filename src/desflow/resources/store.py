@@ -7,12 +7,11 @@ from simpy.resources.base import BoundClass
 from simpy.resources.store import FilterStoreGet, StoreGet, StorePut
 
 from desflow.resources.base import (
-    BaseDynamicResource,
-    RankedQueue,
     _CancelReports,
     check_ties,
     _Notifier,
     _Ranked,
+    _WrappedHolder,
 )
 
 
@@ -131,7 +130,7 @@ def check_store_type(store_type: Optional[Any], priority: bool = False) -> None:
         )
 
 
-class DynamicStore(BaseDynamicResource, Store):
+class DynamicStore(_WrappedHolder, Store):
     """
     A wrapper for SimPy FilterStore and PriorityStore with dynamic capacity updates.
 
@@ -213,18 +212,14 @@ class DynamicStore(BaseDynamicResource, Store):
         # Dynamically select the underlying SimPy storage engine
         self.priority = priority
         kind = type or (_PriorityStore if priority else _Store)
-        # SimPy refuses a capacity of 0, which desflow accepts because a capacity
-        # changes during a run; the store is built with 1 and held at 0, as a
-        # capacity change sets it
-        self._store = kind(env, capacity=initial_capacity or 1)
-        self._store._on_change = self._changed
-        self._store._capacity = initial_capacity
-        if get_ties is not None:
-            self._store.get_queue = RankedQueue(ties=get_ties)
-        if put_ties is not None:
-            self._store.put_queue = RankedQueue(ties=put_ties)
-        self.PutQueue = self._store.put_queue.__class__
-        self.GetQueue = self._store.get_queue.__class__
+        self._wrap(
+            lambda capacity: kind(env, capacity=capacity),
+            initial_capacity,
+            1,
+            self._changed,
+            get_ties,
+            put_ties,
+        )
         start = list(items or [])
         if len(start) > initial_capacity:
             raise ValueError(
@@ -238,9 +233,9 @@ class DynamicStore(BaseDynamicResource, Store):
                         f"a priority store starts with (priority, item) pairs, got "
                         f"{item!r}"
                     )
-                heapq.heappush(self._store.items, self.wrap(item[1], item[0]))
+                heapq.heappush(self._holder.items, self.wrap(item[1], item[0]))
             else:
-                self._store.items.append(item)
+                self._holder.items.append(item)
         self._register()
 
     def wrap(self, item: Any, priority: float) -> PriorityItem:
@@ -266,7 +261,7 @@ class DynamicStore(BaseDynamicResource, Store):
         int: The current active maximum slot capacity of the store.
         This value reflects the live state from the Registry.
         """
-        return self._store.capacity
+        return self._holder.capacity
 
     @property
     def items(self) -> list:
@@ -277,7 +272,7 @@ class DynamicStore(BaseDynamicResource, Store):
         next put or get, not at the assignment, and the store keeps the list given.
         A priority store takes a list that is already a heap.
         """
-        return self._store.items
+        return self._holder.items
 
     @items.setter
     def items(self, items: Iterable[Any]) -> None:
@@ -290,35 +285,25 @@ class DynamicStore(BaseDynamicResource, Store):
         """
         # SimPy keeps the list it is given, and serves a waiting get at the next
         # put or get, not at the assignment
-        self._store.items = items if isinstance(items, list) else list(items)
+        self._holder.items = items if isinstance(items, list) else list(items)
         self._changed()
-
-    @property
-    def put_queue(self) -> list:
-        """list: The waiting puts, SimPy's `put_queue`."""
-        return self._store.put_queue
-
-    @property
-    def get_queue(self) -> list:
-        """list: The waiting gets, SimPy's `get_queue`."""
-        return self._store.get_queue
 
     @property
     def level(self) -> int:
         """int: The number of items held."""
-        return len(self._store.items)
+        return len(self._holder.items)
 
     @property
     def getters_waiting(self) -> int:
         """int: Gets waiting for an item. A get granted at once is not counted,
         although SimPy removes it from `get_queue` only after the grant."""
-        return sum(1 for event in self._store.get_queue if not event.triggered)
+        return self._waiting(self._holder.get_queue)
 
     @property
     def putters_waiting(self) -> int:
         """int: Puts waiting for room. A put granted at once is not counted,
         although SimPy removes it from `put_queue` only after the grant."""
-        return sum(1 for event in self._store.put_queue if not event.triggered)
+        return self._waiting(self._holder.put_queue)
 
     def put(self, *args: Any, **kwargs: Any) -> Event:
         """
@@ -332,7 +317,7 @@ class DynamicStore(BaseDynamicResource, Store):
         Returns:
             simpy.events.Event: A SimPy event that triggers when a slot is available.
         """
-        return self._store.put(*args, **kwargs)
+        return self._holder.put(*args, **kwargs)
 
     def get(self, *args: Any, **kwargs: Any) -> StoreGet:
         """
@@ -367,7 +352,7 @@ class DynamicStore(BaseDynamicResource, Store):
                 "a priority store takes no filter: SimPy has no store that both "
                 "ranks and filters its items"
             )
-        return self._store.get(*args, **kwargs)
+        return self._holder.get(*args, **kwargs)
 
     def _handle_capacity_change(self, new_target: float):
         """
@@ -381,13 +366,13 @@ class DynamicStore(BaseDynamicResource, Store):
         max_cap = _whole(self._max_cap_val.value)
         new_target = max(0, min(_whole(new_target), max_cap))
 
-        self._store._capacity = new_target
+        self._holder._capacity = new_target
 
         # If capacity grew, pending put requests might now have open slots to succeed.
         # This exact same trigger works for both Store and PriorityStore.
         # A pass grants one waiting put, so it repeats while the queue gets shorter.
-        while self._store.put_queue:
-            waiting = len(self._store.put_queue)
-            self._store._trigger_put(None)
-            if len(self._store.put_queue) >= waiting:
+        while self._holder.put_queue:
+            waiting = len(self._holder.put_queue)
+            self._holder._trigger_put(None)
+            if len(self._holder.put_queue) >= waiting:
                 break

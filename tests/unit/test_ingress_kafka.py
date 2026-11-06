@@ -250,14 +250,15 @@ async def test_kafka_ingress_skips_a_payload_that_is_not_glue_framed(
     assert "Invalid header version byte" in skipped[0]
 
 
-def test_topic_policy_creates_the_control_topic(mock_admin):
+def test_topic_policy_creates_the_control_topic(mock_admin, caplog):
     """`create`, the default, asks for the control topic by name. A mapping gives
     it its settings, `drop_and_create` deletes it first, and `manual` touches
-    nothing. The consumer's security settings reach the admin client."""
+    nothing. The consumer's security settings reach the admin client, without its
+    `client_id`, which the admin connector sets. A failure is logged."""
     from desflow.connectors.ingress.kafka import KafkaIngress
 
     KafkaIngress(
-        "cfg", "b:9092", security_protocol="SSL", fetch_max_bytes=5
+        "cfg", "b:9092", security_protocol="SSL", fetch_max_bytes=5, client_id="me"
     )._create_topic()
 
     mock_admin.assert_called_once_with(
@@ -286,6 +287,11 @@ def test_topic_policy_creates_the_control_topic(mock_admin):
     KafkaIngress("cfg", "b:9092", topic_policy="manual")._create_topic()
     mock_admin.return_value.create_topics.assert_not_called()
     mock_admin.return_value.drop_topics.assert_not_called()
+
+    mock_admin.side_effect = RuntimeError("no broker")
+    with caplog.at_level("WARNING"):
+        KafkaIngress("cfg", "b:9092")._create_topic()
+    assert "Could not create the topic cfg: no broker" in caplog.text
 
 
 def test_topic_policy_refuses_a_wrong_word_at_construction():

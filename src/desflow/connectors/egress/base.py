@@ -1,9 +1,10 @@
+import contextlib
 import importlib
 import logging
 import queue
 from collections import Counter
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, Iterator, List, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -570,6 +571,20 @@ class BaseEgress:
         paced run, it stops the simulation for that time, and a strict run fails
         with "Simulation too slow for real time". The default imports nothing.
         """
+
+    @contextlib.contextmanager
+    def _writing(self) -> Iterator[None]:
+        """Counts a batch in `active_tasks` while the block writes it.
+
+        Teardown waits until every provider's `active_tasks` is 0, or it would cancel
+        the last batch. It reads the count with `getattr`, so a provider that never
+        writes, or one of the user's own that does not count, has none.
+        """
+        self.active_tasks = getattr(self, "active_tasks", 0) + 1
+        try:
+            yield
+        finally:
+            self.active_tasks -= 1
 
     async def run(self, egress_queue: queue.Queue) -> None:
         """

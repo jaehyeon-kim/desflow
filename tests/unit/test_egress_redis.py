@@ -116,3 +116,23 @@ async def test_envelope_false_stores_the_value_alone(run_until):
         ("default", "text"),
         ("default", None),
     ]
+
+
+@pytest.mark.asyncio
+async def test_an_empty_or_refused_batch_leaves_the_sink_running(run_until, caplog):
+    """An empty batch writes nothing, and a batch Redis refuses is logged. The sink
+    goes on with the next batch, with no write counted as in progress."""
+    egress = RedisEgress("redis://localhost:6379", stream_name="events")
+    egress.client = AsyncMock()
+    pipe = MagicMock()
+    pipe.execute = AsyncMock(side_effect=[Exception("down"), None])
+    egress.client.pipeline = MagicMock(return_value=pipe)
+    egress_queue = queue.Queue()
+    for batch in ([], [{"key": "a", "value": 1}], [{"key": "b", "value": 2}]):
+        egress_queue.put(batch)
+
+    await run_until(egress.run(egress_queue), lambda: pipe.execute.call_count == 2)
+
+    assert pipe.xadd.call_count == 2
+    assert "Error publishing batch to Redis: down" in caplog.text
+    assert egress.active_tasks == 0

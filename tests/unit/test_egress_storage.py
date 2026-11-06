@@ -885,3 +885,32 @@ def test_a_storage_sink_loads_its_libraries_before_the_run(sink, loaded, not_loa
         [sys.executable, "-c", code], capture_output=True, text=True, check=True
     ).stdout
     assert out.strip() == f"[] {sorted(loaded)!r}"
+
+
+@pytest.mark.asyncio
+async def test_parquet_run_logs_a_batch_it_cannot_write_and_goes_on(
+    tmp_path: Path, run_until, caplog, monkeypatch
+):
+    """A batch whose write raises in the run is logged at ERROR, the next batch is
+    written, and no write is left counted as in progress."""
+    import queue
+
+    egress = ParquetStorageEgress(default_path=str(tmp_path / "events.parquet"))
+    results = [RuntimeError("disk full"), 1]
+    written = []
+
+    def write(batch, *modules):
+        result = results.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        written.append(batch)
+        return result
+
+    monkeypatch.setattr(egress, "_write_batch", write)
+    q: queue.Queue = queue.Queue()
+    q.put([{"a": 1}])
+    q.put([{"a": 2}])
+    await run_until(egress.run(q), lambda: bool(written))
+    assert written == [[{"a": 2}]]
+    assert "Parquet Writer: batch not written: disk full" in caplog.text
+    assert egress.active_tasks == 0

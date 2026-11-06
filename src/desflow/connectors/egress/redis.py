@@ -67,9 +67,7 @@ class RedisEgress(BaseEgress):
                 if not batch:
                     continue
 
-                # Teardown waits for this, or it would cancel the last batch
-                self.active_tasks = getattr(self, "active_tasks", 0) + 1
-                try:
+                with self._writing():
                     pipe = self.client.pipeline()
                     count = 0
                     for item in batch:
@@ -109,8 +107,6 @@ class RedisEgress(BaseEgress):
                     if count > 0:
                         await pipe.execute()
                     logger.debug(f"Inserted {count} records into Redis Streams")
-                finally:
-                    self.active_tasks -= 1
 
             except queue.Empty:
                 await asyncio.sleep(0.1)

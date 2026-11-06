@@ -95,7 +95,7 @@ def test_a_container_without_a_capacity_has_no_limit():
 def test_a_capacity_change_reaches_a_custom_type():
     env = _env(stores={"dock": CapacityConfig(current_cap=1, max_cap=4)})
     dock = DynamicStore(env, "Shop", "dock", type=custom.Dock)
-    assert isinstance(dock._store, custom.Dock)
+    assert isinstance(dock._holder, custom.Dock)
     results = []
 
     def fill():
