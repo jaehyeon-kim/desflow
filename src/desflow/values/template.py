@@ -3,8 +3,7 @@
 A `Template` holds the same mapping of generators a blueprint's `payload` does, and
 validates it with the same models, so a mistake raises Pydantic's `ValidationError`
 (without a file or a line).
-`looked_up` finds what the values of some places, templates among them, read from
-other records.
+`looked_up` finds what some values, templates among them, read from other records.
 """
 
 import itertools
@@ -283,36 +282,36 @@ class BoundPayload:
         )
 
 
-def _expand_places(places: Tuple[Any, ...]) -> Iterator[Any]:
-    """The values to search in some places: a `Template` gives its `payload`, `vars`
-    and `vars_once`, a `BoundPayload` gives its template and its fields.
+def _expand_values(values: Tuple[Any, ...]) -> Iterator[Any]:
+    """The values to search, with each template opened: a `Template` gives its
+    `payload`, `vars` and `vars_once`, a `BoundPayload` its template and its fields.
 
     Raises:
-        TypeError: If a place is a set or an iterator, which are not searched.
+        TypeError: If a value is a set or an iterator, which are not searched.
     """
-    for place in places:
-        if isinstance(place, Template):
-            yield place.payload
-            yield place.vars
-            yield place.vars_once
-        elif isinstance(place, BoundPayload):
-            yield from _expand_places((place.template, place.fields))
-        elif isinstance(place, (set, frozenset, Iterator)):
+    for value in values:
+        if isinstance(value, Template):
+            yield value.payload
+            yield value.vars
+            yield value.vars_once
+        elif isinstance(value, BoundPayload):
+            yield from _expand_values((value.template, value.fields))
+        elif isinstance(value, (set, frozenset, Iterator)):
             # Neither is searched by `generators_in`, so a lookup inside would be
             # missed with no message
             raise TypeError(
                 f"a place for note_values is a generator, a mapping, a list, a "
-                f"constant or a Template, not {type(place).__name__}"
+                f"constant or a Template, not {type(value).__name__}"
             )
         else:
-            yield place
+            yield value
 
 
-def looked_up(*places: Any) -> Tuple[Set[str], Set[str], bool]:
-    """What the values of some places read from other records.
+def looked_up(*values: Any) -> Tuple[Set[str], Set[str], bool]:
+    """What some values read from other records.
 
     Args:
-        places: Values: generators, mappings, lists, constants, or a `Template` (its
+        values: Generators, mappings, lists, constants, or a `Template` (its
             `payload`, `vars` and `vars_once` are searched).
 
     Returns:
@@ -320,13 +319,13 @@ def looked_up(*places: Any) -> Tuple[Set[str], Set[str], bool]:
             `lookup` or `aggregate` names, and whether a `previous` is there.
 
     Raises:
-        TypeError: If a place is a set or an iterator, which are not searched.
+        TypeError: If a value is a set or an iterator, which are not searched.
     """
     gates: Set[str] = set()
     rows: Set[str] = set()
     previous = False
-    for place in _expand_places(places):
-        for _, node in generators_in(place, (Lookup, Aggregate, Previous)):
+    for value in _expand_values(values):
+        for _, node in generators_in(value, (Lookup, Aggregate, Previous)):
             if isinstance(node, Previous):
                 previous = True
                 continue

@@ -797,12 +797,30 @@ def test_var_errors_name_the_line(tmp_path, body, fragment):
     assert "blueprint.yaml:" in str(error.value)
 
 
-def test_var_outside_a_task_is_refused(tmp_path):
-    text = model("payload: {}").replace(
-        "spawn: t}}", "spawn: t, attributes: {x: {gen: var, name: a}}}}"
-    )
-    with pytest.raises(BlueprintError, match="vars belong to a task"):
-        SimulationContext.from_yaml(_write(tmp_path, text))
+@pytest.mark.parametrize(
+    "where, message",
+    [
+        (
+            "arrival",
+            "var 'a': vars belong to a task or to the vars of an arrival; this "
+            "arrival has none",
+        ),
+        (
+            "store",
+            "stores.shelf.items.0: var 'x': vars belong to a task; there is none here",
+        ),
+    ],
+)
+def test_a_var_outside_a_task_is_refused(tmp_path, where, message):
+    if where == "arrival":
+        text = model("payload: {}").replace(
+            "spawn: t}}", "spawn: t, attributes: {x: {gen: var, name: a}}}}"
+        )
+    else:
+        text = model(
+            "payload: {}", extra="stores: {shelf: {items: [{gen: var, name: x}]}}\n"
+        )
+    assert message in load_error(tmp_path, text)
 
 
 # --- the places that take a value ---------------------------------------------------
@@ -1155,16 +1173,6 @@ def test_template_problems_that_name_no_var_are_refused():
         Template({"a": {"gen": "format", "template": "{open"}}, name="t")
     with pytest.raises(ValueError, match=r"write \{name\}, not \{\} or \{0\}"):
         Template({"a": {"gen": "format", "template": "{}"}}, name="t")
-
-
-def test_a_var_outside_a_task_and_an_arrival_is_refused(tmp_path):
-    text = model(
-        "payload: {}", extra="stores: {shelf: {items: [{gen: var, name: x}]}}\n"
-    )
-    assert (
-        "stores.shelf.items.0: var 'x': vars belong to a task; there is none "
-        "here" in load_error(tmp_path, text)
-    )
 
 
 def test_template_without_a_run_says_so():

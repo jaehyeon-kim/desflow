@@ -20,7 +20,8 @@ from desflow.cli import app as cli
 from desflow.connectors.egress.base import BaseEgress
 from desflow.connectors.ingress.base import BaseIngress
 from desflow.analysis.intervals import interval, t_quantile
-from desflow.analysis.runner import level_for, spawn_seeds
+from desflow.analysis.models import spawn_seeds
+from desflow.analysis.runner import level_for
 
 BLUEPRINT = """\
 simulation: {sim_id: Shop, factor: 0}

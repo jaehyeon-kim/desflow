@@ -355,8 +355,6 @@ def _kind_problems(
 ) -> List[Problem]:
     found: List[Problem] = []
     known = set(names) | set(local)
-    in_task, in_arrival = place.in_task, place.in_arrival
-    services, base_dir, registry = place.services, place.base_dir, place.registry
     if isinstance(node, Attr) and place.run_scope:
         found.append(
             (
@@ -366,7 +364,7 @@ def _kind_problems(
             )
         )
     elif isinstance(node, Previous):
-        if not in_task:
+        if not place.in_task:
             found.append(
                 (
                     path,
@@ -375,7 +373,7 @@ def _kind_problems(
                 )
             )
     elif isinstance(node, Upstream):
-        if not in_task:
+        if not place.in_task:
             found.append(
                 (
                     path,
@@ -393,21 +391,25 @@ def _kind_problems(
                 )
             )
     elif isinstance(node, Entity):
-        if not in_task:
+        if not place.in_task:
             found.append(
                 (
                     path,
                     "entity is the key of the entity a task runs for; there is no "
                     "task here"
-                    + (", and the key is made in this place" if in_arrival else ""),
+                    + (
+                        ", and the key is made in this place"
+                        if place.in_arrival
+                        else ""
+                    ),
                 )
             )
     elif isinstance(node, Var):
-        if not (in_task or in_arrival):
+        if not (place.in_task or place.in_arrival):
             found.append(
                 (path, f"var '{node.name}': vars belong to a task; there is none here")
             )
-        elif in_arrival and not in_task and not names:
+        elif place.in_arrival and not place.in_task and not names:
             found.append(
                 (
                     path,
@@ -449,22 +451,22 @@ def _kind_problems(
     elif isinstance(node, Fake):
         found += _fake_problems(node, path)
     elif isinstance(node, Sample):
-        if node.service is not None and services is not None:
-            if node.service not in services:
+        if node.service is not None and place.services is not None:
+            if node.service not in place.services:
                 found.append(
                     (
                         path + ("service",),
                         f"sample names service '{node.service}', "
                         + (
                             "which is not under services"
-                            + suggestion(node.service, services)
+                            + suggestion(node.service, place.services)
                         ),
                     )
                 )
     elif isinstance(node, Param):
-        if registry is not None:
+        if place.registry is not None:
             try:
-                registry.get(node.path)
+                place.registry.get(node.path)
             except KeyError:
                 found.append(
                     (
@@ -473,8 +475,8 @@ def _kind_problems(
                         "Shop.resources.<name>.current_cap or Shop.arrival.<name>.rate",
                     )
                 )
-    elif isinstance(node, Row) and base_dir is not None:
-        problem = load_rows(node, base_dir)
+    elif isinstance(node, Row) and place.base_dir is not None:
+        problem = load_rows(node, place.base_dir)
         if problem is not None:
             found.append((path + ("file",), problem))
     return found
@@ -584,9 +586,9 @@ def task_value_problems(
             inside the task: a wait timeout's delay and value, a patience and a key.
         service_time: The task's `service_time` when it is a generator. It may read
             every var, which get their value when it is read.
-        services: As for `check_value`.
-        base_dir: As for `check_value`.
-        registry: As for `check_value`.
+        services: As for `Place`.
+        base_dir: As for `Place`.
+        registry: As for `Place`.
         early_end: Whether the task can end before its `vars` have a value: it has a
             `patience`, a `balk`, a `wait`, `on_interrupt: abandon` or a resource with
             a `queue_limit`. Its `on:` actions then run with the `vars_once` names

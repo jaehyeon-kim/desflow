@@ -232,10 +232,9 @@ def _counts(artifacts: _Artifacts) -> List[str]:
         )
         lines.append("")
         means = {(r["design"], r["statistic"]): r["mean"] for r in summary}
-        rows = [
-            [design, *(_number(means[design, name]) for name in counts)]
-            for design in designs
-        ]
+        rows = []
+        for design in designs:
+            rows.append([design, *[_number(means[design, name]) for name in counts]])
         lines += _table(["Design", *(f"`{c}`" for c in counts)], rows)
     else:
         lines.append("The statistics published no counts of tasks or flows.")

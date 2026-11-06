@@ -400,13 +400,16 @@ def _publish(model: Model, replications: Replications, until: Any) -> None:
 
 @dataclass(frozen=True)
 class _Checked:
-    """An experiment's settings once checked: what its runs and artifacts read."""
+    """An experiment's settings once checked: what its runs and artifacts read.
 
-    settings: Any
+    The record is frozen, but `run_experiment` gives each of its designs its runs.
+    """
+
+    settings: ExperimentSpec
     folder: Path
     model: Model
     parameters: Dict[str, Any]
-    designs: List[Any]
+    designs: List[found.Design]
     observed: List[Dict[str, Any]]
 
 
@@ -542,7 +545,9 @@ def _checked_settings(spec: Union[str, Path, Mapping[str, Any], Any]) -> _Checke
     )
 
 
-def _write_artifacts(checked: _Checked, output: Union[str, Path, None]) -> Any:
+def _write_artifacts(
+    checked: _Checked, output: Union[str, Path, None]
+) -> found.ExperimentResult:
     """Summarises the runs of every design, writes the experiment's artifacts and
     gives its `ExperimentResult`."""
     settings, model, all_designs = checked.settings, checked.model, checked.designs
