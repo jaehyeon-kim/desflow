@@ -580,47 +580,63 @@ class EgressMixIn:
         """
         return self._egress_sinks[0].batches
 
+    def _sink_runs(self, name: str) -> List[_SinkRun]:
+        """The per-sink records the `egress_*` views read.
+
+        Raises:
+            AttributeError: If `setup_egress` has not run, naming the public view
+                `name`, as a plain attribute that is not set would.
+        """
+        try:
+            return self._egress_sinks
+        except AttributeError:
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            ) from None
+
     @property
     def egress_providers(self) -> List[Any]:
         """The egress providers, in the order they were set up. A new list at each
         read, from the per-sink records."""
-        return [run.sink.provider for run in self._egress_sinks]
+        return [run.sink.provider for run in self._sink_runs("egress_providers")]
 
     @property
     def egress_queues(self) -> "List[queue.Queue[Any]]":
         """Each provider's queue of batches, in the order of `egress_providers`."""
-        return [run.batches for run in self._egress_sinks]
+        return [run.batches for run in self._sink_runs("egress_queues")]
 
     @property
     def egress_predicates(self) -> List[Optional[Callable[[Dict[str, Any]], bool]]]:
         """Each provider's predicate, with the warm-up applied; None sends every
         record."""
-        return [run.sink.predicate for run in self._egress_sinks]
+        return [run.sink.predicate for run in self._sink_runs("egress_predicates")]
 
     @property
     def egress_batch_sizes(self) -> List[int]:
         """The batch size each provider uses, in the order they were set up."""
-        return [run.sink.batch_size for run in self._egress_sinks]  # type: ignore[misc]
+        runs = self._sink_runs("egress_batch_sizes")
+        return [run.sink.batch_size for run in runs]  # type: ignore[misc]
 
     @property
     def egress_flush_intervals(self) -> List[float]:
         """The flush interval each provider uses, in the order they were set up."""
-        return [run.sink.flush_interval for run in self._egress_sinks]  # type: ignore[misc]
+        runs = self._sink_runs("egress_flush_intervals")
+        return [run.sink.flush_interval for run in runs]  # type: ignore[misc]
 
     @property
     def egress_labels(self) -> List[bool]:
         """Whether each provider is a labels sink."""
-        return [run.sink.label for run in self._egress_sinks]
+        return [run.sink.label for run in self._sink_runs("egress_labels")]
 
     @property
     def egress_traces(self) -> List[bool]:
         """Whether each provider is a trace sink."""
-        return [run.sink.trace for run in self._egress_sinks]
+        return [run.sink.trace for run in self._sink_runs("egress_traces")]
 
     @property
     def egress_envelopes(self) -> List[bool]:
         """Whether each provider writes each record whole."""
-        return [run.sink.envelope for run in self._egress_sinks]
+        return [run.sink.envelope for run in self._sink_runs("egress_envelopes")]
 
     def _lag_monitor(self, delay: float = 0.0):
         """Internal: Monitors how far the simulation time has drifted from the real-world clock."""

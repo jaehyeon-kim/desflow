@@ -2282,10 +2282,16 @@ class SimulationContext:
 
         Raises:
             RuntimeError: If called during the Builder Phase.
+            KeyError: If the model has no such holder, or the last start failed
+                during the build.
         """
         if not self._env:
             raise RuntimeError("Stores are not instantiated until context is run.")
-        return self._run.holders.stores[store_id]
+        holders = self._run.holder_run
+        if holders is None:
+            # A start that failed during the build made no holders
+            raise KeyError(store_id)
+        return holders.stores[store_id]
 
     def get_container(self, container_id: str) -> DynamicContainer:
         """
@@ -2299,10 +2305,16 @@ class SimulationContext:
 
         Raises:
             RuntimeError: If called during the Builder Phase.
+            KeyError: If the model has no such holder, or the last start failed
+                during the build.
         """
         if not self._env:
             raise RuntimeError("Containers are not instantiated until context is run.")
-        return self._run.holders.containers[container_id]
+        holders = self._run.holder_run
+        if holders is None:
+            # A start that failed during the build made no holders
+            raise KeyError(container_id)
+        return holders.containers[container_id]
 
     def get_resource(self, resource_id: str) -> ResourceBase:
         """Returns the resource a running model built: a `DynamicResource`, or the
@@ -2316,10 +2328,16 @@ class SimulationContext:
 
         Raises:
             RuntimeError: If called before the run has started.
+            KeyError: If the model has no such holder, or the last start failed
+                during the build.
         """
         if not self._env:
             raise RuntimeError("Resources are not instantiated until context is run.")
-        return self._run.holders.resources[resource_id]
+        holders = self._run.holder_run
+        if holders is None:
+            # A start that failed during the build made no holders
+            raise KeyError(resource_id)
+        return holders.resources[resource_id]
 
     def publish(self, metric_name: str, value: Any) -> None:
         """Publishes a telemetry value, named `<sim_id>.<metric_name>`, to the sinks.
@@ -3363,7 +3381,7 @@ class SimulationContext:
         # The run registers its own copy of the parameters, so a live change or an
         # override changes the copy and the declarations stay as written: a second
         # run starts from the values the first one started from
-        env.registry.register_sim_parameter(run_parameters(self.compile_parameters()))
+        env.registry.register_sim_parameter(_run_parameters(self.compile_parameters()))
         for path, value in (settings.overrides or {}).items():
             env.registry.set_exactly(
                 path,
@@ -4751,7 +4769,7 @@ def _not_added(name: str, added: Iterable[str], how: str) -> str:
     return "which is not added" + (suggestion(name, added) or f"; add it with {how}")
 
 
-def run_parameters(params: SimParameter) -> SimParameter:
+def _run_parameters(params: SimParameter) -> SimParameter:
     """The parameters one run registers, copied from a model's parameters.
 
     Each section is a new mapping with `_run_copy` of each config object in it, and
@@ -4783,7 +4801,7 @@ def scratch_registry(context: SimulationContext) -> SimulationRegistry:
     SimPy clock.
 
     The load and start checks and `registry_paths` call it, so they cannot build the
-    registry two ways. It registers `run_parameters` of the model's parameters, the
+    registry two ways. It registers `_run_parameters` of the model's parameters, the
     copy a run registers, so the defaults registration fills in and a check's
     `change` go into the copy, and the model's own starting values do not move. A
     value that cannot be copied, such as a lock, is the user's own object here too.
@@ -4792,7 +4810,7 @@ def scratch_registry(context: SimulationContext) -> SimulationRegistry:
         context: The context, read through its public `compile_parameters`.
     """
     registry = SimulationRegistry(simpy.Environment())
-    registry.register_sim_parameter(run_parameters(context.compile_parameters()))
+    registry.register_sim_parameter(_run_parameters(context.compile_parameters()))
     return registry
 
 

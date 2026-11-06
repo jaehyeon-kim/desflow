@@ -682,6 +682,27 @@ def test_a_failed_start_tears_the_connectors_down():
     assert not thread.is_alive()
 
 
+def test_a_start_that_fails_in_the_build_leaves_no_holder_to_get():
+    """After a good run, a start whose build fails leaves no holders, and each
+    getter raises KeyError with the name, as for a name the model does not have."""
+    app = SimulationContext("Shop", factor=0)
+    app.add_resource("packers", current_cap=1, max_cap=1)
+    app.add_store("shelf", current_cap=2)
+    app.add_container("tank", current_cap=5)
+    app.run(until=1)
+    assert app.get_resource("packers") is not None
+    with pytest.raises(TypeError, match="SeedSequence"):
+        app.start(seed="x")
+    for get, name in [
+        (app.get_resource, "packers"),
+        (app.get_store, "shelf"),
+        (app.get_container, "tank"),
+    ]:
+        with pytest.raises(KeyError) as raised:
+            get(name)
+        assert raised.value.args == (name,)
+
+
 def test_a_context_runs_twice_with_a_drain():
     """A second run starts with no entity in the system and no drain under way, so
     a drain after a run that left orders in the shop ends when its own orders
