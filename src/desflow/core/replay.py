@@ -20,6 +20,24 @@ UNITS: Dict[str, float] = {"ms": 0.001, "s": 1.0, "min": 60.0, "h": 3600.0}
 TIMESTAMP = "timestamp"
 
 
+def check_fields(fields: Any) -> None:
+    """
+    Refuses `fields` given as one string other than `all`, as a blueprint's
+    `replay.fields` is refused, because a string would be read one letter at a time.
+
+    Args:
+        fields: The columns each arrival carries, or `all`.
+
+    Raises:
+        ValueError: If `fields` is a string other than `all`.
+    """
+    if isinstance(fields, str) and fields != "all":
+        raise ValueError(
+            f"fields: Input should be 'all'; Input should be a valid list, "
+            f"got {fields!r}"
+        )
+
+
 @dataclass
 class Row:
     """
@@ -69,10 +87,10 @@ def read_trace(
         List[Row]: The rows, each with its simulation time.
 
     Raises:
-        ValueError: If the unit or `on_invalid` is unknown; a row is out of time
-            order, naming the first one; a row's time is before the start; a
-            field is missing; or a row's time is invalid and `on_invalid` is
-            `error`.
+        ValueError: If the unit or `on_invalid` is unknown; `fields` is a string
+            other than `all`; a row is out of time order, naming the first one; a
+            row's time is before the start; a field is missing; or a row's time is
+            invalid and `on_invalid` is `error`.
         ImportError: If a Parquet file is read without pyarrow.
     """
     if unit not in UNITS and unit != TIMESTAMP:
@@ -83,6 +101,7 @@ def read_trace(
         raise ValueError(f"on_invalid must be error or skip, got '{on_invalid}'")
     if unit == TIMESTAMP and start is None:
         raise ValueError("a timestamp column needs the run's logical_start_time")
+    check_fields(fields)
     rows: List[Row] = []
     last: Optional[float] = None
     for number, record in enumerate(_records(source), start=1):

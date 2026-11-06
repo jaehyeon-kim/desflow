@@ -532,6 +532,35 @@ def test_the_shut_down_message_counts_only_batches_written(tmp_path: Path, caplo
     assert "Successfully wrote 2 total chunks" in caplog.text
 
 
+def test_jsonl_logs_a_batch_it_cannot_write_and_goes_on(tmp_path: Path, caplog):
+    """A batch with a value JSON cannot hold, a set, is logged at ERROR and leaves
+    no file; the next batch is written and is the only chunk counted."""
+    import asyncio
+    import queue
+
+    egress = JsonlStorageEgress(default_path=str(tmp_path / "events.jsonl"))
+    egress.filesystem = fs.LocalFileSystem()
+    q: queue.Queue = queue.Queue()
+    q.put([{"stream_type": "event", "key": "a", "value": {"x": {1, 2}}}])
+    q.put([{"stream_type": "event", "key": "b", "value": {"x": 1}}])
+
+    async def drain():
+        task = asyncio.create_task(egress.run(q))
+        while not task.done() and (not q.empty() or getattr(egress, "active_tasks", 0)):
+            await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    with caplog.at_level("INFO"):
+        asyncio.run(drain())
+    files = list(tmp_path.glob("events_*.jsonl"))
+    assert [f.read_text() for f in files] == [
+        '{"stream_type":"event","key":"b","x":1}\n'
+    ]
+    assert "JSONL Writer: batch not written" in caplog.text
+    assert "Successfully wrote 1 total chunks" in caplog.text
+
+
 def test_the_jsonl_heartbeat_names_the_jsonl_writer(tmp_path: Path, caplog):
     """Every 10 batches the JSONL sink logs its progress under its own name."""
     import asyncio

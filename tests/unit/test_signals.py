@@ -255,7 +255,7 @@ def test_a_listen_runs_its_entries_before_the_waiters_added_after_it():
 
     @app.task(name="w", wait={"signal": "go"})
     def w(task_id):
-        seen.append(app.registry_paths()["S.variables.heard"])
+        seen.append(app.env.registry.get("S.variables.heard").value)
         return {"e": "w"}
 
     @app.task(name="d", on=[{"fire": {"signal": "go"}}])

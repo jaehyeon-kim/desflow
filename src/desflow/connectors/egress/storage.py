@@ -280,6 +280,10 @@ class JsonlStorageEgress(BaseEgress):
                     self.active_tasks = getattr(self, "active_tasks", 0) + 1
                     try:
                         await asyncio.to_thread(self._write_batch, batch)
+                    except Exception as exc:
+                        # A batch that fails is logged, and the sink goes on
+                        logger.error(f"JSONL Writer: batch not written: {exc}")
+                        continue
                     finally:
                         self.active_tasks -= 1
                     # Log a progress heartbeat every 10 batches
@@ -323,14 +327,21 @@ class JsonlStorageEgress(BaseEgress):
         )
         warn_skipped(self, skipped)
 
-        for target_path, records in grouped_batches.items():
+        # Every line is encoded before a file is opened, so a record that cannot be
+        # encoded leaves no empty or partial file
+        encoded = {
+            target_path: [
+                orjson.dumps(payload, option=orjson.OPT_APPEND_NEWLINE)
+                for payload in records
+            ]
+            for target_path, records in grouped_batches.items()
+        }
+        for target_path, lines in encoded.items():
             chunk_path = _generate_chunk_filename(target_path)
             _ensure_folder(self.filesystem, chunk_path, self._folders)
             with self.filesystem.open_output_stream(chunk_path) as stream:
-                for payload in records:
-                    stream.write(
-                        orjson.dumps(payload, option=orjson.OPT_APPEND_NEWLINE)
-                    )
+                for line in lines:
+                    stream.write(line)
 
 
 class ParquetStorageEgress(BaseEgress):

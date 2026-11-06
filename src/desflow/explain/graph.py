@@ -7,8 +7,8 @@ code does not declare, such as a hand-written `arrival_loop`, is an opaque node.
 It reads these private attributes of `SimulationContext`, so a rename of any of them
 must be made here too (`tests/unit/test_explain.py` covers each): `_arrivals_config`,
 `_replays`, `_arrival_spawns`, `_startup_loops`, `_processes`, `_run_scenario`,
-`_task_specs`, `_services_config`, `_resources_config`, `_stores_config`,
-`_containers_config`. `features.py` and `edges.py` read the rest.
+`_task_specs`, `_signal_on`, `_services_config`, `_resources_config`,
+`_stores_config`, `_containers_config`. `features.py` and `edges.py` read the rest.
 """
 
 import dataclasses
@@ -16,7 +16,7 @@ import math
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from desflow.explain import features
-from desflow.explain.edges import EXIT, node_id, task_edges
+from desflow.explain.edges import EXIT, node_id, signal_edges, task_edges
 from desflow.explain.models import Edge, Graph, Node
 
 if TYPE_CHECKING:
@@ -88,6 +88,7 @@ def build_graph(context: "SimulationContext") -> Graph:
             )
         )
         ends = task_edges(spec, nodes, edges) or ends
+    edges += signal_edges(context._task_specs, context._signal_on)
     for name, capacity in context._resources_config.items():
         current = 1 if capacity.current_cap is None else capacity.current_cap
         most = current if capacity.max_cap is None else capacity.max_cap

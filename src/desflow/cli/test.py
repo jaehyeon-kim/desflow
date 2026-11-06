@@ -99,6 +99,7 @@ def _test_file(file: Path, fix: bool, variables: Mapping[str, str]) -> bool:
     from desflow.blueprint.build import load_blueprint, read_tests_file
     from desflow.blueprint.expectations import fix_expectations
     from desflow.core.context import SimulationContext
+    from desflow.core.statistics import published_value
     from desflow.loading import load_context
 
     model: Any
@@ -142,8 +143,9 @@ def _test_file(file: Path, fix: bool, variables: Mapping[str, str]) -> bool:
         with quiet_builds():
             found = _measure(test, model, context.random_seed, end, holder)
         for name in test.expect:
-            if name not in found and _is_zero_count(name, found):
-                found[name] = 0
+            value = published_value(found, name)
+            if value is not None:
+                found[name] = value
         measured.append(found)
         differing, missing = _differences(test.expect, found)
         if missing or (differing and not fix):
@@ -200,10 +202,6 @@ def _measure(
     }
 
 
-# Counts the run publishes once they are above 0, so a run without one reads 0
-_COUNTED_ONCE = ("finished", "balked", "reneged")
-
-
 def _differences(
     expect: Mapping[str, Any], found: Mapping[str, Any]
 ) -> Tuple[List[str], List[str]]:
@@ -231,12 +229,3 @@ def _differences(
             want = number_text(expected)
         differing.append(f"{name}: expected {want}, measured {number_text(measured)}")
     return differing, missing
-
-
-def _is_zero_count(name: str, found: Mapping[str, Any]) -> bool:
-    """Whether `name` is a count that is published only above 0, in a run that
-    published other statistics of the same task or resource."""
-    head, _, last = name.rpartition(".")
-    return last in _COUNTED_ONCE and any(
-        other.startswith(head + ".") for other in found
-    )

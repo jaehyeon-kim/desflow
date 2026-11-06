@@ -365,11 +365,13 @@ def test_watch_stops_the_first_run_with_its_teardown_and_starts_a_second(
 
 
 def test_a_zero_count_statistic_reads_zero(tmp_path):
-    """A run that never balks has no `balked` count, and a test that expects 0 passes."""
+    """A run that never balks, fails or is interrupted has none of the counts
+    published only above 0, and a test that expects 0 of each passes."""
+    outcomes = ("balked", "reneged", "failed", "interrupted", "preempted", "resumed")
+    zeros = ", ".join(f"tasks.pack_order.{name}: 0" for name in outcomes)
     text = WITH_TESTS.read_text(encoding="utf-8").replace(
         "  - name: queue_is_short",
-        "  - name: nobody_balks\n    expect: {tasks.pack_order.balked: 0}\n"
-        "  - name: queue_is_short",
+        f"  - name: nobody_balks\n    expect: {{{zeros}}}\n  - name: queue_is_short",
     )
     path = _write(tmp_path, "model.yaml", text)
     result = CliRunner().invoke(cli, ["test", str(path)])

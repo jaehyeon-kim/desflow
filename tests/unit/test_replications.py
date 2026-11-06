@@ -212,13 +212,37 @@ def test_an_unknown_measure_is_refused():
         replicate(shop, 2, seed=1, until=100, measures=["tasks.packing.wait_mean"])
 
 
-def test_a_count_not_yet_published_is_zero_and_a_missing_mean_is_refused():
+def test_a_count_not_yet_published_is_zero_and_a_missing_mean_is_refused(tmp_path):
     def patient() -> SimulationContext:
         return shop(patience=0.5)
 
     # Over 5 seconds some runs renege and some do not
     result = replicate(patient, 6, seed=2, until=5, measures=["tasks.pack.reneged"])
     assert 0 in result.values["tasks.pack.reneged"]
+    # Half the runs fail their one task; a run with no failure reads 0, not missing
+    model = tmp_path / "model.yaml"
+    model.write_text(
+        "simulation: {sim_id: S, factor: 0}\n"
+        "arrivals:\n"
+        "  a: {initial: 1, spawn: t, attributes: {bad: {gen: boolean, p: 0.5}}}\n"
+        "tasks:\n"
+        "  t: {service_time: 1, fail: attr.bad, on_fail: handle, payload: {}}\n"
+        "  handle: {payload: {}}\n"
+    )
+    result = replicate(str(model), 8, seed=3, until=5, measures=["tasks.t.failed"])
+    assert sorted(set(result.values["tasks.t.failed"])) == [0, 1]
+    # One arrival every 10 s on average over 5 s: a run in which no entity arrived
+    # publishes no flow or task count at all, and each reads 0
+    rare = tmp_path / "rare.yaml"
+    rare.write_text(
+        "simulation: {sim_id: S, factor: 0}\n"
+        "arrivals: {a: {dist: exponential, rate: 0.1, spawn: t}}\n"
+        "tasks: {t: {service_time: 1, payload: {}}}\n"
+    )
+    counts = ["flows.a.started", "flows.a.in_system", "tasks.t.in_progress"]
+    result = replicate(str(rare), 10, seed=3, until=5, measures=counts)
+    assert 0 in result.values["flows.a.started"]
+    assert set(result.values["flows.a.started"]) != {0}
     with pytest.raises(ValueError, match="no value in run"):
         replicate(shop, 6, seed=2, until=2, measures=["tasks.pack.wait_mean"])
 
@@ -657,3 +681,72 @@ def test_a_sample_run_prints_the_events_of_the_new_sources(tmp_path):
     result = CliRunner().invoke(cli, ["run", str(path), "--sample", "4"])
     assert result.exit_code == 0, result.output
     assert '"key":"boot-1"' in result.output and '"key":"boot-2"' in result.output
+
+
+def _documented_counts(task="t", arrival="a"):
+    """The task and flow names the Statistic Names page lists for `minimal` and
+    `basic`, the counts, as `tasks.<task>.<count>` and `flows.<arrival>.<count>`."""
+    import importlib.util
+
+    script = Path(__file__).parents[2] / "scripts" / "gen_pages.py"
+    spec = importlib.util.spec_from_file_location("gen_pages", script)
+    assert spec is not None and spec.loader is not None
+    gen_pages = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gen_pages)
+    names = gen_pages.statistic_names()
+    found = []
+    for name in [*names["minimal"], *names["basic"]]:
+        _sim, _stats, kind, _owner, stat = name.split(".")
+        if kind in ("tasks", "flows"):
+            found.append(f"{kind}.{task if kind == 'tasks' else arrival}.{stat}")
+    return list(dict.fromkeys(found))
+
+
+# Its one entity finishes before the warm-up, which starts every count again from 0,
+# so at the end each count is 0: published as 0, or left out while it is 0
+ALL_ZERO = """\
+simulation: {sim_id: S, factor: 0, random_seed: 1, warmup: 10}
+arrivals: {ARRIVAL: {initial: 1, spawn: TASK}}
+tasks: {TASK: {service_time: 1, payload: {}}}
+run: {until: 20}
+tests:
+  - name: every_count_is_0
+    expect: {EXPECT}
+"""
+
+
+@pytest.mark.parametrize("task,arrival", [("t", "a"), ("t.u", "a.b")])
+def test_every_documented_count_reads_0_in_every_reader(tmp_path, task, arrival):
+    """Every reader of the published statistics reads each count the docs list as 0
+    in a run where it is 0, also for a task and an arrival whose names hold a dot; a
+    name published neither as a value nor in `LEFT_OUT_AT_ZERO` fails here."""
+    from desflow.analysis.results import Design, count_names, result_rows
+    from desflow.analysis.runner import run_replications
+
+    counts = _documented_counts(task, arrival)
+    assert f"flows.{arrival}.started" in counts and f"tasks.{task}.resumed" in counts
+    model = tmp_path / "zero.yaml"
+    expect = ", ".join(f"{name}: 0" for name in counts)
+    model.write_text(
+        ALL_ZERO.replace("{EXPECT}", "{" + expect + "}")
+        .replace("ARRIVAL", arrival)
+        .replace("TASK", task)
+    )
+    # replicate and experiments
+    result = replicate(str(model), 2, seed=1, measures=counts)
+    assert result.values == {name: [0, 0] for name in counts}
+    runs = run_replications(str(model), [1], until=20, stats="basic")
+    design = Design(name="d", variant="d", point={}, overrides={}, seeds=[1], runs=runs)
+    rows = result_rows([design], [], counts)
+    assert {row["statistic"]: row["value"] for row in rows} == dict.fromkeys(counts, 0)
+    assert set(count_names(runs)) <= set(counts)
+    # desflow test
+    outcome = CliRunner().invoke(cli, ["test", str(model)])
+    assert outcome.exit_code == 0, outcome.output
+    assert "ok" in outcome.output
+    # A name of a task or flow nothing published stays refused, also when a
+    # published task's name starts with it and a dot
+    if "." in task:
+        bare = [f"tasks.{task.split('.')[0]}.failed"]
+        with pytest.raises(ValueError, match=f"no statistic called {bare[0]};"):
+            replicate(str(model), 2, seed=1, measures=bare)

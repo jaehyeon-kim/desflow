@@ -107,6 +107,24 @@ async def test_console_json_writes_one_line_per_record_at_any_log_level(capsys):
     ]
 
 
+@pytest.mark.asyncio
+async def test_console_json_logs_a_batch_it_cannot_encode_and_goes_on(capsys, caplog):
+    """A batch with a value JSON cannot hold, a set, is logged at ERROR and the next
+    batch is still printed."""
+    egress_queue = queue.Queue()
+    egress_queue.put([{"stream_type": "event", "key": "a", "value": {"x": {1, 2}}}])
+    egress_queue.put([{"stream_type": "event", "key": "b", "value": {"x": 1}}])
+    with caplog.at_level(logging.ERROR, logger="desflow.connectors.egress.local"):
+        task = asyncio.create_task(ConsoleEgress(format="json").run(egress_queue))
+        await asyncio.sleep(0.2)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    assert capsys.readouterr().out == (
+        '{"stream_type":"event","key":"b","value":{"x":1}}\n'
+    )
+    assert "Console: batch not printed" in caplog.text
+
+
 def test_console_refuses_an_unknown_format():
     with pytest.raises(ValueError, match="format must be log or json, got 'csv'"):
         ConsoleEgress(format="csv")  # type: ignore[arg-type]

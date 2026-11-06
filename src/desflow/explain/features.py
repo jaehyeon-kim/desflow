@@ -5,10 +5,10 @@ gives as the reason a wait is not estimated. It reads these private attributes o
 `SimulationContext`, so a rename of any of them must be made here too
 (`tests/unit/test_explain.py` covers each): `_task_specs`, `_resource_preempt`,
 `_resource_queues`, `_resource_queue_limits`, `_resource_types`,
-`_breakdowns_config`, `_scenario_steps`, `_ingress_providers`.
+`_breakdowns_config`, `_scenario_steps`, `_signal_on`, `_ingress_providers`.
 """
 
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Set
 
 from desflow.explain.edges import used_resources
 from desflow.values.models import Sequence, Uuid
@@ -32,6 +32,9 @@ COMPUTED_GAPS = "computed gaps"
 LIMITED_ARRIVALS = "limited or repeated arrivals"
 # `initial` with no gap: the entities start when the run is built, and none follow
 INITIAL_ONLY = "entities at the start only"
+# An `interrupt` of a task, an `on:` entry or a scenario step names the task, so some
+# of its instances end their service early
+INTERRUPTED = "interruptions (an interrupt names it)"
 
 
 def arrival_features(context: "SimulationContext", name: str) -> List[str]:
@@ -100,6 +103,8 @@ def task_features(context: "SimulationContext", spec: "TaskSpec") -> List[str]:
     ):
         if getattr(spec, name) is not None and not (name == "wait" and only_requests):
             features.append(name)
+    if spec.name in _interrupted(context):
+        features.append(INTERRUPTED)
     if spec.wait is not None and _request_leaves(spec.wait) > 1:
         features.append(SEVERAL_REQUESTS)
     if _request_with_timeout(spec):
@@ -109,6 +114,25 @@ def task_features(context: "SimulationContext", spec: "TaskSpec") -> List[str]:
     if spec.fail is not None:
         features.append("fail")
     return features
+
+
+def _interrupted(context: "SimulationContext") -> Set[str]:
+    """The tasks an `interrupt` names: a task's own, one in the `on:` or `listen`
+    list of a task or a signal, or a scenario step's."""
+    actions: List[Mapping[str, Any]] = [
+        action for found in context._signal_on.values() for action in found
+    ]
+    for spec in context._task_specs.values():
+        if spec.interrupt is not None:
+            actions.append({"interrupt": spec.interrupt})
+        actions += [*spec.on, *(spec.listen.on if spec.listen else [])]
+    actions += context._scenario_steps
+    return {
+        action["interrupt"]["task"]
+        for action in actions
+        if action.get("interrupt") is not None
+        and action["interrupt"].get("task") is not None
+    }
 
 
 def _request_leaves(wait: "Wait") -> int:

@@ -774,8 +774,8 @@ def test_a_registry_path_with_a_bracket_is_one_part():
     class _Family:
         kind = "resource"
 
-    assert member_path(path, {"desk": _Family()}) == ("desk", "current_cap")
-    assert member_path(path, {"other": _Family()}) is None
+    assert member_path(path, {"desk": _Family()}, "S") == ("desk", "current_cap")
+    assert member_path(path, {"other": _Family()}, "S") is None
 
 
 @pytest.mark.parametrize(

@@ -14,7 +14,7 @@ member calls `resolve`.
 """
 
 from numbers import Integral
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
 from desflow.core.expressions import Expression
 
@@ -68,17 +68,22 @@ def member_name(family: str, key: Any) -> str:
     return f"{family}[{normal_key(key)!r}]"
 
 
-def family_part(name: str) -> str:
-    """The text before the first bracket of a name: the family a member name belongs to,
-    or the name itself when it has no bracket.
+def family_of(name: str, families: Iterable[str]) -> Optional[str]:
+    """The declared family a member name belongs to, found by the family's whole name:
+    the family `f` for which the name is `f[<key>]`, so a family whose name holds a
+    dot or a bracket reads as any other.
 
     Args:
         name: A resource, store, container or signal name.
+        families: The names of the declared families.
 
     Returns:
-        str: The part before the first `[`.
+        Optional[str]: The family, or None when the name is no member of one.
     """
-    return name.split("[", 1)[0]
+    for family in families:
+        if name.startswith(f"{family}[") and name.endswith("]"):
+            return family
+    return None
 
 
 def split_path(path: str) -> List[str]:
@@ -124,25 +129,34 @@ def split_path(path: str) -> List[str]:
     return parts
 
 
-def member_path(path: str, families: Mapping[str, Any]) -> Optional[Tuple[str, str]]:
+def member_path(
+    path: str, families: Mapping[str, Any], sim_id: str
+) -> Optional[Tuple[str, str]]:
     """The family and the attribute a registry path names, when it names a member of a
     declared family, such as `S.resources.desk[3].current_cap`.
+
+    The model's sim id is taken off the front of the path before the section is read,
+    so a sim id with a dot, such as `Shop.v2`, reads as any other.
 
     Args:
         path: A registry path.
         families: The declared families, by name.
+        sim_id: The model's sim id.
 
     Returns:
         Optional[Tuple[str, str]]: The family and the last part, or None when the path
             is not a member path of a family.
     """
-    parts = split_path(path)
-    if len(parts) < 4 or "[" not in parts[2]:
+    if not path.startswith(sim_id + "."):
         return None
-    family = family_part(parts[2])
-    if family not in families or parts[1] != SECTIONS[families[family].kind]:
-        return None
-    return family, parts[-1]
+    rest = path[len(sim_id) + 1 :]
+    for family, declared in families.items():
+        head = f"{SECTIONS[declared.kind]}.{family}"
+        if rest.startswith(head + "["):
+            parts = split_path(rest[len(head) :])
+            if len(parts) >= 2:
+                return family, parts[-1]
+    return None
 
 
 class Reference(str):

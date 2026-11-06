@@ -960,15 +960,18 @@ def test_scenario_at_must_be_a_time(tmp_path):
 
 
 def test_compile_parameters_matches_what_run_registers(tmp_path):
+    """A run registers a copy of the parameters, so a live change leaves the
+    declarations as written."""
     app = SimulationContext.from_yaml(write(tmp_path, MINIMAL))
     params = app.compile_parameters()
     app.run(until=1)
 
     assert params.sim_id == "Shop"
-    assert (
-        app.env.registry.get_config("Shop.resources.packers")
-        is (params.resources["packers"])
-    )
+    registered = app.env.registry.get_config("Shop.resources.packers")
+    assert registered == params.resources["packers"]
+    assert registered is not params.resources["packers"]
+    app.env.registry.update("Shop.resources.packers.current_cap", 3)
+    assert app.compile_parameters().resources["packers"].current_cap == 2
 
 
 # ---------------------------------------------------------------------------

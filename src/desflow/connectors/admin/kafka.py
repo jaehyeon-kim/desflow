@@ -173,6 +173,17 @@ def apply_topic_policies(
         admin.create_topics(topics_config=configs)
 
 
+def _body(value: Any) -> Any:
+    """A message's value read as JSON, or None for a null value (a tombstone) or a
+    value that is not JSON text, such as one a topic's serializer wrote."""
+    if value is None:
+        return None
+    try:
+        return json.loads(value.decode("utf-8"))
+    except ValueError:
+        return None
+
+
 class KafkaAdminConnector:
     """
     Unified Kafka Admin and Monitoring Connector.
@@ -359,7 +370,9 @@ class KafkaAdminConnector:
         Async loop to consume from telemetry and event topics.
 
         This loop continuously listens to the simulation's egress and updates
-        the connector's internal `_vitals` and `_state` attributes.
+        the connector's internal `_vitals` and `_state` attributes. A message whose
+        value is null, JSON `null` or not JSON changes neither and is passed over,
+        because `KafkaEgress` writes a null value for compacted topics.
 
         Args:
             topics: List of topics to consume from (telemetry and events).
@@ -374,21 +387,23 @@ class KafkaAdminConnector:
         try:
             await consumer.start()  # inside the try, so a failed start closes it
             async for msg in consumer:
-                data = json.loads(msg.value.decode("utf-8"))
-                self._process_message(data)
+                self._process_message(_body(msg.value))
         finally:
             await consumer.stop()
 
-    def _process_message(self, data: Dict[str, Any]):
+    def _process_message(self, data: Any):
         """
         Routes incoming messages based on their JSON structure.
 
         Distinguishes between 'telemetry' (vitals like utilization) and
-        'events' (task lifecycle steps like 'started' or 'finished').
+        'events' (task lifecycle steps like 'started' or 'finished'). A body that
+        is not a mapping, such as None for a null value, changes nothing.
 
         Args:
             data: The decoded JSON payload from Kafka.
         """
+        if not isinstance(data, Mapping):
+            return
 
         # 1. Telemetry: 'path_id' is at the root level
         if "path_id" in data and not isinstance(data.get("value"), dict):
@@ -403,10 +418,14 @@ class KafkaAdminConnector:
             # Using 'timestamp' based on your actual JSON payload
             ts = data.get("timestamp")
 
-            path_id = payload.get("path_id", "unknown.unknown.unknown")
-            parts = path_id.split(".")
-            sim_id = parts[0]
-            service = parts[2] if len(parts) > 2 else "default"
+            # desflow writes every event's path_id as <sim_id>.service.<service_id>,
+            # so the two names are each side of the last `.service.`, whatever dots
+            # they hold
+            sim_id, found, service = str(payload.get("path_id", "")).rpartition(
+                ".service."
+            )
+            if not found:
+                sim_id, service = "unknown", "unknown"
 
             service_data = self._state[sim_id][service]
 

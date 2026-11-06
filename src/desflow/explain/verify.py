@@ -50,6 +50,7 @@ def verify(
     from desflow.analysis.intervals import interval
     from desflow.analysis.models import context_of, run_once, seconds
     from desflow.analysis.runner import run_replications, spawn_seeds
+    from desflow.core.statistics import published_value
 
     if replications is not None and replications < 2:
         raise ValueError(f"replications need 2 or more, got {replications}")
@@ -76,8 +77,17 @@ def verify(
             model, spawn_seeds(seed, replications), until=end, stats="typical"
         )
     comparisons = []
+    seen = {name for r in results for name in r.readings}
     for pair in pairs(explanation, end - start):
-        found = [r.readings.get(f"{r.sim_id}.stats.{pair.statistic}") for r in results]
+        found = [
+            published_value(
+                r.readings,
+                f"{r.sim_id}.stats.{pair.statistic}",
+                seen,
+                prefix=f"{r.sim_id}.stats.",
+            )
+            for r in results
+        ]
         numbers = [float(v) * pair.scale for v in found if v is not None]
         # A run in which nothing it measures happened has no reading
         complete = numbers if len(numbers) == len(found) else None

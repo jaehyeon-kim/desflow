@@ -593,6 +593,25 @@ run: {until: 20}
     assert not used or used[-1] == 0
 
 
+def test_a_batch_whose_members_all_left_is_dropped_with_a_timeout(tmp_path):
+    """`quick` joins at 0 and reneges at 1, so its batch is dropped although it has a
+    `timeout`; `slow` joins at 3 as the first member of a new batch, which closes 4
+    later, at 7, not at 4."""
+    text = """\
+simulation: {sim_id: S, factor: 0}
+arrivals:
+  q: {initial: 1, spawn: quick}
+  s: {dist: constant, value: 3, spawn: slow, max_events: 1, first_at: 3}
+tasks:
+  quick: {batch: {name: b, size: 5, timeout: 4}, patience: 1, payload: {e: q}}
+  slow: {batch: {name: b, size: 5, timeout: 4}, payload: {e: s}}
+run: {until: 30}
+"""
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None
+    assert by_member(records(outcome), "started") == [(7.0, "s-1")]
+
+
 def test_the_timeout_closes_the_batch_after_its_first_member(tmp_path):
     found = records(
         pack(

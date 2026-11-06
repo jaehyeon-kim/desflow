@@ -628,3 +628,10 @@ def test_the_report_shows_each_end_setting_in_words():
     assert _end_setting(False, "no") == "no"
     assert _end_setting("closing", "none") == "`closing`"
     assert _end_setting(None, "none") == "none unless the model's own run sets one"
+
+
+def test_a_mean_is_read_as_a_wait_or_a_service_by_its_statistic():
+    """The statistic is the last part of the name, so a task whose name holds `.wait_`
+    has its service mean measured on finished instances."""
+    assert found._population_of("tasks.a.wait_b.service_mean") == "finished instances"
+    assert found._population_of("tasks.a.service_b.wait_mean") == "started instances"

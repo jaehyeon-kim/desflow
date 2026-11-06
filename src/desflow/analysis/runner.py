@@ -16,7 +16,17 @@ import secrets
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Union
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Union,
+)
 
 import numpy as np
 
@@ -34,6 +44,7 @@ from desflow.analysis.models import (
     run_once,
     seconds,
 )
+from desflow.core.statistics import published_value
 from desflow.utils import suggestion
 
 logger = logging.getLogger(__name__)
@@ -43,8 +54,6 @@ logger = logging.getLogger(__name__)
 # below. Names that no level publishes are refused after the first replication.
 _TYPICAL_NAME = re.compile(r"\.(wait|service)_(mean|max)$")
 _ALL_NAME = re.compile(r"\.(wait|service)_p\d+$")
-# Counts published once they are above 0, so a run without one has none to read.
-_COUNTED_ONCE_SEEN = ("finished", "balked", "reneged")
 
 
 def level_for(measures: Optional[Iterable[str]]) -> str:
@@ -336,6 +345,10 @@ def select_measures(
     """
     Returns the measures to summarise, refusing one no run published.
 
+    A count the statistics leave out while it is 0, such as `reneged`, is published
+    for this purpose when a run published another statistic of its task or flow
+    (`published_value`).
+
     Args:
         results: The runs.
         measures: The requested names, or None for every statistic the runs
@@ -355,7 +368,12 @@ def select_measures(
                 published.setdefault(name.removeprefix(prefix), None)
     if measures is None:
         return list(published)
-    unknown = [m for m in measures if m not in published]
+    # A count left out while it is 0 in every run is still a statistic of the model
+    unknown = [
+        m
+        for m in measures
+        if m not in published and published_value({}, m, published) is None
+    ]
     if unknown:
         raise ValueError(
             f"no statistic called {', '.join(unknown)}; this model publishes "
@@ -364,15 +382,20 @@ def select_measures(
     return list(dict.fromkeys(measures))
 
 
-def values_of(results: Sequence[RunResult], measure: str) -> List[float]:
+def values_of(
+    results: Sequence[RunResult], measure: str, seen: Optional[Set[str]] = None
+) -> List[float]:
     """Returns one measure's value in each run.
 
-    A count that is published once it is above 0, such as `reneged`, is 0 in a run
-    that did not publish it.
+    A count the statistics leave out while it is 0, such as `reneged` or a flow's
+    `started`, is 0 in a run that did not publish it, when a run published another
+    statistic of its task or flow (`published_value`).
 
     Args:
         results: The runs.
         measure: The statistic's name without the sim id.
+        seen: The names every run of the study published, such as the runs of the
+            other designs of an experiment; None for the names of `results`.
 
     Returns:
         List[float]: The values, in run order.
@@ -382,10 +405,15 @@ def values_of(results: Sequence[RunResult], measure: str) -> List[float]:
             in a run where no task started.
     """
     values = []
+    if seen is None:
+        seen = {name for result in results for name in result.readings}
     for i, result in enumerate(results, start=1):
-        value = result.readings.get(f"{result.sim_id}.stats.{measure}")
-        if value is None and measure.rsplit(".", 1)[-1] in _COUNTED_ONCE_SEEN:
-            value = 0
+        value = published_value(
+            result.readings,
+            f"{result.sim_id}.stats.{measure}",
+            seen,
+            prefix=f"{result.sim_id}.stats.",
+        )
         if value is None:
             raise ValueError(
                 f"{measure} has no value in run {i}: nothing it measures happened "

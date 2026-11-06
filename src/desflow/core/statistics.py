@@ -18,7 +18,8 @@ Each is published as telemetry named `<sim_id>.stats.<category>.<name>.<statisti
 where the category is `resources`, `stores`, `containers`, `tasks` or `flows`.
 """
 
-from typing import Any, Dict, Hashable, List, Optional, Set, Tuple
+import itertools
+from typing import Any, Dict, Hashable, Iterable, List, Mapping, Optional, Set, Tuple
 
 import numpy as np
 
@@ -28,6 +29,70 @@ _MINIMAL, _BASIC, _TYPICAL, _ALL = (
     STATS_LEVELS.index(level) for level in STATS_LEVELS[1:]
 )
 _PERCENTILES = (50, 95, 99)
+# The counts `readings` publishes for a task or a flow, by the names it publishes them
+# under. Each is published from the first time its task or flow is seen, and the
+# outcomes of `PUBLISHED_ABOVE_ZERO` and a flow's `failed` only once they are above 0:
+# a task with no patience or balk condition publishes neither `reneged` nor `balked`.
+_IN_PROGRESS, _FINISHED, _STARTED, _IN_SYSTEM, _FAILED = (
+    "in_progress",
+    "finished",
+    "started",
+    "in_system",
+    "failed",
+)
+PUBLISHED_ABOVE_ZERO = (
+    "balked",
+    "reneged",
+    _FAILED,
+    "interrupted",
+    "preempted",
+    "resumed",
+)
+# Every count `readings` leaves out while it is 0, by category, made from the names
+# above, so `published_value` reads 0 for exactly the counts `readings` leaves out
+LEFT_OUT_AT_ZERO: Dict[str, Tuple[str, ...]] = {
+    "tasks": (_IN_PROGRESS, _FINISHED, *PUBLISHED_ABOVE_ZERO),
+    "flows": (_FINISHED, _STARTED, _IN_SYSTEM, _FAILED),
+}
+
+
+def published_value(
+    readings: Mapping[str, Any], name: str, seen: Iterable[str] = (), prefix: str = ""
+) -> Any:
+    """
+    Returns the value of a statistic in a run's published statistics.
+
+    A count that `readings` leaves out while it is 0 (`LEFT_OUT_AT_ZERO`) is 0 when it
+    is missing, once a published name, in `readings` or in `seen`, names its task or
+    flow. So a name that no run publishes anything of, such as a misspelt task, stays
+    missing.
+
+    Args:
+        readings: One run's statistics by published name, or by the same names
+            without a common prefix such as `<sim_id>.stats.`.
+        name: The statistic's name, in the same form as the names of `readings`.
+        seen: More names in that form that show a task or flow is in the model, such
+            as the names other replications of the model published.
+        prefix: The common prefix the names carry, such as `<sim_id>.stats.`; ""
+            for names without one. The kind is read after it and the count is the
+            last part, so a task or flow whose name holds a dot reads as any other.
+
+    Returns:
+        Any: The value; 0 for such a count; None for any other missing name.
+    """
+    if name in readings:
+        return readings[name]
+    if not name.startswith(prefix):
+        return None
+    kind, _, rest = name[len(prefix) :].partition(".")
+    owner, dot, stat = rest.rpartition(".")
+    if not dot or not owner or stat not in LEFT_OUT_AT_ZERO.get(kind, ()):
+        return None
+    head = f"{prefix}{kind}."
+    for other in itertools.chain(readings, seen):
+        if other.startswith(head) and other[len(head) :].rpartition(".")[0] == owner:
+            return 0
+    return None
 
 
 class _TimeAverage:
@@ -538,20 +603,11 @@ class Statistics:
         for category, name in self._objects:
             values.update(self._object_readings(category, name, now))
         for name, count in self._in_progress.items():
-            values[f"{prefix}.tasks.{name}.in_progress"] = count
+            values[f"{prefix}.tasks.{name}.{_IN_PROGRESS}"] = count
         for name, task in self._tasks.items():
             base = f"{prefix}.tasks.{name}"
-            values[f"{base}.finished"] = task.finished
-            # Published once one happens, so a task without patience or a balk
-            # condition publishes neither
-            for outcome in (
-                "balked",
-                "reneged",
-                "failed",
-                "interrupted",
-                "preempted",
-                "resumed",
-            ):
+            values[f"{base}.{_FINISHED}"] = task.finished
+            for outcome in PUBLISHED_ABOVE_ZERO:
                 if getattr(task, outcome):
                     values[f"{base}.{outcome}"] = getattr(task, outcome)
             for kind, observed in (("wait", task.wait), ("service", task.service)):
@@ -564,13 +620,13 @@ class Statistics:
                     for percent, point in zip(_PERCENTILES, points):
                         values[f"{base}.{kind}_p{percent}"] = float(point)
         for flow, finished in self._flows.items():
-            values[f"{prefix}.flows.{flow}.finished"] = finished
+            values[f"{prefix}.flows.{flow}.{_FINISHED}"] = finished
         for flow, started in self._started_flows.items():
-            values[f"{prefix}.flows.{flow}.started"] = started
-            values[f"{prefix}.flows.{flow}.in_system"] = self._in_system[flow]
+            values[f"{prefix}.flows.{flow}.{_STARTED}"] = started
+            values[f"{prefix}.flows.{flow}.{_IN_SYSTEM}"] = self._in_system[flow]
         for flow, failed in self._failed_flows.items():
             if failed:
-                values[f"{prefix}.flows.{flow}.failed"] = failed
+                values[f"{prefix}.flows.{flow}.{_FAILED}"] = failed
         return values
 
     def _object_readings(self, category: str, name: str, now: float) -> Dict[str, Any]:

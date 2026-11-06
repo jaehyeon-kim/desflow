@@ -8,7 +8,6 @@ import importlib
 import importlib.util
 import logging
 import math
-import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,7 +51,7 @@ from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.core.arrivals import ArrivalPlan
 from desflow.core.families import member_path, name_of, references
 from desflow.core.flow import Open, Release, Wait
-from desflow.core.registry import ParamRejected, is_queue_limit, queue_limit_value
+from desflow.core.registry import ParamRejected, queue_limit_value
 from desflow.core.task import (
     NO_RECORD,
     Holding,
@@ -1079,23 +1078,17 @@ def _check_families(
                                 f"task '{name}': {key} {reason}",
                             )
     if found is not None:
-        holder, key, message = found
-        if not key:
-            # A rule place, named by its text: a signal's `when` has its own line
-            on_entry = re.match(r"signal '(.+)' on entry (\d+) when$", holder)
-            rule_at: Tuple[Any, ...] = (
-                ("signals", on_entry[1], "on", int(on_entry[2]), "when")
-                if on_entry
-                else ()
-            )
-            raise source.error(rule_at, f"{holder} {message}")
-        if holder not in context._task_specs and not holder.startswith("signals."):
-            raise source.error((), f"{holder} {key} {message}")
-        if holder.startswith("signals."):
+        (section, name, *rule_at), key, message = found
+        if section == "rule":
+            # A rule place: a signal's `when` has its own line, the others none
+            raise source.error(rule_at[0], f"{name} {message}")
+        if section == "signals":
             raise source.error(
-                ("signals", holder[8:], "on"), f"signal '{holder[8:]}': {key} {message}"
+                ("signals", name, "on"), f"signal '{name}': {key} {message}"
             )
-        raise source.error(("tasks", holder, key), f"task '{holder}': {key} {message}")
+        if name not in context._task_specs:
+            raise source.error((), f"{name} {key} {message}")
+        raise source.error(("tasks", name, key), f"task '{name}': {key} {message}")
     for section in ("resources", "stores", "containers", "signals"):
         for name in getattr(blueprint, section):
             for family in context._families:
@@ -1805,9 +1798,11 @@ def _expressions(
         found.append((Expression(task.interrupt.index), where + ("interrupt", "index")))
     if isinstance(task.cancel, HandleRef) and isinstance(task.cancel.index, str):
         found.append((Expression(task.cancel.index), where + ("cancel", "index")))
-    for reference in references(task.resources(), _name(task.signal)):
+    signal = _name(task.signal)
+    for reference in references(task.resources(), signal):
+        place = "signal" if reference is signal else "resource"
         for expression in reference.expressions:
-            found.append((expression, where + ("resource",)))
+            found.append((expression, where + (place,)))
     if task.subscribe is not None:
         for expression in Wait(task.subscribe).reference_expressions:
             found.append((expression, where + ("subscribe",)))
@@ -2374,7 +2369,7 @@ def _check_values(
     """Checks the generators of the file: var names and their order, `expr` names,
     `fake` methods, `sample` services, `param` paths, `row` files and where
     `omit_rate` and `omit_when` stand."""
-    registry = context._scratch_registry(isolated=True)
+    registry = context._scratch_registry()
     services = set(blueprint.services)
     base_dir = source.path.parent
     written = context._written_paths()
@@ -2704,7 +2699,7 @@ def _names_a_member(path: str, context: SimulationContext) -> bool:
     Returns:
         bool: True when the path names an attribute of a member of a family.
     """
-    return member_path(str(path), context._families) is not None
+    return member_path(str(path), context._families, context.sim_id) is not None
 
 
 def _check_scenario(
@@ -2723,7 +2718,7 @@ def _check_scenario(
     if not blueprint.scenario:
         return
 
-    registry = context._scratch_registry(isolated=True)
+    registry = context._scratch_registry()
 
     # sorted is stable, so steps at equal times keep the order they are written in
     steps = sorted(enumerate(blueprint.scenario), key=lambda item: item[1].at)
@@ -2744,7 +2739,7 @@ def _check_scenario(
             continue
         if (
             current is not None
-            and not is_queue_limit(step.path)
+            and not registry._is_queue_limit(step.path)
             and not isinstance(step.value, type(current))
         ):
             try:
@@ -2799,7 +2794,7 @@ def _warn_on_paths(
                     ),
                 )
                 continue
-            if is_queue_limit(entry.path) and not has_generator(entry.value):
+            if registry._is_queue_limit(entry.path) and not has_generator(entry.value):
                 try:
                     queue_limit_value(entry.path, entry.value)
                 except ParamRejected as exc:

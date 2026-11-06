@@ -2115,7 +2115,7 @@ class TaskRun:
             if batch.leader is self and batch.members:
                 batch.leader = batch.members[0]
                 batch.leader._batch_notify("lead")
-        elif not batch.members and self.spec.batch.timeout is None:  # type: ignore[union-attr]
+        elif not batch.members:
             batch.dead = True
             if self.context._open_batches.get(batch.key) is batch:
                 del self.context._open_batches[batch.key]
@@ -4145,7 +4145,7 @@ def family_problem(
     families: Mapping[str, Any],
     declared: Mapping[str, Mapping[str, Any]],
     signal_actions: Optional[Mapping[str, List[Dict[str, Any]]]] = None,
-) -> Optional[Tuple[str, str, str]]:
+) -> Optional[Tuple[Tuple[str, str], str, str]]:
     """The first place that names a family wrongly, or None.
 
     A family is named by a reference `{of: <family>, key: ...}`, never by its bare name;
@@ -4160,12 +4160,15 @@ def family_problem(
         signal_actions: The `on:` actions of each signal, by signal name.
 
     Returns:
-        Optional[Tuple[str, str, str]]: The task (or `signals.<name>`), the key and
-        the message, or None.
+        Optional[Tuple[Tuple[str, str], str, str]]: The holder, `("tasks", <task>)` or
+        `("signals", <signal>)`, the key and the message, or None.
     """
-    places = {name: _name_places(spec) for name, spec in specs.items()}
+    # Keyed by the section and the name, so a task named `signals.x` stays a task
+    places: Dict[Tuple[str, str], List[Tuple[str, str, Any]]] = {
+        ("tasks", name): _name_places(spec) for name, spec in specs.items()
+    }
     for signal, actions in (signal_actions or {}).items():
-        places[f"signals.{signal}"] = [
+        places[("signals", signal)] = [
             ("on", "signal", a["fire"]["signal"]) for a in actions if "fire" in a
         ]
     for task, found in places.items():

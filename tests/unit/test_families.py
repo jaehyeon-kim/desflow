@@ -1,6 +1,8 @@
 """Batch 11 families and references: a resource, store, container or signal made from a
 key, in the places a name is accepted, and what a run leaves behind."""
 
+import re
+
 import pytest
 
 from desflow.core.context import SimulationContext
@@ -89,6 +91,25 @@ run: {until: 100, stop: {signal: {of: done, key: 1}}}
     assert outcome.app_or_env.env.now == 2.0
 
 
+def test_an_error_in_the_key_of_a_signal_names_the_signal_line(tmp_path):
+    """The key of a task's `signal:` reference is checked where it is written, so the
+    refusal names line 6, the `signal:` line, not the task's line."""
+    from desflow.blueprint.loader import BlueprintError
+
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0}\n"
+        "signals: {done: {family: true}}\n"
+        "arrivals: {a: {initial: 1, spawn: t}}\n"
+        "tasks:\n"
+        "  t:\n"
+        "    signal: {of: done, key: wait.nothere.value}\n"
+        "    payload: {}\n"
+    )
+    with pytest.raises(BlueprintError, match=re.escape(f"{path}:6: wait.nothere is")):
+        SimulationContext.from_yaml(path)
+
+
 def test_a_member_has_the_breakdown_of_its_family(tmp_path):
     """Y1: a member made at its first use starts the breakdown of its family, whose
     failure interrupts the unit's holder."""
@@ -167,6 +188,36 @@ scenario:
 run: {until: 30}
 """
     )
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert [(t, k, v["cap"]) for t, k, v in _done(outcome)] == [
+        (5.0, "a-1", 2),
+        (6.0, "a-2", 2),
+    ]
+
+
+@pytest.mark.parametrize("sim_id,family", [("S.v2", "desk"), ("S", "a.b")])
+def test_a_member_path_reads_as_one_in_a_model_whose_sim_id_has_a_dot(
+    tmp_path, sim_id, family
+):
+    """The sim id is taken off the front of a member path and the family is found by
+    its declared name, so in a model whose sim id is `S.v2`, or whose family is
+    `a.b`, a scenario step and a `registry` read of a member load and run as in a
+    model whose sim id is `S` and family `desk`."""
+    _rows(tmp_path, 2)
+    path = f"{sim_id}.resources.{family}[0].current_cap"
+    text = f"""
+simulation: {{sim_id: {sim_id}, factor: 0, random_seed: 42}}
+resources: {{{family}: {{family: true, members: 1, current_cap: 1, max_cap: 3}}}}
+arrivals: {{a: {{replay: {{path: a.csv}}, spawn: job}}}}
+tasks:
+  job:
+    resource: {{of: {family}, key: 0}}
+    service_time: 5
+    payload: {{e: done, cap: {{gen: expr, expr: "registry['{path}']"}}}}
+scenario:
+  - {{at: 1, path: "{path}", value: 2}}
+run: {{until: 30}}
+"""
     outcome = run_yaml_text(tmp_path, text, {})
     assert [(t, k, v["cap"]) for t, k, v in _done(outcome)] == [
         (5.0, "a-1", 2),
@@ -624,3 +675,67 @@ run: {until: 20}
     )
     outcome = run_yaml_text(tmp_path, text, {})
     assert [(t, k) for t, k, _v in _done(outcome)] == [(1.0, "a-1")]
+
+
+@pytest.mark.parametrize(
+    "signals", ["", "signals: {x: {on: [{spawn: {task: side}}]}}\n"]
+)
+def test_a_task_whose_name_starts_with_signals_is_checked_as_a_task(tmp_path, signals):
+    """The family check keys a place by its section and name, so a task named
+    `signals.x` is reported as that task at its line, also beside a signal `x` with
+    `on:` entries, whose places it once replaced."""
+    from desflow.blueprint.loader import BlueprintError
+
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        HEAD
+        + "resources: {desk: {current_cap: 1}}\n"
+        + signals
+        + "arrivals: {a: {initial: 1, spawn: signals.x}}\n"
+        "tasks:\n"
+        "  signals.x: {resource: {of: desk, key: 1}, service_time: 1, payload: {}}\n"
+        "  side: {payload: {}}\n"
+        "run: {until: 5}\n"
+    )
+    line = (
+        path.read_text()
+        .splitlines()
+        .index(
+            "  signals.x: {resource: {of: desk, key: 1}, service_time: 1, payload: {}}"
+        )
+    )
+    with pytest.raises(
+        BlueprintError, match=f":{line + 1}: task 'signals.x': resource"
+    ):
+        SimulationContext.from_yaml(path)
+
+
+def test_the_builder_checks_a_task_whose_name_starts_with_signals_as_a_task():
+    """The same in the Builder: the run's family check names the task `signals.x`."""
+    app = SimulationContext("S", factor=0, random_seed=42)
+    app.add_resource("desk", current_cap=1)
+    app.add_signal("x", on=[{"spawn": {"task": "side"}}])
+    app.add_arrival("a", dist="constant", value=1, spawn="signals.x")
+
+    @app.task(resource_id={"of": "desk", "key": 1}, service_time=1, name="signals.x")
+    def first(task_id):
+        return {}
+
+    @app.task(name="side")
+    def side(task_id):
+        return {}
+
+    with pytest.raises(ValueError, match="^task 'signals.x': resource names 'desk'"):
+        app.run(until=5)
+
+
+def test_a_member_name_reads_its_family_by_the_whole_name():
+    """`family_of` matches the declared family's whole name before the bracket, so a
+    family whose name holds a dot is found, and a name that is no member gives None."""
+    from desflow.core.families import family_of
+
+    families = ["desk", "a.b"]
+    assert family_of("a.b[0]", families) == "a.b"
+    assert family_of("desk['x[1]']", families) == "desk"
+    assert family_of("a[0]", families) is None
+    assert family_of("desk", families) is None

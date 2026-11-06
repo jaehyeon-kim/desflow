@@ -708,6 +708,99 @@ def test_a_context_runs_twice_with_a_drain():
     assert app.env.now > 10
 
 
+def test_a_second_run_keeps_no_flow_or_held_request_of_the_first(tmp_path):
+    """A second run of one context starts with none of the first run's instances of
+    a flow another entity waits for whole, and none of the requests a `release:
+    {task}` reaches, so it gives the records of the first run."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: Twice, factor: 0, random_seed: 42}\n"
+        "resources: {m: {current_cap: 1}}\n"
+        "arrivals:\n"
+        "  a: {initial: 1, spawn: relay}\n"
+        "  w: {initial: 1, spawn: watch}\n"
+        "  holder: {initial: 1, spawn: hold}\n"
+        "  third: {initial: 1, spawn: free_it}\n"
+        "tasks:\n"
+        "  relay: {service_time: 3, payload: {event_type: relay}, next: more}\n"
+        "  more: {service_time: 3, payload: {event_type: more}}\n"
+        "  watch: {wait: {running: {task: relay, whole_flow: true}},"
+        " payload: {event_type: flow_done, at: {gen: expr, expr: t}}}\n"
+        "  hold: {seize: m, service_time: 5, payload: {event_type: held},"
+        " release: m}\n"
+        "  free_it: {service_time: 1, payload: {event_type: freed},"
+        " release: {resource: m, task: hold}}\n"
+    )
+    app = SimulationContext.from_yaml(path)
+    sink = _Records()
+    app.add_egress(sink)
+    runs = []
+    for _ in range(2):
+        sink.records.clear()
+        app.run(until=20)
+        runs.append(
+            [(row["sim_ts"], row["value"]) for row in sink.records if "value" in row]
+        )
+        stale = [
+            request
+            for listed in app._held_by_task.values()
+            for request in listed
+            if request.resource.env is not app.env
+        ]
+        assert stale == []
+    assert runs[0] == runs[1]
+    assert any(value.get("event_type") == "flow_done" for _, value in runs[1])
+
+
+def test_a_variable_that_cannot_be_copied_runs_twice():
+    """A run, and the start check of a model with a scenario, copy the config objects
+    they write into, not a variable's value, so a builder variable that holds a lock
+    runs, twice, and holds the user's own object."""
+    import threading
+
+    lock = threading.Lock()
+    app = (
+        SimulationContext(sim_id="Shop", factor=0, random_seed=1)
+        .add_resource("p", current_cap=1)
+        .add_service("s", dist="constant", value=1)
+        .add_arrival("a", dist="constant", value=2)
+        .add_variable("guard", lock)
+        .add_scenario([{"at": 1, "path": "Shop.resources.p.current_cap", "value": 2}])
+    )
+    for _ in range(2):
+        app.run(until=5)
+        assert app.env.registry.get("Shop.variables.guard").value is lock
+
+
+def test_a_sim_id_with_a_dot_draws_what_a_plain_one_draws(tmp_path):
+    """A distribution's random sequence is named by its path with the sim id taken off
+    the front, so `Shop.v2` and `Shop` draw the same times with the same seed."""
+
+    def times(sim_id):
+        path = tmp_path / f"{sim_id}.yaml"
+        path.write_text(
+            f"simulation: {{sim_id: {sim_id}, factor: 0, random_seed: 7}}\n"
+            "resources: {desk: {current_cap: 1}}\n"
+            "services: {s: {dist: exponential, rate: 1}}\n"
+            "arrivals: {a: {dist: exponential, rate: 0.5, spawn: work}}\n"
+            "tasks: {work: {resource: desk, service: s, payload: {e: work}}}\n"
+            "run: {until: 20}\n"
+        )
+        app = SimulationContext.from_yaml(path)
+        sink = _Records()
+        app.add_egress(sink)
+        app.run()
+        assert app.env.registry.get_config(f"{sim_id}.service.s").stream == "service.s"
+        return [
+            (row["sim_ts"], row["key"], row["value"].get("status"))
+            for row in sink.records
+            if row["stream_type"] == "event"
+        ]
+
+    plain = times("Shop")
+    assert plain and times("Shop.v2") == plain
+
+
 def test_a_run_with_an_ingress_and_a_sink_ends_at_the_last_model_event():
     """With an ingress or a sink and no `until`, the run ends when no model event is
     left, as SimPy's `run()` does. At factor 0 the ingress monitor keeps scheduling
@@ -839,6 +932,57 @@ def test_a_stop_condition_is_checked_after_a_finished_task():
     app.add_process(script)
     app.run(until=100, stop={"condition": "t >= 5"})
     assert app.env.now == 5
+
+
+@pytest.mark.parametrize("condition", ["running(work) == 0 and t > 0", "peek() > 4"])
+def test_a_stop_condition_reads_running_and_peek(tmp_path, condition):
+    """A stop condition reads `running()` and `peek()` as a task's expressions do.
+    The three orders finish at 5, when no `work` runs and the next event is due at
+    5, so either condition ends the run at 5, before the order at 50."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: Stop, factor: 0, random_seed: 1}\n"
+        "arrivals:\n"
+        "  a: {initial: 3, spawn: work}\n"
+        "  later: {dist: constant, value: 50, spawn: work}\n"
+        "tasks:\n"
+        "  work: {service_time: 5, payload: {event_type: done}}\n"
+        f'run: {{until: 100, stop: {{condition: "{condition}"}}}}\n'
+    )
+    app = SimulationContext.from_yaml(path)
+    app.run()
+    assert app.env.now == 5
+
+
+def test_a_preempt_rule_reads_running(tmp_path):
+    """A preempt rule reads `running()`: with two `job` instances running or
+    waiting, the order of rank 1 takes the unit from the one of rank 5."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: Rule, factor: 0, random_seed: 1}\n"
+        "resources:\n"
+        "  m: {current_cap: 1, queue: {rank: attr.rank},"
+        ' preempt: {when: "running(job) > 1"}}\n'
+        "arrivals:\n"
+        "  a: {dist: constant, value: 1, spawn: job, max_events: 1, first_at: 0,"
+        " attributes: {rank: 5}}\n"
+        "  b: {dist: constant, value: 1, spawn: job, max_events: 1, first_at: 1,"
+        " attributes: {rank: 1}}\n"
+        "tasks:\n"
+        "  job: {resource: m, preempt: true, service_time: 5, on_interrupt: abandon,"
+        " payload: {event_type: done}}\n"
+        "run: {until: 30}\n"
+    )
+    app = SimulationContext.from_yaml(path)
+    sink = _Records()
+    app.add_egress(sink)
+    app.run()
+    preempted = [
+        row["key"]
+        for row in sink.records
+        if row.get("value", {}).get("status") == "preempted"
+    ]
+    assert preempted == ["a-1"]
 
 
 def test_an_error_in_an_arrival_loop_stops_the_run():

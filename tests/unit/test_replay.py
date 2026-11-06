@@ -49,6 +49,40 @@ def test_rows_before_the_start_and_unknown_settings_are_refused():
         read_trace([], unit="timestamp")
 
 
+def test_fields_as_one_string_other_than_all_is_refused_in_every_api(tmp_path):
+    """`fields="id"` would be read one letter at a time, so the YAML, the Builder and
+    `read_trace` each refuse it with the words of the blueprint loader."""
+    from desflow import SimulationContext
+    from desflow.blueprint.loader import BlueprintError
+
+    (tmp_path / "rows.csv").write_text("time,id\n1,7\n")
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: R, factor: 0}\n"
+        "arrivals:\n"
+        "  a: {replay: {path: rows.csv, fields: id}, spawn: work}\n"
+        "tasks:\n"
+        "  work: {service_time: 1, payload: {event_type: done}}\n"
+    )
+    refusals = []
+    with pytest.raises(BlueprintError) as refused:
+        SimulationContext.from_yaml(path)
+    refusals.append(str(refused.value))
+    with pytest.raises(ValueError) as refused:
+        SimulationContext("R", factor=0).add_arrival_replay(
+            "a", [{"time": 1, "id": 7}], fields="id"
+        )
+    refusals.append(str(refused.value))
+    with pytest.raises(ValueError) as refused:
+        read_trace([{"time": 1, "id": 7}], fields="id")
+    refusals.append(str(refused.value))
+    for text in refusals:
+        assert "Input should be 'all'" in text, text
+        assert "Input should be a valid list" in text, text
+    rows = read_trace([{"time": 1, "id": 7, "i": 1}], fields=["id"])
+    assert rows[0].fields == {"id": 7}
+
+
 def test_a_replayed_timestamp_arrives_when_records_carry_it():
     """With an initial time of 100, a row stamped 110 s after logical_start_time
     arrives at simulation time 110, and its record carries the row's time."""

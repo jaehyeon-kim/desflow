@@ -73,7 +73,7 @@ from desflow.core.families import (
     SECTIONS as _FAMILY_SECTIONS,
     Family,
     Reference,
-    family_part,
+    family_of,
     member_name,
     member_path,
     name_of,
@@ -98,7 +98,7 @@ from desflow.core.registry import ParamChange, ParamRejected, SimulationRegistry
 from desflow.core.sampler import Sampler
 from desflow.models.flow import Entity, Upstream
 from desflow.core.breakdowns import run_breakdowns
-from desflow.core.replay import UNITS, Row, read_trace
+from desflow.core.replay import UNITS, Row, check_fields, read_trace
 from desflow.core.scenario import apply_step, check_step, run_scenario
 from desflow.values.models import (
     Expr,
@@ -168,6 +168,20 @@ def _within_max(
             f"[0, max_cap {max_cap}]. Using {clamped}."
         )
     return clamped
+
+
+def _run_copy(config: Any) -> Any:
+    """A run's copy of one declared config object, which is what the registry writes
+    into: a copy of the object, and for a breakdown a copy of its two distributions as
+    well. Every other field of a config is a number, text or a list the registry
+    never writes. A run, the load and start checks and a family's new member each
+    register what this gives, so none of them writes into the declarations.
+    """
+    twin = copy.copy(config)
+    if isinstance(config, BreakdownConfig):
+        twin.time_to_failure = copy.copy(config.time_to_failure)
+        twin.repair = copy.copy(config.repair)
+    return twin
 
 
 class SimulationContext:
@@ -2764,9 +2778,9 @@ class SimulationContext:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If `unit` or `on_invalid` is unknown, or `vars` is refused as
-                for `add_arrival`. A `spawn` naming no task is refused when the run
-                starts.
+            ValueError: If `unit` or `on_invalid` is unknown, `fields` is a string
+                other than `all`, or `vars` is refused as for `add_arrival`. A
+                `spawn` naming no task is refused when the run starts.
         """
         if unit not in UNITS and unit != "timestamp":
             raise ValueError(
@@ -2774,6 +2788,7 @@ class SimulationContext:
             )
         if on_invalid not in ("error", "skip"):
             raise ValueError(f"on_invalid must be error or skip, got '{on_invalid}'")
+        check_fields(fields)
         self._replays[name] = dict(
             source=source, time=time, unit=unit, fields=fields, on_invalid=on_invalid
         )
@@ -2975,34 +2990,39 @@ class SimulationContext:
         ] + [action for found in self._signal_on.values() for action in found]
         return paths | {a["path"] for a in actions if isinstance(a.get("path"), str)}
 
-    def _rule_expressions(self) -> List[Tuple[str, Expression]]:
+    def _rule_expressions(self) -> List[Tuple[str, Expression, Tuple[Any, ...]]]:
         """The `queue` ranks, `preempt` rules, store and container ranks, telemetry
         readings and the `when` of a signal's `on` entries, each with the place it is
-        written for a message."""
-        found: List[Tuple[str, Expression]] = []
+        written for a message and, for a signal's `when`, its location in a blueprint
+        (`()` for the others)."""
+        found: List[Tuple[str, Expression, Tuple[Any, ...]]] = []
         for name, (rank, _ties) in self._resource_rank.items():
-            found.append((f"resource '{name}' queue rank", rank))
+            found.append((f"resource '{name}' queue rank", rank, ()))
         for name, rule in self._resource_rule.items():
             for key, expression in zip(("when", "victim"), rule):
                 if expression is not None:
-                    found.append((f"resource '{name}' preempt {key}", expression))
+                    found.append((f"resource '{name}' preempt {key}", expression, ()))
         for (name, direction), (rank, _ties) in self._holder_ranks.items():
-            found.append((f"'{name}' {direction}_queue rank", rank))
+            found.append((f"'{name}' {direction}_queue rank", rank, ()))
         for parsed in self._readings:
             for name, expression in parsed.items():
-                found.append((f"telemetry reading '{name}'", expression))
+                found.append((f"telemetry reading '{name}'", expression, ()))
         for name, actions in self._signal_on.items():
             for index, action in enumerate(actions):
                 if action.get("when") is not None:
                     found.append(
-                        (f"signal '{name}' on entry {index} when", action["when"])
+                        (
+                            f"signal '{name}' on entry {index} when",
+                            action["when"],
+                            ("signals", name, "on", index, "when"),
+                        )
                     )
                 for _where, generator in generators_in(action, (Expr,)):
                     try:
                         read = Expression(generator.expr, names=ANY_NAME)
                     except ValueError:
                         continue
-                    found.append((f"signal '{name}' on entry {index} value", read))
+                    found.append((f"signal '{name}' on entry {index} value", read, ()))
         return found
 
     def _check_rule_names(
@@ -3050,7 +3070,7 @@ class SimulationContext:
                     f"{place} reads running({target}), but no task is called '{target}'"
                 )
         for path in expression.references["registry"]:
-            if member_path(path, self._families) is not None:
+            if member_path(path, self._families, self.sim_id) is not None:
                 continue
             try:
                 self._scratch_registry().get(path)
@@ -3085,6 +3105,7 @@ class SimulationContext:
         read the run and the request and holder they are given."""
 
         def read(expression: Expression, request: Any, holder: Any) -> Any:
+            assert self._env is not None
             scope = make_scope(
                 None,
                 env=self._env,
@@ -3094,6 +3115,8 @@ class SimulationContext:
                 families=self._families,
                 request=_rule_row(request),
                 holder=_rule_row(holder),
+                peek=self._env.peek,
+                instances=self._instance_scopes,
             )
             try:
                 return expression.evaluate(scope)
@@ -3242,23 +3265,22 @@ class SimulationContext:
             return name
         base = family.name
         if family.kind == "signal":
-            self._signal_once[name] = self._signal_once.get(base, True)
-            self._signal_defused[name] = self._signal_defused.get(base, False)
-            self._signal_on[name] = self._signal_on.get(base, [])
+            # A member takes the family's settings, read from the family's entry,
+            # so the run adds no member to the declarations
             signal = Signal(
                 self._env,
                 name,
-                once=self._signal_once[name],
-                defused=self._signal_defused[name],
+                once=self._signal_once.get(base, True),
+                defused=self._signal_defused.get(base, False),
             )
-            if self._signal_on[name]:
+            if self._signal_on.get(base):
                 signal.attach([functools.partial(self._signal_fired, name)])
             self._signals[name] = signal
             family.keys.append(key)
             return name
         if family.members is not None or scope is None:
             scope = self.values.scope_of()
-        config = copy.deepcopy(
+        config = _run_copy(
             {
                 "resource": self._resources_config,
                 "store": self._stores_config,
@@ -3288,7 +3310,7 @@ class SimulationContext:
             self._new_resource(name, base, config)
             breakdown = self._breakdowns_config.get(base)
             if breakdown is not None:
-                found_breakdown = copy.deepcopy(breakdown)
+                found_breakdown = _run_copy(breakdown)
                 registry.register_breakdown(self.sim_id, name, found_breakdown)
                 self._start_breakdown(name, found_breakdown)
         elif family.kind == "store":
@@ -3346,8 +3368,7 @@ class SimulationContext:
     def _origin(self, name: str) -> str:
         """The entry whose settings a store or container takes: the family of a member,
         or the name itself."""
-        base = family_part(name)
-        return base if "[" in name and base in self._families else name
+        return family_of(name, self._families) or name
 
     def _member_row(self, family: Family, key: Any) -> Dict[str, Any]:
         """What `member.<name>` reads for one member."""
@@ -3734,7 +3755,7 @@ class SimulationContext:
         if (
             after is None
             and not pending.triggered
-            and self._signal_on.get(name)
+            and self._signal_on.get(self._declared_signal(name))
             and entity is not None
             and not entity.left
         ):
@@ -3751,11 +3772,16 @@ class SimulationContext:
                 defused=defused,
             )
 
+    def _declared_signal(self, name: str) -> str:
+        """The declared signal whose settings a signal takes: a member's family, or
+        the signal itself."""
+        return family_of(name, self._families) or name
+
     def _signal_fired(self, name: str, event: Any) -> None:
         """The signal's last `on:` callback: runs its actions, then counts the firing
         task's entity out, as a pending `ended` is counted out."""
         entity = getattr(event, "_desflow_entity", None)
-        for action in self._signal_on.get(name, []):
+        for action in self._signal_on.get(self._declared_signal(name), []):
             self._run_on_action(action, f"signal '{name}'", entity, None)
         if entity is not None:
             self._end_processed(entity)
@@ -4080,7 +4106,8 @@ class SimulationContext:
         or to compare two configurations.
 
         Returns:
-            SimParameter: The parameters, sharing their config objects with the builder.
+            SimParameter: The parameters, sharing their config objects with the
+                builder; `run()` registers a copy of them.
         """
         return SimParameter(
             sim_id=self.sim_id,
@@ -4093,6 +4120,28 @@ class SimulationContext:
             variables=self._variables_config,
         )
 
+    def _run_parameters(self) -> SimParameter:
+        """The parameters one run registers: a new mapping for each section of
+        `compile_parameters()` and `_run_copy` of each config object in it, and a
+        new variables mapping. A variable's value and a store's starting items are
+        the user's own objects, shared by every run. The run and `_scratch_registry`
+        both register what this gives."""
+        params = self.compile_parameters()
+
+        def copied(section: Dict[str, Any]) -> Dict[str, Any]:
+            return {name: _run_copy(config) for name, config in section.items()}
+
+        return SimParameter(
+            sim_id=params.sim_id,
+            resources=copied(params.resources),
+            containers=copied(params.containers),
+            stores=copied(params.stores),
+            breakdowns=copied(params.breakdowns),
+            service=copied(params.service),
+            arrival=copied(params.arrival),
+            variables=dict(params.variables),
+        )
+
     def _without_families(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """The entries of a section that are not families: a family's entry is the
         template of its members and has no paths of its own."""
@@ -4100,24 +4149,17 @@ class SimulationContext:
             return config
         return {k: v for k, v in config.items() if k not in self._families}
 
-    def _scratch_registry(self, isolated: bool = False) -> SimulationRegistry:
+    def _scratch_registry(self) -> SimulationRegistry:
         """Builds a registry with the paths a run registers, on a plain SimPy clock.
 
-        The load checks and `registry_paths` call it, so they cannot build the
-        registry two ways. Registration fills defaults on the shared config objects,
-        as a run does.
-
-        Args:
-            isolated: Register a deep copy of the parameters instead. A check that
-                applies values with `change` needs this, because a change is stored
-                in the config object, and the model's own starting values must not
-                move.
+        The load and start checks and `registry_paths` call it, so they cannot build
+        the registry two ways. It registers `_run_parameters()`, the copy a run
+        registers, so the defaults registration fills in and a check's `change` go
+        into the copy, and the model's own starting values do not move. A value
+        that cannot be copied, such as a lock, is the user's own object here too.
         """
         registry = SimulationRegistry(simpy.Environment())
-        parameters = self.compile_parameters()
-        registry.register_sim_parameter(
-            copy.deepcopy(parameters) if isolated else parameters
-        )
+        registry.register_sim_parameter(self._run_parameters())
         return registry
 
     def registry_paths(self) -> Dict[str, Any]:
@@ -4689,6 +4731,9 @@ class SimulationContext:
         self._running = {}
         self._suspended = {}
         self._open_batches = {}
+        self._flow_runs = {}
+        self._held_by_task = {task: [] for task in self._held_by_task}
+        self._held_prune = 64
         self._entity_counters = {}
         self._arrival_on = {
             name: plan.active for name, plan in self._arrival_plans.items()
@@ -4819,8 +4864,10 @@ class SimulationContext:
         }
         self._replays_done = set()
 
-        # Compile Master Parameter Object
-        self._env.registry.register_sim_parameter(self.compile_parameters())
+        # The run registers its own copy of the parameters, so a live change or an
+        # override changes the copy and the declarations stay as written: a second
+        # run starts from the values the first one started from
+        self._env.registry.register_sim_parameter(self._run_parameters())
         for path, value in (overrides or {}).items():
             self._env.registry.set_exactly(
                 path, value, source=source, actor=actor, reason=reason
@@ -4856,9 +4903,7 @@ class SimulationContext:
 
         # Hydrate Physical SimPy Resources
         for holders in (self._resources_map, self._stores_map, self._containers_map):
-            for old in [
-                n for n in holders if "[" in n and family_part(n) in self._families
-            ]:
+            for old in [n for n in holders if family_of(n, self._families)]:
                 del holders[old]
         for res_id in self._resources_config.keys():
             if res_id not in self._families:
@@ -5091,6 +5136,8 @@ class SimulationContext:
                 signals=self._signals,
                 resources=self._resources_map,
                 families=self._families,
+                peek=env.peek,
+                instances=self._instance_scopes,
             )
             if not event.triggered and condition.evaluate(scope):
                 event.succeed(True)
@@ -5349,18 +5396,21 @@ class SimulationContext:
                 )
         return None
 
-    def _family_read_problem(self) -> Optional[Tuple[str, str, str]]:
+    def _family_read_problem(self) -> Optional[Tuple[Tuple[Any, ...], str, str]]:
         """The first expression of a task, a generator or a rule that reads a family
         wrongly.
 
         Returns:
-            Optional[Tuple[str, str, str]]: The task, the key and the message, or None.
+            Optional[Tuple[Tuple[Any, ...], str, str]]: The holder, the key and the
+                message, or None. The holder is `("tasks", <task>)`, or for a rule
+                `("rule", <place>, <location>)` with the place and location
+                `_rule_expressions` gives, and then the key is "".
         """
         for task, spec in self._task_specs.items():
             for key, expression in spec.expressions:
                 found = self.family_read_problem(expression)
                 if found is not None:
-                    return task, key, found
+                    return ("tasks", task), key, found
             for key, _where, _after, place in task_value_places(
                 lambda key: _builder_value(spec, key)
             ):
@@ -5372,11 +5422,11 @@ class SimulationContext:
                             continue
                         found = self.family_read_problem(read)
                         if found is not None:
-                            return task, key, found
-        for place, expression in self._rule_expressions():
+                            return ("tasks", task), key, found
+        for place, expression, location in self._rule_expressions():
             found = self.family_read_problem(expression)
             if found is not None:
-                return place, "", found
+                return ("rule", place, location), "", found
         return None
 
     def _check_families(self) -> None:
@@ -5397,10 +5447,10 @@ class SimulationContext:
             or self._family_read_problem()
         )
         if found is not None:
-            holder, key, message = found
-            if not key:
-                raise ValueError(f"{holder} {message}")
-            label = holder if holder.startswith("signals.") else f"task '{holder}'"
+            (section, name, *_location), key, message = found
+            if section == "rule":
+                raise ValueError(f"{name} {message}")
+            label = f"signals.{name}" if section == "signals" else f"task '{name}'"
             raise ValueError(f"{label}: {key} {message}")
         for kind, names in self._declared_names().items():
             for name in names:
@@ -5426,7 +5476,7 @@ class SimulationContext:
         self._check_lookups()
         self._check_families()
         if self._scenario_steps:
-            known = self._scratch_registry(isolated=True)
+            known = self._scratch_registry()
             for path, value in (overrides or {}).items():
                 try:
                     known.change(path, value)
@@ -5439,7 +5489,8 @@ class SimulationContext:
             for step in sorted(self._scenario_steps, key=lambda step: step["at"]):
                 if (
                     step.get("path") is not None
-                    and member_path(str(step["path"]), self._families) is None
+                    and member_path(str(step["path"]), self._families, self.sim_id)
+                    is None
                 ):
                     try:
                         known.get(step["path"])
@@ -5574,7 +5625,7 @@ class SimulationContext:
         holders = {**self._stores_config, **self._containers_config}
         registry: Optional[SimulationRegistry] = None
         written = self._written_paths()
-        for place, expression in self._rule_expressions():
+        for place, expression, _location in self._rule_expressions():
             self._check_rule_names(place, expression, holders)
         routes = {
             name: {
@@ -6019,7 +6070,7 @@ class SimulationContext:
                                 )
                             )
                 for path in expression.references["registry"]:
-                    if member_path(path, self._families) is not None:
+                    if member_path(path, self._families, self.sim_id) is not None:
                         continue
                     if registry is None:
                         # The paths the run will register, built by the same code

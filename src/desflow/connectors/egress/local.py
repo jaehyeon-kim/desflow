@@ -89,9 +89,15 @@ class ConsoleEgress(BaseEgress):
                 # sys.stdout is read at each write, so a caller that replaces it,
                 # such as a test runner, receives the lines
                 batch = drop_reserved_keys(batch, self)
-                sys.stdout.write(
-                    "".join(orjson.dumps(self._shown(r)).decode() + "\n" for r in batch)
-                )
+                try:
+                    text = "".join(
+                        orjson.dumps(self._shown(r)).decode() + "\n" for r in batch
+                    )
+                except Exception as exc:
+                    # A batch that cannot be encoded is logged, and the sink goes on
+                    logger.error(f"Console: batch not printed: {exc}")
+                    continue
+                sys.stdout.write(text)
                 sys.stdout.flush()
                 continue
             if not logger.isEnabledFor(logging.INFO):

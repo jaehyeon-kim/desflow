@@ -256,6 +256,92 @@ def test_registry_keeps_a_container_fraction_within_max_cap(registry, sample_par
 
 
 @pytest.mark.parametrize(
+    "sim_id,name",
+    [
+        ("Shop", "desk"),
+        ("Shop", "service"),
+        ("Shop", "containers"),
+        ("Shop", "variables"),
+        ("Shop.v2", "desk"),
+        ("Shop.service", "desk"),
+    ],
+)
+def test_a_resource_update_does_not_depend_on_its_name(registry, sim_id, name):
+    """The kind of element is the segment after the sim id, so a resource named like
+    a kind, or one in a model whose sim id holds a dot, still gets its capacity cast
+    to a whole number."""
+    registry.register_resource(sim_id, name, CapacityConfig(current_cap=2, max_cap=5))
+    registry.update(f"{sim_id}.resources.{name}.current_cap", 2.5)
+    assert repr(registry.get(f"{sim_id}.resources.{name}.current_cap").value) == "2"
+
+
+def test_a_sim_id_with_a_dot_stores_a_rate_as_given(registry):
+    """A distribution parameter of a model whose sim id holds a dot is stored as
+    given, as in any other model."""
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop.v2",
+            service={"s": DistributionConfig(dist="exponential", rate=2)},
+        )
+    )
+    registry.update("Shop.v2.service.s.rate", 0.5)
+    assert registry.get("Shop.v2.service.s.rate").value == 0.5
+
+
+def test_a_sim_id_that_is_another_with_a_kind_keeps_each_paths_kind(registry):
+    """`Shop` and `Shop.service` registered together: `Shop.service.s.rate` is a
+    service rate of `Shop`, so 0.5 is stored as given."""
+    for sim_id in ("Shop", "Shop.service"):
+        registry.register_sim_parameter(
+            SimParameter(
+                sim_id=sim_id,
+                service={"s": DistributionConfig(dist="exponential", rate=2)},
+            )
+        )
+    registry.update("Shop.service.s.rate", 0.5)
+    assert registry.get("Shop.service.s.rate").value == 0.5
+    registry.update("Shop.service.service.s.rate", 0.25)
+    assert registry.get("Shop.service.service.s.rate").value == 0.25
+
+
+@pytest.mark.parametrize(
+    "sim_id,name,current,new,stored",
+    [
+        # A variable named like a capacity holds a number, not a capacity
+        ("Shop", "max_cap", 3, "inf", 3),
+        # A variable named `queue_limit` in a sim id that holds `resources`
+        ("Shop.resources", "queue_limit", 5, 2.5, 2.5),
+    ],
+)
+def test_a_variable_update_does_not_depend_on_its_name(
+    registry, sim_id, name, current, new, stored
+):
+    """A variable is updated as a variable, whatever its name and sim id say."""
+    registry.register_sim_parameter(
+        SimParameter(sim_id=sim_id, variables={name: current})
+    )
+    registry.update(f"{sim_id}.variables.{name}", new)
+    assert registry.get(f"{sim_id}.variables.{name}").value == stored
+
+
+def test_a_variable_with_a_dot_in_its_name_is_written_into_its_mapping(registry):
+    """A change to `a.b` is written into the variables mapping, as for any variable."""
+    registry.register_sim_parameter(SimParameter(sim_id="Shop", variables={"a.b": 1}))
+    registry.update("Shop.variables.a.b", 5)
+    assert registry.get_config("Shop.variables") == {"a.b": 5}
+
+
+@pytest.mark.parametrize("name", ["tank", "stores"])
+def test_a_container_update_does_not_depend_on_its_name(registry, name):
+    """A container named `stores` keeps a fractional capacity as any container does."""
+    registry.register_container(
+        "Shop", name, CapacityConfig(current_cap=10.0, max_cap=20.0)
+    )
+    registry.update(f"Shop.containers.{name}.current_cap", 12.5)
+    assert registry.get(f"Shop.containers.{name}.current_cap").value == 12.5
+
+
+@pytest.mark.parametrize(
     "config,paths",
     [
         (DistributionConfig(dist="exponential", rate=1.0), {"rate"}),

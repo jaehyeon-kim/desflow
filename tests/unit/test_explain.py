@@ -175,7 +175,12 @@ def test_when_rules_make_the_split_unknown():
         ({"interrupt": {"task": "pack"}}, "interrupt"),
         ({"on": [{"path": "Shop.variables.x", "value": 1}]}, "on actions"),
         (
-            {"listen": {"signal": "done", "on": [{"spawn": {"task": "pack"}}]}},
+            {
+                "listen": {
+                    "signal": "done",
+                    "on": [{"path": "Shop.variables.x", "value": 1}],
+                }
+            },
             "listen",
         ),
     ],
@@ -436,7 +441,9 @@ def test_a_spawn_after_a_task_that_can_fail_is_unknown():
     assert pack.rate is None and "fail" in pack.reason
     ship = _by_name(explanation.tasks, "ship")
     assert ship.rate is None
-    assert "the share that fails is not known before a run" in ship.reason
+    assert ship.reason == (
+        "how often pack starts it is not known before a run; run --verify to measure it"
+    )
 
 
 def test_keep_makes_the_wait_unsupported_for_both_tasks():
@@ -720,6 +727,22 @@ def test_not_estimated_drops_the_advice_to_run_verify_while_verify_runs(tmp_path
     assert line in verified.splitlines() and "run --verify" not in verified
 
 
+def test_verify_reads_a_flow_with_no_finished_entity_as_0(tmp_path):
+    """One arrival every 10 s on average over 5 s: some replications finish no
+    entity and publish no `flows.orders.finished`, which is 0 in them, not missing."""
+    path = tmp_path / "rare.yaml"
+    path.write_text(
+        MM1.replace("rate: 0.8", "rate: 0.1").replace("rate: 1}", "rate: 2}"),
+        encoding="utf-8",
+    )
+    context = SimulationContext.from_yaml(path)
+    explanation = context.analyze(verify=True, until=5, replications=10)
+    found = {(c.node, c.measure): c for c in explanation.verification.comparisons}
+    throughput = found[("orders", "throughput")]
+    assert throughput.measured is not None, throughput
+    assert "no reading" not in (throughput.reason or "")
+
+
 def test_verify_does_not_compare_after_an_unstable_resource(tmp_path):
     text = MM1.replace(
         "packers: {current_cap: 1, max_cap: 4}",
@@ -858,6 +881,90 @@ def test_on_renege_and_on_balk_edges_have_no_probability():
     assert {e.target for e in edges} >= {"task:gave_up", "task:turned_away"}
     assert all(e.probability is None for e in edges)
     assert _by_name(explanation.tasks, "gave_up").rate is None
+
+
+@pytest.mark.parametrize("ship", [1, "attr.w"])
+def test_weights_on_a_task_that_can_divert_end_no_flow(ship):
+    """Fixed weights, like weights read when the task finishes, name every route, so
+    a task with `on_renege` and weights has no edge to the exit."""
+    app = _shop(
+        patience=5, on_renege="lost", next={"weights": {"ship": ship, "hold": 1}}
+    )
+    for name in ("ship", "hold", "lost"):
+        app.task(name=name)(lambda task_id: {})
+    targets = {e.target for e in app.analyze().graph.edges if e.source == "task:pack"}
+    assert "exit" not in targets
+    assert {"task:ship", "task:hold", "task:lost"} <= targets
+
+
+STARTS = """\
+simulation: {{sim_id: S, factor: 0}}
+signals: {{done: {{on: [{{spawn: {{task: side}}}}]}}, ping: {{}}}}
+arrivals: {{a: {{dist: exponential, rate: 0.5, spawn: work}}}}
+tasks:
+  work: {{service_time: 1, payload: {{}}, {keys}}}
+  side: {{payload: {{}}}}
+"""
+
+
+@pytest.mark.parametrize(
+    "keys, kind",
+    [
+        ("on_interrupt: abandon, on_interrupt_next: side", "next"),
+        ("on_interrupt: resume, on_interrupt_run: side", "next"),
+        ("on: [{spawn: {task: side}}]", "spawn"),
+        ("listen: {signal: ping, on: [{spawn: {task: side}}]}", "spawn"),
+        ("wait: {task: side}", "spawn"),
+        ("subscribe: {task: side}", "spawn"),
+        ("open: {child: {task: side}}", "spawn"),
+        ("signal: done", "spawn"),
+    ],
+)
+def test_every_way_a_task_starts_another_is_an_edge_with_no_share(tmp_path, keys, kind):
+    """Each way `work` starts `side`, other than `spawn:` and its routes, is an edge
+    with no share, so the rate of `side` is unknown because of `work`, not because
+    nothing starts it."""
+    path = tmp_path / "model.yaml"
+    path.write_text(STARTS.format(keys=keys))
+    explanation = SimulationContext.from_yaml(path).analyze()
+    edges = [e for e in explanation.graph.edges if e.target == "task:side"]
+    assert [(e.source, e.kind, e.probability) for e in edges] == [
+        ("task:work", kind, None)
+    ]
+    side = _by_name(explanation.tasks, "side")
+    assert side.rate is None and "work" in side.reason
+
+
+INTERRUPTED = """\
+simulation: {{sim_id: S, factor: 0}}
+signals: {{stop: {{on: [{{interrupt: {{task: work}}}}]}}}}
+arrivals:
+  a: {{dist: exponential, rate: 0.5, spawn: work}}
+  b: {{dist: exponential, rate: 0.1, spawn: boss}}
+tasks:
+  work: {{service_time: 1, payload: {{}}, on_interrupt: abandon}}
+  boss: {{payload: {{}}, {keys}}}
+{scenario}"""
+
+
+@pytest.mark.parametrize(
+    "keys, scenario",
+    [
+        ("interrupt: {task: work}", ""),
+        ("on: [{interrupt: {task: work}}]", ""),
+        ("signal: stop", ""),
+        ("service_time: 1", "scenario: [{at: 5, interrupt: {task: work}}]\n"),
+    ],
+)
+def test_a_task_an_interrupt_names_has_a_feature(tmp_path, keys, scenario):
+    """A task that an `interrupt` of a task, an `on:` entry of a task or a signal, or
+    a scenario step names ends some services early, so it has a feature."""
+    path = tmp_path / "model.yaml"
+    path.write_text(INTERRUPTED.format(keys=keys, scenario=scenario))
+    explanation = SimulationContext.from_yaml(path).analyze()
+    nodes = {node.id: node for node in explanation.graph.nodes}
+    assert "interruptions (an interrupt names it)" in nodes["task:work"].features
+    assert "interruptions (an interrupt names it)" not in nodes["task:boss"].features
 
 
 COMPUTED = """\
