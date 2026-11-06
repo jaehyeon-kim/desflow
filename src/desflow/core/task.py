@@ -92,17 +92,10 @@ class TaskFailed(Exception):
 _RENEGED = object()
 _UNSET = object()
 
-# What `_seize` returns when the task left: it balked at a full line, or its patience
-# ran out. The task has published that and ended its flow, or handed it on.
+# What `_holding_steps`, `_acquire` and `_wait_phase` return when the task left: it
+# balked at a full line, or its patience ran out. The task has published that and
+# ended its flow, or handed it on.
 _LEFT = object()
-
-
-@dataclass(frozen=True)
-class _Left:
-    """What `_wait_phase` returns when the task ended before its service: `value` is
-    what `_run` returns."""
-
-    value: Any
 
 
 class Handle:
@@ -574,12 +567,13 @@ class TaskSpec:
                 found.append(TaskExpression(key, expression, (key,)))
         for key, transfer in (("get", self.get), ("put", self.put)):
             if transfer is not None:
-                parts = {id(e): part for part, e in transfer_expressions(transfer)}
+                # `Transfer.expressions` is these, then the reference's expressions
                 found.extend(
-                    TaskExpression(
-                        key, e, (key, parts[id(e)]) if id(e) in parts else None
-                    )
-                    for e in transfer.expressions
+                    TaskExpression(key, e, (key, part))
+                    for part, e in transfer_expressions(transfer)
+                )
+                found.extend(
+                    TaskExpression(key, e, None) for e in transfer.reference_expressions
                 )
         # Weights and when rules are never both given, so unweighted conditions are
         # the conditions of the when rules, in rule order
@@ -1426,8 +1420,8 @@ class TaskRun:
                 self._patience_left = self._patience()
 
         outcome = yield from self._wait_phase(failure)
-        if isinstance(outcome, _Left):
-            return outcome.value
+        if outcome is _LEFT:
+            return None
         failure = outcome
 
         payload: Any = None
@@ -1757,8 +1751,7 @@ class TaskRun:
         """The holding steps, the `wait` and the `batch`, before the service.
 
         Returns:
-            Any: The failure, or None; or a `_Left` with what `_run` returns when
-            the task ended here."""
+            Any: The failure, or None; or `_LEFT` when the task ended here."""
         spec, env, stats = self.spec, self.env, self.env.stats
         if failure is None and (
             spec.open is not None
@@ -1774,10 +1767,10 @@ class TaskRun:
                 failure = self._fail_with(error)
             else:
                 if holding is _LEFT:
-                    return _Left(None)
+                    return _LEFT
                 if holding is not None:
                     self._abandon(holding)
-                    return _Left(None)
+                    return _LEFT
 
         while spec.wait is not None and failure is None:
             try:
@@ -1785,10 +1778,10 @@ class TaskRun:
                     # A unit a preemption took is asked for again before the wait
                     holding = yield from self._acquire()
                     if holding is _LEFT:
-                        return _Left(None)
+                        return _LEFT
                     if holding is not None:
                         self._abandon(holding)
-                        return _Left(None)
+                        return _LEFT
                 outcome = yield from self._wait(self._deadline())
                 self._waited()
             except _HandlerFailed as stopped:
@@ -1819,10 +1812,10 @@ class TaskRun:
                         break
                     continue  # resume or restart: wait again
                 self._abandon(interrupt, timeout_left)
-                return _Left(None)
+                return _LEFT
             if outcome is _RENEGED:
                 self._renege()
-                return _Left(None)
+                return _LEFT
             failure = outcome
             if failure is not None:
                 self._raised = True
@@ -1841,10 +1834,10 @@ class TaskRun:
                 break
             if outcome is _RENEGED:
                 self._renege()
-                return _Left(None)
+                return _LEFT
             if outcome is not None:
                 self._abandon(outcome, None)
-                return _Left(None)
+                return _LEFT
             break
         return failure
 

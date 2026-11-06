@@ -73,6 +73,7 @@ def task_features(context: "SimulationContext", spec: "TaskSpec") -> List[str]:
     Returns:
         List[str]: The features, in a fixed order.
     """
+    parts = parts_of(context)
     features = []
     held = used_resources(spec)
     if spec.patience is not None:
@@ -81,9 +82,7 @@ def task_features(context: "SimulationContext", spec: "TaskSpec") -> List[str]:
         features.append("abandonment (balk)")
     if spec.service_time is not None:
         features.append(COMPUTED_SERVICE_TIME)
-    if spec.preempt and any(
-        parts_of(context).holders.resource_preempt.get(r) for r in held
-    ):
+    if spec.preempt and any(parts.holders.resource_preempt.get(r) for r in held):
         features.append("preemption")
     if _holds_several(spec):
         features.append("several resources")
@@ -123,14 +122,15 @@ def task_features(context: "SimulationContext", spec: "TaskSpec") -> List[str]:
 def _interrupted(context: "SimulationContext") -> Set[str]:
     """The tasks an `interrupt` names: a task's own, one in the `on:` or `listen`
     list of a task or a signal, or a scenario step's."""
+    parts = parts_of(context)
     actions: List[Mapping[str, Any]] = [
-        action for found in parts_of(context).signals.on.values() for action in found
+        action for found in parts.signals.on.values() for action in found
     ]
-    for spec in parts_of(context).tasks.specs.values():
+    for spec in parts.tasks.specs.values():
         if spec.interrupt is not None:
             actions.append({"interrupt": spec.interrupt})
         actions += [*spec.on, *(spec.listen.on if spec.listen else [])]
-    actions += parts_of(context).scenario_steps
+    actions += parts.scenario_steps
     return {
         action["interrupt"]["task"]
         for action in actions
@@ -207,12 +207,13 @@ def resource_features(context: "SimulationContext", name: str) -> List[str]:
     Returns:
         List[str]: The features, in a fixed order.
     """
+    parts = parts_of(context)
     features = []
-    if parts_of(context).holders.resource_queue_limits.get(name) is not None:
+    if parts.holders.resource_queue_limits.get(name) is not None:
         features.append("abandonment (queue_limit)")
-    if parts_of(context).holders.resource_types.get(name) is not None:
+    if parts.holders.resource_types.get(name) is not None:
         features.append("custom resource type")
-    if name in parts_of(context).holders.breakdowns_config:
+    if name in parts.holders.breakdowns_config:
         features.append("breakdowns")
     return features
 
@@ -239,9 +240,10 @@ def model_features(context: "SimulationContext") -> List[str]:
     Returns:
         List[str]: The features, in a fixed order.
     """
+    parts = parts_of(context)
     features = []
-    if any(set(step) - {"at", "record"} for step in parts_of(context).scenario_steps):
+    if any(set(step) - {"at", "record"} for step in parts.scenario_steps):
         features.append("scenario steps")
-    if parts_of(context).sinks.ingress:
+    if parts.sinks.ingress:
         features.append("live ingress")
     return features

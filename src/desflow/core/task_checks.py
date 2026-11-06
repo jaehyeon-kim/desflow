@@ -1,4 +1,4 @@
-"""The checks of a model's tasks, made before a run.
+"""The checks of a model's tasks, families and rules, made before a run.
 
 Each function reads the declared tasks and returns the problems it finds, or raises,
 before the clock starts; `core/task.py` holds the life of one task instance.
@@ -632,8 +632,9 @@ class FamilyProblem(NamedTuple):
         kind: `name` for a place that names a family wrongly, `read` for an
             expression that reads one wrongly, `entry` for a declared entry named like
             a member of a family.
-        holder: `("tasks", <task>)` or `("signals", <signal>)` for a name or a read,
-            `("rule", <place>)` for a read in a rule, with the place
+        holder: `("tasks", <task>)` or `("signals", <signal>)` for a name,
+            `("tasks", <task>)` for a read of a task, `("rule", <place>)` for a read
+            in a rule, with the place
             `rule_expressions` gives, and `(<section>, <name>)` for an entry.
         key: The key of the task or signal it is written under; "" for a rule or an
             entry.

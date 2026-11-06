@@ -543,6 +543,8 @@ class Scope:
             elsewhere.
         families: The declared families by name, which `members()` and a read of a
             member that does not exist yet use.
+        family_keys: The keys of the members the run has made, by family name,
+            which `members()` reads.
     """
 
     payload: Optional[Mapping[str, Any]] = field(default_factory=dict)
@@ -575,6 +577,7 @@ class Scope:
     each: Optional[Mapping[str, Any]] = None
     member: Optional[Mapping[str, Any]] = None
     families: Mapping[str, Any] = field(default_factory=dict)
+    family_keys: Mapping[str, List[Any]] = field(default_factory=dict)
 
 
 class AnyName:
@@ -1372,7 +1375,7 @@ class Expression:
             family = scope.families.get(node.args[0].id)  # type: ignore[attr-defined]
             if family is None:
                 raise KeyError(f"'{node.args[0].id}' is not a family")  # type: ignore[attr-defined]
-            return list(family.keys)
+            return list(scope.family_keys.get(family.name, []))
         target = self._target(node.args[0], scope)
         if name == "running":
             if scope.instances is None:

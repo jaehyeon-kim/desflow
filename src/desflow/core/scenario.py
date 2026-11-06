@@ -248,7 +248,7 @@ def walk_steps(
             current = entry.value
             if (
                 current is not None
-                and not registry._is_queue_limit(path)
+                and not registry.is_queue_limit(path)
                 and not isinstance(value, type(current))
             ):
                 try:

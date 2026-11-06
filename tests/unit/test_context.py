@@ -2238,15 +2238,21 @@ def test_an_arrival_with_keys_forgets_the_keys_of_entities_that_left(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "off_mode, times",
-    [("drop", [1.0, 2.0, 6.0, 7.0, 8.0]), ("restart", [1.0, 2.0, 6.2, 7.2, 8.2])],
+    "off_mode, on_at, times",
+    [
+        ("drop", 5.2, [1.0, 2.0, 6.0, 7.0, 8.0]),
+        ("restart", 5.2, [1.0, 2.0, 6.2, 7.2, 8.2]),
+        # Turned on again before the dropped arrival is due at 3
+        ("restart", 2.8, [1.0, 2.0, 3.8, 4.8, 5.8, 6.8, 7.8, 8.8]),
+    ],
 )
 def test_an_arrival_that_falls_while_its_source_is_off_draws_no_attribute(
-    tmp_path, off_mode, times
+    tmp_path, off_mode, on_at, times
 ):
     """An arrival due while its source is off, or dropped by a restarting source,
     starts nobody and draws no attribute, so the sequence goes on with the next
-    entity that starts."""
+    entity that starts. A dropped arrival draws none even when the source is on
+    again by the time it is due."""
     _, records = _yaml_records(
         tmp_path,
         "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
@@ -2254,7 +2260,7 @@ def test_an_arrival_that_falls_while_its_source_is_off_draws_no_attribute(
         f"  a: {{gap: 1, spawn: t, off_mode: {off_mode},"
         " attributes: {n: {gen: sequence, start: 1}}}\n"
         "  stopper: {first_at: 2.5, max_events: 1, gap: 100, spawn: stop_a}\n"
-        "  starter: {first_at: 5.2, max_events: 1, gap: 100, spawn: start_a}\n"
+        f"  starter: {{first_at: {on_at}, max_events: 1, gap: 100, spawn: start_a}}\n"
         "tasks:\n"
         "  t: {payload: {n: {gen: expr, expr: attr.n}}}\n"
         "  stop_a: {deactivate: [a], payload: {}}\n"
@@ -2262,6 +2268,28 @@ def test_an_arrival_that_falls_while_its_source_is_off_draws_no_attribute(
         9,
     )
     assert records == [(at, {"n": n}) for n, at in enumerate(times, start=1)]
+
+
+def test_a_task_that_balks_gives_back_the_unit_kept_for_it(tmp_path):
+    """A task that balks at a full line gives back the unit its flow's earlier task
+    kept for it, so the next entity's `first` is served at 5 and done at 6."""
+    _, records = _yaml_records(
+        tmp_path,
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "resources:\n"
+        "  r: {current_cap: 1}\n"
+        "  s: {current_cap: 1, queue_limit: 0}\n"
+        "arrivals:\n"
+        "  a: {first_at: 0, max_events: 1, gap: 100, spawn: hold_s}\n"
+        "  b: {first_at: 1, max_events: 2, gap: 4, spawn: first}\n"
+        "tasks:\n"
+        "  hold_s: {resource: s, service_time: 100, payload: {}}\n"
+        "  first: {resource: r, service_time: 1, keep: [r], next: second,"
+        " payload: {n: {gen: expr, expr: t}}}\n"
+        "  second: {resource: [s, r], service_time: 1, payload: {}}\n",
+        20,
+    )
+    assert records == [(2.0, {"n": 2}), (6.0, {"n": 6})]
 
 
 def test_a_signal_resume_reads_its_limit_in_the_run_scope(tmp_path):
@@ -2696,6 +2724,7 @@ def test_the_scenario_walk_yields_each_step_with_its_problem():
     """A-U4: the walk the scenario checks share takes the steps in time order, skips a
     step with no path, a member's path or a generated value, and ends at the first
     problem; `convert` adds the YAML loader's type check, which a queue limit skips."""
+    from desflow.core.context import scratch_registry
     from desflow.core.scenario import walk_steps
     from desflow.values.models import Expr
 
@@ -2704,7 +2733,7 @@ def test_the_scenario_walk_yields_each_step_with_its_problem():
 
     def walk(steps, convert=False):
         member = lambda path: path.startswith("S.resources.desk[")  # noqa: E731
-        return list(walk_steps(steps, app._scratch_registry(), member, convert=convert))
+        return list(walk_steps(steps, scratch_registry(app), member, convert=convert))
 
     cap = "S.resources.m.current_cap"
     assert walk([(1, cap, "x")], convert=True) == [(0, "type", 1)]

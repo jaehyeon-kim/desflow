@@ -96,7 +96,7 @@ from desflow.core.registry import ParamChange, ParamRejected, SimulationRegistry
 from desflow.core.holders import _run_copy, _whole_or_unlimited, _within_max, Holders
 from desflow.core.sinks import Sink, Sinks
 from desflow.core.runs import EndSets, Parts, RunState
-from desflow.core.tasks import Tasks, named
+from desflow.core.tasks import Tasks, task_generator
 from desflow.core.sampler import Sampler
 from desflow.models.flow import Entity, Upstream
 from desflow.core.replay import read_trace
@@ -120,7 +120,6 @@ from desflow.models.params import (
     CapacityConfig,
     ContainerConfig,
     DistributionConfig,
-    ResourceConfig,
     SimParameter,
 )
 from desflow.resources.base import check_ties
@@ -131,7 +130,6 @@ from desflow.resources.container import (
 )
 from desflow.resources.resource import (
     ResourceBase,
-    _default_put_queue,
     check_resource_queue,
     check_resource_type,
 )
@@ -371,22 +369,29 @@ class SimulationContext:
         if self.lag_interval is not None and self.lag_interval < 0:
             raise ValueError(f"lag_interval must be 0 or more, got {lag_interval}")
 
-        # Builder State (Pre-Compilation)
+        # The sinks piece: the egress and ingress providers, batching and statistics
         self._sinks = Sinks()
-
+        # The holders piece: the resources, stores, containers and breakdowns
         self._holders = Holders()
         # The readings of `add_readings`, one mapping of name to expression for each call
         self._readings: List[Dict[str, Expression]] = []
+        # The scenario's steps, which `_check_tasks`, the build and `explain` read
         self._scenario_steps: List[Dict[str, Any]] = []
+        # The services' distributions: a declaration that no piece owns, read only by
+        # `compile_parameters` and the checks
         self._services_config: Dict[str, DistributionConfig] = {}
         # The loops and processes the run starts, in the order they were added
         self._startup_loops: List[Tuple[Callable, Optional[str]]] = []
+        # The arrivals piece
         self._arrivals = Arrivals()
+        # The variables: a declaration that no piece owns, read only by
+        # `compile_parameters` and the checks
         self._variables_config: Dict[str, Any] = {}
         # The tasks: their specs and what the values of the tasks read from other
         # records; and the function `task` returns for each, by name
         self._tasks = Tasks()
         self._task_functions: Dict[str, Callable] = {}
+        # The signals piece
         self._signals = Signals()
         # The declared families, by name, whose entries in the sections above are the
         # template each member is made from
@@ -398,12 +403,13 @@ class SimulationContext:
         # The state of the current run, which each start() makes new; this one is
         # read before the first run
         self._run = RunState()
-        # The instance a task function's generator runs, until `spawn` starts it
+        # The instance a task function's generator runs, until `spawn` starts it.
+        # It is kept across runs, so `spawn` still finds a generator that a task
+        # function made before the current run started
         self._runs_of: "weakref.WeakKeyDictionary[Any, TaskRun]" = (
             weakref.WeakKeyDictionary()
         )
-
-        # Runtime State (Post-Compilation)
+        # The environment of the current run, None before the first start()
         self._env: Optional[DynamicRealtimeEnvironment] = None
         # Called with a `ParamChange` for every accepted registry change of a run;
         # start() copies them into that run's registry
@@ -411,6 +417,7 @@ class SimulationContext:
         # True once start() has built and started everything, so a caller can tell
         # a value refused before the run from an error inside it
         self.started = False
+        # The random draws of the current run, made by each start()
         self.sampler: Optional[Sampler] = None
         # The generators' state for the run, made when the run is built; nothing
         # generates a value before that
@@ -424,7 +431,8 @@ class SimulationContext:
         # made by each run's build
         self._scope: Optional[LiveScope] = None
         self._parts: Optional[Parts] = None
-
+        # Whether the current run is closed. start() reads it before it replaces the
+        # run state, to close an open run first
         self._closed = True
 
     @classmethod
@@ -802,24 +810,9 @@ class SimulationContext:
                 f"resource '{name}' has max_cap {max_cap} and no current_cap, whose "
                 f"default is 1; set current_cap to {max_cap} or less"
             )
-        self._holders.resource_preempt[name] = preempt
-        if rank is None:
-            self._holders.resource_rank.pop(name, None)
-        else:
-            self._holders.resource_rank[name] = rank
-        if rule is None:
-            self._holders.resource_rule.pop(name, None)
-        else:
-            self._holders.resource_rule[name] = rule
-        self._holders.resources_config[name] = ResourceConfig(
-            current_cap=_within_max("resource", name, current_cap, max_cap),
-            max_cap=max_cap,
-            queue_limit=queue_limit,
-            limit_path=_default_put_queue(type or ResourceBase),
+        self._holders.declare_resource(
+            name, current_cap, max_cap, queue, preempt, queue_limit, rank, rule, type
         )
-        self._holders.resource_queues[name] = queue
-        self._holders.resource_queue_limits[name] = queue_limit
-        self._holders.resource_types[name] = type
         self._families.declare("resource", name, family, members, texts)
         return self
 
@@ -895,8 +888,7 @@ class SimulationContext:
             level=start,
         )
         self._set_holder_ranks("container", name, get_queue, put_queue, type)
-        self._holders.container_types[name] = type
-        self._holders.containers_config[name] = config
+        self._holders.declare_container(name, config, type)
         self._families.declare("container", name, family, members, texts, start=start)
         return self
 
@@ -994,10 +986,7 @@ class SimulationContext:
             max_cap=max_cap,
         )
         self._set_holder_ranks("store", name, get_queue, put_queue, type)
-        self._holders.store_items[name] = start
-        self._holders.stores_config[name] = config
-        self._holders.store_priority[name] = priority
-        self._holders.store_types[name] = type
+        self._holders.declare_store(name, config, start, priority, type)
         self._families.declare("store", name, family, members, texts)
         return self
 
@@ -1863,7 +1852,7 @@ class SimulationContext:
                     kwargs=kwargs,
                     task_id=task_id,
                 )
-                generator = named(run)
+                generator = task_generator(run)
                 self._runs_of[generator] = run
                 return generator
 
@@ -2196,17 +2185,6 @@ class SimulationContext:
         """
         return self._run.next_instance(task)
 
-    def _written_paths(self) -> Set[str]:
-        """The registry paths the model writes: its scenario steps and the `path`
-        actions of its tasks' and signals' `on:` lists."""
-        paths = {step["path"] for step in self._scenario_steps if step.get("path")}
-        actions = [
-            action
-            for spec in self._tasks.specs.values()
-            for action in [*spec.on, *(spec.listen.on if spec.listen else [])]
-        ] + [action for found in self._signals.on.values() for action in found]
-        return paths | {a["path"] for a in actions if isinstance(a.get("path"), str)}
-
     def _check_rule_names(
         self, place: str, expression: Expression, holders: Mapping[str, Any]
     ) -> None:
@@ -2222,7 +2200,7 @@ class SimulationContext:
                 f"on entries run with no wait in scope"
             )
         for kind, name in self._unknown_references(
-            expression, _RULE_REFERENCES, holders, self._scratch_registry
+            expression, _RULE_REFERENCES, holders, lambda: scratch_registry(self)
         ):
             if kind in _RESOURCE_REFERENCES:
                 raise ValueError(
@@ -2535,11 +2513,9 @@ class SimulationContext:
                 f"signal '{name}': defused is true or false, got {defused!r}"
             )
         self._families.declare("signal", name, family, members, {})
-        if name not in self._signals.names:
-            self._signals.names.append(name)
-        self._signals.once[name] = once
-        self._signals.defused[name] = defused
-        self._signals.on[name] = [_parse_on_action(entry) for entry in on or []]
+        self._signals.declare(
+            name, once, defused, (_parse_on_action(entry) for entry in on or [])
+        )
         self._bind_values(
             self._signals.on[name], ("signals", name, "on"), overwrite=False
         )
@@ -2637,41 +2613,6 @@ class SimulationContext:
             variables=self._variables_config,
         )
 
-    def _run_parameters(self) -> SimParameter:
-        """The parameters one run registers: a new mapping for each section of
-        `compile_parameters()` and `_run_copy` of each config object in it, and a
-        new variables mapping. A variable's value and a store's starting items are
-        the user's own objects, shared by every run. The run and `_scratch_registry`
-        both register what this gives."""
-        params = self.compile_parameters()
-
-        def copied(section: Dict[str, Any]) -> Dict[str, Any]:
-            return {name: _run_copy(config) for name, config in section.items()}
-
-        return SimParameter(
-            sim_id=params.sim_id,
-            resources=copied(params.resources),
-            containers=copied(params.containers),
-            stores=copied(params.stores),
-            breakdowns=copied(params.breakdowns),
-            service=copied(params.service),
-            arrival=copied(params.arrival),
-            variables=dict(params.variables),
-        )
-
-    def _scratch_registry(self) -> SimulationRegistry:
-        """Builds a registry with the paths a run registers, on a plain SimPy clock.
-
-        The load and start checks and `registry_paths` call it, so they cannot build
-        the registry two ways. It registers `_run_parameters()`, the copy a run
-        registers, so the defaults registration fills in and a check's `change` go
-        into the copy, and the model's own starting values do not move. A value
-        that cannot be copied, such as a lock, is the user's own object here too.
-        """
-        registry = SimulationRegistry(simpy.Environment())
-        registry.register_sim_parameter(self._run_parameters())
-        return registry
-
     def registry_paths(self) -> Dict[str, Any]:
         """
         Returns the registry paths a run will have, with their starting values.
@@ -2691,7 +2632,7 @@ class SimulationContext:
             ValueError: If the registry refuses the model's parameters, as a run
                 would at its start.
         """
-        registry = self._scratch_registry()
+        registry = scratch_registry(self)
         return {path: registry.get(path).value for path in registry.paths()}
 
     def analyze(
@@ -3245,17 +3186,17 @@ class SimulationContext:
         try:
             return self._build(
                 _RunSettings(
-                    until,
-                    stop,
-                    drain,
-                    seed,
-                    overrides,
-                    stats,
-                    egress,
-                    ingress,
-                    source,
-                    actor,
-                    reason,
+                    until=until,
+                    stop=stop,
+                    drain=drain,
+                    seed=seed,
+                    overrides=overrides,
+                    stats=stats,
+                    egress=egress,
+                    ingress=ingress,
+                    source=source,
+                    actor=actor,
+                    reason=reason,
                 )
             )
         except BaseException:
@@ -3284,7 +3225,7 @@ class SimulationContext:
             self._env,
             self.sampler,
             self,
-            scope=self._scope,
+            live_scope=self._scope,
             stop=self._stop_run,
         )
         self._run.values = self.values
@@ -3292,6 +3233,7 @@ class SimulationContext:
         self._keep_value_history(self.sampler)
         self._set_up_statistics(self._env, settings.stats, settings.egress)
         self._new_signal_and_family_runs(self._env, parts)
+        self._read_replay_rows(self._env)
         self._register_parameters(self._env, settings)
         self._connect(self._env, settings.egress, settings.ingress)
         self._make_holders(self._env)
@@ -3390,19 +3332,19 @@ class SimulationContext:
     def _new_signal_and_family_runs(
         self, env: DynamicRealtimeEnvironment, parts: Parts
     ) -> None:
-        """Makes the run's part of the signals and of the families, and the rows of
-        each replayed arrival."""
+        """Makes the run's part of the signals and of the families."""
         self._run.signal_run = self._signals.new_run(
             env,
             self._families.by_name,
             functools.partial(self._tasks.run_on_action, self, parts),
             self._run.end_processed,
         )
-        for family in self._families.by_name.values():
-            family.keys = []
         self._run.family_run = self._families.new_run(
-            self.values, self._run.arrivals, self._run.holders, self._run.signals
+            self.values, self._run.holders, self._run.signals
         )
+
+    def _read_replay_rows(self, env: DynamicRealtimeEnvironment) -> None:
+        """Reads the rows of each replayed arrival into the run's arrivals."""
         self._run.arrivals.replay_rows = {
             name: collections.deque(
                 read_trace(
@@ -3421,7 +3363,7 @@ class SimulationContext:
         # The run registers its own copy of the parameters, so a live change or an
         # override changes the copy and the declarations stay as written: a second
         # run starts from the values the first one started from
-        env.registry.register_sim_parameter(self._run_parameters())
+        env.registry.register_sim_parameter(run_parameters(self.compile_parameters()))
         for path, value in (settings.overrides or {}).items():
             env.registry.set_exactly(
                 path,
@@ -3563,7 +3505,8 @@ class SimulationContext:
         given, else None.
 
         It is scheduled urgent, like SimPy's own `until`, so no other event at that
-        time runs after it. A sample's console calls `_finish_run` at its last event.
+        time runs after it. A sample's console calls `RunState.finish_run` at its
+        last event.
         """
         if stop is None and not drain and self._defaults.sample_limit is None:
             return None
@@ -3909,7 +3852,7 @@ class SimulationContext:
         self._warn_acquisition_order()
         holders = {**self._holders.stores_config, **self._holders.containers_config}
         registry: Optional[SimulationRegistry] = None
-        written = self._written_paths()
+        written = written_paths(parts_of(self))
         for place, expression, _location in rule_expressions(
             self._holders, self._readings, self._signals.on
         ):
@@ -3936,7 +3879,7 @@ class SimulationContext:
             self._check_task_expressions(name, spec, after_get_tasks, cause_targets)
             if registry is None:
                 # The paths the run will register, built by the same code
-                registry = self._scratch_registry()
+                registry = scratch_registry(self)
             self._check_task_values(name, spec, registry, written)
             self._check_task_reads(name, spec, holders, registry)
 
@@ -3944,7 +3887,7 @@ class SimulationContext:
         """Checks each scenario step against the registry the run will build, after
         the overrides `start()` applies."""
         if self._scenario_steps:
-            known = self._scratch_registry()
+            known = scratch_registry(self)
             for path, value in (overrides or {}).items():
                 try:
                     known.change(path, value)
@@ -4460,7 +4403,7 @@ class SimulationContext:
         name: str,
         spec: TaskSpec,
         registry: SimulationRegistry,
-        written: Any,
+        written: Set[str],
     ) -> None:
         """Checks the generated values of a task against the registry the run will
         build and the paths a run writes."""
@@ -4527,10 +4470,9 @@ class SimulationContext:
     ) -> None:
         """Checks that each name a task's expressions read is declared."""
         expressions = [found.expression for found in spec.expressions]
-        task_registry = registry
         for expression in expressions:
             for kind, ref in self._unknown_references(
-                expression, _TASK_REFERENCES, holders, lambda: task_registry
+                expression, _TASK_REFERENCES, holders, lambda: registry
             ):
                 if kind in ("putting", "getting"):
                     raise ValueError(
@@ -4809,6 +4751,67 @@ def _not_added(name: str, added: Iterable[str], how: str) -> str:
     return "which is not added" + (suggestion(name, added) or f"; add it with {how}")
 
 
+def run_parameters(params: SimParameter) -> SimParameter:
+    """The parameters one run registers, copied from a model's parameters.
+
+    Each section is a new mapping with `_run_copy` of each config object in it, and
+    the variables are a new mapping. A variable's value and a store's starting items
+    are the user's own objects, shared by every run. The run and `scratch_registry`
+    both register what this gives.
+
+    Args:
+        params: The model's parameters, from `SimulationContext.compile_parameters`.
+    """
+
+    def copied(section: Dict[str, Any]) -> Dict[str, Any]:
+        return {name: _run_copy(config) for name, config in section.items()}
+
+    return SimParameter(
+        sim_id=params.sim_id,
+        resources=copied(params.resources),
+        containers=copied(params.containers),
+        stores=copied(params.stores),
+        breakdowns=copied(params.breakdowns),
+        service=copied(params.service),
+        arrival=copied(params.arrival),
+        variables=dict(params.variables),
+    )
+
+
+def scratch_registry(context: SimulationContext) -> SimulationRegistry:
+    """Builds a registry with the paths a run of `context` registers, on a plain
+    SimPy clock.
+
+    The load and start checks and `registry_paths` call it, so they cannot build the
+    registry two ways. It registers `run_parameters` of the model's parameters, the
+    copy a run registers, so the defaults registration fills in and a check's
+    `change` go into the copy, and the model's own starting values do not move. A
+    value that cannot be copied, such as a lock, is the user's own object here too.
+
+    Args:
+        context: The context, read through its public `compile_parameters`.
+    """
+    registry = SimulationRegistry(simpy.Environment())
+    registry.register_sim_parameter(run_parameters(context.compile_parameters()))
+    return registry
+
+
+def written_paths(parts: Parts) -> Set[str]:
+    """The registry paths a model writes: its scenario steps and the `path` actions
+    of its tasks' and signals' `on:` lists.
+
+    Args:
+        parts: The model's parts, from `parts_of`.
+    """
+    paths = {step["path"] for step in parts.scenario_steps if step.get("path")}
+    actions = [
+        action
+        for spec in parts.tasks.specs.values()
+        for action in [*spec.on, *(spec.listen.on if spec.listen else [])]
+    ] + [action for found in parts.signals.on.values() for action in found]
+    return paths | {a["path"] for a in actions if isinstance(a.get("path"), str)}
+
+
 def parts_of(context: SimulationContext) -> Parts:
     """The parts of `context`, read from its attributes now.
 
@@ -4831,8 +4834,6 @@ def parts_of(context: SimulationContext) -> Parts:
         ends=context._ends,
         run=context._run,
         scope=context._scope,
-        scratch_registry=context._scratch_registry,
-        written_paths=context._written_paths,
         services=context._services_config,
         processes=context._processes,
         run_scenario=context._run_scenario,

@@ -2968,6 +2968,18 @@ def test_family_refusals_name_the_place(tmp_path, old, new, fragment):
             "task 't': set reads users.desk of a family; read one member with "
             "users.desk[<key>], or list the keys with members(desk)",
         ),
+        # Two errors: the task's generators are checked before the rules, so the
+        # `set` is named and not the queue rank of `plain`
+        (
+            FAMILIES[FAMILIES.index("  plain:") : FAMILIES.index("run:")],
+            '  plain: {current_cap: 1, queue: {rank: "len(users.desk)"}}\n'
+            + FAMILIES[FAMILIES.index("stores:") : FAMILIES.index("run:")]
+            + "    set:\n      x:\n        gen: expr\n"
+            + '        expr: "len(users.desk)"\n',
+            "    set:",
+            "task 't': set reads users.desk of a family; read one member with "
+            "users.desk[<key>], or list the keys with members(desk)",
+        ),
         (
             "payload: {e: x}",
             "payload: {e: x}\n    release: {resource: nope, task: t}",

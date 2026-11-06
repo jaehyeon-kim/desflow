@@ -47,6 +47,7 @@ def make_scope(
     each: Optional[Mapping[str, Any]] = None,
     member: Optional[Mapping[str, Any]] = None,
     families: Optional[Mapping[str, Any]] = None,
+    family_keys: Optional[Mapping[str, List[Any]]] = None,
 ) -> Scope:
     """
     Builds what an expression's names read.
@@ -82,6 +83,8 @@ def make_scope(
         member: The member a `lowest` reads, for `member.<name>`.
         families: The declared families by name, for `members()` and the reads of a
             member that does not exist yet.
+        family_keys: The keys of the members the run has made, by family name, for
+            `members()`.
 
     Returns:
         Scope: The scope.
@@ -119,6 +122,7 @@ def make_scope(
         each=each,
         member=member,
         families=families or {},
+        family_keys=family_keys or {},
     )
 
 
@@ -165,6 +169,7 @@ class LiveScope:
             signals=run.signals.made,
             resources=run.holders.resources,
             families=self.families,
+            family_keys={} if run.family_run is None else run.family_run.keys,
             peek=self.env.peek,
             instances=run.instance_scopes,
             **given,

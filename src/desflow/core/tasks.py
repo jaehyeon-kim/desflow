@@ -2,13 +2,16 @@
 
 `Tasks` holds what a model declares for its tasks: the `TaskSpec` of each task, the
 gates of the lookups, the tasks whose rows a `row` generator reads and the tasks a
-`previous` reads. Its methods make and start the instances of a task in a run. They
-take the context, for its public reads, and the run's `Parts`, as their first two
-arguments, so `Tasks` holds nothing of a run and no reference to the context.
+`previous` reads. Its methods make and start the instances of a task in a run. It
+also runs the `on:` actions of tasks and signals, because a `spawn` action starts a
+task. The methods take the context, for its public reads, and the run's `Parts`, as
+their first two arguments, so `Tasks` holds nothing of a run and no reference to the
+context.
 """
 
 import contextlib
 import logging
+import operator
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -22,7 +25,6 @@ from typing import (
 
 import simpy
 
-from desflow.core.arrivals import whole
 from desflow.core.expressions import Expression, Scope
 from desflow.core.families import Reference
 from desflow.core.scenario import apply_step
@@ -40,7 +42,7 @@ logger = logging.getLogger("desflow.core.context")
 _NEXT: Any = object()
 
 
-def named(run: TaskRun) -> Any:
+def task_generator(run: TaskRun) -> Any:
     """The generator of an instance, named after its task, not `run`: SimPy names a
     process after its generator's `__name__`, so `active_process.name` and the records
     read the task (P6).
@@ -61,7 +63,8 @@ def _defuse(event: Any) -> None:
 
 
 class Tasks:
-    """What a model declares for its tasks.
+    """What a model declares for its tasks. It also runs the `on:` actions of tasks
+    and signals, because a `spawn` action starts a task.
 
     Attributes:
         specs: The `TaskSpec` of each task, by name.
@@ -161,11 +164,6 @@ class Tasks:
     ) -> simpy.Process:
         """Starts one instance of a task as a process, with its next instance id.
 
-        `args` are the positional arguments after the task id; None gives the ones a
-        YAML task takes, the context, and none for a builder task. `arg_values` are
-        the names the flow reads as `arg.<name>`; `handles` is the table of the flow that
-        starts it, which it reads as `handle.<name>`.
-
         Args:
             context: The context, for its public reads.
             parts: The run's parts.
@@ -191,7 +189,7 @@ class Tasks:
             arg_values=arg_values,
             handles=handles,
         )
-        process = context.env.process(named(run))
+        process = context.env.process(task_generator(run))
         run.reach(process)
         if child and parts.run.on_unhandled_failure == "continue":
             # Under `continue`, a child flow that fails with no task waiting for it
@@ -209,7 +207,7 @@ class Tasks:
         scope: Optional[Scope] = None,
     ) -> None:
         """Starts the entities of a `spawn:` key or `on:` action: `count` of them, read
-        once before the first starts, each by `_spawn_entity`. The count and the `args`
+        once before the first starts, each by `spawn_entity`. The count and the `args`
         read `scope`, the spawning task's names when it is given, and the run and the
         parent's attributes otherwise; each child reads its `args` once.
 
@@ -235,7 +233,15 @@ class Tasks:
             count = count.evaluate(scope)
         elif isinstance(count, _Gen):
             count = context.values.evaluate(count, scope)
-        count = whole(count, f"the spawn count of task '{spec['task']}'")
+        if isinstance(count, bool):
+            count = int(count)
+        try:
+            count = operator.index(count)
+        except TypeError:
+            raise TypeError(
+                f"the spawn count of task '{spec['task']}' gave {count!r}, which is "
+                f"not a whole number"
+            ) from None
         args = spec.get("args")
         for _ in range(count):
             self.spawn_entity(
@@ -291,7 +297,7 @@ class Tasks:
             run = self.new_run(
                 context, parts, task, entity, upstream, kwargs={}, arg_values=arg_values
             )
-            return run, named(run)
+            return run, task_generator(run)
 
         if after is None:
             run, gen = make()

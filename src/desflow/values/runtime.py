@@ -14,7 +14,18 @@ import logging
 import zlib
 from contextlib import contextmanager
 from dataclasses import replace
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Set, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Set,
+    Tuple,
+)
 
 import numpy as np
 from simpy.core import StopSimulation
@@ -33,6 +44,9 @@ from desflow.values.models import (
     _is_number,
     part_of,
 )
+
+if TYPE_CHECKING:
+    from desflow.core.flow import LiveScope
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +105,7 @@ class ValueRuntime:
         env: Any,
         sampler: Any = None,
         context: Any = None,
-        scope: Any = None,
+        live_scope: Optional["LiveScope"] = None,
         stop: Optional[Callable[[], None]] = None,
     ):
         """
@@ -100,8 +114,8 @@ class ValueRuntime:
             env: The environment, for the simulation clock, its start and its zone.
             sampler: The run's `Sampler`, for `sample` of a service.
             context: The `SimulationContext`.
-            scope: The run's `LiveScope`, for the scope a generator reads outside a
-                task; None gives a scope of the environment alone.
+            live_scope: The run's `LiveScope`, for the scope a generator reads
+                outside a task; None gives a scope of the environment alone.
             stop: Stops the run, for a replay whose rows end with `on_end: stop`;
                 None stops the environment.
         """
@@ -109,7 +123,7 @@ class ValueRuntime:
         self.env = env
         self.sampler = sampler
         self.context = context
-        self._live = scope
+        self._live = live_scope
         self._stop = stop
         # With no seed the sequences still differ from node to node
         self._entropy = seed if seed is not None else np.random.SeedSequence().entropy

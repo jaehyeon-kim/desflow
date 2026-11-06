@@ -6,6 +6,9 @@ desflow comparisons live in the conformance suite; here each feature is checked 
 the behaviour the plan settles.
 """
 
+import numpy as np
+import pytest
+
 from desflow.core.context import SimulationContext
 from tests.conformance.harness import run_builder, times
 
@@ -66,6 +69,30 @@ def test_spawn_after_delays_the_new_entity():
     records = run_builder(app, 10)
     # first arrival at 2, pack finishes at 3, courier starts 3 later, at 6
     assert times(records, "courier") == [6.0]
+
+
+@pytest.mark.parametrize("count", [lambda entity: np.array(2), "attr.n"])
+def test_a_spawn_count_takes_any_value_with_an_index(count):
+    """A spawn count is read with `operator.index`, so a 0-d NumPy integer array,
+    from a function or from an attribute, starts that many entities."""
+    app = SimulationContext("S", factor=0.0, random_seed=1)
+    app.add_arrival("a", "constant", value=5, first_at=0, attributes={"n": np.array(2)})
+
+    @app.task(name="parent", spawn={"task": "clone", "count": count})
+    def parent(task_id):
+        return {"event_type": "parent"}
+
+    @app.task(name="clone")
+    def clone(task_id):
+        return {"event_type": "clone"}
+
+    @app.arrival_loop("a")
+    def loop(context):
+        entity = yield context.wait_for_arrival("a")
+        context.spawn(parent(context.next_instance("parent"), entity=entity))
+
+    records = run_builder(app, 1)
+    assert times(records, "clone") == [0, 0]
 
 
 # ---------------------------------------------------------------- on: (V4 to V6)

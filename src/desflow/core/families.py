@@ -13,7 +13,7 @@ or signal named after the family and the key: `desk[3]`, `desk['north']`. A refe
 member calls `resolve`.
 """
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from numbers import Integral
 from typing import (
     TYPE_CHECKING,
@@ -27,11 +27,10 @@ from typing import (
     Union,
 )
 
-from desflow.core.arrivals import whole
+from desflow.core.arrivals import read_place, whole
 from desflow.core.expressions import Expression, Scope
 
 if TYPE_CHECKING:
-    from desflow.core.arrivals import ArrivalRun
     from desflow.core.holders import HolderRun
     from desflow.core.signals import SignalRun
     from desflow.values.runtime import ValueRuntime
@@ -356,8 +355,6 @@ class Family:
             starts, or None for a family that starts empty.
         expressions (Dict[str, Expression]): The capacities written as text, by field
             (`current_cap`, `max_cap`, `level`), read once at each member's creation.
-        keys (List[Union[int, str]]): The keys made so far in this run, in creation
-            order.
     """
 
     def __init__(
@@ -398,7 +395,6 @@ class Family:
                     f"reads level, users, queue, signal, registry and t, not an entity"
                 )
             self.expressions[field_name] = parsed
-        self.keys: List[Union[int, str]] = []
 
     def blank(self, source: str, scope: Any) -> Any:
         """What a member that does not exist yet would give a read.
@@ -424,7 +420,8 @@ class Family:
             return self.starting_level
         return 0
 
-    # The starting level a container family declares as a number; set by the context
+    # The starting level a container family declares as a number; set by
+    # `Families.declare`
     starting_level: Any = 0
 
 
@@ -441,19 +438,17 @@ class Families:
     def new_run(
         self,
         values: "ValueRuntime",
-        arrival_run: "ArrivalRun",
         holder_run: "HolderRun",
         signal_run: "SignalRun",
     ) -> "FamilyRun":
         """The part of one run that makes the members, from the run's parts.
 
         Args:
-            values: The run's values, for the run scope.
-            arrival_run: The run's arrivals, which read `members`.
+            values: The run's values, for the run scope and `members`.
             holder_run: The run's resources, stores and containers.
             signal_run: The run's signals.
         """
-        return FamilyRun(self, values, arrival_run, holder_run, signal_run)
+        return FamilyRun(self, values, holder_run, signal_run)
 
     def declare(
         self,
@@ -513,17 +508,18 @@ class FamilyRun:
 
     Attributes:
         families: The declarations.
-        values: The run's values, for the run scope.
-        arrival_run: The run's arrivals, which read `members`.
+        values: The run's values, for the run scope and `members`.
         holder_run: The run's resources, stores and containers.
         signal_run: The run's signals.
+        keys: The keys of the members made so far in this run, by family name, in
+            creation order.
     """
 
     families: Families
     values: "ValueRuntime"
-    arrival_run: "ArrivalRun"
     holder_run: "HolderRun"
     signal_run: "SignalRun"
+    keys: Dict[str, List[Union[int, str]]] = field(default_factory=dict)
 
     def start_members(self) -> None:
         """Makes the members `members` asks for, in family order, keys 0 to n - 1, in
@@ -532,7 +528,7 @@ class FamilyRun:
             if family.members is None:
                 continue
             count = whole(
-                self.arrival_run.value(family.members),
+                read_place(self.values, family.members),
                 f"{SECTIONS[family.kind]}.{family.name}.members",
             )
             scope = self.values.scope_of()
@@ -566,12 +562,12 @@ class FamilyRun:
             # A member takes the family's settings, read from the family's entry,
             # so the run adds no member to the declarations
             self.signal_run.make(name, base)
-            family.keys.append(key)
+            self.keys.setdefault(family.name, []).append(key)
             return name
         if family.members is not None or scope is None:
             scope = self.values.scope_of()
         self.holder_run.make_member(family, name, scope)
-        family.keys.append(key)
+        self.keys.setdefault(family.name, []).append(key)
         return name
 
     def open_reference(self, reference: Reference, scope: Scope) -> str:
@@ -603,13 +599,14 @@ class FamilyRun:
             return self.open_member(
                 family, reference.key_expression.evaluate(scope), scope
             )
-        if not family.keys:
+        keys = self.keys.get(family.name, [])
+        if not keys:
             raise ValueError(
                 f"{reference.mapping()} has no member to pick from: the family is empty"
             )
         best: Any = None
         found: Any = None
-        for key in list(family.keys):
+        for key in list(keys):
             value = reference.lowest_expression.evaluate(  # type: ignore[union-attr]
                 replace(scope, member=self.member_row(family, key))
             )

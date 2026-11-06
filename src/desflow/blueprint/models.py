@@ -2334,6 +2334,8 @@ class Task(_Model):
 
     @model_validator(mode="after")
     def _key_rules(self) -> "Task":
+        """Refuses a key given without the key it needs, or together with one it
+        excludes."""
         if self.service is not None and self.service_time is not None:
             raise ValueError(
                 "a task takes a service or a service_time, not both: service_time "

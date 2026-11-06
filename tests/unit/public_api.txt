@@ -224,7 +224,15 @@ desflow.core.context.SimulationContext.wait_for_arrival(arrival_id: str) -> simp
 desflow.core.context.SimulationContext.with_batching(batch_size: int, flush_interval: float, max_queued_batches: int = 2000, drain_stall_seconds: float = 30.0) -> SimulationContext
 desflow.core.context.SimulationContext.with_stats(level: str = 'basic', interval: float = 10.0, on_change: bool = False, trace: bool = False) -> SimulationContext
 desflow.core.environment.DynamicRealtimeEnvironment(initial_time=0, factor=1.0, strict: bool | None = None, logical_start_time: datetime.datetime | None = None, go_live_at: datetime.datetime | None = None, timezone: str | None = None, on_unhandled_failure: str = 'stop')
+desflow.core.environment.DynamicRealtimeEnvironment.egress_batch_sizes: property
+desflow.core.environment.DynamicRealtimeEnvironment.egress_envelopes: property
+desflow.core.environment.DynamicRealtimeEnvironment.egress_flush_intervals: property
+desflow.core.environment.DynamicRealtimeEnvironment.egress_labels: property
+desflow.core.environment.DynamicRealtimeEnvironment.egress_predicates: property
+desflow.core.environment.DynamicRealtimeEnvironment.egress_providers: property
 desflow.core.environment.DynamicRealtimeEnvironment.egress_queue: property
+desflow.core.environment.DynamicRealtimeEnvironment.egress_queues: property
+desflow.core.environment.DynamicRealtimeEnvironment.egress_traces: property
 desflow.core.environment.DynamicRealtimeEnvironment.internal_event() -> simpy.events.Event
 desflow.core.environment.DynamicRealtimeEnvironment.internal_timeout(delay: float, value: Any = None) -> simpy.events.Timeout
 desflow.core.environment.DynamicRealtimeEnvironment.notify_change() -> None
@@ -276,6 +284,7 @@ desflow.core.registry.SimulationRegistry.change(path: str, value: Any, *, source
 desflow.core.registry.SimulationRegistry.configs() -> dict[str, Any]
 desflow.core.registry.SimulationRegistry.get(path: str) -> desflow.core.registry.DynamicValue
 desflow.core.registry.SimulationRegistry.get_config(path: str) -> Any
+desflow.core.registry.SimulationRegistry.is_queue_limit(path: str) -> bool
 desflow.core.registry.SimulationRegistry.paths() -> list[str]
 desflow.core.registry.SimulationRegistry.register_breakdown(sim_id: str, name: str, breakdown: Any)
 desflow.core.registry.SimulationRegistry.register_container(sim_id: str, name: str, cap_config: desflow.models.params.CapacityConfig)

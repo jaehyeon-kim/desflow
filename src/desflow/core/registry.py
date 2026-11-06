@@ -304,7 +304,7 @@ class SimulationRegistry:
             raise KeyError(f"Config path '{path}' not found in Simulation Registry.")
         return self._configs[path]
 
-    def _is_queue_limit(self, path: str) -> bool:
+    def is_queue_limit(self, path: str) -> bool:
         """
         Whether `path` is a resource's `queue_limit`, as registered.
 
@@ -460,7 +460,7 @@ class SimulationRegistry:
         kind, parent_path, attr = registered.kind, registered.config, registered.attr
 
         # Type Validation & Casting
-        if self._is_queue_limit(path):
+        if self.is_queue_limit(path):
             # A whole number or null, whether the limit is set now or not
             validated_value = queue_limit_value(path, new_value)
         elif current_val is not None and _infinite_capacity(registered, new_value):

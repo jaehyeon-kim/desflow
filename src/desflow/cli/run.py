@@ -271,12 +271,11 @@ def _run_once(path: str, options: _RunOptions) -> None:
 
     if seed is not None:
         context.random_seed = seed
-    if parts_of(context).defaults.repeat_hint is not None:
+    defaults = parts_of(context).defaults
+    if defaults.repeat_hint is not None:
         # The run's seed is filled in later, so braces in the until are doubled
         repeat = _run_options(options)
-        parts_of(context).defaults.repeat_hint += repeat.replace("{", "{{").replace(
-            "}", "}}"
-        )
+        defaults.repeat_hint += repeat.replace("{", "{{").replace("}", "}}")
     if replications is not None:
         with quiet_builds():
             _replicate(file, replications, context, stop_at, options)

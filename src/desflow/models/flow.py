@@ -53,8 +53,8 @@ class Entity:
 
     @property
     def left(self) -> bool:
-        """True once `_entity_left` has run: the flow has ended and nothing is
-        pending."""
+        """True once `RunState.entity_left` has run: the flow has ended and nothing
+        is pending."""
         return self.ending and self.ends_pending == 0
 
 

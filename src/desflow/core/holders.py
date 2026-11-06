@@ -28,9 +28,14 @@ from typing import (
 from desflow.core.breakdowns import run_breakdowns
 from desflow.core.expressions import Expression, Scope
 from desflow.core.families import SECTIONS
-from desflow.models.params import BreakdownConfig, CapacityConfig
+from desflow.models.params import BreakdownConfig, CapacityConfig, ResourceConfig
 from desflow.resources.container import ContainerBase, DynamicContainer
-from desflow.resources.resource import DynamicResource, PreemptRule, ResourceBase
+from desflow.resources.resource import (
+    DynamicResource,
+    PreemptRule,
+    ResourceBase,
+    _default_put_queue,
+)
 from desflow.resources.store import DynamicStore, StoreBase
 from desflow.values.models import has_generator
 
@@ -140,6 +145,91 @@ class Holders:
         self.store_types: Dict[str, Optional[Type[StoreBase]]] = {}
         self.container_types: Dict[str, Optional[Type[ContainerBase]]] = {}
         self.store_items: Dict[str, List[Any]] = {}
+
+    def declare_resource(
+        self,
+        name: str,
+        current_cap: Any,
+        max_cap: Any,
+        queue: str,
+        preempt: bool,
+        queue_limit: Optional[int],
+        rank: Optional[Tuple[Expression, str]],
+        rule: Optional[Tuple[Optional[Expression], Optional[Expression]]],
+        type: Optional[Type[ResourceBase]],
+    ) -> None:
+        """Keeps a resource's declaration; a second declaration of a name replaces
+        the first. The capacity is checked after the queue settings are kept.
+
+        Args:
+            name: The resource's name.
+            current_cap: Its starting capacity, or None for 1.
+            max_cap: Its largest capacity, or None for no limit.
+            queue: Its queue order.
+            preempt: Whether it preempts.
+            queue_limit: Its `queue_limit`, or None.
+            rank: Its `queue` rank, the expression and `ties`, or None.
+            rule: Its `preempt` rule, the `when` and `victim` expressions, or None.
+            type: The `ResourceBase` subclass it is built as, or None.
+        """
+        self.resource_preempt[name] = preempt
+        if rank is None:
+            self.resource_rank.pop(name, None)
+        else:
+            self.resource_rank[name] = rank
+        if rule is None:
+            self.resource_rule.pop(name, None)
+        else:
+            self.resource_rule[name] = rule
+        self.resources_config[name] = ResourceConfig(
+            current_cap=_within_max("resource", name, current_cap, max_cap),
+            max_cap=max_cap,
+            queue_limit=queue_limit,
+            limit_path=_default_put_queue(type or ResourceBase),
+        )
+        self.resource_queues[name] = queue
+        self.resource_queue_limits[name] = queue_limit
+        self.resource_types[name] = type
+
+    def declare_container(
+        self,
+        name: str,
+        config: CapacityConfig,
+        type: Optional[Type[ContainerBase]],
+    ) -> None:
+        """Keeps a container's declaration; a second declaration of a name replaces
+        the first.
+
+        Args:
+            name: The container's name.
+            config: Its capacity and level.
+            type: The `ContainerBase` subclass it is built as, or None.
+        """
+        self.container_types[name] = type
+        self.containers_config[name] = config
+
+    def declare_store(
+        self,
+        name: str,
+        config: CapacityConfig,
+        items: List[Any],
+        priority: bool,
+        type: Optional[Type[StoreBase]],
+    ) -> None:
+        """Keeps a store's declaration; a second declaration of a name replaces the
+        first.
+
+        Args:
+            name: The store's name.
+            config: Its capacity.
+            items: The items it starts with.
+            priority: Whether it is a priority store.
+            type: The `StoreBase` subclass it is built as, or None.
+        """
+        self.store_items[name] = items
+        self.stores_config[name] = config
+        self.store_priority[name] = priority
+        self.store_types[name] = type
 
     def new_run(
         self,
@@ -283,16 +373,13 @@ class HolderRun:
             victim=None if victim is None else lambda r, h: read(victim, r, h),
         )
 
-    def new_resource(
-        self, res_id: str, source: Optional[str] = None, config: Any = None
-    ) -> ResourceBase:
+    def new_resource(self, res_id: str, source: Optional[str] = None) -> ResourceBase:
         """Builds a resource and registers it by name.
 
         Args:
             res_id: The name it is built and registered under.
             source: The entry whose settings it takes, when it is a member of a
                 family; `res_id` otherwise.
-            config: The capacity of a member, already registered; None for an entry.
 
         Returns:
             ResourceBase: The resource.
@@ -423,7 +510,7 @@ class HolderRun:
         registry = self.env.registry
         if family.kind == "resource":
             registry.register_resource(self.sim_id, name, config)
-            self.new_resource(name, base, config)
+            self.new_resource(name, base)
             breakdown = self.holders.breakdowns_config.get(base)
             if breakdown is not None:
                 found_breakdown = _run_copy(breakdown)

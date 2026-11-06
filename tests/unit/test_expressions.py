@@ -717,8 +717,7 @@ def test_members_lists_the_keys_in_creation_order_and_reads_nothing_else():
     from desflow.core.families import Family
 
     family = Family("desk", "resource")
-    family.keys.extend([2, "a.b", 0])
-    scope = Scope(families={"desk": family})
+    scope = Scope(families={"desk": family}, family_keys={"desk": [2, "a.b", 0]})
     assert Expression("members(desk)").evaluate(scope) == [2, "a.b", 0]
     assert Expression("len(members(desk))").evaluate(scope) == 3
     assert Expression("members(desk)").references["members"] == {"desk"}
@@ -732,7 +731,7 @@ def test_a_member_that_does_not_exist_gives_what_a_new_member_gives():
     scope = Scope(families={"desk": family})
     assert Expression("users.desk[7]", names=ANY_NAME).evaluate(scope) == 0
     assert Expression("queue.desk['x']", names=ANY_NAME).evaluate(scope) == 0
-    assert family.keys == []
+    assert Expression("members(desk)").evaluate(scope) == []
 
 
 @pytest.mark.parametrize("key", [True, False, 3])

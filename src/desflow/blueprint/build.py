@@ -64,7 +64,12 @@ from desflow.core.task_checks import (
     handle_problem,
     scope_problem,
 )
-from desflow.core.context import SimulationContext, parts_of
+from desflow.core.context import (
+    SimulationContext,
+    parts_of,
+    scratch_registry,
+    written_paths,
+)
 from desflow.core.scenario import walk_steps
 from desflow.core.signals import timing_problem
 from desflow.core.environment import in_zone, resolve_zone
@@ -596,7 +601,8 @@ def _check_task_names(
     name: str, task: Any, blueprint: Blueprint, source: SourceMap
 ) -> None:
     """Checks that every service, resource, store, container, task and signal a task
-    names is defined, and that a priority is given only where its resource takes one."""
+    names is defined, that a priority is given only where its resource takes one,
+    and that a get or put filter is not used on a store that serves by priority."""
     if task.service is not None and task.service not in blueprint.services:
         raise source.error(
             ("tasks", name, "service"),
@@ -1105,7 +1111,7 @@ def _check_families(
         parts.holders,
         parts.signals,
         parts.readings,
-        task_reads=_payload_reads(blueprint),
+        task_reads=_file_generator_reads(blueprint),
         entries=[
             (section, name)
             for section in ("resources", "stores", "containers", "signals")
@@ -1127,12 +1133,12 @@ def _check_families(
     raise source.error(found.where, message)
 
 
-def _payload_reads(
+def _file_generator_reads(
     blueprint: Blueprint,
 ) -> Iterator[Tuple[str, str, Tuple[Any, ...], Expression]]:
-    """The expressions of the generators in each task's value places as the file
-    writes them, which reach the payload a Builder task's spec does not hold, each as
-    (task, key, where, expression)."""
+    """The expressions inside the generators of each task's value places, as the
+    file writes them, each as (task, key, where, expression). The context cannot see
+    a payload generator, because a Builder task's body is a function."""
     for name, task in blueprint.tasks.items():
         for key, where, _after, value in task_value_places(
             lambda key: _task_value(task, key)
@@ -2417,10 +2423,10 @@ def _check_values(
     """Checks the generators of the file: var names and their order, `expr` names,
     `fake` methods, `sample` services, `param` paths, `row` files and where
     `omit_rate` and `omit_when` stand."""
-    registry = parts_of(context).scratch_registry()
+    registry = scratch_registry(context)
     services = set(blueprint.services)
     base_dir = source.path.parent
-    written = parts_of(context).written_paths()
+    written = written_paths(parts_of(context))
     problems: List[Tuple[Tuple[Any, ...], str]] = []
     for name, task in blueprint.tasks.items():
         found = task_value_problems(
@@ -2784,7 +2790,7 @@ def _check_scenario(
     if not blueprint.scenario:
         return
 
-    registry = parts_of(context).scratch_registry()
+    registry = scratch_registry(context)
     for index, problem, detail in walk_steps(
         [(step.at, step.path, step.value) for step in blueprint.scenario],
         registry,
@@ -2819,7 +2825,7 @@ def _warn_on_paths(
     wrong path ends the run with `KeyError` when the entry first runs, and a value
     the registry cannot convert is logged and ignored.
     """
-    registry = parts_of(context).scratch_registry()
+    registry = scratch_registry(context)
     owners: List[Tuple[str, str, Tuple[str, ...], List[Any]]] = [
         ("tasks", name, at_where, entries)
         for name, task in blueprint.tasks.items()
@@ -2847,7 +2853,7 @@ def _warn_on_paths(
                     ),
                 )
                 continue
-            if registry._is_queue_limit(entry.path) and not has_generator(entry.value):
+            if registry.is_queue_limit(entry.path) and not has_generator(entry.value):
                 try:
                     queue_limit_value(entry.path, entry.value)
                 except ParamRejected as exc:
@@ -2882,7 +2888,7 @@ def _check_registry_reads(
     blueprint: Blueprint, context: SimulationContext, source: SourceMap
 ) -> None:
     """Checks every `registry["<path>"]` an expression reads against the registry."""
-    registry = parts_of(context).scratch_registry()
+    registry = scratch_registry(context)
     found = [
         pair
         for name, task in blueprint.tasks.items()

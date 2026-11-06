@@ -955,6 +955,39 @@ def test_omitting_the_per_provider_values_reproduces_the_shared_cadence():
     assert [len(batch) for batch in second.received_batches] == [3]
 
 
+def test_setup_egress_leaves_each_per_provider_list_on_the_environment():
+    """The eight lists `setup_egress` set in 0.28.0 are still read by name, so a
+    subclass or a caller that read them goes on working."""
+    first, second = TrackingEgress(), TrackingEgress()
+
+    def keep(record):
+        return True
+
+    env = DynamicRealtimeEnvironment(strict=False)
+    env.setup_egress(
+        providers=[first, second],
+        predicates=[None, keep],
+        batch_sizes=[2, None],
+        flush_intervals=[None, 4.0],
+        labels=[False, True],
+        traces=[True, False],
+        envelopes=[True, False],
+        batch_size=3,
+        lag_monitor_interval=0,
+    )
+
+    assert env.egress_providers == [first, second]
+    assert env.egress_queues == [run.batches for run in env._egress_sinks]
+    assert env.egress_queues[0] is env.egress_queue
+    assert env.egress_predicates == [None, keep]
+    assert env.egress_batch_sizes == [2, 3]
+    assert env.egress_flush_intervals == [1.0, 4.0]
+    assert env.egress_labels == [False, True]
+    assert env.egress_traces == [True, False]
+    assert env.egress_envelopes == [True, False]
+    env.teardown_egress()
+
+
 def test_a_predicate_keeps_records_out_of_the_other_buffer():
     """The predicate moved from flush time to append time, so a record is tested once
     on the way in rather than against every predicate at fan-out. A buffer must then

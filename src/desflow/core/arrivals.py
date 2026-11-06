@@ -2,11 +2,11 @@
 take their gaps from an expression.
 
 A blueprint arrival with `count`, `keys`, `key`, `vars`, `stagger`, `first_at`,
-`max_events` or `gap` has an `ArrivalPlan`. `Arrivals` holds what a model declares;
-each run's `ArrivalRun` holds what the run keeps, and its `loop`, which the context
-starts for each arrival with `spawn`, runs `source` for an arrival that starts one
-entity at each gap, `start_entities` for one with `count` or `keys`, where each entity
-has a loop of its own, and a plain loop for an arrival with no plan.
+`max_events` or `gap` has an `ArrivalPlan`. `Arrivals` holds what a model declares,
+and each run's `ArrivalRun` holds what the run keeps. The context starts
+`ArrivalRun.loop` for each arrival with `spawn`. The loop runs `source` for an arrival
+that starts one entity at each gap, `start_entities` for one with `count` or `keys`,
+and a plain loop for an arrival with no plan.
 """
 
 import logging
@@ -206,6 +206,23 @@ class _Counter:
         self.last -= 1
 
 
+def read_place(
+    values: "ValueRuntime", place: Any, names: Optional[Dict[str, Any]] = None
+) -> Any:
+    """Reads a place over the run: a number as it is, an expression or a generator,
+    with `names` as its bare names.
+
+    Args:
+        values: The run's values, which give the run scope and evaluate a generator.
+        place: The place: a number, an expression or a generator.
+        names: The bare names the place reads; None for none.
+    """
+    scope = values.scope_of(names=names)
+    if isinstance(place, Expression):
+        return place.evaluate(scope)
+    return values.evaluate(place, scope)
+
+
 class Arrivals:
     """The arrivals of a model: how each makes its entities and when.
 
@@ -297,71 +314,12 @@ class Arrivals:
         max_events: Any = None,
         vars: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        """See `SimulationContext.add_arrival`. `bind` binds the generators of a place
-        at the place a blueprint gives it.
+        """See `SimulationContext.add_arrival`.
 
         Args:
             bind: Binds the generators of a place at the place a blueprint gives it (the
-                context's `_bind_values`).
-            name: The internal identifier (e.g., 'orders').
-            dist: The family, as for `add_service`, with the same parameters and the
-                same durations. Give `gap` instead of it for a gap that is not a
-                distribution.
-            rate: Events per second, for exponential.
-            mean: The mean, for normal, lognormal, truncated_normal and poisson.
-            std: The standard deviation, for the first three (0 when not given).
-            low: The lowest value, for truncated_normal, uniform and triangular.
-            value: The time a constant distribution always gives.
-            high: The highest value, for uniform and triangular.
-            mode: The most likely value, for triangular.
-            shape: The shape, for gamma and weibull.
-            scale: The scale, for gamma and weibull.
-            values: The values an empirical draws from, taken at load.
-            weights: One weight per empirical value.
-            edges: The bin edges of an empirical histogram.
-            counts: One count per empirical histogram bin.
-            p: The chance of success on each try, for geometric.
-            gap: The time to the next arrival in place of `dist`, as a blueprint's
-                `gap`: a number of seconds, a duration such as `"5 min"`, an
-                expression such as `"1 + t / 4"` or a generator, read at the start
-                of each gap.
-            attributes: The attributes each entity starts with, read in conditions
-                as `attr.<name>`. Each entity gets its own copy.
-            key: The entity's key. A function of the entity's counter, from 1, returning
-                its key; or a value as a blueprint's `key` reads it: text or a number
-                is the key itself, and a generator is read once for each entity, after
-                `vars` and the attributes. An expression key is
-                `generator({"gen": "expr", "expr": "..."})`. `wait_for_arrival` reads
-                it too, so it needs no `spawn`.
-            spawn: The task each arrival starts, with the arrival's entity and the
-                task's next instance id, as YAML's `spawn` key does. None leaves
-                the arrival to an `arrival_loop` written by hand.
-            first_at: The simulation time of the first arrival, which the first
-                `wait_for_arrival` waits for in place of a gap. The gaps after it
-                come from the distribution. A time already past arrives at once.
-            group: How many entities one arrival starts, with `spawn`: a whole number,
-                an expression such as `"int(t / 5)"` or a generator, read at each
-                arrival after the gap. 0 or less starts nobody and takes no key
-                number.
-            active: False starts the source off, with `spawn`. A task's `activate`
-                turns it on.
-            off_mode: With `spawn`, `"drop"` (the default): an arrival that falls
-                while the source is off starts nobody. `"restart"`: turning the
-                source off drops the pending arrival, and turning it on starts a
-                whole new gap.
-            initial: With `spawn`, how many entities exist, in creation order, when
-                the run starts, before any gap passes.
-            max_events: With `spawn`, how many times the arrival starts its task, in
-                all, as a blueprint's `max_events`: a whole number of 0 or more, an
-                expression such as `"int(t / 5)"` or a generator, read when the
-                source starts. The arrival stops after the last, and its last start
-                draws no further gap.
-            vars: Named values read once for each entity, before its attributes and
-                key, as a blueprint's arrival `vars`. Each is a constant or a
-                generator such as `generator({"gen": "boolean", "p": 0.1})`; a plain
-                mapping with `gen` is refused. A name is one an expression can read
-                and does not already use. An attribute and the `key` read them with
-                `generator({"gen": "var", "name": ...})`.
+                context's `_bind_values`). The others are as for
+                `SimulationContext.add_arrival`.
         """
         params = {
             k: v
@@ -541,23 +499,12 @@ class Arrivals:
         gap: Any = None,
         vars: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        """See `SimulationContext.add_initial_arrival`; `bind` as for `add_arrival`.
+        """See `SimulationContext.add_initial_arrival`.
 
         Args:
             bind: Binds the generators of a place at the place a blueprint gives it (the
-                context's `_bind_values`).
-            name: The arrival's name.
-            initial: How many entities, 1 or more.
-            spawn: The task each entity starts.
-            attributes: The attributes each entity starts with.
-            key: The entity's key, in every form `add_arrival` takes: a function of
-                the entity's counter, from 1, or a value as a blueprint's `key`
-                reads it.
-            gap: With a gap the arrival is not sourceless: it also starts an entity
-                after each gap once the first `initial` exist, as
-                `add_arrival(name, gap=gap, initial=initial, ...)` does.
-            vars: Named values read once for each entity, before its attributes and
-                key, as for `add_arrival`.
+                context's `_bind_values`). The others are as for
+                `SimulationContext.add_initial_arrival`.
         """
         if isinstance(initial, bool) or not isinstance(initial, int) or initial < 1:
             raise ValueError(f"initial is a whole number above 0, got {initial!r}")
@@ -607,32 +554,12 @@ class Arrivals:
         off_mode: str = "drop",
         vars: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        """See `SimulationContext.add_arrival_replay`; `bind` as for `add_arrival`.
+        """See `SimulationContext.add_arrival_replay`.
 
         Args:
             bind: Binds the generators of a place at the place a blueprint gives it (the
-                context's `_bind_values`).
-            name: The arrival's name.
-            source: A CSV or Parquet file (Parquet needs the `parquet` extra), or
-                an iterable of mappings.
-            time: The column of each row's time.
-            unit: `ms`, `s`, `min` or `h` from the start of the run, or `timestamp`
-                for a date and time, which arrives when the run's records carry
-                that time: `logical_start_time` is simulation time 0, whatever
-                the `initial_time`.
-            fields: The columns each entity carries, or `all`.
-            on_invalid: `error` refuses a row with no valid time; `skip` leaves it
-                out with a warning.
-            attributes: Attributes every entity starts with; a row's fields of the
-                same name replace them.
-            key: The entity's key, in every form `add_arrival` takes: a function of
-                the entity's counter, from 1, or a value as a blueprint's `key`
-                reads it.
-            spawn: The task each row starts, as for `add_arrival`.
-            active: False starts the source off, as for `add_arrival`.
-            off_mode: `"drop"` or `"restart"`, as for `add_arrival`.
-            vars: Named values read once for each entity, before its attributes and
-                key, as for `add_arrival`.
+                context's `_bind_values`). The others are as for
+                `SimulationContext.add_arrival_replay`.
         """
         if unit not in UNITS and unit != "timestamp":
             raise ValueError(
@@ -704,10 +631,7 @@ class ArrivalRun:
             place: The place: a number, an expression or a generator.
             names: The bare names the place reads; None for none.
         """
-        scope = self.values.scope_of(names=names)
-        if isinstance(place, Expression):
-            return place.evaluate(scope)
-        return self.values.evaluate(place, scope)
+        return read_place(self.values, place, names)
 
     def _seconds(self, place: Any, what: str) -> Union[int, float]:
         """A time place of an arrival, read now, as seconds.

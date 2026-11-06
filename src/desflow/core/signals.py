@@ -15,7 +15,7 @@ import functools
 import logging
 import operator
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Mapping, Optional
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional
 
 from simpy import Environment, Event
 from simpy.events import NORMAL, URGENT
@@ -362,6 +362,25 @@ class Signals:
         self.once: Dict[str, bool] = {}
         self.defused: Dict[str, bool] = {}
         self.on: Dict[str, List[Dict[str, Any]]] = {}
+
+    def declare(
+        self, name: str, once: bool, defused: bool, on: Iterable[Dict[str, Any]]
+    ) -> None:
+        """Keeps a signal's declaration; a second declaration of a name replaces the
+        first and keeps its place in `names`.
+
+        Args:
+            name: The signal's name.
+            once: Whether it fires once.
+            defused: Whether its failures are defused.
+            on: Its `on:` actions in normalized form, read after the other settings
+                are kept, so an action that is refused leaves them kept.
+        """
+        if name not in self.names:
+            self.names.append(name)
+        self.once[name] = once
+        self.defused[name] = defused
+        self.on[name] = list(on)
 
     def new_run(
         self,

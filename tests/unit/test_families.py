@@ -156,13 +156,13 @@ run: {until: 20}
     first = _done(outcome)
     context = outcome.app_or_env
     assert [v["x"] for _t, _k, v in first] == [[0, 1], [0, 1]]
-    assert context._families.by_name["desk"].keys == [0, 1]
+    assert context._run.families.keys == {"desk": [0, 1]}
     before = len(outcome.records)
     context.run()
     second = [r for r in outcome.records[before:] if r["stream_type"] == "event"]
     done = [r["value"]["x"] for r in second if "x" in r["value"]]
     assert done == [[0, 1], [0, 1]]
-    assert context._families.by_name["desk"].keys == [0, 1]
+    assert context._run.families.keys == {"desk": [0, 1]}
     assert sorted(
         n for n in context._run.holders.resources if n.startswith("desk[")
     ) == [
@@ -818,18 +818,22 @@ def test_a_lowest_reads_the_count_of_a_signal_member_and_the_level_of_a_containe
         + """
 signals: {bell: {family: true, members: 2, once: false}}
 arrivals:
-  a: {initial: 1, spawn: t}
+  a: {dist: constant, value: 1, first_at: 2, max_events: 1, spawn: t}
   b: {dist: constant, value: 1, first_at: 1, max_events: 1, spawn: f}
+  c: {dist: constant, value: 1, first_at: 3, max_events: 1, spawn: g}
 tasks:
   t: {wait: {signal: {of: bell, lowest: member.count}}, payload: {e: woke}}
-  f: {payload: {e: fired}, signal: {of: bell, key: "0"}}
+  f: {payload: {e: fired_0}, signal: {of: bell, key: "0"}}
+  g: {payload: {e: fired_1}, signal: {of: bell, key: "1"}}
 run: {until: 5}
 """,
         {},
     )
+    # bell[0] has fired once when t reads `lowest` at 2, so t waits on bell[1]
     assert [(t, v["e"]) for t, _k, v in _done(signal)] == [
-        (1.0, "fired"),
-        (1.0, "woke"),
+        (1.0, "fired_0"),
+        (3.0, "fired_1"),
+        (3.0, "woke"),
     ]
     container = run_yaml_text(
         tmp_path,

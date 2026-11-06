@@ -32,8 +32,16 @@ from desflow.core.signals import SignalRun
 from desflow.models.flow import Entity
 
 if TYPE_CHECKING:
+    from desflow.core.arrivals import Arrivals
+    from desflow.core.context import RunDefaults
     from desflow.core.environment import DynamicRealtimeEnvironment
+    from desflow.core.families import Families
+    from desflow.core.flow import LiveScope
+    from desflow.core.holders import Holders
+    from desflow.core.signals import Signals
+    from desflow.core.sinks import Sinks
     from desflow.core.task import TaskRun
+    from desflow.core.tasks import Tasks
     from desflow.values.runtime import ValueRuntime
 
 # The length at which a task's list of held requests is first pruned
@@ -66,13 +74,15 @@ class RunState:
     """The state of one run, made new by each `start()`.
 
     The run settings (`segments`, `steps`, `sync`, `on_unhandled_failure`) are set by
-    `start()` before its checks; the build after them sets the run's `env`, `values`,
-    `arrival_run`, `holder_run`, `signal_run` and `family_run` as it makes them, and the end (`until`, `end`, `end_done`,
-    `limit_event`).
+    `start()` before its checks; the build after them sets the run's `env`,
+    `values`, `arrival_run`, `holder_run`, `signal_run` and `family_run` as it makes
+    them, and the end (`until`, `end`, `end_done`, `limit_event`).
 
     Attributes:
         env: The run's environment, None until the build makes it.
         values: The run's values, None until the build makes them.
+        held: The tasks a `release: {resource, task}` names, whose requests the run
+            lists.
         running: The task instances running now, by task, which `interrupt()`
             reaches.
         suspended: The events of the instances suspended in a
@@ -336,31 +346,29 @@ class Parts:
         run: The state of the open run (`RunState`).
         scope: What every scope of the open run reads (`LiveScope`), None before the
             first build.
-        scratch_registry: Builds a registry with the paths a run registers.
-        written_paths: Gives the registry paths the model writes.
         services: The services' distributions, by name.
         processes: The functions `add_process` started, which `explain` shows as
             opaque nodes.
         run_scenario: The process that runs the scenario, which `explain` tells
-            apart from the processes a model adds.
+            apart from the processes a model adds. It is the context's bound method
+            `_run_scenario`, because `explain/graph.py` finds the scenario process
+            by comparing each started function with it.
         readings: The parsed readings of each `add_readings` call, which the family
             check reads.
     """
 
-    tasks: Any
-    families: Any
-    arrivals: Any
-    holders: Any
-    signals: Any
-    sinks: Any
-    defaults: Any
+    tasks: "Tasks"
+    families: "Families"
+    arrivals: "Arrivals"
+    holders: "Holders"
+    signals: "Signals"
+    sinks: "Sinks"
+    defaults: "RunDefaults"
     scenario_steps: List[Dict[str, Any]]
     startup: List[Tuple[Callable, Optional[str]]]
     ends: EndSets
     run: RunState
-    scope: Any
-    scratch_registry: Callable[[], Any]
-    written_paths: Callable[[], Any]
+    scope: Optional["LiveScope"]
     services: Dict[str, Any]
     processes: List[Callable]
     run_scenario: Callable

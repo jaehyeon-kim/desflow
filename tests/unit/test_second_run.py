@@ -7,10 +7,10 @@ leaves state in the context, such as a live change written into a declaration or
 member of a family added to it, makes the second run differ.
 
 Every attribute of the context is also compared before and after the first run, apart
-from the state of a run (`RUN_STATE` and `PARTS_OF_A_RUN`), because a write into a
-declaration that no later read meets changes no record: a member's entry added to
-`_signals.once`, or a change written into a breakdown's distribution of a model whose
-second run ends before the repair it changes. And no registry may hold a declared
+from the state of a run (`RUN_STATE`), because a write into a declaration that no
+later read meets changes no record: a member's entry added to `_signals.once`, or a
+change written into a breakdown's distribution of a model whose second run ends
+before the repair it changes. And no registry may hold a declared
 config object itself, because a write the load checks make into one comes before
 the first fingerprint.
 """
@@ -29,9 +29,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from desflow.core.context import SimulationContext
-from desflow.core.families import Family
-from desflow.core.flow import Router
+from desflow.core.context import SimulationContext, scratch_registry
 
 ROOT = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location(
@@ -186,12 +184,7 @@ RUN_STATE: Dict[str, str] = {
         )
     },
     "_runs_of": "the run's task generators, held weakly",
-    "_finish_run": "the end of the run, which each `run()` sets",
     "_order_warned": "the messages logged once, so a second run does not log again",
-}
-# The parts of a declaration a run may change, each with its reason
-PARTS_OF_A_RUN: Dict[Tuple[type, str], str] = {
-    (Family, "keys"): "the keys of the members a run made, which each `_build` empties",
 }
 
 
@@ -203,13 +196,6 @@ def _fingerprint(value: Any, depth: int = 0, seen: FrozenSet[int] = frozenset())
     if depth > 8 or id(value) in seen:
         return f"<{type(value).__name__}>"
     seen = seen | {id(value)}
-    if isinstance(value, (Family, Router)):
-        fields = {
-            k: v
-            for k, v in vars(value).items()
-            if (type(value), k) not in PARTS_OF_A_RUN
-        }
-        return (type(value).__name__, _fingerprint(fields, depth + 1, seen))
     if isinstance(value, dict):
         return tuple(
             (_fingerprint(k, depth + 1, seen), _fingerprint(v, depth + 1, seen))
@@ -264,7 +250,7 @@ def _registered_declarations(app: Any) -> List[str]:
     declared = _declared_objects(app)
     registries = [] if app._env is None else [app._env.registry]
     try:
-        registries.append(app._scratch_registry())
+        registries.append(scratch_registry(app))
     except ValueError:  # a model whose parameters the registry refuses
         pass
     return [
