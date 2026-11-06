@@ -2951,6 +2951,91 @@ def test_family_refusals_name_the_place(tmp_path, old, new, fragment):
     assert fragment in str(error.value), str(error.value)
 
 
+@pytest.mark.parametrize(
+    "old,new,row,message",
+    [
+        (
+            "signals: {reply: {family: true}}",
+            "signals: {reply: {family: true}, go: {on: [{fire: {signal: reply}}]}}",
+            "signals:",
+            "signal 'go': on names the family 'reply', which is named by a reference: "
+            "{of: reply, key: <expression>}",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x}\n    set: {x: {gen: expr, expr: "len(users.desk)"}}',
+            "    set:",
+            "task 't': set reads users.desk of a family; read one member with "
+            "users.desk[<key>], or list the keys with members(desk)",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    release: {resource: nope, task: t}",
+            "    release:",
+            "task 't' uses resource 'nope', which is not defined under resources; add "
+            "it under resources",
+        ),
+        (
+            "stores: {q: {family: true}}",
+            "stores: {q: {family: true}, pq: {priority: true}}",
+            None,
+            "store 'pq' serves by priority, and SimPy has no store that both ranks and "
+            "filters its items; remove the filter, or the store's priority",
+        ),
+        (
+            "run: {until: 10}",
+            "run: {until: 10}\nscenario:\n  - {at: 1, interrupt: {task: nosuch}}",
+            "  - {at: 1",
+            "the step interrupts task 'nosuch', which is not defined under tasks; add it "
+            "under tasks",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    on: [{interrupt: {task: nosuch}}]",
+            "    on:",
+            "the on: action of task 't' interrupts task 'nosuch', which is not defined "
+            "under tasks; add it under tasks",
+        ),
+        (
+            "signals: {reply: {family: true}}",
+            "signals: {reply: {family: true}, go: {on: [{interrupt: {task: nosuch}}]}}",
+            "signals:",
+            "the on: action of signal 'go' interrupts task 'nosuch', which is not "
+            "defined under tasks; add it under tasks",
+        ),
+        (
+            "signals: {reply: {family: true}}",
+            "signals: {reply: {family: true}, go: {on: [{resume: {task: nosuch}}]}}",
+            "signals:",
+            "the on: action of signal 'go' resumes task 'nosuch', which is not defined "
+            "under tasks; add it under tasks",
+        ),
+    ],
+)
+def test_a_load_refusal_gives_its_whole_text_at_its_line(
+    tmp_path, old, new, row, message
+):
+    """Each of these refusals of a file is the whole message, at the line of the key
+    it names: a signal's `on:` that names a family, a generator of `set` that reads
+    one, a `release` of an unknown resource, a `filter` on a store that serves by
+    priority, and an unknown task that a scenario step or an `on:` entry interrupts
+    or resumes."""
+    text = FAMILIES.replace(old, new)
+    if row is None:
+        text = text.replace(
+            "payload: {e: x}",
+            'payload: {e: x}\n    get: {store: pq, filter: "item > 1"}',
+        )
+        row = "    get:"
+    path = write(tmp_path, text)
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    line = next(
+        n for n, text_row in enumerate(text.splitlines(), 1) if text_row.startswith(row)
+    )
+    assert str(error.value) == f"{path}:{line}: {message}"
+
+
 EVENTS = FAMILIES.replace(
     "signals: {reply: {family: true}}", "signals: {reply: {once: true}}"
 )

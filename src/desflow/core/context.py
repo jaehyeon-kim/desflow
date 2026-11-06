@@ -82,11 +82,15 @@ from desflow.core.task_checks import (
     Holding,
     batch_mismatch,
     batch_mismatch_text,
+    builder_value,
     check_acquisition_order,
-    family_problem,
+    family_read_problem,
+    first_family_problem,
     flow_sets,
+    generator_expressions,
     handle_problem,
     scope_problem,
+    rule_expressions,
     whole_flow_problems,
 )
 from desflow.core.registry import ParamChange, ParamRejected, SimulationRegistry
@@ -99,8 +103,6 @@ from desflow.models.flow import Entity, Upstream
 from desflow.core.replay import read_trace
 from desflow.core.scenario import check_step, run_scenario, walk_steps
 from desflow.values.models import (
-    Expr,
-    When,
     _Gen,
     values_adapter,
 )
@@ -2213,41 +2215,6 @@ class SimulationContext:
         ] + [action for found in self._signals.on.values() for action in found]
         return paths | {a["path"] for a in actions if isinstance(a.get("path"), str)}
 
-    def _rule_expressions(self) -> List[Tuple[str, Expression, Tuple[Any, ...]]]:
-        """The `queue` ranks, `preempt` rules, store and container ranks, telemetry
-        readings and the `when` of a signal's `on` entries, each with the place it is
-        written for a message and, for a signal's `when`, its location in a blueprint
-        (`()` for the others)."""
-        found: List[Tuple[str, Expression, Tuple[Any, ...]]] = []
-        for name, (rank, _ties) in self._holders.resource_rank.items():
-            found.append((f"resource '{name}' queue rank", rank, ()))
-        for name, rule in self._holders.resource_rule.items():
-            for key, expression in zip(("when", "victim"), rule):
-                if expression is not None:
-                    found.append((f"resource '{name}' preempt {key}", expression, ()))
-        for (name, direction), (rank, _ties) in self._holders.holder_ranks.items():
-            found.append((f"'{name}' {direction}_queue rank", rank, ()))
-        for parsed in self._readings:
-            for name, expression in parsed.items():
-                found.append((f"telemetry reading '{name}'", expression, ()))
-        for name, actions in self._signals.on.items():
-            for index, action in enumerate(actions):
-                if action.get("when") is not None:
-                    found.append(
-                        (
-                            f"signal '{name}' on entry {index} when",
-                            action["when"],
-                            ("signals", name, "on", index, "when"),
-                        )
-                    )
-                for _where, generator in generators_in(action, (Expr,)):
-                    try:
-                        read = Expression(generator.expr, names=ANY_NAME)
-                    except ValueError:
-                        continue
-                    found.append((f"signal '{name}' on entry {index} value", read, ()))
-        return found
-
     def _check_rule_names(
         self, place: str, expression: Expression, holders: Mapping[str, Any]
     ) -> None:
@@ -3895,30 +3862,6 @@ class SimulationContext:
         if found is not None:
             raise ValueError(batch_mismatch_text(*found))
 
-    def _declared_names(self) -> Dict[str, Dict[str, Any]]:
-        """The declared names of each kind, a family's entry included."""
-        return {
-            "resource": self._holders.resources_config,
-            "store": self._holders.stores_config,
-            "container": self._holders.containers_config,
-            "signal": {name: None for name in self._signals.names},
-        }
-
-    _FAMILY_READ_SOURCES = (
-        "users",
-        "queue",
-        "held",
-        "waiting",
-        "level",
-        "putters",
-        "getters",
-        "putting",
-        "getting",
-        "count",
-        "items",
-        "signal",
-    )
-
     def family_read_problem(self, expression: Expression) -> Optional[str]:
         """What is wrong with the way an expression reads families, or None: a family
         read without an index, or an index on a name that is no family.
@@ -3929,52 +3872,7 @@ class SimulationContext:
         Returns:
             Optional[str]: The reason, naming the read.
         """
-        for source, name in sorted(expression.plain):
-            if name in self._families.by_name and source in self._FAMILY_READ_SOURCES:
-                return (
-                    f"reads {source}.{name} of a family; read one member with "
-                    f"{source}.{name}[<key>], or list the keys with members({name})"
-                )
-        for source, name in sorted(expression.indexed):
-            if name not in self._families.by_name:
-                return (
-                    f"reads {source}.{name}[...], but '{name}' is not a family; add "
-                    f"family: true to its entry"
-                )
-        return None
-
-    def _family_read_problem(self) -> Optional[Tuple[Tuple[Any, ...], str, str]]:
-        """The first expression of a task, a generator or a rule that reads a family
-        wrongly.
-
-        Returns:
-            Optional[Tuple[Tuple[Any, ...], str, str]]: The holder, the key and the
-                message, or None. The holder is `("tasks", <task>)`, or for a rule
-                `("rule", <place>, <location>)` with the place and location
-                `_rule_expressions` gives, and then the key is "".
-        """
-        for task, spec in self._tasks.specs.items():
-            for key, expression in spec.expressions:
-                found = self.family_read_problem(expression)
-                if found is not None:
-                    return ("tasks", task), key, found
-            for key, _where, _after, place in task_value_places(
-                lambda key: _builder_value(spec, key)
-            ):
-                for _where, generator in generators_in(place, (_Gen,)):
-                    for text in _generator_expressions(generator):
-                        try:
-                            read = Expression(text, names=ANY_NAME)
-                        except ValueError:
-                            continue
-                        found = self.family_read_problem(read)
-                        if found is not None:
-                            return ("tasks", task), key, found
-        for place, expression, location in self._rule_expressions():
-            found = self.family_read_problem(expression)
-            if found is not None:
-                return ("rule", place, location), "", found
-        return None
+        return family_read_problem(expression, self._families.by_name)
 
     def _check_families(self) -> None:
         """Checks that every place naming a family uses a reference, a reference's `of`
@@ -3984,32 +3882,22 @@ class SimulationContext:
         Raises:
             ValueError: Naming the task and the key.
         """
-        found = (
-            family_problem(
-                self._tasks.specs,
-                self._families.by_name,
-                self._declared_names(),
-                self._signals.on,
-            )
-            or self._family_read_problem()
+        found = first_family_problem(
+            self._tasks.specs,
+            self._families.by_name,
+            self._holders,
+            self._signals,
+            self._readings,
         )
-        if found is not None:
-            (section, name, *_location), key, message = found
-            if section == "rule":
-                raise ValueError(f"{name} {message}")
-            label = f"signals.{name}" if section == "signals" else f"task '{name}'"
-            raise ValueError(f"{label}: {key} {message}")
-        for kind, names in self._declared_names().items():
-            for name in names:
-                if name in self._families.by_name:
-                    continue
-                for family in self._families.by_name:
-                    if name.startswith(f"{family}["):
-                        raise ValueError(
-                            f"{_FAMILY_SECTIONS[kind]}.{name} starts with the name of "
-                            f"the family '{family}' and a bracket; the members of a "
-                            f"family are named that way, so no declared entry may be"
-                        )
+        if found is None:
+            return
+        section, name = found.holder
+        if found.kind == "entry":
+            raise ValueError(f"{section}.{name} {found.message}")
+        if section == "rule":
+            raise ValueError(f"{name} {found.message}")
+        label = f"signals.{name}" if section == "signals" else f"task '{name}'"
+        raise ValueError(f"{label}: {found.key} {found.message}")
 
     def _check_tasks(self, overrides: Optional[Mapping[str, Any]] = None) -> None:
         """Checks what each task names, before the clock or any connector starts.
@@ -4030,7 +3918,9 @@ class SimulationContext:
         holders = {**self._holders.stores_config, **self._holders.containers_config}
         registry: Optional[SimulationRegistry] = None
         written = self._written_paths()
-        for place, expression, _location in self._rule_expressions():
+        for place, expression, _location in rule_expressions(
+            self._holders, self._readings, self._signals.on
+        ):
             self._check_rule_names(place, expression, holders)
         routes = self._routes()
         self._warn_whole_flows(routes)
@@ -4184,17 +4074,17 @@ class SimulationContext:
                     uses.append(
                         (name, "interrupt", spec.interrupt["handle"], "element")
                     )
-            for key, expression in spec.expressions:
+            for key, expression, _place in spec.expressions:
                 uses += [
                     (name, key, h, "any")
                     for h in sorted(expression.references["handle"])
                 ]
             # The expressions inside the generators of the task's value places
             for key, _where, _after, place in task_value_places(
-                lambda key: _builder_value(spec, key)
+                lambda key: builder_value(spec, key)
             ):
                 for _where, generator in generators_in(place, (_Gen,)):
-                    for text in _generator_expressions(generator):
+                    for text in generator_expressions(generator):
                         try:
                             read = Expression(text, names=ANY_NAME)
                         except ValueError:
@@ -4468,7 +4358,7 @@ class SimulationContext:
             signals.add(spec.signal)
         if spec.listen is not None and spec.listen.signal is not None:
             signals.add(spec.listen.signal)
-        expressions = [expression for _key, expression in spec.expressions]
+        expressions = [found.expression for found in spec.expressions]
         for expression in expressions:
             signals |= expression.references["signal"]
         for signal in signals:
@@ -4487,7 +4377,7 @@ class SimulationContext:
     ) -> None:
         """Checks what each expression of a task may read where it is written."""
         branches = set(spec.wait.branches) if spec.wait else set()
-        for key, expression in spec.expressions:
+        for key, expression, _place in spec.expressions:
             problem = scope_problem(
                 expression,
                 own_item=bool(
@@ -4546,7 +4436,7 @@ class SimulationContext:
                     f"task '{name}' reads item.<field> in '{expression.text}', "
                     f"but it has no store get before it"
                 )
-        for key, expression in spec.expressions:
+        for key, expression, _place in spec.expressions:
             # vars get a value at step 14, after the service: put, fail and
             # next read them, and nothing evaluated earlier can
             bare = expression.references["name"]
@@ -4644,7 +4534,7 @@ class SimulationContext:
         registry: SimulationRegistry,
     ) -> None:
         """Checks that each name a task's expressions read is declared."""
-        expressions = [expression for _key, expression in spec.expressions]
+        expressions = [found.expression for found in spec.expressions]
         task_registry = registry
         for expression in expressions:
             for kind, ref in self._unknown_references(
@@ -4765,48 +4655,6 @@ def _preempt_rule(
             )
         parsed.append(expression)
     return parsed[0], parsed[1]
-
-
-def _builder_value(spec: Any, key: str) -> Any:
-    """The value of one place of `TASK_VALUE_PLACES` in a task made by the Builder.
-    A Builder task has no payload generator: its body is a function."""
-    if key == "payload":
-        return None
-    if key == "set":
-        return spec.attribute_changes
-    if key == "put.item":
-        return spec.put.item if spec.put is not None else None
-    if key == "listen":
-        return None if spec.listen is None else spec.listen.on
-    if key.startswith("batch."):
-        return None if spec.batch is None else getattr(spec.batch, key[6:])
-    if key in ("wait", "open"):
-        node = getattr(spec, key)
-        if node is None:
-            return None
-        root = node.root if key == "wait" else node.wait.root
-        return [leaf.args for leaf in _walk_nodes(root) if leaf.args]
-    return getattr(spec, key)
-
-
-def _walk_nodes(node: Any) -> Iterator[Any]:
-    """A wait node and every node below it."""
-    yield node
-    for child in node.children:
-        yield from _walk_nodes(child)
-
-
-def _generator_expressions(generator: Any) -> List[str]:
-    """The texts of the expressions one generator holds: its `omit_when`, the `expr` of
-    an `expr` generator and the condition of a `when`."""
-    texts: List[str] = []
-    if generator.omit_when is not None:
-        texts.append(generator.omit_when)
-    if isinstance(generator, Expr):
-        texts.append(generator.expr)
-    elif isinstance(generator, When):
-        texts.append(generator.condition)
-    return texts
 
 
 def _holding(spec: TaskSpec) -> Holding:
@@ -4996,6 +4844,7 @@ def parts_of(context: SimulationContext) -> Parts:
         services=context._services_config,
         processes=context._processes,
         run_scenario=context._run_scenario,
+        readings=context._readings,
     )
 
 

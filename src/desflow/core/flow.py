@@ -617,13 +617,7 @@ class Transfer:
     def expressions(self) -> List[Expression]:
         """Every expression the transfer holds, so a loader can check its names."""
         return [
-            expression
-            for expression in (
-                self._expression,
-                self._priority_expression,
-                self._filter_expression,
-            )
-            if expression is not None
+            expression for _key, expression in transfer_expressions(self)
         ] + self.reference_expressions
 
     @property
@@ -704,6 +698,28 @@ EACH_LEAVES = ("signal", "task", "timeout", "request", "get", "put", "handle")
 
 # Group kinds: a branch that holds named child branches.
 GROUP_KINDS = ("any", "all", "at_least", "when")
+
+
+def transfer_expressions(transfer: Transfer) -> List[Tuple[str, Expression]]:
+    """The parsed `amount`, `priority` and `filter` of a transfer, each with its key,
+    for those written as expressions.
+
+    Args:
+        transfer: The transfer.
+
+    Returns:
+        List[Tuple[str, Expression]]: The key and the expression of each, in that
+        order.
+    """
+    return [
+        (key, expression)
+        for key, expression in (
+            ("amount", transfer._expression),
+            ("priority", transfer._priority_expression),
+            ("filter", transfer._filter_expression),
+        )
+        if expression is not None
+    ]
 
 
 class WaitNode:

@@ -343,6 +343,8 @@ class Parts:
             opaque nodes.
         run_scenario: The process that runs the scenario, which `explain` tells
             apart from the processes a model adds.
+        readings: The parsed readings of each `add_readings` call, which the family
+            check reads.
     """
 
     tasks: Any
@@ -362,3 +364,4 @@ class Parts:
     services: Dict[str, Any]
     processes: List[Callable]
     run_scenario: Callable
+    readings: List[Dict[str, Expression]]

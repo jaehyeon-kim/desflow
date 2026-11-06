@@ -941,9 +941,10 @@ def test_a_payload_that_is_a_generator_must_give_a_mapping_or_null(tmp_path):
 def test_an_expression_that_reads_a_null_payload_names_its_place(tmp_path):
     """An expression that reads a field of a null payload names its place and says
     the payload is null: a `fail`, a `next` condition, and the `service_time` of the
-    task the payload is routed to. A `fail` that cannot be evaluated fails the
-    task, as a `fail_reason` that cannot be made does: the task publishes its
-    `failed` record, and with no `on_fail` the run stops with `TaskFailed`."""
+    task the payload is routed to. A `put` amount that reads a missing field names
+    its place too, and a `next` weight names none. A `fail` that cannot be evaluated
+    fails the task, as a `fail_reason` that cannot be made does: the task publishes
+    its `failed` record, and with no `on_fail` the run stops with `TaskFailed`."""
     null_second = (
         "vars: {n: {gen: sequence}}\n"
         "payload: {gen: when, condition: 'n == 1', then: null, "
@@ -983,6 +984,25 @@ def test_an_expression_that_reads_a_null_payload_names_its_place(tmp_path):
         r"'payload\.a': the payload is null",
         str(outcome.error),
     )
+    put = run(
+        tmp_path,
+        "payload: {b: 1}\nput: {container: tank, amount: 'payload.a'}",
+        extra="containers: {tank: {current_cap: 100}}\n",
+    )
+    assert re.fullmatch(
+        r".*model\.yaml:\d+: tasks\.t\.put\.amount: cannot evaluate "
+        r"'payload\.a': the payload has no field 'a'",
+        str(put.error),
+    )
+    weighted = model(null_second + "next: {weights: {u: 'payload.a', v: 1}}")
+    outcome = run_yaml_text(
+        tmp_path,
+        weighted + "  u: {payload: {b: 1}}\n  v: {payload: {b: 2}}\n",
+        {"a": [0.0, 1.0, 2.0]},
+    )
+    assert re.fullmatch(
+        r"cannot evaluate 'payload\.a': the payload is null", str(outcome.error)
+    ), str(outcome.error)
 
 
 def test_id_field_and_attributes_are_written_over_a_generated_payload(tmp_path):

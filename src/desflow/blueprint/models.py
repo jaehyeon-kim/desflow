@@ -2333,7 +2333,7 @@ class Task(_Model):
         return self
 
     @model_validator(mode="after")
-    def _resource_needs_a_service(self) -> "Task":
+    def _key_rules(self) -> "Task":
         if self.service is not None and self.service_time is not None:
             raise ValueError(
                 "a task takes a service or a service_time, not both: service_time "

@@ -844,3 +844,36 @@ run: {until: 5}
         {},
     )
     assert [(t, v["e"]) for t, _k, v in _done(container)] == [(0.0, "got")]
+
+
+@pytest.mark.parametrize(
+    "resource,service_time,message",
+    [
+        (
+            "desk[1]",
+            1,
+            "resources.desk[1] starts with the name of the family 'desk' and a "
+            "bracket; the members of a family are named that way, so no declared "
+            "entry may be",
+        ),
+        (
+            "plain",
+            "len(users.desk)",
+            "task 't': service_time reads users.desk of a family; read one member "
+            "with users.desk[<key>], or list the keys with members(desk)",
+        ),
+    ],
+)
+def test_the_builder_refuses_an_entry_named_like_a_member_and_a_family_read(
+    resource, service_time, message
+):
+    """The Builder's start refuses a declared entry named like a member of a family,
+    and a task expression that reads a family with no key, with the whole message."""
+    app = SimulationContext("S", factor=0)
+    app.add_resource("desk", 1, family=True)
+    app.add_resource(resource, 1)
+    app.add_initial_arrival("a", 1, spawn="t")
+    app.task(name="t", service_time=service_time)(lambda entity: {})
+    with pytest.raises(ValueError) as error:
+        app.start(until=2)
+    assert str(error.value) == message

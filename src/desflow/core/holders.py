@@ -88,7 +88,7 @@ def _whole_or_unlimited(value: Any) -> bool:
     return number == math.inf or (math.isfinite(number) and number.is_integer())
 
 
-def limit_path(sim_id: str, resource: str) -> str:
+def _limit_path(sim_id: str, resource: str) -> str:
     """The registry path of a resource's `queue_limit`.
 
     Args:
@@ -174,7 +174,7 @@ class Holders:
         """
         return any(
             self.resource_queue_limits.get(resource) is not None
-            or limit_path(sim_id, resource) in written
+            or _limit_path(sim_id, resource) in written
             for resource in resources
         )
 

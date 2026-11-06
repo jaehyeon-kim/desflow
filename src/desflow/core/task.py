@@ -24,6 +24,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    NamedTuple,
     Optional,
     Set,
     Tuple,
@@ -47,6 +48,7 @@ from desflow.core.flow import (
     WaitNode,
     as_given,
     next_task,
+    transfer_expressions,
 )
 from desflow.resources.resource import QueueFull
 from desflow.models.flow import Entity, Upstream, payload_of
@@ -348,6 +350,25 @@ class _OpenBatch:
         self.leader: Optional["TaskRun"] = None
 
 
+class TaskExpression(NamedTuple):
+    """One expression of a task.
+
+    Attributes:
+        key: The key it is written under, or for a wait the part it is read in
+            (`wait_when`, `wait_group`), which the checks read.
+        expression: The parsed expression.
+        place: Where it is written under the task, such as `("get", "amount")` or
+            `("next", "when", 2, "condition")`, for the six keys that hold one
+            expression, a get's or put's `amount`, `priority` and `filter`, and the
+            condition of each `when` rule of `next`; None for an expression inside a
+            reference, a wait, a batch or another structure.
+    """
+
+    key: str
+    expression: Expression
+    place: Optional[Tuple[Union[str, int], ...]]
+
+
 class TaskSpec:
     """What a task is: its keys, checked when it is declared, and what `run()`
     checks before the clock starts."""
@@ -537,9 +558,10 @@ class TaskSpec:
         return self.service_id is not None or self.service_time is not None
 
     @property
-    def expressions(self) -> List[Tuple[str, Expression]]:
-        """Every expression the task holds, with the key it is written under."""
-        found: List[Tuple[str, Expression]] = []
+    def expressions(self) -> List[TaskExpression]:
+        """Every expression the task holds, with the key it is written under and,
+        where the spec knows it, its place under the task."""
+        found: List[TaskExpression] = []
         for key, expression in (
             ("priority", self.rank_of),
             ("preempt", self.preempt_of),
@@ -549,49 +571,89 @@ class TaskSpec:
             ("fail", self.fail_of),
         ):
             if expression is not None:
-                found.append((key, expression))
+                found.append(TaskExpression(key, expression, (key,)))
         for key, transfer in (("get", self.get), ("put", self.put)):
             if transfer is not None:
-                found.extend((key, e) for e in transfer.expressions)
-        found.extend(("next", e) for e in self.router.conditions)
+                parts = {id(e): part for part, e in transfer_expressions(transfer)}
+                found.extend(
+                    TaskExpression(
+                        key, e, (key, parts[id(e)]) if id(e) in parts else None
+                    )
+                    for e in transfer.expressions
+                )
+        # Weights and when rules are never both given, so unweighted conditions are
+        # the conditions of the when rules, in rule order
+        found.extend(
+            TaskExpression(
+                "next",
+                e,
+                None if self.router.weighted else ("next", "when", i, "condition"),
+            )
+            for i, e in enumerate(self.router.conditions)
+        )
         if self.batch is not None:
-            found.extend(("batch", e) for e in self.batch.expressions)
+            found.extend(
+                TaskExpression("batch", e, None) for e in self.batch.expressions
+            )
         for reference in references(self.resources, self.signal):
             found.extend(
-                (
-                    "signal" if reference is self.signal else "resource",
-                    e,
+                TaskExpression(
+                    "signal" if reference is self.signal else "resource", e, None
                 )
                 for e in reference.expressions
             )
         if self.subscribe is not None:
-            found.extend(("subscribe", e) for e in self.subscribe.reference_expressions)
+            found.extend(
+                TaskExpression("subscribe", e, None)
+                for e in self.subscribe.reference_expressions
+            )
         if self.seize is not None:
-            found.extend(("seize", e) for e in self.seize.expressions)
+            found.extend(
+                TaskExpression("seize", e, None) for e in self.seize.expressions
+            )
         if self.open is not None:
-            found.extend(("open", e) for e in self.open.expressions)
+            found.extend(TaskExpression("open", e, None) for e in self.open.expressions)
         if self.listen is not None:
-            found.extend(("listen", e) for e in self.listen.expressions)
-        found.extend(("on", a["when"]) for a in self.on if a.get("when") is not None)
+            found.extend(
+                TaskExpression("listen", e, None) for e in self.listen.expressions
+            )
+        found.extend(
+            TaskExpression("on", a["when"], None)
+            for a in self.on
+            if a.get("when") is not None
+        )
         if self.release is not None:
-            found.extend(("release", e) for e in self.release.expressions)
+            found.extend(
+                TaskExpression("release", e, None) for e in self.release.expressions
+            )
         if self.interrupt_where is not None:
-            found.append(("interrupt", self.interrupt_where))
+            found.append(TaskExpression("interrupt", self.interrupt_where, None))
         if self.interrupt is not None and self.interrupt.get("index") is not None:
-            found.append(("interrupt", self.interrupt["index"]))
+            found.append(TaskExpression("interrupt", self.interrupt["index"], None))
         if self.cancel_index is not None:
-            found.append(("cancel", self.cancel_index))
+            found.append(TaskExpression("cancel", self.cancel_index, None))
         if self.resume is not None:
             for part in ("where", "limit"):
                 if isinstance(self.resume.get(part), Expression):
-                    found.append(("resume", self.resume[part]))
+                    found.append(TaskExpression("resume", self.resume[part], None))
         if self.wait is not None:
-            found.extend(("wait", e) for e in self.wait.conditions)
-            found.extend(("wait", e) for e in self.wait.time_expressions)
-            found.extend(("wait", e) for e in self.wait.request_expressions)
-            found.extend(("wait", e) for e in self.wait.reference_expressions)
-            found.extend(("wait_when", e) for e in self.wait.predicates)
-            found.extend(("wait_group", e) for e in self.wait.group_expressions)
+            found.extend(TaskExpression("wait", e, None) for e in self.wait.conditions)
+            found.extend(
+                TaskExpression("wait", e, None) for e in self.wait.time_expressions
+            )
+            found.extend(
+                TaskExpression("wait", e, None) for e in self.wait.request_expressions
+            )
+            found.extend(
+                TaskExpression("wait", e, None) for e in self.wait.reference_expressions
+            )
+            found.extend(
+                TaskExpression("wait_when", e, None) for e in self.wait.predicates
+            )
+            found.extend(
+                TaskExpression("wait_group", e, None)
+                for e in self.wait.group_expressions
+            )
         return found
 
 

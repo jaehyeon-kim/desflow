@@ -6,23 +6,34 @@ before the clock starts; `core/task.py` holds the life of one task instance.
 
 from __future__ import annotations
 import ast
+import itertools
 from collections.abc import Mapping
 from typing import (
+    TYPE_CHECKING,
     Any,
     Dict,
+    Iterable,
+    Iterator,
     List,
+    NamedTuple,
     Optional,
     Tuple,
 )
 from pydantic import BaseModel
-from desflow.core.expressions import Expression
+from desflow.core.expressions import ANY_NAME, Expression
 from desflow.core.flow import (
     Wait,
     article,
 )
 from desflow.utils import suggestion
-from desflow.core.families import Reference
+from desflow.core.families import SECTIONS, Reference
 from desflow.core.task import TaskSpec
+from desflow.values.check import generators_in, task_value_places
+from desflow.values.models import Expr, When, _Gen
+
+if TYPE_CHECKING:
+    from desflow.core.holders import Holders
+    from desflow.core.signals import Signals
 
 
 # The keys of a shared batch that are compared by `_same_form`
@@ -59,9 +70,25 @@ def _same_form(value: Any) -> Any:
     return value
 
 
+class BatchMismatch(NamedTuple):
+    """Two tasks that share a batch name and differ in one key.
+
+    Attributes:
+        batch: The batch name.
+        first: The task that opened the name.
+        other: The task that differs, whose `batch` line a blueprint names.
+        key: The key that differs.
+    """
+
+    batch: str
+    first: str
+    other: str
+    key: str
+
+
 def batch_mismatch(
     specs: Mapping[str, "TaskSpec"],
-) -> Optional[Tuple[str, str, str, str]]:
+) -> Optional[BatchMismatch]:
     """Finds two tasks that share a batch name and differ in what the batch needs one
     answer for: its `size`, `timeout` and `close_when`, its `resource` and its
     service (`service` or `service_time`). `on_interrupt`, `patience`, `payload` and
@@ -71,8 +98,8 @@ def batch_mismatch(
         specs: The tasks by name.
 
     Returns:
-        Optional[Tuple[str, str, str, str]]: The batch name, the first task, the other
-        task and the key that differs, or None when every shared batch agrees.
+        Optional[BatchMismatch]: The batch name, the first task, the other task and
+        the key that differs, or None when every shared batch agrees.
     """
     first: Dict[str, "TaskSpec"] = {}
     for name, spec in specs.items():
@@ -97,7 +124,7 @@ def batch_mismatch(
             if label in _COMPARED_BY_FORM:
                 value, other = _same_form(value), _same_form(other)
             if value != other:
-                return key, opener.name, name, label
+                return BatchMismatch(key, opener.name, name, label)
     return None
 
 
@@ -595,6 +622,300 @@ def _reference_problem(
             f"to its entry"
         )
     return None
+
+
+class FamilyProblem(NamedTuple):
+    """The first place where a model names or reads a family wrongly; each caller
+    words its own refusal from it.
+
+    Attributes:
+        kind: `name` for a place that names a family wrongly, `read` for an
+            expression that reads one wrongly, `entry` for a declared entry named like
+            a member of a family.
+        holder: `("tasks", <task>)` or `("signals", <signal>)` for a name or a read,
+            `("rule", <place>)` for a read in a rule, with the place
+            `rule_expressions` gives, and `(<section>, <name>)` for an entry.
+        key: The key of the task or signal it is written under; "" for a rule or an
+            entry.
+        message: What is wrong, worded to follow the holder and the key.
+        where: Where it is written in a blueprint file: the holder and the key, the
+            place a caller gave with its own reads, a rule's location (`()` for a rule
+            that has none) or the entry.
+    """
+
+    kind: str
+    holder: Tuple[str, str]
+    key: str
+    message: str
+    where: Tuple[Any, ...]
+
+
+# The sources an expression reads a member of a family from, which take a key
+_FAMILY_READ_SOURCES = (
+    "users",
+    "queue",
+    "held",
+    "waiting",
+    "level",
+    "putters",
+    "getters",
+    "putting",
+    "getting",
+    "count",
+    "items",
+    "signal",
+)
+
+
+def family_read_problem(
+    expression: Expression, families: Mapping[str, Any]
+) -> Optional[str]:
+    """What is wrong with the way an expression reads families, or None: a family read
+    without an index, or an index on a name that is no family.
+
+    Args:
+        expression: The parsed expression.
+        families: The declared families, by name.
+
+    Returns:
+        Optional[str]: The reason, naming the read.
+    """
+    for source, name in sorted(expression.plain):
+        if name in families and source in _FAMILY_READ_SOURCES:
+            return (
+                f"reads {source}.{name} of a family; read one member with "
+                f"{source}.{name}[<key>], or list the keys with members({name})"
+            )
+    for source, name in sorted(expression.indexed):
+        if name not in families:
+            return (
+                f"reads {source}.{name}[...], but '{name}' is not a family; add "
+                f"family: true to its entry"
+            )
+    return None
+
+
+def declared_names(holders: "Holders", signals: "Signals") -> Dict[str, Dict[str, Any]]:
+    """The declared names of each kind, a family's entry included.
+
+    Args:
+        holders: The declared resources, stores and containers.
+        signals: The declared signals.
+
+    Returns:
+        Dict[str, Dict[str, Any]]: For `resource`, `store`, `container` and `signal`,
+        the declared entries by name.
+    """
+    return {
+        "resource": holders.resources_config,
+        "store": holders.stores_config,
+        "container": holders.containers_config,
+        "signal": {name: None for name in signals.names},
+    }
+
+
+def first_family_problem(
+    specs: Mapping[str, TaskSpec],
+    families: Mapping[str, Any],
+    holders: "Holders",
+    signals: "Signals",
+    readings: Iterable[Mapping[str, Expression]],
+    *,
+    task_reads: Iterable[Tuple[str, str, Tuple[Any, ...], Expression]] = (),
+    entries: Optional[Iterable[Tuple[str, str]]] = None,
+) -> Optional[FamilyProblem]:
+    """The first place where a model names or reads a family wrongly, or None.
+
+    The checks run in this order for every caller: the places that name a family
+    (`family_problem`), the expressions of each task and of the generators of its
+    value places, the expressions of the rules, the caller's `task_reads`, then the
+    declared entries named like a member, such as `desk[1]` beside the family `desk`.
+
+    Args:
+        specs: The tasks, by name.
+        families: The declared families, by name, each with its `kind`.
+        holders: The declared resources, stores and containers.
+        signals: The declared signals.
+        readings: The parsed readings of each `add_readings` call.
+        task_reads: More expressions of tasks, each as (task, key, where it is written
+            in a blueprint file, expression), checked after the rules.
+        entries: The declared entries to check, each as (section, name), such as
+            `("resources", "desk[1]")`; by default every declared resource, store,
+            container and signal that is no family.
+
+    Returns:
+        Optional[FamilyProblem]: The first problem, or None.
+    """
+    declared = declared_names(holders, signals)
+    found = family_problem(specs, families, declared, signals.on)
+    if found is not None:
+        holder, key, message = found
+        return FamilyProblem("name", holder, key, message, (*holder, key))
+    reads = itertools.chain(
+        (
+            (("tasks", task), key, ("tasks", task, key), expression)
+            for task, spec in specs.items()
+            for key, expression in _task_expressions(spec)
+        ),
+        (
+            (("rule", place), "", location, expression)
+            for place, expression, location in rule_expressions(
+                holders, readings, signals.on
+            )
+        ),
+        (
+            (("tasks", task), key, where, expression)
+            for task, key, where, expression in task_reads
+        ),
+    )
+    for holder, key, where, expression in reads:
+        reason = family_read_problem(expression, families)
+        if reason is not None:
+            return FamilyProblem("read", holder, key, reason, where)
+    if entries is None:
+        entries = [
+            (SECTIONS[kind], name)
+            for kind, names in declared.items()
+            for name in names
+            if name not in families
+        ]
+    for section, name in entries:
+        for family in families:
+            if name != family and name.startswith(f"{family}["):
+                return FamilyProblem(
+                    "entry",
+                    (section, name),
+                    "",
+                    f"starts with the name of the family '{family}' and a bracket; "
+                    f"the members of a family are named that way, so no declared "
+                    f"entry may be",
+                    (section, name),
+                )
+    return None
+
+
+def _task_expressions(spec: TaskSpec) -> Iterator[Tuple[str, Expression]]:
+    """Each expression of a task, then each expression of the generators of its value
+    places, with the key it is written under."""
+    for key, expression, _place in spec.expressions:
+        yield key, expression
+    for key, _where, _after, place in task_value_places(
+        lambda key: builder_value(spec, key)
+    ):
+        for _where, generator in generators_in(place, (_Gen,)):
+            for text in generator_expressions(generator):
+                try:
+                    read = Expression(text, names=ANY_NAME)
+                except ValueError:
+                    continue
+                yield key, read
+
+
+def rule_expressions(
+    holders: "Holders",
+    readings: Iterable[Mapping[str, Expression]],
+    signal_on: Mapping[str, List[Dict[str, Any]]],
+) -> List[Tuple[str, Expression, Tuple[Any, ...]]]:
+    """The `queue` ranks, `preempt` rules, store and container ranks, telemetry
+    readings and the `when` of a signal's `on` entries, each with the place it is
+    written for a message and, for a signal's `when`, its location in a blueprint
+    (`()` for the others).
+
+    Args:
+        holders: The declared resources, stores and containers.
+        readings: The parsed readings of each `add_readings` call.
+        signal_on: The `on:` actions of each signal, by signal name.
+
+    Returns:
+        List[Tuple[str, Expression, Tuple[Any, ...]]]: The place, the expression and
+        the location of each.
+    """
+    found: List[Tuple[str, Expression, Tuple[Any, ...]]] = []
+    for name, (rank, _ties) in holders.resource_rank.items():
+        found.append((f"resource '{name}' queue rank", rank, ()))
+    for name, rule in holders.resource_rule.items():
+        for key, expression in zip(("when", "victim"), rule):
+            if expression is not None:
+                found.append((f"resource '{name}' preempt {key}", expression, ()))
+    for (name, direction), (rank, _ties) in holders.holder_ranks.items():
+        found.append((f"'{name}' {direction}_queue rank", rank, ()))
+    for parsed in readings:
+        for name, expression in parsed.items():
+            found.append((f"telemetry reading '{name}'", expression, ()))
+    for name, actions in signal_on.items():
+        for index, action in enumerate(actions):
+            if action.get("when") is not None:
+                found.append(
+                    (
+                        f"signal '{name}' on entry {index} when",
+                        action["when"],
+                        ("signals", name, "on", index, "when"),
+                    )
+                )
+            for _where, generator in generators_in(action, (Expr,)):
+                try:
+                    read = Expression(generator.expr, names=ANY_NAME)
+                except ValueError:
+                    continue
+                found.append((f"signal '{name}' on entry {index} value", read, ()))
+    return found
+
+
+def builder_value(spec: Any, key: str) -> Any:
+    """The value of one place of `TASK_VALUE_PLACES` in a task made by the Builder.
+    A Builder task has no payload generator: its body is a function.
+
+    Args:
+        spec: The task's spec.
+        key: The place, such as `set` or `batch.size`.
+
+    Returns:
+        Any: The value written there, or None.
+    """
+    if key == "payload":
+        return None
+    if key == "set":
+        return spec.attribute_changes
+    if key == "put.item":
+        return spec.put.item if spec.put is not None else None
+    if key == "listen":
+        return None if spec.listen is None else spec.listen.on
+    if key.startswith("batch."):
+        return None if spec.batch is None else getattr(spec.batch, key[6:])
+    if key in ("wait", "open"):
+        node = getattr(spec, key)
+        if node is None:
+            return None
+        root = node.root if key == "wait" else node.wait.root
+        return [leaf.args for leaf in _walk_nodes(root) if leaf.args]
+    return getattr(spec, key)
+
+
+def _walk_nodes(node: Any) -> Iterator[Any]:
+    """A wait node and every node below it."""
+    yield node
+    for child in node.children:
+        yield from _walk_nodes(child)
+
+
+def generator_expressions(generator: Any) -> List[str]:
+    """The texts of the expressions one generator holds: its `omit_when`, the `expr` of
+    an `expr` generator and the condition of a `when`.
+
+    Args:
+        generator: The generator.
+
+    Returns:
+        List[str]: The texts, in that order.
+    """
+    texts: List[str] = []
+    if generator.omit_when is not None:
+        texts.append(generator.omit_when)
+    if isinstance(generator, Expr):
+        texts.append(generator.expr)
+    elif isinstance(generator, When):
+        texts.append(generator.condition)
+    return texts
 
 
 # What each use of an opened name needs the name to have been opened as
