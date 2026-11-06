@@ -6,6 +6,8 @@ that returns a new `SimulationContext`), or a `LowLevelModel`: a function that b
 the model in a given environment with a given sampler, and the model's `sim_id`.
 `run_once` runs any of them unpaced, with no ingress and no egress, and returns the
 statistics it measured.
+`spawn_seeds` gives each run its seed, and `values_of` reads one measure from the
+results of the runs.
 """
 
 import copy
@@ -14,8 +16,20 @@ import pickle
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
+import numpy as np
 from simpy import Environment
 
 from desflow.core.context import SimulationContext
@@ -25,6 +39,7 @@ from desflow.core.environment import (
     schedule_urgent,
 )
 from desflow.core.sampler import Sampler
+from desflow.core.statistics import published_value
 from desflow.utils import time_to_seconds
 
 
@@ -69,6 +84,68 @@ class RunResult:
     streams: List[str]
     sim_id: str
     parameters: Dict[str, Any] = field(default_factory=dict)
+
+
+def spawn_seeds(seed: int, n: int) -> List[int]:
+    """
+    Returns `n` plain integer seeds spawned from `seed`.
+
+    Each is a child of `numpy.random.SeedSequence(seed)`, turned into one integer
+    that `desflow run --seed` or `random_seed` takes, so any replication repeats on
+    its own.
+
+    Args:
+        seed: The seed of the whole set.
+        n: How many seeds.
+
+    Returns:
+        List[int]: The seeds, the same list for the same `seed` every time.
+    """
+    return [
+        int(child.generate_state(1)[0])
+        for child in np.random.SeedSequence(seed).spawn(n)
+    ]
+
+
+def values_of(
+    results: Sequence[RunResult], measure: str, seen: Optional[Set[str]] = None
+) -> List[float]:
+    """Returns one measure's value in each run.
+
+    A count the statistics leave out while it is 0, such as `reneged` or a flow's
+    `started`, is 0 in a run that did not publish it, when a run published another
+    statistic of its task or flow (`published_value`).
+
+    Args:
+        results: The runs.
+        measure: The statistic's name without the sim id.
+        seen: The names every run of the study published, such as the runs of the
+            other designs of an experiment; None for the names of `results`.
+
+    Returns:
+        List[float]: The values, in run order.
+
+    Raises:
+        ValueError: If another statistic is missing from a run, such as a mean wait
+            in a run where no task started.
+    """
+    values = []
+    if seen is None:
+        seen = {name for result in results for name in result.readings}
+    for i, result in enumerate(results, start=1):
+        value = published_value(
+            result.readings,
+            f"{result.sim_id}.stats.{measure}",
+            seen,
+            prefix=f"{result.sim_id}.stats.",
+        )
+        if value is None:
+            raise ValueError(
+                f"{measure} has no value in run {i}: nothing it measures happened "
+                f"in that run. Run longer, or choose another measure"
+            )
+        values.append(value)
+    return values
 
 
 def seconds(value: Union[float, str, None]) -> Optional[float]:

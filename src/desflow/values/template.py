@@ -3,16 +3,29 @@
 A `Template` holds the same mapping of generators a blueprint's `payload` does, and
 validates it with the same models, so a mistake raises Pydantic's `ValidationError`
 (without a file or a line).
+`looked_up` finds what the values of some places, templates among them, read from
+other records.
 """
 
 import itertools
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Set,
+    Tuple,
+)
 
 from pydantic import BaseModel
 
-from desflow.values.check import generators_in
+from desflow.values.check import Place, check_value, generators_in
 from desflow.values.models import (
+    Aggregate,
     Lookup,
     Previous,
     _Gen,
@@ -180,10 +193,10 @@ class Template:
             self._check(base)
 
     def _check(self, base: Tuple[str, ...]) -> None:
-        from desflow.values.check import check_value
-
         problems: List[str] = []
         visible = set(self.vars) | set(self.vars_once)
+        # The vars a task gives a template are known only when it runs
+        place = Place(in_task=True, base_dir=Path.cwd(), vars_known=False)
         for label, node in (
             ("payload", self.payload),
             ("vars", self.vars),
@@ -193,13 +206,9 @@ class Template:
                 node,
                 base + (label,),
                 visible,
-                in_task=True,
-                base_dir=Path.cwd(),
+                place,
                 mapping_field=False,
             ):
-                if "is not a var that has a value here" in message:
-                    # The vars a task gives a template are known only when it runs
-                    continue
                 problems.append(f"{'.'.join(str(p) for p in path)}: {message}")
         if problems:
             raise ValueError("; ".join(problems))
@@ -272,6 +281,59 @@ class BoundPayload:
         return values.render(
             self.template, self.entity, extras=self.fields, attributes=self.attributes
         )
+
+
+def _expand_places(places: Tuple[Any, ...]) -> Iterator[Any]:
+    """The values to search in some places: a `Template` gives its `payload`, `vars`
+    and `vars_once`, a `BoundPayload` gives its template and its fields.
+
+    Raises:
+        TypeError: If a place is a set or an iterator, which are not searched.
+    """
+    for place in places:
+        if isinstance(place, Template):
+            yield place.payload
+            yield place.vars
+            yield place.vars_once
+        elif isinstance(place, BoundPayload):
+            yield from _expand_places((place.template, place.fields))
+        elif isinstance(place, (set, frozenset, Iterator)):
+            # Neither is searched by `generators_in`, so a lookup inside would be
+            # missed with no message
+            raise TypeError(
+                f"a place for note_values is a generator, a mapping, a list, a "
+                f"constant or a Template, not {type(place).__name__}"
+            )
+        else:
+            yield place
+
+
+def looked_up(*places: Any) -> Tuple[Set[str], Set[str], bool]:
+    """What the values of some places read from other records.
+
+    Args:
+        places: Values: generators, mappings, lists, constants, or a `Template` (its
+            `payload`, `vars` and `vars_once` are searched).
+
+    Returns:
+        Tuple[Set[str], Set[str], bool]: The tasks a `lookup` names, the tasks a
+            `lookup` or `aggregate` names, and whether a `previous` is there.
+
+    Raises:
+        TypeError: If a place is a set or an iterator, which are not searched.
+    """
+    gates: Set[str] = set()
+    rows: Set[str] = set()
+    previous = False
+    for place in _expand_places(places):
+        for _, node in generators_in(place, (Lookup, Aggregate, Previous)):
+            if isinstance(node, Previous):
+                previous = True
+                continue
+            rows.add(node.task)
+            if isinstance(node, Lookup):
+                gates.add(node.task)
+    return gates, rows, previous
 
 
 __all__: List[str] = ["Template", "BoundPayload", "bind", "generator"]

@@ -1147,6 +1147,26 @@ def test_builder_vars_take_generator_mappings():
     assert len(found) == 3 and all(p["b"] == 2 * p["a"] for p in found)
 
 
+def test_template_problems_that_name_no_var_are_refused():
+    """A template's unknown names wait for the task that renders it; its other
+    problems are refused when it is made."""
+    assert Template({"a": {"gen": "format", "template": "{later}"}}).payload
+    with pytest.raises(ValueError, match="expected '}' before end of string"):
+        Template({"a": {"gen": "format", "template": "{open"}}, name="t")
+    with pytest.raises(ValueError, match=r"write \{name\}, not \{\} or \{0\}"):
+        Template({"a": {"gen": "format", "template": "{}"}}, name="t")
+
+
+def test_a_var_outside_a_task_and_an_arrival_is_refused(tmp_path):
+    text = model(
+        "payload: {}", extra="stores: {shelf: {items: [{gen: var, name: x}]}}\n"
+    )
+    assert (
+        "stores.shelf.items.0: var 'x': vars belong to a task; there is none "
+        "here" in load_error(tmp_path, text)
+    )
+
+
 def test_template_without_a_run_says_so():
     template = Template({"a": 1})
     with pytest.raises(ValueError, match="a Template renders in a run"):

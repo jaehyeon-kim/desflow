@@ -16,7 +16,6 @@ RAW_URL = "https://raw.githubusercontent.com/jaehyeon-kim/desflow/{ref}/examples
 # A file every tag has, read to tell a tag that is not published from a missing file
 TAG_URL = "https://raw.githubusercontent.com/jaehyeon-kim/desflow/{ref}/pyproject.toml"
 APIS = ("yaml", "builder", "low-level")
-_FOLDERS = {"yaml": "yaml", "builder": "builder", "low-level": "low-level"}
 
 
 @dataclass(frozen=True)

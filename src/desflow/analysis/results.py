@@ -19,8 +19,7 @@ from typing import Any, Dict, List, Sequence, Set
 import numpy as np
 
 from desflow.analysis.intervals import interval
-from desflow.analysis.models import RunResult
-from desflow.analysis.runner import spawn_seeds, values_of
+from desflow.analysis.models import RunResult, spawn_seeds, values_of
 from desflow.core.statistics import LEFT_OUT_AT_ZERO, published_value
 from desflow.analysis.spec import ExperimentSpec
 from desflow.utils import time_to_seconds

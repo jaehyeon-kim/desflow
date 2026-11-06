@@ -6,12 +6,12 @@ into errors with a file and line, and `SimulationContext.run` into `ValueError`s
 """
 
 import string
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import (
     Any,
     Callable,
     Collection,
-    Dict,
     Iterator,
     List,
     Mapping,
@@ -25,7 +25,6 @@ from pydantic import BaseModel
 from desflow.core.expressions import Scope
 from desflow.utils import suggestion
 from desflow.values.models import (
-    Aggregate,
     Attr,
     Entity,
     Expr,
@@ -46,6 +45,40 @@ from desflow.values.models import (
 
 Problem = Tuple[Tuple[Any, ...], str]
 _FIELDS = ("null_rate", "unique", "omit_rate", "omit_when", "gen")
+
+
+@dataclass(frozen=True)
+class Place:
+    """Where a value stands, which decides what its generators may read.
+
+    Attributes:
+        in_task (bool): Whether the place belongs to a task; `var` is refused
+            elsewhere.
+        services (Optional[Collection[str]]): The names of the model's services, or
+            None to skip that check.
+        base_dir (Optional[Path]): What a `row` file is relative to; None leaves the
+            file unread.
+        registry (Any): A registry to check `param` paths against, or None to skip.
+        in_arrival (bool): Whether the place is a `vars`, `key` or `attributes` of an
+            arrival: `var` reads the arrival's vars there, and `entity` is refused.
+        run_scope (bool): Whether the place reads the run only, as an arrival's gap,
+            count, stagger, `max_events` and `vars` do: the entity has no attributes
+            yet, so `attr` is refused.
+        in_repeat (bool): Whether the value is inside the `value` of a `repeat`,
+            which a `lookup` with `distinct` needs.
+        vars_known (bool): Whether the var names the place may read are known before
+            the run. A `Template`'s are not: the task that renders it gives them, so
+            a name it reads is not refused as unknown.
+    """
+
+    in_task: bool
+    services: Optional[Collection[str]] = None
+    base_dir: Optional[Path] = None
+    registry: Any = None
+    in_arrival: bool = False
+    run_scope: bool = False
+    in_repeat: bool = False
+    vars_known: bool = True
 
 
 # Every key of a task that holds a value (a generator, or a mapping of them), with
@@ -142,61 +175,6 @@ def generators_in(
         yield from generators_in(item, kinds, item_path)
 
 
-def _expand_places(places: Tuple[Any, ...]) -> Iterator[Any]:
-    """The values to search in some places: a `Template` gives its `payload`, `vars`
-    and `vars_once`, a `BoundPayload` gives its template and its fields.
-
-    Raises:
-        TypeError: If a place is a set or an iterator, which are not searched.
-    """
-    from desflow.values.template import BoundPayload, Template
-
-    for place in places:
-        if isinstance(place, Template):
-            yield place.payload
-            yield place.vars
-            yield place.vars_once
-        elif isinstance(place, BoundPayload):
-            yield from _expand_places((place.template, place.fields))
-        elif isinstance(place, (set, frozenset, Iterator)):
-            # Neither is searched by `generators_in`, so a lookup inside would be
-            # missed with no message
-            raise TypeError(
-                f"a place for note_values is a generator, a mapping, a list, a "
-                f"constant or a Template, not {type(place).__name__}"
-            )
-        else:
-            yield place
-
-
-def looked_up(*places: Any) -> Tuple[Set[str], Set[str], bool]:
-    """What the values of some places read from other records.
-
-    Args:
-        places: Values: generators, mappings, lists, constants, or a `Template` (its
-            `payload`, `vars` and `vars_once` are searched).
-
-    Returns:
-        Tuple[Set[str], Set[str], bool]: The tasks a `lookup` names, the tasks a
-            `lookup` or `aggregate` names, and whether a `previous` is there.
-
-    Raises:
-        TypeError: If a place is a set or an iterator, which are not searched.
-    """
-    gates: Set[str] = set()
-    rows: Set[str] = set()
-    previous = False
-    for place in _expand_places(places):
-        for _, node in generators_in(place, (Lookup, Aggregate, Previous)):
-            if isinstance(node, Previous):
-                previous = True
-                continue
-            rows.add(node.task)
-            if isinstance(node, Lookup):
-                gates.add(node.task)
-    return gates, rows, previous
-
-
 def lookup_cycle(gates: Mapping[str, Collection[str]]) -> Optional[List[str]]:
     """A cycle of tasks that look each other up, so none could start, or None.
 
@@ -231,16 +209,10 @@ def check_value(
     node: Any,
     path: Tuple[Any, ...],
     visible: Collection[str],
+    place: Place,
     *,
-    in_task: bool,
-    services: Optional[Collection[str]] = None,
-    base_dir: Optional[Path] = None,
-    registry: Any = None,
     local: Collection[str] = (),
     mapping_field: bool = False,
-    in_arrival: bool = False,
-    run_scope: bool = False,
-    in_repeat: bool = False,
 ) -> List[Problem]:
     """The problems of the generators under a value.
 
@@ -248,19 +220,9 @@ def check_value(
         node: The value: a generator, a mapping, a list or a constant.
         path: Where it is written.
         visible: The var names a bare name or `var` may read here.
-        in_task: Whether the place belongs to a task; `var` is refused elsewhere.
-        services: The names of the model's services, or None to skip that check.
-        base_dir: What a `row` file is relative to; None leaves the file unread.
-        registry: A registry to check `param` paths against, or None to skip.
+        place: Where the value stands.
         local: Names an enclosing `expr` or `format` defines for its own arguments.
         mapping_field: Whether `node` is the value of a mapping field.
-        in_arrival: Whether the place is a `vars`, `key` or `attributes` of an
-            arrival: `var` reads the arrival's vars there, and `entity` is refused.
-        run_scope: Whether the place reads the run only, as an arrival's gap, count,
-            stagger, `max_events` and `vars` do: the entity has no attributes yet,
-            so `attr` is refused.
-        in_repeat: Whether the value is inside the `value` of a `repeat`, which a
-            `lookup` with `distinct` needs.
     """
     found: List[Problem] = []
     names = set(visible) | set(local)
@@ -277,38 +239,26 @@ def check_value(
                 )
             )
         if node.omit_when is not None:
-            found += _expression_names(node.omit_when, path + ("omit_when",), names)
+            # The run-only rule is checked on the generator, not on its `omit_when`
+            found += _expression_names(
+                node.omit_when,
+                path + ("omit_when",),
+                names,
+                replace(place, run_scope=False),
+            )
         inner = set(local)
         if isinstance(node, (Expr, Format)):
             inner |= set(node.names)
-        found += _kind_problems(
-            node,
-            path,
-            names,
-            in_task,
-            services,
-            base_dir,
-            registry,
-            inner,
-            in_arrival,
-            run_scope,
-            in_repeat,
-        )
+        found += _kind_problems(node, path, names, inner, place)
+    repeated = replace(place, in_repeat=True) if isinstance(node, Repeat) else place
     for item, item_path, is_field in children(node, path):
         found += check_value(
             item,
             item_path,
             visible,
-            in_task=in_task,
-            services=services,
-            base_dir=base_dir,
-            registry=registry,
+            repeated if item_path[-1] == "value" else place,
             local=local,
             mapping_field=is_field,
-            in_arrival=in_arrival,
-            run_scope=run_scope,
-            in_repeat=in_repeat
-            or (isinstance(node, Repeat) and item_path[-1] == "value"),
         )
     return found
 
@@ -362,7 +312,7 @@ def _expression_names(
     text: str,
     path: Tuple[Any, ...],
     known: Collection[str],
-    run_scope: bool = False,
+    place: Place,
 ) -> List[Problem]:
     from desflow.core.expressions import ANY_NAME, Expression
 
@@ -370,11 +320,9 @@ def _expression_names(
         parsed = Expression(text, names=ANY_NAME)
     except ValueError as exc:
         return [(path, str(exc))]
-    found = [
-        (path, _unknown_name(name, known))
-        for name in sorted(parsed.references["name"] - set(known))
-    ]
-    outside = parsed.outside_run(names=False) if run_scope else None
+    unknown = parsed.references["name"] - set(known) if place.vars_known else set()
+    found = [(path, _unknown_name(name, known)) for name in sorted(unknown)]
+    outside = parsed.outside_run(names=False) if place.run_scope else None
     if outside:
         found.append(
             (
@@ -402,18 +350,14 @@ def _kind_problems(
     node: _Gen,
     path: Tuple[Any, ...],
     names: Collection[str],
-    in_task: bool,
-    services: Optional[Collection[str]],
-    base_dir: Optional[Path],
-    registry: Any,
     local: Collection[str],
-    in_arrival: bool = False,
-    run_scope: bool = False,
-    in_repeat: bool = False,
+    place: Place,
 ) -> List[Problem]:
     found: List[Problem] = []
     known = set(names) | set(local)
-    if isinstance(node, Attr) and run_scope:
+    in_task, in_arrival = place.in_task, place.in_arrival
+    services, base_dir, registry = place.services, place.base_dir, place.registry
+    if isinstance(node, Attr) and place.run_scope:
         found.append(
             (
                 path,
@@ -440,7 +384,7 @@ def _kind_problems(
                 )
             )
     elif isinstance(node, Lookup):
-        if node.distinct and not in_repeat:
+        if node.distinct and not place.in_repeat:
             found.append(
                 (
                     path + ("distinct",),
@@ -471,7 +415,7 @@ def _kind_problems(
                     f"an arrival; this arrival has none",
                 )
             )
-        elif node.name not in names:
+        elif place.vars_known and node.name not in names:
             found.append((path + ("name",), _unknown_name(node.name, names)))
     elif isinstance(node, Expr):
         for name in sorted(set(node.names) & set(names)):
@@ -482,11 +426,9 @@ def _kind_problems(
                     "take the name of a var",
                 )
             )
-        found += _expression_names(node.expr, path + ("expr",), known, run_scope)
+        found += _expression_names(node.expr, path + ("expr",), known, place)
     elif isinstance(node, When):
-        found += _expression_names(
-            node.condition, path + ("condition",), known, run_scope
-        )
+        found += _expression_names(node.condition, path + ("condition",), known, place)
     elif isinstance(node, Format):
         try:
             fields = [
@@ -502,7 +444,7 @@ def _kind_problems(
                 found.append(
                     (path + ("template",), "write {name}, not {} or {0}, in a template")
                 )
-            elif head not in known:
+            elif place.vars_known and head not in known:
                 found.append((path + ("template",), _unknown_name(head, known)))
     elif isinstance(node, Fake):
         found += _fake_problems(node, path)
@@ -650,33 +592,29 @@ def task_value_problems(
             a `queue_limit`. Its `on:` actions then run with the `vars_once` names
             only, because they run on those paths too.
     """
-    common: Dict[str, Any] = dict(
-        in_task=True, services=services, base_dir=base_dir, registry=registry
-    )
+    place = Place(in_task=True, services=services, base_dir=base_dir, registry=registry)
     found: List[Problem] = []
     once: List[str] = []
     for name, value in vars_once.items():
-        found += check_value(value, ("vars_once", name), once, **common)
+        found += check_value(value, ("vars_once", name), once, place)
         once.append(name)
     seen = list(once)
     for name, value in vars.items():
-        found += check_value(value, ("vars", name), seen, **common)
+        found += check_value(value, ("vars", name), seen, place)
         seen.append(name)
     for name, value in on_start.items():
-        found += check_value(
-            value, ("on_start", name), seen, mapping_field=True, **common
-        )
+        found += check_value(value, ("on_start", name), seen, place, mapping_field=True)
     if service_time is not None:
-        found += check_value(service_time, ("service_time",), seen, **common)
+        found += check_value(service_time, ("service_time",), seen, place)
     after = list(seen)
     for name, value in finish_vars.items():
-        found += check_value(value, ("finish_vars", name), after, **common)
+        found += check_value(value, ("finish_vars", name), after, place)
         after.append(name)
     for key, value in others.items():
         # An `on:` action runs when the task ends early too, and no var has a value
         # then; the other keys are read only when the task finishes
         visible = once if (key == "on" and early_end) else after
-        found += check_value(value, (key,), visible, **common)
+        found += check_value(value, (key,), visible, place)
     for where, value in wait_values.items():
-        found += check_value(value, where, once, **common)
+        found += check_value(value, where, once, place)
     return found

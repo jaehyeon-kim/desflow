@@ -24,14 +24,12 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    Set,
     Union,
 )
 
-import numpy as np
-
 from desflow.config import STATS_LEVELS
 from desflow.analysis.intervals import interval
+from desflow.analysis import results as found
 from desflow.analysis.models import (
     LowLevelModel,
     Model,
@@ -43,7 +41,11 @@ from desflow.analysis.models import (
     inspect_model,
     run_once,
     seconds,
+    spawn_seeds,
+    values_of,
 )
+from desflow.analysis.report import build_report
+from desflow.analysis.spec import ExperimentSpec, load_experiment
 from desflow.core.context import parts_of
 from desflow.core.statistics import published_value
 from desflow.utils import suggestion
@@ -82,27 +84,6 @@ def level_for(measures: Optional[Iterable[str]]) -> str:
         if STATS_LEVELS.index(needed) > STATS_LEVELS.index(level):
             level = needed
     return level
-
-
-def spawn_seeds(seed: int, n: int) -> List[int]:
-    """
-    Returns `n` plain integer seeds spawned from `seed`.
-
-    Each is a child of `numpy.random.SeedSequence(seed)`, turned into one integer
-    that `desflow run --seed` or `random_seed` takes, so any replication repeats on
-    its own.
-
-    Args:
-        seed: The seed of the whole set.
-        n: How many seeds.
-
-    Returns:
-        List[int]: The seeds, the same list for the same `seed` every time.
-    """
-    return [
-        int(child.generate_state(1)[0])
-        for child in np.random.SeedSequence(seed).spawn(n)
-    ]
 
 
 @dataclass
@@ -383,47 +364,6 @@ def select_measures(
     return list(dict.fromkeys(measures))
 
 
-def values_of(
-    results: Sequence[RunResult], measure: str, seen: Optional[Set[str]] = None
-) -> List[float]:
-    """Returns one measure's value in each run.
-
-    A count the statistics leave out while it is 0, such as `reneged` or a flow's
-    `started`, is 0 in a run that did not publish it, when a run published another
-    statistic of its task or flow (`published_value`).
-
-    Args:
-        results: The runs.
-        measure: The statistic's name without the sim id.
-        seen: The names every run of the study published, such as the runs of the
-            other designs of an experiment; None for the names of `results`.
-
-    Returns:
-        List[float]: The values, in run order.
-
-    Raises:
-        ValueError: If another statistic is missing from a run, such as a mean wait
-            in a run where no task started.
-    """
-    values = []
-    if seen is None:
-        seen = {name for result in results for name in result.readings}
-    for i, result in enumerate(results, start=1):
-        value = published_value(
-            result.readings,
-            f"{result.sim_id}.stats.{measure}",
-            seen,
-            prefix=f"{result.sim_id}.stats.",
-        )
-        if value is None:
-            raise ValueError(
-                f"{measure} has no value in run {i}: nothing it measures happened "
-                f"in that run. Run longer, or choose another measure"
-            )
-        values.append(value)
-    return values
-
-
 def _publish(model: Model, replications: Replications, until: Any) -> None:
     """Sends the summary to the model's sinks, once, stamped at the end time.
 
@@ -456,6 +396,18 @@ def _publish(model: Model, replications: Replications, until: Any) -> None:
             context.env.publish_telemetry(path_id, value)
     finally:
         context.close()
+
+
+@dataclass(frozen=True)
+class _Checked:
+    """An experiment's settings once checked: what its runs and artifacts read."""
+
+    settings: Any
+    folder: Path
+    model: Model
+    parameters: Dict[str, Any]
+    designs: List[Any]
+    observed: List[Dict[str, Any]]
 
 
 def run_experiment(
@@ -492,10 +444,30 @@ def run_experiment(
             settings given as a mapping, also a missing model or observed file.
         CheckFailed: If a check failed and `raise_on_failure` is True.
     """
-    from desflow.analysis import results as found
-    from desflow.analysis.report import build_report
-    from desflow.analysis.spec import ExperimentSpec, load_experiment
+    checked = _checked_settings(spec)
+    settings, model, all_designs = checked.settings, checked.model, checked.designs
+    stats = level_for(settings.measures)
+    for design in all_designs:
+        design.runs = run_replications(
+            model,
+            design.seeds,
+            until=settings.until,
+            warmup=settings.warmup,
+            stats=stats,
+            workers=settings.workers,
+            overrides=design.overrides,
+            stop=settings.stop,
+            drain=settings.drain,
+        )
+    result = _write_artifacts(checked, output)
+    if result.failed and raise_on_failure:
+        raise found.CheckFailed(result)
+    return result
 
+
+def _checked_settings(spec: Union[str, Path, Mapping[str, Any], Any]) -> _Checked:
+    """Reads an experiment's settings and checks them against its model and files,
+    before any run."""
     source = None
     if isinstance(spec, (str, Path)):
         path = Path(spec)
@@ -560,20 +532,20 @@ def run_experiment(
             update={"warmup": context.warmup if context is not None else None}
         )
     observed = found.read_observed(settings, folder)
+    return _Checked(
+        settings=settings,
+        folder=folder,
+        model=model,
+        parameters=parameters,
+        designs=all_designs,
+        observed=observed,
+    )
 
-    stats = level_for(settings.measures)
-    for design in all_designs:
-        design.runs = run_replications(
-            model,
-            design.seeds,
-            until=settings.until,
-            warmup=settings.warmup,
-            stats=stats,
-            workers=settings.workers,
-            overrides=design.overrides,
-            stop=settings.stop,
-            drain=settings.drain,
-        )
+
+def _write_artifacts(checked: _Checked, output: Union[str, Path, None]) -> Any:
+    """Summarises the runs of every design, writes the experiment's artifacts and
+    gives its `ExperimentResult`."""
+    settings, model, all_designs = checked.settings, checked.model, checked.designs
     runs = [run for design in all_designs for run in design.runs]
     select_measures(runs, settings.measures)
     # A count that is also a measure is summarised once, as a measure
@@ -584,15 +556,15 @@ def run_experiment(
     )
     comparisons = found.comparison_rows(settings, all_designs, rows)
     checks = found.check_rows(settings, summary)
-    observed_rows = found.observed_rows(settings, observed, summary)
+    observed_rows = found.observed_rows(settings, checked.observed, summary)
 
     if output is None:
-        output = folder / (settings.output or f"results/{settings.experiment}")
+        output = checked.folder / (settings.output or f"results/{settings.experiment}")
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     found.write_json(
         output / found.EXPERIMENT_FILE,
-        _evidence(settings, model, runs[0].sim_id, parameters, all_designs)
+        _evidence(settings, model, runs[0].sim_id, checked.parameters, all_designs)
         | {"counts": counts, "observed": observed_rows},
     )
     sweep = list(settings.sweep)
@@ -606,7 +578,7 @@ def run_experiment(
     report = build_report(output)
     (output / found.REPORT_FILE).write_text(report, encoding="utf-8")
 
-    result = found.ExperimentResult(
+    return found.ExperimentResult(
         spec=settings,
         output=output,
         designs=all_designs,
@@ -617,9 +589,6 @@ def run_experiment(
         observed=observed_rows,
         report=report,
     )
-    if result.failed and raise_on_failure:
-        raise found.CheckFailed(result)
-    return result
 
 
 def _evidence(

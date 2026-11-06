@@ -572,6 +572,29 @@ def test_report_needs_an_experiment_folder(tmp_path):
     assert run.exit_code == 2 and "experiment.json" in run.output
 
 
+def test_the_output_argument_takes_the_place_of_the_experiment_s_folder(tmp_path):
+    result = run_experiment(
+        _settings(model=shop, checks=[], output=str(tmp_path / "named")),
+        output=tmp_path / "given",
+    )
+    assert result.output == tmp_path / "given"
+    assert (tmp_path / "given" / found.REPORT_FILE).is_file()
+    assert not (tmp_path / "named").exists()
+
+
+def test_a_model_with_no_distributions_is_reported_as_such(folder):
+    from desflow.analysis.report import build_report
+
+    run_experiment(folder / "experiment.yaml")
+    out = folder / "results" / "packers"
+    experiment = found.read_json(out / found.EXPERIMENT_FILE)
+    found.write_json(out / found.EXPERIMENT_FILE, experiment | {"parameters": {}})
+    assert (
+        "## Inputs and Provenance\n\nThe model registers no distributions.\n"
+        in build_report(out)
+    )
+
+
 def test_a_missing_model_or_observed_file_is_an_invalid_experiment(folder):
     """Both exit 2, the status of an invalid experiment, naming the line of the key."""
     experiment = folder / "experiment.yaml"

@@ -112,11 +112,10 @@ from desflow.values.check import (
     generators_in,
     load_rows,
     lookup_cycle,
-    looked_up,
     task_value_problems,
 )
 from desflow.values.models import Row as RowGenerator
-from desflow.values.template import bind as bind_values
+from desflow.values.template import bind as bind_values, looked_up
 from desflow.models.params import (
     BreakdownConfig,
     CapacityConfig,

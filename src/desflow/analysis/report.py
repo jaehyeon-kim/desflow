@@ -6,14 +6,14 @@ it again from the same files, so the two never differ. Every section says so whe
 it has nothing to report, rather than inventing content.
 """
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Union
+from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
 
 from desflow.analysis.results import (
     CHECKS_FILE,
     COMPARISONS_FILE,
     REPORT_FILE,
-    RESULTS_FILE,
     EXPERIMENT_FILE,
     SUMMARY_FILE,
     read_csv,
@@ -91,49 +91,68 @@ def _missing_inputs(experiment: Dict[str, Any]) -> List[str]:
     return missing
 
 
-def build_report(folder: Union[str, Path]) -> str:
-    """
-    Builds the report of the experiment whose artifacts are in `folder`.
+@dataclass(frozen=True)
+class _Artifacts:
+    """What the report reads from an experiment's saved artifacts."""
 
-    Args:
-        folder: The experiment's output folder, holding `experiment.json` and the
-            CSV files.
+    experiment: Dict[str, Any]
+    settings: Dict[str, Any]
+    summary: List[Dict[str, str]]
+    comparisons: List[Dict[str, str]]
+    checks: List[Dict[str, str]]
+    measures: List[str]
+    counts: List[str]
+    designs: List[str]
+    model: Dict[str, Any]
+    versions: Dict[str, str]
 
-    Returns:
-        str: The report, as Markdown.
 
-    Raises:
-        FileNotFoundError: If the folder has no `experiment.json`.
-    """
-    folder = Path(folder)
+def _artifacts(folder: Path) -> _Artifacts:
+    """Reads the artifacts in `folder` that the report is built from."""
     experiment = read_json(folder / EXPERIMENT_FILE)
     settings = experiment["settings"]
-    summary = read_csv(folder / SUMMARY_FILE)
-    results = read_csv(folder / RESULTS_FILE)
-    comparisons = read_csv(folder / COMPARISONS_FILE)
-    checks = read_csv(folder / CHECKS_FILE)
-    measures = settings["measures"]
-    counts = experiment["counts"]
-    designs = [d["name"] for d in experiment["designs"]]
-    model = experiment["model"]
-    versions = experiment["versions"]
+    return _Artifacts(
+        experiment=experiment,
+        settings=settings,
+        summary=read_csv(folder / SUMMARY_FILE),
+        comparisons=read_csv(folder / COMPARISONS_FILE),
+        checks=read_csv(folder / CHECKS_FILE),
+        measures=settings["measures"],
+        counts=experiment["counts"],
+        designs=[d["name"] for d in experiment["designs"]],
+        model=experiment["model"],
+        versions=experiment["versions"],
+    )
 
-    lines = [f"# Experiment: {experiment['experiment']}", "", "## Question", ""]
-    lines.append(experiment.get("question") or "Not stated.")
 
-    lines += ["", "## Model", ""]
-    lines += [
+def _question(artifacts: _Artifacts) -> List[str]:
+    """The lines of the Question section, below its heading."""
+    return [artifacts.experiment.get("question") or "Not stated."]
+
+
+def _model(artifacts: _Artifacts) -> List[str]:
+    """The lines of the Model section, below its heading."""
+    model = artifacts.model
+    return [
         f"- Source: `{model['source']}`, a {_FORMS[model['form']]}"
         + (f", SHA-256 `{model['sha256']}`" if model.get("sha256") else ""),
         f"- Sim id: `{model['sim_id']}`",
         "- Versions: "
-        + ", ".join(f"{name} {version}" for name, version in versions.items()),
+        + ", ".join(
+            f"{name} {version}" for name, version in artifacts.versions.items()
+        ),
     ]
 
-    lines += ["", "## Assumptions", ""]
-    lines += _items(experiment.get("assumptions", []), "None stated.")
 
-    lines += ["", "## Inputs and Provenance", ""]
+def _assumptions(artifacts: _Artifacts) -> List[str]:
+    """The lines of the Assumptions section, below its heading."""
+    return _items(artifacts.experiment.get("assumptions", []), "None stated.")
+
+
+def _inputs(artifacts: _Artifacts) -> List[str]:
+    """The lines of the Inputs and Provenance section, below its heading."""
+    experiment = artifacts.experiment
+    lines: List[str] = []
     distributions = _distributions(experiment)
     if distributions:
         rows = []
@@ -144,8 +163,14 @@ def build_report(folder: Union[str, Path]) -> str:
         lines += _table(["Input", "Family", "Parameters", "Provenance"], rows)
     else:
         lines.append("The model registers no distributions.")
+    return lines
 
-    lines += ["", "## Run Settings", ""]
+
+def _run_settings(artifacts: _Artifacts) -> List[str]:
+    """The lines of the Run Settings section, below its heading."""
+    experiment = artifacts.experiment
+    settings = artifacts.settings
+    lines: List[str] = []
     warmup = settings.get("warmup") or 0
     horizon = settings["until"] - warmup
     pairing = (
@@ -186,8 +211,15 @@ def build_report(folder: Union[str, Path]) -> str:
             for d in experiment["designs"]
         ],
     )
+    return lines
 
-    lines += ["", "## Counts", ""]
+
+def _counts(artifacts: _Artifacts) -> List[str]:
+    """The lines of the Counts section, below its heading."""
+    summary = artifacts.summary
+    counts = artifacts.counts
+    designs = artifacts.designs
+    lines: List[str] = []
     if counts:
         lines.append(
             "The mean over the replications of each count the statistics publish. "
@@ -199,22 +231,23 @@ def build_report(folder: Union[str, Path]) -> str:
             "entities that balked, reneged, failed or were abandoned."
         )
         lines.append("")
-        rows = []
-        for design in designs:
-            row = [design]
-            for name in counts:
-                series = [
-                    float(r["value"])
-                    for r in results
-                    if r["design"] == design and r["statistic"] == name
-                ]
-                row.append(_number(sum(series) / len(series)))
-            rows.append(row)
+        means = {(r["design"], r["statistic"]): r["mean"] for r in summary}
+        rows = [
+            [design, *(_number(means[design, name]) for name in counts)]
+            for design in designs
+        ]
         lines += _table(["Design", *(f"`{c}`" for c in counts)], rows)
     else:
         lines.append("The statistics published no counts of tasks or flows.")
+    return lines
 
-    lines += ["", "## Results", ""]
+
+def _results(artifacts: _Artifacts) -> List[str]:
+    """The lines of the Results section, below its heading."""
+    settings = artifacts.settings
+    summary = artifacts.summary
+    measures = artifacts.measures
+    lines: List[str] = []
     lines.append(
         f"Each measure's mean over the replications, with its {settings['level'] * 100:g}% "
         "confidence interval."
@@ -236,8 +269,13 @@ def build_report(folder: Union[str, Path]) -> str:
             if r["statistic"] in measures
         ],
     )
+    return lines
 
-    lines += ["", "## Comparisons", ""]
+
+def _comparisons(artifacts: _Artifacts) -> List[str]:
+    """The lines of the Comparisons section, below its heading."""
+    comparisons = artifacts.comparisons
+    lines: List[str] = []
     if comparisons:
         lines.append(
             "Each difference is the variant's value minus the baseline's, seed by "
@@ -282,8 +320,13 @@ def build_report(folder: Union[str, Path]) -> str:
         )
     else:
         lines.append("No comparisons were requested.")
+    return lines
 
-    lines += ["", "## Checks", ""]
+
+def _checks(artifacts: _Artifacts) -> List[str]:
+    """The lines of the Checks section, below its heading."""
+    checks = artifacts.checks
+    lines: List[str] = []
     if checks:
         passed = len([r for r in checks if r["passed"] == "True"])
         lines.append(f"Checks passed: {passed} of {len(checks)}.")
@@ -306,8 +349,13 @@ def build_report(folder: Union[str, Path]) -> str:
         )
     else:
         lines.append("No checks were requested.")
+    return lines
 
-    lines += ["", "## Observed Comparison", ""]
+
+def _observed(artifacts: _Artifacts) -> List[str]:
+    """The lines of the Observed Comparison section, below its heading."""
+    experiment = artifacts.experiment
+    lines: List[str] = []
     observed = experiment.get("observed") or []
     if observed:
         lines += _table(
@@ -326,12 +374,54 @@ def build_report(folder: Union[str, Path]) -> str:
         )
     else:
         lines.append("No observed values were given.")
+    return lines
 
-    lines += ["", "## Limits", ""]
-    lines += _items(experiment.get("limits", []), "None stated.")
 
-    lines += ["", "## Missing Inputs", ""]
-    lines += _items(_missing_inputs(experiment), "None.")
+def _limits(artifacts: _Artifacts) -> List[str]:
+    """The lines of the Limits section, below its heading."""
+    return _items(artifacts.experiment.get("limits", []), "None stated.")
+
+
+def _missing(artifacts: _Artifacts) -> List[str]:
+    """The lines of the Missing Inputs section, below its heading."""
+    return _items(_missing_inputs(artifacts.experiment), "None.")
+
+
+# The report's sections, in order, each with the function that gives its lines
+_SECTIONS: Tuple[Tuple[str, Callable[[_Artifacts], List[str]]], ...] = (
+    ("Question", _question),
+    ("Model", _model),
+    ("Assumptions", _assumptions),
+    ("Inputs and Provenance", _inputs),
+    ("Run Settings", _run_settings),
+    ("Counts", _counts),
+    ("Results", _results),
+    ("Comparisons", _comparisons),
+    ("Checks", _checks),
+    ("Observed Comparison", _observed),
+    ("Limits", _limits),
+    ("Missing Inputs", _missing),
+)
+
+
+def build_report(folder: Union[str, Path]) -> str:
+    """
+    Builds the report of the experiment whose artifacts are in `folder`.
+
+    Args:
+        folder: The experiment's output folder, holding `experiment.json` and the
+            CSV files.
+
+    Returns:
+        str: The report, as Markdown.
+
+    Raises:
+        FileNotFoundError: If the folder has no `experiment.json`.
+    """
+    artifacts = _artifacts(Path(folder))
+    lines = [f"# Experiment: {artifacts.experiment['experiment']}"]
+    for heading, section in _SECTIONS:
+        lines += ["", f"## {heading}", "", *section(artifacts)]
     return "\n".join(lines) + "\n"
 
 

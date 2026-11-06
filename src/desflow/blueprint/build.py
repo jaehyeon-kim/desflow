@@ -70,6 +70,7 @@ from desflow.core.signals import timing_problem
 from desflow.core.environment import in_zone, resolve_zone
 from desflow.utils import suggestion
 from desflow.values.check import (
+    Place,
     task_value_places,
     check_value,
     children,
@@ -2457,10 +2458,9 @@ def _check_values(
             value,
             location,
             [],
-            in_task=False,
-            services=services,
-            base_dir=base_dir,
-            registry=registry,
+            Place(
+                in_task=False, services=services, base_dir=base_dir, registry=registry
+            ),
         ):
             problems.append((where, text))
     for location, value, reads_vars, run_scope in _arrival_sites(blueprint):
@@ -2474,12 +2474,14 @@ def _check_values(
             value,
             location,
             visible if reads_vars else [],
-            in_task=False,
-            in_arrival=True,
-            run_scope=run_scope,
-            services=services,
-            base_dir=base_dir,
-            registry=registry,
+            Place(
+                in_task=False,
+                in_arrival=True,
+                run_scope=run_scope,
+                services=services,
+                base_dir=base_dir,
+                registry=registry,
+            ),
         ):
             problems.append((where, text))
     # A place `check_value` does not walk (a spawn's `count` and `args`, a `put` item,
@@ -2712,12 +2714,14 @@ def _arrival_vars(
             value,
             location + (var,),
             seen,
-            in_task=False,
-            in_arrival=True,
-            run_scope=True,
-            services=services,
-            base_dir=base_dir,
-            registry=registry,
+            Place(
+                in_task=False,
+                in_arrival=True,
+                run_scope=True,
+                services=services,
+                base_dir=base_dir,
+                registry=registry,
+            ),
         )
         seen.append(var)
     return found
