@@ -577,8 +577,9 @@ class BaseEgress:
         """Counts a batch in `active_tasks` while the block writes it.
 
         Teardown waits until every provider's `active_tasks` is 0, or it would cancel
-        the last batch. It reads the count with `getattr`, so a provider that never
-        writes, or one of the user's own that does not count, has none.
+        the last batch. Teardown reads the count with `getattr` and a default of 0, so
+        it does not wait for a provider that has never written or a provider of the
+        user's own that keeps no count.
         """
         self.active_tasks = getattr(self, "active_tasks", 0) + 1
         try:

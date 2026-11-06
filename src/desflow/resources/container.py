@@ -174,13 +174,13 @@ class DynamicContainer(_WrappedHolder, Container):
             # SimPy's own check, which the capacity of 1 below would not make
             raise ValueError('"init" must be <= "capacity".')
         kind = type or ContainerBase
-        self._wrap(
+        self._build_holder(
             lambda capacity: kind(env, init=start, capacity=capacity),
             initial_capacity,
-            1.0,
-            self._level_changed,
-            get_ties,
-            put_ties,
+            smallest=1.0,
+            on_change=self._level_changed,
+            get_ties=get_ties,
+            put_ties=put_ties,
         )
         self._level_val.track(self._holder.level)
         internal_process(self.env, self._watch_level())

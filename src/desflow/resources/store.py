@@ -212,13 +212,13 @@ class DynamicStore(_WrappedHolder, Store):
         # Dynamically select the underlying SimPy storage engine
         self.priority = priority
         kind = type or (_PriorityStore if priority else _Store)
-        self._wrap(
+        self._build_holder(
             lambda capacity: kind(env, capacity=capacity),
             initial_capacity,
-            1,
-            self._changed,
-            get_ties,
-            put_ties,
+            smallest=1,
+            on_change=self._changed,
+            get_ties=get_ties,
+            put_ties=put_ties,
         )
         start = list(items or [])
         if len(start) > initial_capacity:

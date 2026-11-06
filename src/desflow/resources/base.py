@@ -271,7 +271,7 @@ class _WrappedHolder(BaseDynamicResource):
 
     _holder: Any
 
-    def _wrap(
+    def _build_holder(
         self,
         build: Callable[[Any], Any],
         capacity: Any,

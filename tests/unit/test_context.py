@@ -606,8 +606,6 @@ def test_a_task_interrupting_its_own_name_skips_itself():
 
 
 def test_preemption_settings_are_checked():
-    with pytest.raises(ValueError, match="needs queue='priority'"):
-        SimulationContext("TestSim").add_resource("m", 1, 1, preempt=True)
     with pytest.raises(ValueError, match="on_interrupt must be one of"):
         SimulationContext("TestSim").task(on_interrupt="pause")
     with pytest.raises(ValueError, match="list only resources in its resource_id"):

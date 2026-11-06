@@ -435,8 +435,6 @@ def test_priority_counts_only_under_the_priority_order(env, registry, sample_par
     env.process(user("urgent", 0))
     env.run()
     assert served == ["first", "later", "urgent"]
-    with pytest.raises(ValueError, match="queue must be one of"):
-        DynamicResource(env, "Shop", "operator", queue="random")
 
 
 def test_cancel_leaves_the_queue_at_once_and_does_nothing_after_a_grant(
@@ -681,6 +679,7 @@ _PREEMPT = "preempt ranks users by priority, so it needs queue='priority'"
         ({"queue": "random"}, _QUEUE_ORDERS, True),
         ({"preempt": True}, _PREEMPT, True),
         ({"queue": "random", "preempt": True}, _QUEUE_ORDERS, True),
+        ({"queue": "random", "ties": "random"}, _QUEUE_ORDERS, False),
         ({"preempt": True, "queue_limit": -1}, _PREEMPT, True),
         ({"ties": "random"}, "ties must be 'fifo' or 'lifo', got 'random'", False),
         (
