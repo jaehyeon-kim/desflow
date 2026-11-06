@@ -9,20 +9,17 @@ The `local` example is a shop that packs orders. The three files give the same r
 ```yaml
 # Local simulation in YAML, with no Python and no containers.
 #
-# The YAML version of local_example.py, which --api builder downloads. This simulation models a shop
-# packing orders. ConsoleEgress prints events and telemetry to the terminal.
-# A scenario adds packers at 10 seconds and removes one at 20 seconds.
+# The YAML version of local_example.py, which --api builder downloads. This simulation
+# models a shop packing orders. ConsoleEgress prints events and telemetry to the
+# terminal. A scenario adds packers at 10 seconds and removes one at 20 seconds.
 # The run ends on its own after 30 simulation seconds.
 #
 # Run it from its folder with: desflow run local.yaml
 
-simulation:
-  sim_id: Shop
-  factor: 1.0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 1.0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   packers: {current_cap: 1, max_cap: 5}
@@ -51,8 +48,7 @@ scenario:
   - {at: 10, path: Shop.resources.packers.current_cap, value: 3}
   - {at: 20, path: Shop.resources.packers.current_cap, value: 2}
 
-run:
-  until: 30
+run: {until: 30}
 ```
 
 ## Builder API

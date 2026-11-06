@@ -1,11 +1,31 @@
 # Design Y6: a local variable that a process changes (two children count at once).
 simulation: {sim_id: Y6, factor: 0, random_seed: 42}
-arrivals: {a: {dist: constant, value: 1, spawn: parent, max_events: 1, first_at: 0}}
+
+arrivals:
+  a: {dist: constant, value: 1, spawn: parent, max_events: 1, first_at: 0}
+
 tasks:
-  parent: {wait: {all: {x: {task: count, args: {gap: 1}}, y: {task: count, args: {gap: 1.5}}}}, payload: {event_type: parent}}
-  count: {payload: {event_type: begin}, set_args: {i: 0}, next: step}
+  parent:
+    wait:
+      all:
+        x:
+          task: count
+          args: {gap: 1}
+        y:
+          task: count
+          args: {gap: 1.5}
+    payload: {event_type: parent}
+  count:
+    payload: {event_type: begin}
+    set_args: {i: 0}
+    next: step
   step:
     service_time: "arg.gap"
-    payload: {event_type: step, n: {gen: expr, expr: "arg.i + 1"}}
-    set_args: {i: {gen: expr, expr: "arg.i + 1"}}
-    next: {when: [{condition: "arg.i < 2", task: step}]}
+    payload:
+      event_type: step
+      n: {gen: expr, expr: "arg.i + 1"}
+    set_args:
+      i: {gen: expr, expr: "arg.i + 1"}
+    next:
+      when:
+        - {condition: "arg.i < 2", task: step}

@@ -2,10 +2,30 @@
 # puts wait; the queues are read after run(until=1) and after run(until=2), as
 # segments with `look`. See test_yaml_only.py.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-containers: {c: {current_cap: 1, level: 0}}
-arrivals: {g: {initial: 1, spawn: get_it}, p: {initial: 3, spawn: put_it}}
+
+containers:
+  c: {current_cap: 1, level: 0}
+
+arrivals:
+  g: {initial: 1, spawn: get_it}
+  p: {initial: 3, spawn: put_it}
+
 tasks:
-  get_it: {get: {container: c, amount: 1}, payload: {event_type: got}}
-  put_it: {wait: {timeout: 1}, put: {container: c, amount: 1}, payload: {event_type: put}}
-  look: {payload: {event_type: look, put_queue: {gen: expr, expr: "[p.entity for p in putting(c)]"}, get_queue: {gen: expr, expr: "[g.entity for g in getting(c)]"}}}
-run: {until: 2, segments: [{until: 1, look: look}, {until: 2, look: look}]}
+  get_it:
+    get: {container: c, amount: 1}
+    payload: {event_type: got}
+  put_it:
+    wait: {timeout: 1}
+    put: {container: c, amount: 1}
+    payload: {event_type: put}
+  look:
+    payload:
+      event_type: look
+      put_queue: {gen: expr, expr: "[p.entity for p in putting(c)]"}
+      get_queue: {gen: expr, expr: "[g.entity for g in getting(c)]"}
+
+run:
+  until: 2
+  segments:
+    - {until: 1, look: look}
+    - {until: 2, look: look}

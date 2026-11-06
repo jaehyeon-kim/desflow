@@ -1,11 +1,34 @@
-# case GD-RS6: a per-request preempt flag; a head start (resources.rst:273-297). B and C are two rows of one replay arrival at time 1, started together in file order (the tied-row rule), as the example creates both processes in one step. The keys are late-1 (B) and late-2 (C).
+# case GD-RS6: a per-request preempt flag; a head start (resources.rst:273-297). B and C
+# are two rows of one replay arrival at time 1, started together in file order (the
+# tied-row rule), as the example creates both processes in one step. The keys are late-1
+# (B) and late-2 (C).
 simulation: {sim_id: R, factor: 0, random_seed: 42}
-resources: {res: {current_cap: 1, queue: priority, preempt: true}}
+
+resources:
+  res: {current_cap: 1, queue: priority, preempt: true}
+
 arrivals:
-  a: {initial: 1, spawn: user, attributes: {prio: 0, can_preempt: true}}
-  late: {replay: {path: late.csv, time: time, unit: s, fields: [prio, can_preempt]}, spawn: user}
+  a:
+    initial: 1
+    spawn: user
+    attributes: {prio: 0, can_preempt: true}
+  late:
+    replay: {path: late.csv, time: time, unit: s, fields: [prio, can_preempt]}
+    spawn: user
+
 tasks:
-  user: {payload: {event_type: requesting}, next: get}
-  get: {seize: {resource: res, priority: "attr.prio", preempt: "attr.can_preempt == 1"}, payload: {event_type: got}, next: hold}
-  hold: {service_time: 3, release: res, on_interrupt: abandon, on_interrupt_next: preempted, payload: {event_type: held}}
-  preempted: {payload: {event_type: preempted}}
+  user:
+    payload: {event_type: requesting}
+    next: get
+  get:
+    seize: {resource: res, priority: "attr.prio", preempt: "attr.can_preempt == 1"}
+    payload: {event_type: got}
+    next: hold
+  hold:
+    service_time: 3
+    release: res
+    on_interrupt: abandon
+    on_interrupt_next: preempted
+    payload: {event_type: held}
+  preempted:
+    payload: {event_type: preempted}

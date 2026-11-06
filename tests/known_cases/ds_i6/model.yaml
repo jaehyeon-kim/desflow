@@ -1,6 +1,14 @@
-# Design I6: go on after reneging or balking. Source: research/yaml-only/programs/I6.py run(2) (renege), run(4) (the grant and the end of patience at one instant) and run(2, limit=0) (balk), written as three independent holder and late pairs on three units; the patience 0 scenarios are not in this row.
+# Design I6: go on after reneging or balking. Source: research/yaml-only/programs/I6.py
+# run(2) (renege), run(4) (the grant and the end of patience at one instant) and run(2,
+# limit=0) (balk), written as three independent holder and late pairs on three units;
+# the patience 0 scenarios are not in this row.
 simulation: {sim_id: I6, factor: 0, random_seed: 42}
-resources: {m1: {current_cap: 1}, m2: {current_cap: 1}, m3: {current_cap: 1}}
+
+resources:
+  m1: {current_cap: 1}
+  m2: {current_cap: 1}
+  m3: {current_cap: 1}
+
 arrivals:
   h1: {dist: constant, value: 1, spawn: hold1, max_events: 1, first_at: 0}
   l1: {dist: constant, value: 1, spawn: late1, max_events: 1, first_at: 1}
@@ -8,11 +16,31 @@ arrivals:
   l2: {dist: constant, value: 1, spawn: late2, max_events: 1, first_at: 1}
   h3: {dist: constant, value: 1, spawn: hold3, max_events: 1, first_at: 0}
   l3: {dist: constant, value: 1, spawn: late3, max_events: 1, first_at: 1}
+
 tasks:
   hold1: {resource: m1, service_time: 5, payload: null}
   hold2: {resource: m2, service_time: 5, payload: null}
   hold3: {resource: m3, service_time: 5, payload: null}
-  late1: {patience: 2, resource: m1, service_time: 0, on_renege: elsewhere, payload: {event_type: served}}
-  late2: {patience: 4, resource: m2, service_time: 0, on_renege: elsewhere, payload: {event_type: served}}
-  late3: {balk: "queue.m3 >= 0", patience: 2, resource: m3, service_time: 0, on_balk: elsewhere, payload: {event_type: served}}
-  elsewhere: {payload: {event_type: elsewhere, why: {gen: expr, expr: "upstream.status"}}}
+  late1:
+    patience: 2
+    resource: m1
+    service_time: 0
+    on_renege: elsewhere
+    payload: {event_type: served}
+  late2:
+    patience: 4
+    resource: m2
+    service_time: 0
+    on_renege: elsewhere
+    payload: {event_type: served}
+  late3:
+    balk: "queue.m3 >= 0"
+    patience: 2
+    resource: m3
+    service_time: 0
+    on_balk: elsewhere
+    payload: {event_type: served}
+  elsewhere:
+    payload:
+      event_type: elsewhere
+      why: {gen: expr, expr: "upstream.status"}

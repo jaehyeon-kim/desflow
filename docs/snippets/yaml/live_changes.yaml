@@ -1,10 +1,7 @@
 # The Live Changes tutorial: a label printer jam, written as a scenario.
 # Run it with: desflow run live_changes.yaml
 # The events are written to events/ and the ground-truth records to labels/.
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 resources:
   packers: {current_cap: 1, max_cap: 1}
@@ -45,5 +42,4 @@ egress:
     when: labels
 # --8<-- [end:sinks]
 
-run:
-  until: 1 h
+run: {until: 1 h}

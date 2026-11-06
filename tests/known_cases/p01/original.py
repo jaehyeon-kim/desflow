@@ -18,4 +18,4 @@ def program():
 
 
 # The draws are fixed, as in fixed_draws.py: the test applies these replacements to model.yaml.
-DRAWS = [("dist: exponential, rate: 1", "dist: constant, value: 1")]
+DRAWS = [("dist: exponential\n    rate: 1", "dist: constant\n    value: 1")]

@@ -14,7 +14,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   tills: {current_cap: 2, max_cap: 2}
@@ -50,5 +50,4 @@ tasks:
       event_type: abandoned
       items: {gen: attr, name: items}
 
-run:
-  until: 1 hour
+run: {until: 1 hour}

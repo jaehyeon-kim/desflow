@@ -1,8 +1,20 @@
-# Documents of SimPy tests/test_timeout.py, test_environment.py, test_event.py, test_rt.py and test_exceptions.py.
-# case ST-T01: test_discrete_time_steps: a loop logs env.now (0, 1, 2) and waits 1, until 3.
+# Documents of SimPy tests/test_timeout.py, test_environment.py, test_event.py,
+# test_rt.py and test_exceptions.py. case ST-T01: test_discrete_time_steps: a loop logs
+# env.now (0, 1, 2) and waits 1, until 3.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: pem}}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
 tasks:
-  pem: {payload: {event_type: now, now: {gen: expr, expr: t}}, next: step}
-  step: {service_time: 1, payload: {event_type: step}, next: pem}
+  pem:
+    payload:
+      event_type: now
+      now: {gen: expr, expr: t}
+    next: step
+  step:
+    service_time: 1
+    payload: {event_type: step}
+    next: pem
+
 run: {until: 3}

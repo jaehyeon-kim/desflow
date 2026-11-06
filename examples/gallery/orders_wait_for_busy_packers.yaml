@@ -15,7 +15,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 stats: {level: minimal}
 
@@ -35,5 +35,4 @@ tasks:
     id_field: order_id
     payload: {event_type: packed}
 
-run:
-  until: 2 hours
+run: {until: 2 hours}

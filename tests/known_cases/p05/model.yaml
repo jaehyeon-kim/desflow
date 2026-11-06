@@ -1,5 +1,15 @@
 # case P05: a group of k arrivals at once, k drawn from Poisson (shared with design A3).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-arrivals: {a: {dist: constant, value: 5, spawn: member, group: {gen: sample, dist: poisson, mean: 2}}}
-tasks: {member: {payload: {event_type: member}}}
+
+arrivals:
+  a:
+    dist: constant
+    value: 5
+    spawn: member
+    group: {gen: sample, dist: poisson, mean: 2}
+
+tasks:
+  member:
+    payload: {event_type: member}
+
 run: {until: 50}

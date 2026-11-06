@@ -1,9 +1,12 @@
 # The Complete Model tutorial: the shop's busy hour, from order to shipment, with its
 # inputs fitted to the observed orders.
 # Fit the inputs, then run it:
-#   desflow fit complete_model_observed.csv --column gap_seconds --lower 0 --out fitted/complete_orders.yaml
-#   desflow fit complete_model_observed.csv --column picking_seconds --lower 0 --out fitted/complete_picking.yaml
-#   desflow fit complete_model_observed.csv --column packing_seconds --lower 0 --out fitted/complete_packing.yaml
+#   desflow fit complete_model_observed.csv --column gap_seconds --lower 0 \
+#     --out fitted/complete_orders.yaml
+#   desflow fit complete_model_observed.csv --column picking_seconds --lower 0 \
+#     --out fitted/complete_picking.yaml
+#   desflow fit complete_model_observed.csv --column packing_seconds --lower 0 \
+#     --out fitted/complete_packing.yaml
 #   desflow run complete_model.yaml
 simulation:
   sim_id: Shop
@@ -60,5 +63,4 @@ tasks:
 # Waits, utilisation and the stock's level, published at the end
 stats: {level: typical, interval: 1 h}
 
-run:
-  until: 1 h
+run: {until: 1 h}

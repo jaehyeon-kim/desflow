@@ -13,7 +13,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   signups: {dist: exponential, rate: 0.1, spawn: sign_up}
@@ -35,5 +35,4 @@ tasks:
       tier: {gen: var, name: customer, path: tier}
       amount: {gen: uniform, low: 5, high: 200, decimals: 2}
 
-run:
-  until: 300
+run: {until: 300}

@@ -1,7 +1,21 @@
-# case ST-R29: the first request of an empty resource is granted at once and does not enter the queue; the second queues.
+# case ST-R29: the first request of an empty resource is granted at once and does not
+# enter the queue; the second queues.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-resources: {res: {current_cap: 1}}
-arrivals: {a: {initial: 2, spawn: ask}, look: {initial: 1, spawn: look}}
+
+resources:
+  res: {current_cap: 1}
+
+arrivals:
+  a: {initial: 2, spawn: ask}
+  look: {initial: 1, spawn: look}
+
 tasks:
-  ask: {open: {slot: {request: res}}, payload: {event_type: asked}}
-  look: {payload: {event_type: look, users: {gen: expr, expr: "users.res"}, queued: {gen: expr, expr: "queue.res"}}}
+  ask:
+    open:
+      slot: {request: res}
+    payload: {event_type: asked}
+  look:
+    payload:
+      event_type: look
+      users: {gen: expr, expr: "users.res"}
+      queued: {gen: expr, expr: "queue.res"}

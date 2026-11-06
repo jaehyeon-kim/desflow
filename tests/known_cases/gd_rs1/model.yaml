@@ -1,5 +1,19 @@
-# case GD-RS1: request, yield, timeout, release (resources.rst:112-140, explicit release).
+# case GD-RS1: request, yield, timeout, release (resources.rst:112-140, explicit
+# release).
 simulation: {sim_id: R, factor: 0, random_seed: 42}
-resources: {res: {current_cap: 1}}
-arrivals: {a: {initial: 1, spawn: user}}
-tasks: {user: {seize: res, payload: {event_type: got}, next: use}, use: {service_time: 1, payload: {event_type: used}, release: res}}
+
+resources:
+  res: {current_cap: 1}
+
+arrivals:
+  a: {initial: 1, spawn: user}
+
+tasks:
+  user:
+    seize: res
+    payload: {event_type: got}
+    next: use
+  use:
+    service_time: 1
+    payload: {event_type: used}
+    release: res

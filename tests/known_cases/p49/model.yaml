@@ -1,6 +1,24 @@
-# Pattern P49: a breakdown on the calendar clock (clock: calendar): failure every 3, repair 2, the running job is interrupted and resumes, service 1.5, three entities at one instant, until 40.
+# Pattern P49: a breakdown on the calendar clock (clock: calendar): failure every 3,
+# repair 2, the running job is interrupted and resumes, service 1.5, three entities at
+# one instant, until 40.
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1, breakdown: {time_to_failure: {dist: constant, value: 3}, repair: {dist: constant, value: 2}, clock: calendar}}}
-arrivals: {a: {initial: 3, spawn: job}}
-tasks: {job: {resource: m, service_time: 1.5, on_interrupt: resume, payload: {event_type: done}}}
+
+resources:
+  m:
+    current_cap: 1
+    breakdown:
+      time_to_failure: {dist: constant, value: 3}
+      repair: {dist: constant, value: 2}
+      clock: calendar
+
+arrivals:
+  a: {initial: 3, spawn: job}
+
+tasks:
+  job:
+    resource: m
+    service_time: 1.5
+    on_interrupt: resume
+    payload: {event_type: done}
+
 run: {until: 40}

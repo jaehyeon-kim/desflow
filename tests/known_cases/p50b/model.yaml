@@ -1,10 +1,35 @@
-# case P50b: a job preempted at the instant its work ends (register I8; review-r1/patterns/writer-checks/p7_tie.py: a job of 3 holds a preemptive machine, a failure clock of 3 then takes it at priority -1 for 2; keys are the existing ones).
+# case P50b: a job preempted at the instant its work ends (register I8;
+# review-r1/patterns/writer-checks/p7_tie.py: a job of 3 holds a preemptive machine, a
+# failure clock of 3 then takes it at priority -1 for 2; keys are the existing ones).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-resources: {mach: {current_cap: 1, queue: priority, preempt: true}}
-services: {w: {dist: constant, value: 3}, ttf: {dist: constant, value: 3}, fix: {dist: constant, value: 2}}
-arrivals: {jobs: {initial: 1, spawn: job}, clock: {initial: 1, spawn: tick}}
+
+resources:
+  mach: {current_cap: 1, queue: priority, preempt: true}
+
+services:
+  w: {dist: constant, value: 3}
+  ttf: {dist: constant, value: 3}
+  fix: {dist: constant, value: 2}
+
+arrivals:
+  jobs: {initial: 1, spawn: job}
+  clock: {initial: 1, spawn: tick}
+
 tasks:
-  job: {service: w, resource: mach, priority: 1, on_interrupt: resume, payload: {event_type: job_done}}
-  tick: {service: ttf, payload: {event_type: tick}, next: repair}
-  repair: {service: fix, resource: mach, priority: -1, payload: {event_type: repaired}}
+  job:
+    service: w
+    resource: mach
+    priority: 1
+    on_interrupt: resume
+    payload: {event_type: job_done}
+  tick:
+    service: ttf
+    payload: {event_type: tick}
+    next: repair
+  repair:
+    service: fix
+    resource: mach
+    priority: -1
+    payload: {event_type: repaired}
+
 run: {until: 10}

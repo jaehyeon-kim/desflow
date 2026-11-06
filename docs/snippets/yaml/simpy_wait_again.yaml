@@ -7,11 +7,9 @@ processes:
     kwargs: {job: job-1, delay: 5, interrupt_at: 2}
 
 tasks:
-  done:
-    payload: !python simpy_forms.done
+  done: {payload: !python simpy_forms.done}
 
-run:
-  until: 20
+run: {until: 20}
 
 egress:
-  - type: Console
+  - {type: Console}

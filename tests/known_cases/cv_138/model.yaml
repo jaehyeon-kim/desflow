@@ -1,4 +1,13 @@
 # case CV-138: randint, choice, sample and shuffle.
 simulation: {sim_id: C, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: draw}}
-tasks: {draw: {payload: {event_type: draw, n: {gen: integer, bounds: [1, 6]}, c: {gen: one_of, choices: [a, b, c]}, s: {gen: pick, choices: [a, b, c, d], count: 2}}}}
+
+arrivals:
+  a: {initial: 1, spawn: draw}
+
+tasks:
+  draw:
+    payload:
+      event_type: draw
+      n: {gen: integer, bounds: [1, 6]}
+      c: {gen: one_of, choices: [a, b, c]}
+      s: {gen: pick, choices: [a, b, c, d], count: 2}

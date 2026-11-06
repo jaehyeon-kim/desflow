@@ -32,5 +32,5 @@ def program():
 
 # The draws are fixed, as in fixed_draws.py: the test applies these replacements to
 # model.yaml, one for each arrival in the order j0, j1, j2, j3.
-_DRAWN = "attributes: {x: {gen: sample, dist: exponential, rate: 2}}"
+_DRAWN = "attributes:\n      x: {gen: sample, dist: exponential, rate: 2}"
 DRAWS = [(_DRAWN, f"attributes: {{x: {x}}}") for x in (3, 1, 2, 0)]

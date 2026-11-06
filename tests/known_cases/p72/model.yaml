@@ -1,9 +1,27 @@
-# case P72: salabim State.trigger(max=1): wake at most one waiter (review-r1 r16_missing M-trigger1: waiters at 0, 1, 2, fires at 3 and 5). A token store: the firer puts a token only when a waiter is waiting (getters.tok > 0), so a fire with no waiter leaves nothing behind.
+# case P72: salabim State.trigger(max=1): wake at most one waiter (review-r1 r16_missing
+# M-trigger1: waiters at 0, 1, 2, fires at 3 and 5). A token store: the firer puts a
+# token only when a waiter is waiting (getters.tok > 0), so a fire with no waiter leaves
+# nothing behind.
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-stores: {tok: {}}
-arrivals: {w: {dist: constant, value: 1, spawn: waiter, max_events: 3, first_at: 0}, f: {dist: constant, value: 2, spawn: fire, max_events: 2, first_at: 3}}
+
+stores:
+  tok: {}
+
+arrivals:
+  w: {dist: constant, value: 1, spawn: waiter, max_events: 3, first_at: 0}
+  f: {dist: constant, value: 2, spawn: fire, max_events: 2, first_at: 3}
+
 tasks:
-  waiter: {get: {store: tok}, payload: {event_type: woke}}
-  fire: {payload: {event_type: fire}, next: {when: [{condition: "getters.tok > 0", task: give}]}}
-  give: {put: {store: tok}, payload: {event_type: give}}
+  waiter:
+    get: {store: tok}
+    payload: {event_type: woke}
+  fire:
+    payload: {event_type: fire}
+    next:
+      when:
+        - {condition: "getters.tok > 0", task: give}
+  give:
+    put: {store: tok}
+    payload: {event_type: give}
+
 run: {until: 10}

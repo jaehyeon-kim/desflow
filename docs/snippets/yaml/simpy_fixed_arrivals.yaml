@@ -18,8 +18,7 @@ tasks:
     service: serving
     payload: {customer: served}
 
-run:
-  until: 20
+run: {until: 20}
 
 egress:
-  - type: Console
+  - {type: Console}

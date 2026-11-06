@@ -1,5 +1,17 @@
-# case P40: renege on a fixed or an attribute patience (register g_d2.py "P40 yaml patience at the release instant (I5)": patience 2.5, service 2.5, entities at one instant).
+# case P40: renege on a fixed or an attribute patience (register g_d2.py "P40 yaml
+# patience at the release instant (I5)": patience 2.5, service 2.5, entities at one
+# instant).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1}}
-arrivals: {a: {initial: 3, spawn: job}}
-tasks: {job: {resource: m, patience: 2.5, service_time: 2.5, payload: {event_type: served}}}
+
+resources:
+  m: {current_cap: 1}
+
+arrivals:
+  a: {initial: 3, spawn: job}
+
+tasks:
+  job:
+    resource: m
+    patience: 2.5
+    service_time: 2.5
+    payload: {event_type: served}

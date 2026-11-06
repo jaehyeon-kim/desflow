@@ -22,7 +22,7 @@ def program():
 # The draws are fixed, as in fixed_draws.py: the test applies these replacements to model.yaml.
 DRAWS = [
     (
-        "next: {weights: {gone: 1, stay: 1}}",
+        "next:\n      weights: {gone: 1, stay: 1}",
         'next: {when: [{condition: "t % 2 == 0", task: gone}], default: stay}',
     )
 ]

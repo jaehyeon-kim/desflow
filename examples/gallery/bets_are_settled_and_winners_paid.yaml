@@ -14,7 +14,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   bets: {dist: exponential, rate: 0.2, spawn: place_bet}
@@ -46,5 +46,4 @@ tasks:
           decimals: 2
         else: 0
 
-run:
-  until: 20 min
+run: {until: 20 min}

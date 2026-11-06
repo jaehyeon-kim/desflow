@@ -24,21 +24,27 @@
 simulation: {sim_id: MachineShop, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
-variables: {target: -1, parts_made: {}}
+variables:
+  target: -1
+  parts_made: {}
 
 resources:
   repairman: {current_cap: 1, queue: priority, preempt: true}
 
-services: {repair_time: {dist: constant, value: 30}}
+services:
+  repair_time: {dist: constant, value: 30}
 
 arrivals:
   machines:
     initial: 10
     spawn: start_machine
     key: {gen: sequence, format: "Machine {}"}
-    attributes: {id: {gen: sequence}, parts_made: 0, broken: 0}
+    attributes:
+      id: {gen: sequence}
+      parts_made: 0
+      broken: 0
   others: {initial: 1, spawn: other_job}
 
 tasks:
@@ -50,22 +56,45 @@ tasks:
     service_time: {gen: sample, dist: truncated_normal, mean: 10, std: 2, low: 0}
     on_interrupt: resume
     on_interrupt_run: begin_repair
-    set: {parts_made: {gen: expr, expr: "attr.parts_made + 1"}}
+    set:
+      parts_made: {gen: expr, expr: "attr.parts_made + 1"}
     on:
       - path: MachineShop.variables.parts_made
-        value: {gen: expr, expr: "set_key(registry['MachineShop.variables.parts_made'], process.key, get_key(registry['MachineShop.variables.parts_made'], process.key, 0) + 1)"}
+        value:
+          gen: expr
+          expr: "set_key(registry['MachineShop.variables.parts_made'], process.key,
+            get_key(registry['MachineShop.variables.parts_made'], process.key, 0) + 1)"
     payload: {event_type: part_made}
     next: part
-  begin_repair: {payload: {event_type: broken}, set: {broken: 1}, next: repair}
-  repair: {resource: repairman, priority: 1, service: repair_time, set: {broken: 0}, payload: {event_type: repaired}}
+  begin_repair:
+    payload: {event_type: broken}
+    set: {broken: 1}
+    next: repair
+  repair:
+    resource: repairman
+    priority: 1
+    service: repair_time
+    set: {broken: 0}
+    payload: {event_type: repaired}
   # The machine's failures: one wait for each, then an interrupt of its part
   break_loop:
-    wait: {timeout: {gen: sample, dist: exponential, rate: 0.0033333333333333335}}
+    wait:
+      timeout: {gen: sample, dist: exponential, rate: 0.0033333333333333335}
     payload: {event_type: tick}
     on:
-      - {path: MachineShop.variables.target, value: {gen: expr, expr: "attr.id"}}
-      - {interrupt: {task: part, where: "attr.id == registry['MachineShop.variables.target'] and attr.broken == 0"}}
+      - path: MachineShop.variables.target
+        value: {gen: expr, expr: "attr.id"}
+      - interrupt:
+          task: part
+          where: "attr.id == registry['MachineShop.variables.target'] and attr.broken ==
+            0"
     next: break_loop
-  other_job: {resource: repairman, priority: 2, service_time: 30, on_interrupt: resume, payload: {event_type: other_done}, next: other_job}
+  other_job:
+    resource: repairman
+    priority: 2
+    service_time: 30
+    on_interrupt: resume
+    payload: {event_type: other_done}
+    next: other_job
 
 run: {until: 40320}

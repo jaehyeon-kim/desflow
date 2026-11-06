@@ -14,7 +14,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   agents: {current_cap: 1, max_cap: 1, queue: priority}
@@ -41,5 +41,4 @@ tasks:
       event_type: solved
       priority: {gen: attr, name: priority}
 
-run:
-  until: 4 hours
+run: {until: 4 hours}

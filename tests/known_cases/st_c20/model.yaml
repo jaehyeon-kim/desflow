@@ -1,6 +1,21 @@
-# case ST-C20 and ST-C21: test_all_of_empty_list and test_any_of_empty_list: an empty all and an empty any succeed at once.
+# case ST-C20 and ST-C21: test_all_of_empty_list and test_any_of_empty_list: an empty
+# all and an empty any succeed at once.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: empty_all}}
+
+arrivals:
+  a: {initial: 1, spawn: empty_all}
+
 tasks:
-  empty_all: {wait: {all: {}}, payload: {event_type: all_empty, at: {gen: expr, expr: t}}, next: empty_any}
-  empty_any: {wait: {any: {}}, payload: {event_type: any_empty, at: {gen: expr, expr: t}}}
+  empty_all:
+    wait:
+      all: {}
+    payload:
+      event_type: all_empty
+      at: {gen: expr, expr: t}
+    next: empty_any
+  empty_any:
+    wait:
+      any: {}
+    payload:
+      event_type: any_empty
+      at: {gen: expr, expr: t}

@@ -1,4 +1,13 @@
 # case GD-B1: Timeout(env, 1, value=42) (simpy_basics.rst:37-50, 100-109).
 simulation: {sim_id: B, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: example}}
-tasks: {example: {wait: {timeout: {after: 1, value: 42}}, payload: {event_type: printed, value: {gen: expr, expr: "wait.timeout.value"}}}}
+
+arrivals:
+  a: {initial: 1, spawn: example}
+
+tasks:
+  example:
+    wait:
+      timeout: {after: 1, value: 42}
+    payload:
+      event_type: printed
+      value: {gen: expr, expr: "wait.timeout.value"}

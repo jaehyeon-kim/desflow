@@ -14,7 +14,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   payments:
@@ -49,5 +49,4 @@ tasks:
       amount: {gen: uniform, low: 500, high: 2000, decimals: 2}
       fraud: true
 
-run:
-  until: 600
+run: {until: 600}

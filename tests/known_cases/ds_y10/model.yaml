@@ -1,14 +1,40 @@
-# Part 2 of Batch 11: each arrival that started one entity at time 0 (`first_at: 0` with `max_events: 1`) is written with `initial`, which starts the same entity at the same instant, so the sized runs can change its size.
-# Design Y10: an event scheduled with a numeric priority.
+# Part 2 of Batch 11: each arrival that started one entity at time 0 (`first_at: 0` with
+# `max_events: 1`) is written with `initial`, which starts the same entity at the same
+# instant, so the sized runs can change its size. Design Y10: an event scheduled with a
+# numeric priority.
 simulation: {sim_id: Y10, factor: 0, random_seed: 42}
-signals: {tick_end: {once: true}}
+
+signals:
+  tick_end: {once: true}
+
 arrivals:
-  a: {initial: 1, spawn: later, attributes: {name: a}}
+  a:
+    initial: 1
+    spawn: later
+    attributes: {name: a}
   m: {initial: 1, spawn: mark}
-  b: {initial: 1, spawn: later, attributes: {name: b}}
+  b:
+    initial: 1
+    spawn: later
+    attributes: {name: b}
   w: {initial: 1, spawn: see}
+
 tasks:
-  later: {wait: {timeout: 1}, payload: {event_type: later, name: {gen: expr, expr: "attr.name"}}, next: again}
-  again: {wait: {timeout: 0}, payload: {event_type: again, name: {gen: expr, expr: "attr.name"}}}
-  mark: {payload: null, on: [{fire: {signal: tick_end, priority: 2, after: 1}}]}
-  see: {wait: {signal: tick_end}, payload: {event_type: marked}}
+  later:
+    wait: {timeout: 1}
+    payload:
+      event_type: later
+      name: {gen: expr, expr: "attr.name"}
+    next: again
+  again:
+    wait: {timeout: 0}
+    payload:
+      event_type: again
+      name: {gen: expr, expr: "attr.name"}
+  mark:
+    payload: null
+    on:
+      - fire: {signal: tick_end, priority: 2, after: 1}
+  see:
+    wait: {signal: tick_end}
+    payload: {event_type: marked}

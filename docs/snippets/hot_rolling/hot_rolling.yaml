@@ -4,10 +4,7 @@
 #
 # Place this file and the adapter in sim_control/, then run from there:
 #   desflow run hot_rolling.yaml
-simulation:
-  sim_id: HotRolling
-  factor: 1.0
-  random_seed: 42
+simulation: {sim_id: HotRolling, factor: 1.0, random_seed: 42}
 
 ingress:
   # Control commands from the dashboard.
@@ -75,6 +72,4 @@ scenario:
     path: HotRolling.variables.velocity_structural
     value: {type: gradual, value: 0.5, freq: 1}
 
-run:
-  before:
-    - !python hot_rolling_adapter.create_topics
+run: {before: [!python hot_rolling_adapter.create_topics]}

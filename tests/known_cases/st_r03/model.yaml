@@ -1,5 +1,17 @@
 # case ST-R03: nine users on three units; grants at 0, 0, 0, 1, 1, 1, 2, 2, 2.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-resources: {res: {current_cap: 3}}
-arrivals: {users: {initial: 9, spawn: pem, key: {gen: sequence}}}
-tasks: {pem: {resource: res, service_time: 1, payload: {event_type: granted}}}
+
+resources:
+  res: {current_cap: 3}
+
+arrivals:
+  users:
+    initial: 9
+    spawn: pem
+    key: {gen: sequence}
+
+tasks:
+  pem:
+    resource: res
+    service_time: 1
+    payload: {event_type: granted}

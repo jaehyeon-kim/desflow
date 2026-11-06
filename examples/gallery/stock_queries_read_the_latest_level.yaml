@@ -14,7 +14,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   updates:
@@ -45,5 +45,4 @@ tasks:
       sku: {gen: var, name: row, path: sku}
       level: {gen: var, name: row, path: level}
 
-run:
-  until: 200
+run: {until: 200}

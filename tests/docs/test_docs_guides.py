@@ -988,8 +988,12 @@ def test_fit_a_distribution_gaps(tmp_path, capsys):
     )
     assert ran.exit_code == 0, ran.output
     assert "exponential *" in ran.stdout and "rate=0.36388" in ran.stdout
-    shipped = (blueprint / "fitted" / "orders.yaml").read_text().splitlines()[1:]
-    assert out.read_text().splitlines()[1:] == shipped
+
+    # The comment at the top names the source, which differs, so only the settings
+    # are compared
+    shipped = (blueprint / "fitted" / "orders.yaml").read_text()
+    written = out.read_text()
+    assert written[written.index("dist:") :] == shipped[shipped.index("dist:") :]
     app = module.shop(result)
     app.run(until="1 h")
     yaml_app = SimulationContext.from_yaml(blueprint / "fit_a_distribution.yaml")

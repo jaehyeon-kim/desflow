@@ -1,5 +1,22 @@
-# case ST-U10: test_all_of_chaining: condition_a &= condition_b, two all_of conditions of two timeouts (0 and 1) merge into one of four.
+# case ST-U10: test_all_of_chaining: condition_a &= condition_b, two all_of conditions
+# of two timeouts (0 and 1) merge into one of four.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-arrivals: {p: {initial: 1, spawn: pem}}
+
+arrivals:
+  p: {initial: 1, spawn: pem}
+
 tasks:
-  pem: {wait: {all: {a: {all: {a0: {timeout: 0}, a1: {timeout: 1}}}, b: {all: {b0: {timeout: 0}, b1: {timeout: 1}}}}}, payload: {event_type: done, at: {gen: expr, expr: t}}}
+  pem:
+    wait:
+      all:
+        a:
+          all:
+            a0: {timeout: 0}
+            a1: {timeout: 1}
+        b:
+          all:
+            b0: {timeout: 0}
+            b1: {timeout: 1}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}

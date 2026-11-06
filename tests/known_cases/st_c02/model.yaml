@@ -1,7 +1,22 @@
-# case ST-C02: test_operator_and_blocked: after waiting 1, a condition of a processed timeout and an event that never triggers is not triggered; the process never continues past it.
+# case ST-C02: test_operator_and_blocked: after waiting 1, a condition of a processed
+# timeout and an event that never triggers is not triggered; the process never continues
+# past it.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-signals: {never: {once: true}}
-arrivals: {a: {initial: 1, spawn: pem}}
+
+signals:
+  never: {once: true}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
 tasks:
-  pem: {wait: {timeout: 1}, payload: {event_type: waited}, next: blocked}
-  blocked: {wait: {all: {t: {timeout: 0}, n: {signal: never}}}, payload: {event_type: unreachable}}
+  pem:
+    wait: {timeout: 1}
+    payload: {event_type: waited}
+    next: blocked
+  blocked:
+    wait:
+      all:
+        t: {timeout: 0}
+        n: {signal: never}
+    payload: {event_type: unreachable}

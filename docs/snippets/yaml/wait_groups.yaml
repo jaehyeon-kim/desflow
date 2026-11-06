@@ -1,9 +1,6 @@
 # The Wait for One or All guide: every kind of wait group, on one order's way.
 # Run it with: desflow run wait_groups.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 resources:
   packers: {current_cap: 1, max_cap: 1}
@@ -50,8 +47,10 @@ tasks:
     # Two boxes, or go on without them after 5 seconds with the value "no boxes"
     wait:
       any:
-        boxes: {get: {container: boxes, amount: 2}}
-        limit: {timeout: {after: 5 s, value: no boxes}}
+        boxes:
+          get: {container: boxes, amount: 2}
+        limit:
+          timeout: {after: 5 s, value: no boxes}
     # --8<-- [end:get]
     payload: {event_type: reserved}
     next: pack
@@ -75,16 +74,15 @@ tasks:
     # --8<-- [start:running]
     # Wait for the delivery this order started, unless it has left with the van
     wait:
-      running:
-        task: deliver
-        where: process.target != 'service'
+      running: {task: deliver, where: process.target != 'service'}
     # --8<-- [end:running]
     payload: {event_type: closed}
     next: file
   file:
     # --8<-- [start:put]
     # Put the closed order's payload on the shelf, waiting while the shelf is full
-    wait: {put: {store: shelf}}
+    wait:
+      put: {store: shelf}
     # --8<-- [end:put]
     payload: {event_type: filed}
     next: ship
@@ -96,13 +94,13 @@ tasks:
         invoice: {timeout: 4 s}
         either:
           any:
-            boxes: {get: {container: boxes, amount: 2}}
+            boxes:
+              get: {container: boxes, amount: 2}
             limit: {timeout: 5 s}
     # --8<-- [end:nested]
     payload: {event_type: shipped}
 
 egress:
-  - type: Console
+  - {type: Console}
 
-run:
-  until: 1 min
+run: {until: 1 min}

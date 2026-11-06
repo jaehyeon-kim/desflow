@@ -15,7 +15,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   orders: {dist: constant, value: 1, spawn: order}
@@ -33,5 +33,4 @@ tasks:
         then: {gen: integer, bounds: [1, 5]}
         else: {gen: integer, bounds: [6, 25]}
 
-run:
-  until: 1000
+run: {until: 1000}

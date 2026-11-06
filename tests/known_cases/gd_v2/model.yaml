@@ -1,12 +1,34 @@
 # case GD-V2: succeed(value), fail(exc), trigger(event) (events.rst:111-126).
 simulation: {sim_id: V, factor: 0, random_seed: 42}
-signals: {a: {once: true}, b: {once: true}, c: {once: true}}
-arrivals: {x: {initial: 1, spawn: ok_waiter}, y: {initial: 1, spawn: fail_waiter}, z: {initial: 1, spawn: driver}}
+
+signals:
+  a: {once: true}
+  b: {once: true}
+  c: {once: true}
+
+arrivals:
+  x: {initial: 1, spawn: ok_waiter}
+  y: {initial: 1, spawn: fail_waiter}
+  z: {initial: 1, spawn: driver}
+
 tasks:
-  ok_waiter: {wait: {signal: a}, payload: {event_type: ok, v: {gen: expr, expr: "wait.a.value"}}}
-  fail_waiter: {wait: {signal: b}, on_fail: caught, payload: {event_type: fine}}
-  caught: {payload: {event_type: caught, why: {gen: expr, expr: "upstream.reason"}}}
+  ok_waiter:
+    wait: {signal: a}
+    payload:
+      event_type: ok
+      v: {gen: expr, expr: "wait.a.value"}
+  fail_waiter:
+    wait: {signal: b}
+    on_fail: caught
+    payload: {event_type: fine}
+  caught:
+    payload:
+      event_type: caught
+      why: {gen: expr, expr: "upstream.reason"}
   driver:
     service_time: 1
     payload: {event_type: drive}
-    on: [{fire: {signal: a, value: 7}}, {fire: {signal: b, fail: true, value: oops, defused: false}}, {fire: {signal: c, from: a}}]
+    on:
+      - fire: {signal: a, value: 7}
+      - fire: {signal: b, fail: true, value: oops, defused: false}
+      - fire: {signal: c, from: a}

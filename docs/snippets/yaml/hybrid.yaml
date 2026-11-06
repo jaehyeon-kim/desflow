@@ -1,9 +1,6 @@
 # The shop with its logic in Python. YAML keeps the blueprint and the
 # experiment; shop_logic.py beside this file holds what YAML cannot express.
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 1
+simulation: {sim_id: Shop, factor: 0, random_seed: 1}
 
 egress:
   - type: Console
@@ -35,5 +32,4 @@ processes:
 scenario:
   - {at: 1 min, path: Shop.arrival.orders.rate, value: 0.4}
 
-run:
-  until: 3 min
+run: {until: 3 min}

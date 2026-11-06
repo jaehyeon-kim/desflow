@@ -1,6 +1,28 @@
-# case ST-U16: test_any_of_with_triggered_events: two timeouts (0 'spam', 1 'eggs') have both been processed when the parent waits for any of them at 2; the result holds both.
+# case ST-U16: test_any_of_with_triggered_events: two timeouts (0 'spam', 1 'eggs') have
+# both been processed when the parent waits for any of them at 2; the result holds both.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-arrivals: {p: {initial: 1, spawn: pem}}
+
+arrivals:
+  p: {initial: 1, spawn: pem}
+
 tasks:
-  pem: {open: {a: {timeout: {after: 0, value: spam}}, b: {timeout: {after: 1, value: eggs}}}, service_time: 2, payload: {event_type: opened}, next: collect}
-  collect: {wait: {any: {a: {handle: a}, b: {handle: b}}}, payload: {event_type: done, at: {gen: expr, expr: t}, values: [{gen: expr, expr: "wait.a.value"}, {gen: expr, expr: "wait.b.value"}]}}
+  pem:
+    open:
+      a:
+        timeout: {after: 0, value: spam}
+      b:
+        timeout: {after: 1, value: eggs}
+    service_time: 2
+    payload: {event_type: opened}
+    next: collect
+  collect:
+    wait:
+      any:
+        a: {handle: a}
+        b: {handle: b}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      values:
+        - {gen: expr, expr: "wait.a.value"}
+        - {gen: expr, expr: "wait.b.value"}

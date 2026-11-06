@@ -1,14 +1,31 @@
-# DX-8: a process adds a resource of wrappers at 12 s and starts a job on every resource each round. The snippet's `supervisor` (docs/snippets/yaml/dynamic_topology_logic.py) is a process; here the wrappers exist from the start with capacity 0, a scenario step gives them 2 units at 12 s, and an arrival starts the jobs.
+# DX-8: a process adds a resource of wrappers at 12 s and starts a job on every resource
+# each round. The snippet's `supervisor` (docs/snippets/yaml/dynamic_topology_logic.py)
+# is a process; here the wrappers exist from the start with capacity 0, a scenario step
+# gives them 2 units at 12 s, and an arrival starts the jobs.
 simulation: {sim_id: Shop, factor: 0, strict: false}
+
 resources:
   packers: {current_cap: 1, max_cap: 5}
   wrappers: {current_cap: 0, max_cap: 5}
+
 arrivals:
   pack_rounds: {dist: constant, value: 4, spawn: pack_job}
   wrap_rounds: {dist: constant, value: 4, first_at: 12, spawn: wrap_job}
+
 tasks:
-  pack_job: {resource: packers, service_time: 3, payload: {resource: packers, status: finished}}
-  wrap_job: {resource: wrappers, service_time: 3, payload: {resource: wrappers, status: finished}}
+  pack_job:
+    resource: packers
+    service_time: 3
+    payload: {resource: packers, status: finished}
+  wrap_job:
+    resource: wrappers
+    service_time: 3
+    payload: {resource: wrappers, status: finished}
+
 scenario:
-  - {at: 12, path: Shop.resources.wrappers.current_cap, value: 2, record: {status: wrappers_added, capacity: 2}}
+  - at: 12
+    path: Shop.resources.wrappers.current_cap
+    value: 2
+    record: {status: wrappers_added, capacity: 2}
+
 run: {until: 20}

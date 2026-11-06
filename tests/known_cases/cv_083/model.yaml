@@ -1,17 +1,63 @@
-# case CV-083: a BaseResource subclass with its own grant rule. research/yaml-only/programs/X1.py subclass(): a get takes min(level, amount) once the level is at least 1; gets are served in the order they were made (a ticket and the variable turn keep the order).
+# case CV-083: a BaseResource subclass with its own grant rule.
+# research/yaml-only/programs/X1.py subclass(): a get takes min(level, amount) once the
+# level is at least 1; gets are served in the order they were made (a ticket and the
+# variable turn keep the order).
 simulation: {sim_id: C, factor: 0, random_seed: 42}
+
 variables: {level: 0, tickets: 0, turn: 0}
-arrivals: {g0: {initial: 1, spawn: ticket, attributes: {amount: 3}}, g1: {initial: 1, spawn: ticket, attributes: {amount: 1}}, g2: {initial: 1, spawn: ticket, attributes: {amount: 4}}, p1: {dist: constant, value: 1, spawn: put_it, max_events: 1, attributes: {amount: 2}}, p2: {dist: constant, value: 2, spawn: put_it, max_events: 1, attributes: {amount: 5}}}
+
+arrivals:
+  g0:
+    initial: 1
+    spawn: ticket
+    attributes: {amount: 3}
+  g1:
+    initial: 1
+    spawn: ticket
+    attributes: {amount: 1}
+  g2:
+    initial: 1
+    spawn: ticket
+    attributes: {amount: 4}
+  p1:
+    dist: constant
+    value: 1
+    spawn: put_it
+    max_events: 1
+    attributes: {amount: 2}
+  p2:
+    dist: constant
+    value: 2
+    spawn: put_it
+    max_events: 1
+    attributes: {amount: 5}
+
 tasks:
   ticket:
-    set: {i: {gen: expr, expr: "registry['C.variables.tickets']"}}
-    on: [{path: C.variables.tickets, value: {gen: expr, expr: "registry['C.variables.tickets'] + 1"}}]
+    set:
+      i: {gen: expr, expr: "registry['C.variables.tickets']"}
+    on:
+      - path: C.variables.tickets
+        value: {gen: expr, expr: "registry['C.variables.tickets'] + 1"}
     payload: {event_type: ticket}
     next: get_it
   get_it:
-    wait: {condition: "registry['C.variables.level'] >= 1 and registry['C.variables.turn'] == attr.i"}
-    payload: {event_type: got, taken: {gen: expr, expr: "min(registry['C.variables.level'], attr.amount)"}}
+    wait:
+      condition: "registry['C.variables.level'] >= 1 and registry['C.variables.turn'] ==
+        attr.i"
+    payload:
+      event_type: got
+      taken: {gen: expr, expr: "min(registry['C.variables.level'], attr.amount)"}
     on:
-      - {path: C.variables.level, value: {gen: expr, expr: "registry['C.variables.level'] - min(registry['C.variables.level'], attr.amount)"}}
-      - {path: C.variables.turn, value: {gen: expr, expr: "registry['C.variables.turn'] + 1"}}
-  put_it: {on: [{path: C.variables.level, value: {gen: expr, expr: "registry['C.variables.level'] + attr.amount"}}], payload: {event_type: put}}
+      - path: C.variables.level
+        value:
+          gen: expr
+          expr: "registry['C.variables.level'] - min(registry['C.variables.level'],
+            attr.amount)"
+      - path: C.variables.turn
+        value: {gen: expr, expr: "registry['C.variables.turn'] + 1"}
+  put_it:
+    on:
+      - path: C.variables.level
+        value: {gen: expr, expr: "registry['C.variables.level'] + attr.amount"}
+    payload: {event_type: put}

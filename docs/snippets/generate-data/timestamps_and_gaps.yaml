@@ -15,7 +15,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   orders:
@@ -26,8 +26,9 @@ tasks:
   order:
     payload:
       placed_at: {gen: now}
-      deliver_by: {gen: now, offset: {gen: uniform, low: 0, high: 172800}}
+      deliver_by:
+        gen: now
+        offset: {gen: uniform, low: 0, high: 172800}
       epoch_ms: {gen: format_time, format: epoch_ms}
 
-run:
-  until: 10
+run: {until: 10}

@@ -1,11 +1,26 @@
-# case GD-P4: re-yield the same event after an Interrupt (process_interaction.rst:196-200). A request keeps its place with a request wait branch; a timeout keeps its first end with the wait-again form (register I10).
+# case GD-P4: re-yield the same event after an Interrupt
+# (process_interaction.rst:196-200). A request keeps its place with a request wait
+# branch; a timeout keeps its first end with the wait-again form (register I10).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1}}
+
+resources:
+  m: {current_cap: 1}
+
 arrivals:
   blocker: {initial: 1, spawn: block}
   victim: {initial: 1, spawn: victim}
   poke: {dist: constant, value: 1, spawn: poker, max_events: 1}
+
 tasks:
-  block: {resource: m, service_time: 3, payload: {event_type: blocked_done}}
-  victim: {wait: {request: m}, on_interrupt: resume, service_time: 1, payload: {event_type: victim_done}}
-  poker: {payload: {event_type: poke}, interrupt: {task: victim, cause: x}}
+  block:
+    resource: m
+    service_time: 3
+    payload: {event_type: blocked_done}
+  victim:
+    wait: {request: m}
+    on_interrupt: resume
+    service_time: 1
+    payload: {event_type: victim_done}
+  poker:
+    payload: {event_type: poke}
+    interrupt: {task: victim, cause: x}

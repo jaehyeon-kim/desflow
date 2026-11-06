@@ -16,7 +16,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   prices:
@@ -49,5 +49,4 @@ tasks:
                   - {gen: normal, mean: 0, std: 40}
         decimals: 0
 
-run:
-  until: 30
+run: {until: 30}

@@ -1,9 +1,25 @@
 # case ST-I04: a child is interrupted at the instant it is created.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-arrivals: {root: {initial: 1, spawn: root}}
+
+arrivals:
+  root: {initial: 1, spawn: root}
+
 tasks:
-  root: {payload: {event_type: root}, spawn: {task: child}, next: stop_child}
-  stop_child: {payload: {event_type: stop_child}, interrupt: {task: child}, next: root_wait}
-  root_wait: {service_time: 1, payload: {event_type: root_done}}
-  child: {service_time: 10, on_interrupt: abandon, on_interrupt_next: caught, payload: {event_type: should_not_finish}}
-  caught: {payload: {event_type: interrupted}}
+  root:
+    payload: {event_type: root}
+    spawn: {task: child}
+    next: stop_child
+  stop_child:
+    payload: {event_type: stop_child}
+    interrupt: {task: child}
+    next: root_wait
+  root_wait:
+    service_time: 1
+    payload: {event_type: root_done}
+  child:
+    service_time: 10
+    on_interrupt: abandon
+    on_interrupt_next: caught
+    payload: {event_type: should_not_finish}
+  caught:
+    payload: {event_type: interrupted}

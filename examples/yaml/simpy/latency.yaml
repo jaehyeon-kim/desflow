@@ -10,9 +10,10 @@
 simulation: {sim_id: Cable, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
-stores: {cable: {}}
+stores:
+  cable: {}
 
 arrivals:
   sender: {dist: constant, value: 5, spawn: send}
@@ -28,14 +29,19 @@ tasks:
         msg:
           gen: format
           template: "Sender sent this at {now:g}"
-          names: {now: {gen: expr, expr: t}}
+          names:
+            now: {gen: expr, expr: t}
   latency:
     service_time: 10
-    put: {store: cable, item: {gen: expr, expr: "arg.msg"}}
+    put:
+      store: cable
+      item: {gen: expr, expr: "arg.msg"}
     payload: {event_type: delivered}
   receive:
     get: {store: cable}
-    payload: {event_type: received, msg: {gen: expr, expr: item}}
+    payload:
+      event_type: received
+      msg: {gen: expr, expr: item}
     next: receive
 
 run: {until: 100}

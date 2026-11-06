@@ -1,6 +1,15 @@
 # case P26: a sub-process return value.
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: parent}}
+
+arrivals:
+  a: {initial: 1, spawn: parent}
+
 tasks:
-  parent: {wait: {task: child}, payload: {event_type: got, v: {gen: expr, expr: "wait.child.value.v"}}}
-  child: {service_time: 2, payload: {v: 20}}
+  parent:
+    wait: {task: child}
+    payload:
+      event_type: got
+      v: {gen: expr, expr: "wait.child.value.v"}
+  child:
+    service_time: 2
+    payload: {v: 20}

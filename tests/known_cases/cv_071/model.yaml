@@ -1,18 +1,79 @@
-# case CV-071: two units of one resource held by one process, released one at a time. research/yaml-only/programs/Y4.py two_units(): a process requests two units of a resource of two, gives the first back after 1 s and the second after 1 s more. The entity `a` holds its two units with a second H1 `seize`, and `release: m` frees the oldest grant; the entity `b` opens two named requests (Y4) and frees the newer one first with `release: {handle: q}`.
+# case CV-071: two units of one resource held by one process, released one at a time.
+# research/yaml-only/programs/Y4.py two_units(): a process requests two units of a
+# resource of two, gives the first back after 1 s and the second after 1 s more. The
+# entity `a` holds its two units with a second H1 `seize`, and `release: m` frees the
+# oldest grant; the entity `b` opens two named requests (Y4) and frees the newer one
+# first with `release: {handle: q}`.
 simulation: {sim_id: C, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 2}, n: {current_cap: 2}}
+
+resources:
+  m: {current_cap: 2}
+  n: {current_cap: 2}
+
 arrivals:
   a: {initial: 1, spawn: one}
   b: {initial: 1, spawn: subject}
+
 tasks:
-  one: {seize: m, payload: {e: one, x: {gen: expr, expr: "users.m"}}, next: two}
-  two: {seize: m, payload: {e: both, x: {gen: expr, expr: "users.m"}}, next: first}
-  first: {service_time: 1, release: m, payload: {e: first}, next: after_first}
-  after_first: {payload: {e: after_first, x: {gen: expr, expr: "users.m"}}, next: second}
-  second: {service_time: 1, release: m, payload: {e: second}, next: after_second}
-  after_second: {payload: {e: after_second, x: {gen: expr, expr: "users.m"}}}
-  subject: {open: {p: {request: n}, q: {request: n}}, wait: {all: {x: {handle: p}, y: {handle: q}}}, payload: {e: both, x: {gen: expr, expr: "users.n"}}, next: free_q}
-  free_q: {service_time: 1, release: {handle: q}, payload: {e: free_q}, next: after_q}
-  after_q: {payload: {e: after_q, x: {gen: expr, expr: "[users.n, handle.p.triggered]"}}, next: free_p}
-  free_p: {service_time: 1, release: {handle: p}, payload: {e: free_p}, next: after_p}
-  after_p: {payload: {e: after_p, x: {gen: expr, expr: "users.n"}}}
+  one:
+    seize: m
+    payload:
+      e: one
+      x: {gen: expr, expr: "users.m"}
+    next: two
+  two:
+    seize: m
+    payload:
+      e: both
+      x: {gen: expr, expr: "users.m"}
+    next: first
+  first:
+    service_time: 1
+    release: m
+    payload: {e: first}
+    next: after_first
+  after_first:
+    payload:
+      e: after_first
+      x: {gen: expr, expr: "users.m"}
+    next: second
+  second:
+    service_time: 1
+    release: m
+    payload: {e: second}
+    next: after_second
+  after_second:
+    payload:
+      e: after_second
+      x: {gen: expr, expr: "users.m"}
+  subject:
+    open:
+      p: {request: n}
+      q: {request: n}
+    wait:
+      all:
+        x: {handle: p}
+        y: {handle: q}
+    payload:
+      e: both
+      x: {gen: expr, expr: "users.n"}
+    next: free_q
+  free_q:
+    service_time: 1
+    release: {handle: q}
+    payload: {e: free_q}
+    next: after_q
+  after_q:
+    payload:
+      e: after_q
+      x: {gen: expr, expr: "[users.n, handle.p.triggered]"}
+    next: free_p
+  free_p:
+    service_time: 1
+    release: {handle: p}
+    payload: {e: free_p}
+    next: after_p
+  after_p:
+    payload:
+      e: after_p
+      x: {gen: expr, expr: "users.n"}

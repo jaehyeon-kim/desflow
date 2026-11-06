@@ -1,5 +1,16 @@
 # case ST-E06: run(until='3.141592') converts the text to a number.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: pem}}
-tasks: {pem: {payload: {event_type: now}, next: pem_wait}, pem_wait: {service_time: 1, payload: {event_type: tick}, next: pem}}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
+tasks:
+  pem:
+    payload: {event_type: now}
+    next: pem_wait
+  pem_wait:
+    service_time: 1
+    payload: {event_type: tick}
+    next: pem
+
 run: {until: 3.141592}

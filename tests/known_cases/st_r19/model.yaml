@@ -1,7 +1,22 @@
-# case ST-R19: a store of capacity 2; a putter puts an item and a getter gets the same item.
+# case ST-R19: a store of capacity 2; a putter puts an item and a getter gets the same
+# item.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-stores: {s: {current_cap: 2}}
-arrivals: {p: {initial: 1, spawn: putter}, g: {initial: 1, spawn: getter}}
+
+stores:
+  s: {current_cap: 2}
+
+arrivals:
+  p: {initial: 1, spawn: putter}
+  g: {initial: 1, spawn: getter}
+
 tasks:
-  putter: {put: {store: s, item: {id: 1}}, payload: {event_type: put}}
-  getter: {get: {store: s}, payload: {event_type: got, same: {gen: expr, expr: "item.id == 1"}}}
+  putter:
+    put:
+      store: s
+      item: {id: 1}
+    payload: {event_type: put}
+  getter:
+    get: {store: s}
+    payload:
+      event_type: got
+      same: {gen: expr, expr: "item.id == 1"}

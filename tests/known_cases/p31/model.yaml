@@ -1,8 +1,28 @@
-# case P31: hold across several steps, release one of two: a job takes the lathe, then the press, gives the lathe back when the press step ends and the press at the end of its last step.
+# case P31: hold across several steps, release one of two: a job takes the lathe, then
+# the press, gives the lathe back when the press step ends and the press at the end of
+# its last step.
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-resources: {lathe: {current_cap: 1}, press: {current_cap: 1}}
-arrivals: {a: {initial: 2, spawn: take_lathe}}
+
+resources:
+  lathe: {current_cap: 1}
+  press: {current_cap: 1}
+
+arrivals:
+  a: {initial: 2, spawn: take_lathe}
+
 tasks:
-  take_lathe: {seize: lathe, service_time: 1, payload: {event_type: lathe}, next: take_press}
-  take_press: {seize: press, service_time: 2, payload: {event_type: press}, release: lathe, next: finish}
-  finish: {service_time: 1, payload: {event_type: done}, release: press}
+  take_lathe:
+    seize: lathe
+    service_time: 1
+    payload: {event_type: lathe}
+    next: take_press
+  take_press:
+    seize: press
+    service_time: 2
+    payload: {event_type: press}
+    release: lathe
+    next: finish
+  finish:
+    service_time: 1
+    payload: {event_type: done}
+    release: press

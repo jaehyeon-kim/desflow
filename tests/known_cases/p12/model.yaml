@@ -1,5 +1,21 @@
 # case P12: timeout(0), and a drawn or service delay of 0.
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-services: {zero: {dist: constant, value: 0}}
-arrivals: {a: {dist: constant, value: 0, spawn: t, max_events: 3}}
-tasks: {t: {wait: {timeout: 0}, payload: {event_type: waited, at: {gen: expr, expr: t}}, next: u}, u: {service: zero, payload: {event_type: served, at: {gen: expr, expr: t}}}}
+
+services:
+  zero: {dist: constant, value: 0}
+
+arrivals:
+  a: {dist: constant, value: 0, spawn: t, max_events: 3}
+
+tasks:
+  t:
+    wait: {timeout: 0}
+    payload:
+      event_type: waited
+      at: {gen: expr, expr: t}
+    next: u
+  u:
+    service: zero
+    payload:
+      event_type: served
+      at: {gen: expr, expr: t}

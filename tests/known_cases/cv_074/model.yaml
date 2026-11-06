@@ -1,10 +1,43 @@
-# case CV-074: wait on a computed number of requests over a family of resources. research/yaml-only/programs/Y3.py requests(3): three resources held for 3, 2 and 1; at 0.5 a process requests all three and waits for the first.
+# case CV-074: wait on a computed number of requests over a family of resources.
+# research/yaml-only/programs/Y3.py requests(3): three resources held for 3, 2 and 1; at
+# 0.5 a process requests all three and waits for the first.
 simulation: {sim_id: C, factor: 0, random_seed: 42}
-resources: {desk: {family: true, members: 3, current_cap: 1}}
-arrivals: {h0: {initial: 1, spawn: hold0}, h1: {initial: 1, spawn: hold1}, h2: {initial: 1, spawn: hold2}, p: {initial: 1, spawn: pause, attributes: {count: 3}}}
+
+resources:
+  desk: {family: true, members: 3, current_cap: 1}
+
+arrivals:
+  h0: {initial: 1, spawn: hold0}
+  h1: {initial: 1, spawn: hold1}
+  h2: {initial: 1, spawn: hold2}
+  p:
+    initial: 1
+    spawn: pause
+    attributes: {count: 3}
+
 tasks:
-  hold0: {resource: {of: desk, key: "0"}, service_time: 3, payload: {event_type: held0}}
-  hold1: {resource: {of: desk, key: "1"}, service_time: 2, payload: {event_type: held1}}
-  hold2: {resource: {of: desk, key: "2"}, service_time: 1, payload: {event_type: held2}}
-  pause: {wait: {timeout: 0.5}, payload: {event_type: paused}, next: any_desk}
-  any_desk: {wait: {each: "attr.count", group: any, branch: {request: {of: desk, key: "each.index"}}}, payload: {event_type: got_one, at: {gen: expr, expr: t}}}
+  hold0:
+    resource: {of: desk, key: "0"}
+    service_time: 3
+    payload: {event_type: held0}
+  hold1:
+    resource: {of: desk, key: "1"}
+    service_time: 2
+    payload: {event_type: held1}
+  hold2:
+    resource: {of: desk, key: "2"}
+    service_time: 1
+    payload: {event_type: held2}
+  pause:
+    wait: {timeout: 0.5}
+    payload: {event_type: paused}
+    next: any_desk
+  any_desk:
+    wait:
+      each: "attr.count"
+      group: any
+      branch:
+        request: {of: desk, key: "each.index"}
+    payload:
+      event_type: got_one
+      at: {gen: expr, expr: t}

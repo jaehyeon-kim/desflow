@@ -15,7 +15,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   messages: {dist: exponential, rate: 0.5, spawn: message}
@@ -24,7 +24,9 @@ arrivals:
 tasks:
   message:
     vars:
-      intent: {gen: weighted, options: {order_status: 4, refund: 2, cancel: 1, hello: 3}}
+      intent:
+        gen: weighted
+        options: {order_status: 4, refund: 2, cancel: 1, hello: 3}
     payload:
       message_id: {gen: sequence, start: 1}
       intent: {gen: var, name: intent}
@@ -38,7 +40,8 @@ tasks:
               - value:
                   gen: format
                   template: "Where is my order {n}?"
-                  names: {n: {gen: integer, bounds: [1000, 9999]}}
+                  names:
+                    n: {gen: integer, bounds: [1000, 9999]}
                 weight: 2
               - {value: "Has my parcel been sent yet?", weight: 1}
           refund:
@@ -48,7 +51,8 @@ tasks:
               - value:
                   gen: format
                   template: "Please refund order {n}."
-                  names: {n: {gen: integer, bounds: [1000, 9999]}}
+                  names:
+                    n: {gen: integer, bounds: [1000, 9999]}
                 weight: 1
           cancel:
             gen: weighted
@@ -63,7 +67,9 @@ tasks:
 
   review:
     vars:
-      sentiment: {gen: weighted, options: {positive: 6, neutral: 2, negative: 2}}
+      sentiment:
+        gen: weighted
+        options: {positive: 6, neutral: 2, negative: 2}
       product: {gen: one_of, choices: [lamp, notebook, backpack, headphones]}
     payload:
       review_id: {gen: sequence, start: 1}
@@ -83,20 +89,13 @@ tasks:
                   gen: format
                   template: "I love this {product}, I would buy it again."
                 weight: 1
-          neutral:
-            gen: format
-            template: "The {product} is fine, nothing special."
+          neutral: {gen: format, template: "The {product} is fine, nothing special."}
           negative:
             gen: weighted
             choices:
-              - value:
-                  gen: format
-                  template: "The {product} broke after a week."
+              - value: {gen: format, template: "The {product} broke after a week."}
                 weight: 1
-              - value:
-                  gen: format
-                  template: "I would not recommend this {product}."
+              - value: {gen: format, template: "I would not recommend this {product}."}
                 weight: 1
 
-run:
-  until: 10 min
+run: {until: 10 min}

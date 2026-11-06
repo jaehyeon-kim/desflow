@@ -1,10 +1,7 @@
 # The Interruptions tutorial: express orders take the packer from regular ones.
 # Run it with: desflow run interruptions.yaml
 # With restart instead of resume: POLICY=restart desflow run interruptions.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 # --8<-- [start:packers]
 resources:
@@ -40,7 +37,8 @@ tasks:
 scenario:
   # A recall at 31 minutes: every regular order in the shop,
   # waiting or being packed, is interrupted
-  - {at: 31 min, interrupt: {task: pack_order, cause: recalled}}
+  - at: 31 min
+    interrupt: {task: pack_order, cause: recalled}
 # --8<-- [end:interrupt]
 
 # --8<-- [start:watch]
@@ -49,7 +47,6 @@ stats: {level: typical, interval: 1 h}
 # --8<-- [end:watch]
 
 egress:
-  - type: Console
+  - {type: Console}
 
-run:
-  until: 1 h
+run: {until: 1 h}

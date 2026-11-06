@@ -1,6 +1,14 @@
 # ST-RT6: test_rt_sync. Factor 0.05 and a process that ticks every step; `run.sync`
 # calls `env.sync()` as the run starts. See test_yaml_only.py.
 simulation: {sim_id: T, factor: 0.05, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: pem}}
-tasks: {pem: {service_time: 1, payload: {event_type: tick}, next: pem}}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
+tasks:
+  pem:
+    service_time: 1
+    payload: {event_type: tick}
+    next: pem
+
 run: {until: 3, sync: true}

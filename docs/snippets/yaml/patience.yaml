@@ -1,10 +1,7 @@
-# The Patience tutorial: orders leave after waiting too long, and none join near closing.
-# Run it with: desflow run patience.yaml
+# The Patience tutorial: orders leave after waiting too long, and none join near
+# closing. Run it with: desflow run patience.yaml
 # With no time limit: PATIENCE="1 h" desflow run patience.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 resources:
   packers: {current_cap: 1, max_cap: 4}
@@ -38,7 +35,6 @@ stats: {level: typical, interval: 1 h}
 # --8<-- [end:watch]
 
 egress:
-  - type: Console
+  - {type: Console}
 
-run:
-  until: 1 h
+run: {until: 1 h}

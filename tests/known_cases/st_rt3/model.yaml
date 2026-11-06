@@ -1,5 +1,16 @@
-# case ST-RT3: test_rt_slow_sim_default_behavior: factor 0.05, strict, the process works 0.1 s of wall time per step, run(3) raises RuntimeError (Simulation too slow for real time). The blueprint has no wall-time work, so the existing form is a factor of 1e-6, which the engine's own step time exceeds.
+# case ST-RT3: test_rt_slow_sim_default_behavior: factor 0.05, strict, the process works
+# 0.1 s of wall time per step, run(3) raises RuntimeError (Simulation too slow for real
+# time). The blueprint has no wall-time work, so the existing form is a factor of 1e-6,
+# which the engine's own step time exceeds.
 simulation: {sim_id: T, factor: 1.0e-6, strict: true, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: pem}}
-tasks: {pem: {service_time: 1, payload: {event_type: tick}, next: pem}}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
+tasks:
+  pem:
+    service_time: 1
+    payload: {event_type: tick}
+    next: pem
+
 run: {until: 3}

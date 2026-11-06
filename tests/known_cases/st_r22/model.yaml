@@ -1,7 +1,23 @@
-# case ST-R22: test_store_cancel: a get inside a with block is cancelled on leaving the block (cancel: also takes the handle of a store get).
+# case ST-R22: test_store_cancel: a get inside a with block is cancelled on leaving the
+# block (cancel: also takes the handle of a store get).
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-stores: {s: {current_cap: 1}}
-arrivals: {a: {initial: 1, spawn: acquire}}
+
+stores:
+  s: {current_cap: 1}
+
+arrivals:
+  a: {initial: 1, spawn: acquire}
+
 tasks:
-  acquire: {open: {g: {get: {store: s}}}, service_time: 1, payload: {event_type: waited}, next: left}
-  left: {cancel: g, payload: {event_type: left_block, getters: {gen: expr, expr: "getters.s"}}}
+  acquire:
+    open:
+      g:
+        get: {store: s}
+    service_time: 1
+    payload: {event_type: waited}
+    next: left
+  left:
+    cancel: g
+    payload:
+      event_type: left_block
+      getters: {gen: expr, expr: "getters.s"}

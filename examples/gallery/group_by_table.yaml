@@ -15,7 +15,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   rows: {dist: constant, value: 1, spawn: row, max_events: 1000}
@@ -26,15 +26,18 @@ tasks:
       id1:
         gen: format
         template: "id{n:03d}"
-        names: {n: {gen: integer, bounds: [1, 100]}}
+        names:
+          n: {gen: integer, bounds: [1, 100]}
       id2:
         gen: format
         template: "id{n:03d}"
-        names: {n: {gen: integer, bounds: [1, 100]}}
+        names:
+          n: {gen: integer, bounds: [1, 100]}
       id3:
         gen: format
         template: "id{n:010d}"
-        names: {n: {gen: integer, bounds: [1, 100000]}}
+        names:
+          n: {gen: integer, bounds: [1, 100000]}
       id4: {gen: integer, bounds: [1, 100]}
       id5: {gen: integer, bounds: [1, 100]}
       id6: {gen: integer, bounds: [1, 100000]}

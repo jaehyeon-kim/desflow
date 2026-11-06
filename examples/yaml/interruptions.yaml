@@ -1,21 +1,19 @@
-# Interruptions: express orders preempt regular ones, and a fire drill interrupts packing, in YAML.
+# Interruptions: express orders preempt regular ones, and a fire drill interrupts
+# packing, in YAML.
 #
-# The YAML version of interruptions_example.py, which --api builder downloads. One packer serves express
-# orders (priority 0) before regular ones (priority 1), and an express order takes
-# the packer from a regular order being packed. The regular order is preempted,
-# queues again and resumes with the packing time it had left. At 60 seconds a fire
-# drill interrupts the order being packed, which goes on with its packer.
+# The YAML version of interruptions_example.py, which --api builder downloads. One
+# packer serves express orders (priority 0) before regular ones (priority 1), and an
+# express order takes the packer from a regular order being packed. The regular order is
+# preempted, queues again and resumes with the packing time it had left. At 60 seconds a
+# fire drill interrupts the order being packed, which goes on with its packer.
 #
 # Needs no containers. Runs unpaced and ends after 120 simulation seconds.
 # Run it from its folder with: desflow run interruptions.yaml
 
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   # --8<-- [start:packers]
@@ -27,8 +25,16 @@ services:
   packing: {dist: triangular, low: 1 s, mode: 2 s, high: 4 s}
 
 arrivals:
-  orders: {dist: exponential, rate: 0.3, spawn: pack, attributes: {priority: 1}}
-  express: {dist: exponential, rate: 0.1, spawn: pack, attributes: {priority: 0}}
+  orders:
+    dist: exponential
+    rate: 0.3
+    spawn: pack
+    attributes: {priority: 1}
+  express:
+    dist: exponential
+    rate: 0.1
+    spawn: pack
+    attributes: {priority: 0}
 
 # --8<-- [start:pack]
 tasks:
@@ -46,11 +52,11 @@ tasks:
 # --8<-- [start:drill]
 scenario:
   # Interrupts every order being packed; each follows its on_interrupt.
-  - {at: 60, interrupt: {task: pack, cause: fire drill}}
+  - at: 60
+    interrupt: {task: pack, cause: fire drill}
 # --8<-- [end:drill]
 
 # Every 30 seconds, how many orders were preempted, interrupted and resumed.
 stats: {level: basic, interval: 30}
 
-run:
-  until: 120
+run: {until: 120}

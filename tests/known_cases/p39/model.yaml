@@ -1,5 +1,20 @@
-# case P39: balk, then route elsewhere (shared with design I6; register audit2/patterns/mine/g_d2.py P39: balk when 1 or more wait, service 2, entities at one instant).
+# case P39: balk, then route elsewhere (shared with design I6; register
+# audit2/patterns/mine/g_d2.py P39: balk when 1 or more wait, service 2, entities at one
+# instant).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1}}
-arrivals: {a: {initial: 3, spawn: job}}
-tasks: {job: {balk: "queue.m >= 1", on_balk: other, resource: m, service_time: 2, payload: {event_type: served}}, other: {payload: {event_type: other}}}
+
+resources:
+  m: {current_cap: 1}
+
+arrivals:
+  a: {initial: 3, spawn: job}
+
+tasks:
+  job:
+    balk: "queue.m >= 1"
+    on_balk: other
+    resource: m
+    service_time: 2
+    payload: {event_type: served}
+  other:
+    payload: {event_type: other}

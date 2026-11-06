@@ -29,10 +29,9 @@ tasks:
 
 # --8<-- [start:records]
 egress:
-  - type: Console
+  - {type: Console}
 # --8<-- [end:records]
 
 # --8<-- [start:run]
-run:
-  until: 20
+run: {until: 20}
 # --8<-- [end:run]

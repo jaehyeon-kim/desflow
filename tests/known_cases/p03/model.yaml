@@ -1,5 +1,11 @@
 # case P03: first arrival at 0, then drawn gaps.
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-arrivals: {a: {dist: constant, value: 5, spawn: t, first_at: 0}}
-tasks: {t: {payload: {event_type: arrived}}}
+
+arrivals:
+  a: {dist: constant, value: 5, spawn: t, first_at: 0}
+
+tasks:
+  t:
+    payload: {event_type: arrived}
+
 run: {until: 12}

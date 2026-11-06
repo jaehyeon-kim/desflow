@@ -15,14 +15,23 @@
 simulation: {sim_id: Pipes, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
-stores: {pipe: {family: true, members: 2}}
+stores:
+  pipe: {family: true, members: 2}
 
 arrivals:
-  generator: {gap: {gen: integer, bounds: [6, 10]}, spawn: speak}
-  consumer_a: {initial: 1, spawn: listen, attributes: {idx: 0}}
-  consumer_b: {initial: 1, spawn: listen, attributes: {idx: 1}}
+  generator:
+    gap: {gen: integer, bounds: [6, 10]}
+    spawn: speak
+  consumer_a:
+    initial: 1
+    spawn: listen
+    attributes: {idx: 0}
+  consumer_b:
+    initial: 1
+    spawn: listen
+    attributes: {idx: 1}
 
 tasks:
   # The message is the payload of `speak`, which each put of `send` takes as its item
@@ -30,15 +39,31 @@ tasks:
     payload:
       event_type: said
       sent: {gen: expr, expr: t}
-      text: {gen: format, template: "Generator A says hello at {now:g}", names: {now: {gen: expr, expr: t}}}
+      text:
+        gen: format
+        template: "Generator A says hello at {now:g}"
+        names:
+          now: {gen: expr, expr: t}
     next: send
   send:
-    open: {sends: {each: "members(pipe)", branch: {put: {store: {of: pipe, key: "each.value"}}}}}
+    open:
+      sends:
+        each: "members(pipe)"
+        branch:
+          put:
+            store: {of: pipe, key: "each.value"}
     payload: {event_type: sent}
   listen:
-    get: {store: {of: pipe, key: "attr.idx"}}
-    payload: {event_type: received, late: {gen: expr, expr: "item.sent < t"}, text: {gen: expr, expr: "item.text"}}
+    get:
+      store: {of: pipe, key: "attr.idx"}
+    payload:
+      event_type: received
+      late: {gen: expr, expr: "item.sent < t"}
+      text: {gen: expr, expr: "item.text"}
     next: busy
-  busy: {service_time: {gen: integer, bounds: [4, 8]}, payload: {event_type: handled}, next: listen}
+  busy:
+    service_time: {gen: integer, bounds: [4, 8]}
+    payload: {event_type: handled}
+    next: listen
 
 run: {until: 100}

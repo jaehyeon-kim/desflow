@@ -1,11 +1,26 @@
-# Design H6: release a unit that another entity holds. The holder keeps its unit for 5, the waiter for 10, and a third releases the holder's request at 1.
+# Design H6: release a unit that another entity holds. The holder keeps its unit for 5,
+# the waiter for 10, and a third releases the holder's request at 1.
 simulation: {sim_id: H6, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1}}
+
+resources:
+  m: {current_cap: 1}
+
 arrivals:
   holder: {initial: 1, spawn: hold}
   waiter: {initial: 1, spawn: want}
   third: {initial: 1, spawn: free_it}
+
 tasks:
-  hold: {seize: m, service_time: 5, payload: {event_type: held}, release: m}
-  want: {resource: m, service_time: 10, payload: {event_type: served}}
-  free_it: {service_time: 1, payload: {event_type: freed}, release: {resource: m, task: hold, where: "process.instance == 0"}}
+  hold:
+    seize: m
+    service_time: 5
+    payload: {event_type: held}
+    release: m
+  want:
+    resource: m
+    service_time: 10
+    payload: {event_type: served}
+  free_it:
+    service_time: 1
+    payload: {event_type: freed}
+    release: {resource: m, task: hold, where: "process.instance == 0"}

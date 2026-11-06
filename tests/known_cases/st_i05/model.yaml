@@ -1,8 +1,26 @@
-# case ST-I05: test_interrupt_terminated_process: the parent interrupts a child that has ended. SimPy raises RuntimeError (the test catches it). In the blueprint the interrupt finds no running instance and goes on; the existing form `running(child) == 0` sets the variable interrupt_raised to true where the program's RuntimeError would.
+# case ST-I05: test_interrupt_terminated_process: the parent interrupts a child that has
+# ended. SimPy raises RuntimeError (the test catches it). In the blueprint the interrupt
+# finds no running instance and goes on; the existing form `running(child) == 0` sets
+# the variable interrupt_raised to true where the program's RuntimeError would.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
+
 variables: {interrupt_raised: false}
-arrivals: {parent: {initial: 1, spawn: parent}}
+
+arrivals:
+  parent: {initial: 1, spawn: parent}
+
 tasks:
-  parent: {spawn: {task: child}, payload: {event_type: parent}, next: later}
-  child: {service_time: 1, payload: {event_type: child_done}}
-  later: {service_time: 2, payload: {event_type: late}, interrupt: {task: child}, on: [{path: T.variables.interrupt_raised, value: {gen: expr, expr: "running(child) == 0"}}]}
+  parent:
+    spawn: {task: child}
+    payload: {event_type: parent}
+    next: later
+  child:
+    service_time: 1
+    payload: {event_type: child_done}
+  later:
+    service_time: 2
+    payload: {event_type: late}
+    interrupt: {task: child}
+    on:
+      - path: T.variables.interrupt_raised
+        value: {gen: expr, expr: "running(child) == 0"}

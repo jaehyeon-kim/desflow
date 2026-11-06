@@ -566,7 +566,7 @@ A reference that cannot be resolved stops the load with its line. [`python_error
 
 <!-- records: python-error -->
 ```text
-Error: python_error.yaml:14: !python shop_logic.missing: 'shop_logic' has no attribute 'missing'
+Error: python_error.yaml:15: !python shop_logic.missing: 'shop_logic' has no attribute 'missing'
 ```
 
 A module that exists but fails on one of its own imports is reported with that error, rather than as a missing module.

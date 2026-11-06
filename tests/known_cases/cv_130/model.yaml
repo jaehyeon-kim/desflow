@@ -1,9 +1,31 @@
 # case CV-130: a generator function picked by a computed name.
 simulation: {sim_id: C, factor: 0, random_seed: 42}
-arrivals: {a: {dist: constant, value: 1, spawn: pick, max_events: 4, attributes: {which: {gen: one_of, choices: [a, b]}}}}
+
+arrivals:
+  a:
+    dist: constant
+    value: 1
+    spawn: pick
+    max_events: 4
+    attributes:
+      which: {gen: one_of, choices: [a, b]}
+
 tasks:
-  pick: {payload: {event_type: pick}, next: {when: [{condition: "attr.which == 'a'", task: run_a}], default: run_b}}
-  run_a: {spawn: {task: proc_a}, payload: {event_type: run_a}}
-  run_b: {spawn: {task: proc_b}, payload: {event_type: run_b}}
-  proc_a: {service_time: 1, payload: {event_type: proc_a}}
-  proc_b: {service_time: 2, payload: {event_type: proc_b}}
+  pick:
+    payload: {event_type: pick}
+    next:
+      when:
+        - {condition: "attr.which == 'a'", task: run_a}
+      default: run_b
+  run_a:
+    spawn: {task: proc_a}
+    payload: {event_type: run_a}
+  run_b:
+    spawn: {task: proc_b}
+    payload: {event_type: run_b}
+  proc_a:
+    service_time: 1
+    payload: {event_type: proc_a}
+  proc_b:
+    service_time: 2
+    payload: {event_type: proc_b}

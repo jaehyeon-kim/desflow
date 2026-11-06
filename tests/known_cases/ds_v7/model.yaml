@@ -1,7 +1,22 @@
-# Design V7: names for a cause, holders, an item priority and nested values. Source: research/yaml-only/programs/V7.py: the preemption at the grant instant (low priority 5 holds for 10, high priority 1 preempts; the cause's by, usage_since and the time left; the holders at each point), the holders in grant order on a unit of two, and the priority store (put 2 then 1, two gets with priority and nested id). The Python block-name scope and the cause_names and time_left scenarios are not in this row. High waits timeout 0 before it asks, as the source does (the delay 0 is raised to the minimum delay, register gap T5). A `seize` takes no priority, so high uses the default 0 where the source uses 1 (both rank above low's 5), and the holders after low's grant are not logged (a `resource` task logs at its end).
+# Design V7: names for a cause, holders, an item priority and nested values. Source:
+# research/yaml-only/programs/V7.py: the preemption at the grant instant (low priority 5
+# holds for 10, high priority 1 preempts; the cause's by, usage_since and the time left;
+# the holders at each point), the holders in grant order on a unit of two, and the
+# priority store (put 2 then 1, two gets with priority and nested id). The Python
+# block-name scope and the cause_names and time_left scenarios are not in this row. High
+# waits timeout 0 before it asks, as the source does (the delay 0 is raised to the
+# minimum delay, register gap T5). A `seize` takes no priority, so high uses the default
+# 0 where the source uses 1 (both rank above low's 5), and the holders after low's grant
+# are not logged (a `resource` task logs at its end).
 simulation: {sim_id: V7, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1, queue: priority, preempt: true}, m2: {current_cap: 2}}
-stores: {q: {priority: true}}
+
+resources:
+  m: {current_cap: 1, queue: priority, preempt: true}
+  m2: {current_cap: 2}
+
+stores:
+  q: {priority: true}
+
 arrivals:
   low: {dist: constant, value: 1, spawn: low, max_events: 1, first_at: 0}
   high: {dist: constant, value: 1, spawn: high, max_events: 1, first_at: 0}
@@ -9,15 +24,65 @@ arrivals:
   b: {dist: constant, value: 1, spawn: hold2, max_events: 1, first_at: 0}
   pr: {dist: constant, value: 1, spawn: put1, max_events: 1, first_at: 0}
   fin: {dist: constant, value: 1, spawn: end, max_events: 1, first_at: 20}
+
 tasks:
-  low: {resource: m, priority: 5, service_time: 10, on_interrupt: abandon, on_interrupt_next: low_cause, payload: null}
-  low_cause: {payload: {event_type: cause, by: {gen: expr, expr: "cause.by"}, usage_since: {gen: expr, expr: "cause.usage_since"}, left: {gen: expr, expr: "cause.left"}, state: {gen: expr, expr: "upstream.status"}, now: {gen: expr, expr: t}}}
-  high: {wait: {timeout: 0}, payload: null, next: high_seize}
-  high_seize: {seize: m, payload: {event_type: high_granted, holders: {gen: expr, expr: "len(held(m))"}, at: {gen: expr, expr: t}}, release: m}
-  end: {payload: {event_type: holders_at_the_end, holders: {gen: expr, expr: "len(held(m))"}}}
-  hold2: {seize: m2, payload: {event_type: users, who: {gen: expr, expr: "[h.entity for h in held(m2)]"}}, next: hold2_end}
+  low:
+    resource: m
+    priority: 5
+    service_time: 10
+    on_interrupt: abandon
+    on_interrupt_next: low_cause
+    payload: null
+  low_cause:
+    payload:
+      event_type: cause
+      by: {gen: expr, expr: "cause.by"}
+      usage_since: {gen: expr, expr: "cause.usage_since"}
+      left: {gen: expr, expr: "cause.left"}
+      state: {gen: expr, expr: "upstream.status"}
+      now: {gen: expr, expr: t}
+  high:
+    wait: {timeout: 0}
+    payload: null
+    next: high_seize
+  high_seize:
+    seize: m
+    payload:
+      event_type: high_granted
+      holders: {gen: expr, expr: "len(held(m))"}
+      at: {gen: expr, expr: t}
+    release: m
+  end:
+    payload:
+      event_type: holders_at_the_end
+      holders: {gen: expr, expr: "len(held(m))"}
+  hold2:
+    seize: m2
+    payload:
+      event_type: users
+      who: {gen: expr, expr: "[h.entity for h in held(m2)]"}
+    next: hold2_end
   hold2_end: {service_time: 5, payload: null, release: m2}
-  put1: {put: {store: q, priority: 2}, payload: {req: {id: 7}}, next: put2}
-  put2: {put: {store: q, priority: 1}, payload: {req: {id: 8}}, next: get1}
-  get1: {get: {store: q}, payload: {event_type: got, prio: {gen: expr, expr: "item_priority"}, id: {gen: expr, expr: "item.req.id"}}, next: get2}
-  get2: {get: {store: q}, payload: {event_type: got, prio: {gen: expr, expr: "item_priority"}, id: {gen: expr, expr: "item.req.id"}}}
+  put1:
+    put: {store: q, priority: 2}
+    payload:
+      req: {id: 7}
+    next: put2
+  put2:
+    put: {store: q, priority: 1}
+    payload:
+      req: {id: 8}
+    next: get1
+  get1:
+    get: {store: q}
+    payload:
+      event_type: got
+      prio: {gen: expr, expr: "item_priority"}
+      id: {gen: expr, expr: "item.req.id"}
+    next: get2
+  get2:
+    get: {store: q}
+    payload:
+      event_type: got
+      prio: {gen: expr, expr: "item_priority"}
+      id: {gen: expr, expr: "item.req.id"}

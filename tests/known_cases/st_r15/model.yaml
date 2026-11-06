@@ -1,17 +1,81 @@
-# case ST-R15: nested preemption: process2 holds res0 and res1 in turn and is preempted on either; five processes.
+# case ST-R15: nested preemption: process2 holds res0 and res1 in turn and is preempted
+# on either; five processes.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-resources: {res0: {current_cap: 1, queue: priority, preempt: true}, res1: {current_cap: 1, queue: priority, preempt: true}}
+
+resources:
+  res0: {current_cap: 1, queue: priority, preempt: true}
+  res1: {current_cap: 1, queue: priority, preempt: true}
+
 arrivals:
-  p0: {initial: 1, spawn: two_first, attributes: {prio: -1}}
-  p1: {dist: constant, value: 1, spawn: one, max_events: 1, attributes: {prio: -2}}
-  p2: {dist: constant, value: 20, spawn: two_first, max_events: 1, attributes: {prio: -1}}
-  p3: {dist: constant, value: 21, spawn: zero, max_events: 1, attributes: {prio: -2}}
-  p4: {dist: constant, value: 21, spawn: two_first, max_events: 1, attributes: {prio: -1}}
+  p0:
+    initial: 1
+    spawn: two_first
+    attributes: {prio: -1}
+  p1:
+    dist: constant
+    value: 1
+    spawn: one
+    max_events: 1
+    attributes: {prio: -2}
+  p2:
+    dist: constant
+    value: 20
+    spawn: two_first
+    max_events: 1
+    attributes: {prio: -1}
+  p3:
+    dist: constant
+    value: 21
+    spawn: zero
+    max_events: 1
+    attributes: {prio: -2}
+  p4:
+    dist: constant
+    value: 21
+    spawn: two_first
+    max_events: 1
+    attributes: {prio: -1}
+
 tasks:
-  two_first: {seize: {resource: res0, priority: "attr.prio", preempt: true}, on_interrupt: abandon, on_interrupt_next: lost, payload: {event_type: got_res0}, next: two_second}
-  two_second: {seize: {resource: res1, priority: "attr.prio", preempt: true}, service_time: 5, on_interrupt: abandon, on_interrupt_next: lost, payload: {event_type: done}, release: res1, next: two_done}
-  two_done: {payload: {event_type: freed_res0}, release: res0}
-  one: {resource: res1, priority: "attr.prio", preempt: true, service_time: 5, on_interrupt: abandon, payload: {event_type: done}}
-  zero: {resource: res0, priority: "attr.prio", preempt: true, service_time: 5, on_interrupt: abandon, payload: {event_type: done}}
-  lost: {payload: {event_type: preempted, by: {gen: expr, expr: "cause.by"}, since: {gen: expr, expr: "cause.usage_since"}, resource: {gen: expr, expr: "cause.resource"}}, release: res1, next: lost_free_res0}
-  lost_free_res0: {payload: {event_type: freed_after_preemption}, release: res0}
+  two_first:
+    seize: {resource: res0, priority: "attr.prio", preempt: true}
+    on_interrupt: abandon
+    on_interrupt_next: lost
+    payload: {event_type: got_res0}
+    next: two_second
+  two_second:
+    seize: {resource: res1, priority: "attr.prio", preempt: true}
+    service_time: 5
+    on_interrupt: abandon
+    on_interrupt_next: lost
+    payload: {event_type: done}
+    release: res1
+    next: two_done
+  two_done:
+    payload: {event_type: freed_res0}
+    release: res0
+  one:
+    resource: res1
+    priority: "attr.prio"
+    preempt: true
+    service_time: 5
+    on_interrupt: abandon
+    payload: {event_type: done}
+  zero:
+    resource: res0
+    priority: "attr.prio"
+    preempt: true
+    service_time: 5
+    on_interrupt: abandon
+    payload: {event_type: done}
+  lost:
+    payload:
+      event_type: preempted
+      by: {gen: expr, expr: "cause.by"}
+      since: {gen: expr, expr: "cause.usage_since"}
+      resource: {gen: expr, expr: "cause.resource"}
+    release: res1
+    next: lost_free_res0
+  lost_free_res0:
+    payload: {event_type: freed_after_preemption}
+    release: res0

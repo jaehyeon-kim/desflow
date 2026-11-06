@@ -1,17 +1,50 @@
-# case GD-RS7: gas station: a monitor every 15 s, a tanker, Container.get(40) while a dispenser is held (resources.rst:343-397).
+# case GD-RS7: gas station: a monitor every 15 s, a tanker, Container.get(40) while a
+# dispenser is held (resources.rst:343-397).
 simulation: {sim_id: R, factor: 0, random_seed: 42}
-resources: {dispensers: {current_cap: 2}}
-containers: {tank: {current_cap: 1000, level: 100}}
+
+resources:
+  dispensers: {current_cap: 2}
+
+containers:
+  tank: {current_cap: 1000, level: 100}
+
 arrivals:
   monitor: {initial: 1, spawn: monitor}
   cars: {dist: constant, value: 5, spawn: car, max_events: 4, first_at: 0}
+
 tasks:
-  car: {payload: {event_type: arriving}, next: take}
-  take: {seize: dispensers, payload: {event_type: starts}, next: fuel}
-  fuel: {get: {container: tank, amount: 40}, service_time: 5, payload: {event_type: done}, release: dispensers}
-  monitor: {payload: {event_type: checked}, next: {when: [{condition: "level.tank < 100", task: call}], default: nap}}
-  call: {payload: {event_type: calling_tanker}, spawn: {task: tanker}, next: nap}
-  nap: {service_time: 15, payload: {event_type: napped}, next: monitor}
-  tanker: {service_time: 10, payload: {event_type: arriving}, next: refill}
-  refill: {put: {container: tank, amount: "1000 - level.tank"}, payload: {event_type: refilled}}
+  car:
+    payload: {event_type: arriving}
+    next: take
+  take:
+    seize: dispensers
+    payload: {event_type: starts}
+    next: fuel
+  fuel:
+    get: {container: tank, amount: 40}
+    service_time: 5
+    payload: {event_type: done}
+    release: dispensers
+  monitor:
+    payload: {event_type: checked}
+    next:
+      when:
+        - {condition: "level.tank < 100", task: call}
+      default: nap
+  call:
+    payload: {event_type: calling_tanker}
+    spawn: {task: tanker}
+    next: nap
+  nap:
+    service_time: 15
+    payload: {event_type: napped}
+    next: monitor
+  tanker:
+    service_time: 10
+    payload: {event_type: arriving}
+    next: refill
+  refill:
+    put: {container: tank, amount: "1000 - level.tank"}
+    payload: {event_type: refilled}
+
 run: {until: 35}

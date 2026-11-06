@@ -15,7 +15,9 @@ EXAMPLE = "movie_renege"  # the forms are the files of SimPy's Movie Renege exam
 DRAWS = [
     ("dist: exponential\n    rate: 2", "dist: constant\n    value: 0.5"),
     (
-        "      movie: {gen: one_of, choices: [Python Unchained, Kill Process, Pulp Implementation]}\n"
+        "      movie:\n"
+        "        gen: one_of\n"
+        "        choices: [Python Unchained, Kill Process, Pulp Implementation]\n"
         "      tickets: {gen: integer, bounds: [1, 6]}\n",
         "      n: {gen: sequence, start: 0}\n"
         "      movie: {gen: expr, expr: \"['Python Unchained', 'Kill Process', 'Pulp Implementation']"

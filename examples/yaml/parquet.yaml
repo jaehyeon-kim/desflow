@@ -1,7 +1,7 @@
 # Historical data generation in YAML.
 #
-# The YAML version of parquet_example.py, which --api builder downloads. With factor 0 the
-# clock is detached from the wall clock, so a week of shop orders is written to
+# The YAML version of parquet_example.py, which --api builder downloads. With factor 0
+# the clock is detached from the wall clock, so a week of shop orders is written to
 # Parquet as fast as the machine allows. Without a router, each event is written as
 # one flat row and telemetry is left out. Each batch is a file of its own,
 # data/events_<8 hex digits>.parquet.
@@ -29,9 +29,7 @@ egress:
         access_key: ${S3_ACCESS_KEY:-}
         secret_key: ${S3_SECRET_KEY:-}
 
-batching:
-  batch_size: 5000
-  flush_interval: 86400
+batching: {batch_size: 5000, flush_interval: 86400}
 
 resources:
   packers: {current_cap: 4, max_cap: 10}
@@ -48,5 +46,4 @@ tasks:
     resource: packers
     payload: {path_id: Shop.service.packing, status: finished}
 
-run:
-  until: 1 week
+run: {until: 1 week}

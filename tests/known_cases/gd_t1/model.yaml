@@ -1,6 +1,15 @@
-# case GD-T1: events at equal times are processed in scheduling order (time_and_scheduling.rst:44-87).
+# case GD-T1: events at equal times are processed in scheduling order
+# (time_and_scheduling.rst:44-87).
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 3, spawn: finish_at_one}, b: {initial: 2, spawn: finish_at_two}}
+
+arrivals:
+  a: {initial: 3, spawn: finish_at_one}
+  b: {initial: 2, spawn: finish_at_two}
+
 tasks:
-  finish_at_one: {service_time: 1, payload: {event_type: finished}}
-  finish_at_two: {service_time: 2, payload: {event_type: finished}}
+  finish_at_one:
+    service_time: 1
+    payload: {event_type: finished}
+  finish_at_two:
+    service_time: 2
+    payload: {event_type: finished}

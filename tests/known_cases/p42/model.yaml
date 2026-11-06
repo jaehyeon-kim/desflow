@@ -1,5 +1,21 @@
-# case P42: renege, then route (shared with design I6; register review-r1/patterns/r6_renege.py P42: capacity 1, service 3, arrivals at 0, 1 and 2, patience 2.5, then 1 second at "other").
+# case P42: renege, then route (shared with design I6; register
+# review-r1/patterns/r6_renege.py P42: capacity 1, service 3, arrivals at 0, 1 and 2,
+# patience 2.5, then 1 second at "other").
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1}}
-arrivals: {a: {dist: constant, value: 1, spawn: job, max_events: 3, first_at: 0}}
-tasks: {job: {resource: m, patience: 2.5, service_time: 3, on_renege: elsewhere, payload: {event_type: served}}, elsewhere: {service_time: 1, payload: {event_type: elsewhere}}}
+
+resources:
+  m: {current_cap: 1}
+
+arrivals:
+  a: {dist: constant, value: 1, spawn: job, max_events: 3, first_at: 0}
+
+tasks:
+  job:
+    resource: m
+    patience: 2.5
+    service_time: 3
+    on_renege: elsewhere
+    payload: {event_type: served}
+  elsewhere:
+    service_time: 1
+    payload: {event_type: elsewhere}

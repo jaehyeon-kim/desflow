@@ -1,24 +1,49 @@
-# case BT-OS (rows OS1 to OS10): order-streams JSON producer. OS7 uses `key_field`, settled in 0.33.0.
-simulation: {sim_id: Orders, factor: "${FACTOR:-1}", random_seed: 42, logical_start_time: "2026-01-01T00:00:00+00:00", timezone: UTC}   # OS3: the producers format the bid time in the machine's own zone (ZoneId.systemDefault()), for which UTC stands
-egress:   # one entry for each producer of the project: OS8 sends the JSON value, OS9 the Avro value, and each topic has three partitions (OS10)
+# case BT-OS (rows OS1 to OS10): order-streams JSON producer. OS7 uses `key_field`,
+# settled in 0.33.0.
+# OS3: the producers format the bid time in the machine's own zone
+# (ZoneId.systemDefault()), for which UTC stands
+simulation:
+  sim_id: Orders
+  factor: "${FACTOR:-1}"
+  random_seed: 42
+  logical_start_time: "2026-01-01T00:00:00+00:00"
+  timezone: UTC
+
+# one entry for each producer of the project: OS8 sends the JSON value, OS9 the Avro
+# value, and each topic has three partitions (OS10)
+egress:
   - type: Kafka
-    envelope: false                                          # OS8: phase 2, a key of the entry; the JSON value is the order alone
+    # OS8: phase 2, a key of the entry; the JSON value is the order alone
+    envelope: false
     config:
       bootstrap_servers: "${KAFKA_BROKER:-localhost:9092}"
-      event_topic: orders-json                               # orders-json-clients ProducerApp.kt
+      # orders-json-clients ProducerApp.kt
+      event_topic: orders-json
       topic_policy: {partitions: 3}                          # OS10: sinks.md Part 1
   - type: Kafka
     envelope: false
     config:
       bootstrap_servers: "${KAFKA_BROKER:-localhost:9092}"
-      event_topic: orders-avro                               # orders-avro-clients ProducerApp.kt
+      # orders-avro-clients ProducerApp.kt
+      event_topic: orders-avro
       topic_policy: {partitions: 3}                          # OS10
-      serializer: {type: confluent_avro, registry_url: "${REGISTRY_URL:-http://localhost:8081}", schema_file: order.avsc, auth: ["${KAFKA_USER:-admin}", "${KAFKA_PASSWORD:-admin}"]}   # OS9: Avro through Karapace with basic authentication, the project's admin:admin; the schema is the project's Order.avsc
+      # OS9: Avro through Karapace with basic authentication, the project's admin:admin;
+      # the schema is the project's Order.avsc
+      serializer:
+        type: confluent_avro
+        registry_url: "${REGISTRY_URL:-http://localhost:8081}"
+        schema_file: order.avsc
+        auth: ["${KAFKA_USER:-admin}", "${KAFKA_PASSWORD:-admin}"]
+
 run: {until: 2000}
+
 variables:
   delay_seconds: ${DELAY_SECONDS:-5}
+
 arrivals:
-  orders: {dist: constant, value: 1, spawn: order}           # OS1: the named constant of Part 2
+  # OS1: the named constant of Part 2
+  orders: {dist: constant, value: 1, spawn: order}
+
 tasks:
   order:
     key_field: order_id                                      # OS7
@@ -27,13 +52,49 @@ tasks:
       bid_time:                                              # OS3
         gen: format_time
         format: "%Y-%m-%d %H:%M:%S"
-        time: {gen: now, offset: {gen: expr, expr: "-d", names: {d: {gen: uniform, low: 0, high: {gen: param, path: Orders.variables.delay_seconds}}}}}
+        time:
+          gen: now
+          offset:
+            gen: expr
+            expr: "-d"
+            names:
+              d:
+                gen: uniform
+                low: 0
+                high: {gen: param, path: Orders.variables.delay_seconds}
       price: {gen: uniform, low: 1, high: 150, decimals: 2}  # OS4
-      item:   # OS5: datafaker 2.1.0 commerce.productName is adjective, material, product (17, 17 and 20 values of en/commerce.yml), each drawn uniformly
+      # OS5: datafaker 2.1.0 commerce.productName is adjective, material, product (17,
+      # 17 and 20 values of en/commerce.yml), each drawn uniformly
+      item:
         gen: format
         template: "{a} {m} {p}"
         names:
-          a: {gen: one_of, choices: [Small, Ergonomic, Rustic, Intelligent, Gorgeous, Incredible, Fantastic, Practical, Sleek, Awesome, Enormous, Mediocre, Synergistic, Heavy Duty, Lightweight, Aerodynamic, Durable]}
-          m: {gen: one_of, choices: [Steel, Wooden, Concrete, Plastic, Cotton, Granite, Rubber, Leather, Silk, Wool, Linen, Marble, Iron, Bronze, Copper, Aluminum, Paper]}
-          p: {gen: one_of, choices: [Chair, Car, Computer, Gloves, Pants, Shirt, Table, Shoes, Hat, Plate, Knife, Bottle, Coat, Lamp, Keyboard, Bag, Bench, Clock, Watch, Wallet]}
-      supplier: {gen: weighted, options: {Alice: 3, Alex: 3, Bob: 6, Carol: 6, Joe: 3, James: 1, Jane: 1, Jack: 1}}   # OS6: the original's regexify of (Alice|Bob|...) is not uniform: first letter groups A, B, C, J with chance 1/4 each, then Jo or Ja, then the name (416 sent messages fit this, chi-square p = 0.28)
+          a:
+            gen: one_of
+            choices: [Small, Ergonomic, Rustic, Intelligent, Gorgeous, Incredible,
+                      Fantastic, Practical, Sleek, Awesome, Enormous, Mediocre,
+                      Synergistic, Heavy Duty, Lightweight, Aerodynamic, Durable]
+          m:
+            gen: one_of
+            choices: [Steel, Wooden, Concrete, Plastic, Cotton, Granite, Rubber,
+                      Leather, Silk, Wool, Linen, Marble, Iron, Bronze, Copper,
+                      Aluminum, Paper]
+          p:
+            gen: one_of
+            choices: [Chair, Car, Computer, Gloves, Pants, Shirt, Table, Shoes, Hat,
+                      Plate, Knife, Bottle, Coat, Lamp, Keyboard, Bag, Bench, Clock,
+                      Watch, Wallet]
+      # OS6: the original's regexify of (Alice|Bob|...) is not uniform: first letter
+      # groups A, B, C, J with chance 1/4 each, then Jo or Ja, then the name (416 sent
+      # messages fit this, chi-square p = 0.28)
+      supplier:
+        gen: weighted
+        options:
+          Alice: 3
+          Alex: 3
+          Bob: 6
+          Carol: 6
+          Joe: 3
+          James: 1
+          Jane: 1
+          Jack: 1

@@ -1,5 +1,20 @@
 # case CV-097: Request, Put and Get values in yield: the value of a get branch.
 simulation: {sim_id: C, factor: 0, random_seed: 42}
-stores: {s: {items: [{v: 7}]}}
-arrivals: {a: {initial: 1, spawn: take}}
-tasks: {take: {wait: {all: {g: {get: {store: s}}}}, payload: {event_type: got, v: {gen: expr, expr: "wait.g.value.v"}}}}
+
+stores:
+  s:
+    items:
+      - {v: 7}
+
+arrivals:
+  a: {initial: 1, spawn: take}
+
+tasks:
+  take:
+    wait:
+      all:
+        g:
+          get: {store: s}
+    payload:
+      event_type: got
+      v: {gen: expr, expr: "wait.g.value.v"}

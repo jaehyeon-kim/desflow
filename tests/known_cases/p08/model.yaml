@@ -1,6 +1,19 @@
 # case P08: trace replay.
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1}}
-services: {s: {dist: constant, value: 1}}
-arrivals: {o: {replay: {path: trace.csv, time: time, unit: s}, spawn: k}}
-tasks: {k: {service: s, resource: m, payload: {event_type: served}}}
+
+resources:
+  m: {current_cap: 1}
+
+services:
+  s: {dist: constant, value: 1}
+
+arrivals:
+  o:
+    replay: {path: trace.csv, time: time, unit: s}
+    spawn: k
+
+tasks:
+  k:
+    service: s
+    resource: m
+    payload: {event_type: served}

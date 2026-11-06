@@ -1,9 +1,25 @@
-# Design B1: a failure clock that counts busy time only (clock: busy), jobs of 3 at 0, 4, 8, 12 and 16, failure after 5 busy seconds, repair 2, until 40.
+# Design B1: a failure clock that counts busy time only (clock: busy), jobs of 3 at 0,
+# 4, 8, 12 and 16, failure after 5 busy seconds, repair 2, until 40.
 simulation: {sim_id: B1, factor: 0, random_seed: 42}
+
 resources:
-  m: {current_cap: 1, breakdown: {time_to_failure: {dist: constant, value: 5}, repair: {dist: constant, value: 2}, clock: busy}}
-services: {s: {dist: constant, value: 3}}
-arrivals: {a: {dist: constant, value: 4, spawn: job, max_events: 5, first_at: 0}}
+  m:
+    current_cap: 1
+    breakdown:
+      time_to_failure: {dist: constant, value: 5}
+      repair: {dist: constant, value: 2}
+      clock: busy
+
+services:
+  s: {dist: constant, value: 3}
+
+arrivals:
+  a: {dist: constant, value: 4, spawn: job, max_events: 5, first_at: 0}
+
 tasks:
-  job: {resource: m, service: s, payload: {event_type: done}}
+  job:
+    resource: m
+    service: s
+    payload: {event_type: done}
+
 run: {until: 40}

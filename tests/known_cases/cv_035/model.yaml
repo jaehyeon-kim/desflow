@@ -1,4 +1,10 @@
-# case CV-035: env.run() with no until runs until no event is left (the T4 fix of 0.30.0 makes this the default).
+# case CV-035: env.run() with no until runs until no event is left (the T4 fix of 0.30.0
+# makes this the default).
 simulation: {sim_id: C, factor: 0, random_seed: 42}
-arrivals: {a: {dist: constant, value: 1, spawn: tick, max_events: 3}}
-tasks: {tick: {payload: {event_type: tick}}}
+
+arrivals:
+  a: {dist: constant, value: 1, spawn: tick, max_events: 3}
+
+tasks:
+  tick:
+    payload: {event_type: tick}

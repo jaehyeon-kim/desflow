@@ -1,10 +1,6 @@
 # The backfill-live example page: each sink with its own batching. tests/docs only
 # builds this file, because its Kafka sink needs a broker.
-simulation:
-  sim_id: Shop
-  factor: 0.0
-  logical_start_time: -7d
-  go_live_at: now
+simulation: {sim_id: Shop, factor: 0.0, logical_start_time: -7d, go_live_at: now}
 
 egress:
   # --8<-- [start:per-sink]

@@ -1,8 +1,25 @@
-# case ST-R30: a put into an empty container and a first get are granted at once; the second get queues.
+# case ST-R30: a put into an empty container and a first get are granted at once; the
+# second get queues.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-containers: {c: {level: 0}}
-arrivals: {p: {initial: 1, spawn: put_one}, g: {initial: 2, spawn: get_one}, look: {initial: 1, spawn: look}}
+
+containers:
+  c: {level: 0}
+
+arrivals:
+  p: {initial: 1, spawn: put_one}
+  g: {initial: 2, spawn: get_one}
+  look: {initial: 1, spawn: look}
+
 tasks:
-  put_one: {put: {container: c, amount: 1}, payload: {event_type: put}}
-  get_one: {get: {container: c, amount: 1}, payload: {event_type: got}}
-  look: {payload: {event_type: look, level: {gen: expr, expr: "level.c"}, getters: {gen: expr, expr: "getters.c"}, putters: {gen: expr, expr: "putters.c"}}}
+  put_one:
+    put: {container: c, amount: 1}
+    payload: {event_type: put}
+  get_one:
+    get: {container: c, amount: 1}
+    payload: {event_type: got}
+  look:
+    payload:
+      event_type: look
+      level: {gen: expr, expr: "level.c"}
+      getters: {gen: expr, expr: "getters.c"}
+      putters: {gen: expr, expr: "putters.c"}

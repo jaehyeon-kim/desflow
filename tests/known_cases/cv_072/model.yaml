@@ -1,7 +1,25 @@
 # case CV-072: wait on several requests, one winner; the loser leaves its queue.
 simulation: {sim_id: C, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1}, n: {current_cap: 1}}
-arrivals: {blockers: {initial: 1, spawn: block}, a: {dist: constant, value: 1, spawn: either, max_events: 2}}
+
+resources:
+  m: {current_cap: 1}
+  n: {current_cap: 1}
+
+arrivals:
+  blockers: {initial: 1, spawn: block}
+  a: {dist: constant, value: 1, spawn: either, max_events: 2}
+
 tasks:
-  block: {resource: m, service_time: 5, payload: {event_type: blocked}}
-  either: {wait: {any: {a: {request: m}, b: {request: n}}}, service_time: 1, payload: {event_type: served, winner: {gen: expr, expr: "wait.b.done"}}}
+  block:
+    resource: m
+    service_time: 5
+    payload: {event_type: blocked}
+  either:
+    wait:
+      any:
+        a: {request: m}
+        b: {request: n}
+    service_time: 1
+    payload:
+      event_type: served
+      winner: {gen: expr, expr: "wait.b.done"}

@@ -1,5 +1,19 @@
 # case P09: activate and deactivate one source (shared with design A5).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-arrivals: {src: {dist: constant, value: 1, spawn: t, off_mode: drop}, "off": {dist: constant, value: 2.5, spawn: src_off, max_events: 1}, "on": {dist: constant, value: 5.5, spawn: src_on, max_events: 1}}
-tasks: {t: {payload: {event_type: arrival}}, src_off: {payload: {event_type: "off"}, deactivate: src}, src_on: {payload: {event_type: "on"}, activate: src}}
+
+arrivals:
+  src: {dist: constant, value: 1, spawn: t, off_mode: drop}
+  "off": {dist: constant, value: 2.5, spawn: src_off, max_events: 1}
+  "on": {dist: constant, value: 5.5, spawn: src_on, max_events: 1}
+
+tasks:
+  t:
+    payload: {event_type: arrival}
+  src_off:
+    payload: {event_type: "off"}
+    deactivate: src
+  src_on:
+    payload: {event_type: "on"}
+    activate: src
+
 run: {until: 8}

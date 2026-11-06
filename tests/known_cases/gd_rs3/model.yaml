@@ -1,14 +1,33 @@
-# case GD-RS3: count, capacity, users and queue printed before the request, after the grant and after the release (resources.rst:147-181).
+# case GD-RS3: count, capacity, users and queue printed before the request, after the
+# grant and after the release (resources.rst:147-181).
 simulation: {sim_id: R, factor: 0, random_seed: 42}
-resources: {res: {current_cap: 1}}
-arrivals: {a: {initial: 2, spawn: user}}
+
+resources:
+  res: {current_cap: 1}
+
+arrivals:
+  a: {initial: 2, spawn: user}
+
 tasks:
   user:
-    payload: {event_type: before, count: {gen: expr, expr: "users.res"}, queued: {gen: expr, expr: "queue.res"}, capacity: {gen: expr, expr: "registry['R.resources.res.current_cap']"}}
+    payload:
+      event_type: before
+      count: {gen: expr, expr: "users.res"}
+      queued: {gen: expr, expr: "queue.res"}
+      capacity: {gen: expr, expr: "registry['R.resources.res.current_cap']"}
     next: use
   use:
     seize: res
     release: res
-    payload: {event_type: during, count: {gen: expr, expr: "users.res"}, queued: {gen: expr, expr: "queue.res"}, capacity: {gen: expr, expr: "registry['R.resources.res.current_cap']"}}
+    payload:
+      event_type: during
+      count: {gen: expr, expr: "users.res"}
+      queued: {gen: expr, expr: "queue.res"}
+      capacity: {gen: expr, expr: "registry['R.resources.res.current_cap']"}
     next: after
-  after: {payload: {event_type: after, count: {gen: expr, expr: "users.res"}, queued: {gen: expr, expr: "queue.res"}, capacity: {gen: expr, expr: "registry['R.resources.res.current_cap']"}}}
+  after:
+    payload:
+      event_type: after
+      count: {gen: expr, expr: "users.res"}
+      queued: {gen: expr, expr: "queue.res"}
+      capacity: {gen: expr, expr: "registry['R.resources.res.current_cap']"}

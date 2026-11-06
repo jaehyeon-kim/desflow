@@ -1,6 +1,16 @@
-# case ST-P05: a child returns an exception object as a plain value; the parent receives it, no failure.
+# case ST-P05: a child returns an exception object as a plain value; the parent receives
+# it, no failure.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-arrivals: {p: {initial: 1, spawn: parent}}
+
+arrivals:
+  p: {initial: 1, spawn: parent}
+
 tasks:
-  parent: {wait: {task: child}, payload: {event_type: got, value: {gen: expr, expr: "wait.child.value.error"}}}
-  child: {service_time: 1, payload: {error: "Onoes!"}}
+  parent:
+    wait: {task: child}
+    payload:
+      event_type: got
+      value: {gen: expr, expr: "wait.child.value.error"}
+  child:
+    service_time: 1
+    payload: {error: "Onoes!"}

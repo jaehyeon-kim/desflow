@@ -1,8 +1,25 @@
-# case P74: simmer handle_unfinished: go on after reneging (design I6, research/yaml-only/programs/I6.py run(4): patience 4 from 1 ends at the release instant 5).
+# case P74: simmer handle_unfinished: go on after reneging (design I6,
+# research/yaml-only/programs/I6.py run(4): patience 4 from 1 ends at the release
+# instant 5).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1}}
-arrivals: {h: {initial: 1, spawn: hold}, late: {dist: constant, value: 1, spawn: job, max_events: 1}}
+
+resources:
+  m: {current_cap: 1}
+
+arrivals:
+  h: {initial: 1, spawn: hold}
+  late: {dist: constant, value: 1, spawn: job, max_events: 1}
+
 tasks:
-  hold: {resource: m, service_time: 5, payload: {event_type: held}}
-  job: {resource: m, patience: 4, service_time: 0, on_renege: elsewhere, payload: {event_type: served}}
-  elsewhere: {payload: {event_type: elsewhere}}
+  hold:
+    resource: m
+    service_time: 5
+    payload: {event_type: held}
+  job:
+    resource: m
+    patience: 4
+    service_time: 0
+    on_renege: elsewhere
+    payload: {event_type: served}
+  elsewhere:
+    payload: {event_type: elsewhere}

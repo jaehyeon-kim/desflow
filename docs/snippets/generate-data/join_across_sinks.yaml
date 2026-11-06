@@ -39,5 +39,4 @@ tasks:
       customer_id: {gen: lookup, task: customer, path: customer_id}
       total: {gen: uniform, low: 5, high: 200, decimals: 2}
 
-run:
-  until: 60
+run: {until: 60}

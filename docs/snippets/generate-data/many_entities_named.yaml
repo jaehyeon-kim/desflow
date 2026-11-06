@@ -13,14 +13,10 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
-  warehouses:
-    dist: constant
-    value: 2
-    spawn: report
-    keys: [north, south, east]
+  warehouses: {dist: constant, value: 2, spawn: report, keys: [north, south, east]}
 
 tasks:
   report:
@@ -28,5 +24,4 @@ tasks:
       warehouse: {gen: entity}
       orders_waiting: {gen: integer, bounds: [0, 40]}
 
-run:
-  until: 10
+run: {until: 10}

@@ -1,6 +1,29 @@
 # case P27: sub-process arguments (shared with design V9).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: parent, attributes: {k: 2, k_later: 100}}}
+
+arrivals:
+  a:
+    initial: 1
+    spawn: parent
+    attributes: {k: 2, k_later: 100}
+
 tasks:
-  parent: {wait: {all: {a: {task: child, args: {x: {gen: expr, expr: "attr.k * 3"}}}, b: {task: child, args: {x: {gen: expr, expr: "attr.k_later * 3"}}}}}, payload: {event_type: got, va: {gen: expr, expr: "wait.a.value.v"}, vb: {gen: expr, expr: "wait.b.value.v"}}}
-  child: {service_time: 1, payload: {v: {gen: expr, expr: "arg.x + 1"}}}
+  parent:
+    wait:
+      all:
+        a:
+          task: child
+          args:
+            x: {gen: expr, expr: "attr.k * 3"}
+        b:
+          task: child
+          args:
+            x: {gen: expr, expr: "attr.k_later * 3"}
+    payload:
+      event_type: got
+      va: {gen: expr, expr: "wait.a.value.v"}
+      vb: {gen: expr, expr: "wait.b.value.v"}
+  child:
+    service_time: 1
+    payload:
+      v: {gen: expr, expr: "arg.x + 1"}

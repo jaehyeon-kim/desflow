@@ -1,7 +1,17 @@
 # case P25: rework by weights.
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-arrivals: {a: {dist: constant, value: 2, spawn: make, max_events: 5}}
+
+arrivals:
+  a: {dist: constant, value: 2, spawn: make, max_events: 5}
+
 tasks:
-  make: {service_time: 1, payload: {event_type: made}, next: check}
-  check: {payload: {event_type: checked}, next: {weights: {make: 1, pass: 4}}}
-  pass: {payload: {event_type: pass}}
+  make:
+    service_time: 1
+    payload: {event_type: made}
+    next: check
+  check:
+    payload: {event_type: checked}
+    next:
+      weights: {make: 1, pass: 4}
+  pass:
+    payload: {event_type: pass}

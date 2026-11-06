@@ -1,8 +1,6 @@
 # A blueprint with a mistake, for the YAML Blueprints page: pack_order has a priority,
 # but its resource serves its queue in the default order, fifo.
-simulation:
-  sim_id: Shop
-  factor: 0
+simulation: {sim_id: Shop, factor: 0}
 
 resources:
   packers: {current_cap: 1, max_cap: 2}

@@ -10,11 +10,9 @@ tasks:
   pack:
     wait: {timeout: 1}
     payload: !python simpy_forms.pack
-  ship:
-    payload: !python simpy_forms.shipped
+  ship: {payload: !python simpy_forms.shipped}
 
-run:
-  until: 10
+run: {until: 10}
 
 egress:
-  - type: Console
+  - {type: Console}

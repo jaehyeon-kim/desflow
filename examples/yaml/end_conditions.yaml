@@ -1,21 +1,19 @@
-# End conditions: a drain after closing time, and a stop when the boxes run out, in YAML.
+# End conditions: a drain after closing time, and a stop when the boxes run out, in
+# YAML.
 #
-# The YAML version of end_conditions_example.py, which --api builder downloads. Orders arrive until the
-# shop closes at 120 seconds; then the run drains, packing the orders already in
-# the shop for at most 60 seconds more. Each order takes a box, and the run stops
-# at once if the boxes run out first. The statistics count the orders that started,
-# finished and are still in the shop.
+# The YAML version of end_conditions_example.py, which --api builder downloads. Orders
+# arrive until the shop closes at 120 seconds; then the run drains, packing the orders
+# already in the shop for at most 60 seconds more. Each order takes a box, and the run
+# stops at once if the boxes run out first. The statistics count the orders that
+# started, finished and are still in the shop.
 #
 # Needs no containers. Runs unpaced and ends on its own.
 # Run it from its folder with: desflow run end_conditions.yaml
 
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   packers: {current_cap: 1, max_cap: 4}

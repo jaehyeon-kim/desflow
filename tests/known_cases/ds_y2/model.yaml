@@ -1,16 +1,47 @@
-# Design Y2 (prototype blueprints/Y2.yaml): a member of a family picked by the lowest queue and use, and a name picked from a list by a key.
+# Design Y2 (prototype blueprints/Y2.yaml): a member of a family picked by the lowest
+# queue and use, and a name picked from a list by a key.
 simulation: {sim_id: Y2, factor: 0, random_seed: 42}
+
 resources:
   desk: {family: true, members: 3, current_cap: 1}
   b0: {current_cap: 1}
   b1: {current_cap: 1}
   b2: {current_cap: 1}
   pair: {family: true, members: 2, current_cap: 1}
+
 arrivals:
-  a: {dist: constant, value: 0.5, spawn: shortest, max_events: 5, first_at: 0, attributes: {i: {gen: sequence, start: 0}}}
-  b: {dist: constant, value: 0.5, spawn: by_index, max_events: 5, first_at: 0, attributes: {i: {gen: sequence, start: 0}}}
+  a:
+    dist: constant
+    value: 0.5
+    spawn: shortest
+    max_events: 5
+    first_at: 0
+    attributes:
+      i: {gen: sequence, start: 0}
+  b:
+    dist: constant
+    value: 0.5
+    spawn: by_index
+    max_events: 5
+    first_at: 0
+    attributes:
+      i: {gen: sequence, start: 0}
   d: {initial: 2, spawn: same_step}
+
 tasks:
-  shortest: {resource: {of: desk, lowest: "member.queue + member.users"}, service_time: "1 + attr.i", payload: {event_type: done, i: {gen: attr, name: i}}}
-  by_index: {resource: {of: [b0, b1, b2], key: "['b0', 'b1', 'b2'][attr.i % 2]"}, service_time: "1 + attr.i", payload: {event_type: done, i: {gen: attr, name: i}}}
-  same_step: {resource: {of: pair, lowest: "member.queue + member.users"}, service_time: 1, payload: {event_type: done}}
+  shortest:
+    resource: {of: desk, lowest: "member.queue + member.users"}
+    service_time: "1 + attr.i"
+    payload:
+      event_type: done
+      i: {gen: attr, name: i}
+  by_index:
+    resource: {of: [b0, b1, b2], key: "['b0', 'b1', 'b2'][attr.i % 2]"}
+    service_time: "1 + attr.i"
+    payload:
+      event_type: done
+      i: {gen: attr, name: i}
+  same_step:
+    resource: {of: pair, lowest: "member.queue + member.users"}
+    service_time: 1
+    payload: {event_type: done}

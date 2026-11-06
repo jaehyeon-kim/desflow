@@ -1,12 +1,9 @@
-# The Write to Cloud Storage guide: the shop writes an hour of orders as Parquet and JSON
-# Lines files, as fast as the machine allows. STORAGE picks the store (local, the default,
-# s3, gcs or azure) and STORAGE_BUCKET the bucket, container or local folder. Needs
-# cloud_storage_stores.py and cloud_storage_logic.py beside it. Run it with:
+# The Write to Cloud Storage guide: the shop writes an hour of orders as Parquet and
+# JSON Lines files, as fast as the machine allows. STORAGE picks the store (local, the
+# default, s3, gcs or azure) and STORAGE_BUCKET the bucket, container or local folder.
+# Needs cloud_storage_stores.py and cloud_storage_logic.py beside it. Run it with:
 # desflow run cloud_storage.yaml
-simulation:
-  sim_id: Shop
-  factor: 0.0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0.0, random_seed: 42}
 
 resources:
   packers: {current_cap: 1, max_cap: 1}
@@ -37,5 +34,4 @@ egress:
       filesystem: !python cloud_storage_stores.filesystem
 # --8<-- [end:egress]
 
-run:
-  until: 1 hour
+run: {until: 1 hour}

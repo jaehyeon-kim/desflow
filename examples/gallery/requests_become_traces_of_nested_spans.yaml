@@ -15,7 +15,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   requests:
@@ -65,5 +65,4 @@ tasks:
       start: {gen: attr, name: began}
       duration_ms: {gen: expr, expr: "round((t - attr.began) * 1000, 3)"}
 
-run:
-  until: 120
+run: {until: 120}

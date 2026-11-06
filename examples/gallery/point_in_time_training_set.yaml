@@ -18,7 +18,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   customers:
@@ -48,5 +48,4 @@ tasks:
         then: {gen: boolean, p: 0.6}
         else: {gen: boolean, p: 0.05}
 
-run:
-  until: 40 days
+run: {until: 40 days}

@@ -1,6 +1,20 @@
-# Documents for coverage.md rows that no other file already writes. The number is the row's place in the table of coverage.md.
-# case CV-002: Event.triggered on a once signal.
+# Documents for coverage.md rows that no other file already writes. The number is the
+# row's place in the table of coverage.md. case CV-002: Event.triggered on a once
+# signal.
 simulation: {sim_id: C, factor: 0, random_seed: 42}
-signals: {x: {once: true}}
-arrivals: {f: {dist: constant, value: 1, spawn: fire_it, max_events: 1}, l: {dist: constant, value: 2, spawn: look, max_events: 1}}
-tasks: {fire_it: {payload: {event_type: fired}, signal: x}, look: {payload: {event_type: look, triggered: {gen: expr, expr: "signal.x.count >= 1"}}}}
+
+signals:
+  x: {once: true}
+
+arrivals:
+  f: {dist: constant, value: 1, spawn: fire_it, max_events: 1}
+  l: {dist: constant, value: 2, spawn: look, max_events: 1}
+
+tasks:
+  fire_it:
+    payload: {event_type: fired}
+    signal: x
+  look:
+    payload:
+      event_type: look
+      triggered: {gen: expr, expr: "signal.x.count >= 1"}

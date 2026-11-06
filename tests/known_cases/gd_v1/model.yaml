@@ -1,6 +1,20 @@
 # case GD-V1: event.callbacks.append(my_callback) (events.rst:82-91).
 simulation: {sim_id: V, factor: 0, random_seed: 42}
+
 variables: {seen: 0}
-signals: {ev: {once: true, on: [{path: V.variables.seen, value: 1}]}}
-arrivals: {a: {initial: 1, spawn: fire_it}}
-tasks: {fire_it: {service_time: 2, payload: {event_type: fired}, on: [{fire: {signal: ev, value: 7}}]}}
+
+signals:
+  ev:
+    once: true
+    on:
+      - {path: V.variables.seen, value: 1}
+
+arrivals:
+  a: {initial: 1, spawn: fire_it}
+
+tasks:
+  fire_it:
+    service_time: 2
+    payload: {event_type: fired}
+    on:
+      - fire: {signal: ev, value: 7}

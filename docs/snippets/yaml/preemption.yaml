@@ -1,10 +1,7 @@
 # The Priority and Preemption page: a gift order goes ahead in the line but never
 # takes the packer from a regular order.
 # Run it with: desflow run preemption.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 resources:
   packers: {current_cap: 1, max_cap: 1, queue: priority, preempt: true}
@@ -33,7 +30,6 @@ tasks:
   # --8<-- [end:no-preempt]
 
 egress:
-  - type: Console
+  - {type: Console}
 
-run:
-  until: 1 min
+run: {until: 1 min}

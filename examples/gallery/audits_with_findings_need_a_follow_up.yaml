@@ -15,7 +15,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   auditors: {current_cap: 2, max_cap: 2}
@@ -46,5 +46,4 @@ tasks:
       merchant: {gen: upstream, path: merchant}
       event_type: follow_up_done
 
-run:
-  until: 14 days
+run: {until: 14 days}

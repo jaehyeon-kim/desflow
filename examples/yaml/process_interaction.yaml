@@ -1,21 +1,19 @@
-# Process interaction: a signal, a wait with a time limit, a child flow and a failure, in YAML.
+# Process interaction: a signal, a wait with a time limit, a child flow and a failure,
+# in YAML.
 #
-# The YAML version of process_interaction_example.py, which --api builder downloads. A packed order is
-# inspected by a child flow it waits for; a gift fails inspection, and on_fail sends
-# it to be wrapped, which ends the child flow. The order then waits for the courier,
-# who leaves every 50 seconds and fires the signal courier_left, taking every order
-# that waits; an order that has waited 40 seconds goes by post instead.
+# The YAML version of process_interaction_example.py, which --api builder downloads. A
+# packed order is inspected by a child flow it waits for; a gift fails inspection, and
+# on_fail sends it to be wrapped, which ends the child flow. The order then waits for
+# the courier, who leaves every 50 seconds and fires the signal courier_left, taking
+# every order that waits; an order that has waited 40 seconds goes by post instead.
 #
 # Needs no containers. Runs unpaced and ends after 300 simulation seconds.
 # Run it from its folder with: desflow run process_interaction.yaml
 
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   packers: {current_cap: 1, max_cap: 4}
@@ -25,11 +23,20 @@ services:
   inspecting: {dist: constant, value: 2 s}
   wrapping: {dist: constant, value: 3 s}
 
-signals: {courier_left: {once: false}}
+signals:
+  courier_left: {once: false}
 
 arrivals:
-  orders: {dist: exponential, rate: 0.12, spawn: pack, attributes: {gift: 0}}
-  gifts: {dist: exponential, rate: 0.04, spawn: pack, attributes: {gift: 1}}
+  orders:
+    dist: exponential
+    rate: 0.12
+    spawn: pack
+    attributes: {gift: 0}
+  gifts:
+    dist: exponential
+    rate: 0.04
+    spawn: pack
+    attributes: {gift: 1}
   couriers: {dist: constant, value: 50, spawn: courier}
 
 tasks:
@@ -64,7 +71,8 @@ tasks:
         limit: {timeout: 40 s}
     payload: {event_type: dispatched}
     next:
-      when: [{condition: wait.courier.done, task: by_courier}]
+      when:
+        - {condition: wait.courier.done, task: by_courier}
       default: by_post
   # --8<-- [end:dispatch]
   by_courier:
@@ -81,5 +89,4 @@ tasks:
 # Every 60 seconds, finished and failed counts so far.
 stats: {level: basic, interval: 60}
 
-run:
-  until: 300
+run: {until: 300}

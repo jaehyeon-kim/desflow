@@ -1,6 +1,8 @@
 """Input fitting: candidates, safeguards, the settings a model loads, and !include."""
 
+import importlib.util
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -238,6 +240,34 @@ def test_fitted_settings_load_in_all_three_apis(tmp_path, kind):
     loaded = app.compile_parameters().service["packing"]
     assert builder.service["packing"] == written.service["packing"] == loaded
     assert from_yaml > 0
+
+
+_LAYOUT_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "blueprint_layout.py"
+_layout_spec = importlib.util.spec_from_file_location(
+    "blueprint_layout", _LAYOUT_SCRIPT
+)
+assert _layout_spec is not None and _layout_spec.loader is not None
+blueprint_layout = importlib.util.module_from_spec(_layout_spec)
+_layout_spec.loader.exec_module(blueprint_layout)
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["", "packing.csv, column packing_seconds", "observed_" * 8 + ".csv, column x"],
+)
+def test_the_fitted_settings_are_in_the_blueprint_layout(tmp_path, source):
+    # Every usable family, an empirical list of 40 values among them, and a header
+    # long enough to wrap: `blueprint_layout.py --check` leaves each file as written
+    result = fit_column(PACKING)
+    kinds = [c.family for c in result.candidates if c.usable]
+    assert "empirical" in kinds
+    files = []
+    for kind in kinds:
+        text = result.yaml(kind, source=source)
+        assert max(map(len, text.splitlines())) <= 88
+        files.append(tmp_path / f"{kind}.yaml")
+        files[-1].write_text(text)
+    assert blueprint_layout.main(["--check", *map(str, files)]) == 0
 
 
 def test_include_errors_name_the_file_and_line(tmp_path):

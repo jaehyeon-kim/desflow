@@ -1,12 +1,9 @@
 # The stores and containers of the Stores and Containers page, as a blueprint.
 # Run it with: desflow run stores_containers.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   packers: {current_cap: 2, max_cap: 4}
@@ -67,5 +64,4 @@ scenario:
 # capacity, level, getters_waiting and putters_waiting every 10 seconds
 stats: minimal
 
-run:
-  until: 1 min
+run: {until: 1 min}

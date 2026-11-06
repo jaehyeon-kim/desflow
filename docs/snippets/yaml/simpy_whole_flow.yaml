@@ -3,7 +3,7 @@
 simulation: {sim_id: Relay, factor: 0}
 
 processes:
-  - function: !python simpy_forms.watch_flow
+  - {function: !python simpy_forms.watch_flow}
 
 tasks:
   relay:
@@ -15,8 +15,7 @@ tasks:
   done:
     payload: {step: done}
 
-run:
-  until: 20
+run: {until: 20}
 
 egress:
-  - type: Console
+  - {type: Console}

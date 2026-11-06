@@ -1,9 +1,25 @@
 # case P56: clone and join all (patterns/g_flow.py G1).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-services: {one: {dist: constant, value: 1}, three: {dist: constant, value: 3}}
-arrivals: {orders: {initial: 1, spawn: join}}
+
+services:
+  one: {dist: constant, value: 1}
+  three: {dist: constant, value: 3}
+
+arrivals:
+  orders: {initial: 1, spawn: join}
+
 tasks:
-  join: {wait: {all: {x: {task: bx}, y: {task: by}}}, payload: {joined: 1}}
-  bx: {service: one, payload: {x: 1}}
-  by: {service: three, payload: {y: 3}}
+  join:
+    wait:
+      all:
+        x: {task: bx}
+        y: {task: by}
+    payload: {joined: 1}
+  bx:
+    service: one
+    payload: {x: 1}
+  by:
+    service: three
+    payload: {y: 3}
+
 run: {until: 10}

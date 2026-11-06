@@ -22,7 +22,7 @@ def program():
 
 # The draws are fixed, as in fixed_draws.py: the test applies these replacements to model.yaml.
 DRAWS = [
-    ("dist: exponential, rate: 1,", "dist: constant, value: 1,"),
+    ("dist: exponential\n    rate: 1", "dist: constant\n    value: 1"),
     (
         "x: {gen: sample, dist: exponential, rate: 2}",
         'x: {gen: expr, expr: "[0.5, 1.5, 0.25][n % 3]", names: {n: {gen: sequence}}}',

@@ -1,9 +1,24 @@
 # case GD-I2: the car waits for a charge child flow (process_interaction.rst:37-73).
 simulation: {sim_id: Car, factor: 0, random_seed: 42}
-services: {charge: {dist: constant, value: 5}, drive: {dist: constant, value: 2}}
-arrivals: {car: {initial: 1, spawn: start_parking}}
+
+services:
+  charge: {dist: constant, value: 5}
+  drive: {dist: constant, value: 2}
+
+arrivals:
+  car: {initial: 1, spawn: start_parking}
+
 tasks:
-  start_parking: {wait: {task: charging}, payload: {event_type: start_driving}, next: driving}
-  charging: {service: charge, payload: {event_type: charged}}
-  driving: {service: drive, payload: {event_type: parked_again}, next: start_parking}
+  start_parking:
+    wait: {task: charging}
+    payload: {event_type: start_driving}
+    next: driving
+  charging:
+    service: charge
+    payload: {event_type: charged}
+  driving:
+    service: drive
+    payload: {event_type: parked_again}
+    next: start_parking
+
 run: {until: 15}

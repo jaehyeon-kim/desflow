@@ -1,0 +1,8 @@
+extends: default
+rules:
+  line-length: {max: 88}
+  indentation: {spaces: 2}
+  empty-lines: {max: 1}
+  document-start: {present: false}
+  comments-indentation: disable
+  truthy: {check-keys: false}

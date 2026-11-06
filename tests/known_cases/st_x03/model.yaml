@@ -1,6 +1,17 @@
-# case ST-X03: a failed event that nobody defuses crashes the run (ST-X04: a callback defuses it; ST-X05: a process handles it).
+# case ST-X03: a failed event that nobody defuses crashes the run (ST-X04: a callback
+# defuses it; ST-X05: a process handles it).
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-signals: {ev: {once: true}}
-arrivals: {a: {initial: 1, spawn: fail_it}}
-tasks: {fail_it: {payload: {event_type: fail}, on: [{fire: {signal: ev, fail: true, value: ""}}]}}
+
+signals:
+  ev: {once: true}
+
+arrivals:
+  a: {initial: 1, spawn: fail_it}
+
+tasks:
+  fail_it:
+    payload: {event_type: fail}
+    on:
+      - fire: {signal: ev, fail: true, value: ""}
+
 run: {until: 1, on_unhandled_failure: stop}

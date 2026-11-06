@@ -26,7 +26,7 @@ def program():
 # The draws are fixed, as in fixed_draws.py: the test applies these replacements to model.yaml.
 DRAWS = [
     (
-        "next: {weights: {make: 1, pass: 4}}",
+        "next:\n      weights: {make: 1, pass: 4}",
         'next: {when: [{condition: "t % 3 == 0", task: make}], default: pass}',
     )
 ]

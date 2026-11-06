@@ -16,7 +16,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   customers: {initial: 5, dist: exponential, rate: 0.1, spawn: customer}
@@ -43,5 +43,4 @@ tasks:
       mean_total: {gen: aggregate, task: order, path: total, last: 10, function: mean}
       largest_total: {gen: aggregate, task: order, path: total, last: 10, function: max}
 
-run:
-  until: 60
+run: {until: 60}

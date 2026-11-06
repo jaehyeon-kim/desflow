@@ -1,13 +1,35 @@
-# DX-21: Kafka sinks with a Protobuf, an Avro and a JSON Schema serializer. The snippets build `ConfluentProtobufSerializer` from the generated class and `ConfluentJsonSchemaSerializer` from a schema (docs/snippets/guides/json_schema_and_protobuf_serializers.py) and `ConfluentAvroSerializer` from a schema (avro_and_pydantic_models.py); here `serializer` names `descriptor_file` and `message`, or `schema_file`, which are read from this folder. The sinks are taken away for the run, and `check` compares the serializers they and the snippets build. `shop_record.desc` is the descriptor `shop_record.proto` compiles to, and the two schema files hold the snippets' schema texts.
-simulation: {sim_id: Shop, factor: 0, random_seed: 42, logical_start_time: "2026-01-01T00:00:00+00:00", timezone: UTC}
-resources: {packers: {current_cap: 1, max_cap: 1}}
-services: {packing: {dist: constant, value: 1.5}}
-arrivals: {orders: {dist: constant, value: 2, spawn: pack_order}}
+# DX-21: Kafka sinks with a Protobuf, an Avro and a JSON Schema serializer. The snippets
+# build `ConfluentProtobufSerializer` from the generated class and
+# `ConfluentJsonSchemaSerializer` from a schema
+# (docs/snippets/guides/json_schema_and_protobuf_serializers.py) and
+# `ConfluentAvroSerializer` from a schema (avro_and_pydantic_models.py); here
+# `serializer` names `descriptor_file` and `message`, or `schema_file`, which are read
+# from this folder. The sinks are taken away for the run, and `check` compares the
+# serializers they and the snippets build. `shop_record.desc` is the descriptor
+# `shop_record.proto` compiles to, and the two schema files hold the snippets' schema
+# texts.
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: "2026-01-01T00:00:00+00:00"
+  timezone: UTC
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: constant, value: 2, spawn: pack_order}
+
 tasks:
   pack_order:
     service: packing
     resource: packers
     payload: {event_type: order_packed}
+
 egress:
   - type: Kafka
     config:
@@ -31,4 +53,5 @@ egress:
         type: confluent_json_schema
         registry_url: http://127.0.0.1:8081
         schema_file: order_record.schema.json
+
 run: {until: 20}

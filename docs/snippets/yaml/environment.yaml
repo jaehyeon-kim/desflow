@@ -27,7 +27,7 @@ simulation:
   # --8<-- [end:strict]
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   # Quoted, because ${...} inside {...} would end the mapping early; the check

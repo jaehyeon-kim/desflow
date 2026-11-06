@@ -1,6 +1,17 @@
 # case ST-E03: run(until=processed event) returns its value again.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-signals: {done: {once: true}}
-arrivals: {a: {initial: 1, spawn: pem}}
-tasks: {pem: {service_time: 1, payload: {event_type: done}, signal: done}}
-run: {stop: {signal: done}}
+
+signals:
+  done: {once: true}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
+tasks:
+  pem:
+    service_time: 1
+    payload: {event_type: done}
+    signal: done
+
+run:
+  stop: {signal: done}

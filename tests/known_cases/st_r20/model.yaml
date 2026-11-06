@@ -1,5 +1,16 @@
 # case ST-R20: Store and FilterStore with no capacity have infinite capacity.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-stores: {plain: {}, filtered: {}}
-arrivals: {a: {initial: 1, spawn: read}}
-tasks: {read: {payload: {event_type: capacity, plain: {gen: expr, expr: "registry['T.stores.plain.current_cap']"}, filtered: {gen: expr, expr: "registry['T.stores.filtered.current_cap']"}}}}
+
+stores:
+  plain: {}
+  filtered: {}
+
+arrivals:
+  a: {initial: 1, spawn: read}
+
+tasks:
+  read:
+    payload:
+      event_type: capacity
+      plain: {gen: expr, expr: "registry['T.stores.plain.current_cap']"}
+      filtered: {gen: expr, expr: "registry['T.stores.filtered.current_cap']"}

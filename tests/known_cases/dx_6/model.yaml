@@ -1,19 +1,31 @@
-# DX-6: a process that every 50 s takes every packer off for 5 s and publishes a down and an up event. The snippet's `breaks` (docs/snippets/yaml/shop_logic.py) is a process; here two tasks wait and write the capacity with `on:`.
+# DX-6: a process that every 50 s takes every packer off for 5 s and publishes a down
+# and an up event. The snippet's `breaks` (docs/snippets/yaml/shop_logic.py) is a
+# process; here two tasks wait and write the capacity with `on:`.
 simulation: {sim_id: Shop, factor: 0, random_seed: 1}
-resources: {packers: {current_cap: 3, max_cap: 3}}
+
+resources:
+  packers: {current_cap: 3, max_cap: 3}
+
 variables: {normal: 3}
-arrivals: {clock: {initial: 1, spawn: down}}
+
+arrivals:
+  clock: {initial: 1, spawn: down}
+
 tasks:
   down:
     wait: {timeout: 50}
-    on: [{path: Shop.resources.packers.current_cap, value: 0}]
+    on:
+      - {path: Shop.resources.packers.current_cap, value: 0}
     key: packers-break
     payload: {status: down}
     next: up
   up:
     wait: {timeout: 5}
-    on: [{path: Shop.resources.packers.current_cap, value: {gen: expr, expr: "registry['Shop.variables.normal']"}}]
+    on:
+      - path: Shop.resources.packers.current_cap
+        value: {gen: expr, expr: "registry['Shop.variables.normal']"}
     key: packers-break
     payload: {status: up}
     next: down
+
 run: {until: 180}

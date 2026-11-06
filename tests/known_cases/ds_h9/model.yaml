@@ -1,11 +1,31 @@
-# Register row H9: no new key. Y4 `open`, a `cancel` after the grant that does nothing, and `release: {handle}`. A request cancelled after the grant keeps the unit until release.
+# Register row H9: no new key. Y4 `open`, a `cancel` after the grant that does nothing,
+# and `release: {handle}`. A request cancelled after the grant keeps the unit until
+# release.
 simulation: {sim_id: H9, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1}}
+
+resources:
+  m: {current_cap: 1}
+
 arrivals:
   a: {initial: 1, spawn: first_job}
   b: {dist: constant, value: 1, spawn: second_job, max_events: 1}
+
 tasks:
-  first_job: {open: {slot: {request: m}}, wait: {handle: slot}, payload: {event_type: opened}, next: cancel_it}
-  cancel_it: {cancel: slot, payload: {event_type: cancelled_after_grant}, next: hold_on}
-  hold_on: {service_time: 3, payload: {event_type: still_held}, release: {handle: slot}}
-  second_job: {resource: m, service_time: 1, payload: {event_type: got}}
+  first_job:
+    open:
+      slot: {request: m}
+    wait: {handle: slot}
+    payload: {event_type: opened}
+    next: cancel_it
+  cancel_it:
+    cancel: slot
+    payload: {event_type: cancelled_after_grant}
+    next: hold_on
+  hold_on:
+    service_time: 3
+    payload: {event_type: still_held}
+    release: {handle: slot}
+  second_job:
+    resource: m
+    service_time: 1
+    payload: {event_type: got}

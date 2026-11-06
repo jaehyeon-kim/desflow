@@ -1,6 +1,17 @@
 # case GD-E2: run(until=proc) returns the process value (environments.rst:70-79).
 simulation: {sim_id: E, factor: 0, random_seed: 42}
-signals: {done: {once: true}}
-arrivals: {a: {initial: 1, spawn: my_proc}}
-tasks: {my_proc: {service_time: 1, signal: done, payload: {text: "Monty Python’s Flying Circus"}}}
-run: {stop: {signal: done}}
+
+signals:
+  done: {once: true}
+
+arrivals:
+  a: {initial: 1, spawn: my_proc}
+
+tasks:
+  my_proc:
+    service_time: 1
+    signal: done
+    payload: {text: "Monty Python’s Flying Circus"}
+
+run:
+  stop: {signal: done}

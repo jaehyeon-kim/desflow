@@ -1,10 +1,58 @@
-# case CV-021: Condition.all_events and any_events, and at_least. research/yaml-only/programs/Y3.py timeouts([3, 1, 2], ...) with all_of, any_of and at_least: timeouts with values d * 10, waited for with `all`, `any` and a condition for 2 of 3, one entity for each.
+# case CV-021: Condition.all_events and any_events, and at_least.
+# research/yaml-only/programs/Y3.py timeouts([3, 1, 2], ...) with all_of, any_of and
+# at_least: timeouts with values d * 10, waited for with `all`, `any` and a condition
+# for 2 of 3, one entity for each.
 simulation: {sim_id: C, factor: 0, random_seed: 42}
+
 arrivals:
   a: {initial: 1, spawn: two_of_three}
   b: {initial: 1, spawn: all_three}
   c: {initial: 1, spawn: any_of_three}
+
 tasks:
-  two_of_three: {wait: {at_least: 2, of: {a: {timeout: {after: 3, value: 30}}, b: {timeout: {after: 1, value: 10}}, c: {timeout: {after: 2, value: 20}}}}, payload: {event_type: done, at: {gen: expr, expr: t}, a: {gen: expr, expr: "wait.a.value"}, b: {gen: expr, expr: "wait.b.value"}, c: {gen: expr, expr: "wait.c.value"}}}
-  all_three: {wait: {all: {a: {timeout: {after: 3, value: 30}}, b: {timeout: {after: 1, value: 10}}, c: {timeout: {after: 2, value: 20}}}}, payload: {event_type: done, at: {gen: expr, expr: t}, a: {gen: expr, expr: "wait.a.value"}, b: {gen: expr, expr: "wait.b.value"}, c: {gen: expr, expr: "wait.c.value"}}}
-  any_of_three: {wait: {any: {a: {timeout: {after: 3, value: 30}}, b: {timeout: {after: 1, value: 10}}, c: {timeout: {after: 2, value: 20}}}}, payload: {event_type: done, at: {gen: expr, expr: t}, a: {gen: expr, expr: "wait.a.value"}, b: {gen: expr, expr: "wait.b.value"}, c: {gen: expr, expr: "wait.c.value"}}}
+  two_of_three:
+    wait:
+      at_least: 2
+      of:
+        a:
+          timeout: {after: 3, value: 30}
+        b:
+          timeout: {after: 1, value: 10}
+        c:
+          timeout: {after: 2, value: 20}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      a: {gen: expr, expr: "wait.a.value"}
+      b: {gen: expr, expr: "wait.b.value"}
+      c: {gen: expr, expr: "wait.c.value"}
+  all_three:
+    wait:
+      all:
+        a:
+          timeout: {after: 3, value: 30}
+        b:
+          timeout: {after: 1, value: 10}
+        c:
+          timeout: {after: 2, value: 20}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      a: {gen: expr, expr: "wait.a.value"}
+      b: {gen: expr, expr: "wait.b.value"}
+      c: {gen: expr, expr: "wait.c.value"}
+  any_of_three:
+    wait:
+      any:
+        a:
+          timeout: {after: 3, value: 30}
+        b:
+          timeout: {after: 1, value: 10}
+        c:
+          timeout: {after: 2, value: 20}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      a: {gen: expr, expr: "wait.a.value"}
+      b: {gen: expr, expr: "wait.b.value"}
+      c: {gen: expr, expr: "wait.c.value"}

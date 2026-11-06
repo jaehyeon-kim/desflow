@@ -1,10 +1,7 @@
 # The End Conditions tutorial: a fixed horizon against a drain.
 # Run it with: desflow run end_conditions.yaml
 # With a drain after the hour: DRAIN=true desflow run end_conditions.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 resources:
   packers: {current_cap: 1, max_cap: 4}
@@ -27,7 +24,7 @@ stats: {level: typical, interval: 2 h}
 # --8<-- [end:watch]
 
 egress:
-  - type: Console
+  - {type: Console}
 
 # --8<-- [start:run]
 run:

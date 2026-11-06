@@ -11,6 +11,7 @@ which is imported only here, when a fit runs.
 
 import csv
 import math
+import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
@@ -224,21 +225,35 @@ class FitResult:
             source: Where the data came from, for the comment at the top.
 
         Returns:
-            str: A comment line, then `dist` and each parameter, one per line, with
-                the numbers `settings` returns.
+            str: A comment, then `dist` and each parameter with the numbers
+                `settings` returns, in the layout of the repository's blueprint
+                files (`CONTRIBUTING.md`, Blueprint Layout): no line over 88
+                characters where its words allow, and a blank line between keys.
         """
         settings = self.settings(kind)
-        lines = [
-            f"# Fitted by desflow fit{' from ' + source if source else ''}: "
+        header = (
+            f"Fitted by desflow fit{' from ' + source if source else ''}: "
             f"{settings['dist']}, from {len(self.values)} values in {self.unit}, "
             "written in seconds."
+        )
+        lines = [
+            f"# {part}"
+            for part in textwrap.wrap(
+                header,
+                width=_WIDTH - 2,
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
         ]
-        for key, value in settings.items():
+        for index, (key, value) in enumerate(settings.items()):
+            if index:
+                lines.append("")
             if isinstance(value, list):
-                value = "[" + ", ".join(repr(v) for v in value) + "]"
-            elif isinstance(value, float):
-                value = repr(value)
-            lines.append(f"{key}: {value}")
+                lines.extend(_flow_list(key, [repr(v) for v in value]))
+            else:
+                lines.append(
+                    f"{key}: {repr(value) if isinstance(value, float) else value}"
+                )
         return "\n".join(lines) + "\n"
 
     def plot(self, path: Union[str, Path], kind: Optional[str] = None) -> Path:
@@ -375,6 +390,36 @@ def _clean(
             f"(--drop-invalid)"
         )
     return kept, missing, len(invalid)
+
+
+_WIDTH = 88
+
+
+def _flow_list(key: str, items: List[str]) -> List[str]:
+    """
+    A key and its list of numbers as a flow sequence, wrapped after a comma so no
+    line passes `_WIDTH`, each further line starting under the first item.
+
+    Args:
+        key: The key.
+        items: The numbers, as text.
+
+    Returns:
+        List[str]: The lines.
+    """
+    lines = [f"{key}: ["]
+    indent = " " * len(lines[0])
+    for position, item in enumerate(items):
+        text = item + ("]" if position == len(items) - 1 else ",")
+        if position == 0:
+            lines[-1] += text
+        elif len(lines[-1]) + 1 + len(text) <= _WIDTH:
+            lines[-1] += " " + text
+        else:
+            lines.append(indent + text)
+    if not items:
+        lines[-1] += "]"
+    return lines
 
 
 def fit_column(

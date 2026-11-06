@@ -1,5 +1,32 @@
-# case ST-U11: test_all_of_chaining_intermediate_results: the same merge as ST-U10, made after a timeout of 0. The final values are 0, 1, 0, 1. The test also reads the partial result [0, 0] at 0 through a private method of SimPy.
+# case ST-U11: test_all_of_chaining_intermediate_results: the same merge as ST-U10, made
+# after a timeout of 0. The final values are 0, 1, 0, 1. The test also reads the partial
+# result [0, 0] at 0 through a private method of SimPy.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-arrivals: {p: {initial: 1, spawn: pem}}
+
+arrivals:
+  p: {initial: 1, spawn: pem}
+
 tasks:
-  pem: {wait: {all: {a: {all: {a0: {timeout: {after: 0, value: 0}}, a1: {timeout: {after: 1, value: 1}}}}, b: {all: {b0: {timeout: {after: 0, value: 0}}, b1: {timeout: {after: 1, value: 1}}}}}}, payload: {event_type: done, at: {gen: expr, expr: t}, values: [{gen: expr, expr: "wait.a0.value"}, {gen: expr, expr: "wait.a1.value"}, {gen: expr, expr: "wait.b0.value"}, {gen: expr, expr: "wait.b1.value"}]}}
+  pem:
+    wait:
+      all:
+        a:
+          all:
+            a0:
+              timeout: {after: 0, value: 0}
+            a1:
+              timeout: {after: 1, value: 1}
+        b:
+          all:
+            b0:
+              timeout: {after: 0, value: 0}
+            b1:
+              timeout: {after: 1, value: 1}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      values:
+        - {gen: expr, expr: "wait.a0.value"}
+        - {gen: expr, expr: "wait.a1.value"}
+        - {gen: expr, expr: "wait.b0.value"}
+        - {gen: expr, expr: "wait.b1.value"}

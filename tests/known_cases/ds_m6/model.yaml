@@ -1,7 +1,24 @@
-# Register row M6, settled name process.flow_name, the first task of the flow. A process keeps one name for its whole life (read at 0, 1 and 2).
+# Register row M6, settled name process.flow_name, the first task of the flow. A process
+# keeps one name for its whole life (read at 0, 1 and 2).
 simulation: {sim_id: M6, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: worker}}
+
+arrivals:
+  a: {initial: 1, spawn: worker}
+
 tasks:
-  worker: {payload: {event_type: one, name: {gen: expr, expr: "process.flow_name"}}, next: two}
-  two: {service_time: 1, payload: {event_type: two, name: {gen: expr, expr: "process.flow_name"}}, next: three}
-  three: {service_time: 1, payload: {event_type: three, name: {gen: expr, expr: "process.flow_name"}}}
+  worker:
+    payload:
+      event_type: one
+      name: {gen: expr, expr: "process.flow_name"}
+    next: two
+  two:
+    service_time: 1
+    payload:
+      event_type: two
+      name: {gen: expr, expr: "process.flow_name"}
+    next: three
+  three:
+    service_time: 1
+    payload:
+      event_type: three
+      name: {gen: expr, expr: "process.flow_name"}

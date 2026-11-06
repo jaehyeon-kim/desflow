@@ -1,5 +1,12 @@
-# case ST-RT5: test_rt_illegal_until: RealtimeEnvironment() and run(-1). desflow refuses the until at load; SimPy raises when run is called.
+# case ST-RT5: test_rt_illegal_until: RealtimeEnvironment() and run(-1). desflow refuses
+# the until at load; SimPy raises when run is called.
 simulation: {sim_id: T, factor: 1.0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: pem}}
-tasks: {pem: {payload: {event_type: tick}}}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
+tasks:
+  pem:
+    payload: {event_type: tick}
+
 run: {until: -1}

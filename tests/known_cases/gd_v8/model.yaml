@@ -1,5 +1,18 @@
 # case GD-V8: r1, r2 = (yield t1 & t2).values() in order (events.rst:292-298).
 simulation: {sim_id: V, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: both}}
+
+arrivals:
+  a: {initial: 1, spawn: both}
+
 tasks:
-  both: {wait: {all: {t1: {timeout: {after: 1, value: spam}}, t2: {timeout: {after: 2, value: eggs}}}}, payload: {values: [{gen: expr, expr: "wait.t1.value"}, {gen: expr, expr: "wait.t2.value"}]}}
+  both:
+    wait:
+      all:
+        t1:
+          timeout: {after: 1, value: spam}
+        t2:
+          timeout: {after: 2, value: eggs}
+    payload:
+      values:
+        - {gen: expr, expr: "wait.t1.value"}
+        - {gen: expr, expr: "wait.t2.value"}

@@ -1,11 +1,43 @@
-# DX-10: simpy_forms.py repair (simpy_held_unit.yaml): a job keeps its unit of a priority machine through two steps. Same form as DS-H1.
+# DX-10: simpy_forms.py repair (simpy_held_unit.yaml): a job keeps its unit of a
+# priority machine through two steps. Same form as DS-H1.
 simulation: {sim_id: Shop, factor: 0}
-resources: {machine: {current_cap: 1, queue: priority}}
+
+resources:
+  machine: {current_cap: 1, queue: priority}
+
 arrivals:
-  j1: {dist: constant, value: 1, spawn: repair, max_events: 1, first_at: 0, attributes: {job: job-1, priority: 2, first: 1, second: 2}}
-  j2: {dist: constant, value: 1, spawn: repair, max_events: 1, first_at: 0, attributes: {job: job-2, priority: 1, first: 2, second: 1}}
-  j3: {dist: constant, value: 1, spawn: repair, max_events: 1, first_at: 1, attributes: {job: job-3, priority: 0, first: 1, second: 1}}
+  j1:
+    dist: constant
+    value: 1
+    spawn: repair
+    max_events: 1
+    first_at: 0
+    attributes: {job: job-1, priority: 2, first: 1, second: 2}
+  j2:
+    dist: constant
+    value: 1
+    spawn: repair
+    max_events: 1
+    first_at: 0
+    attributes: {job: job-2, priority: 1, first: 2, second: 1}
+  j3:
+    dist: constant
+    value: 1
+    spawn: repair
+    max_events: 1
+    first_at: 1
+    attributes: {job: job-3, priority: 0, first: 1, second: 1}
+
 tasks:
-  repair: {seize: {resource: machine, priority: "attr.priority"}, service_time: "attr.first", payload: null, next: finish}
-  finish: {service_time: "attr.second", release: machine, payload: {job: {gen: attr, name: job}}}
+  repair:
+    seize: {resource: machine, priority: "attr.priority"}
+    service_time: "attr.first"
+    payload: null
+    next: finish
+  finish:
+    service_time: "attr.second"
+    release: machine
+    payload:
+      job: {gen: attr, name: job}
+
 run: {until: 20}

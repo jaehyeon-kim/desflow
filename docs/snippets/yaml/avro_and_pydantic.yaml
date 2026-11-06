@@ -1,13 +1,10 @@
 # The Use Avro and Pydantic guide: each packed order publishes a prediction, sent to
 # ml-predictions as Avro; every other record goes to its topic as JSON. Needs
-# avro_and_pydantic_models.py and avro_and_pydantic_logic.py beside it, and a Kafka broker
-# with a schema registry: odctl up kafka-lite. Run it with:
+# avro_and_pydantic_models.py and avro_and_pydantic_logic.py beside it, and a Kafka
+# broker with a schema registry: odctl up kafka-lite. Run it with:
 # desflow run avro_and_pydantic.yaml
 # --8<-- [start:shop]
-simulation:
-  sim_id: Shop
-  factor: 1
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 1, random_seed: 42}
 
 resources:
   packers: {current_cap: 1, max_cap: 1}

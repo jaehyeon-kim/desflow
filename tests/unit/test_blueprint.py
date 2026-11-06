@@ -2729,17 +2729,18 @@ def test_readings_match_the_docs_packers_report(tmp_path):
         folder.mkdir()
         shutil.copy(docs / "shop_logic.py", folder / "shop_logic.py")
         text = (docs / "statistics.yaml").read_text(encoding="utf-8")
-        old = "    function: !python shop_logic.packers_report\n"
+        old = "  - {interval: 30, function: !python shop_logic.packers_report}\n"
         assert old in text
         if form == "readings":
             text = text.replace(
                 old,
+                "  - interval: 30\n"
                 "    readings:\n"
                 '      waiting_per_packer: "queue.packers / max(registry['
                 "'Shop.resources.packers.current_cap'], 1)\"\n"
                 "      arrival_rate: \"registry['Shop.arrival.orders.rate']\"\n",
             )
-        text = text.replace("egress:\n  - type: Console\n\n", "")
+        text = text.replace("egress:\n  - {type: Console}\n\n", "")
         path = folder / "statistics.yaml"
         path.write_text(text, encoding="utf-8")
         app = SimulationContext.from_yaml(path)

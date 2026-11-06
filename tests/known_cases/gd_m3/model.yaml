@@ -1,6 +1,17 @@
-# Guides M3: the queue recorded at each request and release of a resource (monitoring.rst:196-222).
+# Guides M3: the queue recorded at each request and release of a resource
+# (monitoring.rst:196-222).
 simulation: {sim_id: M, factor: 0, random_seed: 42}
+
 stats: {level: basic, on_change: true}
-resources: {res: {current_cap: 1}}
-arrivals: {a: {initial: 2, spawn: use}}
-tasks: {use: {resource: res, service_time: 1, payload: {event_type: used}}}
+
+resources:
+  res: {current_cap: 1}
+
+arrivals:
+  a: {initial: 2, spawn: use}
+
+tasks:
+  use:
+    resource: res
+    service_time: 1
+    payload: {event_type: used}

@@ -15,10 +15,7 @@ services:
   packing: {dist: constant, value: 1.5 s}
 
 arrivals:
-  orders:
-    dist: constant
-    value: 1 s
-    spawn: pack_order
+  orders: {dist: constant, value: 1 s, spawn: pack_order}
 
 tasks:
   pack_order:
@@ -36,5 +33,4 @@ egress:
     config: {path: events.csv, columns: [status, event_type]}
 # --8<-- [end:connectors]
 
-run:
-  until: 20 s
+run: {until: 20 s}

@@ -1,7 +1,53 @@
-# case ST-C17 to ST-C19: test_condition_value, test_result_order, test_nested_result_order, one after the other. The order of the keys is the order in which the branches are written.
+# case ST-C17 to ST-C19: test_condition_value, test_result_order,
+# test_nested_result_order, one after the other. The order of the keys is the order in
+# which the branches are written.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: value}}
+
+arrivals:
+  a: {initial: 1, spawn: value}
+
 tasks:
-  value: {wait: {all: {t0: {timeout: {after: 0, value: 0}}, t1: {timeout: {after: 1, value: 1}}, t2: {timeout: {after: 2, value: 2}}}}, payload: {event_type: done, at: {gen: expr, expr: t}, values: [{gen: expr, expr: "wait.t0.value"}, {gen: expr, expr: "wait.t1.value"}, {gen: expr, expr: "wait.t2.value"}], has_first: {gen: expr, expr: "wait.t0.done"}, first: {gen: expr, expr: "wait.t0.value"}}, next: result_order}
-  result_order: {wait: {all: {grp: {all: {t2: {timeout: 2}, t1: {timeout: 1}, t0: {timeout: 0}}}}}, payload: {event_type: done, order: {gen: expr, expr: "[name for name in wait.grp.value]"}}, next: nested_result_order}
-  nested_result_order: {wait: {all: {grp: {all: {either: {any: {t0: {timeout: 0}, t1: {timeout: 1}}}, t2: {timeout: 2}}}}}, payload: {event_type: done, order: {gen: expr, expr: "[name for name in wait.grp.value]"}}}
+  value:
+    wait:
+      all:
+        t0:
+          timeout: {after: 0, value: 0}
+        t1:
+          timeout: {after: 1, value: 1}
+        t2:
+          timeout: {after: 2, value: 2}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      values:
+        - {gen: expr, expr: "wait.t0.value"}
+        - {gen: expr, expr: "wait.t1.value"}
+        - {gen: expr, expr: "wait.t2.value"}
+      has_first: {gen: expr, expr: "wait.t0.done"}
+      first: {gen: expr, expr: "wait.t0.value"}
+    next: result_order
+  result_order:
+    wait:
+      all:
+        grp:
+          all:
+            t2: {timeout: 2}
+            t1: {timeout: 1}
+            t0: {timeout: 0}
+    payload:
+      event_type: done
+      order: {gen: expr, expr: "[name for name in wait.grp.value]"}
+    next: nested_result_order
+  nested_result_order:
+    wait:
+      all:
+        grp:
+          all:
+            either:
+              any:
+                t0: {timeout: 0}
+                t1: {timeout: 1}
+            t2: {timeout: 2}
+    payload:
+      event_type: done
+      order: {gen: expr, expr: "[name for name in wait.grp.value]"}

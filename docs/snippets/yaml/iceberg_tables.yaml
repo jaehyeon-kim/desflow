@@ -2,10 +2,7 @@
 # table shop.events, as fast as the machine allows. ICEBERG_CATALOG picks the catalog
 # (sqlite, the default, rest, postgres or glue). Needs iceberg_tables_catalog.py and
 # iceberg_tables_logic.py beside it. Run it with: desflow run iceberg_tables.yaml
-simulation:
-  sim_id: Shop
-  factor: 0.0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0.0, random_seed: 42}
 
 resources:
   packers: {current_cap: 1, max_cap: 1}
@@ -34,5 +31,4 @@ egress:
     batch_size: 200000
 # --8<-- [end:egress]
 
-run:
-  until: 1 hour
+run: {until: 1 hour}

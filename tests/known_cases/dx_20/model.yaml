@@ -1,14 +1,34 @@
-# DX-20: a file sink that writes each event under its day. The snippet's `daily_path` (docs/snippets/yaml_build/routing_logic.py) is a function; here `__path__` in the payload holds the path, and the file sink creates the folder. The sink is taken away for the run, and `check` compares the path of each record with what `daily_path` returns.
-simulation: {sim_id: Shop, factor: 0, random_seed: 42, logical_start_time: "2026-01-01T00:00:00+00:00", timezone: UTC}
-resources: {packers: {current_cap: 1, max_cap: 1}}
-services: {packing: {dist: constant, value: 1.5}}
-arrivals: {orders: {dist: constant, value: 2, spawn: pack_order}}
+# DX-20: a file sink that writes each event under its day. The snippet's `daily_path`
+# (docs/snippets/yaml_build/routing_logic.py) is a function; here `__path__` in the
+# payload holds the path, and the file sink creates the folder. The sink is taken away
+# for the run, and `check` compares the path of each record with what `daily_path`
+# returns.
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: "2026-01-01T00:00:00+00:00"
+  timezone: UTC
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: constant, value: 2, spawn: pack_order}
+
 tasks:
   pack_order:
     service: packing
     resource: packers
-    payload: {event_type: order_packed, __path__: {gen: format_time, format: "events/day=%Y-%m-%d/events.jsonl"}}
+    payload:
+      event_type: order_packed
+      __path__: {gen: format_time, format: "events/day=%Y-%m-%d/events.jsonl"}
+
 egress:
   - type: Jsonl
     config: {default_path: events/other.jsonl}
+
 run: {until: 20}

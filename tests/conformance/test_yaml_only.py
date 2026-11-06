@@ -2624,7 +2624,7 @@ def test_known_case_of_batch_8_document_equals_the_docs_snippet(tmp_path, row):
     original.mkdir()
     (original / "simpy_forms.py").write_text((docs / "simpy_forms.py").read_text())
     text = (docs / f"{snippet}.yaml").read_text()
-    text = text.replace("egress:\n  - type: Console\n", "")
+    text = text.replace("egress:\n  - {type: Console}\n", "")
     wanted = run_yaml_text(original, text, {})
     assert wanted.error is None, repr(wanted.error)
     own = tmp_path / "own"

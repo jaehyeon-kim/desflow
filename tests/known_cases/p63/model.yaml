@@ -1,8 +1,19 @@
 # case P63: broadcast signal (patterns/h_signals.py H1, YAML form).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-signals: {wake: {}}
-arrivals: {c: {initial: 2, spawn: waitc}, k: {dist: constant, value: 2, spawn: clerk, max_events: 1}}
+
+signals:
+  wake: {}
+
+arrivals:
+  c: {initial: 2, spawn: waitc}
+  k: {dist: constant, value: 2, spawn: clerk, max_events: 1}
+
 tasks:
-  waitc: {wait: {signal: wake}, payload: {woken: 1}}
-  clerk: {payload: {}, signal: wake}
+  waitc:
+    wait: {signal: wake}
+    payload: {woken: 1}
+  clerk:
+    payload: {}
+    signal: wake
+
 run: {until: 10}

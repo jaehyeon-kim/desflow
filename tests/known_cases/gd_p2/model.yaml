@@ -1,9 +1,26 @@
 # case GD-P2: yield charging & parking (process_interaction.rst:97-126).
 simulation: {sim_id: EV, factor: 0, random_seed: 42}
-arrivals: {ev: {initial: 1, spawn: drive}}
+
+arrivals:
+  ev: {initial: 1, spawn: drive}
+
 tasks:
-  drive: {service_time: {gen: integer, bounds: [20, 40]}, payload: {event_type: start_parking}, next: run_ev}
-  run_ev: {wait: {all: {charging: {task: bat_ctrl}, parking: {task: park}}}, payload: {event_type: stop_parking}, next: drive}
-  bat_ctrl: {service_time: {gen: integer, bounds: [30, 90]}, payload: {event_type: bat_done}}
-  park: {service_time: {gen: integer, bounds: [60, 360]}, payload: {event_type: parked}}
+  drive:
+    service_time: {gen: integer, bounds: [20, 40]}
+    payload: {event_type: start_parking}
+    next: run_ev
+  run_ev:
+    wait:
+      all:
+        charging: {task: bat_ctrl}
+        parking: {task: park}
+    payload: {event_type: stop_parking}
+    next: drive
+  bat_ctrl:
+    service_time: {gen: integer, bounds: [30, 90]}
+    payload: {event_type: bat_done}
+  park:
+    service_time: {gen: integer, bounds: [60, 360]}
+    payload: {event_type: parked}
+
 run: {until: 310}

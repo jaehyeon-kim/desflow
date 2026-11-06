@@ -20,16 +20,12 @@ batching:
 # --8<-- [start:egress]
 egress:
   # Small and often for this sink; the other uses the defaults
-  - type: Console
-    batch_size: 50
-    flush_interval: 0.5
+  - {type: Console, batch_size: 50, flush_interval: 0.5}
   # Only the records stamped before go_live_at
-  - type: Console
-    when: history
+  - {type: Console, when: history}
 # --8<-- [end:egress]
 
 resources:
   packers: {current_cap: 1, max_cap: 1}
 
-run:
-  until: 60
+run: {until: 60}

@@ -1,6 +1,16 @@
 # case GD-E5: env.active_process (environments.rst:126-141).
 simulation: {sim_id: E, factor: 0, random_seed: 42}
-arrivals: {p1: {initial: 1, spawn: my_proc}}
+
+arrivals:
+  p1: {initial: 1, spawn: my_proc}
+
 tasks:
-  my_proc: {payload: {event_type: seen, me: {gen: expr, expr: "process.name"}}, next: sub}
-  sub: {payload: {event_type: seen_in_sub, me: {gen: expr, expr: "process.flow_name"}}}
+  my_proc:
+    payload:
+      event_type: seen
+      me: {gen: expr, expr: "process.name"}
+    next: sub
+  sub:
+    payload:
+      event_type: seen_in_sub
+      me: {gen: expr, expr: "process.flow_name"}

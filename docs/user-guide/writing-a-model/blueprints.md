@@ -211,7 +211,7 @@ except BlueprintError as error:
 
 <!-- records: blueprint-error -->
 ```text
-Error: blueprint_error.yaml:20: task 'pack_order' has a priority, but resource 'packers' does not set queue: priority; set it, or remove the priority
+Error: blueprint_error.yaml:18: task 'pack_order' has a priority, but resource 'packers' does not set queue: priority; set it, or remove the priority
 ```
 
 A blueprint covers configuration, including several resources per task (`resource: [picker, bench]` and `keep`), preemption (`preempt: true`) and breakdowns (`breakdown:`). These stay in Python:

@@ -1,6 +1,19 @@
-# case P13: a delay from an attribute (research/simpy-gap/patterns/b_values.py B2: sizes 1, 2, 3 arrive every 5, the customer waits 2 * size, run until 30).
+# case P13: a delay from an attribute (research/simpy-gap/patterns/b_values.py B2: sizes
+# 1, 2, 3 arrive every 5, the customer waits 2 * size, run until 30).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-arrivals: {a: {dist: constant, value: 5, spawn: t, max_events: 3, attributes: {size: {gen: sequence, start: 1}}}}
+
+arrivals:
+  a:
+    dist: constant
+    value: 5
+    spawn: t
+    max_events: 3
+    attributes:
+      size: {gen: sequence, start: 1}
+
 tasks:
-  t: {service_time: "2 * attr.size", payload: {event_type: by_attribute}}
+  t:
+    service_time: "2 * attr.size"
+    payload: {event_type: by_attribute}
+
 run: {until: 30}

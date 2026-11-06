@@ -14,7 +14,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   tills:
@@ -30,5 +30,4 @@ tasks:
       till: {gen: entity}
       takings: {gen: normal, mean: 400, std: 60, decimals: 2}
 
-run:
-  until: 300
+run: {until: 300}

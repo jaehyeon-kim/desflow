@@ -1,6 +1,20 @@
 # case GD-V6: AnyOf and AllOf on a list (events.rst:252-255).
 simulation: {sim_id: V, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: both}}
+
+arrivals:
+  a: {initial: 1, spawn: both}
+
 tasks:
-  both: {wait: {all: {a: {timeout: 1}, b: {timeout: 2}}}, payload: {event_type: all_done}, next: either}
-  either: {wait: {any: {a: {timeout: 1}, b: {timeout: 2}}}, payload: {event_type: any_done}}
+  both:
+    wait:
+      all:
+        a: {timeout: 1}
+        b: {timeout: 2}
+    payload: {event_type: all_done}
+    next: either
+  either:
+    wait:
+      any:
+        a: {timeout: 1}
+        b: {timeout: 2}
+    payload: {event_type: any_done}

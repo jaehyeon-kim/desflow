@@ -14,6 +14,25 @@ repos:
         args: [--unsafe]
       - id: check-added-large-files
 
+  - repo: https://github.com/adrienverge/yamllint
+    # Must match the yamllint floor in pyproject.toml dev dependencies.
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        args: [--strict]
+        files: ^(tests/known_cases/[^/]+/model\.yaml|examples/.*\.yaml|docs/snippets/.*\.yaml)$
+
+  - repo: local
+    hooks:
+      - id: blueprint-layout
+        name: blueprint layout
+        language: python
+        # Must match the ruamel.yaml floor in the dev dependencies, and PyYAML's in the
+        # package dependencies.
+        additional_dependencies: [ruamel.yaml==0.19.1, pyyaml==6.0.1]
+        entry: python scripts/blueprint_layout.py --check
+        files: ^(tests/known_cases/[^/]+/model\.yaml|examples/.*\.yaml|docs/snippets/.*\.yaml)$
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Must match the ruff floor in pyproject.toml dev dependencies. When the two
     # disagree, whichever formatter ran last wins and the diff flaps.

@@ -1,13 +1,41 @@
-# Design H5: tasks that take resources in opposite orders load, with a warning (no key). Both tasks hold their first unit for 1 before they ask for the second.
+# Design H5: tasks that take resources in opposite orders load, with a warning (no key).
+# Both tasks hold their first unit for 1 before they ask for the second.
 simulation: {sim_id: H5, factor: 0, random_seed: 42}
-resources: {r1: {current_cap: 1}, r2: {current_cap: 1}}
+
+resources:
+  r1: {current_cap: 1}
+  r2: {current_cap: 1}
+
 arrivals:
   first: {initial: 1, spawn: one_two}
   second: {initial: 1, spawn: two_one}
+
 tasks:
-  one_two: {seize: r1, service_time: 1, payload: {event_type: got_r1}, next: one_two_b}
-  one_two_b: {seize: r2, service_time: 1, payload: {event_type: got_both}, release: r2, next: one_two_c}
-  one_two_c: {payload: {event_type: free_r1}, release: r1}
-  two_one: {seize: r2, service_time: 1, payload: {event_type: got_r2}, next: two_one_b}
-  two_one_b: {seize: r1, service_time: 1, payload: {event_type: got_both}, release: r1, next: two_one_c}
-  two_one_c: {payload: {event_type: free_r2}, release: r2}
+  one_two:
+    seize: r1
+    service_time: 1
+    payload: {event_type: got_r1}
+    next: one_two_b
+  one_two_b:
+    seize: r2
+    service_time: 1
+    payload: {event_type: got_both}
+    release: r2
+    next: one_two_c
+  one_two_c:
+    payload: {event_type: free_r1}
+    release: r1
+  two_one:
+    seize: r2
+    service_time: 1
+    payload: {event_type: got_r2}
+    next: two_one_b
+  two_one_b:
+    seize: r1
+    service_time: 1
+    payload: {event_type: got_both}
+    release: r1
+    next: two_one_c
+  two_one_c:
+    payload: {event_type: free_r2}
+    release: r2

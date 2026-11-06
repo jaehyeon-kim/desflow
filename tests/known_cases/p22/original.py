@@ -22,7 +22,7 @@ def program():
 # The draw is fixed: the test applies these replacements to model.yaml.
 DRAWS = [
     (
-        "next: {weights: {a: 3, b: 1}}",
+        "next:\n      weights: {a: 3, b: 1}",
         'next: {when: [{condition: "t % 4 == 0", task: b}], default: a}',
     )
 ]

@@ -24,6 +24,5 @@ tasks:
 # minimal: readings every 10 s, not the costlier task statistics
 stats: {level: minimal, interval: 10}
 
-run:
-  until: 1 h
+run: {until: 1 h}
 # --8<-- [end:shop]

@@ -24,6 +24,5 @@ tasks:
 
 stats: {level: typical, interval: 600}
 
-run:
-  until: 600
+run: {until: 600}
 # --8<-- [end:shop]

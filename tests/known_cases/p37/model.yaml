@@ -1,10 +1,33 @@
-# case P37: preemption with resume, and with restart (register audit2/patterns/mine/g_d1.py P37: priority 1 when i % 3 == 0 else 5, service 1.5, arrivals in pairs at 0, 2, 4, 6 and 8; each mode on its own machine).
+# case P37: preemption with resume, and with restart (register
+# audit2/patterns/mine/g_d1.py P37: priority 1 when i % 3 == 0 else 5, service 1.5,
+# arrivals in pairs at 0, 2, 4, 6 and 8; each mode on its own machine).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1, queue: priority, preempt: true}, m2: {current_cap: 1, queue: priority, preempt: true}}
-services: {s: {dist: constant, value: 1.5}}
+
+resources:
+  m: {current_cap: 1, queue: priority, preempt: true}
+  m2: {current_cap: 1, queue: priority, preempt: true}
+
+services:
+  s: {dist: constant, value: 1.5}
+
 arrivals:
-  r: {replay: {path: p37.csv, time: time, unit: s, fields: [pr]}, spawn: resume_job}
-  q: {replay: {path: p37.csv, time: time, unit: s, fields: [pr]}, spawn: restart_job}
+  r:
+    replay: {path: p37.csv, time: time, unit: s, fields: [pr]}
+    spawn: resume_job
+  q:
+    replay: {path: p37.csv, time: time, unit: s, fields: [pr]}
+    spawn: restart_job
+
 tasks:
-  resume_job: {service: s, resource: m, priority: "attr.pr", on_interrupt: resume, payload: {event_type: done}}
-  restart_job: {service: s, resource: m2, priority: "attr.pr", on_interrupt: restart, payload: {event_type: done}}
+  resume_job:
+    service: s
+    resource: m
+    priority: "attr.pr"
+    on_interrupt: resume
+    payload: {event_type: done}
+  restart_job:
+    service: s
+    resource: m2
+    priority: "attr.pr"
+    on_interrupt: restart
+    payload: {event_type: done}

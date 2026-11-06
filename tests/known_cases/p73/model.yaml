@@ -1,5 +1,17 @@
-# case P73: simmer renege_abort: patience per task, cancelled when the next step starts (audit2 g_d2.py P40 at the release instant: patience 2.5 = service 2.5, ten entities at 0).
+# case P73: simmer renege_abort: patience per task, cancelled when the next step starts
+# (audit2 g_d2.py P40 at the release instant: patience 2.5 = service 2.5, ten entities
+# at 0).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1}}
-arrivals: {o: {initial: 10, spawn: job}}
-tasks: {job: {resource: m, patience: 2.5, service_time: 2.5, payload: {event_type: served}}}
+
+resources:
+  m: {current_cap: 1}
+
+arrivals:
+  o: {initial: 10, spawn: job}
+
+tasks:
+  job:
+    resource: m
+    patience: 2.5
+    service_time: 2.5
+    payload: {event_type: served}

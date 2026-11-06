@@ -2,15 +2,17 @@
 # order and the restock are replayed from orders.csv and restocks.csv, which
 # first_yaml() in wait_for_one_or_all.py writes beside this blueprint.
 # --8<-- [start:first]
-simulation:
-  sim_id: Shop
-  factor: 0
+simulation: {sim_id: Shop, factor: 0}
 
 signals: [restocked]
 
 arrivals:
-  orders: {replay: {path: orders.csv}, spawn: order}
-  restocks: {replay: {path: restocks.csv}, spawn: restock}
+  orders:
+    replay: {path: orders.csv}
+    spawn: order
+  restocks:
+    replay: {path: restocks.csv}
+    spawn: restock
 
 tasks:
   order:
@@ -18,12 +20,12 @@ tasks:
       any:
         stock: {signal: restocked}
         limit: {timeout: 30}
-    # Called as branches(task_id, context, wait); its event says which branches were done
+    # Called as branches(task_id, context, wait); its event says which branches were
+    # done
     payload: !python wait_for_one_or_all_logic.branches
   restock:
     signal: restocked
     payload: {boxes: 6}
 
-run:
-  until: 60
+run: {until: 60}
 # --8<-- [end:first]

@@ -1,12 +1,9 @@
 # The resources of the Resources page, as a blueprint.
 # Run it with: desflow run resources.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 # --8<-- [start:queue-order]
 resources:
@@ -19,8 +16,16 @@ services:
   packing: {dist: constant, value: 1.5 s}
 
 arrivals:
-  orders: {dist: exponential, rate: 0.4, spawn: pack_order, attributes: {tier: 2}}
-  express: {dist: exponential, rate: 0.1, spawn: pack_order, attributes: {tier: 1}}
+  orders:
+    dist: exponential
+    rate: 0.4
+    spawn: pack_order
+    attributes: {tier: 2}
+  express:
+    dist: exponential
+    rate: 0.1
+    spawn: pack_order
+    attributes: {tier: 1}
 
 # --8<-- [start:priority]
 tasks:
@@ -35,5 +40,4 @@ tasks:
 # The packers' capacity, in_use, queue_length and utilization every 10 seconds
 stats: minimal
 
-run:
-  until: 1 min
+run: {until: 1 min}

@@ -16,10 +16,13 @@
 simulation: {sim_id: Carwash, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
-resources: {machine: {current_cap: 2}}
-services: {wash: {dist: constant, value: 5}}
+resources:
+  machine: {current_cap: 2}
+
+services:
+  wash: {dist: constant, value: 5}
 
 arrivals:
   cars:
@@ -29,11 +32,19 @@ arrivals:
     key: {gen: sequence, format: "Car {}"}
 
 tasks:
-  car: {seize: machine, payload: {event_type: enters}, next: washing}
+  car:
+    seize: machine
+    payload: {event_type: enters}
+    next: washing
   # The car keeps its machine until the wash, a task of its own, has finished
-  washing: {wait: {task: wash}, payload: {event_type: leaves}, release: machine}
+  washing:
+    wait: {task: wash}
+    payload: {event_type: leaves}
+    release: machine
   wash:
     service: wash
-    payload: {event_type: washed, dirt_removed_pct: {gen: integer, bounds: [50, 99]}}
+    payload:
+      event_type: washed
+      dirt_removed_pct: {gen: integer, bounds: [50, 99]}
 
 run: {until: 20}

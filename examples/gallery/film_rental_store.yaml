@@ -15,7 +15,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   films: {initial: 20, spawn: film}
@@ -32,7 +32,9 @@ tasks:
         names:
           adjective: {gen: one_of, choices: [Silent, Broken, Golden, Hidden, Last]}
           noun: {gen: one_of, choices: [River, Garden, Highway, Letter, Harbour]}
-      rating: {gen: weighted, options: {G: 2, PG: 3, PG-13: 3, R: 3, NC-17: 1}}
+      rating:
+        gen: weighted
+        options: {G: 2, PG: 3, PG-13: 3, R: 3, NC-17: 1}
       rental_rate: {gen: one_of, choices: [0.99, 2.99, 4.99]}
       length: {gen: integer, bounds: [60, 180]}
 
@@ -64,10 +66,10 @@ tasks:
 
   return:
     # 1 to 7 days, in seconds
-    wait: {timeout: {gen: uniform, low: 86400, high: 604800}}
+    wait:
+      timeout: {gen: uniform, low: 86400, high: 604800}
     payload:
       rental_id: {gen: upstream, path: rental_id}
       return_date: {gen: now}
 
-run:
-  until: 7 days
+run: {until: 7 days}

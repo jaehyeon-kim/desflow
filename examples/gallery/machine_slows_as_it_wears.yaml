@@ -14,7 +14,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   station: {current_cap: 1}
@@ -37,5 +37,4 @@ scenario:
   - {at: 3 hours, path: Press.service.stamp.mean, value: 16}
   - {at: 4 hours, path: Press.service.stamp.mean, value: 10}
 
-run:
-  until: 5 hours
+run: {until: 5 hours}

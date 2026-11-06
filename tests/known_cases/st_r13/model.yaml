@@ -1,9 +1,30 @@
-# case ST-R13: as ST-R12 with a timeout in proc_a; after the preemption proc_a waits for an event that never comes.
+# case ST-R13: as ST-R12 with a timeout in proc_a; after the preemption proc_a waits for
+# an event that never comes.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-resources: {res: {current_cap: 1, queue: priority, preempt: true}}
-signals: {never: {once: true}}
-arrivals: {a: {initial: 1, spawn: proc_a}, b: {initial: 1, spawn: proc_b}}
+
+resources:
+  res: {current_cap: 1, queue: priority, preempt: true}
+
+signals:
+  never: {once: true}
+
+arrivals:
+  a: {initial: 1, spawn: proc_a}
+  b: {initial: 1, spawn: proc_b}
+
 tasks:
-  proc_a: {resource: res, priority: 1, service_time: 1, on_interrupt: abandon, on_interrupt_next: stuck, payload: {event_type: should_not_finish}}
-  stuck: {wait: {signal: never}, payload: {event_type: never}}
-  proc_b: {resource: res, priority: 0, service_time: 0, payload: {event_type: got}}
+  proc_a:
+    resource: res
+    priority: 1
+    service_time: 1
+    on_interrupt: abandon
+    on_interrupt_next: stuck
+    payload: {event_type: should_not_finish}
+  stuck:
+    wait: {signal: never}
+    payload: {event_type: never}
+  proc_b:
+    resource: res
+    priority: 0
+    service_time: 0
+    payload: {event_type: got}

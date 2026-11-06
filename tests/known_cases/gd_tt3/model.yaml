@@ -1,8 +1,24 @@
-# case GD-TT3: interrupted while queued for a resource, keeps the same request (tests/test_resources.py:93).
+# case GD-TT3: interrupted while queued for a resource, keeps the same request
+# (tests/test_resources.py:93).
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1}}
-arrivals: {a: {initial: 1, spawn: hold}, b: {initial: 1, spawn: victim}, i: {initial: 1, spawn: poke}}
+
+resources:
+  m: {current_cap: 1}
+
+arrivals:
+  a: {initial: 1, spawn: hold}
+  b: {initial: 1, spawn: victim}
+  i: {initial: 1, spawn: poke}
+
 tasks:
-  hold: {resource: m, service_time: 1, payload: {event_type: hold_done}}
-  victim: {wait: {request: m}, on_interrupt: resume, payload: {event_type: victim_done}}
-  poke: {payload: {event_type: poke}, interrupt: {task: victim}}
+  hold:
+    resource: m
+    service_time: 1
+    payload: {event_type: hold_done}
+  victim:
+    wait: {request: m}
+    on_interrupt: resume
+    payload: {event_type: victim_done}
+  poke:
+    payload: {event_type: poke}
+    interrupt: {task: victim}

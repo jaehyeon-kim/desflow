@@ -1,7 +1,20 @@
 # case P29: seize amount 2 (a pool of n units is a container get).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-containers: {pool: {current_cap: 3, level: 3}}
-services: {s: {dist: constant, value: 1}}
-arrivals: {a: {replay: {path: arr.csv, time: time, unit: s, fields: [n]}, spawn: job}}
+
+containers:
+  pool: {current_cap: 3, level: 3}
+
+services:
+  s: {dist: constant, value: 1}
+
+arrivals:
+  a:
+    replay: {path: arr.csv, time: time, unit: s, fields: [n]}
+    spawn: job
+
 tasks:
-  job: {service: s, get: {container: pool, amount: "attr.n"}, put: {container: pool, amount: "attr.n"}, payload: {event_type: served}}
+  job:
+    service: s
+    get: {container: pool, amount: "attr.n"}
+    put: {container: pool, amount: "attr.n"}
+    payload: {event_type: served}

@@ -16,9 +16,10 @@
 simulation: {sim_id: Bank, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
-resources: {counter: {current_cap: 1}}
+resources:
+  counter: {current_cap: 1}
 
 arrivals:
   customers:

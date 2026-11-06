@@ -14,11 +14,9 @@ processes:
     kwargs: {car: car-3, start: 2, litres: 2}
 
 tasks:
-  filled:
-    payload: !python simpy_forms.filled
+  filled: {payload: !python simpy_forms.filled}
 
-run:
-  until: 10
+run: {until: 10}
 
 egress:
-  - type: Console
+  - {type: Console}

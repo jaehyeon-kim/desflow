@@ -1,15 +1,38 @@
-# DX-14: simpy_forms.py queue_again (simpy_queue_again.yaml): a request yielded again after an interrupt keeps its place in the queue. Same form as DS-I10 and DS-H9.
+# DX-14: simpy_forms.py queue_again (simpy_queue_again.yaml): a request yielded again
+# after an interrupt keeps its place in the queue. Same form as DS-I10 and DS-H9.
 simulation: {sim_id: Shop, factor: 0}
-resources: {machine: {current_cap: 1}}
+
+resources:
+  machine: {current_cap: 1}
+
 arrivals:
   h: {initial: 1, spawn: holder}
   f: {initial: 1, spawn: first}
   s: {dist: constant, value: 1, spawn: second, max_events: 1}
   p: {dist: constant, value: 2, spawn: pause, max_events: 1}
+
 tasks:
-  holder: {resource: machine, service_time: 5, payload: {job: holder}}
-  first: {open: {slot: {request: machine}}, wait: {handle: slot}, on_interrupt: resume, payload: null, next: first_hold}
-  first_hold: {service_time: 1, release: {handle: slot}, payload: {job: first}}
-  second: {resource: machine, service_time: 1, payload: {job: second}}
-  pause: {payload: null, interrupt: {task: first, cause: pause}}
+  holder:
+    resource: machine
+    service_time: 5
+    payload: {job: holder}
+  first:
+    open:
+      slot: {request: machine}
+    wait: {handle: slot}
+    on_interrupt: resume
+    payload: null
+    next: first_hold
+  first_hold:
+    service_time: 1
+    release: {handle: slot}
+    payload: {job: first}
+  second:
+    resource: machine
+    service_time: 1
+    payload: {job: second}
+  pause:
+    payload: null
+    interrupt: {task: first, cause: pause}
+
 run: {until: 20}

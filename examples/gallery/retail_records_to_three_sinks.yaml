@@ -53,7 +53,9 @@ tasks:
     payload:
       customer_id: {gen: sequence, start: 1}
       name: {gen: fake, method: name}
-      country: {gen: weighted, options: {AU: 5, US: 3, GB: 2}}
+      country:
+        gen: weighted
+        options: {AU: 5, US: 3, GB: 2}
 
   product:
     payload:
@@ -81,5 +83,4 @@ tasks:
       order_id: {gen: upstream, path: order_id}
       amount: {gen: upstream, path: total}
 
-run:
-  until: 10 min
+run: {until: 10 min}

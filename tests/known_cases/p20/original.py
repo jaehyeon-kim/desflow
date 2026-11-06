@@ -31,7 +31,7 @@ DRAWS = [
         'vip: {gen: expr, expr: "n % 3 == 0", names: {n: {gen: sequence}}}',
     ),
     (
-        "next: {weights: {a: 3, b: 1}}",
+        "next:\n      weights: {a: 3, b: 1}",
         'next: {when: [{condition: "t % 2 == 0", task: a}], default: b}',
     ),
 ]

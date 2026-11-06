@@ -2,12 +2,10 @@
 # Run it with: desflow run time_varying_arrivals.yaml
 # With the step at the end of the run: desflow run time_varying_arrivals.yaml --until 30
 # --8<-- [start:boundary]
-simulation:
-  sim_id: Shop
-  factor: 0
+simulation: {sim_id: Shop, factor: 0}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   orders: {dist: constant, value: 10 s, spawn: arrive}
@@ -20,6 +18,5 @@ tasks:
 scenario:
   - {at: 30 s, path: Shop.arrival.orders.value, value: 5}
 
-run:
-  until: 50 s
+run: {until: 50 s}
 # --8<-- [end:boundary]

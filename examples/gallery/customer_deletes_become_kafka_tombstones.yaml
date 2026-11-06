@@ -6,7 +6,8 @@
 # deleted first.
 #
 # Needs: odctl up kafka-lite and the kafka extra
-# Run it with: desflow run examples/gallery/customer_deletes_become_kafka_tombstones.yaml
+# Run it with: desflow run
+# examples/gallery/customer_deletes_become_kafka_tombstones.yaml
 
 simulation:
   sim_id: Customers
@@ -35,7 +36,9 @@ tasks:
     payload:
       op: insert
       customer_id: {gen: sequence}
-      plan: {gen: weighted, options: {free: 60, pro: 40}}
+      plan:
+        gen: weighted
+        options: {free: 60, pro: 40}
   # An update changes the newest customer, so no record names a customer that is gone
   update_customer:
     key_field: customer_id
@@ -46,10 +49,11 @@ tasks:
         task: insert_customer
         path: customer_id
         strategy: last
-      plan: {gen: weighted, options: {free: 40, pro: 60}}
+      plan:
+        gen: weighted
+        options: {free: 40, pro: 60}
   delete_customer:
     key: {gen: sequence}
     payload: {gen: literal, value: null}
 
-run:
-  until: 120
+run: {until: 120}

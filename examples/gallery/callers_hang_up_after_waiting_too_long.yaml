@@ -15,7 +15,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   agents: {current_cap: 2, max_cap: 4}
@@ -40,5 +40,4 @@ tasks:
 scenario:
   - {at: 30 min, path: Centre.resources.agents.current_cap, value: 4}
 
-run:
-  until: 1 hour
+run: {until: 1 hour}

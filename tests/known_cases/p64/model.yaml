@@ -1,8 +1,32 @@
-# case P64 (the process key is text, so who is the text 1): wake a specific entity chosen by the waker (patterns/h_signals.py H1: customers 0 and 1, the clerk wakes customer 1; a Y1 signal family keyed by the entity).
+# case P64 (the process key is text, so who is the text 1): wake a specific entity
+# chosen by the waker (patterns/h_signals.py H1: customers 0 and 1, the clerk wakes
+# customer 1; a Y1 signal family keyed by the entity).
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-signals: {wake: {family: true, once: true}}
-arrivals: {c: {initial: 2, spawn: sleep, key: {gen: sequence, start: 0}}, k: {dist: constant, value: 2, spawn: wake_one, max_events: 1, attributes: {who: "1"}}}
+
+signals:
+  wake: {family: true, once: true}
+
+arrivals:
+  c:
+    initial: 2
+    spawn: sleep
+    key: {gen: sequence, start: 0}
+  k:
+    dist: constant
+    value: 2
+    spawn: wake_one
+    max_events: 1
+    attributes: {who: "1"}
+
 tasks:
-  sleep: {wait: {signal: {of: wake, key: "process.key"}}, payload: {woken: 1}}
-  wake_one: {payload: {}, on: [{fire: {signal: {of: wake, key: "attr.who"}}}]}
+  sleep:
+    wait:
+      signal: {of: wake, key: "process.key"}
+    payload: {woken: 1}
+  wake_one:
+    payload: {}
+    on:
+      - fire:
+          signal: {of: wake, key: "attr.who"}
+
 run: {until: 10}

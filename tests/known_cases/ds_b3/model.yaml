@@ -1,5 +1,8 @@
-# Design B3: batches that keep member identity and close on size, a timeout or a rule: members at 0, 1, 5, 5.5 and 5.8 (size 3, timeout 2) and at 0, 1 and 1.5 (a rule of 2 members).
+# Design B3: batches that keep member identity and close on size, a timeout or a rule:
+# members at 0, 1, 5, 5.5 and 5.8 (size 3, timeout 2) and at 0, 1 and 1.5 (a rule of 2
+# members).
 simulation: {sim_id: B3, factor: 0, random_seed: 42}
+
 arrivals:
   m0: {dist: constant, value: 1, spawn: pack, max_events: 1, first_at: 0}
   m1: {dist: constant, value: 1, spawn: pack, max_events: 1, first_at: 1}
@@ -9,7 +12,13 @@ arrivals:
   ra: {dist: constant, value: 1, spawn: pack_rule, max_events: 1, first_at: 0}
   rb: {dist: constant, value: 1, spawn: pack_rule, max_events: 1, first_at: 1}
   rc: {dist: constant, value: 1, spawn: pack_rule, max_events: 1, first_at: 1.5}
+
 tasks:
-  pack: {batch: {name: box, size: 3, timeout: 2}, payload: {event_type: packed}}
-  pack_rule: {batch: {name: boxr, size: 3, timeout: 2, close_when: "batch.size >= 2"}, payload: {event_type: packed}}
+  pack:
+    batch: {name: box, size: 3, timeout: 2}
+    payload: {event_type: packed}
+  pack_rule:
+    batch: {name: boxr, size: 3, timeout: 2, close_when: "batch.size >= 2"}
+    payload: {event_type: packed}
+
 run: {until: 30}

@@ -15,7 +15,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   stations:
@@ -26,16 +26,23 @@ arrivals:
 tasks:
   running:
     service_time: 300
-    payload: {station: {gen: entity}, state: running}
-    next: {weights: {running: 85, slow: 15}}
+    payload:
+      station: {gen: entity}
+      state: running
+    next:
+      weights: {running: 85, slow: 15}
   slow:
     service_time: 120
-    payload: {station: {gen: entity}, state: slow}
-    next: {weights: {running: 55, slow: 25, stopped: 20}}
+    payload:
+      station: {gen: entity}
+      state: slow
+    next:
+      weights: {running: 55, slow: 25, stopped: 20}
   stopped:
     service_time: 240
-    payload: {station: {gen: entity}, state: stopped}
+    payload:
+      station: {gen: entity}
+      state: stopped
     next: slow
 
-run:
-  until: 2 hours
+run: {until: 2 hours}

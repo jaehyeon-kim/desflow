@@ -15,12 +15,15 @@
 simulation: {sim_id: Pipes, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
-stores: {pipe: {}}
+stores:
+  pipe: {}
 
 arrivals:
-  generator: {gap: {gen: integer, bounds: [6, 10]}, spawn: speak}
+  generator:
+    gap: {gen: integer, bounds: [6, 10]}
+    spawn: speak
   consumer: {initial: 1, spawn: listen}
 
 tasks:
@@ -32,11 +35,21 @@ tasks:
       wait: false
       item:
         sent: {gen: expr, expr: t}
-        text: {gen: format, template: "Generator A says hello at {now:g}", names: {now: {gen: expr, expr: t}}}
+        text:
+          gen: format
+          template: "Generator A says hello at {now:g}"
+          names:
+            now: {gen: expr, expr: t}
   listen:
     get: {store: pipe}
-    payload: {event_type: received, late: {gen: expr, expr: "item.sent < t"}, text: {gen: expr, expr: "item.text"}}
+    payload:
+      event_type: received
+      late: {gen: expr, expr: "item.sent < t"}
+      text: {gen: expr, expr: "item.text"}
     next: busy
-  busy: {service_time: {gen: integer, bounds: [4, 8]}, payload: {event_type: handled}, next: listen}
+  busy:
+    service_time: {gen: integer, bounds: [4, 8]}
+    payload: {event_type: handled}
+    next: listen
 
 run: {until: 100}

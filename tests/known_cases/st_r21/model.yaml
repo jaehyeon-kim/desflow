@@ -1,5 +1,20 @@
-# case ST-R21: a store of capacity 2 and three puts; the third waits and the store holds 2 items.
+# case ST-R21: a store of capacity 2 and three puts; the third waits and the store holds
+# 2 items.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-stores: {s: {current_cap: 2}}
-arrivals: {puts: {initial: 3, spawn: put_it, attributes: {i: {gen: sequence}}}}
-tasks: {put_it: {put: {store: s, item: {gen: expr, expr: "attr.i"}}, payload: {event_type: put}}}
+
+stores:
+  s: {current_cap: 2}
+
+arrivals:
+  puts:
+    initial: 3
+    spawn: put_it
+    attributes:
+      i: {gen: sequence}
+
+tasks:
+  put_it:
+    put:
+      store: s
+      item: {gen: expr, expr: "attr.i"}
+    payload: {event_type: put}

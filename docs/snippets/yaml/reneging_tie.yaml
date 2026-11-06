@@ -4,9 +4,7 @@
 # holders.csv with the holder's time, and orders.csv with the order's time and
 # patience.
 # --8<-- [start:tie]
-simulation:
-  sim_id: Shop
-  factor: 0
+simulation: {sim_id: Shop, factor: 0}
 
 resources:
   packers: {current_cap: 1, max_cap: 1}
@@ -16,8 +14,12 @@ services:
   packing: {dist: constant, value: 1}
 
 arrivals:
-  holders: {replay: {path: holders.csv}, spawn: holder}
-  orders: {replay: {path: orders.csv}, spawn: pack}
+  holders:
+    replay: {path: holders.csv}
+    spawn: holder
+  orders:
+    replay: {path: orders.csv}
+    spawn: pack
 
 tasks:
   holder:
@@ -30,6 +32,5 @@ tasks:
     patience: attr.patience  # from the patience column of orders.csv
     payload: {event_type: order_packed}
 
-run:
-  until: 8
+run: {until: 8}
 # --8<-- [end:tie]

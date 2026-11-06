@@ -8,7 +8,8 @@ simulation:
   factor: 0
   random_seed: 42
   # --8<-- [start:environment]
-  # Run on a subclass of DynamicRealtimeEnvironment, from endings_logic.py beside the file
+  # Run on a subclass of DynamicRealtimeEnvironment, from endings_logic.py beside the
+  # file
   environment: !python endings_logic.CountingEnvironment
   # --8<-- [end:environment]
 
@@ -82,7 +83,7 @@ tasks:
     payload: {event_type: swept}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 run:
   until: 1 min

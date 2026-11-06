@@ -15,7 +15,7 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   people: {initial: 10, dist: exponential, rate: 0.02, spawn: person}
@@ -28,7 +28,9 @@ tasks:
       person_id: {gen: sequence, start: 1000}
       name: {gen: fake, method: name}
       city: {gen: one_of, choices: [Phoenix, Boise, Cheyenne, Portland, Kent]}
-      state: {gen: weighted, options: {AZ: 3, ID: 2, WY: 1, OR: 3, WA: 3}}
+      state:
+        gen: weighted
+        options: {AZ: 3, ID: 2, WY: 1, OR: 3, WA: 3}
 
   auction:
     payload:
@@ -45,5 +47,4 @@ tasks:
       price: {gen: integer, bounds: [100, 2000]}
       bid_time: {gen: now}
 
-run:
-  until: 10 min
+run: {until: 10 min}

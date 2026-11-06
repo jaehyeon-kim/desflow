@@ -1,8 +1,32 @@
-# case CV-128: a resource picked by a computed name from a fixed set: a copy of the task per resource.
+# case CV-128: a resource picked by a computed name from a fixed set: a copy of the task
+# per resource.
 simulation: {sim_id: C, factor: 0, random_seed: 42}
-resources: {left: {current_cap: 1}, right: {current_cap: 1}}
-arrivals: {a: {dist: constant, value: 1, spawn: pick, max_events: 4, attributes: {side: {gen: one_of, choices: [left, right]}}}}
+
+resources:
+  left: {current_cap: 1}
+  right: {current_cap: 1}
+
+arrivals:
+  a:
+    dist: constant
+    value: 1
+    spawn: pick
+    max_events: 4
+    attributes:
+      side: {gen: one_of, choices: [left, right]}
+
 tasks:
-  pick: {payload: {event_type: pick}, next: {when: [{condition: "attr.side == 'left'", task: at_left}], default: at_right}}
-  at_left: {resource: left, service_time: 2, payload: {event_type: served_left}}
-  at_right: {resource: right, service_time: 2, payload: {event_type: served_right}}
+  pick:
+    payload: {event_type: pick}
+    next:
+      when:
+        - {condition: "attr.side == 'left'", task: at_left}
+      default: at_right
+  at_left:
+    resource: left
+    service_time: 2
+    payload: {event_type: served_left}
+  at_right:
+    resource: right
+    service_time: 2
+    payload: {event_type: served_right}

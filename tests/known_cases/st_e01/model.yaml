@@ -1,7 +1,21 @@
-# case ST-E01: test_event_queue_empty: while env.now < 2 the process logs env.now and waits 1; run(10) with the event queue empty at 2: the clock ends at 10.
+# case ST-E01: test_event_queue_empty: while env.now < 2 the process logs env.now and
+# waits 1; run(10) with the event queue empty at 2: the clock ends at 10.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: pem}}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
 tasks:
-  pem: {payload: {event_type: now, now: {gen: expr, expr: t}}, next: pause}
-  pause: {service_time: 1, payload: {event_type: tick}, next: {when: [{condition: "t < 2", task: pem}]}}
+  pem:
+    payload:
+      event_type: now
+      now: {gen: expr, expr: t}
+    next: pause
+  pause:
+    service_time: 1
+    payload: {event_type: tick}
+    next:
+      when:
+        - {condition: "t < 2", task: pem}
+
 run: {until: 10}

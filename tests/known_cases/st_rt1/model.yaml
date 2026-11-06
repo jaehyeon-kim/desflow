@@ -1,5 +1,14 @@
-# case ST-RT1: test_rt with factor 0.1: two processes, run(2) takes 0.2 s of wall time (0.2 to below 0.22). The test's sleeps stand for work the blueprint does not have.
+# case ST-RT1: test_rt with factor 0.1: two processes, run(2) takes 0.2 s of wall time
+# (0.2 to below 0.22). The test's sleeps stand for work the blueprint does not have.
 simulation: {sim_id: T, factor: 0.1, strict: true, random_seed: 42}
-arrivals: {a: {initial: 2, spawn: pem}}
-tasks: {pem: {service_time: 1, payload: {event_type: tick}, next: pem}}
+
+arrivals:
+  a: {initial: 2, spawn: pem}
+
+tasks:
+  pem:
+    service_time: 1
+    payload: {event_type: tick}
+    next: pem
+
 run: {until: 2}

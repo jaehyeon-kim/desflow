@@ -2,9 +2,7 @@
 # closed formula describes.
 # Check it with: desflow explain check_against_theory_constant.yaml
 # --8<-- [start:unsupported]
-simulation:
-  sim_id: Shop
-  factor: 0
+simulation: {sim_id: Shop, factor: 0}
 
 arrivals:
   orders: {dist: exponential, rate: 1.5, spawn: pack_order}

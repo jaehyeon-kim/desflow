@@ -1,12 +1,9 @@
 # The tasks and processes of the Tasks and Processes page, as a blueprint.
 # Run it with: desflow run tasks.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 1
+simulation: {sim_id: Shop, factor: 0, random_seed: 1}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   packers: {current_cap: 1, max_cap: 3}
@@ -57,5 +54,4 @@ processes:
     kwargs: {resource: packers, every: 50, duration: 5}
 # --8<-- [end:process]
 
-run:
-  until: 3 min
+run: {until: 3 min}

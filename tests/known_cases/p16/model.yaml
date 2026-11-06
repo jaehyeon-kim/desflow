@@ -1,4 +1,15 @@
 # case P16: set a constant attribute.
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: t}}
-tasks: {t: {set: {stage: 2}, payload: {event_type: set}, next: u}, u: {payload: {event_type: read, stage: {gen: attr, name: stage}}}}
+
+arrivals:
+  a: {initial: 1, spawn: t}
+
+tasks:
+  t:
+    set: {stage: 2}
+    payload: {event_type: set}
+    next: u
+  u:
+    payload:
+      event_type: read
+      stage: {gen: attr, name: stage}

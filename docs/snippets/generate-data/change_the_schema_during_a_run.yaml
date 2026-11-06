@@ -6,7 +6,8 @@
 # egress receives, so the labels say what changed and when without mixing into the data.
 #
 # Needs: nothing.
-# Run it with: desflow run docs/snippets/generate-data/change_the_schema_during_a_run.yaml
+# Run it with: desflow run
+# docs/snippets/generate-data/change_the_schema_during_a_run.yaml
 
 simulation:
   sim_id: Shop
@@ -15,9 +16,8 @@ simulation:
   logical_start_time: 2026-01-01T00:00:00
 
 egress:
-  - type: Console
-  - type: Console
-    when: labels
+  - {type: Console}
+  - {type: Console, when: labels}
 
 arrivals:
   orders: {dist: constant, value: 10, spawn: order}
@@ -38,9 +38,11 @@ tasks:
         omit_when: "t < 120"
 
 scenario:
-  - {at: 60, record: {change: field_added, field: currency}}
-  - {at: 120, record: {change: field_renamed, field: total, to: amount}}
-  - {at: 180, record: {change: field_retyped, field: amount, to: text}}
+  - at: 60
+    record: {change: field_added, field: currency}
+  - at: 120
+    record: {change: field_renamed, field: total, to: amount}
+  - at: 180
+    record: {change: field_retyped, field: amount, to: text}
 
-run:
-  until: 240
+run: {until: 240}

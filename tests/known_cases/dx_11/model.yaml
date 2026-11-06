@@ -1,8 +1,20 @@
-# DX-11: simpy_forms.py customers (simpy_fixed_arrivals.yaml): three customers, one every 2 s, no more. Same form as DS-A1.
+# DX-11: simpy_forms.py customers (simpy_fixed_arrivals.yaml): three customers, one
+# every 2 s, no more. Same form as DS-A1.
 simulation: {sim_id: Bank, factor: 0}
-resources: {counter: {current_cap: 1}}
-services: {serving: {dist: constant, value: 3}}
-arrivals: {customers: {dist: constant, value: 2, spawn: serve, max_events: 3}}
+
+resources:
+  counter: {current_cap: 1}
+
+services:
+  serving: {dist: constant, value: 3}
+
+arrivals:
+  customers: {dist: constant, value: 2, spawn: serve, max_events: 3}
+
 tasks:
-  serve: {resource: counter, service: serving, payload: {customer: served}}
+  serve:
+    resource: counter
+    service: serving
+    payload: {customer: served}
+
 run: {until: 20}

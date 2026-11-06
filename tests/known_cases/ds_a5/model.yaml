@@ -1,5 +1,11 @@
-# Design A5: turn one source off and on from a flow (drop mode; use off_mode restart for the second program). Source: research/yaml-only/programs/A5.py: `src` is half() (gap 1, off at 2.5, on at 5.5, an arrival that finds the source off is dropped) and `src2` is restart(2, 3, 7) (gap 2, off at 3, on at 7, turning it off drops the pending arrival and turning it on starts a whole new gap). Both run to 12, the end of restart().
+# Design A5: turn one source off and on from a flow (drop mode; use off_mode restart for
+# the second program). Source: research/yaml-only/programs/A5.py: `src` is half() (gap
+# 1, off at 2.5, on at 5.5, an arrival that finds the source off is dropped) and `src2`
+# is restart(2, 3, 7) (gap 2, off at 3, on at 7, turning it off drops the pending
+# arrival and turning it on starts a whole new gap). Both run to 12, the end of
+# restart().
 simulation: {sim_id: A5, factor: 0, random_seed: 42}
+
 arrivals:
   src: {dist: constant, value: 1, spawn: t, off_mode: drop}
   switch_off: {dist: constant, value: 2.5, spawn: src_off, max_events: 1}
@@ -7,10 +13,21 @@ arrivals:
   src2: {dist: constant, value: 2, spawn: t, off_mode: restart}
   switch2_off: {dist: constant, value: 3, spawn: src2_off, max_events: 1}
   switch2_on: {dist: constant, value: 7, spawn: src2_on, max_events: 1}
+
 tasks:
-  t: {payload: {event_type: arrival}}
-  src_off: {payload: {event_type: "off"}, deactivate: src}
-  src_on: {payload: {event_type: "on"}, activate: src}
-  src2_off: {payload: {event_type: "off"}, deactivate: src2}
-  src2_on: {payload: {event_type: "on"}, activate: src2}
+  t:
+    payload: {event_type: arrival}
+  src_off:
+    payload: {event_type: "off"}
+    deactivate: src
+  src_on:
+    payload: {event_type: "on"}
+    activate: src
+  src2_off:
+    payload: {event_type: "off"}
+    deactivate: src2
+  src2_on:
+    payload: {event_type: "on"}
+    activate: src2
+
 run: {until: 12}

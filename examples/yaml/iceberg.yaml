@@ -56,5 +56,4 @@ tasks:
     resource: packers
     payload: {path_id: Shop.service.packing, status: finished}
 
-run:
-  until: 1 day
+run: {until: 1 day}

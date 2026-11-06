@@ -1,6 +1,16 @@
-# case ST-P02: test_target: process.target of a process waiting on a timeout is that timeout; the interrupt reaches it only when its target is the timeout.
+# case ST-P02: test_target: process.target of a process waiting on a timeout is that
+# timeout; the interrupt reaches it only when its target is the timeout.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-arrivals: {w: {initial: 1, spawn: waiter}, look: {initial: 1, spawn: look}}
+
+arrivals:
+  w: {initial: 1, spawn: waiter}
+  look: {initial: 1, spawn: look}
+
 tasks:
-  waiter: {wait: {timeout: 5}, on_interrupt: abandon, payload: {event_type: waited}}
-  look: {payload: {event_type: look}, interrupt: {task: waiter, where: "process.target == 'timeout'"}}
+  waiter:
+    wait: {timeout: 5}
+    on_interrupt: abandon
+    payload: {event_type: waited}
+  look:
+    payload: {event_type: look}
+    interrupt: {task: waiter, where: "process.target == 'timeout'"}

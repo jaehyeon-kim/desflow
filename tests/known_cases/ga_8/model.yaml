@@ -1,9 +1,29 @@
-# GA-8: an arrival rate changes while the run continues, from a Kafka message. The order arrivals of GA-1 take a rate change from a Kafka topic (yaml-only.md Part 4). The test runs it unpaced to 7200 s with the ingress taken away, so it needs no broker.
+# GA-8: an arrival rate changes while the run continues, from a Kafka message. The order
+# arrivals of GA-1 take a rate change from a Kafka topic (yaml-only.md Part 4). The test
+# runs it unpaced to 7200 s with the ingress taken away, so it needs no broker.
 simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
 stats: {level: minimal}
-ingress: [{type: Kafka, config: {bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}", topic: sim-config}}]
-resources: {packers: {current_cap: 3}}
-services: {pack: {dist: normal, mean: 240, std: 60}}
-arrivals: {orders: {dist: exponential, rate: 0.015, spawn: order}}
-tasks: {order: {resource: packers, service: pack, payload: {event_type: packed}}}
+
+ingress:
+  - type: Kafka
+    config:
+      bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}"
+      topic: sim-config
+
+resources:
+  packers: {current_cap: 3}
+
+services:
+  pack: {dist: normal, mean: 240, std: 60}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.015, spawn: order}
+
+tasks:
+  order:
+    resource: packers
+    service: pack
+    payload: {event_type: packed}
+
 run: {until: 7200}

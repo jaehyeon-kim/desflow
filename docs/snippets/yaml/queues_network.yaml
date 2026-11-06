@@ -1,10 +1,7 @@
 # Queues and Capacity: the busy shop as a network. Packed orders are checked, and
 # one in ten goes back to be packed again.
 # Explain it with: desflow explain queues_network.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 # --8<-- [start:network]
 arrivals:
@@ -29,13 +26,13 @@ tasks:
     resource: checkers
     payload: {event_type: order_checked}
     # Nine in ten pass; the tenth is packed again
-    next: {weights: {ship_order: 9, pack_order: 1}}
+    next:
+      weights: {ship_order: 9, pack_order: 1}
   ship_order:
     payload: {event_type: order_shipped}
 # --8<-- [end:network]
 
 egress:
-  - type: Console
+  - {type: Console}
 
-run:
-  until: 1 h
+run: {until: 1 h}

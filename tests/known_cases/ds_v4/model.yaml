@@ -1,10 +1,52 @@
-# Design V4: a value drawn per entity, read by a priority. Source: research/yaml-only/programs/V4.py: four jobs created at 0 draw a value in creation order and wait on one priority unit that serves 1 s each. Each job draws `x` as the design writes it, from an exponential distribution of rate 2; the comparison with the program fixes the draws to the program's 3, 1, 2 and 0 (`DRAWS` of original.py).
+# Design V4: a value drawn per entity, read by a priority. Source:
+# research/yaml-only/programs/V4.py: four jobs created at 0 draw a value in creation
+# order and wait on one priority unit that serves 1 s each. Each job draws `x` as the
+# design writes it, from an exponential distribution of rate 2; the comparison with the
+# program fixes the draws to the program's 3, 1, 2 and 0 (`DRAWS` of original.py).
 simulation: {sim_id: V4, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1, queue: priority}}
+
+resources:
+  m: {current_cap: 1, queue: priority}
+
 arrivals:
-  j0: {dist: constant, value: 1, spawn: job, max_events: 1, first_at: 0, attributes: {x: {gen: sample, dist: exponential, rate: 2}}}
-  j1: {dist: constant, value: 1, spawn: job, max_events: 1, first_at: 0, attributes: {x: {gen: sample, dist: exponential, rate: 2}}}
-  j2: {dist: constant, value: 1, spawn: job, max_events: 1, first_at: 0, attributes: {x: {gen: sample, dist: exponential, rate: 2}}}
-  j3: {dist: constant, value: 1, spawn: job, max_events: 1, first_at: 0, attributes: {x: {gen: sample, dist: exponential, rate: 2}}}
+  j0:
+    dist: constant
+    value: 1
+    spawn: job
+    max_events: 1
+    first_at: 0
+    attributes:
+      x: {gen: sample, dist: exponential, rate: 2}
+  j1:
+    dist: constant
+    value: 1
+    spawn: job
+    max_events: 1
+    first_at: 0
+    attributes:
+      x: {gen: sample, dist: exponential, rate: 2}
+  j2:
+    dist: constant
+    value: 1
+    spawn: job
+    max_events: 1
+    first_at: 0
+    attributes:
+      x: {gen: sample, dist: exponential, rate: 2}
+  j3:
+    dist: constant
+    value: 1
+    spawn: job
+    max_events: 1
+    first_at: 0
+    attributes:
+      x: {gen: sample, dist: exponential, rate: 2}
+
 tasks:
-  job: {resource: m, service_time: 1, priority: "attr.x", payload: {event_type: served, x: {gen: attr, name: x}}}
+  job:
+    resource: m
+    service_time: 1
+    priority: "attr.x"
+    payload:
+      event_type: served
+      x: {gen: attr, name: x}

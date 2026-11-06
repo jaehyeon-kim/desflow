@@ -1,8 +1,81 @@
-# case ST-C10 to ST-C13: test_iand_with_and_cond, test_iand_with_or_cond, test_ior_with_or_cond, test_ior_with_and_cond, one after the other. The blueprint form is the group that the operator builds.
+# case ST-C10 to ST-C13: test_iand_with_and_cond, test_iand_with_or_cond,
+# test_ior_with_or_cond, test_ior_with_and_cond, one after the other. The blueprint form
+# is the group that the operator builds.
 simulation: {sim_id: T, factor: 0, random_seed: 42}
-arrivals: {a: {initial: 1, spawn: iand_and}}
+
+arrivals:
+  a: {initial: 1, spawn: iand_and}
+
 tasks:
-  iand_and: {wait: {all: {t1: {timeout: {after: 1, value: 1}}, t2: {timeout: {after: 2, value: 2}}, t0: {timeout: {after: 0, value: 0}}}}, payload: {event_type: done, at: {gen: expr, expr: t}, values: [{gen: expr, expr: "wait.t1.value"}, {gen: expr, expr: "wait.t2.value"}, {gen: expr, expr: "wait.t0.value"}], in_result: {gen: expr, expr: "[wait.t1.done, wait.t2.done, wait.t0.done]"}}, next: iand_or}
-  iand_or: {wait: {all: {either: {any: {t1: {timeout: {after: 1, value: 1}}, t2: {timeout: {after: 2, value: 2}}}}, t0: {timeout: {after: 0, value: 0}}}}, payload: {event_type: done, at: {gen: expr, expr: t}, values: [{gen: expr, expr: "wait.t1.value"}, {gen: expr, expr: "wait.t0.value"}], in_result: {gen: expr, expr: "[wait.t1.done, wait.t2.done, wait.t0.done]"}}, next: ior_or}
-  ior_or: {wait: {any: {either: {any: {t1: {timeout: {after: 1, value: 1}}, t2: {timeout: {after: 2, value: 2}}}}, t0: {timeout: {after: 0, value: 0}}}}, payload: {event_type: done, at: {gen: expr, expr: t}, values: [{gen: expr, expr: "wait.t0.value"}], in_result: {gen: expr, expr: "[wait.t1.done, wait.t2.done, wait.t0.done]"}}, next: ior_and}
-  ior_and: {wait: {any: {both: {all: {t1: {timeout: {after: 1, value: 1}}, t2: {timeout: {after: 2, value: 2}}}}, t0: {timeout: {after: 0, value: 0}}}}, payload: {event_type: done, at: {gen: expr, expr: t}, values: [{gen: expr, expr: "wait.t0.value"}], in_result: {gen: expr, expr: "[wait.t1.done, wait.t2.done, wait.t0.done]"}}}
+  iand_and:
+    wait:
+      all:
+        t1:
+          timeout: {after: 1, value: 1}
+        t2:
+          timeout: {after: 2, value: 2}
+        t0:
+          timeout: {after: 0, value: 0}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      values:
+        - {gen: expr, expr: "wait.t1.value"}
+        - {gen: expr, expr: "wait.t2.value"}
+        - {gen: expr, expr: "wait.t0.value"}
+      in_result: {gen: expr, expr: "[wait.t1.done, wait.t2.done, wait.t0.done]"}
+    next: iand_or
+  iand_or:
+    wait:
+      all:
+        either:
+          any:
+            t1:
+              timeout: {after: 1, value: 1}
+            t2:
+              timeout: {after: 2, value: 2}
+        t0:
+          timeout: {after: 0, value: 0}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      values:
+        - {gen: expr, expr: "wait.t1.value"}
+        - {gen: expr, expr: "wait.t0.value"}
+      in_result: {gen: expr, expr: "[wait.t1.done, wait.t2.done, wait.t0.done]"}
+    next: ior_or
+  ior_or:
+    wait:
+      any:
+        either:
+          any:
+            t1:
+              timeout: {after: 1, value: 1}
+            t2:
+              timeout: {after: 2, value: 2}
+        t0:
+          timeout: {after: 0, value: 0}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      values:
+        - {gen: expr, expr: "wait.t0.value"}
+      in_result: {gen: expr, expr: "[wait.t1.done, wait.t2.done, wait.t0.done]"}
+    next: ior_and
+  ior_and:
+    wait:
+      any:
+        both:
+          all:
+            t1:
+              timeout: {after: 1, value: 1}
+            t2:
+              timeout: {after: 2, value: 2}
+        t0:
+          timeout: {after: 0, value: 0}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      values:
+        - {gen: expr, expr: "wait.t0.value"}
+      in_result: {gen: expr, expr: "[wait.t1.done, wait.t2.done, wait.t0.done]"}

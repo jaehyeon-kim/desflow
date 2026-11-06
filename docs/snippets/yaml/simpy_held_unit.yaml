@@ -14,11 +14,9 @@ processes:
     kwargs: {job: job-3, start: 1, priority: 0, first: 1, second: 1}
 
 tasks:
-  repaired:
-    payload: !python simpy_forms.repaired
+  repaired: {payload: !python simpy_forms.repaired}
 
-run:
-  until: 20
+run: {until: 20}
 
 egress:
-  - type: Console
+  - {type: Console}

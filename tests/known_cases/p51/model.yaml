@@ -1,7 +1,25 @@
 # case P51: a setup or changeover time that depends on the previous job.
 simulation: {sim_id: P, factor: 0, random_seed: 42}
-resources: {m: {current_cap: 1}}
+
+resources:
+  m: {current_cap: 1}
+
 variables: {last_kind: none}
-arrivals: {a: {dist: constant, value: 1, spawn: job, max_events: 8, attributes: {kind: {gen: one_of, choices: [a, b]}}}}
+
+arrivals:
+  a:
+    dist: constant
+    value: 1
+    spawn: job
+    max_events: 8
+    attributes:
+      kind: {gen: one_of, choices: [a, b]}
+
 tasks:
-  job: {resource: m, service_time: "(2 if registry['P.variables.last_kind'] != attr.kind else 0) + 3", payload: {event_type: done}, on: [{path: P.variables.last_kind, value: {gen: expr, expr: "attr.kind"}}]}
+  job:
+    resource: m
+    service_time: "(2 if registry['P.variables.last_kind'] != attr.kind else 0) + 3"
+    payload: {event_type: done}
+    on:
+      - path: P.variables.last_kind
+        value: {gen: expr, expr: "attr.kind"}
