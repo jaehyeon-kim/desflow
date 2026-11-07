@@ -1,0 +1,11 @@
+simulation: {sim_id: A3, factor: 0, random_seed: 42}
+arrivals:
+  a:
+    gap: 5
+    first_at: 5
+    spawn: member
+    group: {gen: sample, dist: poisson, mean: 2}
+tasks:
+  member:
+    payload: {event_type: member}
+run: {until: 205}

@@ -1,0 +1,41 @@
+"""set_capacity from a flow, with the Builder API.
+
+The task `grow` raises the capacity of resource `m` from 1 to 3 at time 2,
+which lets the job waiting for `m` start at once.
+
+Run with `python builder.py`: prints each record as one JSON line.
+"""
+
+from datetime import datetime, timezone
+
+from desflow import ConsoleEgress, SimulationContext
+
+app = (
+    SimulationContext(
+        sim_id="P",
+        factor=0,  # unpaced
+        random_seed=42,
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    .add_egress(ConsoleEgress(format="json"))
+    .add_resource("m", current_cap=1, max_cap=3)
+    .add_service("hold", dist="constant", value=5)
+    .add_arrival("a", dist="constant", value=1, first_at=0, max_events=2, spawn="job")
+    .add_arrival("boss", dist="constant", value=1, first_at=2, max_events=1, spawn="grow")
+)
+
+
+@app.task(service_id="hold", resource_id="m")
+def job(task_id):
+    """Holds one unit of m for 5 seconds."""
+    return {"event_type": "done"}
+
+
+@app.task(on=[{"path": "P.resources.m.current_cap", "value": 3}])
+def grow(task_id):
+    """Publishes grow, then raises the capacity of m to 3."""
+    return {"event_type": "grow"}
+
+
+if __name__ == "__main__":
+    app.run(until=20)

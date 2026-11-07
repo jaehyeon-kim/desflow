@@ -1,0 +1,13 @@
+{
+  "fault": "K9: a change whose optional key the model does not have (`arrivals.a.max_events`) is applied with the key it has (`run.until`)",
+  "task": "ds-a3",
+  "tasks": "main",
+  "counts": {
+    "K9": 0
+  },
+  "notes": {
+    "K9": [
+      "firings 40 to 20: failed by"
+    ]
+  }
+}

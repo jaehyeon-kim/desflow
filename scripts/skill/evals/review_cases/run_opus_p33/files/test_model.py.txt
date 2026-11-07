@@ -1,0 +1,88 @@
+"""Tests for the set_capacity-from-a-flow model in its three forms.
+
+Run with `pytest test_model.py` from this folder.
+"""
+
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).resolve().parent
+
+
+def _desflow() -> str:
+    """The desflow command beside this Python, or the one on PATH."""
+    beside = Path(sys.executable).parent / "desflow"
+    return str(beside) if beside.exists() else shutil.which("desflow")
+
+
+def _records(cmd):
+    out = subprocess.run(cmd, cwd=HERE, capture_output=True, text=True, check=True)
+    return [json.loads(line) for line in out.stdout.splitlines() if line.startswith("{")]
+
+
+@pytest.fixture(scope="module")
+def forms():
+    return {
+        "yaml": _records([_desflow(), "run", "model.yaml"]),
+        "builder": _records([sys.executable, "builder.py"]),
+        "low_level": _records([sys.executable, "low_level.py"]),
+    }
+
+
+@pytest.fixture(scope="module")
+def records(forms):
+    return forms["yaml"]
+
+
+def _at(records, key, field, value):
+    """The sim time of the record of `key` whose value has field == value."""
+    [rec] = [r for r in records if r["key"] == key and r["value"].get(field) == value]
+    return rec["sim_ts"]
+
+
+def test_three_forms_give_the_same_records(forms):
+    assert forms["yaml"] == forms["builder"] == forms["low_level"]
+
+
+def test_record_list(records):
+    got = [(r["sim_ts"], r["key"], r["task"], r["instance"], r["value"]) for r in records]
+    hold = "P.service.hold"
+    assert got == [
+        (0.0, "a-1", "job", 0, {"path_id": hold, "status": "queued"}),
+        (0.0, "a-1", "job", 0, {"path_id": hold, "status": "started"}),
+        (1.0, "a-2", "job", 1, {"path_id": hold, "status": "queued"}),
+        (2.0, "boss-1", "grow", 0, {"event_type": "grow"}),
+        (2.0, "a-2", "job", 1, {"path_id": hold, "status": "started"}),
+        (5.0, "a-1", "job", 0, {"event_type": "done"}),
+        (7.0, "a-2", "job", 1, {"event_type": "done"}),
+    ]
+
+
+def test_second_job_waits_until_capacity_grows(records):
+    # With capacity 1 it would wait for a-1 to finish at 5; grow frees it at 2.
+    assert _at(records, "a-2", "status", "queued") == 1.0
+    assert _at(records, "a-2", "status", "started") == 2.0
+    assert _at(records, "boss-1", "event_type", "grow") == 2.0
+
+
+def test_grow_is_published_before_the_waiting_job_starts(records):
+    keys = [(r["key"], r["value"].get("event_type") or r["value"].get("status")) for r in records]
+    assert keys.index(("boss-1", "grow")) < keys.index(("a-2", "started"))
+
+
+def test_each_job_holds_m_for_5_seconds(records):
+    for key in ("a-1", "a-2"):
+        held = _at(records, key, "event_type", "done") - _at(records, key, "status", "started")
+        assert held == 5.0
+
+
+def test_counts(records):
+    done = [r for r in records if r["value"].get("event_type") == "done"]
+    grow = [r for r in records if r["value"].get("event_type") == "grow"]
+    assert len(done) == 2 and len(grow) == 1
+    assert max(r["sim_ts"] for r in records) <= 20.0

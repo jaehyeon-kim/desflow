@@ -1,0 +1,12 @@
+{
+  "fault": "K7: a time the request gives in minutes written in the Low-level form as a bare number with no unit comment",
+  "task": "unit_time",
+  "counts": {
+    "K7": 1
+  },
+  "evidence": {
+    "K7": [
+      "low_level.py:5: timeout 300, the request gives 'the job time' in minutes"
+    ]
+  }
+}

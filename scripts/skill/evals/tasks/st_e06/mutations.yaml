@@ -1,0 +1,19 @@
+# Three changes to the YAML an agent writes for task ST-E06: a rate, a weight or share,
+# a capacity, or the nearest time or count, or, where no number the request names
+# changes the records, one step of the flow. Each change tries the keys of `keys` that
+# exist in model.yaml, in order, and keeps the first that alters the records (grade.py).
+
+task: ST-E06
+
+mutations:
+  - name: end 3.141592 to 2.5
+    changes:
+      - {keys: [run.until], new: 2.5}
+  - name: wait 1 to 2
+    changes:
+      - keys: [tasks.pem_wait.service_time, "services.{tasks.pem_wait.service}.value",
+               tasks.pem_wait.wait.timeout]
+        new: 2
+  - name: two entities
+    changes:
+      - {keys: [arrivals.a.initial, arrivals.a.count, arrivals.a.max_events], new: 2}

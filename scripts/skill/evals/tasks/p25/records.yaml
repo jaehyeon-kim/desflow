@@ -1,0 +1,27 @@
+# Records of task P25, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: P25
+
+until: 300
+
+run_end: 300
+
+records:
+  - name: first make at 3
+    match: {task: make, key: a-1, value.event_type: made}
+    at: 3
+  - name: 30 entities pass once each
+    match: {task: pass, value.event_type: pass}
+    count: 30
+  - name: some entity is reworked
+    match: {task: make, value.event_type: made}
+    count: {min: 31}
+  - name: a check follows every make
+    match: {task: check, value.event_type: checked}
+    count: {min: 31}
+
+varies:
+  - name: which entities are reworked changes with the seed
+    match: {task: make}
+    project: [key, sim_ts]

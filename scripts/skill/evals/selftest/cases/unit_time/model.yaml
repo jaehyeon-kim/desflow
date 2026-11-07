@@ -1,0 +1,25 @@
+# Task P33: a flow raises the capacity of a resource.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+resources:
+  m: {current_cap: 1, max_cap: 3}
+
+services:
+  work: {dist: constant, value: 300}
+
+arrivals:
+  a: {dist: constant, value: 1 s, spawn: job, max_events: 2, first_at: 0}
+  boss: {dist: constant, value: 2 s, spawn: grow, max_events: 1}
+
+tasks:
+  job:
+    resource: m
+    service: work
+    payload: {event_type: done}
+  grow:
+    payload: {event_type: grow}
+    on:
+      - {path: P.resources.m.current_cap, value: 3}
+
+# The original runs until 20, well after the last job is done at 7.
+run: {until: 20 s}

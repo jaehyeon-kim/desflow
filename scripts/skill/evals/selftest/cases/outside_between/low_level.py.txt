@@ -1,0 +1,95 @@
+"""DS-A5: Turn one source off and on from a flow.
+
+Low-level form: plain SimPy on a `DynamicRealtimeEnvironment`, which publishes each
+record with `publish_event`.
+"""
+
+from desflow import DynamicRealtimeEnvironment
+
+PROCS: dict = {}  # entity key -> its process
+UNTIL = 12
+
+
+def build(env: DynamicRealtimeEnvironment) -> None:
+    PROCS.clear()
+
+    def L(key, task, payload):
+        env.publish_event(key, payload, task=task)
+
+    st = {"on": True}
+    n = [0]
+
+    def src():
+        while True:
+            yield env.timeout(1)
+            if st["on"]:
+                n[0] += 1
+                L(f"src-{n[0]}", "t", {"event_type": "arrival"})
+
+    def ctl():
+        yield env.timeout(2.5)
+        st["on"] = False
+        L("switch_off-1", "src_off", {"event_type": "off"})
+        yield env.timeout(3)
+        st["on"] = True
+        L("switch_on-1", "src_on", {"event_type": "on"})
+
+    n2 = [0]
+    on2 = {"on": True}
+    changed2 = [env.event()]
+
+    def switch2(on):
+        on2["on"] = on
+        event, changed2[0] = changed2[0], env.event()
+        event.succeed()
+
+    def src2():
+        # off_mode restart: the source waits for the gap or a change of the source, so
+        # turning it off drops the pending arrival and turning it on starts a new gap
+        while True:
+            while not on2["on"]:
+                yield changed2[0]
+            gap = env.timeout(2)
+            yield gap | changed2[0]
+            if gap.processed:
+                n2[0] += 1
+                L(f"src2-{n2[0]}", "t", {"event_type": "arrival"})
+
+    def ctl2():
+        yield env.timeout(3)
+        switch2(False)
+        L("switch2_off-1", "src2_off", {"event_type": "off"})
+        yield env.timeout(4)
+        switch2(True)
+        L("switch2_on-1", "src2_on", {"event_type": "on"})
+
+    env.process(src())
+    env.process(ctl())
+    env.process(src2())
+    env.process(ctl2())
+
+
+if __name__ == "__main__":
+    from desflow import ConsoleEgress
+
+    SETTINGS = globals()
+    ENV = DynamicRealtimeEnvironment(
+        initial_time=SETTINGS.get("INITIAL_TIME", 0.0),
+        factor=SETTINGS.get("FACTOR", 0.0),
+        strict=SETTINGS.get("STRICT", False),
+        **SETTINGS.get("ENVIRONMENT", {}),
+    )
+    if SETTINGS.get("PARAMS") is not None:
+        ENV.registry.register_sim_parameter(SETTINGS["PARAMS"])
+    ENV.setup_egress([ConsoleEgress(format="json")], lag_monitor_interval=None)
+    if SETTINGS.get("STATS") is not None:
+        LEVEL, *INTERVAL = (STATS,) if isinstance(STATS, str) else STATS
+        ENV.setup_stats(SETTINGS["PARAMS"].sim_id, LEVEL, *INTERVAL)
+    MADE = build(ENV)
+    try:
+        if callable(MADE):
+            MADE()
+        else:
+            ENV.run(until=MADE if MADE is not None else UNTIL)
+    finally:
+        ENV.teardown()

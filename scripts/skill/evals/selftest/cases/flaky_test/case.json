@@ -1,0 +1,21 @@
+{
+  "fault": "BASE: a test that passes, fails and passes in the three runs on the unchanged model is flaky, counted for neither BASE nor K12, and written to tests.json",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "BASE": 0,
+    "K9": 0,
+    "K12": 0
+  },
+  "notes": {
+    "BASE": [
+      "test_model.py::test_fails_every_other_run is flaky on the agent's own model (its runs are in tests.json)"
+    ]
+  },
+  "facts": {
+    "tests.json": [
+      "\"outcome\": \"flaky\"",
+      "\"PASSED\",\n          \"FAILED\",\n          \"PASSED\""
+    ]
+  }
+}

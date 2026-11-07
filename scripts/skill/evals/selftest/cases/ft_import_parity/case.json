@@ -1,0 +1,15 @@
+{
+  "fault": "round 3 P2: a parity test reads the Builder records computed at the module's import; the plugin saw the YAML form only",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K9": 0,
+    "BASE": 0
+  },
+  "forms": {
+    "test_model.py::test_yaml_and_builder_give_the_same_records": [
+      "builder",
+      "yaml"
+    ]
+  }
+}

@@ -455,8 +455,8 @@ Each event becomes one row of a file, and the two fields of `value`, `path_id` a
             ParquetStorageEgress,
             Sampler,
             SimParameter,
+            time_to_seconds,
         )
-        from desflow.utils import time_to_seconds
 
         logging.basicConfig(
             level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"

@@ -16,6 +16,7 @@ from desflow.connectors.egress.base import (
     drop_reserved_keys,
     group_rows,
     load_arrow,
+    require_packages,
     warn_skipped,
     write_error,
     rows_table,
@@ -235,7 +236,11 @@ class JsonlStorageEgress(BaseEgress):
                 first write to it.
             path_router: A function taking a dict payload and returning a string path,
                 or None to drop the record.
+
+        Raises:
+            ImportError: If pyarrow is not installed (the `parquet` extra).
         """
+        require_packages("JsonlStorageEgress", "parquet", "pyarrow")
         _check_filesystem(filesystem)
         self.default_path = default_path
         self.filesystem = filesystem
@@ -416,7 +421,11 @@ class ParquetStorageEgress(BaseEgress):
                 first write to it.
             path_router: A function taking a dict payload and returning a string path,
                 or None to drop the record.
+
+        Raises:
+            ImportError: If pyarrow is not installed (the `parquet` extra).
         """
+        require_packages("ParquetStorageEgress", "parquet", "pyarrow")
         _check_filesystem(filesystem)
         self.default_path = default_path
         self.filesystem = filesystem

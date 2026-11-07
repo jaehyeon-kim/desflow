@@ -1,0 +1,8 @@
+{
+  "fault": "N10: K7's run end read from run.segments: st_rt2 whose run end is set only by its last segment",
+  "task": "st-rt2",
+  "tasks": "main",
+  "counts": {
+    "K7": 0
+  }
+}

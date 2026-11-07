@@ -1,0 +1,25 @@
+# Records of task GD-M2, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: GD-M2
+
+until: 5
+
+run_end: 5
+
+records:
+  - name: use done at 1
+    match: {task: use, key: a-1, value.event_type: used}
+    at: 1
+  - name: in use 1 at 0
+    match: {stream_type: telemetry, path_id: re:resources\.res\.in_use$, value: 1}
+    at: 0
+    forms: [yaml, builder]
+  - name: in use 0 at 1
+    match: {stream_type: telemetry, path_id: re:resources\.res\.in_use$, value: 0}
+    at: 1
+    forms: [yaml, builder]
+  - name: queue length 0 at 1
+    match: {stream_type: telemetry, path_id: re:resources\.res\.queue_length$, value: 0}
+    at: 1
+    forms: [yaml, builder]

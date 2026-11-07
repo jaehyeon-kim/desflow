@@ -1,0 +1,32 @@
+"""Group arrivals, Builder API. Run: python builder.py"""
+from datetime import datetime, timezone
+
+from desflow import ConsoleEgress, SimulationContext
+from desflow.values.models import Sample
+
+app = (
+    SimulationContext(
+        sim_id="Sim",
+        factor=0,
+        random_seed=42,
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    .add_egress(ConsoleEgress(format="json"))
+    .add_arrival(
+        "a",
+        gap=5,
+        first_at=5,
+        max_events=40,
+        group=Sample(gen="sample", dist="poisson", mean=2),
+        spawn="member",
+    )
+)
+
+
+@app.task()
+def member(task_id):
+    return {"event_type": "member"}
+
+
+if __name__ == "__main__":
+    app.run(until=205)

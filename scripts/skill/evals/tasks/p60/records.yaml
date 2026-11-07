@@ -1,0 +1,20 @@
+# Records of task P60, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: P60
+
+until: 10
+
+run_end: 10
+
+records:
+  - name: split at 0
+    match: {task: split, key: orders-1, value.e: 1}
+    at: 0
+  - name: three items with n 3
+    match: {task: item, value.i: 1, value.n: 3}
+    at: 0
+    count: 3
+  - name: item keys
+    match: {task: item, key: [item-1, item-2, item-3]}
+    count: 3

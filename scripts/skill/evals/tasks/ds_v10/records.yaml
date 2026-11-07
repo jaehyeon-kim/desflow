@@ -1,0 +1,34 @@
+# Records of task DS-V10, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: DS-V10
+
+until: 30
+
+run_end: 30
+
+records:
+  - name: 24 picks
+    match: {task: pick, value.event_type: pick}
+    count: 24
+  - name: first b entity picks at 4
+    match: {task: pick, key: b-1}
+    at: 4
+  - name: every a entity goes to fast
+    match: {task: fast, key: re:^a-}
+    count: 4
+  - name: no a entity goes to slow
+    match: {task: slow, key: re:^a-}
+    count: 0
+  - name: b entities reach fast
+    match: {task: fast, key: re:^b-}
+  - name: b entities reach slow
+    match: {task: slow, key: re:^b-}
+  - name: each b entity ends in fast or slow once
+    match: {task: [fast, slow], key: re:^b-}
+    count: 20
+
+varies:
+  - name: which b entities go to slow changes with the seed
+    match: {task: slow}
+    project: [key]

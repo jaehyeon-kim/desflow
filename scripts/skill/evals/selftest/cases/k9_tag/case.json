@@ -1,0 +1,8 @@
+{
+  "fault": "round 4 S6: a model.yaml with a `!python` tag; each change keeps the tag, so the changed model runs",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K9": 3
+  }
+}

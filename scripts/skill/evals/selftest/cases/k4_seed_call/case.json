@@ -1,0 +1,13 @@
+{
+  "fault": "round 4 S5: a Low-level file seeded by `np.random.seed(42)` that copies the YAML's draws at 42; the forms differ at 43",
+  "task": "ds-a3",
+  "tasks": "main",
+  "counts": {
+    "K4": 2
+  },
+  "evidence": {
+    "K4": [
+      "yaml and low_level differ at seed 43"
+    ]
+  }
+}

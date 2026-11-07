@@ -1,0 +1,8 @@
+# A change the records do not show: grow sets the capacity to 3, under both maxima.
+
+task: P33
+
+mutations:
+  - name: max_cap 3 to 4
+    changes:
+      - {keys: [resources.m.max_cap], new: 4}

@@ -1,0 +1,69 @@
+{
+  "changes": [
+    {
+      "applied": "services.{tasks.pack_order.service}.value = 2.5",
+      "name": "packing 1.5 to 2.5",
+      "reason": ""
+    },
+    {
+      "applied": "arrivals.orders.gap = 3",
+      "name": "order gap 2 to 3",
+      "reason": ""
+    },
+    {
+      "applied": "run.until = 10",
+      "name": "run to 10",
+      "reason": ""
+    }
+  ],
+  "tests": {
+    "test_model.py::test_builder_matches_yaml": {
+      "changes": {
+        "order gap 2 to 3": "FAILED",
+        "packing 1.5 to 2.5": "FAILED",
+        "run to 10": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_low_level_matches_yaml": {
+      "changes": {
+        "order gap 2 to 3": "FAILED",
+        "packing 1.5 to 2.5": "FAILED",
+        "run to 10": "FAILED"
+      },
+      "forms": [
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_only_packed_printed": {
+      "changes": {
+        "order gap 2 to 3": "PASSED",
+        "packing 1.5 to 2.5": "PASSED",
+        "run to 10": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_yaml_records": {
+      "changes": {
+        "order gap 2 to 3": "FAILED",
+        "packing 1.5 to 2.5": "FAILED",
+        "run to 10": "FAILED"
+      },
+      "forms": [
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    }
+  }
+}

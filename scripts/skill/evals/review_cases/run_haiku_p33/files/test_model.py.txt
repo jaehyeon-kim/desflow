@@ -1,0 +1,104 @@
+"""Tests for the set_capacity model, in its three forms.
+
+Each form runs as a subprocess, as a reader runs it, and prints its records as JSON
+lines. The tests check that the three forms give the same records, and that the
+records show the capacity change: the grow task raises m to 3 at 2 seconds, so the
+second job starts then, not when the first job releases m at 5 seconds.
+
+Run from this folder with: pytest test_model.py
+"""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).resolve().parent
+# The desflow command installed beside the python that runs the tests.
+DESFLOW = Path(sys.executable).parent / "desflow"
+
+
+def _records(stdout):
+    """Parses the JSON lines, dropping the wall-clock timestamp, which differs per run."""
+    records = []
+    for line in stdout.splitlines():
+        if line.strip():
+            record = json.loads(line)
+            record.pop("timestamp")
+            records.append(record)
+    return records
+
+
+def _run(command):
+    result = subprocess.run(
+        command, cwd=HERE, capture_output=True, text=True, timeout=120
+    )
+    assert result.returncode == 0, result.stderr
+    return _records(result.stdout)
+
+
+def _event(sim_ts, key, task, instance, value):
+    return {
+        "stream_type": "event",
+        "sim_ts": float(sim_ts),
+        "key": key,
+        "task": task,
+        "instance": instance,
+        "value": value,
+    }
+
+
+EXPECTED = [
+    _event(0, "a-1", "job", 0, {"status": "queued"}),
+    _event(0, "a-1", "job", 0, {"status": "started"}),
+    _event(1, "a-2", "job", 1, {"status": "queued"}),
+    _event(2, "boss-1", "grow", 0, {"event_type": "grow"}),
+    _event(2, "a-2", "job", 1, {"status": "started"}),
+    _event(5, "a-1", "job", 0, {"event_type": "done"}),
+    _event(7, "a-2", "job", 1, {"event_type": "done"}),
+]
+
+
+@pytest.fixture(scope="module")
+def forms():
+    """The records of each form, from one run of each."""
+    return {
+        "yaml": _run([str(DESFLOW), "run", "model.yaml"]),
+        "builder": _run([sys.executable, "builder.py"]),
+        "low_level": _run([sys.executable, "low_level.py"]),
+    }
+
+
+@pytest.mark.parametrize("form", ["yaml", "builder", "low_level"])
+def test_form_gives_expected_records(forms, form):
+    assert forms[form] == EXPECTED
+
+
+def test_forms_agree(forms):
+    assert forms["builder"] == forms["yaml"]
+    assert forms["low_level"] == forms["yaml"]
+
+
+def test_grow_raises_capacity_and_waiting_job_starts_then(forms):
+    starts = {
+        r["key"]: r["sim_ts"]
+        for r in forms["yaml"]
+        if r["value"] == {"status": "started"}
+    }
+    # The second job waits from 1 s and starts at 2 s, when grow raises m to 3.
+    assert starts["a-2"] == 2.0
+    assert starts["a-1"] == 0.0
+
+
+def test_each_job_holds_for_five_seconds(forms):
+    started = {r["key"]: r["sim_ts"] for r in forms["yaml"] if r["value"] == {"status": "started"}}
+    done = {r["key"]: r["sim_ts"] for r in forms["yaml"] if r["value"] == {"event_type": "done"}}
+    assert {k: done[k] - started[k] for k in done} == {"a-1": 5.0, "a-2": 5.0}
+
+
+def test_two_jobs_and_one_grow(forms):
+    tasks = [r["task"] for r in forms["yaml"] if r["value"].get("status") == "queued"]
+    assert tasks == ["job", "job"]
+    assert [r["value"] for r in forms["yaml"] if r["task"] == "grow"] == [{"event_type": "grow"}]

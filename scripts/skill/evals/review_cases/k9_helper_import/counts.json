@@ -1,0 +1,7 @@
+{
+  "known": true,
+  "counts": {
+    "K9": 0
+  },
+  "reason": "The tests call a helper with the constant \"yaml\" that reads a table of records computed at import; they check the times each change moves, so each change fails a behaviour test."
+}

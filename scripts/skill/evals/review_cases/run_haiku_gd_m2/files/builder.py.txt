@@ -1,0 +1,30 @@
+"""The model of model.yaml, written with the Builder API (SimulationContext)."""
+
+from desflow import ConsoleEgress, SimulationContext
+
+ctx = SimulationContext("M", factor=0, random_seed=42)
+
+# One unit of res: at most one entity holds it at a time.
+ctx.add_resource("res", current_cap=1)
+
+# Arrival a starts one entity at time 0, which runs task use.
+ctx.add_arrival("a", gap=1, first_at=0, max_events=1, spawn="use")
+
+
+@ctx.task(resource_id="res", name="use", service_time=1)
+def use(instance, **_):
+    # The payload of the finished event: the task holds res for 1 second, then publishes it.
+    return {"event_type": "used"}
+
+
+# Built-in statistics: res is published on every request and release, not on a timer.
+# The interval is longer than the run, so no timer publication happens.
+ctx.with_stats(level="minimal", interval=1000, on_change=True)
+
+# One JSON line per telemetry record on standard output.
+ctx.add_egress(
+    ConsoleEgress(format="json"),
+    when=lambda record: record["stream_type"] == "telemetry",
+)
+
+ctx.run(until=5)

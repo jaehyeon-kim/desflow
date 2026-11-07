@@ -1,0 +1,23 @@
+# Three changes to the YAML an agent writes for task CV-132: a rate, a weight or share,
+# a capacity, or the nearest time or count, or, where no number the request names
+# changes the records, one step of the flow. Each change tries the keys of `keys` that
+# exist in model.yaml, in order, and keeps the first that alters the records (grade.py).
+
+task: CV-132
+
+mutations:
+  - name: work takes 3
+    changes:
+      - keys: [tasks.worker.service_time, "services.{tasks.worker.service}.value",
+               tasks.worker.wait.timeout]
+        new: 3
+  - name: b arrives at 1
+    changes:
+      - keys: [arrivals.b.value, arrivals.b.gap, arrivals.b.gap.value,
+               arrivals.b.first_at]
+        new: 1
+  - name: signal value 7 to 8
+    changes:
+      - keys: [tasks.worker.on.0.fire.value, tasks.worker.fire.value,
+               tasks.worker.signal.value, tasks.worker.fire.signal.value]
+        new: 8

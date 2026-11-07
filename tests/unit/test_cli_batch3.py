@@ -6,8 +6,10 @@ child processes, as `desflow run --watch` does.
 
 import importlib.util
 import json
+import logging
 import multiprocessing
 import os
+import re
 import signal
 import sys
 import textwrap
@@ -57,11 +59,193 @@ def test_check_reports_each_file(tmp_path):
     assert "arivals" in result.stderr
 
 
-def test_check_refuses_a_python_file(tmp_path):
-    path = _write(tmp_path, "model.py", "x = 1\n")
+def test_check_takes_a_builder_file(tmp_path, monkeypatch):
+    """A builder file gets an `ok` line; one that imports a connector whose extra is
+    missing gets the file, the line and the error; a file with no context is
+    refused."""
+    builder = _write(
+        tmp_path,
+        "shop.py",
+        """\
+        from desflow import SimulationContext
+
+        app = SimulationContext(sim_id="Shop", factor=0)
+        """,
+    )
+    kafka = _write(
+        tmp_path,
+        "kafka_shop.py",
+        """\
+        from desflow.connectors.egress.kafka import KafkaEgress
+        """,
+    )
+    low_level = _write(tmp_path, "low_level.py", "x = 1\n")
+    monkeypatch.setitem(sys.modules, "aiokafka", None)  # as if kafka were missing
+    monkeypatch.delitem(sys.modules, "desflow.connectors.egress.kafka", raising=False)
+    result = CliRunner().invoke(
+        cli, ["check", str(builder), str(kafka), str(low_level)]
+    )
+    assert result.exit_code == 1
+    assert result.stdout.splitlines() == [f"ok {builder} (sim_id Shop)"]
+    errors = result.stderr.splitlines()
+    assert errors[0].startswith(f"Error: {kafka}:1: ModuleNotFoundError"), errors
+    assert "aiokafka" in errors[0]
+    assert errors[1].startswith(f"Error: {low_level} defines no SimulationContext")
+
+
+def test_check_refuses_a_builder_parquet_sink_without_pyarrow(tmp_path, monkeypatch):
+    """The storage connectors import without PyArrow and need it to write, so a
+    builder file's Parquet sink is refused at check, as a blueprint's entry is."""
+    builder = _write(
+        tmp_path,
+        "parquet_shop.py",
+        """\
+        from desflow import ParquetStorageEgress, SimulationContext
+
+        app = SimulationContext(sim_id="Shop", factor=0).add_egress(
+            ParquetStorageEgress(default_path="out")
+        )
+        """,
+    )
+    monkeypatch.setitem(sys.modules, "pyarrow", None)  # as if parquet were missing
+    result = CliRunner().invoke(cli, ["check", str(builder)])
+    assert result.exit_code == 1
+    assert result.stderr.splitlines() == [
+        f"Error: {builder}:4: ImportError: ParquetStorageEgress needs pyarrow, which "
+        f'is not installed. Install it with pip install "desflow[parquet]"'
+    ]
+
+
+def test_check_refuses_a_blueprint_iceberg_entry_without_pyiceberg(
+    tmp_path, monkeypatch
+):
+    """An Iceberg entry, whose connector imports PyIceberg only when it writes, is
+    refused at check with its line and the extra."""
+    path = _write(
+        tmp_path,
+        "shop.yaml",
+        SHOP + "egress:\n  - type: Iceberg\n    config: {catalog: {type: sql}, "
+        "default_table: db.orders}\n",
+    )
+    monkeypatch.setitem(sys.modules, "pyiceberg", None)  # as if iceberg were missing
     result = CliRunner().invoke(cli, ["check", str(path)])
     assert result.exit_code == 1
-    assert "takes a YAML blueprint" in result.stderr
+    assert re.match(rf"Error: {re.escape(str(path))}:\d+: ", result.stderr)
+    assert "IcebergStorageEgress needs pyiceberg" in result.stderr
+    assert 'pip install "desflow[iceberg]"' in result.stderr
+
+
+def test_check_names_the_module_a_builder_error_came_from(tmp_path):
+    """An error raised in a module of the file's folder names that module's line."""
+    (tmp_path / "broken_mod.py").write_text("x = 1\ny = 1 / 0\n", encoding="utf-8")
+    builder = _write(tmp_path, "imports_broken.py", "import broken_mod  # noqa\n")
+    result = CliRunner().invoke(cli, ["check", str(builder)])
+    assert result.exit_code == 1
+    assert result.stderr.splitlines() == [
+        f"Error: {builder}:1: ZeroDivisionError in broken_mod.py:2: division by zero"
+    ]
+
+
+def test_check_file_says_when_a_file_has_no_context(tmp_path):
+    """`check_file`, the function `desflow check` calls, tells a file refused only
+    for having no module-level context from one refused for an error, by its
+    returned value."""
+    from desflow.cli.check import check_file
+
+    low_level = _write(
+        tmp_path,
+        "low_level.py",
+        "import warnings\n\nwarnings.warn('old table')\n"
+        "from desflow import DynamicRealtimeEnvironment  # noqa: F401\n",
+    )
+    checked = check_file(low_level)
+    assert (checked.context, checked.no_context) == (None, True)
+    assert "defines no SimulationContext at module level" in (checked.problem or "")
+    broken = _write(tmp_path, "broken.py", "x = 1 / 0\n")
+    checked = check_file(broken)
+    assert (checked.context, checked.no_context) == (None, False)
+    assert "Raises:" in (check_file.__doc__ or "")
+    assert checked.problem == f"{broken}:1: ZeroDivisionError: division by zero"
+
+
+def test_check_gives_the_line_of_any_builder_error(tmp_path):
+    """A ValueError of the file's own code, and a sys.exit at its top level, are one
+    line with the file and its line, and the files after them are still checked."""
+    bad_value = _write(
+        tmp_path,
+        "bad_value.py",
+        """\
+        from desflow import SimulationContext
+
+        app = SimulationContext(sim_id="Shop", factor=0)
+        app.add_service("packing", dist="normal", mean="four", std=1)
+        """,
+    )
+    exits = _write(tmp_path, "exits.py", "import sys\n\nsys.exit(3)\n")
+    good = _write(
+        tmp_path,
+        "good.py",
+        """\
+        from desflow import SimulationContext
+
+        app = SimulationContext(sim_id="Shop", factor=0)
+        """,
+    )
+    result = CliRunner().invoke(cli, ["check", str(bad_value), str(exits), str(good)])
+    assert result.exit_code == 1
+    errors = result.stderr.splitlines()
+    assert errors[0].startswith(f"Error: {bad_value}:4: ValueError: "), errors
+    assert errors[1] == f"Error: {exits}:3: SystemExit: 3"
+    assert result.stdout.splitlines() == [f"ok {good} (sim_id Shop)"]
+
+
+def test_check_warns_about_a_run_with_no_end(tmp_path, caplog):
+    """An arrival with a distribution and no max_events, in a file with no run end,
+    is a warning; an until, or max_events on the arrival, removes it."""
+    endless = _write(tmp_path, "endless.yaml", SHOP.replace("run: {until: 21}\n", ""))
+    counted = _write(
+        tmp_path,
+        "counted.yaml",
+        SHOP.replace("run: {until: 21}\n", "").replace(
+            "spawn: pack_order}", "spawn: pack_order, max_events: 3}"
+        ),
+    )
+    ended = _write(tmp_path, "ended.yaml", SHOP)
+    with caplog.at_level(logging.WARNING, logger="desflow.blueprint.build"):
+        result = CliRunner().invoke(
+            cli, ["check", str(endless), str(counted), str(ended)]
+        )
+    assert result.exit_code == 0
+    warned = [r.getMessage() for r in caplog.records if "has no end" in r.getMessage()]
+    assert warned == [
+        f"{endless}:6: arrivals.orders: the run has no end: this arrival has no "
+        f"max_events, and run has no until or stop, so desflow run runs until it is "
+        f"stopped. Give run.until, or pass --until to desflow run"
+    ]
+
+
+def test_check_refuses_a_test_with_no_seed(tmp_path):
+    """A test with no seed in a file with no seed is refused at check, with the
+    message desflow test gives; a seed in the test or in the file is accepted."""
+    test = "tests:\n  - {name: packs, until: 10, expect: {}}\n"
+    unseeded = SHOP.replace(", random_seed: 7", "") + test
+    refused = _write(tmp_path, "refused.yaml", unseeded)
+    in_test = _write(
+        tmp_path, "in_test.yaml", unseeded.replace("until: 10,", "until: 10, seed: 1,")
+    )
+    in_file = _write(tmp_path, "in_file.yaml", SHOP + test)
+    result = CliRunner().invoke(
+        cli, ["check", str(refused), str(in_test), str(in_file)]
+    )
+    assert result.exit_code == 1
+    assert (
+        f"Error: {refused}:11: test 'packs' needs a seed: give `seed` in the test "
+        f"or simulation.random_seed in the file"
+    ) in result.stderr
+    assert result.stdout.splitlines() == [
+        f"ok {in_test} (sim_id Shop)",
+        f"ok {in_file} (sim_id Shop)",
+    ]
 
 
 def test_check_names_the_extra_a_parquet_entry_needs(tmp_path, monkeypatch):

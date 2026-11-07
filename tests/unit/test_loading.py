@@ -10,6 +10,7 @@ import pytest
 
 from desflow import SimulationContext, load_context
 from desflow.blueprint.build import Preview
+from desflow.loading import NoContextError
 
 BLUEPRINT = """\
 simulation: {sim_id: Shop, factor: 0, random_seed: 7, logical_start_time: 2026-01-01}
@@ -108,15 +109,37 @@ def test_a_file_with_no_context_is_refused(tmp_path):
             DynamicRealtimeEnvironment(factor=0).run(until=1)
         """,
     )
-    with pytest.raises(ValueError, match="defines no SimulationContext"):
+    with pytest.raises(NoContextError, match="defines no SimulationContext"):
         load_context(tmp_path, "low_level.py")
 
 
-def test_a_preview_needs_a_blueprint(tmp_path):
-    _write(tmp_path, "shop_settings.py", 'SIM_ID = "Shop"\n')
-    _write(tmp_path, "main.py", BUILDER)
-    with pytest.raises(ValueError, match="a preview runs a YAML blueprint"):
-        load_context(tmp_path, "main.py", Preview(sample=1))
+def test_a_builder_preview_replaces_its_sinks(tmp_path):
+    """A sample of a builder file keeps none of its sinks or ingress: one JSON
+    console for the records and one for its labels sink, unpaced, with the sample's
+    limit, as a blueprint's preview has."""
+    _write(
+        tmp_path,
+        "main.py",
+        """\
+        from desflow import ConsoleEgress, LocalIngress, SimulationContext
+
+        app = (
+            SimulationContext(sim_id="Shop", factor=1.0)
+            .add_egress(ConsoleEgress())
+            .add_egress(ConsoleEgress(), when="labels")
+            .add_ingress(LocalIngress([]))
+        )
+        """,
+    )
+    context = load_context(tmp_path, "main.py", Preview(sample=3))
+    sinks = context._sinks
+    assert sinks.ingress == []
+    assert [(s.provider.format, s.label) for s in sinks.egress] == [
+        ("json", False),
+        ("json", True),
+    ]
+    assert context.factor == 0.0
+    assert context._defaults.sample_limit == 3
 
 
 def test_a_uri_folder_is_copied_and_loaded(tmp_path):

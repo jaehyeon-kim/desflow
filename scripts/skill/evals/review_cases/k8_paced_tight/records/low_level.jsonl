@@ -1,0 +1,6 @@
+{"instance": null, "key": "a-1", "sim_ts": 1.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:21.471+00:00", "value": {"event_type": "tick"}}
+{"instance": null, "key": "a-2", "sim_ts": 1.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:21.471+00:00", "value": {"event_type": "tick"}}
+{"instance": null, "key": "a-1", "sim_ts": 2.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:22.471+00:00", "value": {"event_type": "tick"}}
+{"instance": null, "key": "a-2", "sim_ts": 2.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:22.471+00:00", "value": {"event_type": "tick"}}
+{"instance": null, "key": "a-1", "sim_ts": 3.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:23.471+00:00", "value": {"event_type": "tick"}}
+{"instance": null, "key": "a-2", "sim_ts": 3.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:23.471+00:00", "value": {"event_type": "tick"}}

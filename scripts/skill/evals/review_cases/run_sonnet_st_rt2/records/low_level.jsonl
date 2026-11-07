@@ -1,0 +1,26 @@
+{"path_id": "system.simulation.lag_seconds", "sim_ts": 0.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:43.292+00:00", "value": 0.001}
+{"instance": 0, "key": "a-1", "sim_ts": 0.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:43.292+00:00", "value": {"status": "queued"}}
+{"instance": 1, "key": "a-2", "sim_ts": 0.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:43.292+00:00", "value": {"status": "queued"}}
+{"path_id": "system.simulation.lag_seconds", "sim_ts": 1.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:44.292+00:00", "value": 0.0}
+{"instance": 0, "key": "a-1", "sim_ts": 1.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:44.292+00:00", "value": {"status": "started"}}
+{"instance": 0, "key": "a-1", "sim_ts": 1.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:44.292+00:00", "value": {"event_type": "tick"}}
+{"instance": 2, "key": "a-1", "sim_ts": 1.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:44.292+00:00", "value": {"status": "queued"}}
+{"instance": 1, "key": "a-2", "sim_ts": 1.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:44.292+00:00", "value": {"status": "started"}}
+{"instance": 1, "key": "a-2", "sim_ts": 1.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:44.292+00:00", "value": {"event_type": "tick"}}
+{"instance": 3, "key": "a-2", "sim_ts": 1.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:44.292+00:00", "value": {"status": "queued"}}
+{"path_id": "system.simulation.segment", "sim_ts": 2.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:45.292+00:00", "value": {"index": 0, "now": 2, "peek": 2}}
+{"path_id": "system.simulation.lag_seconds", "sim_ts": 2.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:45.292+00:00", "value": 0.0}
+{"instance": 2, "key": "a-1", "sim_ts": 2.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:45.292+00:00", "value": {"status": "started"}}
+{"instance": 2, "key": "a-1", "sim_ts": 2.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:45.292+00:00", "value": {"event_type": "tick"}}
+{"instance": 4, "key": "a-1", "sim_ts": 2.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:45.292+00:00", "value": {"status": "queued"}}
+{"instance": 3, "key": "a-2", "sim_ts": 2.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:45.292+00:00", "value": {"status": "started"}}
+{"instance": 3, "key": "a-2", "sim_ts": 2.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:45.292+00:00", "value": {"event_type": "tick"}}
+{"instance": 5, "key": "a-2", "sim_ts": 2.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:45.292+00:00", "value": {"status": "queued"}}
+{"path_id": "system.simulation.lag_seconds", "sim_ts": 3.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:46.292+00:00", "value": 0.0}
+{"instance": 4, "key": "a-1", "sim_ts": 3.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:46.292+00:00", "value": {"status": "started"}}
+{"instance": 4, "key": "a-1", "sim_ts": 3.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:46.292+00:00", "value": {"event_type": "tick"}}
+{"instance": 6, "key": "a-1", "sim_ts": 3.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:46.292+00:00", "value": {"status": "queued"}}
+{"instance": 5, "key": "a-2", "sim_ts": 3.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:46.292+00:00", "value": {"status": "started"}}
+{"instance": 5, "key": "a-2", "sim_ts": 3.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:46.292+00:00", "value": {"event_type": "tick"}}
+{"instance": 7, "key": "a-2", "sim_ts": 3.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:10:46.292+00:00", "value": {"status": "queued"}}
+{"path_id": "system.simulation.segment", "sim_ts": 4.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:47.292+00:00", "value": {"index": 1, "now": 4, "peek": 4}}

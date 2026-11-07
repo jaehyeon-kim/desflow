@@ -2,6 +2,10 @@
 
 The `local` example is a shop that packs orders. The three files give the same records. Download them with `desflow examples get local`.
 
+- [YAML blueprint](#yaml-blueprint)
+- [Builder API](#builder-api)
+- [Low-level API](#low-level-api)
+
 ## YAML blueprint
 
 `examples/yaml/local.yaml`

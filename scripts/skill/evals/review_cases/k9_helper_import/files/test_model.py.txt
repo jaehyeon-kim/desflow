@@ -1,0 +1,35 @@
+"""Tests of task P33."""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).parent
+FORMS = {
+    "yaml": [str(Path(sys.executable).parent / "desflow"), "run", "model.yaml", "--stdout"],
+    "builder": [sys.executable, "builder.py"],
+    "low_level": [sys.executable, "low_level.py"],
+}
+
+
+def _run(command):
+    done = subprocess.run(command, cwd=HERE, capture_output=True, text=True, check=True)
+    return [json.loads(line) for line in done.stdout.splitlines() if line.startswith("{")]
+
+
+RECORDS = {"yaml": _run(FORMS["yaml"]), "builder": _run(FORMS["builder"]), "low_level": _run(FORMS["low_level"])}
+
+
+def times(form, task, key):
+    rows = RECORDS[form]
+    return [r["sim_ts"] for r in rows if r["stream_type"] == "event" and r["task"] == task and r["key"] == key and r["value"].get("status") is None]
+
+
+def test_the_first_job_is_done_after_5():
+    assert times("yaml", "job", "a-1") == [5]
+
+
+def test_the_second_job_starts_when_the_capacity_grows():
+    assert times("yaml", "grow", "boss-1") == [2]
+    assert times("yaml", "job", "a-2") == [7]

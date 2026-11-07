@@ -1,0 +1,32 @@
+# Records of task P20, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: P20
+
+until: 50
+
+run_end: 50
+
+records:
+  - name: 40 route records
+    match: {task: route, value.event_type: route}
+    count: 40
+  - name: every entity goes to fast or weighted
+    match: {task: [fast, weighted]}
+    count: 40
+  - name: fast is reached
+    match: {task: fast, value.event_type: fast}
+  - name: weighted is reached
+    match: {task: weighted, value.event_type: weighted}
+  - name: a is reached
+    match: {task: a, value.event_type: a}
+  - name: b is reached
+    match: {task: b, value.event_type: b}
+
+varies:
+  - name: which entities are vip changes with the seed
+    match: {task: fast}
+    project: [key]
+  - name: which entities go to a changes with the seed
+    match: {task: a}
+    project: [key]

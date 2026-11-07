@@ -1,0 +1,19 @@
+# Records of task CV-132, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: CV-132
+
+until: 20
+
+run_end: null
+
+records:
+  - name: worker done at 2
+    match: {task: worker, key: w-1, value.event_type: worker_done}
+    at: 2
+  - name: waiter a sees 7 at 2
+    match: {task: waiter_a, key: a-1, value.event_type: a_saw, value.v: 7}
+    at: 2
+  - name: waiter b sees 7 at 5
+    match: {task: waiter_b, key: b-1, value.event_type: b_saw_after, value.v: 7}
+    at: 5

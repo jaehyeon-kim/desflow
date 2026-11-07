@@ -1,0 +1,15 @@
+{
+  "asserts": [
+    {
+      "file": "test_model.py",
+      "line": 61,
+      "text": "assert wall >= 0.4  # 4 simulation seconds at factor 0.1"
+    },
+    {
+      "file": "test_model.py",
+      "line": 71,
+      "text": "assert 0.4 <= time.monotonic() - start < 3.0"
+    }
+  ],
+  "paced_wall": 0.4
+}

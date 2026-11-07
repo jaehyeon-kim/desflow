@@ -1,0 +1,28 @@
+# Groups model, YAML blueprint.
+#
+# Arrival `a` fires every 5 seconds from t=5, 40 times in all. Each firing starts a
+# group whose size is drawn from Poisson(2): a size of 0 starts nobody. Each entity runs
+# task `member`, which publishes {event_type: member} as soon as it starts.
+#
+# Run from this folder with: desflow run model.yaml --stdout
+# (--stdout prints each record as one JSON line; the run ends at 205 seconds.)
+
+simulation: {sim_id: Groups, factor: 0, random_seed: 42}
+
+egress:
+  # format json writes one JSON line per record to standard output
+  - {type: Console, config: {format: json}}
+
+arrivals:
+  a:
+    gap: 5               # every 5 seconds
+    first_at: 5          # the first firing at 5 seconds
+    max_events: 40       # 40 firings in all, empty groups included
+    group: {gen: sample, dist: poisson, mean: 2}
+    spawn: member
+
+tasks:
+  member:
+    payload: {event_type: member}
+
+run: {until: 205}

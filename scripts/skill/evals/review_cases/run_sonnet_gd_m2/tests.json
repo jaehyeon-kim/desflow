@@ -1,0 +1,105 @@
+{
+  "changes": [
+    {
+      "applied": "services.{tasks.use.service}.value = 2",
+      "name": "use takes 2",
+      "reason": ""
+    },
+    {
+      "applied": null,
+      "name": "two users",
+      "reason": "not counted, the records are the same (arrivals.a.max_events = 2: same records)"
+    },
+    {
+      "applied": "resources.res.current_cap = 0",
+      "name": "capacity 0",
+      "reason": ""
+    }
+  ],
+  "tests": {
+    "test_model.py::test_forms_agree": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_stats_on_every_change[builder]": {
+      "changes": {
+        "capacity 0": "PASSED",
+        "use takes 2": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_stats_on_every_change[low_level]": {
+      "changes": {
+        "capacity 0": "PASSED",
+        "use takes 2": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_stats_on_every_change[yaml]": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_used_event[builder]": {
+      "changes": {
+        "capacity 0": "PASSED",
+        "use takes 2": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_used_event[low_level]": {
+      "changes": {
+        "capacity 0": "PASSED",
+        "use takes 2": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_used_event[yaml]": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    }
+  }
+}

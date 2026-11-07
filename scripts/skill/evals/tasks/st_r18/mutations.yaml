@@ -1,0 +1,17 @@
+# Three changes to the YAML an agent writes for task ST-R18: a rate, a weight or share,
+# a capacity, or the nearest time or count, or, where no number the request names
+# changes the records, one step of the flow. Each change tries the keys of `keys` that
+# exist in model.yaml, in order, and keeps the first that alters the records (grade.py).
+
+task: ST-R18
+
+mutations:
+  - name: two readers
+    changes:
+      - {keys: [arrivals.a.initial, arrivals.a.count, arrivals.a.max_events], new: 2}
+  - name: capacity 100
+    changes:
+      - {keys: [containers.*.max_cap], new: 100, add: true}
+  - name: the reader takes 1 second
+    changes:
+      - {keys: [tasks.read.service_time], new: 1, add: true}

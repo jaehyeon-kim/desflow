@@ -1,0 +1,19 @@
+# Three changes to the YAML an agent writes for task CV-021: a rate, a weight or share,
+# a capacity, or the nearest time or count, or, where no number the request names
+# changes the records, one step of the flow. Each change tries the keys of `keys` that
+# exist in model.yaml, in order, and keeps the first that alters the records (grade.py).
+
+task: CV-021
+
+mutations:
+  - name: two_of_three needs 3
+    changes:
+      - {keys: [tasks.two_of_three.wait.at_least], new: 3}
+  - name: timeout b 1 to 4
+    changes:
+      - keys: [tasks.all_three.wait.all.b.timeout.after,
+               tasks.all_three.wait.of.b.timeout.after]
+        new: 4
+  - name: second entity of c
+    changes:
+      - {keys: [arrivals.c.initial, arrivals.c.count, arrivals.c.max_events], new: 2}

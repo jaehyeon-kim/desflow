@@ -1,0 +1,7 @@
+{
+  "known": true,
+  "counts": {
+    "K5": 0
+  },
+  "reason": "test_yaml_and_builder_end_at_20 reads the run end from model.yaml with yaml.safe_load and compares it with the last Builder record: it claims two forms and reads both."
+}

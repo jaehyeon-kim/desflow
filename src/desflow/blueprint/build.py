@@ -5,7 +5,6 @@ script that make the same calls produce the same simulation.
 """
 
 import importlib
-import importlib.util
 import logging
 import math
 from dataclasses import dataclass
@@ -154,6 +153,64 @@ class Preview:
     sample: Optional[int] = None
 
 
+def preview_builder(context: SimulationContext, preview: Preview) -> None:
+    """Makes a context that a builder file defined run as a preview, as a blueprint
+    built with the same preview runs.
+
+    Every egress sink the file added is replaced by a JSON console on stdout, with
+    one more console for labels when the file added a labels sink and one for the
+    trace when it added a trace sink. A sample also leaves out the ingress, and runs
+    unpaced from `logical_start_time`, with `go_live_at` cleared, until it has
+    printed that many events. The file's connectors are already built, because
+    importing the file built them, but none of them is set up or written to.
+
+    Args:
+        context: The context the builder file defines, not yet run.
+        preview: The preview `desflow run --sample` makes.
+    """
+    sinks = parts_of(context).sinks
+    kinds = []
+    if any(sink.label for sink in sinks.egress):
+        kinds.append(LABELS)
+    if any(sink.trace for sink in sinks.egress):
+        kinds.append(TRACE)
+    sinks.egress = []
+    if preview.sample is not None:
+        sinks.ingress = []
+    _add_preview_consoles(context, preview, kinds)
+    run_as_sample(context, preview)
+
+
+def run_as_sample(context: SimulationContext, preview: Preview) -> None:
+    """Sets a context to run as a sample, when the preview is one: unpaced from
+    `logical_start_time`, with `go_live_at` cleared and `strict` unset, until it has
+    printed `preview.sample` events. A preview for `--stdout` changes nothing here.
+
+    Args:
+        context: The context, not yet run.
+        preview: The preview.
+    """
+    if preview.sample is None:
+        return
+    context.factor = 0.0
+    context.go_live_at = None
+    context.strict = None
+    parts_of(context).defaults.sample_limit = preview.sample
+
+
+def _add_preview_consoles(
+    context: SimulationContext, preview: Preview, kinds: List[str]
+) -> None:
+    """Adds the JSON console of a preview, and one more for each of `kinds`, the
+    labels or the trace, which no other sink receives."""
+    context.add_egress(
+        ConsoleEgress(format="json"),
+        when=_preview_predicate(context, preview.sample),
+    )
+    for kind in kinds:
+        context.add_egress(ConsoleEgress(format="json"), when=kind)
+
+
 def build(
     path: Union[str, Path],
     preview: Optional[Preview] = None,
@@ -186,12 +243,16 @@ def build(
 def check(
     path: Union[str, Path], variables: Optional[Mapping[str, str]] = None
 ) -> SimulationContext:
-    """Builds a blueprint as `desflow run` would, without running it, and checks the
-    extras that a run imports only when it starts writing.
+    """Builds a blueprint as `desflow run` would, without running it, with two
+    more checks.
 
-    It is `build` and one more check: a `Parquet` or `Jsonl` entry needs PyArrow,
-    which those connectors import when they write, so a missing `parquet` extra
-    would otherwise show only once the run has started.
+    Building the connectors refuses an entry whose extra is not installed,
+    including a `Parquet`, `Jsonl` or `Iceberg` entry, whose connector imports its
+    packages only when it writes. A `tests` entry with no seed in a file with none
+    is refused, as `desflow test` refuses it. A run
+    with no end is logged as a warning, because `desflow run` of the file runs
+    until it is stopped; `desflow run` itself does not warn, since a live model
+    may have no end on purpose.
 
     Args:
         path: The YAML file.
@@ -201,19 +262,56 @@ def check(
         SimulationContext: The built context, which `desflow check` only reads.
 
     Raises:
-        BlueprintError: If the file is invalid or an entry needs an extra that is
-            not installed. The message names the file and line.
+        BlueprintError: If the file is invalid, a test has no seed, or an entry
+            needs an extra that is not installed. The message names the file and
+            line.
     """
     built = load_blueprint(path, None, variables)
-    if importlib.util.find_spec("pyarrow") is None:
-        for index, entry in enumerate(built.blueprint.egress):
-            if entry.type in ("Parquet", "Jsonl"):
-                raise built.source.error(
-                    ("egress", index, "type"),
-                    f"egress type {entry.type} needs PyArrow, which is not installed. "
-                    f'Install the extra with pip install "desflow[parquet]"',
-                )
+    _check_test_seeds(built.blueprint, built.source)
+    _warn_on_no_end(built.blueprint, built.source)
     return built.context
+
+
+def missing_seed(test: str) -> str:
+    """The refusal of a `tests` entry that has no seed in a file that has none,
+    which `desflow check` and `desflow test` both give.
+
+    Args:
+        test: The test's name.
+    """
+    return (
+        f"test '{test}' needs a seed: give `seed` in the test or "
+        f"simulation.random_seed in the file"
+    )
+
+
+def _check_test_seeds(blueprint: Blueprint, source: SourceMap) -> None:
+    """Refuses the first `tests` entry with no seed, when the file has none."""
+    if blueprint.simulation.random_seed is not None:
+        return
+    for index, test in enumerate(blueprint.tests):
+        if test.seed is None:
+            raise source.error(("tests", index), missing_seed(test.name))
+
+
+def _warn_on_no_end(blueprint: Blueprint, source: SourceMap) -> None:
+    """Logs a warning for each arrival that keeps a run with no end going."""
+    run = blueprint.run
+    if run.until is not None or run.stop is not None or run.segments is not None:
+        return
+    for name, arrival in blueprint.arrivals.items():
+        endless = arrival.dist is not None or arrival.gap is not None
+        if endless and arrival.max_events is None:
+            logger.warning(
+                "%s",
+                source.error(
+                    ("arrivals", name),
+                    f"arrivals.{name}: the run has no end: this arrival has no "
+                    f"max_events, and run has no until or stop, so desflow run runs "
+                    f"until it is stopped. Give run.until, or pass --until to "
+                    f"desflow run",
+                ),
+            )
 
 
 class Built(NamedTuple):
@@ -2007,13 +2105,11 @@ def _add_connectors(
         # sink, so a file with one gets a second console for its labels
         for index, egress in enumerate(blueprint.egress):
             _check_connector_type(egress.type, EGRESS_TYPES, source, ("egress", index))
-        context.add_egress(
-            ConsoleEgress(format="json"),
-            when=_preview_predicate(context, preview.sample),
-        )
+        kinds = []
         for kind in (LABELS, TRACE):
             if any(egress.when == kind for egress in blueprint.egress):
-                context.add_egress(ConsoleEgress(format="json"), when=kind)
+                kinds.append(kind)
+        _add_preview_consoles(context, preview, kinds)
 
     if blueprint.batching is not None:
         context.with_batching(**blueprint.batching.model_dump(exclude_none=True))

@@ -1,0 +1,68 @@
+"""Low-level API form of the model in model.yaml."""
+
+import numpy as np
+
+from desflow import (
+    CapacityConfig,
+    ConsoleEgress,
+    DistributionConfig,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    Sampler,
+    SimParameter,
+)
+
+PARAMS = SimParameter(
+    sim_id="P",
+    service={"hold": DistributionConfig(dist="constant", value=5)},
+    resources={"m": CapacityConfig(current_cap=1, max_cap=3)},
+)
+
+
+def job(env, sampler, m, key, task_id):
+    path_id = "P.service.hold"
+
+    def publish(value):
+        env.publish_event(key, value, task="job", instance=task_id)
+
+    publish({"path_id": path_id, "status": "queued"})
+    env.stats.task_queued("job", task_id)
+    with m.request() as req:
+        yield req
+        publish({"path_id": path_id, "status": "started"})
+        env.stats.task_started("job", task_id)
+        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+        publish({"event_type": "done"})
+        env.stats.task_finished("job", task_id)
+
+
+def arrival_a(env, sampler, m):
+    # first at 0, then every 1 second, 2 entities in all
+    for i in range(2):
+        if i:
+            yield env.timeout(1)
+        env.process(job(env, sampler, m, f"a-{i + 1}", i))
+
+
+def boss(env):
+    yield env.timeout(2)
+    env.publish_event("boss-1", {"event_type": "grow"}, task="grow", instance=0)
+    env.registry.update("P.resources.m.current_cap", 3)
+
+
+def run():
+    env = DynamicRealtimeEnvironment(factor=0, strict=False)
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress([ConsoleEgress(format="json")])
+    m = DynamicResource(env, "P", "m")
+    sampler = Sampler(rng=np.random.default_rng(42))
+    env.process(arrival_a(env, sampler, m))
+    env.process(boss(env))
+    try:
+        env.run(until=20)
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

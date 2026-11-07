@@ -1,0 +1,12 @@
+{
+  "fault": "pilot: a change that leaves the records the same counts as K9",
+  "task": "same_records",
+  "counts": {
+    "K9": 0
+  },
+  "notes": {
+    "K9": [
+      "max_cap 3 to 4: not counted, the records are the same"
+    ]
+  }
+}

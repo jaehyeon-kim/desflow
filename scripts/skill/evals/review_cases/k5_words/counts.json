@@ -1,0 +1,7 @@
+{
+  "known": true,
+  "counts": {
+    "K5": 1
+  },
+  "reason": "test_all_apis_agree (\"Every API prints the same events.\") and test_parity (\"Parity across the three implementations.\") claim a comparison of the forms, and both read the YAML records only. Two places, one count."
+}

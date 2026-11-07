@@ -1,0 +1,8 @@
+# The run ends at 6, before the second job is done at 7.
+
+task: P33
+
+mutations:
+  - name: run to 6
+    changes:
+      - {keys: [run.until], new: 6}

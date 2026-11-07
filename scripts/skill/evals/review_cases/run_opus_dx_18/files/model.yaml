@@ -1,0 +1,27 @@
+# Shop: orders packed by one packer. A single Console sink prints, as JSON lines,
+# only the records whose value.event_type is order_packed (the `packed_only` case):
+# queued/started records and telemetry are filtered out by the sink's `when`.
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+egress:
+  - type: Console
+    config: {format: json}
+    when: {expr: "record.value.event_type == 'order_packed'"}
+
+resources:
+  packers: {current_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  # One order every 2 seconds, the first at 2 seconds.
+  orders: {gap: 2, first_at: 2, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+run: {until: 20}

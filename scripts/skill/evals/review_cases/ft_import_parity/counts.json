@@ -1,0 +1,8 @@
+{
+  "known": true,
+  "counts": {
+    "K9": 1,
+    "K5": 0
+  },
+  "reason": "The one test compares the YAML records with Builder records computed at import, and it is the only test that fails under each of the three changes: three places, one count. It claims two forms and reads both, so K5 is 0."
+}

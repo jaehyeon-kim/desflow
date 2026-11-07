@@ -2,6 +2,9 @@ import asyncio
 import logging
 import queue
 import sys
+import warnings
+from pathlib import Path
+from types import FrameType
 from typing import Any, Literal, Optional
 
 import orjson
@@ -14,6 +17,21 @@ _PREFIXES = {"telemetry": "[TEL]", "event": "[EVT]", "label": "[LBL]"}
 
 
 _FORMATS = ("log", "json")
+
+
+# The folder of the desflow package, whose frames a warning skips
+_PACKAGE = str(Path(__file__).resolve().parents[2])
+
+
+def _caller_level() -> int:
+    """The `stacklevel` of a warning that names the first line outside desflow,
+    such as the script's `app.run()`, rather than a line of desflow itself."""
+    level = 2
+    frame: Optional[FrameType] = sys._getframe(2)
+    while frame is not None and frame.f_code.co_filename.startswith(_PACKAGE):
+        frame = frame.f_back
+        level += 1
+    return level
 
 
 class ConsoleEgress(BaseEgress):
@@ -41,6 +59,27 @@ class ConsoleEgress(BaseEgress):
         if format not in _FORMATS:
             raise ValueError(f"format must be log or json, got {format!r}")
         self.format = format
+
+    # The console loads no library. It overrides this hook only because
+    # setup_egress calls it before the run, which is when the warning must come
+    def _load_libraries(self) -> None:
+        """Warns, before the run starts, when the `log` format would print nothing.
+
+        `setup_egress` calls this for each provider before the run. The console
+        imports no library, so it uses the call to check its logger. The warning is
+        a Python warning, not a log record: the `desflow` logger has a
+        `NullHandler`, so with no logging set up a log record goes nowhere, and a
+        script run with `python FILE` would print nothing at all. Python prints a
+        warning on stderr unless its filters hide it. `desflow run` sets up logging
+        at INFO, so a blueprint run gets no warning.
+        """
+        if self.format == "log" and not logger.isEnabledFor(logging.INFO):
+            warnings.warn(
+                "ConsoleEgress writes each batch with logging at INFO, which is not "
+                'enabled, so it prints nothing. Use ConsoleEgress(format="json"), or '
+                "call logging.basicConfig(level=logging.INFO) before the run.",
+                stacklevel=_caller_level(),
+            )
 
     def _shown(self, record: dict, shown: Optional[dict] = None) -> Any:
         """Returns what a record is written as: the record, or `shown` in its place,

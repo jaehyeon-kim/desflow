@@ -1,0 +1,179 @@
+{
+  "changes": [
+    {
+      "applied": "arrivals.a.initial = 3",
+      "name": "three entities",
+      "reason": ""
+    },
+    {
+      "applied": "tasks.pem.wait.timeout = 2",
+      "name": "tick every 2 seconds",
+      "reason": ""
+    },
+    {
+      "applied": "run.segments.1.until = 5",
+      "name": "end 4 to 5",
+      "reason": ""
+    }
+  ],
+  "tests": {
+    "test_model.py::test_forms_agree": {
+      "changes": {
+        "end 4 to 5": "FAILED",
+        "three entities": "FAILED",
+        "tick every 2 seconds": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "outcome": "flaky",
+      "runs": {
+        "-n 4": [
+          "PASSED",
+          "FAILED",
+          "FAILED"
+        ],
+        "plain": [
+          "PASSED",
+          "PASSED",
+          "PASSED"
+        ],
+        "reversed": [
+          "PASSED",
+          "PASSED",
+          "PASSED"
+        ]
+      }
+    },
+    "test_model.py::test_paced_in_process": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_ticks[builder]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_ticks[low_level]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_ticks[yaml]": {
+      "changes": {
+        "end 4 to 5": "FAILED",
+        "three entities": "FAILED",
+        "tick every 2 seconds": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_two_calls[builder]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_two_calls[low_level]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_two_calls[yaml]": {
+      "changes": {
+        "end 4 to 5": "FAILED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_wall_time[builder]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_wall_time[low_level]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_wall_time[yaml]": {
+      "changes": {
+        "end 4 to 5": "FAILED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    }
+  }
+}

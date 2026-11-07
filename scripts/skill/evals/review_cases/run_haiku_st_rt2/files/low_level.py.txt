@@ -1,0 +1,69 @@
+"""ST-RT1 variant, Low-level API: the same model as model.yaml and builder.py.
+
+Built directly on DynamicRealtimeEnvironment. Two entities start at time 0 and run
+`pem`. Each pass takes one simulated second and publishes a tick, then starts the next
+pass. The model is paced at factor 0.1, so one simulation second takes 0.1 second of
+wall time. The run is called twice: to 2 seconds, then to 4 seconds.
+
+Run it with: python low_level.py
+Each record is printed to standard output as one JSON line.
+"""
+
+import itertools
+import math
+
+import numpy as np
+
+from desflow import ConsoleEgress, DynamicRealtimeEnvironment
+
+# The model draws no random numbers. The seed is kept here so this file matches
+# model.yaml and builder.py.
+rng = np.random.default_rng(42)
+
+TICK_SECONDS = 1.0
+
+
+def pem(env, key, instance, instances):
+    """One entity running pem: a pass starts, and a tick ends it after one second.
+
+    Each tick is published with the instance of the pass that ended, then the next
+    pass starts with a new instance, as the blueprint's `next: pem` does.
+    """
+    env.publish_event(key, {"status": "started"}, task="pem", instance=instance)
+    while True:
+        yield env.timeout(TICK_SECONDS)
+        env.publish_event(key, {"event_type": "tick"}, task="pem", instance=instance)
+        instance = next(instances)
+        env.publish_event(key, {"status": "started"}, task="pem", instance=instance)
+
+
+def run() -> None:
+    """Runs the model to 4 seconds, in two calls: to 2 seconds, then on to 4 seconds."""
+    env = DynamicRealtimeEnvironment(factor=0.1)
+    # Turns off the lag records, which are not part of the model.
+    env.setup_egress([ConsoleEgress(format="json")], lag_monitor_interval=None)
+
+    instances = itertools.count()
+    # Two entities start at time 0, each running pem: a-1 and a-2.
+    for index in range(2):
+        env.process(pem(env, f"a-{index + 1}", next(instances), instances))
+
+    try:
+        for segment, until in enumerate((2, 4)):
+            env.run(until=until)
+            # The same reading the run publishes after each segment.
+            head = env.peek()
+            env.publish_telemetry(
+                "system.simulation.segment",
+                {
+                    "index": segment,
+                    "now": env.now,
+                    "peek": None if math.isinf(head) else head,
+                },
+            )
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

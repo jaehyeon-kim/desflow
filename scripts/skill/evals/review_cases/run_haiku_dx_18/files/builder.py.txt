@@ -1,0 +1,39 @@
+"""Shop: the model in model.yaml, written with the Builder API.
+
+Orders arrive every 2 seconds from time 2, and each is packed by one of one packer
+for 1.5 seconds. A Console sink prints only the order_packed events, one JSON line
+each, to standard output. Run it with: python builder.py
+"""
+
+from datetime import datetime, timezone
+
+from desflow import ConsoleEgress, SimulationContext
+
+app = (
+    SimulationContext(
+        sim_id="Shop",
+        factor=0,
+        random_seed=42,
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    .add_egress(ConsoleEgress(format="json"), when=lambda record: packed_only(record))
+    .add_resource("packers", current_cap=1)
+    .add_service("pack", dist="constant", value=1.5)
+    .add_arrival("orders", dist="constant", value=2, first_at=2, spawn="pack_order")
+)
+
+
+def packed_only(record):
+    """True for the records whose value says order_packed; the others are dropped."""
+    value = record.get("value")
+    return isinstance(value, dict) and value.get("event_type") == "order_packed"
+
+
+@app.task(service_id="pack", resource_id="packers", name="pack_order")
+def pack_order(task_id, *_):
+    """The payload of the finished event of one order."""
+    return {"event_type": "order_packed"}
+
+
+if __name__ == "__main__":
+    app.run(until=20)

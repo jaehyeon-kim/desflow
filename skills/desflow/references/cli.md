@@ -2,6 +2,20 @@
 
 The help of every `desflow` command, generated from the command's code.
 
+- [`desflow`](#desflow)
+- [`desflow run`](#desflow-run)
+- [`desflow check`](#desflow-check)
+- [`desflow test`](#desflow-test)
+- [`desflow explain`](#desflow-explain)
+- [`desflow experiment`](#desflow-experiment)
+- [`desflow report`](#desflow-report)
+- [`desflow fit`](#desflow-fit)
+- [`desflow dist`](#desflow-dist)
+- [`desflow schema`](#desflow-schema)
+- [`desflow examples`](#desflow-examples)
+- [`desflow examples list`](#desflow-examples-list)
+- [`desflow examples get`](#desflow-examples-get)
+
 ## `desflow`
 
 ```text
@@ -16,7 +30,7 @@ Options:
 
 Commands:
   run         Build the simulation in FILE and run it, or run replications...
-  check       Check that each blueprint in FILE...
+  check       Check that each blueprint or builder file in FILE...
   test        Run the tests of each file in FILE...
   explain     Show the model in SOURCE as a graph, with its utilisation,...
   experiment  Run the experiment in FILE and write its artifacts and report.
@@ -54,8 +68,12 @@ Usage: desflow run [OPTIONS] {FILE}
 
   Build the simulation in FILE and run it, or run replications of it.
 
+  FILE is a YAML blueprint. With --sample it may also be a builder file, a `.py`
+  file with a module-level `SimulationContext`, which is imported as `desflow
+  test` imports it, so its `if __name__ == "__main__":` block does not run.
+
 Arguments:
-  FILE  The blueprint file.  [required]
+  FILE  The blueprint file, or a builder file with --sample.  [required]
 
 Options:
   --until TIME      Simulation time to stop at, in seconds or as a duration such
@@ -107,11 +125,9 @@ Options:
 
     $ desflow run shop.yaml --replications 20 --seed 7
 
-    # Fill ${PACKERS} in the file, and run again whenever the file
-    changes
+    # Print the first five events again whenever the file changes
 
-    $ desflow run shop.yaml --var PACKERS=3 --sample 5 --watch[/bold
-    cyan]
+    $ desflow run shop.yaml --sample 5 --watch
 ```
 
 ## `desflow check`
@@ -119,20 +135,29 @@ Options:
 ```text
 Usage: desflow check [OPTIONS] {FILE...}
 
-  Check that each blueprint in FILE... builds, without running it.
+  Check that each blueprint or builder file in FILE... builds, without running
+  it.
 
   It reports what `desflow run` reports before the clock starts: YAML errors,
   unknown keys, missing names, unset variables, `!python` references that cannot
   be imported, and connectors whose extra is missing or whose settings are
-  refused. It also reports a Parquet or Jsonl entry when PyArrow is not
-  installed. It does not call `run.before`, contact a broker, a database or a
-  catalog, or run a `!python` function. Importing a `!python` module runs its
-  top-level code, as `desflow run` does. Prints `ok FILE (sim_id ID)` for each
+  refused. A Parquet, Jsonl or Iceberg connector, in a blueprint or a builder
+  file, is refused when its extra is not installed. It also reports a `tests`
+  entry with no seed in a file with none, as `desflow test` does. It warns about
+  a run with no end: an arrival with a `dist` or a `gap` and no `max_events`, in
+  a file with no `run.until`, `run.stop` or `run.segments`. It does not call
+  `run.before`, contact a broker, a database or a catalog, or run a `!python`
+  function. Importing a `!python` module runs its top-level code, as `desflow
+  run` does. A builder file, a `.py` file with a module-level
+  `SimulationContext`, is imported as `desflow test` imports it, so an import
+  whose extra is missing is reported; its `if __name__ == "__main__":` block
+  does not run. An error or a `sys.exit` of the file's code is one line, with
+  the file, its line and the error's type. Prints `ok FILE (sim_id ID)` for each
   valid file and every error of an invalid one, and exits 1 if any file is
   invalid.
 
 Arguments:
-  FILE...  The blueprint files.  [required]
+  FILE...  The blueprint files, or builder files.  [required]
 
 Options:
   --var NAME=VALUE  Fill ${NAME} in the files and in the files they include,
@@ -148,6 +173,10 @@ Options:
     # Check every blueprint in a folder, as a pre-commit hook does
 
     $ desflow check examples/*.yaml
+
+    # Check a builder file, which defines its model in Python
+
+    $ desflow check shop.py
 ```
 
 ## `desflow test`

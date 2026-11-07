@@ -113,7 +113,14 @@ def test_errors_raise_and_never_end_the_process(tmp_path):
         relative = source.relative_to(SOURCE)
         in_cli = "cli" in relative.with_suffix("").parts
         tree = ast.parse(source.read_text(encoding="utf-8"))
+        # Catching an exit, as a command does for a user's file, ends nothing
+        caught = set()
+        for handler in ast.walk(tree):
+            if isinstance(handler, ast.ExceptHandler) and handler.type is not None:
+                caught.update(id(part) for part in ast.walk(handler.type))
         for node in ast.walk(tree):
+            if id(node) in caught:
+                continue
             name = ast.unparse(node) if isinstance(node, ast.Attribute) else ""
             if isinstance(node, ast.Name):
                 name = node.id

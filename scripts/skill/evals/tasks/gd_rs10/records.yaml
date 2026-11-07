@@ -1,0 +1,56 @@
+# Records of task GD-RS10, written by hand from known-cases.md and original.py before
+# any run. The fields are read by ../../grade.py (see its docstring).
+
+task: GD-RS10
+
+until: 100
+
+run_end: null
+
+records:
+  - name: tick 1 at 1
+    match: {task: tick, value.event_type: log, value.priority: P2, value.item: '#0000'}
+    at: 1
+  - name: tick 2 at 2
+    match: {task: tick, value.event_type: log, value.priority: P0, value.item: '#0001'}
+    at: 2
+  - name: tick 3 at 3
+    match: {task: tick, value.event_type: log, value.priority: P3, value.item: '#0002'}
+    at: 3
+  - name: tick 4 at 4
+    match: {task: tick, value.event_type: log, value.priority: P1, value.item: '#0003'}
+    at: 4
+  - name: take P0 at 3
+    match:
+      task: take
+      value.event_type: repair
+      value.priority: P0
+      value.item: '#0001'
+    at: 3
+  - name: take P1 at 6
+    match:
+      task: take
+      value.event_type: repair
+      value.priority: P1
+      value.item: '#0003'
+    at: 6
+  - name: take P2 at 9
+    match:
+      task: take
+      value.event_type: repair
+      value.priority: P2
+      value.item: '#0000'
+    at: 9
+  - name: take P3 at 12
+    match:
+      task: take
+      value.event_type: repair
+      value.priority: P3
+      value.item: '#0002'
+    at: 12
+  - name: four takes
+    match: {task: take, value.event_type: repair}
+    count: 4
+  - name: last wait at 15
+    match: {task: wait3, value.event_type: waited}
+    at: 15

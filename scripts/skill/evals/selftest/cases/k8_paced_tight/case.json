@@ -1,0 +1,14 @@
+{
+  "fault": "N2: in a paced task, an assert with no allowance under the paced wall time (`assert wall >= 0.4`); K8 is the reviewer's now, so the case checks that clocks.json lists the assert",
+  "task": "st-rt2",
+  "tasks": "main",
+  "skill": true,
+  "counts": {},
+  "facts": {
+    "clocks.json": [
+      "\"line\": 58",
+      "assert wall >= 0.4",
+      "\"paced_wall\": 0.4"
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "fault": "round 4 S4: `_asdict()` of a namedtuple is not a private name of desflow",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K6": 0
+  }
+}

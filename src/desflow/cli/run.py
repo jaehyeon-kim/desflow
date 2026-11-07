@@ -39,8 +39,8 @@ _EPILOG = """
   $ [bold cyan]desflow run shop.yaml --stdout[/bold cyan]\n\n
   [dim]# Run 20 replications and print the mean and interval of each statistic[/dim]\n
   $ [bold cyan]desflow run shop.yaml --replications 20 --seed 7[/bold cyan]\n\n
-  [dim]# Fill ${PACKERS} in the file, and run again whenever the file changes[/dim]\n
-  $ [bold cyan]desflow run shop.yaml --var PACKERS=3 --sample 5 --watch[/bold cyan]
+  [dim]# Print the first five events again whenever the file changes[/dim]\n
+  $ [bold cyan]desflow run shop.yaml --sample 5 --watch[/bold cyan]
 """
 
 
@@ -109,7 +109,7 @@ def _run(
     file: Annotated[
         Path,
         typer.Argument(
-            help="The blueprint file.",
+            help="The blueprint file, or a builder file with --sample.",
             metavar="FILE",
             exists=True,
             dir_okay=False,
@@ -208,7 +208,12 @@ def _run(
         ),
     ] = False,
 ) -> None:
-    """Build the simulation in FILE and run it, or run replications of it."""
+    """Build the simulation in FILE and run it, or run replications of it.
+
+    FILE is a YAML blueprint. With --sample it may also be a builder file, a `.py`
+    file with a module-level `SimulationContext`, which is imported as `desflow
+    test` imports it, so its `if __name__ == "__main__":` block does not run.
+    """
     parse_until(until)
     options = _RunOptions(
         until,
@@ -224,8 +229,11 @@ def _run(
     )
     if (sample is not None or stdout) and replications is not None:
         refuse("--sample and --stdout print one run; leave out --replications")
-    if file.suffix == ".py":
-        refuse("desflow run takes a YAML blueprint; run a Python file with python FILE")
+    if file.suffix == ".py" and (sample is None or stdout or watch or var):
+        refuse(
+            "desflow run takes a builder Python file only with --sample, and "
+            "without --stdout, --var or --watch; run a Python file with python FILE"
+        )
     if watch:
         _watch(file, options)
     else:

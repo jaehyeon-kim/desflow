@@ -1,0 +1,23 @@
+{
+  "fault": "N1: the Builder form run in the test's own process (runpy) is recorded by the hook on Python code; the comparison test claims the forms and runs two of them",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K9": 0
+  },
+  "notes": {
+    "K9": [
+      "capacity 1 to 2: failed by",
+      "job takes 6 instead of 5: failed by"
+    ]
+  },
+  "forms": {
+    "test_model.py::test_the_builder_form_ends_the_second_job_at_7": [
+      "builder"
+    ],
+    "test_model.py::test_the_forms_give_the_same_records": [
+      "builder",
+      "yaml"
+    ]
+  }
+}

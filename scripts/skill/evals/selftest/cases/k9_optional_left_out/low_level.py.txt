@@ -1,0 +1,59 @@
+"""DS-A3: A group size drawn for each arrival.
+
+Low-level form: plain SimPy on a `DynamicRealtimeEnvironment`, which publishes each
+record with `publish_event`.
+"""
+
+from desflow import DynamicRealtimeEnvironment, Sampler
+
+PROCS: dict = {}  # entity key -> its process
+UNTIL = 205
+
+
+def build(env: DynamicRealtimeEnvironment) -> None:
+    PROCS.clear()
+
+    def L(key, task, payload):
+        env.publish_event(key, payload, task=task)
+
+    sizes = Sampler(seed=42).generator("arrivals.a.group")
+    n = [0]
+
+    def member(k):
+        L(k, "member", {"event_type": "member"})
+        yield env.timeout(0)
+
+    def src():
+        for a in range(40):
+            yield env.timeout(5)
+            for i in range(int(sizes.poisson(2))):
+                n[0] += 1
+                env.process(member(f"a-{n[0]}"))
+
+    env.process(src())
+
+
+if __name__ == "__main__":
+    from desflow import ConsoleEgress
+
+    SETTINGS = globals()
+    ENV = DynamicRealtimeEnvironment(
+        initial_time=SETTINGS.get("INITIAL_TIME", 0.0),
+        factor=SETTINGS.get("FACTOR", 0.0),
+        strict=SETTINGS.get("STRICT", False),
+        **SETTINGS.get("ENVIRONMENT", {}),
+    )
+    if SETTINGS.get("PARAMS") is not None:
+        ENV.registry.register_sim_parameter(SETTINGS["PARAMS"])
+    ENV.setup_egress([ConsoleEgress(format="json")], lag_monitor_interval=None)
+    if SETTINGS.get("STATS") is not None:
+        LEVEL, *INTERVAL = (STATS,) if isinstance(STATS, str) else STATS
+        ENV.setup_stats(SETTINGS["PARAMS"].sim_id, LEVEL, *INTERVAL)
+    MADE = build(ENV)
+    try:
+        if callable(MADE):
+            MADE()
+        else:
+            ENV.run(until=MADE if MADE is not None else UNTIL)
+    finally:
+        ENV.teardown()

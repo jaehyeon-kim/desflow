@@ -1,0 +1,55 @@
+{
+  "changes": [
+    {
+      "applied": "resources.m.current_cap = 2",
+      "name": "capacity 1 to 2",
+      "reason": ""
+    },
+    {
+      "applied": "arrivals.boss.value = 4",
+      "name": "grow at 4 instead of 2",
+      "reason": ""
+    },
+    {
+      "applied": "services.{tasks.job.service}.value = 6",
+      "name": "job takes 6 instead of 5",
+      "reason": ""
+    }
+  ],
+  "tests": {
+    "test_model.py::test_grow_at_2": {
+      "changes": {
+        "capacity 1 to 2": "PASSED",
+        "grow at 4 instead of 2": "FAILED",
+        "job takes 6 instead of 5": "PASSED"
+      },
+      "forms": [
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_jobs_done_at_5_and_7": {
+      "changes": {
+        "capacity 1 to 2": "FAILED",
+        "grow at 4 instead of 2": "FAILED",
+        "job takes 6 instead of 5": "FAILED"
+      },
+      "forms": [
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_the_three_forms_give_the_same_records": {
+      "changes": {
+        "capacity 1 to 2": "FAILED",
+        "grow at 4 instead of 2": "FAILED",
+        "job takes 6 instead of 5": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    }
+  }
+}

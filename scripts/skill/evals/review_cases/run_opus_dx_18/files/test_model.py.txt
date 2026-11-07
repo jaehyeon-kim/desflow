@@ -1,0 +1,97 @@
+"""Tests for the Shop model: packed_only sink `when`, in YAML, builder and low-level form.
+
+Run from this folder with: pytest test_model.py
+"""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+import yaml
+
+HERE = Path(__file__).resolve().parent
+DESFLOW = str(Path(sys.executable).parent / "desflow")
+
+# Orders arrive at 2, 4, ..., 18 (20 is the end of the run, so not processed); each is
+# packed in 1.5 s with no wait, so it finishes at 3.5, 5.5, ..., 19.5.
+EXPECTED = [
+    {
+        "stream_type": "event",
+        "sim_ts": 2.0 * n + 1.5,
+        "key": f"orders-{n}",
+        "task": "pack_order",
+        "instance": n - 1,
+        "value": {"event_type": "order_packed"},
+    }
+    for n in range(1, 10)
+]
+
+
+def records(cmd):
+    """Runs a command and returns its stdout JSON lines, without the wall-clock timestamp."""
+    out = subprocess.run(cmd, cwd=HERE, capture_output=True, text=True, timeout=120)
+    assert out.returncode == 0, out.stderr
+    rows = [json.loads(line) for line in out.stdout.splitlines() if line.strip()]
+    for row in rows:
+        assert "timestamp" in row
+        row.pop("timestamp")
+    return rows
+
+
+FORMS = {
+    "yaml": [DESFLOW, "run", "model.yaml"],
+    "builder": [sys.executable, "builder.py"],
+    "low_level": [sys.executable, "low_level.py"],
+}
+
+
+@pytest.fixture(scope="module")
+def outputs():
+    return {name: records(cmd) for name, cmd in FORMS.items()}
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_form_prints_only_packed_records(outputs, form):
+    assert outputs[form] == EXPECTED
+
+
+def test_three_forms_agree(outputs):
+    assert outputs["yaml"] == outputs["builder"] == outputs["low_level"]
+
+
+def test_blueprint_settings():
+    model = yaml.safe_load((HERE / "model.yaml").read_text())
+    assert model["simulation"]["sim_id"] == "Shop"
+    assert model["simulation"]["factor"] == 0
+    assert model["simulation"]["random_seed"] == 42
+    assert model["resources"]["packers"]["current_cap"] == 1
+    assert model["run"]["until"] == 20
+    (sink,) = model["egress"]
+    assert sink["type"] == "Console"
+    assert sink["when"] == {"expr": "record.value.event_type == 'order_packed'"}
+
+
+def test_filter_removes_engine_records(tmp_path):
+    """Without the `when`, the same sink also prints the queued and started records."""
+    model = yaml.safe_load((HERE / "model.yaml").read_text())
+    del model["egress"][0]["when"]
+    path = tmp_path / "unfiltered.yaml"
+    path.write_text(yaml.safe_dump(model))
+    rows = records([DESFLOW, "run", str(path)])
+    statuses = {r["value"].get("status") for r in rows if r["stream_type"] == "event"}
+    assert {"queued", "started"} <= statuses
+    packed = [r for r in rows if r["value"].get("event_type") == "order_packed"]
+    assert packed == EXPECTED
+
+
+def test_builder_predicate():
+    sys.path.insert(0, str(HERE))
+    try:
+        from builder import packed_only
+    finally:
+        sys.path.remove(str(HERE))
+    assert packed_only({"stream_type": "event", "value": {"event_type": "order_packed"}})
+    assert not packed_only({"stream_type": "event", "value": {"status": "queued"}})
+    assert not packed_only({"stream_type": "telemetry", "value": 0.5})

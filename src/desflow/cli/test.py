@@ -175,13 +175,11 @@ def _measure(
     """Runs one test once and returns the numeric statistics it published, by name
     without the sim id."""
     from desflow.analysis.runner import level_for, run_replications
+    from desflow.blueprint.build import missing_seed
 
     seed = test.seed if test.seed is not None else file_seed
     if seed is None:
-        raise ValueError(
-            f"{holder}: test '{test.name}' needs a seed: give `seed` in the test or "
-            f"simulation.random_seed in the file"
-        )
+        raise ValueError(f"{holder}: {missing_seed(test.name)}")
     until = test.until if test.until is not None else file_until
     if until is None:
         raise ValueError(

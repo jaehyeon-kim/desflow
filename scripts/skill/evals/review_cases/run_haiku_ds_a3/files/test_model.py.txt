@@ -1,0 +1,100 @@
+"""Tests for the Groups model in model.yaml, builder.py and low_level.py.
+
+Run from this folder with: pytest test_model.py
+"""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).resolve().parent
+DESFLOW = Path(sys.executable).with_name("desflow")
+
+# The group size at each firing, at 5, 10, ..., 200 seconds (seed 42, Poisson mean 2).
+# A 0 is a firing that starts nobody.
+SIZES = [2, 2, 1, 0, 2, 2, 2, 1, 1, 3, 1, 3, 3, 0, 2, 0, 2, 0, 1, 1,
+         0, 2, 1, 3, 0, 1, 0, 1, 3, 3, 3, 1, 3, 2, 3, 1, 2, 2, 0, 3]
+
+
+def _parse(text):
+    """Each non-empty line of standard output is one JSON record."""
+    return [json.loads(line) for line in text.splitlines() if line.strip()]
+
+
+def _run(command):
+    done = subprocess.run(
+        command, cwd=HERE, capture_output=True, text=True, check=False
+    )
+    assert done.returncode == 0, done.stderr[-2000:]
+    return _parse(done.stdout)
+
+
+def _run_yaml():
+    return _run([str(DESFLOW), "run", "model.yaml", "--stdout"])
+
+
+def _run_builder():
+    return _run([sys.executable, "builder.py"])
+
+
+def _run_low_level():
+    return _run([sys.executable, "low_level.py"])
+
+
+def _comparable(records):
+    """A record without its wall-clock timestamp, which differs between runs."""
+    return [
+        {k: v for k, v in record.items() if k != "timestamp"} for record in records
+    ]
+
+
+@pytest.fixture(scope="module")
+def yaml_records():
+    return _run_yaml()
+
+
+def test_three_forms_give_the_same_records(yaml_records):
+    builder = _run_builder()
+    low_level = _run_low_level()
+    assert _comparable(builder) == _comparable(yaml_records)
+    assert _comparable(low_level) == _comparable(yaml_records)
+
+
+def test_run_is_repeatable(yaml_records):
+    assert _comparable(_run_yaml()) == _comparable(yaml_records)
+
+
+def test_firings_every_5_seconds_with_their_group_sizes(yaml_records):
+    """Forty firings at 5, 10, ..., 200 seconds, each starting its drawn group size."""
+    counts = {}
+    for record in yaml_records:
+        counts[record["sim_ts"]] = counts.get(record["sim_ts"], 0) + 1
+    assert set(counts) <= {5.0 * k for k in range(1, 41)}  # nothing before 5, after 200
+    assert [counts.get(5.0 * k, 0) for k in range(1, 41)] == SIZES
+    assert len(yaml_records) == sum(SIZES) == 63
+
+
+def test_entities_keys_and_instances(yaml_records):
+    """Keys a-1, a-2, ... and instances 0, 1, ... in the order the entities are made."""
+    assert [r["key"] for r in yaml_records] == [f"a-{n}" for n in range(1, 64)]
+    assert [r["instance"] for r in yaml_records] == list(range(63))
+    for record in yaml_records:
+        assert record["stream_type"] == "event"
+        assert record["task"] == "member"
+        assert record["value"] == {"event_type": "member"}
+
+
+def test_records_are_in_time_order(yaml_records):
+    times = [r["sim_ts"] for r in yaml_records]
+    assert times == sorted(times)
+
+
+def test_the_blueprint_is_valid():
+    done = subprocess.run(
+        [str(DESFLOW), "run", "model.yaml", "--sample", "1"],
+        cwd=HERE, capture_output=True, text=True, check=False,
+    )
+    assert done.returncode == 0, done.stderr[-2000:]

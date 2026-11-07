@@ -1,0 +1,102 @@
+"""Tests of the model: the three forms (model.yaml, builder.py, low_level.py) must publish
+the same statistics of res, and those statistics must be the expected ones."""
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+import yaml
+
+HERE = Path(__file__).resolve().parent
+BIN_DIR = os.path.dirname(sys.executable)
+RES_PREFIX = "M.stats.resources.res."
+
+
+def run_form(name):
+    """Runs one form to its end and returns its records as (sim_ts, reading, value)
+    tuples for res, in the order they were printed."""
+    if name == "yaml":
+        command = [os.path.join(BIN_DIR, "desflow"), "run", "model.yaml"]
+    else:
+        command = [sys.executable, f"{name}.py"]
+    completed = subprocess.run(
+        command,
+        cwd=HERE,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert completed.returncode == 0, completed.stderr[-2000:]
+    records = []
+    for line in completed.stdout.splitlines():
+        if not line.startswith("{"):
+            continue
+        record = json.loads(line)
+        if record["stream_type"] != "telemetry" or not record["path_id"].startswith(RES_PREFIX):
+            continue
+        reading = record["path_id"][len(RES_PREFIX):]
+        records.append((record["sim_ts"], reading, record["value"]))
+    return records
+
+
+@pytest.fixture(scope="module")
+def forms():
+    return {name: run_form(name) for name in ("builder", "low_level", "yaml")}
+
+
+def counts(records):
+    """The in_use and queue_length readings only, the statistics the model asks for."""
+    return [(t, reading, value) for t, reading, value in records if reading in ("in_use", "queue_length")]
+
+
+def test_yaml_seed_is_a_literal_42():
+    blueprint = yaml.safe_load((HERE / "model.yaml").read_text())
+    assert blueprint["simulation"]["random_seed"] == 42
+    assert isinstance(blueprint["simulation"]["random_seed"], int)
+    assert blueprint["simulation"]["sim_id"] == "M"
+
+
+def test_low_level_seed_is_a_literal_and_capacity_is_one():
+    source = (HERE / "low_level.py").read_text()
+    assert "Sampler(seed=42)" in source
+    assert "current_cap=1" in source
+
+
+def test_yaml_capacity_and_arrival():
+    blueprint = yaml.safe_load((HERE / "model.yaml").read_text())
+    assert blueprint["resources"]["res"]["current_cap"] == 1
+    arrival = blueprint["arrivals"]["a"]
+    assert arrival["first_at"] == 0
+    assert arrival["max_events"] == 1
+    assert arrival["spawn"] == "use"
+    assert blueprint["tasks"]["use"]["resource"] == "res"
+    assert blueprint["tasks"]["use"]["service_time"] == 1
+    assert blueprint["tasks"]["use"]["payload"] == {"event_type": "used"}
+    assert blueprint["run"]["until"] == 5
+
+
+def test_res_counts_change_on_each_request_and_release(forms):
+    # One entity: it requests res at 0 (in use 1), releases it at 1 (in use 0),
+    # and the run's end publishes the final state at 5.
+    assert counts(forms["yaml"]) == [
+        (0.0, "in_use", 1),
+        (0.0, "queue_length", 0),
+        (1.0, "in_use", 0),
+        (1.0, "queue_length", 0),
+        (5.0, "in_use", 0),
+        (5.0, "queue_length", 0),
+    ]
+
+
+@pytest.mark.parametrize("name", ["builder", "low_level"])
+def test_forms_give_the_same_res_records(forms, name):
+    assert forms[name] == forms["yaml"]
+
+
+def test_no_timer_publication_inside_the_run(forms):
+    # The interval is longer than the run, so the only times are the call times and the end.
+    times = {t for t, _, _ in forms["yaml"]}
+    assert times == {0.0, 1.0, 5.0}

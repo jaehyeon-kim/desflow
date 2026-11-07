@@ -1,0 +1,17 @@
+{
+  "fault": "BASE: the run has no test_model.py; every change is a K9 mistake, as no test passes",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K9": 3,
+    "BASE": 1
+  },
+  "evidence": {
+    "BASE": [
+      "test_model.py is missing"
+    ],
+    "K9": [
+      "capacity 1 to 2: no test passes on the agent's model"
+    ]
+  }
+}

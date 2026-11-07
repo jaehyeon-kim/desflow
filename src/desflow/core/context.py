@@ -476,7 +476,7 @@ class SimulationContext:
             app.run()
             ```
         """
-        from desflow.blueprint.build import build
+        from desflow.blueprint.build import build, run_as_sample
 
         context, run = build(path, preview, variables)
         context._defaults.until = run.until
@@ -490,11 +490,8 @@ class SimulationContext:
             context._defaults.before_run = list(run.before)
         elif run.before:
             logger.warning("run.before skipped: preview runs use no real sinks")
-        if preview is not None and preview.sample is not None:
-            context.factor = 0.0
-            context.go_live_at = None
-            context.strict = None
-            context._defaults.sample_limit = preview.sample
+        if preview is not None:
+            run_as_sample(context, preview)
         context._defaults.repeat_hint = (
             f"Repeat it with: desflow run {path} --seed {{seed}}"
         )

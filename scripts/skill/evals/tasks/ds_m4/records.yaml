@@ -1,0 +1,46 @@
+# Records of task DS-M4, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: DS-M4
+
+until: 12
+
+run_end: 12
+
+records:
+  - name: check
+    match: {task: check, key: control-1}
+    at: 0
+    before: [car 1, check_on]
+  - name: car 1
+    match: {task: car, key: cars-1}
+    at: 0
+    before: [car 2]
+  - name: car 2
+    match: {task: car, key: cars-2}
+    at: 0
+    before: [car 3]
+  - name: car 3
+    match: {task: car, key: cars-3}
+    at: 0
+    before: [car 4]
+  - name: car 4
+    match: {task: car, key: cars-4}
+    at: 0
+  - name: check_on
+    match: {task: check_on, key: control-1}
+    at: 0
+  - name: car 5
+    match: {task: car, key: cars-5}
+    at: 5
+    before: [car_on 1]
+  - name: car_on 1
+    match: {task: car_on, key: cars-1}
+    at: 5
+  - name: car 6
+    match: {task: car, key: cars-6}
+    at: 10
+    before: [car_on 5]
+  - name: car_on 5
+    match: {task: car_on, key: cars-5}
+    at: 10

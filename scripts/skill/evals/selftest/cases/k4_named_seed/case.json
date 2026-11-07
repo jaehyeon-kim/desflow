@@ -1,0 +1,18 @@
+{
+  "fault": "N3: a Builder seed written as a named constant (RNG_SEED = 42) is not changed, so the forms differ at seed 43",
+  "task": "ds-a3",
+  "tasks": "main",
+  "skill": true,
+  "counts": {
+    "K1": 0,
+    "K2": 0,
+    "K4": 0,
+    "K6": 0,
+    "K7": 0,
+    "K9": 0,
+    "K11": 0,
+    "K12": 0,
+    "K13": 0,
+    "BASE": 0
+  }
+}

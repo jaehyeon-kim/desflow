@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "name": "st-rt2",
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "error": null,
+            "tracePath": "/tmp/e-eeeeee/out/trace.jsonl"
+          },
+          {
+            "score": 1,
+            "error": null,
+            "tracePath": "/tmp/e-ffffff/out/trace.jsonl"
+          }
+        ]
+      }
+    }
+  ]
+}

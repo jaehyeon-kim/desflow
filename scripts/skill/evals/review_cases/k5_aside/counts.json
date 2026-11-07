@@ -1,0 +1,7 @@
+{
+  "known": true,
+  "counts": {
+    "K5": 0
+  },
+  "reason": "test_yaml_run_ends_at_20 (\"The YAML form ends at 20; builder.py sets no end of its own.\") claims no comparison: the second clause states a fact about another file."
+}

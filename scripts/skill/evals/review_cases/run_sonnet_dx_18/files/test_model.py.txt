@@ -1,0 +1,53 @@
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).parent
+DESFLOW = Path(sys.executable).with_name("desflow")
+
+
+def lines(text):
+    return [json.loads(l) for l in text.splitlines() if l.startswith("{")]
+
+
+def strip(records):
+    # timestamp is wall-clock time, so it differs between runs
+    return [{k: v for k, v in r.items() if k != "timestamp"} for r in records]
+
+
+def run_py(name):
+    out = subprocess.run([sys.executable, str(HERE / name)], cwd=HERE,
+                         capture_output=True, text=True, check=True, timeout=120)
+    return strip(lines(out.stdout))
+
+
+def run_yaml():
+    out = subprocess.run([sys.executable, "-m", "desflow", "run", "model.yaml"],
+                         cwd=HERE, capture_output=True, text=True, timeout=120)
+    if out.returncode:  # fall back to the console script
+        out = subprocess.run([str(DESFLOW), "run", "model.yaml"], cwd=HERE,
+                             capture_output=True, text=True, check=True, timeout=120)
+    return strip(lines(out.stdout))
+
+
+def test_yaml_records():
+    recs = run_yaml()
+    assert [r["sim_ts"] for r in recs] == [3.5 + 2 * i for i in range(9)]
+    assert all(r["stream_type"] == "event" for r in recs)
+    assert all(r["value"] == {"event_type": "order_packed"} for r in recs)
+    assert all(r["task"] == "pack_order" for r in recs)
+    assert [r["key"] for r in recs] == [f"orders-{i}" for i in range(1, 10)]
+
+
+def test_builder_matches_yaml():
+    assert run_py("builder.py") == run_yaml()
+
+
+def test_low_level_matches_yaml():
+    assert run_py("low_level.py") == run_yaml()
+
+
+def test_only_packed_printed():
+    for recs in (run_yaml(), run_py("builder.py"), run_py("low_level.py")):
+        assert recs and all(r["value"].get("event_type") == "order_packed" for r in recs)

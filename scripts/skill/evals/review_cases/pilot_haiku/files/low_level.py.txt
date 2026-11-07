@@ -1,0 +1,72 @@
+"""Set_capacity from a flow, low-level API.
+
+The same model as model.yaml and builder.py, written with DynamicRealtimeEnvironment.
+Two jobs share resource m, which has capacity 1. At 2 seconds the boss arrival
+publishes grow and raises the capacity of m to 3 through the registry. The run
+ends at 20 simulation seconds. ConsoleEgress in json format prints each record as
+one JSON line on standard output.
+
+The model draws no random numbers, so the seed does not change the records. It is
+set to 42, as in model.yaml and builder.py, so that the three forms match.
+
+Run it with: python low_level.py
+"""
+
+from desflow import (
+    CapacityConfig,
+    ConsoleEgress,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    SimParameter,
+)
+
+SEED = 42
+SIM_ID = "P"
+CAP_PATH = "P.resources.m.current_cap"
+
+
+def job(env, packers, key, instance):
+    """Queues for m, holds it for 5 seconds, then publishes done."""
+    env.publish_event(key, {"status": "queued"}, task="job", instance=instance)
+    with packers.request() as req:
+        yield req
+        env.publish_event(key, {"status": "started"}, task="job", instance=instance)
+        yield env.timeout(5)
+        env.publish_event(key, {"event_type": "done"}, task="job", instance=instance)
+
+
+def arrival_a(env, packers):
+    """One entity at 0 s, then one at 1 s: two entities in all, each running job."""
+    env.process(job(env, packers, "a-1", 0))
+    yield env.timeout(1)
+    env.process(job(env, packers, "a-2", 1))
+
+
+def arrival_boss(env):
+    """One entity at 2 s, once. It runs grow, which raises the capacity of m to 3."""
+    yield env.timeout(2)
+    env.publish_event("boss-1", {"event_type": "grow"}, task="grow", instance=0)
+    env.registry.update(CAP_PATH, 3)
+
+
+def run():
+    env = DynamicRealtimeEnvironment(factor=0, strict=False)
+    env.registry.register_sim_parameter(
+        SimParameter(
+            sim_id=SIM_ID,
+            resources={"m": CapacityConfig(current_cap=1, max_cap=3)},
+        )
+    )
+    env.setup_egress([ConsoleEgress(format="json")])
+
+    packers = DynamicResource(env, SIM_ID, "m")
+    env.process(arrival_a(env, packers))
+    env.process(arrival_boss(env))
+    try:
+        env.run(until=20)
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

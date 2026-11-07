@@ -515,8 +515,8 @@ Each event becomes one row of the table, and the two fields of `value`, `path_id
             IcebergStorageEgress,
             Sampler,
             SimParameter,
+            time_to_seconds,
         )
-        from desflow.utils import time_to_seconds
 
         logging.basicConfig(
             level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"

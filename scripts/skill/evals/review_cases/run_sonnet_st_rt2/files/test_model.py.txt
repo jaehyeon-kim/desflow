@@ -1,0 +1,80 @@
+import json
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).resolve().parent
+FORMS = {
+    "yaml": [str(Path(sys.executable).parent / "desflow"), "run", "model.yaml"],
+    "builder": [sys.executable, "builder.py"],
+    "low_level": [sys.executable, "low_level.py"],
+}
+
+
+def run_form(name):
+    start = time.monotonic()
+    out = subprocess.run(
+        FORMS[name], cwd=HERE, capture_output=True, text=True, check=True
+    )
+    wall = time.monotonic() - start
+    records = [json.loads(l) for l in out.stdout.splitlines() if l.startswith("{")]
+    return records, wall
+
+
+@pytest.fixture(scope="module")
+def runs():
+    return {name: run_form(name) for name in FORMS}
+
+
+def ticks(records):
+    return [
+        (r["sim_ts"], r["key"])
+        for r in records
+        if r.get("stream_type") == "event" and r["value"].get("event_type") == "tick"
+    ]
+
+
+@pytest.mark.parametrize("name", list(FORMS))
+def test_ticks(runs, name):
+    got = sorted(ticks(runs[name][0]))
+    want = sorted((float(t), f"a-{n}") for t in (1, 2, 3) for n in (1, 2))
+    assert got == want  # no tick at 4: the run ends before it
+
+
+@pytest.mark.parametrize("name", list(FORMS))
+def test_two_calls(runs, name):
+    segs = [
+        r["value"]
+        for r in runs[name][0]
+        if r.get("path_id") == "system.simulation.segment"
+    ]
+    assert [(s["index"], s["now"]) for s in segs] == [(0, 2), (1, 4)]
+    assert max(r["sim_ts"] for r in runs[name][0]) == 4.0
+
+
+@pytest.mark.parametrize("name", list(FORMS))
+def test_wall_time(runs, name):
+    recs, wall = runs[name]
+    assert wall >= 0.4  # 4 simulation seconds at factor 0.1
+    stamps = {r["sim_ts"]: r["timestamp"] for r in recs}
+    assert len(stamps) == 5  # records at 0, 1, 2, 3 and 4
+
+
+def test_paced_in_process():
+    import builder
+
+    start = time.monotonic()
+    builder.run()
+    assert 0.4 <= time.monotonic() - start < 3.0
+
+
+def test_forms_agree(runs):
+    def strip(recs):
+        return [{k: v for k, v in r.items() if k != "timestamp"} for r in recs]
+
+    base = strip(runs["yaml"][0])
+    assert strip(runs["builder"][0]) == base
+    assert strip(runs["low_level"][0]) == base

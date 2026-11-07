@@ -1,0 +1,20 @@
+# case ST-RT2: test_rt with factor 0.1, run called twice: run(2) then run(4), two
+# processes, four steps take 0.4 s of wall time.
+simulation: {sim_id: T, factor: 0.1, strict: true, random_seed: 42}
+
+arrivals:
+  a: {count: 2, gap: 1, first_at: 0, max_events: 1, spawn: pem}
+
+services:
+  s1: {dist: constant, value: 1}
+
+tasks:
+  pem:
+    service: s1
+    payload: {event_type: tick}
+    next: pem
+
+run:
+  segments:
+    - {until: 2}
+    - {until: 4}

@@ -1,5 +1,6 @@
 import contextlib
 import importlib
+import importlib.util
 import logging
 import queue
 from collections import Counter
@@ -406,6 +407,34 @@ def rows_table(records: List[dict], pa: Any) -> Any:
     return pa.Table.from_pydict(
         {column: [record.get(column) for record in records] for column in columns}
     )
+
+
+def require_packages(owner: str, extra: str, *packages: str) -> None:
+    """
+    Refuses to build a connector whose packages are not installed.
+
+    A storage connector imports its packages only when it writes, so without this
+    a run with a missing extra would start, write nothing, and stop its sink with
+    a log record that no handler may print.
+
+    Args:
+        owner (str): The connector's class name, for the message.
+        extra (str): The extra that installs the packages, such as `parquet`.
+        *packages (str): The top-level packages the connector writes with.
+
+    Raises:
+        ImportError: If any of `packages` is not installed. The message names
+            the extra to install.
+    """
+    missing = []
+    for package in packages:
+        if importlib.util.find_spec(package) is None:
+            missing.append(package)
+    if missing:
+        raise ImportError(
+            f"{owner} needs {' and '.join(missing)}, which is not installed. "
+            f'Install it with pip install "desflow[{extra}]"'
+        )
 
 
 def load_arrow(*modules: str, tables: bool = True) -> None:

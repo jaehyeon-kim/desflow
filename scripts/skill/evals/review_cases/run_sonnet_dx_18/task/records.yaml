@@ -1,0 +1,27 @@
+# Records of task DX-18, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: DX-18
+
+until: 20
+
+run_end: 20
+
+via: run
+
+records:
+  - name: order 1 packed at 3.5
+    match: {task: pack_order, key: orders-1, value.event_type: order_packed}
+    at: 3.5
+  - name: order 2 packed at 5.5
+    match: {task: pack_order, key: orders-2, value.event_type: order_packed}
+    at: 5.5
+  - name: nine orders packed
+    match: {value.event_type: order_packed}
+    count: 9
+  - name: no engine records reach the sink
+    match: {value.status: [queued, started]}
+    count: 0
+  - name: no telemetry reaches the sink
+    match: {stream_type: telemetry}
+    count: 0

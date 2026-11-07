@@ -1,0 +1,54 @@
+import json
+import os
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def records(*cmd):
+    out = subprocess.run(
+        list(cmd), cwd=HERE, capture_output=True, text=True, check=True
+    ).stdout
+    rows = [json.loads(line) for line in out.splitlines() if line.startswith("{")]
+    for r in rows:
+        r.pop("timestamp", None)  # starts from the wall clock, so it differs per run
+    return rows
+
+
+def yaml_records():
+    return records(os.path.join(os.path.dirname(sys.executable), "desflow"), "run", "model.yaml")
+
+
+def test_yaml_behaviour():
+    rows = yaml_records()
+    seen = [
+        (r["sim_ts"], r["key"], r["value"].get("event_type") or r["value"]["status"])
+        for r in rows
+    ]
+    assert seen == [
+        (0.0, "a-1", "queued"),
+        (0.0, "a-1", "started"),
+        (1.0, "a-2", "queued"),
+        (2.0, "boss-1", "grow"),
+        (2.0, "a-2", "started"),  # the raised capacity lets the waiting job in
+        (5.0, "a-1", "done"),
+        (7.0, "a-2", "done"),
+    ]
+
+
+def test_builder_matches_yaml():
+    assert records(sys.executable, "builder.py") == yaml_records()
+
+
+def test_low_level_matches_yaml():
+    assert records(sys.executable, "low_level.py") == yaml_records()
+
+
+import pytest
+
+
+@pytest.mark.parametrize("label", ["grow at 2"])
+def test_grow_record(label):
+    rows = yaml_records()
+    assert any(r["value"].get("event_type") == "grow" and r["sim_ts"] == 2.0 for r in rows), label

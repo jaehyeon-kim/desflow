@@ -1,0 +1,7 @@
+{
+  "known": true,
+  "counts": {
+    "K10": 0
+  },
+  "reason": "The cat in the same call prints model.yaml after --fix wrote the expect values."
+}

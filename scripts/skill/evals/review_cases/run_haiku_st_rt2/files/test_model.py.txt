@@ -1,0 +1,126 @@
+"""Tests for the ST-RT1 variant: model.yaml, builder.py and low_level.py.
+
+Run from this folder with: pytest test_model.py
+"""
+
+import json
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import pytest
+
+import builder
+import low_level
+
+HERE = Path(__file__).parent
+DESFLOW = Path(sys.executable).parent / "desflow"
+SIM_SECONDS = 4.0
+FACTOR = 0.1  # wall seconds per simulation second
+
+
+def normalise(stdout):
+    """Parses the JSON lines of a run and drops the wall-clock timestamp."""
+    records = []
+    for line in stdout.splitlines():
+        if line.startswith("{"):
+            record = json.loads(line)
+            record.pop("timestamp", None)
+            records.append(record)
+    return records
+
+
+@pytest.fixture(scope="module")
+def yaml_records():
+    done = subprocess.run(
+        [str(DESFLOW), "run", "model.yaml"],
+        cwd=HERE,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return normalise(done.stdout)
+
+
+@pytest.fixture(scope="module")
+def builder_records():
+    done = subprocess.run(
+        [sys.executable, "builder.py"],
+        cwd=HERE,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return normalise(done.stdout)
+
+
+@pytest.fixture(scope="module")
+def low_level_records():
+    done = subprocess.run(
+        [sys.executable, "low_level.py"],
+        cwd=HERE,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return normalise(done.stdout)
+
+
+def ticks(records, key):
+    """The simulation times of the tick events of one entity."""
+    return [
+        record["sim_ts"]
+        for record in records
+        if record["stream_type"] == "event"
+        and record["key"] == key
+        and record["value"].get("event_type") == "tick"
+    ]
+
+
+def test_yaml_blueprint_seed_is_a_literal():
+    text = (HERE / "model.yaml").read_text()
+    assert "random_seed: 42" in text
+
+
+def test_three_forms_give_the_same_records(yaml_records, builder_records, low_level_records):
+    assert yaml_records, "the YAML model printed no records"
+    assert builder_records == yaml_records
+    assert low_level_records == yaml_records
+
+
+@pytest.mark.parametrize("key", ["a-1", "a-2"])
+def test_each_entity_ticks_at_1_2_and_3(yaml_records, key):
+    assert ticks(yaml_records, key) == [1.0, 2.0, 3.0]
+
+
+@pytest.mark.parametrize("key", ["a-1", "a-2"])
+def test_no_tick_at_the_end_time(yaml_records, key):
+    assert SIM_SECONDS not in ticks(yaml_records, key)
+
+
+def test_two_entities_start_at_time_zero(yaml_records):
+    started = [
+        (record["key"], record["sim_ts"])
+        for record in yaml_records
+        if record["stream_type"] == "event" and record["value"] == {"status": "started"}
+    ]
+    assert started[:2] == [("a-1", 0.0), ("a-2", 0.0)]
+
+
+def test_run_is_called_twice_to_2_then_4(yaml_records):
+    segments = [
+        (record["value"]["index"], record["value"]["now"])
+        for record in yaml_records
+        if record.get("path_id") == "system.simulation.segment"
+    ]
+    assert segments == [(0, 2), (1, 4)]
+
+
+@pytest.mark.parametrize("module", [builder, low_level], ids=["builder", "low_level"])
+def test_four_simulation_seconds_take_at_least_0_4_wall_seconds(module, capsys):
+    started = time.perf_counter()
+    module.run()
+    elapsed = time.perf_counter() - started
+    capsys.readouterr()  # the records are not checked here
+    assert elapsed >= SIM_SECONDS * FACTOR

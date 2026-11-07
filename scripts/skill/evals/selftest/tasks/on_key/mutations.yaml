@@ -1,0 +1,8 @@
+# A value under `on:`, which PyYAML reads as true.
+
+task: P33
+
+mutations:
+  - name: grow to 1
+    changes:
+      - {keys: [tasks.grow.on.0.value], new: 1}

@@ -1,0 +1,70 @@
+"""The model in model.yaml, with the Low-level API.
+
+A task raises a resource's capacity: `job` holds one unit of `m` and `grow`
+sets `m` to 3 when it finishes at 2 seconds, which lets the waiting job start.
+
+Run with: python low_level.py   (prints one JSON line per record)
+"""
+
+from desflow import (
+    CapacityConfig,
+    ConsoleEgress,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    SimParameter,
+)
+
+# The model draws no random numbers. The seed is kept so the three forms carry the same one.
+SEED = 42
+
+# One unit to start; room for 3, so grow can raise the capacity to 3.
+PARAMS = SimParameter(
+    sim_id="P",
+    resources={"m": CapacityConfig(current_cap=1, max_cap=3)},
+)
+CAPACITY_PATH = "P.resources.m.current_cap"
+
+
+def job(env, m, key, task_id):
+    """Queues for m, holds it for 5 seconds, then publishes its done event."""
+    env.publish_event(key, {"status": "queued"}, task="job", instance=task_id)
+    with m.request() as req:
+        yield req
+        env.publish_event(key, {"status": "started"}, task="job", instance=task_id)
+        yield env.timeout(5)
+        env.publish_event(
+            key, {"event_type": "done"}, task="job", instance=task_id
+        )
+
+
+def boss(env, m):
+    """At 2 seconds, publishes the grow event and raises the capacity of m to 3."""
+    yield env.timeout(2)
+    env.publish_event("boss-1", {"event_type": "grow"}, task="grow", instance=0)
+    env.registry.update(CAPACITY_PATH, 3)
+
+
+def arrivals(env, m):
+    """One job at 0 seconds, then one every 1 second: 2 entities in all."""
+    env.process(job(env, m, "a-1", 0))
+    yield env.timeout(1)
+    env.process(job(env, m, "a-2", 1))
+
+
+def run():
+    env = DynamicRealtimeEnvironment(factor=0, strict=False)
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress([ConsoleEgress(format="json")])
+
+    m = DynamicResource(env, "P", "m")
+
+    env.process(arrivals(env, m))
+    env.process(boss(env, m))
+    try:
+        env.run(until=20)
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

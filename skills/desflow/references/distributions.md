@@ -1,6 +1,6 @@
 # Distributions
 
-Every distribution family a `services` entry or an arrival can draw from. In a blueprint, a time-valued parameter (`mean`, `std`, `low`, `mode`, `high`, `scale`, `value`, `values`, `edges`) also takes a duration such as `5 min`. `rate` is a number per second. The builder and the low-level API take seconds only.
+Every distribution family a `services` entry or an arrival can draw from. In a blueprint, a time-valued parameter (`mean`, `std`, `low`, `mode`, `high`, `scale`, `value`, `values`, `edges`) also takes a duration such as `5 min`. `rate` is a number per second. The Builder takes the same durations. The Low-level `DistributionConfig` takes seconds only.
 
 | Family | Parameters | Live paths |
 |---|---|---|

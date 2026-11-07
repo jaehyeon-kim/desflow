@@ -1,0 +1,61 @@
+"""Tests of task DS-A3: each test runs each form as its reader runs it."""
+
+import json
+import subprocess
+import sys
+from functools import lru_cache
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).parent
+FORMS = {
+    "yaml": [str(Path(sys.executable).parent / "desflow"), "run", "model.yaml", "--stdout"],
+    "builder": [sys.executable, "builder.py"],
+    "low_level": [sys.executable, "low_level.py"],
+}
+ENGINE = ("queued", "started", "resumed")
+
+
+@lru_cache(maxsize=None)
+def records(form):
+    """Returns every record a form prints, as JSON lines."""
+    done = subprocess.run(FORMS[form], cwd=HERE, capture_output=True, text=True, check=True)
+    return [json.loads(line) for line in done.stdout.splitlines() if line.startswith("{")]
+
+
+def events(form):
+    """Returns the event records of a form, without the engine's status records."""
+    return [
+        r
+        for r in records(form)
+        if r["stream_type"] == "event"
+        and not (isinstance(r["value"], dict) and r["value"].get("status") in ENGINE)
+    ]
+
+
+def times(form, task, key=None):
+    """Returns the times of the records of one task, and of one key when it is given."""
+    return [r["sim_ts"] for r in events(form) if r["task"] == task and key in (None, r["key"])]
+
+
+# Why: a total of 40 Poisson draws of mean 2 has a mean of 80 and a standard deviation of
+# about 9, so 50 to 110 holds at more than three standard deviations
+LOW, HIGH = 50, 110
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_the_group_sizes_have_a_mean_of_2(form):
+    assert LOW <= len(times(form, "member")) <= HIGH
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_groups_start_every_5_seconds_from_5(form):
+    starts = set(times(form, "member"))
+    assert all(t % 5 == 0 and 5 <= t <= 200 for t in starts)
+    assert {t % 10 for t in starts} == {0, 5}
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_the_firings_go_on_to_200(form):
+    assert max(times(form, "member")) > 150

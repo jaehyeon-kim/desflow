@@ -1,0 +1,16 @@
+{"instance": 0, "key": "a-1", "sim_ts": 0.0, "stream_type": "event", "task": "use", "timestamp": "2026-11-07T11:10:09.585+00:00", "value": {"path_id": "M.service.hold", "status": "queued"}}
+{"path_id": "M.stats.resources.res.capacity", "sim_ts": 0.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:09.585+00:00", "value": 1}
+{"path_id": "M.stats.resources.res.in_use", "sim_ts": 0.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:09.585+00:00", "value": 1}
+{"path_id": "M.stats.resources.res.queue_length", "sim_ts": 0.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:09.585+00:00", "value": 0}
+{"path_id": "M.stats.resources.res.utilization", "sim_ts": 0.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:09.585+00:00", "value": 100.0}
+{"instance": 0, "key": "a-1", "sim_ts": 0.0, "stream_type": "event", "task": "use", "timestamp": "2026-11-07T11:10:09.585+00:00", "value": {"path_id": "M.service.hold", "status": "started"}}
+{"instance": 0, "key": "a-1", "sim_ts": 1.0, "stream_type": "event", "task": "use", "timestamp": "2026-11-07T11:10:10.585+00:00", "value": {"event_type": "used"}}
+{"path_id": "M.stats.resources.res.capacity", "sim_ts": 1.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:10.585+00:00", "value": 1}
+{"path_id": "M.stats.resources.res.in_use", "sim_ts": 1.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:10.585+00:00", "value": 0}
+{"path_id": "M.stats.resources.res.queue_length", "sim_ts": 1.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:10.585+00:00", "value": 0}
+{"path_id": "M.stats.resources.res.utilization", "sim_ts": 1.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:10.585+00:00", "value": 0.0}
+{"path_id": "M.stats.resources.res.capacity", "sim_ts": 5.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:14.585+00:00", "value": 1}
+{"path_id": "M.stats.resources.res.in_use", "sim_ts": 5.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:14.585+00:00", "value": 0}
+{"path_id": "M.stats.resources.res.queue_length", "sim_ts": 5.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:14.585+00:00", "value": 0}
+{"path_id": "M.stats.resources.res.utilization", "sim_ts": 5.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:14.585+00:00", "value": 0.0}
+{"path_id": "M.stats.tasks.use.in_progress", "sim_ts": 5.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:10:14.585+00:00", "value": 0}

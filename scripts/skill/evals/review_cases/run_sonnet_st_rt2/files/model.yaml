@@ -1,0 +1,14 @@
+simulation: {sim_id: Sim, factor: 0.1, random_seed: 42}
+egress:
+  - {type: Console, config: {format: json}}
+arrivals:
+  a: {initial: 2, spawn: pem}
+tasks:
+  pem:
+    wait: {timeout: 1}
+    payload: {event_type: tick}
+    next: pem
+run:
+  segments:
+    - {until: 2}
+    - {until: 4}

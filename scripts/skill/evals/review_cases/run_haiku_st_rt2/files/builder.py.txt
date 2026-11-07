@@ -1,0 +1,44 @@
+"""ST-RT1 variant, Builder API: the same model as model.yaml.
+
+Two entities start at time 0 and run the task `pem`. Each pass takes one simulated
+second and publishes a tick, then loops back to `pem`. The model is paced at factor 0.1,
+so one simulation second takes 0.1 second of wall time. The run is called twice: to 2
+seconds, then to 4 seconds.
+
+Run it with: python builder.py
+Each record is printed to standard output as one JSON line.
+"""
+
+from desflow import ConsoleEgress, SimulationContext
+
+SEED = 42
+
+
+def build() -> SimulationContext:
+    """Returns the model, ready to run."""
+    app = SimulationContext(
+        sim_id="RT",
+        factor=0.1,
+        random_seed=SEED,
+        # Turns off the lag records, which are not part of the model.
+        lag_interval=0,
+    ).add_egress(ConsoleEgress(format="json"))
+
+    # Two entities start at time 0, each running pem.
+    app.add_initial_arrival("a", 2, spawn="pem")
+
+    # Each pass takes 1 second and publishes a tick. next loops back to pem.
+    @app.task(name="pem", service_time=1.0, next="pem")
+    def pem(task_id):
+        return {"event_type": "tick"}
+
+    return app
+
+
+def run() -> None:
+    """Runs the model to 4 seconds, in two calls: to 2 seconds, then on to 4."""
+    build().run(segments=[{"until": 2}, {"until": 4}])
+
+
+if __name__ == "__main__":
+    run()

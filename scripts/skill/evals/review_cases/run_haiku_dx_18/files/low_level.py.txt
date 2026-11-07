@@ -1,0 +1,81 @@
+"""Shop: the model in model.yaml, written with the Low-level API.
+
+Orders arrive every 2 seconds from time 2, and each is packed by one of one packer
+for 1.5 seconds. A Console sink prints only the order_packed events, one JSON line
+each, to standard output. Run it with: python low_level.py
+"""
+
+from datetime import datetime, timezone
+
+import numpy as np
+
+from desflow import (
+    CapacityConfig,
+    ConsoleEgress,
+    DistributionConfig,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    Sampler,
+    SimParameter,
+)
+
+PARAMS = SimParameter(
+    sim_id="Shop",
+    arrival={"orders": DistributionConfig(dist="constant", value=2)},
+    service={"pack": DistributionConfig(dist="constant", value=1.5)},
+    resources={"packers": CapacityConfig(current_cap=1)},
+)
+
+
+def packed_only(record):
+    """True for the records whose value says order_packed; the others are dropped."""
+    value = record.get("value")
+    return isinstance(value, dict) and value.get("event_type") == "order_packed"
+
+
+def pack_order(env, sampler, packers, key, task_id):
+    """One order: queued, started, then finished with its payload."""
+    path_id = "Shop.service.pack"
+
+    def publish(value):
+        env.publish_event(key, value, task="pack_order", instance=task_id)
+
+    publish({"path_id": path_id, "status": "queued"})
+    with packers.request() as req:
+        yield req
+        publish({"path_id": path_id, "status": "started"})
+        # The service time is read when the work starts; here it is always 1.5 seconds
+        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+        publish({"event_type": "order_packed"})
+
+
+def arrival_generator(env, sampler, packers):
+    """One order every 2 seconds, the first at time 2."""
+    yield env.timeout(2)
+    task_id = 0
+    while True:
+        # Each order is keyed orders-1, orders-2 and so on
+        env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
+        task_id += 1
+        yield env.timeout(2)
+
+
+def run():
+    env = DynamicRealtimeEnvironment(
+        factor=0,
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress([ConsoleEgress(format="json")], predicates=[packed_only])
+
+    packers = DynamicResource(env, "Shop", "packers")
+    sampler = Sampler(rng=np.random.default_rng(42))
+    env.process(arrival_generator(env, sampler, packers))
+    try:
+        env.run(until=20)
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

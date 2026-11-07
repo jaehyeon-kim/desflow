@@ -1,0 +1,38 @@
+{
+  "fault": "one planted mistake of each kind the script scores",
+  "task": "planted",
+  "counts": {
+    "K1": 1,
+    "K2": 1,
+    "K4": 2,
+    "K6": 2,
+    "K7": 1,
+    "K9": 3,
+    "K11": 1,
+    "K12": 1,
+    "K13": 1,
+    "BASE": 0
+  },
+  "evidence": {
+    "K7": [
+      "model.yaml: run end is 25.0, the original's is 20"
+    ],
+    "K13": [
+      "low_level.py:"
+    ],
+    "K6": [
+      "builder.py:4: imports from desflow.connectors.egress.local",
+      "builder.py:5: imports from desflow.values.runtime"
+    ]
+  },
+  "notes": {
+    "K7": [
+      "model.yaml:8: value 5 is a bare number of seconds"
+    ]
+  },
+  "notes_absent": {
+    "K9": [
+      "killed"
+    ]
+  }
+}

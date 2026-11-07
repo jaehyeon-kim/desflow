@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import queue
+import subprocess
+import sys
 
 import pytest
 
@@ -123,6 +125,43 @@ async def test_console_json_logs_a_batch_it_cannot_encode_and_goes_on(capsys, ca
         '{"stream_type":"event","key":"b","value":{"x":1}}\n'
     )
     assert "Console: batch not printed" in caplog.text
+
+
+_QUIET_SCRIPT = """\
+import logging
+
+from desflow import ConsoleEgress, SimulationContext
+
+{setup}
+app = SimulationContext(sim_id="Shop", factor=0).add_egress(ConsoleEgress({format}))
+app.add_arrival("orders", dist="constant", value=1, spawn="t")
+app.task(name="t")(lambda task_id: {{"x": 1}})
+app.run(until=2)
+"""
+
+
+@pytest.mark.parametrize(
+    "setup, format, warned",
+    [
+        ("", "", True),
+        ("logging.basicConfig(level=logging.INFO)", "", False),
+        ("", 'format="json"', False),
+    ],
+)
+def test_console_warns_when_the_log_format_would_print_nothing(
+    tmp_path, setup, format, warned
+):
+    """A script run with `python FILE` and no logging set up gets one warning on
+    stderr that names its own line; logging at INFO or the json format gets none."""
+    script = tmp_path / "shop.py"
+    script.write_text(_QUIET_SCRIPT.format(setup=setup, format=format))
+    done = subprocess.run(
+        [sys.executable, str(script)], capture_output=True, text=True, check=True
+    )
+    found = done.stderr.count("ConsoleEgress writes each batch with logging at INFO")
+    assert found == (1 if warned else 0), done.stderr
+    if warned:
+        assert f"{script}:9: UserWarning" in done.stderr
 
 
 def test_console_refuses_an_unknown_format():

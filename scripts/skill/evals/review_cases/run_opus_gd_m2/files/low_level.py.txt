@@ -1,0 +1,85 @@
+"""The resource-monitoring model with the low-level API (DynamicRealtimeEnvironment).
+
+The same model as model.yaml and builder.py, written on SimPy directly: one entity
+`a-1` at time 0 takes `res` (capacity 1), holds it for 1 second and publishes
+{event_type: used}. `env.stats.on_change = True` makes every `request()` and
+`release()` call on `res` publish its readings (capacity, in_use, queue_length,
+utilization). Each record is printed to standard output as one JSON line.
+
+Run it with: python low_level.py
+"""
+
+from datetime import datetime, timezone
+
+import numpy as np
+
+from desflow import (
+    CapacityConfig,
+    ConsoleEgress,
+    DistributionConfig,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    Sampler,
+    SimParameter,
+)
+
+SIM_ID = "M"
+
+PARAMS = SimParameter(
+    sim_id=SIM_ID,
+    service={"hold": DistributionConfig(dist="constant", value=1)},
+    resources={"res": CapacityConfig(current_cap=1)},
+)
+
+
+def use(env, sampler, res, key, task_id):
+    """Queued, takes res, holds it for the service time, publishes `used`, releases."""
+    path_id = f"{SIM_ID}.service.hold"
+
+    def publish(value):
+        env.publish_event(key, value, task="use", instance=task_id)
+
+    publish({"path_id": path_id, "status": "queued"})
+    env.stats.task_queued("use", task_id)
+    # The request() call publishes res's readings (on_change)
+    with res.request() as req:
+        yield req
+        publish({"path_id": path_id, "status": "started"})
+        env.stats.task_started("use", task_id)
+        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+        publish({"event_type": "used"})
+        env.stats.task_finished("use", task_id)
+    # Leaving the with block calls release(), which publishes the readings again
+
+
+def arrival_a(env, sampler, res):
+    """Arrival `a`: one entity at time 0, keyed a-1, as max_events=1 gives."""
+    env.process(use(env, sampler, res, "a-1", 0))
+    yield env.timeout(0)
+
+
+def run():
+    env = DynamicRealtimeEnvironment(
+        factor=0,  # unpaced
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress([ConsoleEgress(format="json")])
+    # The readings of res; the 60 s timer never fires in a 5 s run, and teardown
+    # publishes them once more at the end
+    env.setup_stats(SIM_ID, "minimal", interval=60)
+    # Publish a resource's readings after each request and release call
+    env.stats.on_change = True
+
+    res = DynamicResource(env, SIM_ID, "res")
+    sampler = Sampler(rng=np.random.default_rng(42))
+
+    env.process(arrival_a(env, sampler, res))
+    try:
+        env.run(until=5)
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

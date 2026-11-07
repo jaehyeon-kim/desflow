@@ -1,0 +1,35 @@
+# Records of task ST-RT2, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: ST-RT2
+
+until: null
+
+run_end: 4
+
+via: stdout
+
+# The records at 0 to 4 are printed over 0.4 s at a factor of 0.1; the Console egress
+# prints them in batches about 0.1 s apart, so a paced run prints them over 0.2 s or
+# more, and a run that is not paced over less than 0.1 s.
+wall_min: 0.15
+
+# Four simulation seconds at a factor of 0.1, as the prompt says
+paced_wall: 0.4
+
+records:
+  - name: two ticks at 1
+    match: {task: pem, value.event_type: tick}
+    at: 1
+    count: 2
+  - name: two ticks at 2
+    match: {task: pem, value.event_type: tick}
+    at: 2
+    count: 2
+  - name: two ticks at 3
+    match: {task: pem, value.event_type: tick}
+    at: 3
+    count: 2
+  - name: six ticks in all
+    match: {task: pem, value.event_type: tick}
+    count: 6

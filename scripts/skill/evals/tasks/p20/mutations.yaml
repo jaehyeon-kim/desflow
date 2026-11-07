@@ -1,0 +1,18 @@
+# Three changes to the YAML an agent writes for task P20: a rate, a weight or share, a
+# capacity, or the nearest time or count, or, where no number the request names changes
+# the records, one step of the flow. Each change tries the keys of `keys` that exist in
+# model.yaml, in order, and keeps the first that alters the records (grade.py).
+
+task: P20
+
+mutations:
+  - name: weight of a 3 to 0
+    changes:
+      - {keys: [tasks.weighted.next.weights.a], new: 0}
+  - name: vip share 0.3 to 0.9
+    changes:
+      - keys: [arrivals.a.attributes.vip.p, arrivals.a.attributes.vip.probability]
+        new: 0.9
+  - name: gap 1 to 2
+    changes:
+      - {keys: [arrivals.a.value, arrivals.a.gap, arrivals.a.gap.value], new: 2}

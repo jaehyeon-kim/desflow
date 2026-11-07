@@ -1,0 +1,50 @@
+"""Task P33, Low-level form: plain SimPy on a DynamicRealtimeEnvironment."""
+
+from desflow import (
+    CapacityConfig,
+    ConsoleEgress,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    SimParameter,
+)
+
+PARAMS = SimParameter(
+    sim_id="P", resources={"m": CapacityConfig(current_cap=1, max_cap=3)}
+)
+
+
+def run(seed=42):
+    env = DynamicRealtimeEnvironment(factor=0)
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress([ConsoleEgress(format="json")])
+    m = DynamicResource(env, "P", "m")
+
+    def job(key):
+        with m.request() as request:
+            yield request
+            yield env.timeout(5)  # 5 s
+            env.publish_event(key, {"event_type": "done"}, task="job")
+
+    def grow(key):
+        env.publish_event(key, {"event_type": "grow"}, task="grow")
+        env.registry.update("P.resources.m.current_cap", 3)
+        yield env.timeout(0)
+
+    def source(name, make, gap, count, first=None):
+        if first:
+            yield env.timeout(first)
+        for number in range(1, count + 1):
+            if not (first is not None and number == 1):
+                yield env.timeout(gap)
+            env.process(make(f"{name}-{number}"))
+
+    env.process(source("a", job, gap=1, count=2, first=0))  # a gap of 1 s
+    env.process(source("boss", grow, gap=2, count=1))  # a gap of 2 s
+    try:
+        env.run(until=20)  # 20 s
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

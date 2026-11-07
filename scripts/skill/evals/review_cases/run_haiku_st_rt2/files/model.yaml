@@ -1,0 +1,19 @@
+# ST-RT1 variant: paced at factor 0.1, two entities ticking every simulated second.
+# Run it with: desflow run model.yaml
+simulation: {sim_id: RT, factor: 0.1, random_seed: 42, lag_interval: 0}
+
+egress:
+  - {type: Console, config: {format: json}}
+
+arrivals:
+  # Two entities start at time 0, each running pem.
+  a: {initial: 2, spawn: pem}
+
+tasks:
+  # Each pass takes 1 second and publishes a tick; next loops back to pem.
+  pem:
+    service_time: 1.0
+    payload: {event_type: tick}
+    next: pem
+
+run: {segments: [{until: 2}, {until: 4}]}

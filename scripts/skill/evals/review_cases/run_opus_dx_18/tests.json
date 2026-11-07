@@ -1,0 +1,106 @@
+{
+  "changes": [
+    {
+      "applied": "services.{tasks.pack_order.service}.value = 2.5",
+      "name": "packing 1.5 to 2.5",
+      "reason": ""
+    },
+    {
+      "applied": "arrivals.orders.gap = 3",
+      "name": "order gap 2 to 3",
+      "reason": ""
+    },
+    {
+      "applied": "run.until = 10",
+      "name": "run to 10",
+      "reason": ""
+    }
+  ],
+  "tests": {
+    "test_model.py::test_blueprint_settings": {
+      "changes": {
+        "order gap 2 to 3": "PASSED",
+        "packing 1.5 to 2.5": "PASSED",
+        "run to 10": "FAILED"
+      },
+      "forms": [
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_builder_predicate": {
+      "changes": {
+        "order gap 2 to 3": "PASSED",
+        "packing 1.5 to 2.5": "PASSED",
+        "run to 10": "PASSED"
+      },
+      "forms": [
+        "builder"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_filter_removes_engine_records": {
+      "changes": {
+        "order gap 2 to 3": "FAILED",
+        "packing 1.5 to 2.5": "FAILED",
+        "run to 10": "FAILED"
+      },
+      "forms": [
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_form_prints_only_packed_records[builder]": {
+      "changes": {
+        "order gap 2 to 3": "PASSED",
+        "packing 1.5 to 2.5": "PASSED",
+        "run to 10": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_form_prints_only_packed_records[low_level]": {
+      "changes": {
+        "order gap 2 to 3": "PASSED",
+        "packing 1.5 to 2.5": "PASSED",
+        "run to 10": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_form_prints_only_packed_records[yaml]": {
+      "changes": {
+        "order gap 2 to 3": "FAILED",
+        "packing 1.5 to 2.5": "FAILED",
+        "run to 10": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_three_forms_agree": {
+      "changes": {
+        "order gap 2 to 3": "FAILED",
+        "packing 1.5 to 2.5": "FAILED",
+        "run to 10": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    }
+  }
+}

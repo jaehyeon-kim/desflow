@@ -1,0 +1,7 @@
+{
+  "fault": "pilot: a seed written as SEED = 42 is not changed, so the forms differ at seed 43",
+  "task": "rand",
+  "counts": {
+    "K4": 0
+  }
+}

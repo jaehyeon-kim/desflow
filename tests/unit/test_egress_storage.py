@@ -1,5 +1,6 @@
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -647,24 +648,38 @@ def test_parquet_usage_since_is_a_double_in_every_file(tmp_path: Path):
     ]
 
 
-def test_a_file_sink_without_pyarrow_says_so_at_error(tmp_path: Path, caplog):
-    """Without pyarrow, JsonlStorageEgress stops at once; the run logs why at ERROR,
-    with the install hint, rather than only that the queues stopped draining."""
-    import sys
-    from unittest import mock
+@pytest.mark.parametrize(
+    "name, settings, hidden, extra",
+    [
+        ("JsonlStorageEgress", {"default_path": "e.jsonl"}, "pyarrow", "parquet"),
+        ("ParquetStorageEgress", {"default_path": "e.parquet"}, "pyarrow", "parquet"),
+        (
+            "IcebergStorageEgress",
+            {"catalog": None, "default_table": "t"},
+            "pyarrow",
+            "iceberg",
+        ),
+        (
+            "IcebergStorageEgress",
+            {"catalog": None, "default_table": "t"},
+            "pyiceberg",
+            "iceberg",
+        ),
+    ],
+)
+def test_a_storage_sink_without_its_extra_is_refused_when_built(
+    monkeypatch, name, settings, hidden, extra
+):
+    """The storage connectors import their packages only when they write, so each
+    refuses to be built without them, naming the extra, rather than starting a run
+    that writes nothing."""
+    import desflow
 
-    from desflow import DynamicRealtimeEnvironment
-
-    env = DynamicRealtimeEnvironment(factor=0)
-    with mock.patch.dict(sys.modules, {"pyarrow": None}):
-        env.setup_egress(
-            [JsonlStorageEgress(default_path=str(tmp_path / "events.jsonl"))]
-        )
-        with caplog.at_level("ERROR"):
-            env.run(until=1)
-            env.teardown()
-    errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
-    assert any("pip install desflow[parquet]" in m for m in errors), errors
+    monkeypatch.setitem(sys.modules, hidden, None)
+    with pytest.raises(ImportError) as raised:
+        getattr(desflow, name)(**settings)
+    assert f"{name} needs {hidden}, which is not installed" in str(raised.value)
+    assert f'pip install "desflow[{extra}]"' in str(raised.value)
 
 
 def _event(value, key="orders-1", stream_type="event"):

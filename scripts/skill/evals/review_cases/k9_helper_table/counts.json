@@ -1,0 +1,8 @@
+{
+  "known": true,
+  "counts": {
+    "K9": 0,
+    "K5": 1
+  },
+  "reason": "The tests call events(\"yaml\"), a helper that reads one entry of a table, and check the times each change moves, so each change fails a behaviour test. test_the_three_forms_give_the_same_records claims three forms and reads the YAML and Builder records only."
+}

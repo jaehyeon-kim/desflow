@@ -1,0 +1,8 @@
+{
+  "known": true,
+  "counts": {
+    "K9": 1,
+    "K5": 0
+  },
+  "reason": "As ft_import_parity, with the Builder run as python -m builder inside the test: only the parity test fails under each change."
+}

@@ -1,0 +1,26 @@
+{
+  "fault": "N9: gd_m2 with a one-off source arrival: 'two users' found no key",
+  "task": "gd-m2",
+  "tasks": "main",
+  "skill": true,
+  "counts": {
+    "K1": 0,
+    "K2": 0,
+    "K4": 0,
+    "K6": 0,
+    "K7": 0,
+    "K9": 0,
+    "K11": 0,
+    "K12": 0,
+    "K13": 0,
+    "BASE": 0
+  },
+  "notes": {
+    "K9": [
+      "two users: failed by",
+      "(arrivals.a.max_events = 2); the reviewer judges",
+      "capacity 0: failed by",
+      "use takes 2: failed by"
+    ]
+  }
+}

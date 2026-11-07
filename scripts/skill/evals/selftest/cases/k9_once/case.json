@@ -1,0 +1,8 @@
+{
+  "fault": "round 4 S7: a test that fails once under a change is flaky under it, not a test that catches it",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K9": 3
+  }
+}

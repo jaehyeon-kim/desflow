@@ -1,0 +1,86 @@
+{
+  "changes": [
+    {
+      "applied": "arrivals.a.group.mean = 4",
+      "name": "mean 2 to 4",
+      "reason": ""
+    },
+    {
+      "applied": "arrivals.a.gap = 10",
+      "name": "gap 5 to 10",
+      "reason": ""
+    },
+    {
+      "applied": "arrivals.a.max_events = 20, run.until = 105",
+      "name": "firings 40 to 20",
+      "reason": ""
+    }
+  ],
+  "tests": {
+    "test_model.py::test_forms_give_same_records": {
+      "changes": {
+        "firings 40 to 20": "FAILED",
+        "gap 5 to 10": "FAILED",
+        "mean 2 to 4": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_records[builder]": {
+      "changes": {
+        "firings 40 to 20": "PASSED",
+        "gap 5 to 10": "PASSED",
+        "mean 2 to 4": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_records[low_level]": {
+      "changes": {
+        "firings 40 to 20": "PASSED",
+        "gap 5 to 10": "PASSED",
+        "mean 2 to 4": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_records[yaml]": {
+      "changes": {
+        "firings 40 to 20": "FAILED",
+        "gap 5 to 10": "FAILED",
+        "mean 2 to 4": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_seed_42_total": {
+      "changes": {
+        "firings 40 to 20": "FAILED",
+        "gap 5 to 10": "FAILED",
+        "mean 2 to 4": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+# Three changes to the YAML an agent writes for task GD-RS10: a rate, a weight or share,
+# a capacity, or the nearest time or count, or, where no number the request names
+# changes the records, one step of the flow. Each change tries the keys of `keys` that
+# exist in model.yaml, in order, and keeps the first that alters the records (grade.py).
+
+task: GD-RS10
+
+mutations:
+  - name: inspector waits 2
+    changes:
+      - keys: [tasks.tick.service_time, "services.{tasks.tick.service}.value",
+               tasks.tick.wait.timeout]
+        new: 2
+  - name: maintainer waits 2
+    changes:
+      - keys: [tasks.wait3.service_time, "services.{tasks.wait3.service}.value",
+               tasks.wait3.wait.timeout]
+        new: 2
+  - name: first in first out
+    changes:
+      - {keys: [stores.*.priority], new: false}

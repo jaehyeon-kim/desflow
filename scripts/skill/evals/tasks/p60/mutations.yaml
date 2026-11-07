@@ -1,0 +1,19 @@
+# Three changes to the YAML an agent writes for task P60: a rate, a weight or share, a
+# capacity, or the nearest time or count, or, where no number the request names changes
+# the records, one step of the flow. Each change tries the keys of `keys` that exist in
+# model.yaml, in order, and keeps the first that alters the records (grade.py).
+
+task: P60
+
+mutations:
+  - name: n 3 to 5
+    changes:
+      - {keys: [arrivals.orders.attributes.n], new: 5}
+  - name: two children
+    changes:
+      - {keys: [tasks.split.spawn.count, tasks.split.on.0.spawn.count], new: 2}
+  - name: children do not copy the attributes
+    changes:
+      - keys: [tasks.split.spawn.copy_attributes,
+               tasks.split.on.0.spawn.copy_attributes]
+        new: false

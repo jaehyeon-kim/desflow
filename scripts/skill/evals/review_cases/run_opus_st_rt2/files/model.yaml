@@ -1,0 +1,37 @@
+# ST-RT2: a variant of ST-RT1, run paced against the wall clock at factor 0.1
+# (one simulation second takes 0.1 s of wall time), with the run called twice:
+# first to 2 s, then on to 4 s. Four simulation seconds take at least 0.4 s.
+#
+# Run it with: desflow run model.yaml
+simulation:
+  sim_id: RT2
+  factor: 0.1
+  random_seed: 42
+  # A fixed start, so each record's timestamp is the same in every run and form.
+  logical_start_time: "2026-01-01T00:00:00+00:00"
+  # No system.simulation.lag_seconds readings: they describe the wall clock,
+  # not the model, and differ from run to run.
+  lag_interval: 0
+
+egress:
+  # One JSON line per record on stdout.
+  - {type: Console, config: {format: json}}
+
+arrivals:
+  # Two entities at time 0, a-1 and a-2, each running pem.
+  a: {initial: 2, spawn: pem}
+
+tasks:
+  # Every 1 second publish {event_type: tick}, for ever: each pass takes 1 s,
+  # then starts pem again.
+  pem:
+    service_time: 1
+    payload: {event_type: tick}
+    next: pem
+
+run:
+  until: 4
+  # The run is called twice, as env.run(until=2) then env.run(until=4).
+  segments:
+    - {until: 2}
+    - {until: 4}

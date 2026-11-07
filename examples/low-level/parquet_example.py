@@ -25,8 +25,8 @@ from desflow import (
     ParquetStorageEgress,
     Sampler,
     SimParameter,
+    time_to_seconds,
 )
-from desflow.utils import time_to_seconds
 
 logging.basicConfig(
     level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"

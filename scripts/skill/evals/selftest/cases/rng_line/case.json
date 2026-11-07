@@ -1,0 +1,9 @@
+{
+  "fault": "S12: K13 counts the creation of a generator for a Sampler",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K13": 0,
+    "K11": 0
+  }
+}

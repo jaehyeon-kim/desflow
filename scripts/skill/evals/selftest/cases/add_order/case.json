@@ -1,0 +1,13 @@
+{
+  "fault": "S2: add: true always adds the first listed key",
+  "task": "add_order",
+  "counts": {
+    "K9": 0
+  },
+  "notes": {
+    "K9": [
+      "grow at 1: failed by",
+      "(arrivals.boss.value = 1); the reviewer judges"
+    ]
+  }
+}

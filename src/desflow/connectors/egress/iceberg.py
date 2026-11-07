@@ -11,6 +11,7 @@ from desflow.connectors.egress.base import (
     drop_reserved_keys,
     group_rows,
     load_arrow,
+    require_packages,
     warn_skipped,
     write_error,
     parse_iso_columns,
@@ -315,9 +316,11 @@ class IcebergStorageEgress(BaseEgress):
                 of `default_table`, `table_router`, `schemas`, `locations` and
                 `upsert_keys` is given, since the connector would then have nowhere
                 to write.
-            ImportError: If `upsert_keys` is given and the installed pyiceberg is
+            ImportError: If pyiceberg or pyarrow is not installed (the `iceberg`
+                extra), or if `upsert_keys` is given and the installed pyiceberg is
                 older than 0.9.0, which added `Table.upsert`.
         """
+        require_packages("IcebergStorageEgress", "iceberg", "pyiceberg", "pyarrow")
         if table_policy not in TABLE_POLICIES:
             raise ValueError(
                 f"table_policy '{table_policy}' is not one of {', '.join(TABLE_POLICIES)}"

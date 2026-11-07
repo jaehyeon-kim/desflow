@@ -1,0 +1,13 @@
+{
+  "fault": "N10: K2's wall_min: a paced task whose YAML form runs unpaced",
+  "task": "st-rt2",
+  "tasks": "main",
+  "counts": {
+    "K2": 1
+  },
+  "evidence": {
+    "K2": [
+      "model.yaml: the paced run printed its records over"
+    ]
+  }
+}

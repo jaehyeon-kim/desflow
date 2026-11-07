@@ -1,0 +1,19 @@
+# Three changes to the YAML an agent writes for task ST-U02: a rate, a weight or share,
+# a capacity, or the nearest time or count, or, where no number the request names
+# changes the records, one step of the flow. Each change tries the keys of `keys` that
+# exist in model.yaml, in order, and keeps the first that alters the records (grade.py).
+
+task: ST-U02
+
+mutations:
+  - name: other takes 4
+    changes:
+      - keys: [tasks.other.service_time, "services.{tasks.other.service}.value",
+               tasks.other.wait.timeout]
+        new: 4
+  - name: other returns bye
+    changes:
+      - {keys: [tasks.other.payload.value], new: bye}
+  - name: two subscribers
+    changes:
+      - {keys: [arrivals.s.initial, arrivals.s.count, arrivals.s.max_events], new: 2}

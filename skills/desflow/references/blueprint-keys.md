@@ -2,6 +2,26 @@
 
 Every key a desflow blueprint takes, from the JSON Schema in [../assets/blueprint.schema.json](../assets/blueprint.schema.json). Where a value is a number, a whole number, `true` or `false`, or one of a fixed set of names, a `${VAR}` or `${VAR:-default}` reference is also accepted, and a Duration is a number and a unit such as `5 min`.
 
+- [simulation](#simulation)
+- [resources](#resources)
+- [containers](#containers)
+- [stores](#stores)
+- [services](#services)
+- [arrivals](#arrivals)
+- [variables](#variables)
+- [signals](#signals)
+- [tasks](#tasks)
+- [telemetry](#telemetry)
+- [processes](#processes)
+- [scenario](#scenario)
+- [ingress](#ingress)
+- [egress](#egress)
+- [batching](#batching)
+- [stats](#stats)
+- [run](#run)
+- [tests](#tests)
+- [Generators](#generators)
+
 ## simulation
 
 Type: mapping. Required.

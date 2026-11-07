@@ -1,0 +1,47 @@
+# case P33: set_capacity from a flow (register r7_res2.py P33: capacity 1, two jobs of 5
+# at 0 and 1, a flow at 2 sets the capacity; g_d1 and D5 set 3).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+resources:
+  m: {current_cap: 1, max_cap: 3}
+
+services:
+  s: {dist: constant, value: 5}
+
+arrivals:
+  a: {dist: constant, value: 1, spawn: job, max_events: 2, first_at: 0}
+  boss: {dist: constant, value: 2, spawn: grow, max_events: 1}
+
+tasks:
+  job:
+    resource: m
+    service: s
+    payload: {event_type: done}
+  grow:
+    payload: {event_type: grow}
+    on:
+      - {path: P.resources.m.current_cap, value: 3}
+
+run: {until: 20}
+tests:
+  - name: counts
+    expect:
+      flows.a.finished: 2
+      flows.a.in_system: 0
+      flows.a.started: 2
+      flows.boss.finished: 1
+      flows.boss.in_system: 0
+      flows.boss.started: 1
+      resources.m.capacity: 3
+      resources.m.in_use: 0
+      resources.m.queue_length: 0
+      resources.m.queue_length_avg: 0.05
+      resources.m.utilization: 0.0
+      resources.m.utilization_avg: 23.333333333333332
+      tasks.grow.finished: 1
+      tasks.job.finished: 2
+      tasks.job.in_progress: 0
+      tasks.job.service_max: 5.0
+      tasks.job.service_mean: 5.0
+      tasks.job.wait_max: 1
+      tasks.job.wait_mean: 0.5

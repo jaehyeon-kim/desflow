@@ -1,0 +1,25 @@
+# Arrival `a` fires every 5 s from t=5, 40 times in all (t = 5, 10, ..., 200).
+# Each firing starts a group whose size is drawn from Poisson(mean 2); a size of 0
+# starts nobody and uses no key number. Each entity runs `member` once.
+simulation:
+  sim_id: Groups
+  factor: 0              # unpaced: run as fast as possible
+  random_seed: 42
+  logical_start_time: "2026-01-01T00:00:00+00:00"   # fixed, so timestamps repeat
+
+egress:
+  - {type: Console, config: {format: json}}   # one JSON line per record on stdout
+
+arrivals:
+  a:
+    gap: 5
+    first_at: 5
+    max_events: 40
+    group: {gen: sample, dist: poisson, mean: 2}
+    spawn: member
+
+tasks:
+  member:
+    payload: {event_type: member}
+
+run: {until: 205}

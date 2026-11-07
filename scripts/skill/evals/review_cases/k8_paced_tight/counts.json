@@ -1,0 +1,7 @@
+{
+  "known": true,
+  "counts": {
+    "K8": 1
+  },
+  "reason": "assert wall >= 0.4 allows nothing under the paced 0.4 s."
+}

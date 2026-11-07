@@ -1,0 +1,63 @@
+"""Groups model, Low-level API.
+
+The same model as model.yaml and builder.py, built on DynamicRealtimeEnvironment
+directly. Arrival `a` fires every 5 seconds from t=5, 40 times. Each firing starts a
+group whose size is drawn from Poisson(2), and each entity runs task `member`, which
+publishes {event_type: member}. The run ends at 205 seconds.
+
+Run with: python low_level.py. It prints each record as one JSON line.
+
+The group sizes come from the same random stream the blueprint and the Builder form
+use. desflow gives each random generator its own stream, seeded from the run's seed
+and the generator's place in the file (`arrivals.a.group`), so this file rebuilds that
+stream. That keeps the three forms' records identical.
+"""
+
+import zlib
+
+import numpy as np
+
+from desflow import ConsoleEgress, DynamicRealtimeEnvironment
+
+
+def member(env, key, instance):
+    """Runs task `member` for one entity: it finishes at once with its payload."""
+    env.publish_event(key, {"event_type": "member"}, task="member", instance=instance)
+
+
+def arrival_generator(env, rng):
+    """Fires arrival `a` at 5, 10, ..., 200 seconds: 40 firings in all.
+
+    Each firing draws the group size. A size of 0 starts nobody, and the next firing
+    still comes. Entities take keys a-1, a-2, ... in the order they are made, and each
+    one takes the next task instance number.
+    """
+    entities = 0
+    instances = 0
+    yield env.timeout(5)  # first_at
+    for firing in range(40):
+        if firing:
+            yield env.timeout(5)  # gap
+        size = int(rng.poisson(2))  # the group, a Poisson(2) draw
+        for _ in range(size):
+            entities += 1
+            member(env, f"a-{entities}", instances)
+            instances += 1
+
+
+def run():
+    env = DynamicRealtimeEnvironment(factor=0, strict=False)
+    env.setup_egress([ConsoleEgress(format="json")])
+    # Seed 42, with the stream of the group generator at arrivals.a.group
+    rng = np.random.default_rng(
+        np.random.SeedSequence(42, spawn_key=(zlib.crc32(b"arrivals.a.group"),))
+    )
+    env.process(arrival_generator(env, rng))
+    try:
+        env.run(until=205)
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

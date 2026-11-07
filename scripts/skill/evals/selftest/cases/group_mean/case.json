@@ -1,0 +1,13 @@
+{
+  "fault": "S7: K7 takes the mean of a group size as a time",
+  "task": "ds-a3",
+  "tasks": "main",
+  "counts": {
+    "K7": 0
+  },
+  "notes_absent": {
+    "K7": [
+      "mean"
+    ]
+  }
+}

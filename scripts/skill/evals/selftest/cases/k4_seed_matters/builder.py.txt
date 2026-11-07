@@ -1,0 +1,42 @@
+"""DS-A3: A group size drawn for each arrival.
+
+Builder form of `model.yaml`.
+"""
+
+from desflow import SimulationContext
+from desflow.values import generator
+
+
+RNG_SEED = 42
+
+
+def build() -> SimulationContext:
+    app = SimulationContext(sim_id="A3", factor=0, random_seed=RNG_SEED if RNG_SEED == 42 else RNG_SEED + 1)
+    app.add_arrival(
+        "a",
+        "constant",
+        value=5,
+        first_at=5,
+        max_events=40,
+        group=generator({"gen": "sample", "dist": "poisson", "mean": 2}),
+        spawn="member",
+    )
+
+    @app.task(name="member")
+    def member(task_id):
+        return {"event_type": "member"}
+
+    return app
+
+
+def run(app: SimulationContext):
+    """Runs the model to the end its `run` section sets."""
+    return app.run(until=205)
+
+
+if __name__ == "__main__":
+    from desflow import ConsoleEgress
+
+    APP = build()
+    APP.add_egress(ConsoleEgress(format="json"))
+    run(APP)
