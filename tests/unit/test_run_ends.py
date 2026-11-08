@@ -8,6 +8,7 @@ A comparison with a measured NaN is never reported as agreeing.
 import math
 from pathlib import Path
 
+import click
 import pytest
 import yaml
 from typer.testing import CliRunner
@@ -28,7 +29,7 @@ LOCAL = ROOT / "examples" / "yaml" / "local.yaml"
 def test_the_command_line_refuses_an_end_that_is_not_a_time(value):
     result = CliRunner().invoke(app, ["run", str(LOCAL), "--until", value])
     assert result.exit_code == 2
-    assert "--until" in result.output
+    assert "--until" in click.unstyle(result.output)
 
 
 @pytest.mark.parametrize(
@@ -41,7 +42,7 @@ def test_the_command_line_refuses_an_end_that_is_not_a_time(value):
 def test_an_end_that_is_not_paced_refuses_infinity(command):
     result = CliRunner().invoke(app, command)
     assert result.exit_code == 2
-    assert "--until gave inf, and it must end" in result.output
+    assert "--until gave inf, and it must end" in click.unstyle(result.output)
 
 
 def test_a_paced_run_takes_an_infinite_end_as_no_end():

@@ -2,6 +2,7 @@
 
 import asyncio
 import queue
+import shlex
 from pathlib import Path
 
 import pytest
@@ -595,7 +596,8 @@ def test_cli_repeat_command_keeps_until_and_drain(blueprint):
     )
     assert result.exit_code == 0, result.output
     assert (
-        f"Repeat one replication with: desflow run {blueprint} --seed <its seed> "
+        f"Repeat one replication with: desflow run {shlex.quote(str(blueprint))} "
+        "--seed <its seed> "
         "--until 100 --drain"
     ) in result.output
 

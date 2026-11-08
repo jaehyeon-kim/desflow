@@ -4,6 +4,7 @@ and one random sequence per distribution."""
 import logging
 import math
 import re
+import shlex
 import zlib
 
 import numpy as np
@@ -244,7 +245,8 @@ def test_cli_seed_overrides_the_file_and_an_unseeded_run_names_the_command(
         result = CliRunner().invoke(cli, ["run", str(path)])
     assert result.exit_code == 0, result.output
     match = re.search(
-        rf"Repeat it with: desflow run {re.escape(str(path))} --seed (\d+)", caplog.text
+        rf"Repeat it with: desflow run {re.escape(shlex.quote(str(path)))} --seed (\d+)",
+        caplog.text,
     )
     assert match, caplog.text
 
@@ -279,7 +281,7 @@ def test_the_repeat_command_keeps_the_options_that_change_the_run(tmp_path, capl
         )
     assert result.exit_code == 0, result.output
     assert re.search(
-        rf"Repeat it with: desflow run {re.escape(str(path))} --seed \d+ "
+        rf"Repeat it with: desflow run {re.escape(shlex.quote(str(path)))} --seed \d+ "
         r"--until '1 min' --drain",
         caplog.text,
     ), caplog.text
