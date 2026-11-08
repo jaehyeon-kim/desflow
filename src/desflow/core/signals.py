@@ -13,6 +13,7 @@ signals of that run, which it fires and whose `on:` actions it runs.
 
 import functools
 import logging
+import numbers
 import operator
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional
@@ -317,7 +318,9 @@ class Signal:
         problem = timing_problem(urgent, after, priority, self.once, "`once=True`")
         if problem is not None:
             raise ValueError(problem)
-        if after < 0:
+        if isinstance(after, bool) or not isinstance(after, numbers.Real):
+            raise ValueError(f"a fire after is seconds or a duration, got {after!r}")
+        if after != after or after < 0:
             raise ValueError(f"after must be 0 or more, got {after:g}")
 
     def _schedule(

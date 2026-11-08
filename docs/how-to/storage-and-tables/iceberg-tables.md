@@ -152,12 +152,28 @@ Each form runs the shop for an hour of simulated time at `factor=0.0`. The run f
     def pack_order(env, packers, sampler, key, task_id):
         path_id = "Shop.service.packing"
         env.publish_event(
-            key, {"path_id": path_id, "status": "queued"}, "pack_order", task_id
+            key,
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "queued",
+            },
+            "pack_order",
+            task_id,
         )
         with packers.request() as unit:
             yield unit
             env.publish_event(
-                key, {"path_id": path_id, "status": "started"}, "pack_order", task_id
+                key,
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "started",
+                },
+                "pack_order",
+                task_id,
             )
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
             # The finished event is the order record
@@ -463,12 +479,28 @@ Every form uses the catalog and the sink of `iceberg_tables_catalog.py`, which b
         def pack_order(env, packers, sampler, key, task_id):
             path_id = "Shop.service.packing"
             env.publish_event(
-                key, {"path_id": path_id, "status": "queued"}, "pack_order", task_id
+                key,
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "queued",
+                },
+                "pack_order",
+                task_id,
             )
             with packers.request() as unit:
                 yield unit
                 env.publish_event(
-                    key, {"path_id": path_id, "status": "started"}, "pack_order", task_id
+                    key,
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    },
+                    "pack_order",
+                    task_id,
                 )
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 # The finished event is the order record

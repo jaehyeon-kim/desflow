@@ -93,12 +93,26 @@ def task(env, sampler, shop, name, entity, task_id, counters):
         env.publish_event(entity.key, value, task=name, instance=task_id)
 
     if resource is not None:
-        publish({"path_id": path_id, "status": "queued"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": service,
+                "status": "queued",
+            }
+        )
     unit = shop[resource].request() if resource else contextlib.nullcontext()
     with unit as req:
         if req is not None:
             yield req
-        publish({"path_id": path_id, "status": "started"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": service,
+                "status": "started",
+            }
+        )
         finished = payload(name, entity)
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         publish(finished)

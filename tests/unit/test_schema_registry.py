@@ -872,11 +872,29 @@ def test_glue_client_stops_at_once_on_a_status_other_than_pending(
     assert glue.names().count("get_schema_version") == 1
 
 
-def test_glue_client_refuses_a_found_version_that_is_not_available(glue_for):
-    glue = FakeGlue(get_schema_by_definition=[version_answer("PENDING")])
+@pytest.mark.parametrize("status", ["FAILURE", "DELETING"])
+def test_glue_client_refuses_a_found_version_that_is_not_available(glue_for, status):
+    glue = FakeGlue(get_schema_by_definition=[version_answer(status)])
 
-    with pytest.raises(SchemaRegistryError, match="status is PENDING"):
+    with pytest.raises(SchemaRegistryError, match=f"is in {status} status"):
         glue_for(glue).version_for("t-value", "{}", "AVRO")
+
+
+def test_glue_client_waits_for_a_found_version_that_is_pending(glue_for, glue_sleeps):
+    """Another producer registered the version a moment before, and it is PENDING."""
+    glue = FakeGlue(
+        get_schema_by_definition=[version_answer("PENDING")],
+        get_schema_version=[version_answer("PENDING"), version_answer()],
+    )
+
+    assert glue_for(glue).version_for("t-value", "{}", "AVRO") == GLUE_VERSION
+
+    assert glue.names() == [
+        "get_schema_by_definition",
+        "get_schema_version",
+        "get_schema_version",
+    ]
+    assert glue_sleeps == [3, 3]
 
 
 def test_glue_client_caches_versions_and_schemas_and_not_failures(glue_for):

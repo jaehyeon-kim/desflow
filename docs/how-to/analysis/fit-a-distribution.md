@@ -390,12 +390,28 @@ cd desflow/docs/snippets/guides
         def pack_order(env, packers, sampler, key, task_id):
             path_id = "Shop.service.packing"
             env.publish_event(
-                key, {"path_id": path_id, "status": "queued"}, "pack_order", task_id
+                key,
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "queued",
+                },
+                "pack_order",
+                task_id,
             )
             with packers.request() as unit:
                 yield unit
                 env.publish_event(
-                    key, {"path_id": path_id, "status": "started"}, "pack_order", task_id
+                    key,
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    },
+                    "pack_order",
+                    task_id,
                 )
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 env.publish_event(key, {"event_type": "order_packed"}, "pack_order", task_id)

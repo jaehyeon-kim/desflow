@@ -11,6 +11,7 @@ from datetime import timezone as dt_timezone
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import numpy as np
 from pydantic import TypeAdapter
 from pydantic_core import to_jsonable_python
 
@@ -110,6 +111,7 @@ def _jsonable(value: Any) -> Any:
     value that holds anything but plain values is cleaned once more. A flat mapping of
     plain values, the usual payload, skips that pass.
     """
+    value = _numpy_to_python(value)
     result = to_jsonable_python(value, by_alias=False, inf_nan_mode="null")
     if isinstance(value, dict) and all(isinstance(v, _PLAIN) for v in value.values()):
         return result
@@ -117,6 +119,20 @@ def _jsonable(value: Any) -> Any:
 
 
 _PLAIN = (str, int, float, bool, type(None))
+
+
+def _numpy_to_python(value: Any) -> Any:
+    """A NumPy scalar as its Python value and an array as a list, at any depth of a
+    mapping, list or tuple, because `to_jsonable_python` knows no NumPy type."""
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, dict):
+        return {key: _numpy_to_python(part) for key, part in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_numpy_to_python(part) for part in value]
+    return value
 
 
 def _finite(value: Any) -> Any:
@@ -643,12 +659,16 @@ class EgressMixIn:
         if delay > 0:
             yield self.internal_timeout(delay)  # type: ignore[attr-defined]
         while True:
-            # Real seconds since the start, in UTC: the start always has a zone
-            start = self.start_datetime  # type: ignore[attr-defined]
-            real_elapsed = (
-                datetime.now(dt_timezone.utc) - start.astimezone(dt_timezone.utc)
-            ).total_seconds()
-            lag = max(0.0, real_elapsed - self.now)  # type: ignore[attr-defined]
+            # How far behind its pace the run is: the real time now, less the real
+            # time the head of the clock is due at (`step` paces the same way), so a
+            # run that keeps its pace reads about 0 whatever its factor and however
+            # far back its logical start time is
+            factor = self._factor  # type: ignore[attr-defined]
+            if factor:
+                due = self.real_start + (self.now - self.env_start) * factor  # type: ignore[attr-defined]
+                lag = max(0.0, simpy.rt.monotonic() - due)
+            else:
+                lag = 0.0  # an unpaced run has no pace to fall behind
 
             # Publish this system health metric automatically
             self.publish_telemetry("system.simulation.lag_seconds", round(lag, 3))
@@ -750,8 +770,17 @@ class EgressMixIn:
         the failure is raised instead of hidden.
         """
         if index is None:
+            # A sink that has stopped consuming must not keep the sinks after it from
+            # receiving their records, so each is tried and the first failure is
+            # raised once all have been
+            failure: Optional[RuntimeError] = None
             for position in range(len(self._egress_sinks)):
-                self._flush_buffer(position)
+                try:
+                    self._flush_buffer(position)
+                except RuntimeError as error:
+                    failure = failure or error
+            if failure is not None:
+                raise failure
             return
 
         run = self._egress_sinks[index]
@@ -768,7 +797,7 @@ class EgressMixIn:
             run.batches.put(batch, timeout=stall_limit)
         except queue.Full:
             logger.error(
-                "An egress queue has been full for %.0fs, so that sink has stopped "
+                "An egress queue has been full for %.1fs, so that sink has stopped "
                 "consuming. Stopping rather than discarding events.",
                 stall_limit,
             )

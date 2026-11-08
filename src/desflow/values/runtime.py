@@ -130,6 +130,10 @@ class ValueRuntime:
         self._streams: Dict[str, np.random.Generator] = {}
         self._counters: Dict[str, int] = {}
         self._free = 0
+        from desflow.values.template import start_window
+
+        # The count of unnamed templates made before this run's build began
+        self._template_start = start_window()
         self._once: Dict[Any, Dict[str, Dict[str, Any]]] = {}
         self._seen: Dict[str, Set[str]] = {}
         self._fakers: Dict[str, Any] = {}
@@ -437,18 +441,41 @@ class ValueRuntime:
         """Evaluates a generator now, for a low-level script: a typed generator from
         `desflow.values.generator`, or any value that holds one.
 
+        The generator is checked as a `Template` checks its payload, so a `row` file is
+        read from the working folder and a generator that cannot work is refused. It
+        takes its random stream from the first call, so call `value` with the same
+        object each time: a `sequence` counts and a `unique` choice refuses on it.
+
         Args:
             spec: The generator, a mapping or list that holds one, or a constant.
             entity: The entity whose attributes `attr` reads, or None.
+
+        Raises:
+            ValueError: If `spec` is a mapping with a `gen` key, which would make a
+                new generator on every call, or the check finds a problem.
         """
+        from pathlib import Path
+
+        from desflow.values.check import Place, check_value
         from desflow.values.template import bind
 
-        if isinstance(spec, dict) and "gen" in spec:
-            from desflow.values.models import generator_adapter
-
-            spec = generator_adapter().validate_python(spec)
+        if isinstance(spec, Mapping) and "gen" in spec:
+            raise ValueError(
+                "value takes a generator made with generator(...), not a mapping: "
+                "make it once with generator({...}) and pass that object on each "
+                "call, so a sequence counts and a unique choice refuses across calls"
+            )
         self._free += 1
         bind(spec, ("value", self._free), overwrite=False)
+        place = Place(in_task=True, base_dir=Path.cwd(), vars_known=False)
+        problems = [
+            f"{'.'.join(str(p) for p in path)}: {message}"
+            for path, message in check_value(
+                spec, ("value", self._free), set(), place, mapping_field=False
+            )
+        ]
+        if problems:
+            raise ValueError("; ".join(problems))
         return self.evaluate(spec, self.scope_of(entity, keyed=True))
 
     def render(
@@ -481,6 +508,7 @@ class ValueRuntime:
                 or null, or gives null while `extras` or `attributes` have fields to
                 write over it.
         """
+        template._renumber(self._template_start)
         scope = scope or self.scope_of(entity, keyed=True)
         known = dict(scope.names)
         key = (

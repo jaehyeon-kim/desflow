@@ -579,6 +579,13 @@ class Statistics:
         for averages in self._averages.values():
             for average in averages.values():
                 average.reset(now)
+        # The downtime and failures a resource counted before now stay out of its
+        # readings, as the warm-up leaves every other statistic out
+        self._breakdown_base = {
+            key: (obj.downtime, obj.failures)
+            for key, obj in self._objects.items()
+            if getattr(obj, "has_breakdowns", False)
+        }
         keep = self._rank >= _ALL
         self._tasks = {name: _Task(keep) for name in self._tasks}
         self._flows = {name: 0 for name in self._flows}
@@ -646,8 +653,11 @@ class Statistics:
         for stat, average in self._averages.get((category, name), {}).items():
             values[f"{base}.{stat}"] = average.average(now)
         if self._rank >= _BASIC and getattr(obj, "has_breakdowns", False):
-            values[f"{base}.downtime"] = obj.downtime
-            values[f"{base}.failures"] = obj.failures
+            down, failed = getattr(self, "_breakdown_base", {}).get(
+                (category, name), (0, 0)
+            )
+            values[f"{base}.downtime"] = obj.downtime - down
+            values[f"{base}.failures"] = obj.failures - failed
         return values
 
     def publish_object(self, category: str, name: str) -> None:

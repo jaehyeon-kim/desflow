@@ -32,8 +32,8 @@ This is how `ConsoleEgress` prints a statistic and the three events of one task:
 <!-- records: record-examples -->
 ```text
 [TEL] {'sim_ts': 10.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.in_use', 'value': 0}
-[EVT] {'sim_ts': 3.672, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'status': 'queued'}}
-[EVT] {'sim_ts': 3.672, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'status': 'started'}}
+[EVT] {'sim_ts': 3.672, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 3.672, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
 [EVT] {'sim_ts': 5.369, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'event_type': 'order_packed'}}
 ```
 
@@ -83,30 +83,30 @@ def readings(context: SimulationContext):
 
 | Event | `value` |
 |---|---|
-| queued | `{"path_id": "<sim_id>.service.<service>", "status": "queued"}` |
-| started | `{"path_id": "<sim_id>.service.<service>", "status": "started"}` |
+| queued | `{"path_id": "<sim_id>.service.<service>", "sim_id": "<sim_id>", "service": "<service>", "status": "queued"}` |
+| started | `{"path_id": "<sim_id>.service.<service>", "sim_id": "<sim_id>", "service": "<service>", "status": "started"}` |
 | finished | exactly what the task returns, or the YAML `payload` |
 
 A run that is not served, or fails, publishes one other event in place of its finished event:
 
 | Event | When | `value` |
 |---|---|---|
-| balked | its `balk` condition held, so it never joined the queue and publishes no `queued`. Or a resource it asked for already held `queue_limit` requests; then it publishes no `queued` either, when that resource is its first and nothing is waited for before it. A task that was preempted and asks again when the queue is full balks after `started` and `preempted` | `{"path_id": ..., "status": "balked"}`, with `"resource": ...` when a resource refused it |
-| reneged | its `patience` ran out before it was served; it left the queue at that moment | `{"path_id": ..., "status": "reneged"}` |
-| failed | its `fail` condition held, its wait failed, or its function raised | `{"path_id": ..., "status": "failed", "reason": ...}` |
+| balked | its `balk` condition held, so it never joined the queue and publishes no `queued`. Or a resource it asked for already held `queue_limit` requests; then it publishes no `queued` either, when that resource is its first and nothing is waited for before it. A task that was preempted and asks again when the queue is full balks after `started` and `preempted` | `{"path_id": ..., "sim_id": ..., "service": ..., "status": "balked"}`, with `"resource": ...` when a resource refused it |
+| reneged | its `patience` ran out before it was served; it left the queue at that moment | `{"path_id": ..., "sim_id": ..., "service": ..., "status": "reneged"}` |
+| failed | its `fail` condition held, its wait failed, or its function raised | `{"path_id": ..., "sim_id": ..., "service": ..., "status": "failed", "reason": ...}` |
 
 
 An interrupted run publishes these as well, and its finished event when it ends:
 
 | Event | When | `value` |
 |---|---|---|
-| interrupted | an `interrupt` reached it; its waits were given up, and a unit it held stays with it unless `on_interrupt` is `abandon` | `{"path_id": ..., "status": "interrupted", "cause": ...}` |
-| preempted | a request of a lower priority value took its unit | `{"path_id": ..., "status": "preempted", "resource": ..., "preempted_by": ..., "usage_since": ...}` |
-| resumed | after an interrupt or a preemption, it holds its units again, also when it never gave them back, and is served | `{"path_id": ..., "status": "resumed"}` |
+| interrupted | an `interrupt` reached it; its waits were given up, and a unit it held stays with it unless `on_interrupt` is `abandon` | `{"path_id": ..., "sim_id": ..., "service": ..., "status": "interrupted", "cause": ...}` |
+| preempted | a request of a lower priority value took its unit | `{"path_id": ..., "sim_id": ..., "service": ..., "status": "preempted", "resource": ..., "preempted_by": ..., "usage_since": ...}` |
+| resumed | after an interrupt or a preemption, it holds its units again, also when it never gave them back, and is served | `{"path_id": ..., "sim_id": ..., "service": ..., "status": "resumed"}` |
 
 The fields of these values are:
 
-- `status`, `path_id` and `reason`: strings.
+- `status`, `path_id`, `sim_id`, `service` and `reason`: strings. `sim_id` and `service` are the two names `path_id` joins with `.service.`. A reader takes them from these fields and does not split `path_id`, because a name may hold `.service.` itself.
 - `cause`: any JSON value the interrupt was given, or `None`. When a `subscribe` interrupts the instance, the `cause` is `{"event": name, "value": value}`. `value` is what the event carried. `name` is the subscribed task's name for a task, the process's name for a process, and `None` for any other event.
 - `resource`: the name of the resource that was taken or that refused the task.
 - `preempted_by`, in a `preempted` record: the key of the entity whose request took the unit, or `None` when a process that is not a task took it.
@@ -123,7 +123,7 @@ A resource with a `breakdown` publishes an event at each failure and each repair
 
 With statistics at `minimal` or above, such a resource publishes `<sim_id>.stats.resources.<name>.down`, which is 1 while it is down. From `basic`, it also publishes `.downtime`, the seconds it has been down, and `.failures`. [Model Breakdowns](../how-to/modelling/breakdowns.md) checks them against the events.
 
-A task with no service has `{"status": ...}` without `path_id`. A timed step, with a service and no resource, publishes no `queued`. A task with no service, resource or `get` publishes only the finished event, as soon as it starts. The key is the arrival's name and a counter from 1, such as `orders-1`, on every event of every task the entity passes through. [Task Flow](../user-guide/model-parts/task-flow.md#entity-key) describes it. A low-level process publishes whatever it passes to `env.publish_event(key, value, task=..., instance=...)`.
+A task with no service has `{"status": ...}` without `path_id`, `sim_id` or `service`. A timed step, with a service and no resource, publishes no `queued`. A task with no service, resource or `get` publishes only the finished event, as soon as it starts. The key is the arrival's name and a counter from 1, such as `orders-1`, on every event of every task the entity passes through. [Task Flow](../user-guide/model-parts/task-flow.md#entity-key) describes it. A low-level process publishes whatever it passes to `env.publish_event(key, value, task=..., instance=...)`.
 
 ---
 
@@ -184,4 +184,4 @@ Every sink receives the events and telemetry above, and a `when: labels` sink re
 | `ParquetStorageEgress`, `JsonlStorageEgress`, `IcebergStorageEgress` | without a router, one flat row per event or label, with an event's `value` mapping unpacked into columns, and no telemetry; with a router, each record as the router leaves it |
 | `PostgresEgress` | an event or telemetry record whose value is a mapping, written to the table its `__table__` key names; the key is removed. The sink adds `sim_ts` and `timestamp` to the row, and for an event `key` as `event_id`, `task` and `instance`, or for telemetry `path_id`, as [Egress](../user-guide/live-runs-and-connectors/egress.md#postgresql) describes. A label is written as the columns `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`, the last three as JSON text |
 
-In a flat row, a finished event's columns are its task's payload only. The `queued` and `started` rows of a task carry `path_id` and `status`. Its finished row has them null unless the payload holds them. [Egress](../user-guide/live-runs-and-connectors/egress.md#parquet-and-json-lines) describes the file sinks.
+In a flat row, a finished event's columns are its task's payload only. The `queued` and `started` rows of a task carry `path_id`, `sim_id`, `service` and `status`. Its finished row has them null unless the payload holds them. [Egress](../user-guide/live-runs-and-connectors/egress.md#parquet-and-json-lines) describes the file sinks.

@@ -73,7 +73,7 @@ A preview checks the whole file, but not the connectors it leaves out:
 | Combination | Result |
 |---|---|
 | `--sample` with `--stdout` | Allowed. `--stdout` adds nothing. |
-| `--sample` with `--until`, or a file with `run.until` | The run ends at whichever comes first. When `until` comes first, stderr says `sample ended at until with k of N events`. |
+| `--sample` with `--until`, or a file with `run.until` | The run ends at whichever comes first. When `until` comes first, stderr says `sample ended at until with k of N events`. A model that runs out of events first ends the sample too, with exit code 0 and `sample ended with no events left, with k of N events`. |
 | `--sample` on a file with `go_live_at` | A backfill-then-live file prints its first history events. `when: history` and `when: live` have no effect, because their entries are replaced. |
 | `--sample` on a file that publishes no events | It runs until `until` or Ctrl+C, printing telemetry. |
 | `--stdout` on a file with several egress entries | One console prints each record once. Per-entry `batch_size` and `flush_interval` are dropped with the entries, and the `batching` section applies. |

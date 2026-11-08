@@ -337,12 +337,16 @@ def has_draws(case: str) -> bool:
     return path.exists() and bool(getattr(form(case, "original"), "DRAWS", []))
 
 
+_NAMES = ("path_id", "sim_id", "service")
+
+
 def normal(
     records: list[dict[str, Any]], grants: bool = False
 ) -> list[tuple[Any, ...]]:
     """The event records of a run as an original logs them: (time, key, task, value).
 
-    A record that keeps a status loses `path_id`, which no original has. The engine's
+    A record that keeps a status loses `path_id`, `sim_id` and `service`, which no
+    original has. The engine's
     own `started`, `queued` and `resumed` records are left out unless `grants`.
     """
     found = []
@@ -352,11 +356,11 @@ def normal(
         value = record["value"]
         if isinstance(value, dict) and "status" in value:
             if value["status"] in _KEEP_STATUS:
-                value = {k: v for k, v in value.items() if k != "path_id"}
-            elif set(value) <= {"status", "path_id", "reason"}:
+                value = {k: v for k, v in value.items() if k not in _NAMES}
+            elif set(value) <= {"status", "reason", *_NAMES}:
                 if not grants:
                     continue
-                value = {k: v for k, v in value.items() if k != "path_id"}
+                value = {k: v for k, v in value.items() if k not in _NAMES}
         found.append((round(record["sim_ts"], 3), record["key"], record["task"], value))
     return found
 
@@ -741,7 +745,7 @@ def compare_with_snippet(case: str, records: list[dict[str, Any]]) -> None:
         assert a == b, (a, b)
 
 
-_NOT_A_RESULT = {"status", "path_id", "reason", "event_type"}
+_NOT_A_RESULT = {"status", "reason", "event_type", *_NAMES}
 
 
 def finished_payloads(records: list[dict[str, Any]]) -> list[tuple[Any, ...]]:

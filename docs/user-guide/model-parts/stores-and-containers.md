@@ -64,7 +64,7 @@ A container has three settings. `current_cap` is its capacity, the largest amoun
 
     A `DynamicContainer` built with no `init` starts at the level its `ContainerConfig` gives. `init=` sets another.
 
-A store or container with no `current_cap` has no capacity limit, as `simpy.Store(env)` and `simpy.Container(env)` have: a put never waits for room. `current_cap: .inf` in YAML, or `float("inf")` in code, says the same. A `max_cap` alone gives the `current_cap`, and a `current_cap` alone gives the `max_cap`. A live update can give a store with no limit a capacity. A store's capacity is a whole number of items, so a fractional capacity is rounded down. `.inf` or the text `"inf"` sets no limit again. A store or container with no limit publishes `capacity` as `null`.
+A store or container with no `current_cap` has no capacity limit, as `simpy.Store(env)` and `simpy.Container(env)` have: a put never waits for room. `current_cap: .inf` in YAML, or `float("inf")` in code, says the same. A `max_cap` alone gives the `current_cap`, and a `current_cap` alone gives the `max_cap`. A live update can give a store with no limit a capacity. A store's capacity is a whole number of items, so a live update with a fraction is refused and the old capacity stays. `.inf` or the text `"inf"` sets no limit again. A store or container with no limit publishes `capacity` as `null`.
 
 ### Take and Add
 
@@ -712,13 +712,22 @@ The tutorial page [Stock](../../learn/shop-logic/stock.md) teaches these feature
         def publish(value):
             env.publish_event(key, value, task="pack", instance=task_id)
 
-        publish({"path_id": path_id, "status": "queued"})
+        publish(
+            {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+        )
         env.stats.task_queued("pack", task_id)  # counted as in progress
         with shop["packers"].request(priority=priority) as req:
             yield req
             # Waits while the stock is empty
             yield shop["stock"].get(1)
-            publish({"path_id": path_id, "status": "started"})
+            publish(
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "started",
+                }
+            )
             env.stats.task_started("pack", task_id)
             payload = {"event_type": "order_packed", "priority": priority}
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))

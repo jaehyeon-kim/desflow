@@ -101,13 +101,16 @@ def _explain(
         until is not None or seed is not None or replications is not None
     ):
         refuse("--until, --seed and --replications apply to --verify; add --verify")
-    stop_at = parse_until(until)
+    stop_at = parse_until(until, ends=True)
     folder, _, entry = source.rpartition("/")
     if "://" not in source:
         path = Path(source)
         if not path.is_file():
             refuse(f"no file {source}")
         folder, entry = str(path.parent), path.name
+    elif not entry:
+        # A URI that ends in a folder names no file, so nothing is copied
+        refuse(f"no file {source}")
     # A warning while loading, such as a capacity clamped to max_cap, is shown on
     # stderr; the explanation stays alone on stdout
     setup_logging(logging.WARNING)
@@ -124,9 +127,13 @@ def _explain(
         from desflow.analysis.models import seconds
         from desflow.explain.verify import window_error
 
-        end = seconds(
-            stop_at if stop_at is not None else parts_of(context).defaults.until
-        )
+        try:
+            end = seconds(
+                stop_at if stop_at is not None else parts_of(context).defaults.until,
+                "run.until",
+            )
+        except ValueError as exc:
+            refuse(str(exc))
         start = context.initial_time + (context.warmup or 0.0)
         if end is not None and end <= start:
             refuse(window_error(end, start, "--verify"))

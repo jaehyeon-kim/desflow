@@ -53,7 +53,12 @@ def build(env: DynamicRealtimeEnvironment) -> None:
         path_id = "Press.service.stamp"
         env.publish_event(
             key,
-            {"path_id": path_id, "status": "queued"},
+            {
+                "path_id": path_id,
+                "sim_id": "Press",
+                "service": "stamp",
+                "status": "queued",
+            },
             task="blank",
             instance=task_id,
         )
@@ -61,7 +66,12 @@ def build(env: DynamicRealtimeEnvironment) -> None:
             yield request
             env.publish_event(
                 key,
-                {"path_id": path_id, "status": "started"},
+                {
+                    "path_id": path_id,
+                    "sim_id": "Press",
+                    "service": "stamp",
+                    "status": "started",
+                },
                 task="blank",
                 instance=task_id,
             )

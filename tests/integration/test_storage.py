@@ -203,3 +203,46 @@ def test_envelope_false_writes_the_value(seaweedfs):
         assert _read(store, folder, "plain", ".jsonl") == rows
     finally:
         store.delete_dir_contents(folder, missing_dir_ok=True)
+
+
+@pytest.mark.parametrize("kind", ["parquet", "jsonl"])
+def test_a_second_run_writes_again_after_its_folder_is_removed(seaweedfs, kind):
+    """A sink does not remember the folders it made, so the second run of one
+    sink writes its files after the folder of the first run was deleted."""
+    filesystem = _filesystem(seaweedfs)
+    store = _build_filesystem(filesystem, pafs)
+    bucket = "desflow-storage"
+    store.create_dir(bucket)
+    folder = f"{bucket}/rerun-{uuid.uuid4().hex[:8]}"
+    sink_class = ParquetStorageEgress if kind == "parquet" else JsonlStorageEgress
+    egress = sink_class(default_path=f"{folder}/events.{kind}", filesystem=filesystem)
+
+    def files():
+        found = store.get_file_info(pafs.FileSelector(folder, allow_not_found=True))
+        return [info.path for info in found if info.path.endswith(f".{kind}")]
+
+    async def one_run(first):
+        q: queue.Queue = queue.Queue()
+        q.put(
+            [
+                {
+                    "stream_type": "event",
+                    "sim_ts": float(n),
+                    "timestamp": "2026-01-01T00:00:01.000",
+                    "key": f"task-{n}",
+                    "value": {"status": "finished"},
+                }
+                for n in range(first, first + 3)
+            ]
+        )
+        await drain(egress, q)
+
+    try:
+        asyncio.run(one_run(0))
+        assert len(files()) == 1
+        store.delete_dir(folder)
+        assert files() == []
+        asyncio.run(one_run(10))
+        assert len(files()) == 1, "the second run wrote no file"
+    finally:
+        store.delete_dir_contents(folder, missing_dir_ok=True)

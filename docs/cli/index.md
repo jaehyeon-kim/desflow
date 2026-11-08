@@ -237,11 +237,11 @@ desflow run experiment/yaml/experiment_shop.yaml --sample 5
 
 <!-- records: cli-sample -->
 ```text
-{"stream_type":"event","sim_ts":3.19,"timestamp":"...","key":"orders-1","task":"pack","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
-{"stream_type":"event","sim_ts":3.19,"timestamp":"...","key":"orders-1","task":"pack","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
-{"stream_type":"event","sim_ts":3.37,"timestamp":"...","key":"orders-2","task":"pack","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
-{"stream_type":"event","sim_ts":3.37,"timestamp":"...","key":"orders-2","task":"pack","instance":1,"value":{"path_id":"Shop.service.packing","status":"started"}}
-{"stream_type":"event","sim_ts":4.672,"timestamp":"...","key":"orders-3","task":"pack","instance":2,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":3.1904748458705834,"timestamp":"...","key":"orders-1","task":"pack","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":3.1904748458705834,"timestamp":"...","key":"orders-1","task":"pack","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":3.369806658930949,"timestamp":"...","key":"orders-2","task":"pack","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":3.369806658930949,"timestamp":"...","key":"orders-2","task":"pack","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":4.671648089361866,"timestamp":"...","key":"orders-3","task":"pack","instance":2,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
 ```
 
 Each order publishes `queued` when it joins the packers' queue and `started` when a packer takes it. The first two orders find a packer free, so each starts at the moment it queues. Without `--sample`, `desflow run` runs the model with its own settings and sinks.

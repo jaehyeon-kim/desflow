@@ -39,7 +39,7 @@ from desflow.core.expressions import Expression
 from desflow.core.replay import UNITS, Row, check_fields
 from desflow.models.flow import Entity
 from desflow.models.params import DistributionConfig
-from desflow.utils import _seconds, suggestion
+from desflow.utils import _seconds, checked_seconds, suggestion
 from desflow.values.models import _Gen, has_generator
 from desflow.values.runtime import RunStopped
 
@@ -57,6 +57,24 @@ ARRIVALS_STOPPED = "arrivals stopped"
 # Binds the generators of a place at the place a blueprint gives it, as the context's
 # `_bind_values` does: the value, the place, and whether to replace a binding
 Bind = Callable[..., None]
+
+
+def _fresh(value: Any) -> Any:
+    """A new copy of each list, mapping, set and tuple in `value`, at any depth.
+
+    Each entity starts with containers of its own, so one entity's change to a list
+    attribute is not seen by the next. Any other object, such as a lock or a shared
+    counter a Builder model passes, stays the same object for every entity.
+    """
+    if isinstance(value, dict):
+        return {key: _fresh(part) for key, part in value.items()}
+    if isinstance(value, list):
+        return [_fresh(part) for part in value]
+    if isinstance(value, set):
+        return {_fresh(part) for part in value}
+    if isinstance(value, tuple):
+        return tuple(_fresh(part) for part in value)
+    return value
 
 
 @dataclass
@@ -322,6 +340,7 @@ class Arrivals:
                 context's `_bind_values`). The others are as for
                 `SimulationContext.add_arrival`.
         """
+        self.forget(name)
         params = {
             k: v
             for k, v in locals().items()
@@ -509,6 +528,7 @@ class Arrivals:
         """
         if isinstance(initial, bool) or not isinstance(initial, int) or initial < 1:
             raise ValueError(f"initial is a whole number above 0, got {initial!r}")
+        self.forget(name)
         if gap is not None:
             return self.add_arrival(
                 bind,
@@ -529,6 +549,22 @@ class Arrivals:
         assert plan is not None  # it was given one
         self.plans[name] = plan
         self._add_spawn(name, spawn)
+
+    def forget(self, name: str) -> None:
+        """Drops everything declared under an arrival's name, so a second declaration
+        of the name replaces the first entirely.
+
+        Args:
+            name: The arrival's name.
+        """
+        for table in (
+            self.configs,
+            self.entities,
+            self.spawns,
+            self.plans,
+            self.replays,
+        ):
+            table.pop(name, None)
 
     def _add_spawn(self, arrival: str, task: Optional[str]) -> None:
         """Records that each entity of the arrival starts `task`. The context adds the
@@ -562,6 +598,7 @@ class Arrivals:
                 context's `_bind_values`). The others are as for
                 `SimulationContext.add_arrival_replay`.
         """
+        self.forget(name)
         if unit not in UNITS and unit != "timestamp":
             raise ValueError(
                 f"unit must be one of {', '.join([*UNITS, 'timestamp'])}, got '{unit}'"
@@ -644,9 +681,7 @@ class ArrivalRun:
         value = self.value(place)
         if isinstance(value, bool) or not isinstance(value, numbers.Real):
             raise TypeError(f"{what} gave {value!r}, which is not a number of seconds")
-        if value < 0:
-            raise ValueError(f"{what} gave {value!r}, which is below 0")
-        return value
+        return checked_seconds(value, what)
 
     def _gap(self, arrival: str) -> Union[int, float]:
         """The time to the arrival's next entity: its `gap`, or a draw from its
@@ -823,7 +858,7 @@ class ArrivalRun:
             key=f"{arrival}-{number}" if key is None else key(number),
             arrival=arrival,
             attributes={
-                name: None if has_generator(value) else value
+                name: None if has_generator(value) else _fresh(value)
                 for name, value in attributes.items()
             },
         )

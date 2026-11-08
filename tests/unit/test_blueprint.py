@@ -234,8 +234,9 @@ def test_a_mapping_with_gen_is_a_generator_in_every_place_a_value_is_written(
     SimulationContext.from_yaml(write(tmp_path, text, "kept.yaml"))
 
 
-# A scenario value sets a number, so a mapping there is refused by the type of the path
-@pytest.mark.parametrize("place", sorted(set(_VALUE_PLACES) - {"scenario value"}))
+# A scenario value and an `on:` path value set a number, so a mapping there is refused
+# by the type of the path
+@pytest.mark.parametrize("place", sorted(set(_VALUE_PLACES) - {"scenario value", "on"}))
 def test_a_nested_mapping_with_a_key_that_is_not_text_still_loads_in_every_place(
     tmp_path, place
 ):
@@ -890,7 +891,7 @@ def test_scenario_applies_on_simulation_time_at_factor_0(tmp_path):
         ),
         (
             "{at: 5, path: Shop.resources.packers.current_cap, value: many}",
-            "holds a int",
+            "needs a whole number of 0 or more for current_cap",
         ),
         (
             "{at: 5, path: Shop.arrival.standard.rate, value: 0}",
@@ -1640,7 +1641,7 @@ def test_lag_interval_in_a_blueprint_and_the_builder(tmp_path):
     )
     assert lags(SimulationContext.from_yaml(write(tmp_path, text))) == [0.0, 2.0, 4.0]
     assert lags(SimulationContext("Shop", factor=0, lag_interval=2)) == [0.0, 2.0, 4.0]
-    with pytest.raises(ValueError, match="lag_interval must be 0 or more"):
+    with pytest.raises(ValueError, match="lag_interval gave -1, which is below 0"):
         SimulationContext("Shop", lag_interval=-1)
 
 
@@ -2207,23 +2208,33 @@ def test_a_bad_sink_option_names_the_line(tmp_path):
         SimulationContext.from_yaml(path)
 
 
-def test_an_on_entry_with_a_wrong_path_or_value_warns_at_load(tmp_path, caplog):
-    """`on:` entries load as before; one whose path is not in the registry, or whose
-    value the path cannot hold, logs a warning with the entry's line."""
+def test_an_on_entry_with_a_wrong_path_warns_and_a_wrong_value_is_refused(
+    tmp_path, caplog
+):
+    """`on:` entries load as before; one whose path is not in the registry logs a
+    warning with the entry's line, and one whose value the path cannot hold is
+    refused at the entry's line."""
     text = MINIMAL.replace(
         "    resource: packers\n",
         "    resource: packers\n"
         "    on:\n"
-        "      - {path: Shop.resources.lath.current_cap, value: 3}\n"
-        "      - {path: Shop.resources.packers.current_cap, value: many}\n",
+        "      - {path: Shop.resources.lath.current_cap, value: 3}\n",
         1,
     )
     path = write(tmp_path, text)
     with caplog.at_level("WARNING", logger="desflow.blueprint.build"):
         SimulationContext.from_yaml(path)
     assert "'Shop.resources.lath.current_cap' is not a registry path" in caplog.text
-    assert "cannot" in caplog.text and "many" in caplog.text
     assert f"{path}:" in caplog.text
+    refused = MINIMAL.replace(
+        "    resource: packers\n",
+        "    resource: packers\n"
+        "    on:\n"
+        "      - {path: Shop.resources.packers.current_cap, value: many}\n",
+        1,
+    )
+    with pytest.raises(Exception, match="whole number of 0 or more.*'many'"):
+        SimulationContext.from_yaml(write(tmp_path, refused, "refused.yaml"))
     caplog.clear()
     ok = MINIMAL.replace(
         "    resource: packers\n",

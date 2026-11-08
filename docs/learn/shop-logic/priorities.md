@@ -430,12 +430,21 @@ Items can be ranked too: a priority store returns the parcel with the lowest pri
             def publish(value):
                 env.publish_event(key, value, task=task, instance=task_id)
 
-            publish({"path_id": path_id, "status": "queued"})
+            publish(
+                {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+            )
             env.stats.task_queued(task, task_id)
             # Under fifo and lifo the priority is ignored
             with packers.request(priority=priority) as request:
                 yield request
-                publish({"path_id": path_id, "status": "started"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    }
+                )
                 env.stats.task_started(task, task_id)
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 event = "express_packed" if arrival == "express" else "order_packed"

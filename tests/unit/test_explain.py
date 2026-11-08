@@ -681,6 +681,31 @@ def test_verify_refuses_a_context_built_in_code():
         _shop().analyze(verify=True, until=100)
 
 
+def test_verify_of_a_low_level_model_says_it_cannot_be_built_again(tmp_path):
+    from desflow import LowLevelModel
+    from desflow.explain import verify
+
+    path = tmp_path / "mm1.yaml"
+    path.write_text(MM1, encoding="utf-8")
+    explanation = SimulationContext.from_yaml(path).analyze()
+    model = LowLevelModel(lambda env, sampler: [], "S")
+    with pytest.raises(ValueError, match="a LowLevelModel cannot be verified"):
+        verify(model, explanation, until=10)
+
+
+@pytest.mark.parametrize("replications", [2.5, 0, 1, True, float("nan")])
+def test_verify_refuses_replications_that_are_not_a_whole_number_of_2_or_more(
+    tmp_path, replications
+):
+    from desflow.explain import verify
+
+    path = tmp_path / "mm1.yaml"
+    path.write_text(MM1, encoding="utf-8")
+    explanation = SimulationContext.from_yaml(path).analyze()
+    with pytest.raises(ValueError, match="replications is a whole number of 2"):
+        verify(str(path), explanation, until=100, replications=replications)
+
+
 def test_verify_agrees_on_the_mm1_shop(tmp_path):
     path = tmp_path / "mm1.yaml"
     path.write_text(MM1, encoding="utf-8")

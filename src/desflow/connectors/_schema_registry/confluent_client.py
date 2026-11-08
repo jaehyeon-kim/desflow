@@ -15,6 +15,7 @@ import httpx
 
 from desflow.connectors._schema_registry.errors import SchemaRegistryError
 from desflow.connectors._schema_registry.unset import UNSET
+from desflow.connectors._checks import checked_whole
 
 _ACCEPT = (
     "application/vnd.schemaregistry.v1+json, "
@@ -135,7 +136,8 @@ class ConfluentRegistryClient:
 
         Raises:
             ValueError: If a URL does not start with `http`, if `auth` and a URL with
-                `user:password@` are both given, or if `cert` is invalid.
+                `user:password@` are both given, if `cert` is invalid, or if
+                `max_retries` is not a whole number of 0 or more.
             OSError: If a CA file, a certificate or a key cannot be read.
         """
         self._base_urls = [part.strip().rstrip("/") for part in url.split(",")]
@@ -148,7 +150,7 @@ class ConfluentRegistryClient:
                     "Remove the credentials from the url or remove auth"
                 )
         auth = self._take_url_credentials(auth)
-        self._max_retries = max_retries
+        self._max_retries = checked_whole(max_retries, "max_retries", 0)
         self._headers = dict(headers or {})
         self._client = httpx.Client(
             verify=build_ssl_context(verify, cert),

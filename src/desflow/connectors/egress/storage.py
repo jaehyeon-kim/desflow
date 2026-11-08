@@ -251,6 +251,11 @@ class JsonlStorageEgress(BaseEgress):
         """Imports `pyarrow.fs`, which `run` reads the file system from."""
         load_arrow("pyarrow.fs", tables=False)
 
+    def _start_run(self) -> None:
+        """Forgets the folders the last run made, so a folder removed since is made
+        again at the first write to it."""
+        self._folders = set()
+
     async def run(self, egress_queue: queue.Queue) -> None:
         """
         The main execution loop that consumes the egress queue and writes JSONL chunks.
@@ -276,21 +281,25 @@ class JsonlStorageEgress(BaseEgress):
             raise ImportError("pyarrow is required. pip install desflow[parquet]")
 
         self.filesystem = _build_filesystem(self.filesystem, fs)
+        self._start_run()
         batches_processed = 0
 
         try:
             while True:
                 try:
                     batch = egress_queue.get_nowait()
+                    written = 0
                     with self._writing():
                         try:
-                            await asyncio.to_thread(self._write_batch, batch)
+                            written = await asyncio.to_thread(self._write_batch, batch)
                         except Exception as exc:
                             # A batch that fails is logged, and the sink goes on
                             logger.error(f"JSONL Writer: batch not written: {exc}")
                             continue
-                    # Log a progress heartbeat every 10 batches
-                    batches_processed += 1
+                    if not written:
+                        continue
+                    # Only what was written counts; log a heartbeat every 10
+                    batches_processed += written
                     if batches_processed % 10 == 0:
                         q_size = egress_queue.qsize()
                         logger.info(
@@ -306,16 +315,19 @@ class JsonlStorageEgress(BaseEgress):
                 f"Successfully wrote {batches_processed} total chunks to storage."
             )
 
-    def _write_batch(self, batch: list):
+    def _write_batch(self, batch: list) -> int:
         """
         Groups a batch of records by destination path and writes them to chunked files.
 
         Args:
             batch (list): A list of dictionaries or Pydantic models to be written.
+
+        Returns:
+            int: The files written.
         """
         if self.filesystem is None:
             logger.error("Filesystem not initialized. Batch dropped.")
-            return
+            return 0
 
         # A file routes by __path__, and writes no other reserved key
         batch = drop_reserved_keys(batch, self, keep=("__path__",))
@@ -326,9 +338,10 @@ class JsonlStorageEgress(BaseEgress):
             self.default_path,
             self.envelope,
             route_key="__path__",
+            require_route=self.default_path is None and self.path_router is None,
             skipped=skipped,
         )
-        warn_skipped(self, skipped)
+        warn_skipped(self, skipped, "__path__")
 
         # Every line is encoded before a file is opened, so a record that cannot be
         # encoded leaves no empty or partial file
@@ -345,6 +358,7 @@ class JsonlStorageEgress(BaseEgress):
             with self.filesystem.open_output_stream(chunk_path) as stream:
                 for line in lines:
                     stream.write(line)
+        return len(encoded)
 
 
 class ParquetStorageEgress(BaseEgress):
@@ -438,6 +452,12 @@ class ParquetStorageEgress(BaseEgress):
         loads on its first table."""
         load_arrow("pyarrow.parquet", "pyarrow.fs")
 
+    def _start_run(self) -> None:
+        """Forgets the folders and the schemas of the last run, so a folder removed
+        since is made again and the files of a run have the types its own batches give."""
+        self._folders = set()
+        self.schemas = {}
+
     async def run(self, egress_queue: queue.Queue) -> None:
         """
         The main execution loop that consumes the egress queue and writes Parquet chunks.
@@ -465,6 +485,7 @@ class ParquetStorageEgress(BaseEgress):
             raise ImportError("pyarrow is required. pip install desflow[parquet]")
 
         self.filesystem = _build_filesystem(self.filesystem, fs)
+        self._start_run()
         batches_processed = 0
 
         try:
@@ -526,9 +547,10 @@ class ParquetStorageEgress(BaseEgress):
             self.default_path,
             self.envelope,
             route_key="__path__",
+            require_route=self.default_path is None and self.path_router is None,
             skipped=skipped,
         )
-        warn_skipped(self, skipped)
+        warn_skipped(self, skipped, "__path__")
 
         written = 0
         for target_path, records in grouped_batches.items():

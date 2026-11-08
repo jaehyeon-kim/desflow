@@ -295,7 +295,7 @@ class RunState:
             value: What each woken instance reads as `wait.suspend.value`, already
                 evaluated.
             limit: How many to wake at most: a whole number, a boolean counting as 1,
-                an `Expression` read in `scope`, or None for all. 0 or less wakes none.
+                an `Expression` read in `scope`, or None for all. 0 wakes none; below 0 is refused.
             scope: What a `limit` expression reads.
 
         Returns:
@@ -311,6 +311,11 @@ class RunState:
             limit = limit.evaluate(scope)
         if limit is not None:
             limit = whole(limit, f"the resume limit of task '{task}'")
+            if limit < 0:
+                raise ValueError(
+                    f"a resume limit must be 0 or more, got {limit!r} "
+                    f"(the resume limit of task '{task}')"
+                )
         condition = Expression(where) if isinstance(where, str) else where
         woken = 0
         for event in list(self.suspended.get(task, [])):

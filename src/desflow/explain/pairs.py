@@ -10,6 +10,7 @@ resource, which has no steady state, is not compared either.
 
 from typing import Dict, List, NamedTuple, Optional
 
+from desflow.explain import features
 from desflow.explain.models import VERIFY_HINT, Explanation, Graph
 from desflow.explain.support import after
 
@@ -50,9 +51,15 @@ def pairs(explanation: Explanation, window: float) -> List[Pair]:
     """
     graph = explanation.graph
     held = _held(graph)
+    families = {
+        node.label
+        for node in graph.nodes
+        if node.kind == "resource" and features.RESOURCE_FAMILY in node.features
+    }
     found: List[Pair] = []
     for r in explanation.resources:
-        base = f"resources.{r.name}"
+        # A family publishes each member as `name[index]`; the first always exists
+        base = f"resources.{r.name}" + ("[0]" if r.name in families else "")
         unstable = _UNSTABLE if r.status == "UNSTABLE" else None
         approx = _APPROX if r.method == "kingman_approx" else None
         found.append(

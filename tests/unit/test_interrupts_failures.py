@@ -331,7 +331,7 @@ tasks:
   park: {wait: {suspend: true}, payload: {e: woke, x: {gen: expr, expr: "wait.suspend.value"}}}
   wake: {payload: {e: wake}, resume: {task: park, value: 1}}
   none: {payload: {e: none}, resume: {task: park, value: 2, limit: 0}}
-  all: {payload: {e: all}, resume: {task: park, value: 3, limit: -5}}
+  all: {payload: {e: all}, resume: {task: park, value: 3, limit: 0}}
 run: {until: UNTIL}
 """
     marks = run_marks(tmp_path, yaml)

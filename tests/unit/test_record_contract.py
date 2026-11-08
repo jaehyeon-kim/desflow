@@ -193,6 +193,34 @@ tasks:
     )
 
 
+def test_a_status_event_names_its_sim_id_and_service_in_fields_of_their_own(tmp_path):
+    """A `queued` or `started` value holds `path_id`, `sim_id` and `service`, in that
+    order before `status`, so a reader takes the two names with no split of `path_id`,
+    which cannot tell a name that holds `.service.` from the separator."""
+    text = """\
+simulation: {sim_id: S.service.v2, factor: 0, random_seed: 1}
+resources: {desk: {current_cap: 1}}
+services: {front.service.desk: {dist: constant, value: 1}}
+arrivals: {a: {initial: 1, spawn: serve}}
+tasks:
+  serve: {service: front.service.desk, resource: desk, payload: {done: 1}}
+"""
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, outcome.error
+    values = [r["value"] for r in outcome.records if r.get("task") == "serve"]
+    statuses = [v for v in values if "status" in v]
+    assert [v["status"] for v in statuses] == ["queued", "started"], statuses
+    for value in statuses:
+        assert list(value) == ["path_id", "sim_id", "service", "status"], (
+            WHERE + f"A status value has the keys {list(value)}."
+        )
+        assert value["sim_id"] == "S.service.v2", value
+        assert value["service"] == "front.service.desk", value
+        assert value["path_id"] == "S.service.v2.service.front.service.desk", value
+    finished = [v for v in values if "status" not in v]
+    assert finished == [{"done": 1}], finished
+
+
 SUBSCRIBE = """\
 simulation: {{sim_id: T, factor: 0, random_seed: 1}}
 signals: {{to: {{once: true}}, never: {{once: true}}}}

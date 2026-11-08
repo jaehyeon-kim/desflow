@@ -53,21 +53,44 @@ def pack(env, sampler, packers, key, patience, task_id):
     env.stats.flow_started(flow)  # the order enters the shop
     # No new orders once the courier has made its last collection
     if env.now >= 100:
-        publish({"path_id": path_id, "status": "balked"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "balked",
+            }
+        )
         env.stats.task_balked("pack", task_id)
         env.stats.flow_ended(flow)
         return
-    publish({"path_id": path_id, "status": "queued"})
+    publish(
+        {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+    )
     env.stats.task_queued("pack", task_id)
     with packers.request() as req:
         # Each order's own patience: it leaves the queue when it runs out
         yield req | env.timeout(patience)
         if not req.triggered:
-            publish({"path_id": path_id, "status": "reneged"})
+            publish(
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "reneged",
+                }
+            )
             env.stats.task_reneged("pack", task_id)
             env.stats.flow_ended(flow)
             return
-        publish({"path_id": path_id, "status": "started"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            }
+        )
         env.stats.task_started("pack", task_id)
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         publish({"event_type": "order_packed"})

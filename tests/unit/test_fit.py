@@ -185,7 +185,7 @@ def test_bounds_flag_and_refuse():
 
 
 def test_unknown_candidates_and_units_are_refused():
-    with pytest.raises(ValueError, match="no family called beta"):
+    with pytest.raises(ValueError, match="no family called 'beta'"):
         fit_column(PACKING, candidates=["gamma", "beta"])
     with pytest.raises(ValueError, match="unit must be one of"):
         fit_column(PACKING, unit="days")
@@ -326,7 +326,7 @@ def test_cli_writes_the_settings_and_the_plot(tmp_path):
     unknown = CliRunner().invoke(
         cli, ["fit", str(data), "--column", "packing_seconds", "--candidates", "beta"]
     )
-    assert unknown.exit_code == 2 and "no family called beta" in unknown.output
+    assert unknown.exit_code == 2 and "no family called 'beta'" in unknown.output
     missing = CliRunner().invoke(cli, ["fit", str(data), "--column", "seconds"])
     assert missing.exit_code == 2 and "has no column 'seconds'" in missing.output
 
@@ -375,3 +375,64 @@ def test_include_adds_keys_to_the_file(tmp_path):
     blueprint.write_text(blueprint.read_text().replace("file: gaps.yaml, ", ""))
     with pytest.raises(BlueprintError, match="a mapping with file and the keys to add"):
         SimulationContext.from_yaml(blueprint)
+
+
+NAN = float("nan")
+
+
+@pytest.mark.parametrize(
+    "options,name",
+    [
+        ({"tolerance": NAN}, "tolerance"),
+        ({"tolerance": -1}, "tolerance"),
+        ({"tolerance": float("inf")}, "tolerance"),
+        ({"tolerance": True}, "tolerance"),
+        ({"lower": NAN}, "lower"),
+        ({"upper": NAN}, "upper"),
+        ({"lower": 5, "upper": 1}, "lower must be below upper"),
+    ],
+)
+def test_fit_column_refuses_a_tolerance_or_bound_no_fit_can_use(options, name):
+    with pytest.raises(ValueError, match=name):
+        fit_column(PACKING, **options)
+
+
+@pytest.mark.parametrize(
+    "options,name",
+    [
+        (["--tolerance", "nan"], "tolerance"),
+        (["--tolerance", "-1"], "tolerance"),
+        (["--lower", "nan"], "lower"),
+        (["--lower", "5", "--upper", "1"], "lower must be below upper"),
+    ],
+)
+def test_the_fit_command_refuses_them_with_the_options_name(tmp_path, options, name):
+    data = tmp_path / "packing.csv"
+    data.write_text(
+        "order,packing_seconds\n" + "".join(f"{i},{v}\n" for i, v in enumerate(PACKING))
+    )
+    run = CliRunner().invoke(
+        cli, ["fit", str(data), "--column", "packing_seconds", *options]
+    )
+    assert run.exit_code == 2, run.output
+    assert name in run.output
+
+
+def test_candidates_are_stripped_of_spaces(tmp_path):
+    data = tmp_path / "packing.csv"
+    data.write_text(
+        "order,packing_seconds\n" + "".join(f"{i},{v}\n" for i, v in enumerate(PACKING))
+    )
+    run = CliRunner().invoke(
+        cli,
+        [
+            "fit",
+            str(data),
+            "--column",
+            "packing_seconds",
+            "--candidates",
+            "normal, gamma",
+        ],
+    )
+    assert run.exit_code == 0, run.output
+    assert "normal" in run.output and "gamma" in run.output

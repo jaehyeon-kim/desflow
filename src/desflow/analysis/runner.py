@@ -47,8 +47,9 @@ from desflow.analysis.models import (
 from desflow.analysis.report import build_report
 from desflow.analysis.spec import ExperimentSpec, load_experiment
 from desflow.core.context import parts_of
+from desflow.core.registry import ParamRejected
 from desflow.core.statistics import published_value
-from desflow.utils import suggestion
+from desflow.utils import checked_whole, suggestion
 
 logger = logging.getLogger(__name__)
 
@@ -232,7 +233,9 @@ def replicate(
         raise ValueError(f"replications need n of 2 or more, got {n}")
     if not 0.0 < level < 1.0:
         raise ValueError(f"level must be between 0 and 1, got {level}")
-    if seed is None:
+    if seed is not None:
+        checked_whole(seed, "seed", 0)
+    else:
         seed = secrets.randbelow(2**32)
         logger.info(f"No seed was given, so the replications use {seed}.")
     seeds = spawn_seeds(seed, n)
@@ -296,7 +299,7 @@ def run_replications(
     """
     end = seconds(until)
     if end is None:
-        end = default_until(model)
+        end = seconds(default_until(model), "run.until")
     if end is None:
         raise ValueError(
             "replications need an end time: pass until, or set run.until in the "
@@ -304,7 +307,7 @@ def run_replications(
         )
     options = dict(
         until=end,
-        warmup=seconds(warmup),
+        warmup=seconds(warmup, "warmup"),
         stats=stats,
         overrides=dict(overrides or {}),
         stop=stop,
@@ -521,7 +524,9 @@ def _checked_settings(spec: Union[str, Path, Mapping[str, Any], Any]) -> _Checke
         try:
             inspect_model(model, design.overrides)
         except ValueError as exc:
-            bad = next((p for p in design.overrides if f"'{p}'" in str(exc)), None)
+            # The registry's refusal carries the path it refused; its text may quote
+            # a nearby valid path as well
+            bad = exc.path if isinstance(exc, ParamRejected) else None
             where = (
                 ("sweep", bad)
                 if bad in settings.sweep

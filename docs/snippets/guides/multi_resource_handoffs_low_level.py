@@ -39,10 +39,30 @@ PARAMS = SimParameter(
 def pick(env, shop, key):
     """Carries the order to the bench, and hands the picker to pack."""
     task_id, path_id = next(shop["ids"]["pick"]), "Shop.service.walking"
-    env.publish_event(key, {"path_id": path_id, "status": "queued"}, "pick", task_id)
+    env.publish_event(
+        key,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "walking",
+            "status": "queued",
+        },
+        "pick",
+        task_id,
+    )
     picker = shop["picker"].request()
     yield picker
-    env.publish_event(key, {"path_id": path_id, "status": "started"}, "pick", task_id)
+    env.publish_event(
+        key,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "walking",
+            "status": "started",
+        },
+        "pick",
+        task_id,
+    )
     yield env.timeout(shop["sampler"].sample(env.registry.get_config(path_id)))
     env.publish_event(key, {"event_type": "order_picked"}, "pick", task_id)
     yield from pack(env, shop, key, picker)  # the order still holds the picker
@@ -51,11 +71,29 @@ def pick(env, shop, key):
 def pack(env, shop, key, picker):
     """Waits for the bench while holding the picker, then gives the picker back."""
     task_id, path_id = next(shop["ids"]["pack"]), "Shop.service.packing"
-    env.publish_event(key, {"path_id": path_id, "status": "queued"}, "pack", task_id)
+    env.publish_event(
+        key,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": "queued",
+        },
+        "pack",
+        task_id,
+    )
     with shop["bench"].request() as bench:
         yield bench
         env.publish_event(
-            key, {"path_id": path_id, "status": "started"}, "pack", task_id
+            key,
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            },
+            "pack",
+            task_id,
         )
         shop["picker"].release(picker)  # the order is on the bench
         yield env.timeout(shop["sampler"].sample(env.registry.get_config(path_id)))

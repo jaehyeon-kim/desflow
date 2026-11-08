@@ -4,10 +4,9 @@ desflow joins the sim id and element names with dots into registry paths, statis
 names, `path_id`s and the places of generated values, and a name may hold a dot. Every
 YAML blueprint that `scripts/regression.py capture` runs (the cases of
 `test_second_run.py`) is run twice from fresh contexts with the same seed: as written,
-and as a copy in which the sim id and every declared name (tasks, resources, stores,
-containers, signals and families, services, arrivals, variables and telemetry
-readings) gets dots and a section word, such as `work` to `p.service.work_.q`, with
-every reference to them renamed too. No part of a new name at a dot is the old name,
+and as a copy in which the sim id and every declared name (tasks, services, arrivals,
+variables and telemetry readings) gets dots and a section word, such as `work` to
+`p.service.work_.q`, with every reference to them renamed too. No part of a new name at a dot is the old name,
 so a reader that takes one part of a joined string reads a wrong name. The renamed
 run's records, statistics and error, with each new name mapped back, must equal the
 plain run's. So must the value that `published_value` gives for each count of each task
@@ -16,6 +15,9 @@ and flow, and for each name made of the parts of a new name before one of its do
 The copy is made from the blueprint as read (`read_document`), so line numbers stay
 as they are. A random sequence is named by its place, which holds names, so the copy's
 sequences are named by the place with the names mapped back.
+
+A resource, store, container or signal keeps its name, because an expression names it
+and a dot or a space in it is refused (`tests/unit/test_repeated_names.py`).
 
 A name is not renamed where the model reads it in a way that cannot hold a dot: a name
 that an expression or another text of the model holds as a word (`users.desk`,
@@ -63,6 +65,9 @@ DECLARING = (
     "signals",
     "tasks",
 )
+# The sections whose names an expression reads (`level.tank`, `users.desk`), so they
+# are refused with a dot or a space and stay as they are written
+UNDOTTED = ("resources", "containers", "stores", "signals")
 # The section words of registry paths and statistic names
 PATH_WORDS = (
     "arrival",
@@ -190,10 +195,13 @@ class Renaming:
         sim = data.get("simulation") or {}
         self.sim_id = sim.get("sim_id") if isinstance(sim, dict) else None
         names: Set[str] = set()
+        undotted: Set[str] = set()
         for section in DECLARING:
             entries = data.get(section)
             if isinstance(entries, dict):
                 names |= {k for k in entries if isinstance(k, str)}
+                if section in UNDOTTED:
+                    undotted |= {k for k in entries if isinstance(k, str)}
         for entry in data.get("telemetry") or []:
             if isinstance(entry, dict) and isinstance(entry.get("readings"), dict):
                 names |= set(entry["readings"])
@@ -202,7 +210,7 @@ class Renaming:
         self.held = {
             name for name in names if any(_word(name).search(t) for t in texts)
         }
-        self.names = names - self.held
+        self.names = names - self.held - undotted
         self.rename_sim = isinstance(self.sim_id, str) and not any(
             _word(self.sim_id).search(t) for t in texts if t != self.sim_id
         )
@@ -426,11 +434,11 @@ def test_the_copy_gives_every_name_a_dot():
     assert renaming.held == {"seat"} and renaming.rename_sim
     renamed = renaming.document(data)
     assert renamed["simulation"]["sim_id"] == "p.service.S_.q"
-    assert set(renamed["resources"]) == {"p.service.desk_.q", "seat"}
+    assert set(renamed["resources"]) == {"desk", "seat"}
     work = renamed["tasks"]["p.service.work_.q"]
-    assert work["resource"] == "p.service.desk_.q"
+    assert work["resource"] == "desk"
     assert work["next"][0]["task"] == "p.service.side_.q"
     assert renamed["scenario"][0]["path"] == (
-        "p.service.S_.q.resources.p.service.desk_.q.current_cap"
+        "p.service.S_.q.resources.desk.current_cap"
     )
     assert mapped_back(renamed) == data

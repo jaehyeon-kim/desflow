@@ -207,16 +207,16 @@ In `kafka/yaml`, which `desflow examples get kafka --api yaml` creates, `desflow
 
 <!-- records: kafka-sample -->
 ```text
-{"stream_type":"event","sim_ts":1.276,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
-{"stream_type":"event","sim_ts":1.276,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
-{"stream_type":"event","sim_ts":1.348,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
-{"stream_type":"event","sim_ts":1.869,"timestamp":"...","key":"orders-3","task":"pack_order","instance":2,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":1.3479226635723796,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":1.8686592357447462,"timestamp":"...","key":"orders-3","task":"pack_order","instance":2,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
 {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":1}
 {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
 {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":2}
 {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":100.0}
 {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.in_progress","value":3}
-{"stream_type":"event","sim_ts":2.01,"timestamp":"...","key":"orders-4","task":"pack_order","instance":3,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":2.0097703062717214,"timestamp":"...","key":"orders-4","task":"pack_order","instance":3,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
 ```
 
 With one packer, `orders-1` starts at once and the next orders wait. At 2 simulation seconds the readings show 1 packer in use, 2 orders in the queue and 3 tasks in progress.
@@ -245,10 +245,7 @@ With one packer, `orders-1` starts at once and the next orders wait. At 2 simula
         # KAFKA_BOOTSTRAP_SERVERS overrides the broker address.
         # Run it from its folder with: desflow run kafka.yaml
 
-        simulation:
-          sim_id: Shop
-          factor: 1.0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 1.0, random_seed: 42}
 
         ingress:
           - type: Kafka
@@ -276,7 +273,11 @@ With one packer, `orders-1` starts at once and the next orders wait. At 2 simula
           pack_order:
             service: packing
             resource: packers
-            payload: {path_id: Shop.service.packing, status: finished}
+            payload:
+              path_id: Shop.service.packing
+              sim_id: Shop
+              service: packing
+              status: finished
 
         # The packers' readings every 2 seconds, which kafka_dashboard.py shows.
         stats: {level: minimal, interval: 2}
@@ -330,6 +331,8 @@ With one packer, `orders-1` starts at once and the next orders wait. At 2 simula
             """
 
             path_id: str
+            sim_id: str
+            service: str
             status: str
 
 
@@ -372,9 +375,12 @@ With one packer, `orders-1` starts at once and the next orders wait. At 2 simula
             logger.info(f"Task {task_id} started at sim time: {context.env.now:.2f}s")
 
             # The payload of the finished event, from the Pydantic model
-            return TaskEvent(path_id="Shop.service.packing", status="finished").model_dump(
-                mode="json"
-            )
+            return TaskEvent(
+                path_id="Shop.service.packing",
+                sim_id="Shop",
+                service="packing",
+                status="finished",
+            ).model_dump(mode="json")
 
 
         @app.arrival_loop("orders")
@@ -474,6 +480,8 @@ With one packer, `orders-1` starts at once and the next orders wait. At 2 simula
             """
 
             path_id: str
+            sim_id: str
+            service: str
             status: str
 
 
@@ -496,7 +504,7 @@ With one packer, `orders-1` starts at once and the next orders wait. At 2 simula
             path_id = "Shop.service.packing"
             env.publish_event(
                 key,
-                TaskEvent(path_id=path_id, status="queued"),
+                TaskEvent(path_id=path_id, sim_id="Shop", service="packing", status="queued"),
                 task="pack_order",
                 instance=task_id,
             )
@@ -508,7 +516,9 @@ With one packer, `orders-1` starts at once and the next orders wait. At 2 simula
                 logger.info(f"Task {task_id} started at sim time: {env.now:.2f}s")
                 env.publish_event(
                     key,
-                    TaskEvent(path_id=path_id, status="started"),
+                    TaskEvent(
+                        path_id=path_id, sim_id="Shop", service="packing", status="started"
+                    ),
                     task="pack_order",
                     instance=task_id,
                 )
@@ -519,7 +529,9 @@ With one packer, `orders-1` starts at once and the next orders wait. At 2 simula
 
                 env.publish_event(
                     key,
-                    TaskEvent(path_id=path_id, status="finished"),
+                    TaskEvent(
+                        path_id=path_id, sim_id="Shop", service="packing", status="finished"
+                    ),
                     task="pack_order",
                     instance=task_id,
                 )

@@ -54,12 +54,30 @@ def order(env, sampler, shop, key, task_id):
 
     pack_path, ship_path = "Shop.service.packing", "Shop.service.shipping"
     env.stats.flow_started("orders")
-    publish("pack", task_id, {"path_id": pack_path, "status": "queued"})
+    publish(
+        "pack",
+        task_id,
+        {
+            "path_id": pack_path,
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": "queued",
+        },
+    )
     env.stats.task_queued("pack", task_id)
     packers = shop["packers"]
     request = packers.request()
     yield request
-    publish("pack", task_id, {"path_id": pack_path, "status": "started"})
+    publish(
+        "pack",
+        task_id,
+        {
+            "path_id": pack_path,
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": "started",
+        },
+    )
     env.stats.task_started("pack", task_id)
     yield env.timeout(sampler.sample(env.registry.get_config(pack_path)))
     publish("pack", task_id, {"event_type": "order_packed"})
@@ -67,7 +85,16 @@ def order(env, sampler, shop, key, task_id):
     env.notify_change()
     packers.release(request)
     ship_id = next(shop["ship_ids"])
-    publish("ship", ship_id, {"path_id": ship_path, "status": "started"})
+    publish(
+        "ship",
+        ship_id,
+        {
+            "path_id": ship_path,
+            "sim_id": "Shop",
+            "service": "shipping",
+            "status": "started",
+        },
+    )
     env.stats.task_started("ship", ship_id)
     yield env.timeout(sampler.sample(env.registry.get_config(ship_path)))
     publish("ship", ship_id, {"event_type": "order_shipped"})

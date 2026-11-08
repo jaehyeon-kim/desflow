@@ -285,7 +285,7 @@ def test_a_counted_entity_keeps_its_attributes_between_runs(tmp_path):
 def test_a_counted_entity_holds_its_key_until_its_flow_ends(tmp_path, caplog):
     body = """\
         arrivals:
-          a: {gap: 1, count: 3, stagger: 5, max_events: 1, key: same, spawn: t}
+          a: {gap: 1, count: 3, stagger: 5, max_events: 1, key: {gen: one_of, choices: [same]}, spawn: t}
         tasks:
           t: {service_time: 100, payload: {event_type: ran}}
         run: {until: 30}
@@ -303,7 +303,7 @@ def test_a_counted_entity_holds_its_key_until_its_flow_ends(tmp_path, caplog):
 def test_a_counted_entity_forgets_its_once_values_when_its_flow_ends(tmp_path):
     body = """\
         arrivals:
-          a: {gap: 1, count: 2, stagger: 10, max_events: 1, key: same, spawn: t}
+          a: {gap: 1, count: 2, stagger: 10, max_events: 1, key: {gen: one_of, choices: [same]}, spawn: t}
         tasks:
           t:
             service_time: 3
@@ -907,16 +907,16 @@ def test_weights_expressions_draw_once_from_the_route_stream(tmp_path):
     assert routes("{u: 0.25, v: 0.75}") == routes("{u: '0.5 / 2', v: '1 - 0.25'}")
 
 
-def test_a_patience_that_loaded_before_still_loads(tmp_path):
-    # A negative or nan literal on a task nothing reaches, and a nan on one that runs
-    text = """\
-        arrivals: {a: {dist: constant, value: 1, max_events: 1, spawn: t}}
+@pytest.mark.parametrize("patience", [".nan", "-1", "true"])
+def test_a_patience_that_is_not_a_time_is_refused_at_load(tmp_path, patience):
+    # These loaded before and failed at the run, or ran, with no task named
+    text = f"""\
+        arrivals: {{a: {{dist: constant, value: 1, max_events: 1, spawn: t}}}}
         tasks:
-          t: {wait: {timeout: 5}, patience: .nan, payload: {event_type: ran}}
-          never: {wait: {timeout: 5}, patience: -1, payload: {}}
-        run: {until: 5}
+          t: {{wait: {{timeout: 5}}, patience: {patience}, payload: {{}}}}
+        run: {{until: 5}}
         """
-    assert run(tmp_path, text).error is None
+    refused(tmp_path, text, "patience")
 
 
 def test_a_negative_patience_expression_names_the_task(tmp_path):

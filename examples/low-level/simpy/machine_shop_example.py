@@ -37,6 +37,7 @@ JOB_DURATION = 30
 NUM_MACHINES = 10
 UNTIL = 4 * 7 * 24 * 60  # SimPy's four weeks in minutes, read as seconds
 REPAIR = "MachineShop.service.repair_time"  # the service a repair's records name
+REPAIR_NAMES = {"sim_id": "MachineShop", "service": "repair_time"}
 TASKS = ("start_machine", "part", "begin_repair", "repair", "break_loop", "other_job")
 
 
@@ -96,7 +97,10 @@ def build(env: DynamicRealtimeEnvironment, size: int = NUM_MACHINES) -> None:
         def repair(self):
             number = next(numbers["repair"])
             publish(
-                self.name, "repair", number, {"path_id": REPAIR, "status": "queued"}
+                self.name,
+                "repair",
+                number,
+                {"path_id": REPAIR, **REPAIR_NAMES, "status": "queued"},
             )
             # The repair goes before the repairman's other jobs
             with repairman.request(priority=1) as req:
@@ -105,7 +109,7 @@ def build(env: DynamicRealtimeEnvironment, size: int = NUM_MACHINES) -> None:
                     self.name,
                     "repair",
                     number,
-                    {"path_id": REPAIR, "status": "started"},
+                    {"path_id": REPAIR, **REPAIR_NAMES, "status": "started"},
                 )
                 yield env.timeout(REPAIR_TIME)
             publish(self.name, "repair", number, {"event_type": "repaired"})

@@ -37,7 +37,12 @@ def pack_order(env, sampler, packers, key, task_id, patience):
     path_id = "Shop.service.packing"
 
     def publish(status):
-        value = {"path_id": path_id, "status": status}
+        value = {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": status,
+        }
         env.publish_event(key, value, task="pack_order", instance=task_id)
 
     # --8<-- [start:balk]

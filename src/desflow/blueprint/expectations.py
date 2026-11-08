@@ -118,7 +118,13 @@ def _replace(
         at = _where(source, "tests", index, "expect", name, "value")
         pattern = r"^(\s*value\s*:\s*)([^\s#,}]+)"
     elif isinstance(expected, ExpectedWithin):
-        pattern = r"(\bvalue\s*:\s*)([^\s#,}]+)"
+        # {value: ..., within: ...} on the line of its key, which may share the line
+        # with the `{value, within}` of other keys: the value of this key is the first
+        # `value:` after the key, inside its braces
+        pattern = (
+            rf"((?<![\w.])[\"']?{re.escape(name)}[\"']?\s*:\s*\{{[^}}]*?"
+            r"\bvalue\s*:\s*)([^\s#,}]+)"
+        )
     else:
         pattern = rf"^(\s*(?:-\s+)?[\"']?{re.escape(name)}[\"']?\s*:\s*)([^\s#]+)"
 

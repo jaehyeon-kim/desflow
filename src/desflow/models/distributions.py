@@ -69,10 +69,23 @@ class Distribution:
         return tuple(p for p in self.parameters if p not in LIST_PARAMETERS)
 
 
+_POISSON_LARGEST_MEAN = 9.2e18
+
+
 def _require(config: Any, *names: str) -> None:
     for name in names:
         if getattr(config, name) is None:
             raise ValueError(f"{config.dist} needs {name}")
+
+
+def _time_not_negative(config: Any, name: str) -> None:
+    """A time a family draws between cannot start below 0: the sampler would raise
+    each negative draw to 0, and the mean and variance would be wrong."""
+    value = getattr(config, name)
+    if value < 0:
+        raise ValueError(
+            f"{config.dist} {name} is a time and must be 0 or more, got {value}"
+        )
 
 
 def _positive(config: Any, *names: str) -> None:
@@ -110,6 +123,13 @@ def _check_lognormal(c: Any) -> None:
     _require(c, "mean")
     _positive(c, "mean")
     _not_negative(c, "std")
+    try:
+        math.isfinite(float(c.mean) ** 2 + float(c.std) ** 2)
+    except OverflowError:
+        raise ValueError(
+            f"lognormal mean {c.mean:g} and std {c.std:g} are too large: their "
+            f"squares pass the largest float"
+        ) from None
 
 
 def _draw_lognormal(c: Any, rng: np.random.Generator) -> float:
@@ -129,6 +149,7 @@ def _check_truncated_normal(c: Any) -> None:
     _require(c, "mean")
     _not_negative(c, "std")
     _require(c, "low")
+    _time_not_negative(c, "low")
     if c.std == 0 and c.mean < c.low:
         raise ValueError(
             f"truncated_normal with std 0 needs a mean of at least low "
@@ -162,13 +183,27 @@ def _standard_normal_above(a: float, rng: np.random.Generator) -> float:
             return float(z - a)
 
 
+def _mills_ratio(a: float) -> float:
+    """The density over the upper tail of a standard normal at `a`, `phi(a) / Q(a)`.
+
+    `erfc` gives the tail without the cancellation of `1 - erf`, and from `a = 5`
+    the continued fraction `a + 1 / (a + 2 / (a + 3 / (a + ...)))` takes over, because
+    the tail is 0 in floats from about `a = 38` and the density is 0 well before.
+    """
+    if a < 5:
+        density = math.exp(-a * a / 2) / math.sqrt(2 * math.pi)
+        return density / (math.erfc(a / math.sqrt(2)) / 2)
+    fraction = a
+    for k in range(60, 0, -1):
+        fraction = a + k / fraction
+    return fraction
+
+
 def _truncated_moments(c: Any) -> Tuple[float, float]:
     if c.std == 0:
         return max(c.mean, c.low), 0.0
     a = (c.low - c.mean) / c.std
-    density = math.exp(-a * a / 2) / math.sqrt(2 * math.pi)
-    tail = 1 - 0.5 * (1 + math.erf(a / math.sqrt(2)))
-    ratio = density / tail
+    ratio = _mills_ratio(a)
     mean = c.mean + c.std * ratio
     variance = c.std**2 * (1 + a * ratio - ratio**2)
     return mean, variance
@@ -179,6 +214,11 @@ def _truncated_moments(c: Any) -> Tuple[float, float]:
 
 def _check_poisson(c: Any) -> None:
     _not_negative(c, "mean")
+    if c.mean > _POISSON_LARGEST_MEAN:
+        raise ValueError(
+            f"poisson mean must be at most {_POISSON_LARGEST_MEAN:g}, which is the "
+            f"largest NumPy draws from, got {c.mean:g}"
+        )
 
 
 def _check_geometric(c: Any) -> None:
@@ -199,12 +239,14 @@ def _check_constant(c: Any) -> None:
 
 def _check_uniform(c: Any) -> None:
     _require(c, "low", "high")
+    _time_not_negative(c, "low")
     if not c.low < c.high:
         raise ValueError(f"uniform needs low < high, got low {c.low}, high {c.high}")
 
 
 def _check_triangular(c: Any) -> None:
     _require(c, "low", "mode", "high")
+    _time_not_negative(c, "low")
     if not c.low < c.high:
         raise ValueError(f"triangular needs low < high, got low {c.low}, high {c.high}")
     if not c.low <= c.mode <= c.high:
@@ -226,6 +268,17 @@ def _check_shape_scale(c: Any) -> None:
     _positive(c, "shape", "scale")
 
 
+def _check_weibull(c: Any) -> None:
+    _check_shape_scale(c)
+    try:
+        _weibull_variance(c)
+    except OverflowError:
+        raise ValueError(
+            f"weibull shape {c.shape:g} is too small: the mean and variance pass "
+            f"the largest float"
+        ) from None
+
+
 def _weibull_mean(c: Any) -> float:
     return c.scale * math.gamma(1 + 1 / c.shape)
 
@@ -239,6 +292,9 @@ def _weibull_variance(c: Any) -> float:
 
 
 def _check_empirical(c: Any) -> None:
+    for name in ("values", "edges"):
+        if getattr(c, name) is not None and any(v < 0 for v in getattr(c, name)):
+            raise ValueError(f"empirical {name} are times and must be 0 or more")
     from_values = c.values is not None or c.weights is not None
     from_histogram = c.edges is not None or c.counts is not None
     if from_values == from_histogram:
@@ -603,7 +659,7 @@ DISTRIBUTIONS: Dict[str, Distribution] = _distributions(
         parameters=("shape", "scale"),
         required=("shape", "scale"),
         rules="shape > 0, scale > 0",
-        check=_check_shape_scale,
+        check=_check_weibull,
         draw=lambda c, rng: float(c.scale * rng.weibull(c.shape)),
         mean=_weibull_mean,
         variance=_weibull_variance,

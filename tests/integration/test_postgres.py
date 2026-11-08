@@ -350,7 +350,7 @@ async def test_keyed_entry_skips(postgres_container, caplog):
     assert [(r["order_id"], r["status"]) for r in await _fetch(dsn, sql)] == [
         (1, "shipped")
     ]
-    assert "1 had none of the key columns of their table" in caplog.text
+    assert "1 had a null or missing key column of their table" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -442,3 +442,203 @@ async def test_table_policy_modes_and_schema(postgres_container):
     assert [
         r["order_id"] for r in await _fetch(dsn, "SELECT * FROM b3_limited.orders")
     ] == [9]
+
+
+# A run of a context starts a new event loop, so these tests run each run of one
+# connector object in an event loop of its own, as `SimulationContext.run` does
+
+
+def _in_new_loop(coroutine):
+    """Runs `coroutine` in an event loop of its own, in a thread."""
+    return asyncio.to_thread(asyncio.run, coroutine)
+
+
+async def _one_egress_run(egress, batch, done, timeout=15.0):
+    q = queue.Queue()
+    q.put(batch)
+    await _run_egress_until(egress, q, done, timeout)
+
+
+@pytest.mark.asyncio
+async def test_drop_and_create_runs_on_every_run_of_one_egress(postgres_container):
+    """The second run of one connector object drops the table of the first,
+    in a pool of its own (the first run's pool belongs to a closed event loop)."""
+    dsn = postgres_container
+    conn = await asyncpg.connect(dsn)
+    await conn.execute("DROP TABLE IF EXISTS it_second_run")
+    await conn.close()
+    egress = PostgresEgress(
+        dsn,
+        table_name="it_second_run",
+        tables={"it_second_run": {"columns": {"n": "INT"}}},
+        table_policy="drop_and_create",
+    )
+
+    async def run_with(n):
+        async def written():
+            try:
+                rows = await _fetch(dsn, "SELECT n FROM it_second_run")
+            except asyncpg.exceptions.UndefinedTableError:
+                return False
+            return [r["n"] for r in rows] == [n]
+
+        await _one_egress_run(egress, [{"value": {"n": n}}], written)
+
+    await _in_new_loop(run_with(1))
+    await _in_new_loop(run_with(2))
+    assert [r["n"] for r in await _fetch(dsn, "SELECT n FROM it_second_run")] == [2]
+
+
+@pytest.mark.asyncio
+async def test_postgres_ingress_uses_a_pool_of_each_run(postgres_container):
+    """The second run of one `PostgresIngress` reads in a pool made in its own
+    event loop, not the first run's pool, which belongs to a closed loop."""
+    dsn = postgres_container
+    conn = await asyncpg.connect(dsn)
+    await conn.execute("DROP TABLE IF EXISTS it_ingress_runs")
+    await conn.close()
+    ingress = PostgresIngress(dsn, table_name="it_ingress_runs", poll_interval=0.1)
+
+    async def one_run(value):
+        await ingress._init_pool()
+        conn = await asyncpg.connect(dsn)
+        await conn.execute(
+            "INSERT INTO it_ingress_runs (path, value) VALUES ('T.p', $1)", value
+        )
+        await conn.close()
+        q = queue.Queue()
+        await _run_ingress_until(ingress, q, 1, timeout=10.0)
+        return list(q.queue)
+
+    first = await _in_new_loop(one_run("1"))
+    second = await _in_new_loop(one_run("2"))
+    assert first and second, (first, second)
+    assert second[-1] == ("T.p", 2)
+
+
+@pytest.mark.asyncio
+async def test_a_null_upsert_key_is_skipped_and_the_rest_written(postgres_container):
+    """PostgreSQL egress skips a record whose upsert key is null in one column
+    and writes the others of the batch. PostgreSQL never matches a null in a unique key,
+    so a rerun would insert the record again."""
+    dsn = postgres_container
+    conn = await asyncpg.connect(dsn)
+    await conn.execute("DROP TABLE IF EXISTS it_null_key")
+    await conn.execute("CREATE TABLE it_null_key (a INT, b INT, v TEXT, UNIQUE (a, b))")
+    await conn.execute("ALTER TABLE it_null_key REPLICA IDENTITY FULL")
+    await conn.close()
+    egress = PostgresEgress(dsn, table_name="it_null_key", upsert_keys=["a", "b"])
+    batch = [
+        {"value": {"a": 1, "b": 1, "v": "x"}},
+        {"value": {"a": 1, "b": None, "v": "y"}},
+        {"value": {"a": 1, "v": "z"}},
+        {"value": {"a": 2, "b": 2, "v": "w"}},
+    ]
+
+    async def written():
+        return len(await _fetch(dsn, "SELECT * FROM it_null_key")) >= 2
+
+    await _one_egress_run(egress, batch, written)
+    rows = await _fetch(dsn, "SELECT a, b, v FROM it_null_key ORDER BY a")
+    assert [(r["a"], r["b"], r["v"]) for r in rows] == [(1, 1, "x"), (2, 2, "w")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("table", ["It_Orders", "public.It_Orders"])
+async def test_a_table_name_with_capitals_finds_its_columns(postgres_container, table):
+    """PostgreSQL folds an unquoted name to lower case, so the columns of
+    `It_Orders` are those of `it_orders`."""
+    dsn = postgres_container
+    conn = await asyncpg.connect(dsn)
+    await conn.execute("DROP TABLE IF EXISTS public.it_orders")
+    await conn.execute("CREATE TABLE public.it_orders (order_id INT, status TEXT)")
+    await conn.close()
+    egress = PostgresEgress(dsn, table_name=table)
+
+    async def written():
+        return len(await _fetch(dsn, "SELECT * FROM public.it_orders")) == 1
+
+    await _one_egress_run(
+        egress, [{"value": {"order_id": 1, "status": "new", "extra": 1}}], written
+    )
+    rows = await _fetch(dsn, "SELECT order_id, status FROM public.it_orders")
+    assert [(r["order_id"], r["status"]) for r in rows] == [(1, "new")]
+
+
+@pytest.mark.asyncio
+async def test_only_the_columns_of_the_table_the_name_resolves_to(postgres_container):
+    """With `public.it_two` and `it_other.it_two` both there, the name
+    `it_two` is the one on the search path, and a column of the other table is not
+    written."""
+    dsn = postgres_container
+    conn = await asyncpg.connect(dsn)
+    await conn.execute("DROP SCHEMA IF EXISTS it_other CASCADE")
+    await conn.execute("DROP TABLE IF EXISTS public.it_two")
+    await conn.execute("CREATE SCHEMA it_other")
+    await conn.execute("CREATE TABLE public.it_two (order_id INT, status TEXT)")
+    await conn.execute("CREATE TABLE it_other.it_two (order_id INT, archived_at TEXT)")
+    await conn.close()
+    egress = PostgresEgress(dsn, table_name="it_two")
+
+    async def written():
+        return len(await _fetch(dsn, "SELECT * FROM public.it_two")) == 1
+
+    await _one_egress_run(
+        egress,
+        [{"value": {"order_id": 1, "status": "new", "archived_at": "x"}}],
+        written,
+    )
+    rows = await _fetch(dsn, "SELECT order_id, status FROM public.it_two")
+    assert [(r["order_id"], r["status"]) for r in rows] == [(1, "new")]
+    assert egress.valid_columns == {"order_id", "status"}
+
+
+@pytest.mark.asyncio
+async def test_a_null_table_goes_to_the_default_table(postgres_container):
+    """A record whose `__table__` is null is written to the sink's own table."""
+    dsn = postgres_container
+    conn = await asyncpg.connect(dsn)
+    await conn.execute("DROP TABLE IF EXISTS it_default_table")
+    await conn.execute("CREATE TABLE it_default_table (n INT)")
+    await conn.close()
+    egress = PostgresEgress(dsn, table_name="it_default_table")
+    batch = [
+        {"value": {"__table__": None, "n": 1}},
+        {"value": {"__table__": "", "n": 2}},
+        {"value": {"__table__": "it_default_table", "n": 3}},
+    ]
+
+    async def written():
+        return len(await _fetch(dsn, "SELECT * FROM it_default_table")) == 3
+
+    await _one_egress_run(egress, batch, written)
+    rows = await _fetch(dsn, "SELECT n FROM it_default_table ORDER BY n")
+    assert [r["n"] for r in rows] == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_the_history_is_replayed_in_the_order_it_was_made(postgres_container):
+    """The latest change of each path reaches the run in `id` order, so a
+    `max_cap` set before a `current_cap` is applied before it."""
+    dsn = postgres_container
+    conn = await asyncpg.connect(dsn)
+    await conn.execute("DROP TABLE IF EXISTS it_history")
+    await conn.execute(
+        "CREATE TABLE it_history (id SERIAL PRIMARY KEY, path TEXT, value TEXT, "
+        "is_applied BOOLEAN DEFAULT FALSE)"
+    )
+    # `Z.max_cap` sorts after `A.current_cap`, but was changed first
+    await conn.execute(
+        "INSERT INTO it_history (path, value, is_applied) VALUES "
+        "('S.resources.desk.max_cap', '8', TRUE), "
+        "('S.resources.desk.current_cap', '6', TRUE)"
+    )
+    await conn.close()
+    q = queue.Queue()
+    await _run_ingress_until(
+        PostgresIngress(dsn, table_name="it_history", poll_interval=0.1), q, 2
+    )
+    assert [item[0] for item in list(q.queue)[:2]] == [
+        "S.resources.desk.max_cap",
+        "S.resources.desk.current_cap",
+    ]

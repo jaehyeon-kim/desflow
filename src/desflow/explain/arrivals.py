@@ -58,6 +58,24 @@ def arrival_results(graph: Graph) -> List[ArrivalResult]:
                 what = "it starts only its initial entities, at the start of the run"
             results.append(ArrivalResult(name=node.label, reason=what + VERIFY_HINT))
             continue
+        if features.GROUPED_ARRIVALS in node.features:
+            results.append(
+                ArrivalResult(
+                    name=node.label,
+                    reason="group starts a batch at each arrival, which is not a "
+                    "Poisson input" + VERIFY_HINT,
+                )
+            )
+            continue
+        if features.INACTIVE_ARRIVAL in node.features:
+            results.append(
+                ArrivalResult(
+                    name=node.label,
+                    reason="it starts off (active: false), so its rate holds only "
+                    "once something turns it on" + VERIFY_HINT,
+                )
+            )
+            continue
         if features.LIMITED_ARRIVALS in node.features:
             results.append(
                 ArrivalResult(

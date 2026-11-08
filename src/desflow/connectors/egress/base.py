@@ -286,14 +286,17 @@ def warn_skipped(sink: Any, skipped: Counter, route_key: Optional[str] = None) -
     Args:
         sink (Any): The sink, named in the warning.
         skipped (Counter): The records skipped, by reason: `no_route` for a record
-            without its routing key, `no_key` for a record without a key column of
-            its table, and `not_mapping` for a value that is not a mapping, which is
+            without its routing key, `no_key` for a record whose table has a key
+            column it lacks or holds as null, `no_namespace` for a table name with no
+            namespace, and `not_mapping` for a value that is not a mapping, which is
             warned about once per sink.
         route_key (Optional[str]): The routing key a `no_route` record lacks.
     """
     reasons = {
         "no_route": f"had no {route_key}",
-        "no_key": "had none of the key columns of their table",
+        "no_key": "had a null or missing key column of their table, which a rerun "
+        "would insert again because a null key never matches",
+        "no_namespace": "named a table with no namespace",
         "not_mapping": "had a value that is not a mapping, which this sink cannot "
         "write as a row",
     }
@@ -309,6 +312,27 @@ def warn_skipped(sink: Any, skipped: Counter, route_key: Optional[str] = None) -
             type(sink).__name__,
             "; ".join(parts),
         )
+
+
+def keep_keyed(records: List[dict], keys: List[str], skipped: Counter) -> List[dict]:
+    """
+    Returns the records whose key columns are all present and not null.
+
+    A null key never matches in a unique index or an upsert, so a rerun would insert
+    the record again, and under a primary key it would fail the whole statement. The
+    records left out are counted in `skipped` as `no_key`, for `warn_skipped`.
+
+    Args:
+        records (List[dict]): The rows bound for one table.
+        keys (List[str]): The table's key columns.
+        skipped (Counter): Counts the records skipped, by reason.
+
+    Returns:
+        List[dict]: The records with a value in every key column, in their order.
+    """
+    kept = [r for r in records if all(r.get(key) is not None for key in keys)]
+    skipped["no_key"] += len(records) - len(kept)
+    return kept
 
 
 def group_rows(

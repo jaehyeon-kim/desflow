@@ -13,6 +13,7 @@ def mock_pool():
     acquire_ctx = AsyncMock()
     acquire_ctx.__aenter__.return_value = conn
     pool.acquire.return_value = acquire_ctx
+    pool.close = AsyncMock()
     return pool, conn
 
 

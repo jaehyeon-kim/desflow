@@ -3,11 +3,13 @@ import inspect
 import json
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, DefaultDict, Dict, List, Mapping
+from typing import Any, DefaultDict, Dict, List, Mapping, Optional, Tuple
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 from aiokafka.errors import NotControllerError, TopicAlreadyExistsError, for_code
+
+from desflow.connectors._checks import checked_whole
 
 
 TOPIC_MODES = ("create", "drop_and_create", "manual")
@@ -265,15 +267,21 @@ class KafkaAdminConnector:
             max_tasks: The maximum number of task records to keep per service
                 in memory (rolling window).
             **kwargs: Additional arguments passed to Kafka clients (e.g., security settings).
+
+        Raises:
+            ValueError: If `max_tasks` is not a whole number of 1 or more.
         """
         self.bootstrap_servers = bootstrap_servers
-        self.max_tasks = max_tasks
+        self.max_tasks = checked_whole(max_tasks, "max_tasks", 1)
         self.kwargs = kwargs
 
         # Event State: sim_id -> service -> task_id -> {status: timestamp}
         self._state: DefaultDict[str, DefaultDict[str, Dict[str, Any]]] = defaultdict(
             lambda: defaultdict(dict)
         )
+        # Where each task key was last seen: key -> (sim_id, service), the oldest
+        # forgotten first, so a finish record can be filed with its task's records
+        self._homes: Dict[str, Any] = {}
         # Telemetry State: path_id -> latest_value
         self._vitals: Dict[str, Any] = {}
 
@@ -472,16 +480,39 @@ class KafkaAdminConnector:
             # Using 'timestamp' based on your actual JSON payload
             ts = data.get("timestamp")
 
-            # desflow writes every event's path_id as <sim_id>.service.<service_id>,
-            # so the two names are each side of the last `.service.`, whatever dots
-            # they hold
-            sim_id, found, service = str(payload.get("path_id", "")).rpartition(
-                ".service."
-            )
-            if not found:
-                sim_id, service = "unknown", "unknown"
+            # A status record names its sim_id and service in fields of their own. A
+            # finish record holds the task's own payload, with no names: it is filed
+            # where the same key was last seen, as finished unless the payload has a
+            # status of its own
+            sim_id, service = payload.get("sim_id"), payload.get("service")
+            if (
+                (sim_id is None or service is None)
+                and status is not None
+                and task_id not in self._homes
+            ):
+                # A status record of an earlier release names them only in its
+                # path_id, as <sim_id>.service.<service_id>. A finish record comes
+                # after a status record of its key, so a key already seen is filed
+                # there, whatever path_id its payload holds
+                before, found, after = str(payload.get("path_id", "")).rpartition(
+                    ".service."
+                )
+                if found:
+                    sim_id, service = before, after
+            if sim_id is not None and service is not None:
+                home: Optional[Tuple[Any, Any]] = (sim_id, service)
+                self._homes.pop(task_id, None)
+                self._homes[task_id] = (sim_id, service)
+                if len(self._homes) > self.max_tasks * 10:
+                    self._homes.pop(next(iter(self._homes)))
+            else:
+                home = self._homes.get(task_id)
+            if status is None:
+                status = "finished"
+            if home is None:
+                return
 
-            service_data = self._state[sim_id][service]
+            service_data = self._state[home[0]][home[1]]
 
             # Prune oldest if at max capacity
             if task_id not in service_data:

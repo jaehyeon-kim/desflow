@@ -2,6 +2,7 @@ import copy
 import logging
 import math
 import numbers
+import re
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
@@ -58,6 +59,8 @@ def _stored_as_given(kind: str, current: Any, new: Any) -> bool:
         return False
     if kind in _AS_GIVEN_KINDS:
         return _is_number(new) or isinstance(new, bool)
+    if kind == "variables" and isinstance(new, bool):
+        return True
     if kind == "variables" and _is_number(new):
         return math.isfinite(new)
     return False
@@ -81,11 +84,7 @@ def queue_limit_value(path: str, value: Any) -> Optional[int]:
     number = value
     if isinstance(value, str):
         text = value.strip()
-        number = (
-            int(text)
-            if text.lstrip("+-").isascii() and text.lstrip("+-").isdigit()
-            else value
-        )
+        number = int(text) if _WHOLE_TEXT.fullmatch(text) else value
     if value is None:
         return None
     if (
@@ -119,6 +118,100 @@ def _infinite_capacity(registered: _PathKind, value: Any) -> bool:
         except ValueError:
             return False
     return isinstance(value, float) and math.isinf(value) and value > 0
+
+
+_WHOLE_TEXT = re.compile(r"[+-]?[0-9]+")
+_HOLDER_WORDS = {"resources": "resource", "containers": "container", "stores": "store"}
+
+
+def _refusal(path: str, value: Any, reason: str) -> "ParamRejected":
+    """A refusal of a live value, which `update` logs as the others, ending with
+    "Update ignored."."""
+    refused = ParamRejected(path, value, reason)
+    refused._log = f"{reason}. Update ignored."
+    return refused
+
+
+def _read_number(value: Any) -> Any:
+    """The number a text means, when the whole text is one; any other value as given."""
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if _WHOLE_TEXT.fullmatch(text):
+        return int(text)
+    try:
+        return float(text)
+    except ValueError:
+        return value
+
+
+def _capacity_value(path: str, registered: _PathKind, value: Any) -> Any:
+    """The `current_cap` or `max_cap` a write to a capacity path means.
+
+    Raises:
+        ParamRejected: With the declaration's text, if it is not a whole number of
+            0 or more or infinity (a container's: a number of 0 or more). A negative
+            `current_cap` passes, because the registry clamps it to 0.
+    """
+    from desflow.core.holders import check_capacity  # a circular import at module level
+
+    whole = registered.kind != "containers"
+    number = _read_number(value)
+    holder = registered.config.rsplit(".", 1)[-1]
+    word = _HOLDER_WORDS[registered.kind]
+    try:
+        if isinstance(number, str):
+            raise ValueError(
+                f"{word} '{holder}' needs a {'whole ' if whole else ''}number of 0 "
+                f"or more for {registered.attr}, got {value!r}"
+            )
+        # A live `current_cap` below 0 is clamped to 0, as the docs say; only its
+        # kind (whole, not NaN, not a bool, not -inf) is checked here
+        negative_ok = (
+            registered.attr == "current_cap"
+            and isinstance(number, numbers.Real)
+            and not isinstance(number, bool)
+            and float(number) > -math.inf
+        )
+        check_capacity(
+            word, holder, registered.attr, abs(number) if negative_ok else number, whole
+        )
+    except ValueError as exc:
+        raise _refusal(path, value, str(exc)) from None
+    if math.isinf(number):
+        return math.inf
+    return int(number) if whole else number
+
+
+def _level_value(path: str, value: Any) -> Any:
+    """The container level a write means: a finite number, read from text."""
+    number = _read_number(value)
+    if (
+        isinstance(number, bool)
+        or not isinstance(number, numbers.Real)
+        or not math.isfinite(number)
+    ):
+        holder = path.rsplit(".", 2)[-2]
+        raise _refusal(
+            path,
+            value,
+            f"container '{holder}' needs a level that is a finite number, got "
+            f"{value!r}",
+        )
+    # A level written as text is a float, "4" as 4.0
+    return float(number) if isinstance(value, str) else number
+
+
+def _flag_value(path: str, value: Any) -> bool:
+    """The bool a write to a true-or-false path means: `true`, `false`, that text, or
+    the whole number 1 or 0."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, numbers.Integral) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str) and value.strip().lower() in ("true", "false"):
+        return value.strip().lower() == "true"
+    raise _refusal(path, value, f"'{path}' is true or false, got {value!r}")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -433,15 +526,26 @@ class SimulationRegistry:
             ParamRejected: For the three refusals, carrying the level and the text
                 that `update` logs.
         """
-        validated_value = self._value_to_store(path, new_value)
+        validated_value = self.check_value(path, new_value)
         return self._store(path, new_value, validated_value, source, actor, reason)
 
-    def _value_to_store(self, path: str, new_value: Any) -> Any:
-        """The first phase of `_apply`: the value a change stores, cast to the
-        path's type, rounded for a store's capacity, and checked for a distribution.
+    def check_value(self, path: str, new_value: Any) -> Any:
+        """The value a path accepts for `new_value`, cast to the path's type.
+
+        The one check a change, a scenario step and an `on:` action share, so each
+        refuses the same values with the same text. A capacity, `max_cap` or queue
+        limit is a whole number of 0 or more (a container's capacity any number of 0
+        or more), read from text only when the text is such a number; a container
+        level is a finite number; a true-or-false path takes `true`, `false` or the
+        text "true" or "false"; a variable takes `true` as 1, and a
+        distribution parameter refuses it.
+
+        Args:
+            path: The registered path.
+            new_value: The value to write.
 
         Raises:
-            ParamRejected: For an unknown path, a value of a wrong type, or a
+            ParamRejected: For an unknown path, a value the path refuses, or a
                 distribution parameter the distribution refuses.
         """
         if path not in self._values:
@@ -463,14 +567,24 @@ class SimulationRegistry:
         if self.is_queue_limit(path):
             # A whole number or null, whether the limit is set now or not
             validated_value = queue_limit_value(path, new_value)
+        elif _is_capacity(registered):
+            validated_value = _capacity_value(path, registered, new_value)
+        elif kind == "containers" and attr == "level":
+            validated_value = _level_value(path, new_value)
+        elif isinstance(current_val, bool):
+            validated_value = _flag_value(path, new_value)
         elif current_val is not None and _infinite_capacity(registered, new_value):
             # No limit: inf, or the text "inf", on a capacity path of any type
             validated_value = math.inf
         elif current_val is not None and _stored_as_given(kind, current_val, new_value):
             # A number written over a number keeps its type, as SimPy's keeps it:
-            # 0.5 over 2 is 0.5, 3 over 2.5 is 3, and true is 1
+            # 0.5 over 2 is 0.5, 3 over 2.5 is 3, and true over a variable is 1
+            # `true` over a distribution parameter stays a bool, which the
+            # distribution's own check refuses; over any other number it is 1
             validated_value = (
-                int(new_value) if isinstance(new_value, bool) else new_value
+                int(new_value)
+                if isinstance(new_value, bool) and kind not in ("service", "arrival")
+                else new_value
             )
         elif current_val is not None:
             expected_type = type(current_val)
@@ -497,17 +611,6 @@ class SimulationRegistry:
                         f"got {type(new_value).__name__} with value '{new_value}'. Update ignored."
                     )
                     raise rejected
-
-        # A store holds a whole number of items, so a fraction is rounded down
-        # here too, and the registry and the store hold the same number
-        if (
-            kind == "stores"
-            and attr in _CAPACITY_ATTRS
-            and isinstance(validated_value, (int, float))
-            and not isinstance(validated_value, bool)
-            and math.isfinite(validated_value)
-        ):
-            validated_value = int(validated_value)
 
         parent_obj = self._configs.get(parent_path)
 
@@ -660,13 +763,16 @@ class SimulationRegistry:
             reason (Optional[str]): Why the change was made.
 
         Raises:
-            ValueError: If the path does not exist, or the registry refuses, casts to
-                another value or clamps the value, or a `max_cap` would clamp the
-                `current_cap` beside it.
+            ParamRejected: A `ValueError` that carries the refused `path`, if the path
+                does not exist, or the registry refuses, casts to another value or
+                clamps the value, or a `max_cap` would clamp the `current_cap` beside
+                it.
         """
         if path not in self._values:
-            raise ValueError(
-                f"'{path}' is not a registry path" + suggestion(path, self._values)
+            raise ParamRejected(
+                path,
+                value,
+                f"'{path}' is not a registry path" + suggestion(path, self._values),
             )
         registered = self._kinds[path]
         sibling = f"{registered.config}.current_cap"
@@ -674,15 +780,19 @@ class SimulationRegistry:
             current = self._values[sibling].value
             if value is not None and current is not None and current > value:
                 # update would lower current_cap to it without a word
-                raise ValueError(
+                raise ParamRejected(
+                    path,
+                    value,
                     f"'{path}' cannot be set to {value!r}: '{sibling}' is "
-                    f"{current!r}; set current_cap first, to {value!r} or less"
+                    f"{current!r}; set current_cap first, to {value!r} or less",
                 )
         self.update(path, value, source=source, actor=actor, reason=reason)
         kept = self._values[path].value
         if kept != value:
-            raise ValueError(
-                f"'{path}' cannot be set to {value!r}; the registry kept {kept!r}"
+            raise ParamRejected(
+                path,
+                value,
+                f"'{path}' cannot be set to {value!r}; the registry kept {kept!r}",
             )
 
     def _clamp_current_cap(

@@ -69,7 +69,12 @@ def build(env):
         if task == "pay":
             env.publish_event(
                 key,
-                {"path_id": path_id, "status": "queued"},
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "checkout",
+                    "status": "queued",
+                },
                 task="pay",
                 instance=instance,
             )
@@ -77,7 +82,12 @@ def build(env):
                 yield request
                 env.publish_event(
                     key,
-                    {"path_id": path_id, "status": "started"},
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "checkout",
+                        "status": "started",
+                    },
                     task="pay",
                     instance=instance,
                 )

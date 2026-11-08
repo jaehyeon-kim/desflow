@@ -161,3 +161,24 @@ def test_a_uri_without_pyarrow_names_the_extra(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "pyarrow", None)
     with pytest.raises(ImportError, match=r'pip install "desflow\[parquet\]"'):
         load_context(tmp_path.as_uri(), "main.yaml")
+
+
+def test_explain_of_a_uri_that_ends_in_a_folder_is_refused_with_the_uri(tmp_path):
+    from typer.testing import CliRunner
+
+    from desflow.cli import app
+
+    folder = tmp_path / "sims" / "shop"
+    _write(folder, "main.yaml", BLUEPRINT)
+    uri = folder.as_uri() + "/"
+    result = CliRunner().invoke(app, ["explain", uri])
+    assert result.exit_code == 2, result.output
+    assert f"no file {uri}" in result.output
+
+
+def test_a_uri_entry_that_is_not_a_file_is_refused_with_the_uri(tmp_path):
+    folder = tmp_path / "sims" / "shop"
+    _write(folder, "main.yaml", BLUEPRINT)
+    (folder / "sub").mkdir()
+    with pytest.raises(ValueError, match=r"no file file://.*/shop/sub"):
+        load_context(folder.as_uri(), "sub")

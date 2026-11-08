@@ -274,10 +274,10 @@ In `backfill-live/yaml`, which `desflow examples get backfill-live --api yaml` c
 
 <!-- records: backfill-live-sample -->
 ```text
-{"stream_type":"event","sim_ts":2.552,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
-{"stream_type":"event","sim_ts":2.552,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
-{"stream_type":"event","sim_ts":2.696,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
-{"stream_type":"event","sim_ts":2.696,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"started"}}
+{"stream_type":"event","sim_ts":2.5523798766964667,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":2.5523798766964667,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":2.695845327144759,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":2.695845327144759,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
 ```
 
 Each `timestamp` is shown as `...`, because it changes with every run. It is the start of the history plus `sim_ts`, so these records are stamped before `go_live_at` and belong to the history.
@@ -624,7 +624,12 @@ During the live tail the run can look as if it has stopped responding. History i
             path_id = "Shop.service.packing"
             env.publish_event(
                 key,
-                {"path_id": path_id, "status": "queued"},
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "queued",
+                },
                 task="pack_order",
                 instance=task_id,
             )
@@ -633,7 +638,12 @@ During the live tail the run can look as if it has stopped responding. History i
                 yield request
                 env.publish_event(
                     key,
-                    {"path_id": path_id, "status": "started"},
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    },
                     task="pack_order",
                     instance=task_id,
                 )
@@ -641,7 +651,10 @@ During the live tail the run can look as if it has stopped responding. History i
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 env.publish_event(
                     key,
-                    {"path_id": path_id, "status": "finished"},
+                    {
+                        "path_id": path_id,
+                        "status": "finished",
+                    },
                     task="pack_order",
                     instance=task_id,
                 )

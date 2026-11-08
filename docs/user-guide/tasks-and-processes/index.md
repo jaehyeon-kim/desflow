@@ -76,10 +76,19 @@ A task with a service and a resource asks for a unit of the resource, holds it f
         def publish(value):
             env.publish_event(key, value, task="pack_order", instance=task_id)
 
-        publish({"path_id": path_id, "status": "queued"})
+        publish(
+            {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+        )
         with packers.request() as request:
             yield request
-            publish({"path_id": path_id, "status": "started"})
+            publish(
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "started",
+                }
+            )
             payload = {"event_type": "order_packed"}
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
             publish(payload)
@@ -122,7 +131,14 @@ A task with a `service` and no `resource` is a **timed step**: work that takes t
         def publish(value):
             env.publish_event(key, value, task="print_label", instance=task_id)
 
-        publish({"path_id": path_id, "status": "started"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "labelling",
+                "status": "started",
+            }
+        )
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         publish({"event_type": "label_printed"})
     ```
@@ -196,10 +212,10 @@ Every event of a task carries three fields beside its value: `key`, the entity's
 
 <!-- records: task-events -->
 ```text
-[EVT] {'sim_ts': 3.672, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'status': 'queued'}}
-[EVT] {'sim_ts': 3.672, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'status': 'started'}}
+[EVT] {'sim_ts': 3.672, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 3.672, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
 [EVT] {'sim_ts': 5.369, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'event_type': 'order_packed'}}
-[EVT] {'sim_ts': 5.369, 'timestamp': '...', 'key': 'orders-1', 'task': 'print_label', 'instance': 0, 'value': {'path_id': 'Shop.service.labelling', 'status': 'started'}}
+[EVT] {'sim_ts': 5.369, 'timestamp': '...', 'key': 'orders-1', 'task': 'print_label', 'instance': 0, 'value': {'path_id': 'Shop.service.labelling', 'sim_id': 'Shop', 'service': 'labelling', 'status': 'started'}}
 [EVT] {'sim_ts': 7.369, 'timestamp': '...', 'key': 'orders-1', 'task': 'print_label', 'instance': 0, 'value': {'event_type': 'label_printed'}}
 ```
 

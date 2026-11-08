@@ -4,6 +4,7 @@ entities go next. It reads a task's `router._default`, which is private.
 
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Sequence, Set
 
+from desflow.core.families import Reference
 from desflow.explain.models import Edge, Node
 
 if TYPE_CHECKING:
@@ -39,7 +40,13 @@ def used_resources(spec: "TaskSpec") -> List[str]:
     Returns:
         List[str]: The resource names, each once, in that order.
     """
-    names = list(spec.resources)
+    names: List[str] = []
+    for resource in spec.resources:
+        # A `{of: [a, b], key: ...}` reference may take any name of its list
+        of = resource.of if isinstance(resource, Reference) else resource
+        for name in [of] if isinstance(of, str) else of:
+            if name not in names:
+                names.append(name)
     if spec.wait is not None:
         names += [r for r in spec.wait.requests() if r not in names]
     if spec.seize is not None and spec.seize.resource not in names:

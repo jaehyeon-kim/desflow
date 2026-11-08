@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
@@ -10,9 +11,26 @@ from desflow.models.distributions import (
 
 def _number(value: Any) -> Union[int, float]:
     """A number as given, so an integer stays an integer; anything else as a float."""
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
+    if isinstance(value, bool):
+        raise ValueError(f"{value!r} is not a number")
+    if isinstance(value, (int, float)):
         return value
     return float(value)
+
+
+def finite_number(name: str, value: Any) -> None:
+    """Refuses a parameter that is a bool, NaN or infinite, naming it.
+
+    The one check of a distribution parameter, run at load and on a live update.
+
+    Args:
+        name: The parameter's name.
+        value: The value given.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be a number, got {value!r}")
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be a finite number, got {value!r}")
 
 
 @dataclass
@@ -126,6 +144,12 @@ def check_distribution(config: DistributionConfig) -> None:
             f"{config.dist} does not take {', '.join(extra)}; it takes "
             f"{', '.join(family.parameters)}"
         )
+    for name in family.parameters:
+        value = getattr(config, name)
+        if value is None:
+            continue
+        for item in value if name in LIST_PARAMETERS else [value]:
+            finite_number(f"{config.dist} {name}", item)
     family.check(config)
 
 

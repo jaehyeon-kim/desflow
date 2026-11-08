@@ -155,7 +155,9 @@ The task publishes `preempted` (or `interrupted`) when it loses the packer, and 
         def publish(value):
             env.publish_event(key, value, task=task, instance=task_id)
 
-        publish({"path_id": path_id, "status": "queued"})
+        publish(
+            {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+        )
         env.stats.task_queued(task, task_id)
         shop["running"].setdefault(task, []).append(env.active_process)
         shop["keys"][env.active_process] = key
@@ -169,7 +171,14 @@ The task publishes `preempted` (or `interrupted`) when it loses the packer, and 
                 if not request.processed:
                     yield request
                 status = "resumed" if started else "started"
-                publish({"path_id": path_id, "status": status})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": status,
+                    }
+                )
                 if started:
                     env.stats.task_resumed(task, task_id)
                 else:
@@ -204,7 +213,9 @@ The task publishes `preempted` (or `interrupted`) when it loses the packer, and 
                     }
                 else:
                     value = {"status": "interrupted", "cause": interrupt.cause}
-                publish({"path_id": path_id, **value})
+                publish(
+                    {"path_id": path_id, "sim_id": "Shop", "service": "packing", **value}
+                )
                 env.stats.task_interrupted(task, task_id, preempted=preempted)
                 if policy == "abandon":
                     env.stats.task_dropped(task, task_id)
@@ -574,7 +585,9 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
             def publish(value):
                 env.publish_event(key, value, task=task, instance=task_id)
 
-            publish({"path_id": path_id, "status": "queued"})
+            publish(
+                {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+            )
             env.stats.task_queued(task, task_id)
             shop["running"].setdefault(task, []).append(env.active_process)
             shop["keys"][env.active_process] = key
@@ -588,7 +601,14 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
                     if not request.processed:
                         yield request
                     status = "resumed" if started else "started"
-                    publish({"path_id": path_id, "status": status})
+                    publish(
+                        {
+                            "path_id": path_id,
+                            "sim_id": "Shop",
+                            "service": "packing",
+                            "status": status,
+                        }
+                    )
                     if started:
                         env.stats.task_resumed(task, task_id)
                     else:
@@ -623,7 +643,9 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
                         }
                     else:
                         value = {"status": "interrupted", "cause": interrupt.cause}
-                    publish({"path_id": path_id, **value})
+                    publish(
+                        {"path_id": path_id, "sim_id": "Shop", "service": "packing", **value}
+                    )
                     env.stats.task_interrupted(task, task_id, preempted=preempted)
                     if policy == "abandon":
                         env.stats.task_dropped(task, task_id)

@@ -544,7 +544,7 @@ def test_a_condition_on_putters_ignores_a_put_granted_at_once():
     assert resumed == []
 
 
-def test_a_fractional_live_capacity_is_rounded_down_in_the_registry_and_the_store():
+def test_a_fractional_live_capacity_is_refused_and_the_store_keeps_its_capacity():
     params = SimParameter(sim_id="X", stores={"s": CapacityConfig()})
     seen = {}
 
@@ -561,7 +561,7 @@ def test_a_fractional_live_capacity_is_rounded_down_in_the_registry_and_the_stor
         env.process(change())
 
     run_low_level(params, start, 3)
-    assert seen == {"store": 2, "registry": 2}
+    assert seen == {"store": float("inf"), "registry": float("inf")}
 
 
 class _FilterLane(StoreBase, simpy.FilterStore):
@@ -619,12 +619,13 @@ def test_a_default_get_becomes_the_filtered_one(cls):
     assert cls.get is DynamicFilterStoreGet
 
 
-def test_a_capacity_given_as_text_is_refused_and_a_numpy_integer_is_not():
+def test_a_capacity_given_as_text_or_true_is_refused_and_a_numpy_integer_is_not():
     for value in ("3", "ten", b"3"):
         with pytest.raises(ValueError, match="whole number"):
             SimulationContext("Shop").add_store("a", current_cap=value)
     SimulationContext("Shop").add_store("a", current_cap=np.int64(3))
-    SimulationContext("Shop").add_store("b", current_cap=True)
+    with pytest.raises(ValueError, match="whole number"):
+        SimulationContext("Shop").add_store("b", current_cap=True)
 
 
 class _PlainGetFilterStore(StoreBase, simpy.FilterStore):

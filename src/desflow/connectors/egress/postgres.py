@@ -8,7 +8,12 @@ from typing import Any, Optional
 import asyncpg
 import orjson
 
-from desflow.connectors.egress.base import BaseEgress, parse_iso_columns, warn_skipped
+from desflow.connectors.egress.base import (
+    BaseEgress,
+    keep_keyed,
+    parse_iso_columns,
+    warn_skipped,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +143,7 @@ class PostgresEgress(BaseEgress):
     A payload field `__table__` names the table of that event, and is removed from the
     row. An entry writes the events of its own `table_name` and ignores the others, so
     one entry per table, all fed by the same events, splits a stream into tables. An
-    entry with `upsert_keys` is keyed: it skips an event with none of its key columns,
+    entry with `upsert_keys` is keyed: it skips an event with a null or missing key column,
     and logs one warning at the end of each batch with the count. Before 1.0.0 such an
     event stopped the batch with an error.
 
@@ -276,20 +281,18 @@ class PostgresEgress(BaseEgress):
                         # Another writer created it between the existence check
                         # and the create, which IF NOT EXISTS does not guard.
                         pass
-                schema, dot, table = self.table_name.rpartition(".")
-                if dot:
+                # The one table the statements reach: PostgreSQL folds the name's case
+                # and resolves it through `search_path` here as it does in them
+                try:
                     rows = await conn.fetch(
-                        "SELECT column_name, data_type FROM information_schema.columns "
-                        "WHERE table_schema = $1 AND table_name = $2",
-                        schema,
-                        table,
-                    )
-                else:
-                    rows = await conn.fetch(
-                        "SELECT column_name, data_type FROM information_schema.columns "
-                        "WHERE table_name = $1",
+                        "SELECT attname AS column_name, "
+                        "format_type(atttypid, NULL) AS data_type "
+                        "FROM pg_attribute WHERE attrelid = $1::regclass "
+                        "AND attnum > 0 AND NOT attisdropped",
                         self.table_name,
                     )
+                except asyncpg.exceptions.UndefinedTableError:
+                    rows = []
                 self.valid_columns = {row["column_name"] for row in rows}
                 self.time_columns = {
                     row["column_name"]: _TIME_TYPES[row.get("data_type")]
@@ -373,7 +376,7 @@ class PostgresEgress(BaseEgress):
         A label record becomes a row of its own. An event or telemetry record whose
         value is a mapping becomes that mapping, with the envelope fields when
         `envelope` is on, unless its `__table__` names another table or a keyed
-        entry finds none of its key columns. One warning gives the counts of the
+        entry finds a null or missing key column. One warning gives the counts of the
         records skipped.
 
         Args:
@@ -412,14 +415,12 @@ class PostgresEgress(BaseEgress):
                         payload_copy.setdefault(field, item.get(field))
                 if "path_id" in item:
                     payload_copy["path_id"] = item["path_id"]
-            # Determine target table, defaulting to self.table_name if not specified
-            target = payload_copy.get("__table__", self.table_name)
+            # A null or empty `__table__` is no route: the record goes to this table
+            target = payload_copy.pop("__table__", None) or self.table_name
             if target == self.table_name:
-                payload_copy.pop("__table__", None)
-                if keyed and not any(
-                    payload_copy.get(k) is not None for k in self.upsert_keys or ()
+                if keyed and not keep_keyed(
+                    [payload_copy], self.upsert_keys or [], skipped
                 ):
-                    skipped["no_key"] += 1
                     continue
                 clean_batch.append(payload_copy)
         warn_skipped(self, skipped, "__table__")
@@ -435,8 +436,21 @@ class PostgresEgress(BaseEgress):
         Raises:
             ValueError: If a column in `upsert_keys` is not in the table.
         """
-        await self._init_pool()
+        try:
+            await self._init_pool()
+            await self._write_forever(egress_queue)
+        finally:
+            await self._close_pool()
 
+    async def _close_pool(self) -> None:
+        """Closes the pool and forgets it, so the next run makes its own in its own
+        event loop and sets the tables up again."""
+        pool, self.pool = self.pool, None
+        if pool is not None:
+            await pool.close()
+
+    async def _write_forever(self, egress_queue: queue.Queue) -> None:
+        """Writes the batches of the queue until the task is cancelled."""
         while True:
             try:
                 # Receive a batch (list) of dictionaries

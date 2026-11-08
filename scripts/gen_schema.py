@@ -144,6 +144,7 @@ INPUT_FORMS: Dict[Tuple[str, str], Any] = {
     ("Simulation", "_parse_instant"): INSTANT,
     ("Simulation", "_parse_duration"): DURATION,
     ("Distribution", "_duration"): DURATION,
+    ("Distribution", "_no_boolean"): None,
     ("Distribution", "_durations"): DURATION_ITEMS,
     ("SpawnAction", "_after_duration"): DURATION,
     ("FireAction", "_after_duration"): DURATION,
@@ -163,6 +164,7 @@ INPUT_FORMS: Dict[Tuple[str, str], Any] = {
     # Narrowing validators and the wait parser, which returns the value unchanged
     ("TransferStep", "_priority_is_a_literal"): None,
     ("Next", "_numeric_text"): None,
+    ("Simulation", "_check_seed"): None,
     ("Task", "_wait_parses"): None,
     ("Task", "_open_parses"): None,
     ("SeizeSpec", "_patience_duration"): PATIENCE,
@@ -172,6 +174,15 @@ INPUT_FORMS: Dict[Tuple[str, str], Any] = {
     ("RequestSpec", "_preempt_words"): None,
     ("Task", "_preempt_words"): None,
     ("EgressConnector", "_known_name"): None,
+    # Checks of seconds, sizes and intervals, which return the value unchanged
+    ("Simulation", "_factor_number"): None,
+    ("Resource", "_queue_limit_not_boolean"): None,
+    ("TransferStep", "_amount_not_boolean"): None,
+    ("Telemetry", "_interval_seconds"): None,
+    ("Batching", "_counts"): None,
+    ("Batching", "_intervals"): None,
+    ("EgressConnector", "_batch_size_count"): None,
+    ("EgressConnector", "_flush_interval_seconds"): None,
     # An `on:` value that is a mapping with no `gen` is data, as the Value type says
     ("_generator_or_data", "_value_form"): None,
     ("_capacity_text", "_capacity_numbers"): None,
@@ -266,6 +277,47 @@ def _apply_input_forms(schema: Dict[str, Any]) -> None:
                         prop["anyOf"] = [
                             alt for alt in prop["anyOf"] if "format" not in alt
                         ]
+
+
+# The fields the frozen 1.0 schema writes as `oneOf`
+ONE_OF_FIELDS = {("Task", "payload"), ("Task", "next")}
+
+
+def _plain_unions(node: Any) -> None:
+    """Writes a field that picks its form by shape as the `anyOf` it was before.
+
+    A callable discriminator makes pydantic write `oneOf`. The frozen 1.0 schema holds
+    these fields as one flat `anyOf`, and a form of both is the same file to a reader.
+    The `oneOf` of the generators is left as it is.
+    """
+    if isinstance(node, dict):
+        members = node.get("oneOf")
+        if (
+            isinstance(members, list)
+            and "anyOf" not in node
+            and "discriminator" not in node
+            and not any(
+                isinstance(m, dict)
+                and (
+                    "discriminator" in m or str(m.get("$ref", "")).endswith("/Uniform")
+                )
+                for m in members
+            )
+        ):
+            node["anyOf"] = node.pop("oneOf")
+        for value in list(node.values()):
+            _plain_unions(value)
+        if "anyOf" in node and isinstance(node["anyOf"], list):
+            flat: list = []
+            for alt in node["anyOf"]:
+                if isinstance(alt, dict) and set(alt) == {"anyOf"}:
+                    flat.extend(alt["anyOf"])
+                else:
+                    flat.append(alt)
+            node["anyOf"] = flat
+    elif isinstance(node, list):
+        for item in node:
+            _plain_unions(item)
 
 
 def _connector_names(schema: Dict[str, Any]) -> None:
@@ -460,6 +512,10 @@ def schema() -> Dict[str, Any]:
     """The blueprint JSON Schema, as a dict."""
     raw = Blueprint.model_json_schema(schema_generator=_Schema, mode="validation")
     _apply_input_forms(raw)
+    for owner, definition in raw.get("$defs", {}).items():
+        for name, prop in definition.get("properties", {}).items():
+            if (owner, name) not in ONE_OF_FIELDS:
+                _plain_unions(prop)
     _connector_names(raw)
     _tighten(raw)
     _generators(raw)

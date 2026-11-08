@@ -96,18 +96,36 @@ class PostgresIngress(BaseIngress):
             ingress_queue: A thread-safe queue used to transmit (path, value)
                 tuples to the SimulationRegistry.
         """
-        await self._init_pool()
+        try:
+            await self._init_pool()
+            await self._ingest(ingress_queue)
+        finally:
+            await self._close_pool()
 
+    async def _close_pool(self) -> None:
+        """Closes the pool and forgets it, so the next run makes its own in its own
+        event loop."""
+        pool, self.pool = self.pool, None
+        if pool is not None:
+            await pool.close()
+
+    async def _ingest(self, ingress_queue: queue.Queue) -> None:
+        """Loads the applied history, then polls for new rows until it is cancelled."""
         # Phase 1: Load the most recently applied state, so a restart resumes from it
         try:
             assert self.pool is not None
             async with self.pool.acquire() as conn:
-                # Get the latest applied value for each distinct path
+                # Get the latest applied value for each distinct path, in the order
+                # the changes were made: a `current_cap` made after a `max_cap` is
+                # clamped by the new maximum only if it is applied after it
                 rows = await conn.fetch(f"""
-                    SELECT DISTINCT ON (path) path, value
-                    FROM {self.table_name}
-                    WHERE is_applied = TRUE
-                    ORDER BY path, id DESC
+                    SELECT path, value FROM (
+                        SELECT DISTINCT ON (path) id, path, value
+                        FROM {self.table_name}
+                        WHERE is_applied = TRUE
+                        ORDER BY path, id DESC
+                    ) latest
+                    ORDER BY id
                 """)
                 for row in rows:
                     try:

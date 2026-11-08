@@ -472,3 +472,49 @@ async def test_ingress_topic_policy(kafka_container):
         assert await _partitions(kafka_container, topic) == 2
     finally:
         task.cancel()
+
+
+@pytest.mark.asyncio
+async def test_admin_files_events_of_a_run_under_their_own_names(
+    kafka_container, tmp_path
+):
+    """A run whose sim id and service name hold `.service.` writes its
+    events to a broker, and the admin connector files each under the sim id and the
+    service, with `finished` beside `queued` and `started`, and nothing under
+    `unknown`."""
+    from desflow import SimulationContext
+
+    topic = "it-admin-names"
+    admin = KafkaAdminConnector(kafka_container)
+    admin.create_topics([{"name": topic, "partitions": 1}])
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        "simulation: {sim_id: S.service.v2, factor: 0, random_seed: 1}\n"
+        "resources: {desk: {current_cap: 1}}\n"
+        "services: {front.service.desk: {dist: constant, value: 1}}\n"
+        "arrivals: {a: {dist: constant, value: 2, spawn: serve, max_events: 3}}\n"
+        "tasks:\n"
+        "  serve: {service: front.service.desk, resource: desk, payload: {n: 1}}\n"
+        "egress:\n"
+        f"  - {{type: Kafka, config: {{bootstrap_servers: '{kafka_container}', "
+        f"event_topic: {topic}}}}}\n"
+        "run: {until: 20}\n"
+    )
+    context = SimulationContext.from_yaml(path)
+    await asyncio.to_thread(context.run)
+
+    reader = KafkaAdminConnector(kafka_container, max_tasks=100)
+    task = asyncio.create_task(reader.collect_data([topic], "earliest"))
+    state = {}
+    for _ in range(100):
+        await asyncio.sleep(0.2)
+        state = reader.get_state()
+        found = state.get("S.service.v2", {}).get("front.service.desk", {})
+        if len(found) == 3 and all("finished" in s for s in found.values()):
+            break
+    task.cancel()
+    assert "unknown" not in state, state
+    tasks = state["S.service.v2"]["front.service.desk"]
+    assert len(tasks) == 3, tasks
+    for statuses in tasks.values():
+        assert {"queued", "started", "finished"} <= set(statuses), statuses

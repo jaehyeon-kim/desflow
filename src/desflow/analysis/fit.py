@@ -11,6 +11,7 @@ which is imported only here, when a fit runs.
 
 import csv
 import math
+import numbers
 import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -463,6 +464,7 @@ def fit_column(
     """
     if unit not in _UNITS:
         raise ValueError(f"unit must be one of {', '.join(_UNITS)}, got {unit!r}")
+    _check_settings(tolerance, lower, upper)
     names = (
         list(candidates)
         if candidates is not None
@@ -471,7 +473,7 @@ def fit_column(
     unknown = [n for n in names if n not in DISTRIBUTIONS]
     if unknown:
         raise ValueError(
-            f"no family called {', '.join(unknown)}; choose from "
+            f"no family called {', '.join(repr(n) for n in unknown)}; choose from "
             f"{', '.join(DISTRIBUTIONS)}"
         )
     scale = _UNITS[unit]
@@ -506,6 +508,32 @@ def fit_column(
         lower=low,
         upper=high,
     )
+
+
+def _is_number(value: Any) -> bool:
+    """Whether `value` is a real number other than a bool, NaN included."""
+    return isinstance(value, numbers.Real) and not isinstance(value, bool)
+
+
+def _check_settings(
+    tolerance: float, lower: Optional[float], upper: Optional[float]
+) -> None:
+    """Refuses a tolerance, a bound or a pair of bounds that no fit can use.
+
+    Raises:
+        ValueError: If `tolerance` is not a finite number of 0 or more, a bound is
+            not a number or is NaN, or `lower` is not below `upper`. The message
+            names the argument.
+    """
+    if not _is_number(tolerance) or not 0 <= tolerance < math.inf:
+        raise ValueError(f"tolerance is a finite number of 0 or more, got {tolerance}")
+    for name, bound in (("lower", lower), ("upper", upper)):
+        if bound is not None and (not _is_number(bound) or math.isnan(bound)):
+            raise ValueError(f"{name} is a number, got {bound}")
+    if lower is not None and upper is not None and lower >= upper:
+        raise ValueError(
+            f"lower must be below upper, got lower {lower} and upper {upper}"
+        )
 
 
 def _skip(name: str, x: np.ndarray, min_count: int, low: Optional[float]) -> str:

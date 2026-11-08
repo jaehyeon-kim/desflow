@@ -381,11 +381,11 @@ resources:
   m: {current_cap: 1, queue: {rank: "attr.rank", ties: lifo}, preempt: {when: "request.rank < holder.rank and t - holder.since > 1", victim: "holder.rank"}}
 stores: {s: {get_queue: {rank: "attr.rank", ties: lifo}}}
 arrivals:
-  a: {dist: constant, value: 1, spawn: job, value: 1000, first_at: 0, attributes: {rank: 5, pre: true}}
+  a: {dist: constant, spawn: job, value: 1000, first_at: 0, attributes: {rank: 5, pre: true}}
   b: {dist: constant, value: 1000, spawn: job, first_at: 2, attributes: {rank: 1, pre: true}}
   c: {dist: constant, value: 1000, spawn: job, first_at: 3, attributes: {rank: 1, pre: false}}
-  g1: {dist: constant, value: 1, spawn: get, value: 1000, first_at: 0, attributes: {rank: 2}}
-  g2: {dist: constant, value: 1, spawn: get, value: 1000, first_at: 0, attributes: {rank: 2}}
+  g1: {dist: constant, spawn: get, value: 1000, first_at: 0, attributes: {rank: 2}}
+  g2: {dist: constant, spawn: get, value: 1000, first_at: 0, attributes: {rank: 2}}
   p1: {dist: constant, value: 1000, spawn: put, first_at: 1}
   p2: {dist: constant, value: 1000, spawn: put, first_at: 2}
 tasks:

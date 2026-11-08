@@ -214,7 +214,7 @@ def _run(
     file with a module-level `SimulationContext`, which is imported as `desflow
     test` imports it, so its `if __name__ == "__main__":` block does not run.
     """
-    parse_until(until)
+    parse_until(until, ends=replications is not None)
     options = _RunOptions(
         until,
         seed,
@@ -258,7 +258,7 @@ def _run_once(path: str, options: _RunOptions) -> None:
     file = Path(path)
     until, seed, drain = options.until, options.seed, options.drain
     replications, sample = options.replications, options.sample
-    stop_at = parse_until(until)
+    stop_at = parse_until(until, ends=replications is not None)
     preview = Preview(sample) if sample is not None or options.stdout else None
 
     root = logging.getLogger()
@@ -295,15 +295,26 @@ def _run_once(path: str, options: _RunOptions) -> None:
         # until, is reported as a blueprint error is; an error inside the run keeps
         # its traceback
         fail(str(exc))
+    no_events = False
     try:
         context.finish()
     except KeyboardInterrupt:
         logger.info("Simulation stopped by user.")
+    except RuntimeError as exc:
+        # SimPy's message when the schedule empties before the run's end event; a
+        # sample of a model that runs out of events ends there, as at `until`
+        if sample is None or not str(exc).startswith(_EMPTY_SCHEDULE):
+            raise
+        no_events = True
     if sample is not None and parts_of(context).run.sample_seen < sample:
-        _report_short_sample(context, sample)
+        _report_short_sample(context, sample, no_events)
 
 
-def _report_short_sample(context: Any, sample: int) -> None:
+# The start of the RuntimeError SimPy raises when no event is left before `until`
+_EMPTY_SCHEDULE = "No scheduled events left"
+
+
+def _report_short_sample(context: Any, sample: int, no_events: bool = False) -> None:
     """Says on stderr that the run ended before it printed `sample` events."""
     from desflow.core.context import parts_of
 
@@ -311,6 +322,8 @@ def _report_short_sample(context: Any, sample: int) -> None:
     seen = run.sample_seen
     ended = run.until is not None and context.env.now >= run.until
     where = " at until" if ended else ""
+    if no_events:
+        where = " with no events left,"
     typer.echo(f"sample ended{where} with {seen} of {sample} events", err=True)
 
 
@@ -361,7 +374,8 @@ def _replicate(
     typer.echo(result.summary_text())
     typer.echo(f"\nSeed {seed}; replication seeds: {', '.join(map(str, result.seeds))}")
     typer.echo(
-        f"Repeat one replication with: desflow run {file} --seed <its seed>"
+        f"Repeat one replication with: desflow run {shlex.quote(str(file))} "
+        "--seed <its seed>"
         f"{_run_options(options)}"
     )
 

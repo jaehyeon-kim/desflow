@@ -241,21 +241,21 @@ Attributes are not published. A condition reads them as `attr.express`, and a pa
 
 <!-- records: one-order-flow -->
 ```text
-[EVT] {'sim_ts': 397.158, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 222, 'value': {'path_id': 'Shop.service.picking', 'status': 'queued'}}
-[EVT] {'sim_ts': 398.017, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 222, 'value': {'path_id': 'Shop.service.picking', 'status': 'started'}}
-[EVT] {'sim_ts': 399.138, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 222, 'value': {'event_type': 'order_picked'}}
-[EVT] {'sim_ts': 399.138, 'timestamp': '...', 'key': 'orders-172', 'task': 'backorder', 'instance': 24, 'value': {'path_id': 'Shop.service.supplying', 'status': 'started'}}
-[EVT] {'sim_ts': 459.138, 'timestamp': '...', 'key': 'orders-172', 'task': 'backorder', 'instance': 24, 'value': {'event_type': 'order_backordered'}}
-[EVT] {'sim_ts': 459.138, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 258, 'value': {'path_id': 'Shop.service.picking', 'status': 'queued'}}
-[EVT] {'sim_ts': 461.427, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 258, 'value': {'path_id': 'Shop.service.picking', 'status': 'started'}}
-[EVT] {'sim_ts': 463.376, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 258, 'value': {'event_type': 'order_picked'}}
-[EVT] {'sim_ts': 463.376, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 243, 'value': {'path_id': 'Shop.service.packing', 'status': 'queued'}}
-[EVT] {'sim_ts': 463.376, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 243, 'value': {'path_id': 'Shop.service.packing', 'status': 'started'}}
-[EVT] {'sim_ts': 464.876, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 243, 'value': {'event_type': 'order_packed'}}
-[EVT] {'sim_ts': 464.876, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 245, 'value': {'path_id': 'Shop.service.packing', 'status': 'queued'}}
-[EVT] {'sim_ts': 464.876, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 245, 'value': {'path_id': 'Shop.service.packing', 'status': 'started'}}
-[EVT] {'sim_ts': 466.376, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 245, 'value': {'event_type': 'order_packed'}}
-[EVT] {'sim_ts': 466.376, 'timestamp': '...', 'key': 'orders-172', 'task': 'ship_order', 'instance': 233, 'value': {'event_type': 'order_shipped', 'express': 0, 'backordered': 1}}
+[EVT] {'sim_ts': 397.1584962029092, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 222, 'value': {'path_id': 'Shop.service.picking', 'sim_id': 'Shop', 'service': 'picking', 'status': 'queued'}}
+[EVT] {'sim_ts': 398.01710554041324, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 222, 'value': {'path_id': 'Shop.service.picking', 'sim_id': 'Shop', 'service': 'picking', 'status': 'started'}}
+[EVT] {'sim_ts': 399.1377090016122, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 222, 'value': {'event_type': 'order_picked'}}
+[EVT] {'sim_ts': 399.1377090016122, 'timestamp': '...', 'key': 'orders-172', 'task': 'backorder', 'instance': 24, 'value': {'path_id': 'Shop.service.supplying', 'sim_id': 'Shop', 'service': 'supplying', 'status': 'started'}}
+[EVT] {'sim_ts': 459.1377090016122, 'timestamp': '...', 'key': 'orders-172', 'task': 'backorder', 'instance': 24, 'value': {'event_type': 'order_backordered'}}
+[EVT] {'sim_ts': 459.1377090016122, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 258, 'value': {'path_id': 'Shop.service.picking', 'sim_id': 'Shop', 'service': 'picking', 'status': 'queued'}}
+[EVT] {'sim_ts': 461.4274752922962, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 258, 'value': {'path_id': 'Shop.service.picking', 'sim_id': 'Shop', 'service': 'picking', 'status': 'started'}}
+[EVT] {'sim_ts': 463.37555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 258, 'value': {'event_type': 'order_picked'}}
+[EVT] {'sim_ts': 463.37555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 243, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 463.37555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 243, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
+[EVT] {'sim_ts': 464.87555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 243, 'value': {'event_type': 'order_packed'}}
+[EVT] {'sim_ts': 464.87555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 245, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 464.87555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 245, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
+[EVT] {'sim_ts': 466.37555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 245, 'value': {'event_type': 'order_packed'}}
+[EVT] {'sim_ts': 466.37555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'ship_order', 'instance': 233, 'value': {'event_type': 'order_shipped', 'express': 0, 'backordered': 1}}
 ```
 
 ![The events of orders-172 in order: pick_order, backorder, pick_order again, pack_order twice, and ship_order with express 0 and backordered 1, all under the key orders-172](../../assets/diagrams/entity-key-timeline.png)
@@ -616,7 +616,14 @@ The counts are:
                 env.publish_event(entity.key, value, task=name, instance=task_id)
 
             if resource is not None:
-                publish({"path_id": path_id, "status": "queued"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": service,
+                        "status": "queued",
+                    }
+                )
                 env.stats.task_queued(name, task_id)
             unit = shop[resource].request() if resource else contextlib.nullcontext()
             with unit as request:
@@ -625,7 +632,14 @@ The counts are:
                 if name == "pack_order":
                     yield shop["stock"].get(1)
                 if service is not None:
-                    publish({"path_id": path_id, "status": "started"})
+                    publish(
+                        {
+                            "path_id": path_id,
+                            "sim_id": "Shop",
+                            "service": service,
+                            "status": "started",
+                        }
+                    )
                     env.stats.task_started(name, task_id)
                 finished = payload(name, entity)
                 if service is not None:

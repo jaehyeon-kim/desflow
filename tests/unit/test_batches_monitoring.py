@@ -366,13 +366,8 @@ def test_a_size_that_is_not_a_finite_number_is_a_run_failure(tmp_path, size):
 def test_the_builder_batch_size_must_be_a_finite_number(size):
     app = SimulationContext("S", factor=0)
     app.add_arrival("a", dist="constant", value=1, spawn="job", first_at=0)
-    if isinstance(size, bool):
-        with pytest.raises(ValueError, match="batch size"):
-            app.task(name="job", batch={"size": size})
-        return
-    app.task(name="job", batch={"size": size})(lambda task_id: {"e": "done"})
-    with pytest.raises(TaskFailed, match="job"):
-        run_builder(app, 3)
+    with pytest.raises(ValueError, match="batch size"):
+        app.task(name="job", batch={"size": size})
 
 
 def test_a_batch_that_fails_to_size_fails_once(tmp_path):

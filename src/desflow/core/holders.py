@@ -68,6 +68,92 @@ def _within_max(
     return clamped
 
 
+def check_capacity(
+    kind: str, name: str, field: str, value: Any, whole: bool = True
+) -> None:
+    """Refuses a capacity that is not a whole number of 0 or more, or infinity.
+
+    One check for `add_resource`, `add_store` and `add_container`, which the YAML
+    build reaches too, and for a live write. A family's expression is not passed here
+    as text: the member's value is checked when the member is made.
+
+    Args:
+        kind: The holder's kind, as the message names it.
+        name: The holder's name.
+        field: The capacity field, such as `current_cap` or `max_cap`.
+        value: The value given.
+        whole: Whether the value must be a whole number.
+
+    Raises:
+        ValueError: Naming the holder, the field and the value.
+    """
+    if value is None:
+        return
+    bad = (
+        isinstance(value, bool)
+        or not isinstance(value, numbers.Real)
+        or math.isnan(value)
+        or value < 0
+        or (whole and not (math.isinf(value) or float(value).is_integer()))
+    )
+    if bad:
+        raise ValueError(
+            f"{kind} '{name}' needs a {'whole ' if whole else ''}number of 0 or "
+            f"more for {field}, got {value!r}"
+        )
+
+
+def check_queue_limit(kind: str, name: str, value: Any) -> None:
+    """Refuses a `queue_limit` that is not a whole number of 0 or more, or None.
+
+    Args:
+        kind: The holder's kind, as the message names it.
+        name: The holder's name.
+        value: The value given.
+    """
+    if value is None:
+        return
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, numbers.Real)
+        or not math.isfinite(value)
+        or not float(value).is_integer()
+        or value < 0
+    ):
+        raise ValueError(
+            f"{kind} '{name}' needs a whole number of 0 or more, or null for no "
+            f"limit, for queue_limit, got {value!r}"
+        )
+
+
+def check_level(name: str, level: Any, current_cap: Any) -> None:
+    """Refuses a container's starting `level` that is not a finite number from 0 to
+    its `current_cap`.
+
+    Args:
+        name: The container's name.
+        level: The starting level given.
+        current_cap: The container's capacity.
+    """
+    if level is None or isinstance(level, str):
+        return
+    if (
+        isinstance(level, bool)
+        or not isinstance(level, numbers.Real)
+        or not math.isfinite(level)
+        or level < 0
+        or (
+            isinstance(current_cap, numbers.Real)
+            and not isinstance(current_cap, bool)
+            and level > current_cap
+        )
+    ):
+        raise ValueError(
+            f"container '{name}' needs a level that is a finite number from 0 to "
+            f"its current_cap {current_cap!r}, got {level!r}"
+        )
+
+
 def _run_copy(config: Any) -> Any:
     """A run's copy of one declared config object, which is what the registry writes
     into: a copy of the object, and for a breakdown a copy of its two distributions as
@@ -499,9 +585,24 @@ class HolderRun:
             if (
                 field != "level"
                 and family.kind != "container"
-                and not _whole_or_unlimited(found)
+                and math.isfinite(found)
+                and not float(found).is_integer()
+                and found >= 0
             ):
                 raise ValueError(f"{where} gave {found!r}, not a whole number")
+            try:
+                if field == "level":
+                    check_level(name, found, config.current_cap)
+                else:
+                    check_capacity(
+                        family.kind,
+                        name,
+                        field,
+                        found,
+                        whole=family.kind != "container",
+                    )
+            except ValueError as error:
+                raise ValueError(f"{where} gave {found!r}: {error}") from None
             setattr(config, field, found)
         if config.current_cap is not None and config.max_cap is not None:
             config.current_cap = _within_max(

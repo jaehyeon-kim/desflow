@@ -197,14 +197,13 @@ run: {until: 30}
     ]
 
 
-@pytest.mark.parametrize("sim_id,family", [("S.v2", "desk"), ("S", "a.b")])
+@pytest.mark.parametrize("sim_id,family", [("S.v2", "desk")])
 def test_a_member_path_reads_as_one_in_a_model_whose_sim_id_has_a_dot(
     tmp_path, sim_id, family
 ):
     """The sim id is taken off the front of a member path and the family is found by
-    its declared name, so in a model whose sim id is `S.v2`, or whose family is
-    `a.b`, a scenario step and a `registry` read of a member load and run as in a
-    model whose sim id is `S` and family `desk`."""
+    its declared name, so in a model whose sim id is `S.v2` a scenario step and a
+    `registry` read of a member load and run as in a model whose sim id is `S`."""
     _rows(tmp_path, 2)
     path = f"{sim_id}.resources.{family}[0].current_cap"
     text = f"""

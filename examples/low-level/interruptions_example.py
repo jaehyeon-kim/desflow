@@ -54,7 +54,9 @@ def pack(env, sampler, shop, key, priority, task_id):
         env.publish_event(key, value, task="pack", instance=task_id)
 
     env.stats.flow_started(key.rsplit("-", 1)[0])  # the order enters the shop
-    publish({"path_id": path_id, "status": "queued"})
+    publish(
+        {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+    )
     env.stats.task_queued("pack", task_id)
     remaining, started = None, False
     shop["packing"].append(env.active_process)
@@ -69,10 +71,24 @@ def pack(env, sampler, shop, key, priority, task_id):
                 yield request
             if not started:
                 started = True
-                publish({"path_id": path_id, "status": "started"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    }
+                )
                 env.stats.task_started("pack", task_id)
             else:
-                publish({"path_id": path_id, "status": "resumed"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "resumed",
+                    }
+                )
                 env.stats.task_resumed("pack", task_id)
             if remaining is None:
                 remaining = sampler.sample(env.registry.get_config(path_id))
@@ -93,6 +109,8 @@ def pack(env, sampler, shop, key, priority, task_id):
             if isinstance(interrupt.cause, Preempted):
                 value = {
                     "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
                     "status": "preempted",
                     "resource": "packers",
                     "preempted_by": shop["keys"].get(interrupt.cause.by),
@@ -101,7 +119,12 @@ def pack(env, sampler, shop, key, priority, task_id):
                 publish(value)
                 env.stats.task_interrupted("pack", task_id, preempted=True)
             else:
-                value = {"path_id": path_id, "status": "interrupted"}
+                value = {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "interrupted",
+                }
                 publish({**value, "cause": interrupt.cause})
                 env.stats.task_interrupted("pack", task_id)
     shop["packing"].remove(env.active_process)

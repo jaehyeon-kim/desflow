@@ -42,7 +42,17 @@ def build(env: DynamicRealtimeEnvironment, size: int = 4) -> None:
 
     def wash(name):
         number = next(numbers["wash"])
-        publish(name, "wash", number, {"path_id": WASH, "status": "started"})
+        publish(
+            name,
+            "wash",
+            number,
+            {
+                "path_id": WASH,
+                "sim_id": "Carwash",
+                "service": "wash",
+                "status": "started",
+            },
+        )
         yield env.timeout(WASHTIME)
         removed = int(dirt.integers(50, 100))
         publish(

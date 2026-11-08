@@ -465,11 +465,27 @@ Orders are packed at random moments, so the time from packing to the next courie
 
         def pack_order(env, sampler, shop, key, ids):
             task_id, path_id = next(ids["pack_order"]), "Shop.service.packing"
-            publish(env, key, "pack_order", task_id, {"path_id": path_id, "status": "queued"})
+            publish(
+                env,
+                key,
+                "pack_order",
+                task_id,
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "queued",
+                },
+            )
             env.stats.task_queued("pack_order", task_id)
             with shop["packers"].request() as request:
                 yield request
-                started = {"path_id": path_id, "status": "started"}
+                started = {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "started",
+                }
                 publish(env, key, "pack_order", task_id, started)
                 env.stats.task_started("pack_order", task_id)
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))

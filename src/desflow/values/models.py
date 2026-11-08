@@ -28,6 +28,7 @@ from typing import (
     Annotated,
     Any,
     Callable,
+    ClassVar,
     Dict,
     List,
     Literal,
@@ -58,7 +59,7 @@ from desflow.models.distributions import (
 )
 from desflow.core.expressions import ANY_NAME, RESERVED_NAMES, Expression, Scope
 from desflow.core.environment import resolve_zone
-from desflow.models.params import DistributionConfig
+from desflow.models.params import DistributionConfig, finite_number
 from desflow.utils import time_to_seconds
 
 if TYPE_CHECKING:
@@ -153,6 +154,30 @@ class _Gen(BaseModel):
             Expression(value, names=ANY_NAME)
         return value
 
+    # The fields that hold a number argument, such as a bound or a weight, which a
+    # literal NaN or infinity cannot be; the values a generator gives are not here
+    _number_arguments: ClassVar[Tuple[str, ...]] = ()
+
+    @model_validator(mode="after")
+    def _finite_arguments(self) -> "_Gen":
+        # A literal NaN or infinity in a number argument is refused at load, by the
+        # check every distribution parameter uses; a value an expression gives is
+        # checked by `number` when it is read
+        for name in self._number_arguments:
+            for place, value in self._argument_values(name):
+                if isinstance(value, float):
+                    finite_number(place, value)
+        return self
+
+    def _argument_values(self, name: str) -> List[Tuple[str, Any]]:
+        """Each literal of the number argument `name`, with its place."""
+        value = getattr(self, name)
+        if isinstance(value, dict):
+            return [(f"{name}.{key}", item) for key, item in value.items()]
+        if isinstance(value, list):
+            return [(name, getattr(item, "weight", item)) for item in value]
+        return [(name, value)]
+
     def fail(self, message: str) -> ValueGenerationError:
         """The error for this generator, with its place in the file."""
         gen = getattr(self, "gen", "?")
@@ -161,9 +186,14 @@ class _Gen(BaseModel):
         )
 
     def number(self, value: Any, what: str) -> Union[int, float]:
-        """A number argument, as given; a boolean or other type is refused."""
+        """A number argument, as given; a boolean, NaN, infinity or other type is
+        refused."""
         if not _is_number(value):
             raise self.fail(f"{what} must be a number, got {value!r}")
+        try:
+            finite_number(what, float(value))
+        except ValueError as exc:
+            raise self.fail(str(exc)) from None
         return value
 
     def whole(self, value: Any, what: str) -> int:
@@ -183,6 +213,8 @@ class _Gen(BaseModel):
 class Uniform(_Gen):
     """`uniform`: a float in [low, high), from `low + (high - low) * random()`;
     `decimals` rounds it, and 0 gives an integer."""
+
+    _number_arguments: ClassVar[Tuple[str, ...]] = ("low", "high")
 
     gen: Literal["uniform"]
     low: "Value"
@@ -233,6 +265,8 @@ class Integer(_Gen):
 class Normal(_Gen):
     """`normal`: a float from a normal distribution with `mean` and `std`."""
 
+    _number_arguments: ClassVar[Tuple[str, ...]] = ("mean", "std")
+
     gen: Literal["normal"]
     mean: "Value"
     std: "Value"
@@ -258,6 +292,21 @@ class Normal(_Gen):
 class Sample(_Gen):
     """`sample`: one draw from a distribution family with its parameters, or from
     the live distribution of a service."""
+
+    _number_arguments: ClassVar[Tuple[str, ...]] = (
+        "rate",
+        "mean",
+        "std",
+        "low",
+        "value",
+        "high",
+        "mode",
+        "shape",
+        "scale",
+        "p",
+        "weights",
+        "counts",
+    )
 
     gen: Literal["sample"]
     dist: Optional[str] = None
@@ -356,6 +405,8 @@ class Sample(_Gen):
 class Boolean(_Gen):
     """`boolean`: true with probability `p` (0.5 when not given)."""
 
+    _number_arguments: ClassVar[Tuple[str, ...]] = ("p",)
+
     gen: Literal["boolean"]
     p: "Value" = 0.5
 
@@ -413,6 +464,8 @@ class Weighted(_Gen):
     `choices` lists `{value, weight}` for values that are mappings or generators. Each
     weight is 0 or more and at least one is above 0; weights are divided by their
     sum. Only the value picked is evaluated."""
+
+    _number_arguments: ClassVar[Tuple[str, ...]] = ("options", "choices")
 
     gen: Literal["weighted"]
     options: Optional[Dict[Any, "Value"]] = None
@@ -647,6 +700,8 @@ class Now(_Gen):
     ISO text a record's `timestamp` uses. It reads the simulation clock, never the
     wall clock."""
 
+    _number_arguments: ClassVar[Tuple[str, ...]] = ("offset",)
+
     gen: Literal["now"]
     offset: "Value" = 0
 
@@ -830,6 +885,8 @@ class Fake(_Gen):
 class _Arithmetic(_Gen):
     """The arithmetic kinds: `args` has at least two entries, and `decimals` rounds
     the result."""
+
+    _number_arguments: ClassVar[Tuple[str, ...]] = ("args",)
 
     args: List["Value"] = Field(min_length=2)
     decimals: Optional[int] = Field(default=None, ge=0)

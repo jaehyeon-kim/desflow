@@ -56,14 +56,16 @@ def load_context(
     Raises:
         NoContextError: If a Python entry defines no context. It is a
             `ValueError`.
-        ValueError: If a Python entry defines several contexts with no
-            `DESFLOW_APP`, or `DESFLOW_APP` names no context; or variables are
-            given with a Python entry.
+        ValueError: If `folder` is a URI and `entry` is not a file in it; if a Python
+            entry defines several contexts with no `DESFLOW_APP`, or `DESFLOW_APP`
+            names no context; or variables are given with a Python entry.
         ImportError: If `folder` is a URI and pyarrow is not installed.
         BlueprintError: If a blueprint is invalid.
     """
     local = _local_folder(folder)
     path = local / entry
+    if isinstance(folder, str) and "://" in folder and not path.is_file():
+        raise ValueError(f"no file {folder}/{entry}")
     if path.suffix != _PYTHON_SUFFIX:
         return SimulationContext.from_yaml(path, preview, variables)
     if variables:

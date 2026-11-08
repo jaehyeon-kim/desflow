@@ -119,8 +119,8 @@ def test_normal_mean_and_deviation(tmp_path):
 def test_sample_draws_from_a_family_and_a_service(tmp_path):
     values = field(tmp_path, "{gen: sample, dist: exponential, rate: 2}", n=200)
     assert 0.35 < sum(values) / len(values) < 0.7
-    extra = "services: {s: {dist: constant, value: 3}}\n"
-    assert field(tmp_path, "{gen: sample, service: s}", extra=extra) == [3, 3, 3]
+    # The model's own `services` section holds s5, a constant of 5
+    assert field(tmp_path, "{gen: sample, service: s5}") == [5, 5, 5]
     duration = field(tmp_path, "{gen: sample, dist: constant, value: 2 min}", n=1)
     assert duration == [120]
 
@@ -960,7 +960,7 @@ def test_an_expression_that_reads_a_null_payload_names_its_place(tmp_path):
     """An expression that reads a field of a null payload names its place and says
     the payload is null: a `fail`, a `next` condition, and the `service_time` of the
     task the payload is routed to. A `put` amount that reads a missing field names
-    its place too, and a `next` weight names none. A `fail` that cannot be evaluated
+    its place too, and a `next` weight names its place too. A `fail` that cannot be evaluated
     fails the task, as a `fail_reason` that cannot be made does: the task publishes
     its `failed` record, and with no `on_fail` the run stops with `TaskFailed`."""
     null_second = (
@@ -1019,7 +1019,9 @@ def test_an_expression_that_reads_a_null_payload_names_its_place(tmp_path):
         {"a": [0.0, 1.0, 2.0]},
     )
     assert re.fullmatch(
-        r"cannot evaluate 'payload\.a': the payload is null", str(outcome.error)
+        r".*model\.yaml:\d+: tasks\.t\.next\.weights: cannot evaluate "
+        r"'payload\.a': the payload is null",
+        str(outcome.error),
     ), str(outcome.error)
 
 
@@ -1706,8 +1708,10 @@ def test_low_level_value_evaluates_a_generator_in_a_process():
 
     def process(context):
         entity = context._run.arrivals.new_entity("x", ({"k": 3}, None))
-        seen.append(context.values.value({"gen": "attr", "name": "k"}, entity))
-        seen.append(context.values.value({"gen": "sequence"}))
+        seen.append(
+            context.values.value(generator({"gen": "attr", "name": "k"}), entity)
+        )
+        seen.append(context.values.value(generator({"gen": "sequence"})))
         yield context.env.timeout(1)
 
     app.add_process(process)
@@ -1757,11 +1761,9 @@ def test_an_overflow_while_drawing_is_a_generator_error(tmp_path):
     assert "ValueGenerationError" in message or "gen multiply" in message
 
 
-def test_sample_refuses_a_boolean_parameter(tmp_path):
-    message = error_of(
-        tmp_path, "payload: {x: {gen: sample, dist: poisson, mean: true}}"
-    )
-    assert "mean" in message
+def test_sample_refuses_a_boolean_parameter_at_load(tmp_path):
+    with pytest.raises(Exception, match="poisson mean must be a number, got True"):
+        run(tmp_path, "payload: {x: {gen: sample, dist: poisson, mean: true}}", 1)
 
 
 def test_every_builder_place_takes_a_typed_generator_with_its_own_stream():
@@ -2512,7 +2514,7 @@ def test_low_level_script_reads_rows_through_the_value_runtime():
                 "function": "sum",
             },
         ):
-            seen.append(context.values.value(spec))
+            seen.append(context.values.value(generator(spec)))
 
     app.add_process(reader)
     app.run(until=6)

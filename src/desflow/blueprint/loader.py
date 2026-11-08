@@ -20,7 +20,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, Mapping, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Tuple, Union
 
 import yaml
 
@@ -245,6 +245,14 @@ class SourceMap:
                 return self._lines[location[:end]]
         return 1
 
+    def has(self, location: Iterable[Union[str, int]]) -> bool:
+        """Whether the document has a key or list item at exactly `location`.
+
+        Args:
+            location: The keys and list indexes from the document's top.
+        """
+        return tuple(location) in self._lines
+
     def error(
         self, location: Iterable[Union[str, int]], message: str
     ) -> BlueprintError:
@@ -260,19 +268,46 @@ class SourceMap:
         return BlueprintError(f"{self.path}:{self.line(location)}: {message}")
 
 
-def _record_lines(node: yaml.Node, location: Location, lines: Dict[Location, int]):
-    """Walks the node tree and records the line of every key and list item."""
+def _record_lines(
+    node: yaml.Node,
+    location: Location,
+    lines: Dict[Location, int],
+    key_of: Optional[Callable[[yaml.Node], Any]] = None,
+):
+    """Walks the node tree and records the line of every key and list item.
+
+    A key written with `${VAR}` is recorded under the name it has after substitution,
+    which `key_of` gives, as the built mapping holds it."""
     lines.setdefault(location, node.start_mark.line + 1)
     if isinstance(node, yaml.MappingNode):
+        seen: Dict[Any, int] = {}
         for key_node, value_node in node.value:
-            child = location + (key_node.value,)
+            name = key_node.value
+            if key_of is not None and "${" in str(name):
+                try:
+                    name = key_of(key_node)
+                except BlueprintError:
+                    pass  # the load reports it
+            if isinstance(key_node, yaml.ScalarNode) and name != "<<":
+                # A key written twice would keep only the last value, with no sign
+                # that the first was dropped
+                if name in seen:
+                    raise yaml.constructor.ConstructorError(
+                        None,
+                        None,
+                        f"the key '{name}' is written twice in this mapping, at lines "
+                        f"{seen[name]} and {key_node.start_mark.line + 1}; keep one",
+                        key_node.start_mark,
+                    )
+                seen[name] = key_node.start_mark.line + 1
+            child = location + (name,)
             # A key's own line is where a reader looks, even when its value is a
             # block starting on the next line.
             lines[child] = key_node.start_mark.line + 1
-            _record_lines(value_node, child, lines)
+            _record_lines(value_node, child, lines, key_of)
     elif isinstance(node, yaml.SequenceNode):
         for index, item in enumerate(node.value):
-            _record_lines(item, location + (index,), lines)
+            _record_lines(item, location + (index,), lines, key_of)
 
 
 _BOOL_TAG = "tag:yaml.org,2002:bool"
@@ -430,7 +465,7 @@ def read_document(
         _keep_on_keys(node, includes, at)
         _keep_switch_on(node)
         loader.includes = includes  # type: ignore[attr-defined]
-        _record_lines(node, (), lines)
+        _record_lines(node, (), lines, loader.construct_object)
         data = loader.construct_document(node)
     except yaml.MarkedYAMLError as exc:
         mark = exc.problem_mark or exc.context_mark

@@ -425,6 +425,30 @@ class Family:
     starting_level: Any = 0
 
 
+def name_problem(kind: str, name: str, held_by: Optional[str]) -> Optional[str]:
+    """Why a resource, store, container or signal cannot have this name, or None.
+
+    One check for the Builder and the YAML load, so each refuses with the same text.
+
+    Args:
+        kind: `resource`, `store`, `container` or `signal`.
+        name: The name.
+        held_by: The kind that already has the name, or None.
+    """
+    if held_by is not None and held_by != kind:
+        return (
+            f"{kind} '{name}' has the name of a {held_by}; the names of resources, "
+            f"stores, containers and signals are one set, so use another name"
+        )
+    for word, mark in (("dot", "."), ("space", " ")):
+        if mark in name:
+            return (
+                f"{kind} '{name}' has a {word} in its name, which an expression "
+                f"cannot name; use a name without one"
+            )
+    return None
+
+
 class Families:
     """The families a model declares, by name.
 
@@ -434,6 +458,8 @@ class Families:
 
     def __init__(self) -> None:
         self.by_name: Dict[str, Family] = {}
+        # The kind each declared name has, family or not
+        self.kinds: Dict[str, str] = {}
 
     def new_run(
         self,
@@ -449,6 +475,23 @@ class Families:
             signal_run: The run's signals.
         """
         return FamilyRun(self, values, holder_run, signal_run)
+
+    def claim(self, kind: str, name: str) -> None:
+        """Records that a resource, store, container or signal has this name, and
+        refuses a name another kind holds or one an expression cannot read. A name
+        declared again in its own kind replaces the first.
+
+        Args:
+            kind: `resource`, `store`, `container` or `signal`.
+            name: The entry's name.
+
+        Raises:
+            ValueError: If another kind has the name, or it holds a dot or a space.
+        """
+        problem = name_problem(kind, name, self.kinds.get(name))
+        if problem is not None:
+            raise ValueError(problem)
+        self.kinds[name] = kind
 
     def declare(
         self,

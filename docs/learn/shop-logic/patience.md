@@ -67,8 +67,8 @@ desflow run patience.yaml --stdout | grep '"reneged"' | head -2
 
 <!-- records: patience-reneged -->
 ```text
-{"stream_type":"event","sim_ts":215.107,"timestamp":"...","key":"orders-143","task":"pack_order","instance":142,"value":{"path_id":"Shop.service.packing","status":"reneged"}}
-{"stream_type":"event","sim_ts":215.363,"timestamp":"...","key":"orders-144","task":"pack_order","instance":143,"value":{"path_id":"Shop.service.packing","status":"reneged"}}
+{"stream_type":"event","sim_ts":215.10708094674916,"timestamp":"...","key":"orders-143","task":"pack_order","instance":142,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"reneged"}}
+{"stream_type":"event","sim_ts":215.36272322646022,"timestamp":"...","key":"orders-144","task":"pack_order","instance":143,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"reneged"}}
 ```
 
 Both orders were queued 30 seconds earlier, at 185.1 and 185.4 seconds, and left when their patience ran out. In the builder and the low-level API, `ConsoleEgress(format="json")` as the sink prints the same lines.
@@ -367,7 +367,12 @@ Orders arrive at 42 a minute and bring 0.7 × 1.5 = 1.05 seconds of packing each
             path_id = "Shop.service.packing"
 
             def publish(status):
-                value = {"path_id": path_id, "status": status}
+                value = {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": status,
+                }
                 env.publish_event(key, value, task="pack_order", instance=task_id)
 
             # The courier leaves at the hour, so the last 5 minutes take no new orders

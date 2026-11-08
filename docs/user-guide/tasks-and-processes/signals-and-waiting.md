@@ -166,12 +166,24 @@ A task fires a signal with `signal: name` when it finishes, with its payload as 
         """A gift fails inspection and is wrapped instead; returns the last payload."""
         env, stats, task_id = shop.env, shop.env.stats, shop.next_id("inspect")
         path_id = "Shop.service.inspecting"
-        shop.publish(key, "inspect", task_id, {"path_id": path_id, "status": "started"})
+        shop.publish(
+            key,
+            "inspect",
+            task_id,
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "inspecting",
+                "status": "started",
+            },
+        )
         stats.task_started("inspect", task_id)
         yield env.timeout(shop.service("inspecting")[1])
         if GIFT[arrival] == 1:
             failed = {
                 "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "inspecting",
                 "status": "failed",
                 "reason": "gift needs wrapping",
             }
@@ -187,7 +199,17 @@ A task fires a signal with `signal: name` when it finishes, with its payload as 
     def wrap(shop, key):
         env, stats, task_id = shop.env, shop.env.stats, shop.next_id("wrap")
         path_id = "Shop.service.wrapping"
-        shop.publish(key, "wrap", task_id, {"path_id": path_id, "status": "started"})
+        shop.publish(
+            key,
+            "wrap",
+            task_id,
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "wrapping",
+                "status": "started",
+            },
+        )
         stats.task_started("wrap", task_id)
         yield env.timeout(shop.service("wrapping")[1])
         payload = {"event_type": "wrapped"}

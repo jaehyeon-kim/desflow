@@ -48,9 +48,10 @@ from desflow.config import LABELS, TRACE
 from desflow.connectors.egress.local import ConsoleEgress
 from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.core.arrivals import ArrivalPlan
-from desflow.core.families import member_path, name_of, references
+from desflow.core.families import member_path, name_of, name_problem, references
 from desflow.core.flow import Open, Release, Wait
-from desflow.core.registry import ParamRejected, queue_limit_value
+from desflow.core.holders import check_capacity, check_level, check_queue_limit
+from desflow.core.registry import ParamRejected
 from desflow.core.task import NO_RECORD
 from desflow.core.task_checks import (
     Holding,
@@ -67,6 +68,10 @@ from desflow.core.context import (
     SimulationContext,
     parts_of,
     scratch_registry,
+    segment_until_problem,
+    reading_problem,
+    stop_condition,
+    stop_family_problem,
     written_paths,
 )
 from desflow.core.scenario import walk_steps
@@ -85,6 +90,7 @@ from desflow.values.check import (
 )
 from desflow.values.models import (
     Aggregate,
+    Attr,
     Expr,
     Lookup,
     Previous,
@@ -362,13 +368,14 @@ def load_blueprint(
     _check_references(blueprint, source)
     _check_arrival_places(blueprint, source)
     _bind_values(blueprint, source)
+    _check_declared_names(blueprint, source)
     context = _build_context(blueprint, source, preview)
     _check_batches(context, source)
     _check_families(blueprint, context, source)
     _check_values(blueprint, context, source)
     _check_scenario(blueprint, context, source)
     _check_registry_reads(blueprint, context, source)
-    _warn_on_paths(blueprint, context, source)
+    _check_on_paths(blueprint, context, source)
     return Built(context, blueprint.run, blueprint, source)
 
 
@@ -420,7 +427,7 @@ def _validation_error(
     for error in exc.errors():
         # A task's `next` is a name or rules, and pydantic adds which one to the
         # location; the file has no such key, so it is left out.
-        location = _file_location(error["loc"])
+        location = _without_members(_file_location(error["loc"]), source)
         where = ".".join(str(part) for part in location) or "top level"
         text = error["msg"]
         if error["type"] == "extra_forbidden":
@@ -429,6 +436,28 @@ def _validation_error(
             str(source.error(_without_classes(location), f"{where}: {text}"))
         )
     return BlueprintError("\n".join(messages))
+
+
+_MEMBER_NAMES = frozenset({"str", "int", "float", "bool", "list", "dict", "none"})
+
+
+def _without_members(location: Tuple[Any, ...], source: SourceMap) -> Tuple[Any, ...]:
+    """`location` without the parts pydantic adds for a member of a union: a type or
+    model name, and a generic such as `list[...]`, which the file does not have as a
+    key. A part the file has as a key stays."""
+    from desflow.blueprint import models
+
+    kept: Tuple[Any, ...] = ()
+    for part in location:
+        member = isinstance(part, str) and (
+            "[" in part
+            or part in _MEMBER_NAMES
+            or isinstance(getattr(models, part, None), type)
+        )
+        if member and not source.has((*kept, part)):
+            continue
+        kept = (*kept, part)
+    return kept
 
 
 def _without_classes(location: Tuple[Any, ...]) -> Tuple[Any, ...]:
@@ -766,7 +795,7 @@ def _check_task_names(
         ("wait", None if task.wait is None else Wait(task.wait)),
         ("open", None if task.open is None else Open(task.open).wait),
     ):
-        for node in group.branches.values() if group else ():
+        for node in group.all_nodes if group else ():
             if (
                 node.options is not None
                 and node.options.priority is not None
@@ -865,7 +894,7 @@ def _check_task_names(
                 f"task '{name}' names {kind} '{target}', "
                 + _undefined(target, defined, f"{kind}s"),
             )
-    for node in opened.wait.branches.values() if opened else []:
+    for node in opened.wait.all_nodes if opened else []:
         if node.kind in ("get", "put"):
             kind = "store" if node.target.store is not None else "container"
             section = blueprint.stores if kind == "store" else blueprint.containers
@@ -1061,23 +1090,43 @@ def _check_acquisition_order(blueprint: Blueprint, source: SourceMap) -> None:
 
 
 def _check_whole_capacities(blueprint: Blueprint, source: SourceMap) -> None:
-    """Checks that a fixed `current_cap` or `max_cap` of a resource or store is a
-    whole number."""
-    for kind in ("resources", "stores"):
-        for name, capacity in getattr(blueprint, kind).items():
+    """Runs the checks `add_resource`, `add_store` and `add_container` run, with the
+    line of the entry: a capacity is a whole number of 0 or more, or infinity (a
+    container's need not be whole), a `queue_limit` a whole number of 0 or more or
+    null, and a container's `level` a finite number from 0 to its capacity."""
+    for kind in ("resources", "stores", "containers"):
+        singular = kind[:-1]
+        for name, holder in getattr(blueprint, kind).items():
+            cap = holder.current_cap if holder.current_cap is not None else None
+            if kind == "containers" and cap is None:
+                cap = holder.max_cap
+            checks: List[Tuple[str, Callable[[Any], None]]] = []
             for field in ("current_cap", "max_cap"):
-                value = getattr(capacity, field)
-                if (
-                    value is None
-                    or isinstance(value, str)
-                    or (math.isinf(value) and (value > 0 or kind == "resources"))
-                ):
-                    continue
-                if not float(value).is_integer():
-                    raise source.error(
-                        (kind, name, field),
-                        f"{kind[:-1]} '{name}' needs a whole number for {field}",
+                checks.append(
+                    (
+                        field,
+                        lambda value, field=field: check_capacity(  # type: ignore[misc]
+                            singular, name, field, value, whole=kind != "containers"
+                        ),
                     )
+                )
+            if kind == "resources":
+                checks.append(
+                    (
+                        "queue_limit",
+                        lambda value: check_queue_limit(singular, name, value),
+                    )
+                )
+            if kind == "containers":
+                checks.append(("level", lambda value: check_level(name, value, cap)))
+            for field, check in checks:
+                value = getattr(holder, field, None)
+                if isinstance(value, str) and getattr(holder, "family", False):
+                    continue  # an expression, checked when each member is made
+                try:
+                    check(value)
+                except ValueError as exc:
+                    raise source.error((kind, name, field), str(exc)) from None
 
 
 def _check_arrival_spawns(blueprint: Blueprint, source: SourceMap) -> None:
@@ -1504,12 +1553,9 @@ def _check_segments(blueprint: Blueprint, source: SourceMap) -> None:
                 "nor stop, so it runs to the end of the run",
             )
         if segment.until is not None:
-            if segment.until <= previous:
-                raise source.error(
-                    ("run", "segments", index, "until"),
-                    f"segment until ({segment.until:g}) must be after the previous "
-                    f"end ({previous:g}); segment untils increase",
-                )
+            problem = segment_until_problem(segment.until, previous)
+            if problem is not None:
+                raise source.error(("run", "segments", index, "until"), problem)
             previous = segment.until
         if segment.stop is not None:
             _check_stop(
@@ -1571,7 +1617,12 @@ def _check_stop(
     ((kind, target),) = stop.items()
     where = (*where, kind)
     if kind == "signal":
+        written = target
         target = name_of(target, "stop.signal")
+        if isinstance(written, str) and getattr(
+            blueprint.signals.get(target), "family", False
+        ):
+            raise source.error(where, stop_family_problem(target))
         if target not in blueprint.signals:
             raise source.error(
                 where,
@@ -1594,21 +1645,10 @@ def _check_stop(
                     )
         return
     try:
-        expression = Expression(target)
+        expression = stop_condition(target)
     except ValueError as exc:
         raise source.error(where, str(exc)) from None
     _check_run_names(expression, blueprint, source, where)
-    entity = [
-        f"{kind}.<...>"
-        for kind in ("payload", "attr", "item", "wait")
-        if expression.references.get(kind)
-    ]
-    if entity:
-        raise source.error(
-            where,
-            f"a stop condition is checked outside every task, so it cannot read "
-            f"{', '.join(entity)}; read levels, registry values, signals or t",
-        )
 
 
 def _generator_texts(
@@ -1655,11 +1695,44 @@ def _arrival_expressions(
                 continue
     for name, signal in blueprint.signals.items():
         for index, entry in enumerate(signal.on):
+            at = ("signals", name, "on", index)
             if entry.when is not None:
+                yield Expression(entry.when, names=ANY_NAME), (*at, "when")
+            if entry.interrupt is not None and entry.interrupt.where is not None:
                 yield (
-                    Expression(entry.when, names=ANY_NAME),
-                    ("signals", name, "on", index, "when"),
+                    Expression(entry.interrupt.where, names=ANY_NAME),
+                    (*at, "interrupt", "where"),
                 )
+            if entry.resume is not None:
+                if entry.resume.where is not None:
+                    yield (
+                        Expression(entry.resume.where, names=ANY_NAME),
+                        (*at, "resume", "where"),
+                    )
+                if isinstance(entry.resume.limit, str):
+                    yield (
+                        Expression(entry.resume.limit, names=ANY_NAME),
+                        (*at, "resume", "limit"),
+                    )
+    for index, step in enumerate(blueprint.scenario):
+        if step.interrupt is not None and step.interrupt.where is not None:
+            yield (
+                Expression(step.interrupt.where, names=ANY_NAME),
+                ("scenario", index, "interrupt", "where"),
+            )
+    for stop, at in _stops(blueprint):
+        if "condition" in stop:
+            yield Expression(stop["condition"], names=ANY_NAME), (*at, "condition")
+
+
+def _stops(blueprint: Blueprint) -> Iterator[Tuple[Dict[str, Any], Tuple[Any, ...]]]:
+    """Every `stop` mapping of the run: `run.stop` and the `stop` of each segment."""
+    if blueprint.run.stop:
+        yield blueprint.run.stop, ("run", "stop")
+    segments = blueprint.run.segments
+    for index, segment in enumerate(segments if isinstance(segments, list) else ()):
+        if segment.stop:
+            yield segment.stop, ("run", "segments", index, "stop")
 
 
 def _rule_expressions(
@@ -1702,12 +1775,35 @@ def _reading_expressions(
             )
 
 
+def _check_arrival_attributes(blueprint: Blueprint, source: SourceMap) -> None:
+    """Checks that a `gen: attr` in an arrival's `attributes` names an attribute
+    written before it in the same mapping, as the arrival reads them in order. A
+    replay's row fields are written first; a replay of every column (`fields: all`)
+    is not checked, because its columns are known only when the file is read."""
+    for name, arrival in blueprint.arrivals.items():
+        written: List[str] = []
+        if arrival.replay is not None:
+            if arrival.replay.fields == "all":
+                continue
+            written = [arrival.replay.time, *arrival.replay.fields]
+        for key, value in (arrival.attributes or {}).items():
+            for where, generator in generators_in(value, (Attr,)):
+                if generator.name not in written:
+                    raise source.error(
+                        ("arrivals", name, "attributes", key, *where),
+                        f"gen attr: the entity has no attribute '{generator.name}'"
+                        + suggestion(generator.name, written),
+                    )
+            written.append(key)
+
+
 def _check_arrival_places(blueprint: Blueprint, source: SourceMap) -> None:
     """Checks the names the run places of an arrival and the value places outside a
     task (a store's `items`, a signal's `on`, a scenario step) read: every `level`,
     `signal`, `users`, `queue`, `putters`, `getters`, `count` and `items` name must
     exist, as in a `stop` condition. The rules of a `queue` and a `preempt` and the
     `readings` of `telemetry` are such places too."""
+    _check_arrival_attributes(blueprint, source)
     for expression, where in _arrival_expressions(blueprint):
         _check_run_names(expression, blueprint, source, where)
     for expression, where in _rule_expressions(blueprint):
@@ -1915,6 +2011,13 @@ def _expressions(
             if entry.fire is not None and isinstance(entry.fire.signal, Ref):
                 for expression in entry.fire.signal.name().expressions:
                     found.append((expression, where + at_where))
+            if entry.interrupt is not None and entry.interrupt.where is not None:
+                found.append(
+                    (
+                        Expression(entry.interrupt.where),
+                        entry_at + ("interrupt", "where"),
+                    )
+                )
             if entry.resume is not None:
                 at = entry_at + ("resume",)
                 if entry.resume.where is not None:
@@ -2277,7 +2380,7 @@ def _add_task(
         subscribe=task.subscribe,
         on=[entry.entry() for entry in task.on],
     )(_payload(task.payload, task.id_field, task.attributes, task.item_field, name))
-    _locate_payload_reads(parts_of(context).tasks.specs[name], name, source)
+    _locate_expressions(parts_of(context).tasks.specs[name], name, source)
     # The places the context cannot see: the payload, the wait and the put
     context.note_values(
         name,
@@ -2445,13 +2548,14 @@ def _locator(source: SourceMap) -> Callable[[Tuple[Any, ...]], str]:
     return locate
 
 
-def _locate_payload_reads(spec: Any, name: str, source: SourceMap) -> None:
-    """Gives each expression of the task that reads `payload` its place in the file,
-    which its evaluation errors name, as a generator's errors do."""
+def _locate_expressions(spec: Any, name: str, source: SourceMap) -> None:
+    """Gives each expression of the task its place in the file, which its evaluation
+    errors name, as a generator's errors do."""
     locate = _locator(source)
     for found in spec.expressions:
-        if found.place is not None and found.expression.references["payload"]:
+        if found.place is not None:
             found.expression.where = locate(("tasks", name, *found.place))
+    spec.router.where = locate(("tasks", name, "next", "weights"))
 
 
 def _value_sites(blueprint: Blueprint) -> Iterator[Tuple[Tuple[Any, ...], Any]]:
@@ -2870,6 +2974,31 @@ def _names_a_member(path: str, context: SimulationContext) -> bool:
     )
 
 
+def _check_declared_names(blueprint: Blueprint, source: SourceMap) -> None:
+    """Checks that no name is in two of resources, stores, containers and signals, and
+    that none holds a dot or a space, which an expression cannot name. A name in two
+    sections is refused at its second place."""
+    kinds: Dict[str, str] = {}
+    for section, kind in (
+        ("resources", "resource"),
+        ("stores", "store"),
+        ("containers", "container"),
+        ("signals", "signal"),
+    ):
+        for name in getattr(blueprint, section):
+            problem = name_problem(kind, name, kinds.get(name))
+            if problem is not None:
+                raise source.error((section, name), problem)
+            kinds[name] = kind
+    earlier: List[Dict[str, Any]] = []
+    for index, entry in enumerate(blueprint.telemetry):
+        for name in entry.readings or {}:
+            problem = reading_problem(name, earlier)
+            if problem is not None:
+                raise source.error(("telemetry", index, "readings", name), problem)
+        earlier.append(dict(entry.readings or {}))
+
+
 def _check_scenario(
     blueprint: Blueprint, context: SimulationContext, source: SourceMap
 ) -> None:
@@ -2891,7 +3020,6 @@ def _check_scenario(
         [(step.at, step.path, step.value) for step in blueprint.scenario],
         registry,
         lambda path: _names_a_member(path, context),
-        convert=True,
     ):
         step = blueprint.scenario[index]
         if problem == "path":
@@ -2901,25 +3029,18 @@ def _check_scenario(
                 f"{context.sim_id}.resources.<name>.current_cap or "
                 f"{context.sim_id}.arrival.<name>.rate",
             )
-        if problem == "type":
-            raise source.error(
-                ("scenario", index, "value"),
-                f"'{step.path}' holds a {type(detail).__name__}, and "
-                f"{step.value!r} cannot be converted to one",
-            )
         if problem == "value":
             raise source.error(("scenario", index, "value"), detail)
 
 
-def _warn_on_paths(
+def _check_on_paths(
     blueprint: Blueprint, context: SimulationContext, source: SourceMap
 ) -> None:
-    """Warns about an `on:` entry whose `path` is not a registry path, or whose
-    `value` cannot become the type the path holds, at the entry's line.
+    """Warns about an `on:` entry whose `path` is not a registry path, at the
+    entry's line, and refuses one whose `value` the path does not accept.
 
-    It is a warning and not a refusal, because these entries load and run today: a
-    wrong path ends the run with `KeyError` when the entry first runs, and a value
-    the registry cannot convert is logged and ignored.
+    A wrong path is a warning, because those entries load and run today: they end the
+    run with `KeyError` when the entry first runs.
     """
     registry = scratch_registry(context)
     owners: List[Tuple[str, str, Tuple[str, ...], List[Any]]] = [
@@ -2937,7 +3058,7 @@ def _warn_on_paths(
                 continue
             where: Tuple[Union[str, int], ...] = (section, name, *at_where, index)
             try:
-                current = registry.get(entry.path).value
+                registry.get(entry.path)
             except KeyError:
                 logger.warning(
                     "%s",
@@ -2949,35 +3070,12 @@ def _warn_on_paths(
                     ),
                 )
                 continue
-            if registry.is_queue_limit(entry.path) and not has_generator(entry.value):
-                try:
-                    queue_limit_value(entry.path, entry.value)
-                except ParamRejected as exc:
-                    logger.warning(
-                        "%s",
-                        source.error(
-                            (*where, "value"),
-                            f"{exc.reason}, so the registry ignores this value",
-                        ),
-                    )
+            if has_generator(entry.value):
                 continue
-            if (
-                current is not None
-                and not has_generator(entry.value)
-                and not isinstance(entry.value, type(current))
-            ):
-                try:
-                    type(current)(entry.value)
-                except (TypeError, ValueError):
-                    logger.warning(
-                        "%s",
-                        source.error(
-                            (*where, "value"),
-                            f"'{entry.path}' holds a value of type "
-                            f"{type(current).__name__}, and {entry.value!r} cannot "
-                            f"be converted to it, so the registry ignores this value",
-                        ),
-                    )
+            try:
+                registry.check_value(entry.path, entry.value)
+            except ParamRejected as exc:
+                raise source.error((*where, "value"), exc.reason) from None
 
 
 def _check_registry_reads(

@@ -7,6 +7,8 @@ loops over its rows itself.
 """
 
 import csv
+import math
+import re
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -156,10 +158,25 @@ def read_records(source: Any) -> Iterable[Mapping[str, Any]]:
     return list(source)
 
 
+# A CSV number: a sign, digits, a point and an exponent, and nothing else, so `1_0`,
+# `nan`, `Infinity` and `0x1` stay text
+_NUMBER = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
+
+
 def _time(
     value: Any, unit: str, start: Optional[datetime], initial_time: float
 ) -> Optional[float]:
-    """A row's simulation time, or None when the value is not a time."""
+    """A row's simulation time, or None when the value is not a time (NaN and
+    infinity are not times)."""
+    when = _time_of(value, unit, start, initial_time)
+    if when is not None and not math.isfinite(when):
+        return None
+    return when
+
+
+def _time_of(
+    value: Any, unit: str, start: Optional[datetime], initial_time: float
+) -> Optional[float]:
     if value is None or value == "":
         return None
     if unit == TIMESTAMP:
@@ -186,6 +203,8 @@ def _time(
         # As records do: logical_start_time is simulation time 0, whatever the
         # initial time, so a row's timestamp is the timestamp its arrival gets
         return (value - start).total_seconds()
+    if isinstance(value, str) and not _NUMBER.fullmatch(value.strip()):
+        return None  # such as `1_0`, `nan` or `0x1`: not a CSV number
     try:
         return initial_time + float(value) * UNITS[unit]
     except (TypeError, ValueError):
@@ -198,7 +217,7 @@ def plain_value(value: Any) -> Any:
     Args:
         value: The field's value.
     """
-    if not isinstance(value, str):
+    if not isinstance(value, str) or not _NUMBER.fullmatch(value.strip()):
         return value
     for kind in (int, float):
         try:

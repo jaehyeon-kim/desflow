@@ -56,11 +56,25 @@ def build(env):
         def publish(value):
             env.publish_event(key, value, task="solve_ticket", instance=instance)
 
-        publish({"path_id": path_id, "status": "queued"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Support",
+                "service": "solve",
+                "status": "queued",
+            }
+        )
         # The lowest priority number is served first
         with agents.request(priority=priority) as request:
             yield request
-            publish({"path_id": path_id, "status": "started"})
+            publish(
+                {
+                    "path_id": path_id,
+                    "sim_id": "Support",
+                    "service": "solve",
+                    "status": "started",
+                }
+            )
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
             publish({"event_type": "solved", "priority": priority})
 

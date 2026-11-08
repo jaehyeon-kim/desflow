@@ -23,7 +23,7 @@ from simpy.events import Event
 
 from desflow.core.environment import schedule_urgent
 from desflow.core.registry import ParamRejected
-from desflow.utils import suggestion, time_to_seconds
+from desflow.utils import checked_seconds, suggestion
 from desflow.values.models import has_generator
 
 if TYPE_CHECKING:
@@ -60,9 +60,10 @@ def check_step(step: Mapping[str, Any]) -> dict:
     if "at" not in step:
         raise ValueError("a scenario step needs at")
     at = step["at"]
-    seconds = time_to_seconds(at) if isinstance(at, str) else at
-    if seconds < 0:
-        raise ValueError(f"a scenario step's at must be 0 or more, got {at!r}")
+    try:
+        seconds = checked_seconds(at, "a scenario step's at", ends=True)
+    except ValueError as exc:
+        raise ValueError(f"{exc}; at must be 0 or more") from None
     if ("path" in step) != ("value" in step):
         raise ValueError("a scenario step's path and value go together")
     if not ({"path", "record", "interrupt"} & set(step)):
@@ -205,8 +206,6 @@ def walk_steps(
     steps: Iterable[Tuple[float, Optional[str], Any]],
     registry: "SimulationRegistry",
     is_member: Callable[[str], bool],
-    *,
-    convert: bool = False,
 ) -> Iterator[Tuple[int, Optional[str], Any]]:
     """Applies scenario steps to a scratch registry in the order the run applies
     them, and yields each step's index with the problem found, so each caller words
@@ -221,14 +220,11 @@ def walk_steps(
         steps: Each step's time, path and value, in the order they are written.
         registry: The scratch registry, which the walk changes.
         is_member: Whether a path names an attribute of a member of a family.
-        convert: Whether a value must also convert to the type of the path's
-            current value, as the YAML loader checks.
 
     Yields:
         Tuple[int, Optional[str], Any]: `(index, None, None)` for a step with no
         problem; `(index, "path", None)` when its path is not in the registry;
-        `(index, "type", current)` when its value cannot be converted to the type of
-        `current`; `(index, "value", reason)` when the registry refuses the value.
+        `(index, "value", reason)` when the registry refuses the value.
         The walk ends after the first problem.
     """
     ordered = sorted(enumerate(steps), key=lambda item: item[1][0])
@@ -237,25 +233,13 @@ def walk_steps(
             yield index, None, None
             continue
         try:
-            entry = registry.get(path)
+            registry.get(path)
         except KeyError:
             yield index, "path", None
             return
         if has_generator(value):
             yield index, None, None
             continue
-        if convert:
-            current = entry.value
-            if (
-                current is not None
-                and not registry.is_queue_limit(path)
-                and not isinstance(value, type(current))
-            ):
-                try:
-                    type(current)(value)
-                except (TypeError, ValueError):
-                    yield index, "type", current
-                    return
         try:
             registry.change(path, value)
         except ParamRejected as exc:

@@ -10,6 +10,7 @@ from desflow.connectors.egress.base import (
     BaseEgress,
     drop_reserved_keys,
     group_rows,
+    keep_keyed,
     load_arrow,
     require_packages,
     warn_skipped,
@@ -194,9 +195,10 @@ class IcebergStorageEgress(BaseEgress):
     to that table, and the key is removed from the row. This replaces a
     `table_router` for the common case. A `table_router` wins over `__table__`, and a
     record with no `__table__` goes to `default_table`. An entry with `upsert_keys` is
-    keyed. It skips a record that has no destination, and a record that has none of its
-    table's key columns, and it logs one warning at the end of each flush with the
-    counts skipped. Before 1.0.0 such a record stopped the batch with an error.
+    keyed. It skips a record that has no destination, and a record with a null or
+    missing key column of its table, and it logs one warning at the end of each flush
+    with the counts skipped. Before 1.0.0 such a record stopped the batch with an
+    error.
 
     The catalog is supplied by the caller, either as a built `Catalog` or as a
     mapping of PyIceberg catalog properties that is passed to `load_catalog`. The
@@ -303,8 +305,8 @@ class IcebergStorageEgress(BaseEgress):
                 here is written with `upsert` on those columns; any other table is
                 appended to. An entry with `upsert_keys` is keyed: it skips a record
                 that has no destination (no `__table__`, no router and no
-                `default_table`), and a record that has none of its table's key
-                columns, and warns once at the end of each flush with the counts.
+                `default_table`), and a record with a null or missing key column of its
+                table, and warns once at the end of each flush with the counts.
             table_policy: What the sink does about a table at its first write.
                 `create`, the default, creates the namespace and the table when they
                 do not exist. `drop_and_create` drops the table if it exists and
@@ -350,6 +352,7 @@ class IcebergStorageEgress(BaseEgress):
         # A table whose schema the caller gave keeps it; an inferred one gains the
         # columns later batches add
         self._pinned = set(self.schemas)
+        self._declared_schemas = dict(self.schemas)
         self.locations: Dict[str, str] = dict(locations or {})
         self.upsert_keys: Dict[str, list] = {
             identifier: list(keys) for identifier, keys in (upsert_keys or {}).items()
@@ -367,7 +370,17 @@ class IcebergStorageEgress(BaseEgress):
         # Loaded tables, kept so a batch costs one append rather than a catalog
         # round trip as well. pyiceberg retries the commit if the handle is stale,
         # so another writer changing the table does not lose this one's records.
+        # `run` empties it at the start of each run.
         self._tables: Dict[str, Any] = {}
+
+    def _start_run(self) -> None:
+        """Forgets what the last run learned: the loaded tables, the schemas read back
+        from them, and a catalog built from `catalog_properties`. The table policy then
+        applies to the first write of every run, as `drop_and_create` says."""
+        self._tables = {}
+        self.schemas = dict(self._declared_schemas)
+        if self.catalog_properties is not None:
+            self.catalog = None
 
     def _load_libraries(self) -> None:
         """Imports `pyarrow` and what it loads on its first table, and
@@ -421,6 +434,7 @@ class IcebergStorageEgress(BaseEgress):
                 "pyarrow is required to build the batches. pip install desflow[iceberg]"
             )
 
+        self._start_run()
         batches_processed = 0
 
         try:
@@ -472,10 +486,9 @@ class IcebergStorageEgress(BaseEgress):
         Returns:
             int: The commits made, one per table written.
 
-        Raises:
-            ValueError: If an identifier names no namespace, or a record for an
-                upserted table lacks a key column. A batch the table refuses is
-                logged at ERROR instead.
+        A record at fault is skipped alone, with a warning: one routed to a table
+        with no namespace, or one with a null or missing upsert key. The other tables
+        and records are written.
         """
         # A table routes by __table__, and writes no other reserved key
         batch = drop_reserved_keys(batch, self, keep=("__table__",))
@@ -494,28 +507,18 @@ class IcebergStorageEgress(BaseEgress):
         try:
             for identifier, records in grouped_batches.items():
                 if "." not in identifier:
-                    raise ValueError(
+                    # Only the records of this table are at fault
+                    skipped["no_namespace"] += len(records)
+                    logger.warning(
                         f"'{identifier}' names no namespace; Iceberg identifiers are "
                         "'namespace.table'"
                     )
+                    continue
                 keys = self.upsert_keys.get(identifier)
                 if keys:
-                    # A record with none of the key columns is skipped
-                    kept = [
-                        r for r in records if any(r.get(k) is not None for k in keys)
-                    ]
-                    skipped["no_key"] += len(records) - len(kept)
-                    records = kept
+                    records = keep_keyed(records, keys, skipped)
                     if not records:
                         continue
-                    missing = sorted(
-                        {k for r in records for k in keys if r.get(k) is None}
-                    )
-                    if missing:
-                        # A null key never matches, so a rerun would insert the record again.
-                        raise ValueError(
-                            f"Records for {identifier} lack the upsert key column(s) {missing}"
-                        )
                 try:
                     self._write_table(identifier, records, keys, pa)
                 except Exception as exc:

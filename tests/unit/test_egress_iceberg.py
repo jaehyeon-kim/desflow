@@ -113,12 +113,17 @@ def test_requires_a_destination():
         IcebergStorageEgress(catalog=FakeCatalog())
 
 
-def test_identifier_must_name_a_namespace():
-    """A bare table name is not an Iceberg identifier, and says so before writing."""
-    egress = IcebergStorageEgress(catalog=FakeCatalog(), default_table="events")
+def test_identifier_must_name_a_namespace(caplog):
+    """A bare table name is not an Iceberg identifier: its records are skipped with a
+    warning that says so, and the other tables are written."""
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(catalog=catalog, default_table="events")
 
-    with pytest.raises(ValueError, match="names no namespace"):
-        egress._write_batch([{"key": "a"}], pa)
+    egress._write_batch([{"key": "a"}], pa)
+
+    assert catalog.tables == {}
+    assert "names no namespace" in caplog.text
+    assert "1 named a table with no namespace" in caplog.text
 
 
 def test_router_splits_records_across_tables():
@@ -302,10 +307,10 @@ def test_upsert_keeps_the_last_record_per_key_in_a_flush():
 
 @needs_upsert
 def test_upsert_record_without_its_key_is_skipped_with_a_warning(caplog):
-    """A record with none of its table's key columns cannot be matched, so a keyed
-    entry skips it, and one warning at the end of the flush gives the count. The
-    record that has its key is still upserted. Before 1.0.0 the first record stopped
-    the whole batch with a ValueError."""
+    """A record with a null or missing key column cannot be matched, so a keyed entry
+    skips it, and one warning at the end of the flush gives the count. The record that
+    has its key is still upserted. Before 1.0.0 the first record stopped the whole
+    batch with a ValueError."""
     catalog = FakeCatalog()
     egress = IcebergStorageEgress(
         catalog=catalog,
@@ -320,21 +325,32 @@ def test_upsert_record_without_its_key_is_skipped_with_a_warning(caplog):
     df, join_cols = catalog.tables["sim.orders"].upserted[0]
     assert df.to_pylist() == [{"order_id": 1, "status": "new"}]
     [warning] = [r for r in caplog.records if "skipped records" in r.getMessage()]
-    assert "2 had none of the key columns of their table" in warning.getMessage()
+    assert "2 had a null or missing key column of their table" in warning.getMessage()
 
 
 @needs_upsert
-def test_upsert_record_with_part_of_a_composite_key_still_raises():
-    """The skip is for a record with none of the key columns. One that has some of
-    them is a mistake in the model, and still stops the batch."""
+def test_upsert_record_with_part_of_a_composite_key_is_skipped_alone(caplog):
+    """A record that has some of the key columns but not all of them cannot be matched
+    either, and is skipped; the record with the whole key is upserted."""
+    catalog = FakeCatalog()
     egress = IcebergStorageEgress(
-        catalog=FakeCatalog(),
+        catalog=catalog,
         default_table="sim.orders",
         upsert_keys={"sim.orders": ["order_id", "line"]},
     )
 
-    with pytest.raises(ValueError, match="line"):
-        egress._write_batch([{"order_id": 1, "status": "new"}], pa)
+    egress._write_batch(
+        [
+            {"order_id": 1, "status": "new"},
+            {"order_id": 2, "line": 1, "status": "new"},
+            {"order_id": 3, "line": None, "status": "new"},
+        ],
+        pa,
+    )
+
+    df, _ = catalog.tables["sim.orders"].upserted[0]
+    assert df.to_pylist() == [{"order_id": 2, "line": 1, "status": "new"}]
+    assert "2 had a null or missing key column" in caplog.text
 
 
 def test_upsert_keys_on_a_pyiceberg_without_upsert_fails_at_construction(monkeypatch):
@@ -714,7 +730,7 @@ def test_an_entry_that_names_its_tables_routes_by_the_table_field_alone(caplog):
     ]
     [warning] = [r for r in caplog.records if "skipped records" in r.getMessage()]
     assert "had no __table__" in warning.getMessage()
-    assert "1 had none of the key columns" in warning.getMessage()
+    assert "1 had a null or missing key column" in warning.getMessage()
 
 
 def test_an_entry_without_any_destination_is_refused():

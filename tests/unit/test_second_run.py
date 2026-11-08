@@ -318,3 +318,21 @@ def test_a_second_run_gives_what_a_fresh_context_gives(name, make, until, run):
 def test_every_run_not_compared_is_a_run_of_the_capture():
     names = {case[0] for case in CASES}
     assert sorted((set(NOT_COMPARED) | set(SHORTER)) - names) == []
+
+
+def test_a_list_attribute_a_task_changes_starts_empty_for_every_entity_and_run():
+    seen = []
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_arrival(
+        "orders", gap=1, spawn="serve", max_events=3, attributes={"tags": []}
+    )
+
+    @app.task(name="serve", service_time=0)
+    def serve(task_id, entity):
+        seen.append(list(entity.attributes["tags"]))
+        entity.attributes["tags"].append(task_id)
+        return {}
+
+    app.run(until=10)
+    app.run(until=10)
+    assert all(tags == [] for tags in seen), seen

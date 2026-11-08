@@ -7,7 +7,7 @@ from typing import Dict, Iterator, List, NoReturn, Optional
 
 import typer
 
-from desflow.utils import time_to_seconds
+from desflow.utils import checked_seconds, time_to_seconds
 
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 LOG_DATEFMT = "%H:%M:%S"
@@ -31,16 +31,23 @@ def fail(message: str) -> NoReturn:
     raise typer.Exit(code=1)
 
 
-def parse_until(value: Optional[str]) -> Optional[float]:
-    """`--until` in seconds: a number, or a time such as `10 min`."""
+def parse_until(value: Optional[str], *, ends: bool = False) -> Optional[float]:
+    """`--until` in seconds: a number, or a time such as `10 min`.
+
+    Infinity is no end, and is refused with `ends`, for runs that are not paced and
+    must end: replications and `--verify`.
+    """
     if value is None:
         return None
     try:
-        return float(value)
+        seconds = float(value)
     except ValueError:
-        pass
+        try:
+            seconds = time_to_seconds(value)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from None
     try:
-        return time_to_seconds(value)
+        return float(checked_seconds(seconds, "--until", ends=ends))
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from None
 

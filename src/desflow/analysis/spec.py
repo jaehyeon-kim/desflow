@@ -6,6 +6,7 @@ misspelt key is reported with its line. `load_experiment` reads a file;
 `ExperimentSpec` also takes the same settings as a Python mapping.
 """
 
+import math
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
@@ -14,6 +15,7 @@ from pydantic import (
     ConfigDict,
     Field,
     ValidationError,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -21,12 +23,7 @@ from pydantic import (
 from desflow.blueprint.loader import BlueprintError, SourceMap, read_document
 from desflow.blueprint.models import unknown_key
 from desflow.analysis.models import LowLevelModel
-from desflow.utils import suggestion, time_to_seconds
-
-
-def _seconds(value: Any) -> Any:
-    """Reads seconds, or a duration such as `"8 h"`."""
-    return time_to_seconds(value) if isinstance(value, str) else value
+from desflow.utils import checked_seconds, suggestion
 
 
 class _Model(BaseModel):
@@ -38,6 +35,15 @@ class LowLevel(_Model):
 
     function: Callable[..., Any]
     sim_id: str
+
+
+class _At(ValueError):
+    """A cross-field refusal that names the key it is about, as a location such as
+    `("checks", 0, "variant")`, so the message gets that key's line."""
+
+    def __init__(self, location: tuple, message: str):
+        super().__init__(message)
+        self.location = location
 
 
 class Compare(_Model):
@@ -60,6 +66,13 @@ class Check(_Model):
     max: Optional[float] = None
     min: Optional[float] = None
     on: Literal["mean", "interval"] = "interval"
+
+    @field_validator("max", "min")
+    @classmethod
+    def _finite_bound(cls, value: Any, info: Any) -> Any:
+        if value is not None and not math.isfinite(value):
+            raise ValueError(f"{info.field_name} must be a finite number, got {value}")
+        return value
 
     @model_validator(mode="after")
     def _a_bound(self) -> "Check":
@@ -121,8 +134,12 @@ class ExperimentSpec(_Model):
 
     @field_validator("until", "warmup", mode="before")
     @classmethod
-    def _duration(cls, value: Any) -> Any:
-        return _seconds(value)
+    def _duration(cls, value: Any, info: ValidationInfo) -> Any:
+        # NaN, infinity and a bool are refused here; a value below 0 is left to
+        # the field's own range check, so its text stays as it was
+        if value is None:
+            return None
+        return checked_seconds(value, str(info.field_name), ends=True, below_zero=True)
 
     @field_validator("model", mode="before")
     @classmethod
@@ -145,6 +162,12 @@ class ExperimentSpec(_Model):
         for path, values in value.items():
             if not values:
                 raise ValueError(f"sweep {path} needs at least one value")
+            repeated = [v for i, v in enumerate(values) if v in values[:i]]
+            if repeated:
+                raise ValueError(
+                    f"sweep {path} lists {repeated[0]!r} more than once; each value "
+                    f"is one design"
+                )
         return value
 
     @model_validator(mode="after")
@@ -164,27 +187,38 @@ class ExperimentSpec(_Model):
                 "compare needs pairing: common, because a comparison is made seed "
                 "by seed"
             )
-        for entry in self.compare:
-            for name in (entry.baseline, entry.variant):
+        for index, entry in enumerate(self.compare):
+            for key in ("baseline", "variant"):
+                name = getattr(entry, key)
                 if name not in names:
-                    raise ValueError(
+                    raise _At(
+                        ("compare", index, key),
                         f"compare names {name}, which is not a variant"
-                        + _variant(name, names)
+                        + _variant(name, names),
                     )
-        for check in self.checks:
+        for index, check in enumerate(self.checks):
             if check.variant is not None and check.variant not in names:
-                raise ValueError(
+                raise _At(
+                    ("checks", index, "variant"),
                     f"a check names {check.variant}, which is not a variant"
-                    + _variant(check.variant, names)
+                    + _variant(check.variant, names),
                 )
             if check.measure not in self.measures:
-                raise ValueError(
-                    f"a check reads {check.measure}; add it to measures first"
+                raise _At(
+                    ("checks", index, "measure"),
+                    f"a check reads {check.measure}; add it to measures first",
                 )
+        if self.warmup is not None and self.warmup >= self.until:
+            raise _At(
+                ("warmup",),
+                f"warmup ({self.warmup:g} s) must be before until ({self.until:g} s); "
+                f"the measured window is until minus the warm-up",
+            )
         if self.observed and self.observed.variant not in (None, *names):
-            raise ValueError(
+            raise _At(
+                ("observed", "variant"),
                 f"observed names {self.observed.variant}, which is not a variant"
-                + _variant(self.observed.variant, names)
+                + _variant(self.observed.variant, names),
             )
         return self
 
@@ -220,8 +254,11 @@ def _error(exc: ValidationError, source: SourceMap) -> BlueprintError:
     messages = []
     for error in exc.errors():
         location = tuple(error["loc"])
+        cause = error.get("ctx", {}).get("error")
+        if isinstance(cause, _At):
+            location = cause.location
         where = ".".join(str(part) for part in location) or "top level"
-        text = error["msg"]
+        text = error["msg"].removeprefix("Value error, ")
         if error["type"] == "extra_forbidden":
             text = unknown_key(ExperimentSpec, location)
         messages.append(str(source.error(location, f"{where}: {text}")))

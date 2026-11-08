@@ -68,11 +68,31 @@ def pack(shop, key, arrival):
     env, stats, task_id = shop.env, shop.env.stats, shop.next_id("pack")
     path_id = "Shop.service.packing"
     stats.flow_started(arrival)  # the order enters the shop
-    shop.publish(key, "pack", task_id, {"path_id": path_id, "status": "queued"})
+    shop.publish(
+        key,
+        "pack",
+        task_id,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": "queued",
+        },
+    )
     stats.task_queued("pack", task_id)
     with shop.packers.request() as req:
         yield req
-        shop.publish(key, "pack", task_id, {"path_id": path_id, "status": "started"})
+        shop.publish(
+            key,
+            "pack",
+            task_id,
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            },
+        )
         stats.task_started("pack", task_id)
         yield env.timeout(shop.service("packing")[1])
         shop.publish(key, "pack", task_id, {"event_type": "order_packed"})
@@ -98,12 +118,24 @@ def inspect(shop, key, arrival):
     """A gift fails inspection and is wrapped instead; returns the last payload."""
     env, stats, task_id = shop.env, shop.env.stats, shop.next_id("inspect")
     path_id = "Shop.service.inspecting"
-    shop.publish(key, "inspect", task_id, {"path_id": path_id, "status": "started"})
+    shop.publish(
+        key,
+        "inspect",
+        task_id,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "inspecting",
+            "status": "started",
+        },
+    )
     stats.task_started("inspect", task_id)
     yield env.timeout(shop.service("inspecting")[1])
     if GIFT[arrival] == 1:
         failed = {
             "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "inspecting",
             "status": "failed",
             "reason": "gift needs wrapping",
         }
@@ -119,7 +151,17 @@ def inspect(shop, key, arrival):
 def wrap(shop, key):
     env, stats, task_id = shop.env, shop.env.stats, shop.next_id("wrap")
     path_id = "Shop.service.wrapping"
-    shop.publish(key, "wrap", task_id, {"path_id": path_id, "status": "started"})
+    shop.publish(
+        key,
+        "wrap",
+        task_id,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "wrapping",
+            "status": "started",
+        },
+    )
     stats.task_started("wrap", task_id)
     yield env.timeout(shop.service("wrapping")[1])
     payload = {"event_type": "wrapped"}

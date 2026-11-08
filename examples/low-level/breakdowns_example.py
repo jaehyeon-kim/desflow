@@ -60,7 +60,9 @@ def pack(env, sampler, station, key, task_id):
         env.publish_event(key, value, task="pack", instance=task_id)
 
     env.stats.flow_started("orders")
-    publish({"path_id": path_id, "status": "queued"})
+    publish(
+        {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+    )
     env.stats.task_queued("pack", task_id)
     remaining, started = None, False
     while True:
@@ -69,10 +71,24 @@ def pack(env, sampler, station, key, task_id):
         try:
             yield request
             if started:
-                publish({"path_id": path_id, "status": "resumed"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "resumed",
+                    }
+                )
                 env.stats.task_resumed("pack", task_id)
             else:
-                publish({"path_id": path_id, "status": "started"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    }
+                )
                 env.stats.task_started("pack", task_id)
                 started = True
             if remaining is None:
@@ -88,7 +104,12 @@ def pack(env, sampler, station, key, task_id):
             station.release(request)
             if since is not None:
                 remaining -= env.now - since
-            value = {"path_id": path_id, "status": "interrupted"}
+            value = {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "interrupted",
+            }
             publish({**value, "cause": interrupt.cause})
             env.stats.task_interrupted("pack", task_id)
     env.stats.flow_finished("orders")

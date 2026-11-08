@@ -38,6 +38,8 @@ REPORT_FILE = "report.md"
 _DURATION = re.compile(r"\.(wait|service)_(mean|max|p\d+)$")
 _AVERAGE = re.compile(r"_avg$")
 _PERCENT = re.compile(r"\.utilization(_avg)?$")
+# The seconds a resource was down, summed over the measured horizon
+_DOWNTIME = re.compile(r"^resources\..*\.downtime$")
 _AMOUNT = re.compile(r"^containers\..*\.(capacity|level|level_avg)$")
 _UNITS = {
     "s": "s",
@@ -54,7 +56,7 @@ _UNITS = {
 
 def _unit_of(measure: str) -> str:
     """The unit of a statistic: `s`, `percent`, `amount` or `count`."""
-    if _DURATION.search(measure):
+    if _DURATION.search(measure) or _DOWNTIME.search(measure):
         return "s"
     if _PERCENT.search(measure):
         return "percent"
@@ -66,9 +68,10 @@ def _unit_of(measure: str) -> str:
 def _population_of(measure: str) -> str:
     """What a statistic is measured on: `started instances` for a wait, which is
     recorded when an instance starts work; `finished instances` for a service,
-    recorded when it finishes; `time average`; `count over the horizon`; or
-    `end of run`, which includes `in_system` and `in_progress`, the entities and
-    instances still in the model when the run ends."""
+    recorded when it finishes; `time average`; `sum over the horizon` for a
+    resource's downtime; `count over the horizon`; or `end of run`, which includes
+    `in_system` and `in_progress`, the entities and instances still in the model when
+    the run ends."""
     if _DURATION.search(measure):
         # The statistic is the last part, so a task whose name holds `.wait_` reads
         # as any other
@@ -79,6 +82,8 @@ def _population_of(measure: str) -> str:
         )
     if _AVERAGE.search(measure):
         return "time average"
+    if _DOWNTIME.search(measure):
+        return "sum over the horizon"
     # Entities and instances still in the model are read when the run ends
     if measure.endswith((".in_system", ".in_progress")):
         return "end of run"

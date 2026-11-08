@@ -251,9 +251,9 @@ In `postgres/yaml`, which `desflow examples get postgres --api yaml` creates, `d
 
 <!-- records: postgres-sample -->
 ```text
-{"stream_type":"event","sim_ts":1.276,"timestamp":"...","key":"orders-1","task":"place_order","instance":0,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":0}}
-{"stream_type":"event","sim_ts":1.348,"timestamp":"...","key":"orders-2","task":"place_order","instance":1,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":1}}
-{"stream_type":"event","sim_ts":1.869,"timestamp":"...","key":"orders-3","task":"place_order","instance":2,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":2}}
+{"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"place_order","instance":0,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":0}}
+{"stream_type":"event","sim_ts":1.3479226635723796,"timestamp":"...","key":"orders-2","task":"place_order","instance":1,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":1}}
+{"stream_type":"event","sim_ts":1.8686592357447462,"timestamp":"...","key":"orders-3","task":"place_order","instance":2,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":2}}
 ```
 
 The fields of `value` and the `timestamp` fill the columns of `orders`. The task id is `order_id`, the table's primary key.

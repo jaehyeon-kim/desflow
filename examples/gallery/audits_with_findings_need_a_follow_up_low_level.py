@@ -67,10 +67,24 @@ def build(env):
         def publish(value):
             env.publish_event(key, value, task=task, instance=instance)
 
-        publish({"path_id": path_id, "status": "queued"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Compliance",
+                "service": task,
+                "status": "queued",
+            }
+        )
         with auditors.request() as request:
             yield request
-            publish({"path_id": path_id, "status": "started"})
+            publish(
+                {
+                    "path_id": path_id,
+                    "sim_id": "Compliance",
+                    "service": task,
+                    "status": "started",
+                }
+            )
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
             made = payload()
             publish(made)

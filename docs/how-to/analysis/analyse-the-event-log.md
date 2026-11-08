@@ -102,12 +102,28 @@ Add a Parquet sink, `ParquetStorageEgress`, to the shop. It writes one flat row 
     def pack_order(env, packers, sampler, key, task_id):
         path_id = "Shop.service.packing"
         env.publish_event(
-            key, {"path_id": path_id, "status": "queued"}, "pack_order", task_id
+            key,
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "queued",
+            },
+            "pack_order",
+            task_id,
         )
         with packers.request() as unit:
             yield unit
             env.publish_event(
-                key, {"path_id": path_id, "status": "started"}, "pack_order", task_id
+                key,
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "started",
+                },
+                "pack_order",
+                task_id,
             )
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
             # The finished event's value, so every event of a task has a status
@@ -503,12 +519,28 @@ The first order waits **0.0** seconds and is in the shop for **1.5** seconds. Th
         def pack_order(env, packers, sampler, key, task_id):
             path_id = "Shop.service.packing"
             env.publish_event(
-                key, {"path_id": path_id, "status": "queued"}, "pack_order", task_id
+                key,
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "queued",
+                },
+                "pack_order",
+                task_id,
             )
             with packers.request() as unit:
                 yield unit
                 env.publish_event(
-                    key, {"path_id": path_id, "status": "started"}, "pack_order", task_id
+                    key,
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    },
+                    "pack_order",
+                    task_id,
                 )
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 # The finished event's value, so every event of a task has a status

@@ -213,10 +213,10 @@ In `iceberg/yaml`, which `desflow examples get iceberg --api yaml` creates, `des
 
 <!-- records: iceberg-sample -->
 ```text
-{"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
-{"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
-{"stream_type":"event","sim_ts":0.674,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
-{"stream_type":"event","sim_ts":0.674,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"started"}}
+{"stream_type":"event","sim_ts":0.6380949691741167,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.6380949691741167,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":0.6739613317861898,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.6739613317861898,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
 ```
 
 Each event becomes one row of the table, and the two fields of `value`, `path_id` and `status`, become columns of their own.
@@ -597,7 +597,12 @@ Each event becomes one row of the table, and the two fields of `value`, `path_id
             path_id = "Shop.service.packing"
             env.publish_event(
                 key,
-                {"path_id": path_id, "status": "queued"},
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "queued",
+                },
                 task="pack_order",
                 instance=task_id,
             )
@@ -605,14 +610,22 @@ Each event becomes one row of the table, and the two fields of `value`, `path_id
                 yield req
                 env.publish_event(
                     key,
-                    {"path_id": path_id, "status": "started"},
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    },
                     task="pack_order",
                     instance=task_id,
                 )
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 env.publish_event(
                     key,
-                    {"path_id": path_id, "status": "finished"},
+                    {
+                        "path_id": path_id,
+                        "status": "finished",
+                    },
                     task="pack_order",
                     instance=task_id,
                 )

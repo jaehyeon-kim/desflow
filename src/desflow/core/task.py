@@ -52,7 +52,7 @@ from desflow.core.flow import (
 )
 from desflow.resources.resource import QueueFull
 from desflow.models.flow import Entity, Upstream, payload_of
-from desflow.utils import suggestion
+from desflow.utils import checked_seconds, suggestion
 from desflow.values.check import names_read
 from desflow.core.arrivals import whole
 from desflow.core.families import Reference, name_of, references
@@ -876,12 +876,16 @@ class TaskRun:
             **extra: Fields added after `status`, such as `reason` or `cause`.
 
         Returns:
-            Dict[str, Any]: `path_id` when the task has a service, then `status` and
-                the extra fields.
+            Dict[str, Any]: `path_id`, `sim_id` and `service` when the task has a
+                service, then `status` and the extra fields. A reader takes the two
+                names from their own fields, not by splitting `path_id`, which cannot
+                tell a name that holds `.service.` from the separator.
         """
         value: Dict[str, Any] = {}
         if self.spec.service_id is not None:
             value["path_id"] = f"{self.context.sim_id}.service.{self.spec.service_id}"
+            value["sim_id"] = self.context.sim_id
+            value["service"] = self.spec.service_id
         value["status"] = state
         value.update(extra)
         return value
@@ -1329,17 +1333,17 @@ class TaskRun:
         self._end_flow("failed")
         return None
 
-    @staticmethod
-    def _target_label(node: Any) -> Optional[str]:
-        """What `process.target` reads for a wait node: None for a group."""
+    def _target_label(self, node: Any) -> Optional[str]:
+        """What `process.target` reads for a wait node: None for a group. A name a task
+        computes is read as the member it picks, as the wait itself reads it."""
         if node.is_group:
             return None
         if node.kind in ("signal", "task", "handle"):
-            return f"{node.kind}.{node.target}"
+            return f"{node.kind}.{self._named(node.target)}"
         if node.kind == "request":
-            return f"resource.{node.target}"
+            return f"resource.{self._named(node.target)}"
         if node.kind in ("get", "put"):
-            return f"{node.kind}.{node.target.target}"
+            return f"{node.kind}.{self._named(node.target.target)}"
         if node.kind == "running":
             return f"task.{node.target['task']}"
         return node.kind  # timeout or condition
@@ -1426,7 +1430,13 @@ class TaskRun:
 
         payload: Any = None
         silent = False  # `payload: null`: the task publishes no finished record
-        rank = self._rank() if self.spec.resources else None
+        rank = None
+        if self.spec.resources:
+            try:
+                rank = self._rank()
+            except Exception as error:  # a priority that does not compare
+                if failure is None:
+                    failure = self._fail_with(error)
         may_preempt = self._preempt() if self.spec.resources else False
         remaining: Optional[float] = None  # service still owed, when interrupted
         started = got_item = put_done = no_time_left = False
@@ -2203,6 +2213,25 @@ class TaskRun:
             self.env.stats.task_failed(self.spec.name, self.task_id)
         return reason
 
+    def _checked_rank(self, value: Any, what: str) -> Any:
+        """A rank or priority that compares: a finite number, or a list of them.
+
+        Raises:
+            ValueError: Naming the holder and the task, if it is anything else.
+        """
+        numbers_ = value if isinstance(value, (list, tuple)) else [value]
+        if not numbers_ or any(
+            isinstance(n, bool)
+            or not isinstance(n, numbers.Real)
+            or not math.isfinite(n)
+            for n in numbers_
+        ):
+            raise ValueError(
+                f"task '{self.spec.name}': {what} gave {value!r}, and it must be a "
+                f"finite number"
+            )
+        return value
+
     def _rank_on(
         self,
         resource: Any,
@@ -2222,16 +2251,22 @@ class TaskRun:
         rule = getattr(resource, "rank_of", None)
         if rule is not None:
             try:
-                return rule.evaluate(self.scope())
+                rank = rule.evaluate(self.scope())
             except ValueError as error:
                 raise ValueError(
                     f"the queue rank of resource '{resource.obj_id}': {error}"
                 ) from None
+            return self._checked_rank(
+                rank, f"the queue rank of resource '{resource.obj_id}'"
+            )
         priority = None if options is None else options.priority
+        what = f"the priority of a request for resource '{resource.obj_id}'"
         if isinstance(priority, Expression):
-            return priority.evaluate(self.scope())
+            return self._checked_rank(priority.evaluate(self.scope()), what)
         if callable(priority):
-            return priority(self.task_id, self.entity.attributes)
+            return self._checked_rank(
+                priority(self.task_id, self.entity.attributes), what
+            )
         if priority is not None:
             return priority
         if options is not None and options.mapping:
@@ -3110,11 +3145,7 @@ class TaskRun:
                 f"task '{self.spec.name}' {key} gave {value!r}, which is not a number "
                 f"of seconds"
             )
-        if value < 0:
-            raise ValueError(
-                f"task '{self.spec.name}' {key} gave {value!r}, which is below 0"
-            )
-        return value
+        return checked_seconds(value, f"task '{self.spec.name}' {key}")
 
     def _patience(self) -> Union[int, float]:
         spec = self.spec
@@ -3126,18 +3157,17 @@ class TaskRun:
             given = as_given(spec.patience(self.task_id, self.entity.attributes))
         else:
             return as_given(spec.patience)
-        if given < 0:
-            raise ValueError(
-                f"task '{spec.name}' patience gave {given!r}, which is below 0"
-            )
-        return given
+        return checked_seconds(given, f"task '{spec.name}' patience")
 
     def _rank(self) -> Any:
+        """The task's own priority for its resources, refused unless it compares."""
         spec = self.spec
         if spec.rank_of is not None:
-            return spec.rank_of.evaluate(self.scope())
+            return self._checked_rank(spec.rank_of.evaluate(self.scope()), "priority")
         if callable(spec.priority):
-            return spec.priority(self.task_id, self.entity.attributes)
+            return self._checked_rank(
+                spec.priority(self.task_id, self.entity.attributes), "priority"
+            )
         return 0 if spec.priority is None else spec.priority
 
     def _balk_at(self, resource: Any, held: Optional[List[Any]] = None) -> None:
@@ -3310,6 +3340,13 @@ class TaskRun:
                     self.parts.families.origin(held_name)
                 ):
                     rank = transfer.priority_for(self.task_id, self.upstream, scope)
+                    if isinstance(rank, float) and not math.isfinite(rank):
+                        # Any orderable type is a priority, but NaN orders nothing
+                        raise ValueError(
+                            f"task '{self.spec.name}': the priority of store "
+                            f"'{held_name}' gave {rank!r}, and it must be a finite "
+                            f"number"
+                        )
                     event = store.put(store.wrap(payload, rank), **ranked)
                 else:
                     event = store.put(payload, **ranked)
@@ -3336,11 +3373,16 @@ class TaskRun:
         if rule is None:
             return {}
         try:
-            return {"rank": rule.evaluate(scope)}
+            rank = rule.evaluate(scope)
         except ValueError as error:
             raise ValueError(
                 f"the {direction}_queue rank of '{holder.obj_id}': {error}"
             ) from None
+        return {
+            "rank": self._checked_rank(
+                rank, f"the {direction}_queue rank of '{holder.obj_id}'"
+            )
+        }
 
     def _transfer_value(self, transfer: Transfer, direction: str, event: Any) -> Any:
         """The value a finished get or put event gives the task: the item a get took,

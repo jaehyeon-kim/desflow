@@ -32,7 +32,7 @@ from typing import (
 import numpy as np
 from simpy import Environment
 
-from desflow.core.context import SimulationContext
+from desflow.core.context import SimulationContext, parts_of
 from desflow.core.environment import (
     DynamicRealtimeEnvironment,
     end_is_set,
@@ -40,7 +40,7 @@ from desflow.core.environment import (
 )
 from desflow.core.sampler import Sampler
 from desflow.core.statistics import published_value
-from desflow.utils import time_to_seconds
+from desflow.utils import checked_seconds
 
 
 @dataclass(frozen=True)
@@ -148,18 +148,27 @@ def values_of(
     return values
 
 
-def seconds(value: Union[float, str, None]) -> Optional[float]:
+def seconds(
+    value: Union[float, str, None], what: str = "until", *, ends: bool = True
+) -> Optional[float]:
     """Reads seconds, or a duration such as `"8 h"`; None stays None.
 
     Args:
         value: A number of seconds, a duration, or None.
+        what: The setting, such as `"warmup"`, for the refusal.
+        ends: Whether infinity is refused, as it is for the end of a run that is
+            not paced.
 
     Returns:
         Optional[float]: The seconds, or None.
+
+    Raises:
+        ValueError: If `value` is a bool, NaN, below 0 or, with `ends`, infinite,
+            naming `what`.
     """
     if value is None:
         return None
-    return time_to_seconds(value) if isinstance(value, str) else float(value)
+    return float(checked_seconds(value, what, ends=ends))
 
 
 def describe(model: Model) -> str:
@@ -243,20 +252,25 @@ def context_of(model: Model) -> Optional[SimulationContext]:
 
 
 def default_until(model: Model) -> Optional[float]:
-    """Returns the blueprint's `run.until` for a blueprint path.
+    """Returns the model's `run.until`: a blueprint's, or the one a factory's context
+    holds because the factory loads a blueprint.
 
     Args:
         model: A blueprint path, a builder factory or a `LowLevelModel`.
 
     Returns:
-        Optional[float]: The until in seconds, or None for another model or a
-            blueprint without one.
+        Optional[float]: The until in seconds, or None for a low-level model or a
+            model without one.
+
+    Raises:
+        TypeError: If a factory returns something other than a `SimulationContext`.
     """
     if isinstance(model, (str, Path)):
         from desflow.blueprint.build import build
 
         return build(model)[1].until
-    return None
+    context = context_of(model)
+    return None if context is None else parts_of(context).defaults.until
 
 
 def _build(
@@ -478,7 +492,11 @@ def _run_low_level(
         if process.is_alive:
             process.interrupt("arrivals stopped")
             process.defused = True
-    limit = seconds(drain.get("limit")) if isinstance(drain, Mapping) else None
+    limit = (
+        seconds(drain.get("limit"), "run.drain.limit", ends=False)
+        if isinstance(drain, Mapping)
+        else None
+    )
     last = float("inf") if limit is None else until + limit
     while env.stats.in_system() > 0 and Environment.peek(env) < last:
         env._step_event()

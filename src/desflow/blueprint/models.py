@@ -10,6 +10,7 @@ fails when the file is loaded rather than during the run.
 import inspect
 import keyword
 import numbers
+from decimal import Decimal
 import re
 from datetime import datetime, timedelta
 from types import UnionType
@@ -73,14 +74,23 @@ from desflow.core.environment import (
     resolve_zone,
 )
 from desflow.core.families import Reference
-from desflow.core.flow import Open, Release, Router, Transfer, Wait
+from desflow.core.flow import Open, Release, Router, Transfer, Wait, check_batch_size
 from desflow.models.params import DistributionConfig
 from desflow.resources.base import check_ties
 from desflow.resources.container import ContainerBase, check_container_type
 from desflow.resources.resource import ResourceBase, check_resource_type
 from desflow.resources.store import StoreBase, check_store_type
 from desflow.values.models import GENERATORS, Generator, Payload, Value, _Gen
-from desflow.utils import _seconds, suggestion, time_to_seconds
+from desflow.utils import (
+    _seconds,
+    checked_count,
+    checked_factor,
+    checked_interval,
+    checked_seconds,
+    checked_whole,
+    suggestion,
+    time_to_seconds,
+)
 
 # The names an egress `when` takes instead of a `!python` function.
 WHEN_NAMES = ("history", "live", "events", "telemetry", LABELS, TRACE)
@@ -91,6 +101,19 @@ def _place_kind(value: Any) -> str:
     mapping with `gen`), or a plain number or text."""
     if isinstance(value, _Gen) or (isinstance(value, Mapping) and "gen" in value):
         return "<gen>"
+    return "<plain>"
+
+
+def _shape_of(value: Any) -> str:
+    """Which member of a field that takes a name, a mapping or a list a value is, so
+    only that member reports its errors: a `{of: ...}` reference, any other mapping,
+    a list, or a plain value."""
+    if isinstance(value, Ref):
+        return "<ref>"
+    if isinstance(value, (BaseModel, Mapping)):
+        return "<ref>" if isinstance(value, Mapping) and "of" in value else "<map>"
+    if isinstance(value, (list, tuple)):
+        return "<list>"
     return "<plain>"
 
 
@@ -152,8 +175,10 @@ def _check_time_place(value: Any, what: str, run_scope: bool = False) -> None:
     """
     if isinstance(value, str):
         check_run_text(value, what, run_scope)
-    elif isinstance(value, numbers.Real) and not float(value) >= 0:
-        raise ValueError(f"{what} must be 0 or more, got {value!r}")
+    elif isinstance(value, (numbers.Real, Decimal)):
+        if not isinstance(value, bool) and value < 0:
+            raise ValueError(f"{what} must be 0 or more, got {value!r}")
+        checked_seconds(value, what)
 
 
 def check_run_text(text: str, what: str, run_scope: bool) -> None:
@@ -299,6 +324,12 @@ class Simulation(_Model):
 
     sim_id: str
     factor: float = 1.0
+
+    @field_validator("factor", mode="before")
+    @classmethod
+    def _factor_number(cls, value: Any) -> Any:
+        return checked_factor(value)
+
     random_seed: Optional[int] = None
     # Before the times, so `now` and times without an offset can be read in it
     timezone: Optional[str] = None
@@ -312,6 +343,19 @@ class Simulation(_Model):
     strict: Optional[bool] = None
     # A subclass of DynamicRealtimeEnvironment, as `!python module.Env`
     environment: Optional[Type[DynamicRealtimeEnvironment]] = None
+
+    @field_validator("random_seed", mode="before")
+    @classmethod
+    def _check_seed(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        # A `${SEED:-42}` placeholder reaches the model as the text "42", and a whole
+        # float such as 42.0 or "42.0" is the seed 42
+        if isinstance(value, str) and re.fullmatch(r"[+-]?[0-9]+", value.strip()):
+            value = int(value)
+        elif isinstance(value, str) and re.fullmatch(r"[+-]?[0-9]+\.0*", value.strip()):
+            value = float(value)
+        return checked_whole(value, "random_seed", 0, whole_floats=True)
 
     @field_validator("environment")
     @classmethod
@@ -340,8 +384,17 @@ class Simulation(_Model):
 
     @field_validator("warmup", "initial_time", "lag_interval", mode="before")
     @classmethod
-    def _parse_duration(cls, value: Any) -> Any:
-        return None if value is None else _seconds(value)
+    def _parse_duration(cls, value: Any, info: Any) -> Any:
+        return (
+            None
+            if value is None
+            else checked_seconds(
+                value,
+                info.field_name,
+                ends=info.field_name == "initial_time",
+                below_zero=info.field_name == "initial_time",
+            )
+        )
 
 
 class Distribution(_Model):
@@ -368,17 +421,49 @@ class Distribution(_Model):
     counts: Optional[List[float]] = None
     p: Optional[Union[int, float]] = None
 
+    @field_validator(
+        "rate",
+        "shape",
+        "p",
+        "weights",
+        "counts",
+        "mean",
+        "std",
+        "low",
+        "value",
+        "high",
+        "mode",
+        "scale",
+        "values",
+        "edges",
+        mode="before",
+    )
+    @classmethod
+    def _no_boolean(cls, value: Any, info: Any) -> Any:
+        items = value if isinstance(value, list) else [value]
+        if any(isinstance(item, bool) for item in items):
+            raise ValueError(f"{info.field_name} must be a number, got {value!r}")
+        return value
+
     @field_validator(*TIME_PARAMETERS, mode="before")
     @classmethod
-    def _duration(cls, value: Any) -> Any:
-        return None if value is None else _seconds(value)
+    def _duration(cls, value: Any, info: Any) -> Any:
+        # The sign is left to each family's own check, which refuses a negative time
+        # where one cannot be drawn and keeps a normal mean below 0
+        return (
+            None
+            if value is None
+            else checked_seconds(value, info.field_name, below_zero=True)
+        )
 
     @field_validator(*TIME_LIST_PARAMETERS, mode="before")
     @classmethod
-    def _durations(cls, value: Any) -> Any:
+    def _durations(cls, value: Any, info: Any) -> Any:
         if not isinstance(value, list):
             return value
-        return [_seconds(item) for item in value]
+        return [
+            checked_seconds(item, info.field_name, below_zero=True) for item in value
+        ]
 
     @model_validator(mode="after")
     def _distribution_in_range(self) -> "Distribution":
@@ -492,8 +577,14 @@ class Arrival(Distribution):
 
     @field_validator("first_at", mode="before")
     @classmethod
-    def _first_at_time(cls, value: Any) -> Any:
-        return None if value is None else _seconds(value)
+    def _first_at_time(cls, value: Any, info: Any) -> Any:
+        # The sign is left to each family's own check, which refuses a negative time
+        # where one cannot be drawn and keeps a normal mean below 0
+        return (
+            None
+            if value is None
+            else checked_seconds(value, info.field_name, below_zero=True)
+        )
 
     @model_validator(mode="after")
     def _distribution_in_range(self) -> "Arrival":
@@ -547,6 +638,18 @@ class Arrival(Distribution):
             raise ValueError("keys lists each key once")
         if self.keys is not None and not self.keys:
             raise ValueError("keys needs at least one key")
+        if (
+            isinstance(self.key, (str, int, float))
+            and not isinstance(self.key, bool)
+            and isinstance(self.count, int)
+            and not isinstance(self.count, bool)
+            and self.count > 1
+        ):
+            raise ValueError(
+                f"key {self.key!r} with a count of {self.count} gives every entity of "
+                f"a group the same key; keys lists each key once, so write keys with "
+                f"{self.count} different keys, or use a generator for key"
+            )
         if self.spawn is None:
             for name in (
                 "count",
@@ -662,7 +765,12 @@ class PreemptRule(_Model):
 
 def _capacity_text(value: Any) -> Any:
     """A capacity written as text that is only a number (as `${NAME}` gives) is that
-    number; any other text stays, for a family to read as an expression."""
+    number; any other text stays, for a family to read as an expression. `true` and
+    `false` are refused, which pydantic would read as 1 and 0."""
+    if isinstance(value, bool):
+        raise ValueError(
+            f"a capacity is a whole number of 0 or more, or infinity, got {value!r}"
+        )
     if isinstance(value, str) and _PLAIN_NUMBER.fullmatch(value.strip()):
         number = float(value)
         return int(number) if number.is_integer() and "." not in value else number
@@ -716,6 +824,26 @@ def _name(value: Any) -> Any:
     return value.name() if isinstance(value, Ref) else value
 
 
+# The members of a union field are picked by the shape of the value, so a refusal
+# names the member the value is and not the others
+QueueOrder = Annotated[
+    Union[
+        Annotated[str, Tag("<plain>")],
+        Annotated[QueueRule, Tag("<map>")],
+    ],
+    Discriminator(_shape_of),
+]
+
+
+PreemptSetting = Annotated[
+    Union[
+        Annotated[bool, Tag("<plain>")],
+        Annotated[PreemptRule, Tag("<map>")],
+    ],
+    Discriminator(_shape_of),
+]
+
+
 class Resource(_Model):
     """A `resources` entry: its capacity, the order its queue is served in, whether
     a request of a lower priority value preempts a user, how many requests may wait,
@@ -739,11 +867,21 @@ class Resource(_Model):
 
     current_cap: Optional[Union[int, float, str]] = None
     max_cap: Optional[Union[int, float, str]] = None
-    queue: Union[str, QueueRule] = DEFAULT_QUEUE_ORDER
-    preempt: Union[bool, PreemptRule] = False
+    queue: QueueOrder = DEFAULT_QUEUE_ORDER
+    preempt: PreemptSetting = False
     queue_limit: Optional[int] = None
     type: Optional[Type[ResourceBase]] = None
     breakdown: Optional[Breakdown] = None
+
+    @field_validator("queue_limit", mode="before")
+    @classmethod
+    def _queue_limit_not_boolean(cls, value: Any) -> Any:
+        if isinstance(value, bool):
+            raise ValueError(
+                f"queue_limit is a whole number of 0 or more, or null, got {value!r}"
+            )
+        return value
+
     family: bool = False
     members: Optional[CountPlace] = None
 
@@ -772,7 +910,9 @@ class Resource(_Model):
         if (
             self.current_cap is None
             and isinstance(self.max_cap, (int, float))
-            and self.max_cap < 1
+            and 0
+            <= self.max_cap
+            < 1  # a negative capacity is refused by the capacity check
         ):
             raise ValueError(
                 f"max_cap {self.max_cap} is below 1, the default current_cap; give "
@@ -809,7 +949,13 @@ def _check_family(model: Any, fields: Any) -> None:
     if isinstance(model.members, int) and model.members < 0:
         raise ValueError(f"members is 0 or more, got {model.members}")
     if isinstance(model.members, str):
-        Expression(model.members)
+        outside = Expression(model.members).outside_run()
+        if outside:
+            raise ValueError(
+                f"members '{model.members}' reads {outside}, but a family has no "
+                f"entity; members reads the run (level, users, queue, signal, "
+                f"registry and t)"
+            )
     for name in fields:
         value = getattr(model, name)
         if isinstance(value, str):
@@ -885,7 +1031,7 @@ class Store(_Model):
             self.type,
         )
         room = _room(self.current_cap, self.max_cap)
-        if len(self.items) > room:
+        if room >= 0 and len(self.items) > room:  # a negative capacity is refused later
             raise ValueError(
                 f"the store holds {room:g} items, so it cannot start with "
                 f"{len(self.items)}; raise current_cap and max_cap, or give fewer "
@@ -976,6 +1122,15 @@ class TransferStep(_Model):
     wait: bool = True
     item: Value = None
 
+    @field_validator("amount", mode="before")
+    @classmethod
+    def _amount_not_boolean(cls, value: Any) -> Any:
+        if isinstance(value, bool):
+            raise ValueError(
+                f"amount is a number above 0 or an expression, got {value!r}"
+            )
+        return value
+
     @field_validator("priority", mode="before")
     @classmethod
     def _priority_is_a_literal(cls, value: Any) -> Any:
@@ -1030,6 +1185,8 @@ class Next(_Model):
             return value
         read: Dict[Any, Any] = {}
         for name, weight in value.items():
+            if isinstance(weight, bool):
+                raise ValueError(f"the weight of '{name}' must be a number")
             if isinstance(weight, str):
                 try:
                     weight = float(weight)
@@ -1134,6 +1291,8 @@ class ResumeSpec(_Model):
     @field_validator("limit")
     @classmethod
     def _limit_parses(cls, value: Any) -> Any:
+        if isinstance(value, int) and value < 0:
+            raise ValueError(f"a resume limit must be 0 or more, got {value!r}")
         if isinstance(value, str):
             Expression(value)
         return value
@@ -1174,6 +1333,7 @@ class BatchSpec(_Model):
     @classmethod
     def _size_not_boolean(cls, value: Any) -> Any:
         _refuse_boolean(value, "batch size")
+        check_batch_size(value)
         return value
 
     @field_validator("timeout", mode="before")
@@ -1374,6 +1534,8 @@ class OnEntry(_Model):
             )
         if self.value is not None and self.path is None and self.fire is None:
             raise ValueError("on: value belongs to a path or a fire action")
+        if self.path is not None and "value" not in self.model_fields_set:
+            raise ValueError("a path needs a value")
         if self.interrupt is not None and self.interrupt.task is None:
             raise ValueError(
                 "an on: entry interrupts a task; a handle is the interrupt key of a "
@@ -1739,6 +1901,20 @@ def _generators_as_zero(raw: Any) -> Any:
     return out
 
 
+def _branch_puts_to_a_store(branch: Any) -> bool:
+    """Whether a wait branch as written, or a branch inside it, is a `put` to a store."""
+    if not isinstance(branch, Mapping):
+        return False
+    put = branch.get("put")
+    if isinstance(put, Mapping) and put.get("store") is not None:
+        return True
+    inner: List[Any] = [branch.get("branch")]
+    for key in ("any", "all", "of"):
+        if isinstance(branch.get(key), Mapping):
+            inner += list(branch[key].values())
+    return any(_branch_puts_to_a_store(found) for found in inner)
+
+
 def _with_typed_values(raw: Any, typed: Any) -> Any:
     """`raw`, a wait branch as written, with each timeout `value` replaced by the
     validated one, so a generator in it is a generator and not a mapping.
@@ -1779,6 +1955,10 @@ def _with_typed_values(raw: Any, typed: Any) -> Any:
     if isinstance(raw.get("request"), Mapping):
         # `preempt: "t"` is the boolean word, so the validated mapping replaces the raw
         return {"request": typed.request.model_dump(exclude_none=True)}
+    for key in ("get", "put"):
+        if isinstance(raw.get(key), Mapping) and "item" in raw[key]:
+            # The typed item holds the generators, as a task's own put does
+            return {key: {**raw[key], "item": getattr(typed, key).item}}
     if "of" in raw and isinstance(raw["of"], Mapping):
         return {
             **raw,
@@ -1927,6 +2107,53 @@ def _payload_form(value: Any) -> str:
     if callable(value) and not isinstance(value, (dict, list, _Gen)):
         return "<python>"
     return "<value>"
+
+
+CancelPlace = Annotated[
+    Union[
+        Annotated[str, Tag("<plain>")],
+        Annotated[HandleRef, Tag("<map>")],
+    ],
+    Discriminator(_shape_of),
+]
+
+
+SeizePlace = Annotated[
+    Union[
+        Annotated[str, Tag("<plain>")],
+        Annotated[SeizeSpec, Tag("<map>")],
+    ],
+    Discriminator(_shape_of),
+]
+
+
+ReleasePlace = Annotated[
+    Union[
+        Annotated[str, Tag("<plain>")],
+        Annotated[Ref, Tag("<ref>")],
+        Annotated[ReleaseSpec, Tag("<map>")],
+    ],
+    Discriminator(_shape_of),
+]
+
+
+SignalPlace = Annotated[
+    Union[
+        Annotated[str, Tag("<plain>")],
+        Annotated[Ref, Tag("<ref>")],
+    ],
+    Discriminator(_shape_of),
+]
+
+
+ResourcePlace = Annotated[
+    Union[
+        Annotated[str, Tag("<plain>")],
+        Annotated[Ref, Tag("<ref>")],
+        Annotated[List[Union[str, Ref]], Tag("<list>")],
+    ],
+    Discriminator(_shape_of),
+]
 
 
 class Task(_Model):
@@ -2088,7 +2315,7 @@ class Task(_Model):
 
     service: Optional[str] = None
     service_time: Optional[TimePlace] = None
-    resource: Optional[Union[str, Ref, List[Union[str, Ref]]]] = None
+    resource: Optional[ResourcePlace] = None
     payload: Optional[
         Annotated[
             Union[
@@ -2134,10 +2361,10 @@ class Task(_Model):
     wait: Optional[WaitBranch] = None
     open: Optional[Dict[str, OpenBranch]] = None
     listen: Optional[ListenSpec] = None
-    cancel: Optional[Union[str, HandleRef]] = None
-    seize: Optional[Union[str, SeizeSpec]] = None
-    release: Optional[Union[str, Ref, ReleaseSpec]] = None
-    signal: Optional[Union[str, Ref]] = None
+    cancel: Optional[CancelPlace] = None
+    seize: Optional[SeizePlace] = None
+    release: Optional[ReleasePlace] = None
+    signal: Optional[SignalPlace] = None
     fail: Optional[str] = None
     fail_reason: Value = None
     on_fail: Optional[str] = None
@@ -2272,6 +2499,14 @@ class Task(_Model):
             for name, branch in value.items()
         }
 
+    def _puts_to_a_store(self) -> bool:
+        """Whether the task puts to a store: its own `put`, or one in its `wait` or
+        `open`, also under `each`, `any`, `all` and `at_least`."""
+        if self.put is not None and self.put.store is not None:
+            return True
+        branches = [self.wait, *(self.open or {}).values()]
+        return any(_branch_puts_to_a_store(branch) for branch in branches)
+
     def handles(self) -> List[str]:
         """The names the task's `open` makes, in the order written."""
         return [] if self.open is None else list(self.open)
@@ -2296,9 +2531,11 @@ class Task(_Model):
     def _patience_duration(cls, value: Any, info: ValidationInfo) -> Any:
         """Reads a duration such as `30 s`; any other text is an expression. A boolean
         is refused for `service_time`; a `patience` of `true` loaded before."""
-        if info.field_name == "service_time":
-            _refuse_boolean(value, "service_time")
-        return _duration_text(value)
+        _refuse_boolean(value, info.field_name)
+        read = _duration_text(value)
+        if isinstance(read, (int, float)):
+            _check_time_place(read, info.field_name)
+        return read
 
     @field_validator("preempt", mode="before")
     @classmethod
@@ -2347,7 +2584,7 @@ class Task(_Model):
             and self.service_time is None
         ):
             raise ValueError("a task with a resource needs a service or a service_time")
-        if self.payload is None and self.put is not None and self.put.store is not None:
+        if self.payload is None and self._puts_to_a_store():
             raise ValueError(
                 "payload: null publishes no record, so there is no payload for a "
                 "store put to carry"
@@ -2570,6 +2807,16 @@ class EgressConnector(Connector):
     batch_size: Optional[int] = Field(default=None, gt=0)
     flush_interval: Optional[float] = Field(default=None, gt=0)
 
+    @field_validator("batch_size", mode="before")
+    @classmethod
+    def _batch_size_count(cls, value: Any) -> Any:
+        return None if value is None else checked_count(value, "batch_size")
+
+    @field_validator("flush_interval", mode="before")
+    @classmethod
+    def _flush_interval_seconds(cls, value: Any) -> Any:
+        return None if value is None else checked_interval(value, "flush_interval")
+
     @field_validator("when", mode="before")
     @classmethod
     def _known_name(cls, value: Any) -> Any:
@@ -2589,6 +2836,16 @@ class Batching(_Model):
     max_queued_batches: Optional[int] = Field(default=None, gt=0)
     drain_stall_seconds: Optional[float] = Field(default=None, gt=0)
 
+    @field_validator("batch_size", "max_queued_batches", mode="before")
+    @classmethod
+    def _counts(cls, value: Any, info: Any) -> Any:
+        return None if value is None else checked_count(value, info.field_name)
+
+    @field_validator("flush_interval", "drain_stall_seconds", mode="before")
+    @classmethod
+    def _intervals(cls, value: Any, info: Any) -> Any:
+        return None if value is None else checked_interval(value, info.field_name)
+
 
 class Telemetry(_Model):
     """A `telemetry` entry: custom readings published every `interval` seconds.
@@ -2607,6 +2864,11 @@ class Telemetry(_Model):
     interval: float = Field(gt=0)
     function: Optional[Callable[..., Any]] = None
     readings: Optional[Dict[str, str]] = None
+
+    @field_validator("interval", mode="before")
+    @classmethod
+    def _interval_seconds(cls, value: Any) -> Any:
+        return checked_interval(value, "interval")
 
     @model_validator(mode="after")
     def _one_source(self) -> "Telemetry":
@@ -2640,8 +2902,9 @@ class Stats(_Model):
 
     @field_validator("interval", mode="before")
     @classmethod
-    def _parse_interval(cls, value: Any) -> Any:
-        return _seconds(value)
+    def _parse_interval(cls, value: Any, info: Any) -> Any:
+        # A value below 0 is refused by the field's own `gt=0`
+        return checked_seconds(value, info.field_name, below_zero=True)
 
     @field_validator("level")
     @classmethod
@@ -2688,8 +2951,8 @@ class ScenarioStep(_Model):
 
     @field_validator("at", mode="before")
     @classmethod
-    def _parse_at(cls, value: Any) -> Any:
-        return _seconds(value)
+    def _parse_at(cls, value: Any, info: Any) -> Any:
+        return checked_seconds(value, "a scenario step at", ends=True)
 
     @model_validator(mode="after")
     def _something_to_do(self) -> "ScenarioStep":
@@ -2716,8 +2979,14 @@ class Drain(_Model):
 
     @field_validator("limit", mode="before")
     @classmethod
-    def _parse_limit(cls, value: Any) -> Any:
-        return None if value is None else _seconds(value)
+    def _parse_limit(cls, value: Any, info: Any) -> Any:
+        # The sign is left to each family's own check, which refuses a negative time
+        # where one cannot be drawn and keeps a normal mean below 0
+        return (
+            None
+            if value is None
+            else checked_seconds(value, info.field_name, below_zero=True)
+        )
 
 
 def _check_stop(value: Any) -> Any:
@@ -2752,8 +3021,8 @@ class RunSegment(_Model):
 
     @field_validator("until", mode="before")
     @classmethod
-    def _parse_until(cls, value: Any) -> Any:
-        return None if value is None else _seconds(value)
+    def _parse_until(cls, value: Any, info: Any) -> Any:
+        return None if value is None else checked_seconds(value, "a segment until")
 
     @field_validator("stop")
     @classmethod
@@ -2774,11 +3043,35 @@ class SegmentEvery(_Model):
 
     @field_validator("every", mode="before")
     @classmethod
-    def _parse_every(cls, value: Any) -> Any:
-        number = _seconds(value)
+    def _parse_every(cls, value: Any, info: Any) -> Any:
+        number = checked_seconds(value, "every", ends=True)
         if number <= 0:
             raise ValueError("every must be above 0")
         return number
+
+
+DrainSetting = Annotated[
+    Union[
+        Annotated[bool, Tag("<plain>")],
+        Annotated[Drain, Tag("<map>")],
+    ],
+    Discriminator(_shape_of),
+]
+
+
+def _segments_shape(value: Any) -> str:
+    """`<map>` for `{every: ...}`, and `<list>` for anything else, so a value that is
+    neither is refused as a list."""
+    return "<map>" if isinstance(value, (BaseModel, Mapping)) else "<list>"
+
+
+SegmentsSetting = Annotated[
+    Union[
+        Annotated[List[RunSegment], Tag("<list>")],
+        Annotated[SegmentEvery, Tag("<map>")],
+    ],
+    Discriminator(_segments_shape),
+]
 
 
 class Run(_Model):
@@ -2804,9 +3097,9 @@ class Run(_Model):
     until: Optional[Union[int, float]] = Field(default=None, gt=0)
     before: List[Callable[[], Any]] = Field(default_factory=list)
     stop: Optional[Dict[str, Any]] = None
-    drain: Union[bool, Drain] = False
+    drain: DrainSetting = False
     on_unhandled_failure: Literal["stop", "continue"] = "stop"
-    segments: Optional[Union[List[RunSegment], SegmentEvery]] = None
+    segments: Optional[SegmentsSetting] = None
     steps: bool = False
     sync: bool = False
 
@@ -2829,8 +3122,13 @@ class Run(_Model):
 
     @field_validator("until", mode="before")
     @classmethod
-    def _parse_until(cls, value: Any) -> Any:
-        return None if value is None else _seconds(value)
+    def _parse_until(cls, value: Any, info: Any) -> Any:
+        # A value below 0 is refused by the field's own `gt=0`
+        return (
+            None
+            if value is None
+            else checked_seconds(value, info.field_name, below_zero=True)
+        )
 
 
 class SignalSpec(_Model):
@@ -2892,10 +3190,10 @@ class BlueprintTest(_Model):
 
     @field_validator("until", mode="before")
     @classmethod
-    def _parse_until(cls, value: Any) -> Any:
+    def _parse_until(cls, value: Any, info: Any) -> Any:
         if value is None:
             return None
-        number = _seconds(value)
+        number = checked_seconds(value, "until", ends=True)
         if not number > 0:
             raise ValueError("until must be above 0")
         return number
@@ -3014,8 +3312,9 @@ def unknown_key(model: Type[BaseModel], location: tuple) -> str:
         {
             field.alias or name
             for kind in types
-            if inspect.isclass(kind) and issubclass(kind, BaseModel)
-            for name, field in kind.model_fields.items()
+            for leaf in _leaves(kind)
+            if inspect.isclass(leaf) and issubclass(leaf, BaseModel)
+            for name, field in leaf.model_fields.items()
         }
     )
     key = str(location[-1])

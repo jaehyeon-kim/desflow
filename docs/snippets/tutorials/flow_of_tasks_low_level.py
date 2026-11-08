@@ -112,7 +112,14 @@ def task(env, sampler, shop, name, entity, task_id, counters):
         env.publish_event(entity.key, value, task=name, instance=task_id)
 
     if resource is not None:
-        publish({"path_id": path_id, "status": "queued"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": service,
+                "status": "queued",
+            }
+        )
         env.stats.task_queued(name, task_id)
     unit = shop[resource].request() if resource else contextlib.nullcontext()
     with unit as request:
@@ -121,7 +128,14 @@ def task(env, sampler, shop, name, entity, task_id, counters):
         if name == "pack_order":
             yield shop["stock"].get(1)
         if service is not None:
-            publish({"path_id": path_id, "status": "started"})
+            publish(
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": service,
+                    "status": "started",
+                }
+            )
             env.stats.task_started(name, task_id)
         finished = payload(name, entity)
         if service is not None:

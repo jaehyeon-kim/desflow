@@ -83,7 +83,11 @@ class Shop:
             self.env.publish_event(key, value, task=task, instance=task_id)
 
         def status(state, **extra):
-            value = {"path_id": path_id} if service else {}
+            value = (
+                {"path_id": path_id, "sim_id": "Shop", "service": service}
+                if service
+                else {}
+            )
             publish({**value, "status": state, **extra})
 
         def duration():

@@ -37,7 +37,11 @@ tasks:
   pack_order:
     service: packing
     resource: packers
-    payload: {path_id: Shop.service.packing, status: finished}
+    payload:
+      path_id: Shop.service.packing
+      sim_id: Shop
+      service: packing
+      status: finished
 
 # The packers' readings every 2 seconds, which kafka_dashboard.py shows.
 stats: {level: minimal, interval: 2}

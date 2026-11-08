@@ -380,7 +380,12 @@ Each order brings 2 seconds of packing on average and arrives every 2.5 seconds 
             path_id = f"Shop.service.{service}"
 
             def status(state):
-                value = {"path_id": path_id, "status": state}
+                value = {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": service,
+                    "status": state,
+                }
                 env.publish_event(key, value, task=task, instance=task_id)
 
             def finished(value):

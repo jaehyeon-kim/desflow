@@ -10,6 +10,7 @@ gives as the reason a wait is not estimated. It reads the model through
 
 from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Set
 
+from desflow.core.families import Reference
 from desflow.explain.edges import used_resources
 from desflow.values.models import Sequence, Uuid
 
@@ -37,6 +38,23 @@ INITIAL_ONLY = "entities at the start only"
 # An `interrupt` of a task, an `on:` entry or a scenario step names the task, so some
 # of its instances end their service early
 INTERRUPTED = "interruptions (an interrupt names it)"
+# `group` other than 1 starts a batch of entities at each arrival, which is not a
+# Poisson input
+GROUPED_ARRIVALS = "batch arrivals (group other than 1)"
+# `active: false` starts the arrival off, so its rate holds only after something turns
+# it on
+INACTIVE_ARRIVAL = "starts off (active: false)"
+# A `spawn.count` other than 1 starts several entities for one; a count read from an
+# expression has no known rate, so every count other than 1 is a feature
+SPAWN_COUNT = "spawn count other than 1"
+# A task that takes `{of: ..., key: ...}` or `{of: ..., lowest: ...}` picks the resource
+# for each instance, so no resource has a known share of its work
+PICKED_RESOURCE = "resource picked by key or lowest"
+# A family of resources is several resources with one name; a flow shares its work
+# among the members by their key
+RESOURCE_FAMILY = "resource family"
+# An `on:` entry with a `path` of the resource's capacity changes it during the run
+CHANGED_CAPACITY = "capacity changed by an on: entry"
 
 
 def arrival_features(context: "SimulationContext", name: str) -> List[str]:
@@ -57,6 +75,10 @@ def arrival_features(context: "SimulationContext", name: str) -> List[str]:
         found.append(COMPUTED_GAPS)
     if plan.sourceless:
         found.append(INITIAL_ONLY)
+    if plan.group != 1 or isinstance(plan.group, bool):
+        found.append(GROUPED_ARRIVALS)
+    if not plan.active:
+        found.append(INACTIVE_ARRIVAL)
     repeating_key = plan.key is not None and not isinstance(plan.key, (Sequence, Uuid))
     if plan.has_entities or plan.max_events is not None or repeating_key:
         found.append(LIMITED_ARRIVALS)
@@ -80,6 +102,8 @@ def task_features(context: "SimulationContext", spec: "TaskSpec") -> List[str]:
         features.append("abandonment (patience)")
     if spec.balk is not None:
         features.append("abandonment (balk)")
+    if any(isinstance(r, Reference) for r in spec.resources):
+        features.append(PICKED_RESOURCE)
     if spec.service_time is not None:
         features.append(COMPUTED_SERVICE_TIME)
     if spec.preempt and any(parts.holders.resource_preempt.get(r) for r in held):
@@ -112,6 +136,10 @@ def task_features(context: "SimulationContext", spec: "TaskSpec") -> List[str]:
         features.append(SEVERAL_REQUESTS)
     if _request_with_timeout(spec):
         features.append(WAIT_TIMEOUT)
+    if spec.spawn is not None:
+        count = spec.spawn.get("count", 1)
+        if isinstance(count, bool) or count != 1:
+            features.append(SPAWN_COUNT)
     if spec.on:
         features.append("on actions")
     if spec.fail is not None:
@@ -215,7 +243,33 @@ def resource_features(context: "SimulationContext", name: str) -> List[str]:
         features.append("custom resource type")
     if name in parts.holders.breakdowns_config:
         features.append("breakdowns")
+    family = parts.families.by_name.get(name)
+    if family is not None and family.kind == "resource":
+        features.append(RESOURCE_FAMILY)
+    if name in _changed_resources(context):
+        features.append(CHANGED_CAPACITY)
     return features
+
+
+def _changed_resources(context: "SimulationContext") -> Set[str]:
+    """The resources whose capacity an `on:` entry of a task, a `listen` or a signal
+    sets: the name in each entry's `path`, `<sim_id>.resources.<name>.<field>`, with a
+    family member's `[index]` left off."""
+    parts = parts_of(context)
+    actions: List[Mapping[str, Any]] = [
+        action for found in parts.signals.on.values() for action in found
+    ]
+    for spec in parts.tasks.specs.values():
+        actions += [*spec.on, *(spec.listen.on if spec.listen else [])]
+    prefix = f"{context.sim_id}.resources."
+    found: Set[str] = set()
+    for action in actions:
+        path = action.get("path")
+        if not isinstance(path, str) or not path.startswith(prefix):
+            continue
+        name = path[len(prefix) :].rpartition(".")[0]
+        found.add(name.partition("[")[0] if name.endswith("]") else name)
+    return found
 
 
 def queue_order(context: "SimulationContext", name: str) -> Optional[str]:

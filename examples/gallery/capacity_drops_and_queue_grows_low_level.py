@@ -50,7 +50,12 @@ def build(env: DynamicRealtimeEnvironment) -> None:
         env.stats.flow_started("orders")
         env.publish_event(
             key,
-            {"path_id": path_id, "status": "queued"},
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "pack",
+                "status": "queued",
+            },
             task="order",
             instance=task_id,
         )
@@ -59,7 +64,12 @@ def build(env: DynamicRealtimeEnvironment) -> None:
             yield request
             env.publish_event(
                 key,
-                {"path_id": path_id, "status": "started"},
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "pack",
+                    "status": "started",
+                },
                 task="order",
                 instance=task_id,
             )

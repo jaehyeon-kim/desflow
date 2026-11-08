@@ -38,7 +38,12 @@ def test_admin_process_events_and_pruning():
     for i in range(3):
         data = {
             "key": f"task-{i}",
-            "value": {"path_id": "Shop.service.packing", "status": "started"},
+            "value": {
+                "path_id": "Shop.service.packing",
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            },
             "timestamp": f"2023-01-01T00:00:0{i}",
         }
         admin._process_message(data)
@@ -53,6 +58,24 @@ def test_admin_process_events_and_pruning():
     assert "task-2" in service_tasks
 
 
+def test_a_status_record_with_only_a_path_id_is_filed_by_its_path_id():
+    """A record written before status records named their sim id and service is
+    filed under the two sides of the last `.service.` in its path_id."""
+    admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+    admin._process_message(
+        {
+            "key": "o-1",
+            "timestamp": "t1",
+            "value": {"status": "queued", "path_id": "S.a.service.pack"},
+        }
+    )
+    admin._process_message({"key": "o-1", "timestamp": "t2", "value": {"n": 1}})
+    assert admin.get_state()["S.a"]["pack"]["o-1"] == {
+        "queued": "t1",
+        "finished": "t2",
+    }
+
+
 @pytest.mark.asyncio
 @patch("desflow.connectors.admin.kafka.AIOKafkaConsumer")
 async def test_collect_data_passes_over_a_value_it_cannot_read(MockConsumer):
@@ -60,7 +83,15 @@ async def test_collect_data_passes_over_a_value_it_cannot_read(MockConsumer):
     not JSON change nothing, and the loop reads the events after them."""
 
     def event(key):
-        body = {"key": key, "value": {"status": "started", "path_id": "S.service.pack"}}
+        body = {
+            "key": key,
+            "value": {
+                "status": "started",
+                "path_id": "S.service.pack",
+                "sim_id": "S",
+                "service": "pack",
+            },
+        }
         return types.SimpleNamespace(value=json.dumps(body).encode())
 
     messages = [
@@ -147,11 +178,11 @@ async def test_collect_data_files_events_under_names_that_hold_a_dot(
     consumer.__aiter__ = lambda self: read()
     admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
     await admin.collect_data(["events"])
-    # An event with no path_id stays under `unknown`
     state = admin.get_state()
-    assert {
-        sim: sorted(services) for sim, services in state.items() if sim != "unknown"
-    } == {"Shop.v2": ["pack.big", "packing"], "Shop": ["pack.big", "packing"]}
+    assert {sim: sorted(services) for sim, services in state.items()} == {
+        "Shop.v2": ["pack.big", "packing"],
+        "Shop": ["pack.big", "packing"],
+    }
 
 
 @pytest.mark.asyncio

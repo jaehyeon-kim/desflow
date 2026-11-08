@@ -281,6 +281,7 @@ desflow.core.registry.ParamChange.source: NoneType
 desflow.core.registry.ParamRejected(path: str, value: Any, reason: str)
 desflow.core.registry.SimulationRegistry(env: simpy.core.Environment)
 desflow.core.registry.SimulationRegistry.change(path: str, value: Any, *, source: str | None = None, actor: str | None = None, reason: str | None = None) -> desflow.core.registry.ParamChange
+desflow.core.registry.SimulationRegistry.check_value(path: str, new_value: Any) -> Any
 desflow.core.registry.SimulationRegistry.configs() -> dict[str, Any]
 desflow.core.registry.SimulationRegistry.get(path: str) -> desflow.core.registry.DynamicValue
 desflow.core.registry.SimulationRegistry.get_config(path: str) -> Any

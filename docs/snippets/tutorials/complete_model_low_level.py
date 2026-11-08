@@ -98,7 +98,11 @@ EVENTS = {
 def task(env, sampler, shop, name, key, task_id, counters):
     """Runs one task of an order, then the task after it, in the same process."""
     service, resource, following = TASKS[name]
-    status = {"path_id": f"Shop.service.{service}"} if service else {}
+    status = (
+        {"path_id": f"Shop.service.{service}", "sim_id": "Shop", "service": service}
+        if service
+        else {}
+    )
 
     def publish(value):
         env.publish_event(key, value, task=name, instance=task_id)

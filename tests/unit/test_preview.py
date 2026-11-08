@@ -81,6 +81,22 @@ def test_sample_ending_at_until_says_how_many_events_it_printed(tmp_path):
     assert f"sample ended at until with {count} of 1000 events" in result.stderr
 
 
+def test_sample_of_a_model_that_runs_out_of_events_says_so_and_exits_0(tmp_path):
+    """A model of one event has none left after it: the sample ends there, as it does
+    at `until`, not with SimPy's RuntimeError."""
+    text = """\
+        simulation: {sim_id: S, factor: 0}
+        arrivals: {a: {gap: 1, max_events: 1, spawn: t}}
+        tasks: {t: {payload: {}}}
+        """
+    result = _run(_write(tmp_path, text), "--sample", 100)
+    assert result.exit_code == 0, result.output
+    count = len(_events(result))
+    assert f"sample ended with no events left, with {count} of 100 events" in (
+        result.stderr
+    )
+
+
 def test_sample_runs_a_backfill_then_live_file_unpaced(tmp_path):
     """--sample sets factor 0 and clears go_live_at, so the events a paced run
     would print about 4 and 9 seconds after it starts print at once."""

@@ -6,6 +6,7 @@ both; low-level code uses `Router` directly and calls `get` and `put` itself.
 """
 
 import inspect
+import math
 import numbers
 import re
 from dataclasses import dataclass
@@ -217,6 +218,8 @@ class Router:
         self._when: List[Tuple[Expression, str]] = []
         self._default: Optional[str] = None
         self._names: List[str] = []
+        # Where the rules are written, which a weight that fails when read names
+        self.where = ""
         self._cumulative: Optional[np.ndarray] = None
         # Weights with a text in them: each weight is a number or an `Expression`,
         # read when a task finishes
@@ -332,7 +335,7 @@ class Router:
             # Text is an expression, read when a task finishes; the numbers are
             # checked now, and a result is checked when it is read
             self._weights = [
-                Expression(weight)
+                Expression(weight, names=ANY_NAME)
                 if isinstance(weight, str)
                 else _checked_weight(name, weight)
                 for name, weight in weights.items()
@@ -373,7 +376,12 @@ def next_task(
     if router._weights is not None:
         if scope is None:
             scope = make_scope(upstream, env=env, levels=levels, item=item)
-        cumulative = _share_of(router._names, router._weights, scope)
+        try:
+            cumulative = _share_of(router._names, router._weights, scope)
+        except ValueError as exc:
+            raise ValueError(
+                f"{router.where}: {exc}" if router.where else str(exc)
+            ) from None
     else:
         cumulative = router._cumulative
     if cumulative is not None:
@@ -390,6 +398,35 @@ def next_task(
     return router._default
 
 
+def check_batch_size(size: Any) -> None:
+    """Refuses a literal batch `size` that is a bool, NaN or infinite. One check for
+    the Builder and the YAML load; a text or a function is read when a task ends.
+
+    Args:
+        size: The batch size as given.
+
+    Raises:
+        ValueError: Naming the value.
+    """
+    if isinstance(size, bool) or (
+        isinstance(size, numbers.Real) and not math.isfinite(size)
+    ):
+        raise ValueError(f"batch size gave {size!r}, which is not a finite number")
+
+
+def _checked_amount(amount: Any, what: str) -> None:
+    """Refuses an amount that is not a finite number above 0, or is a bool."""
+    if (
+        isinstance(amount, bool)
+        or not isinstance(amount, numbers.Real)
+        or not math.isfinite(amount)
+        or amount <= 0
+    ):
+        raise ValueError(
+            f"{what} gave {amount!r}, and it must be a finite number above 0"
+        )
+
+
 def _checked_weight(name: Any, weight: Any) -> Union[int, float]:
     """A weight that is a number of 0 or more.
 
@@ -400,6 +437,8 @@ def _checked_weight(name: Any, weight: Any) -> Union[int, float]:
         raise ValueError(f"the weight of '{name}' must be a number")
     if not weight >= 0:
         raise ValueError(f"the weight of '{name}' must be 0 or more")
+    if not math.isfinite(weight):
+        raise ValueError(f"the weight of '{name}' must be a finite number")
     return weight
 
 
@@ -546,6 +585,12 @@ class Transfer:
             raise ValueError(
                 f"amount must be a number or an expression, got {amount!r}"
             )
+        if (
+            container is not None
+            and isinstance(amount, (int, float))
+            and not isinstance(amount, bool)
+        ):
+            _checked_amount(amount, f"the amount of container '{container}'")
         self.filter = filter
         self._filter_expression: Optional[Expression] = None
         self._filter_takes_entity = False
@@ -613,10 +658,17 @@ class Transfer:
             Union[int, float]: The amount, as written when it is a number.
         """
         if self._expression is not None:
-            return as_given(self._expression.evaluate(scope))
+            return self._read_amount(self._expression.evaluate(scope))
         if callable(self.amount):
-            return as_given(self.amount(task_id, payload_of(upstream)))
+            return self._read_amount(self.amount(task_id, payload_of(upstream)))
         return as_given(self.amount)
+
+    def _read_amount(self, value: Any) -> Union[int, float]:
+        """An amount an expression or a function gave, checked as a literal is."""
+        value = as_given(value)
+        if self.container is not None:
+            _checked_amount(value, f"the amount of container '{self.container}'")
+        return value
 
     @property
     def expressions(self) -> List[Expression]:
@@ -1211,7 +1263,7 @@ def _timeout_delay(delay: Any, written: Any) -> Any:
 
 
 def _non_negative(seconds: Any, written: Any) -> Any:
-    if seconds < 0:
+    if seconds != seconds or seconds < 0:
         raise ValueError(f"a wait timeout must be 0 or more, got {written!r}")
     return seconds
 

@@ -685,7 +685,7 @@ def test_a_failed_start_tears_the_connectors_down():
 @pytest.mark.parametrize(
     "start, error, message",
     [
-        ({"seed": "x"}, TypeError, "SeedSequence"),
+        ({"seed": "x"}, ValueError, "seed is a whole number of 0 or more"),
         (
             {"until": 1, "overrides": {"Shop.resources.packers.current_cap": -1}},
             ValueError,
@@ -1270,7 +1270,9 @@ def test_add_resource_checks_its_capacity_and_type():
     app.add_resource("bench")
     app.add_resource("tank", max_cap=3)
     app.add_resource("open", float("inf"))
-    with pytest.raises(ValueError, match="needs a whole number for current_cap"):
+    with pytest.raises(
+        ValueError, match="needs a whole number of 0 or more for current_cap"
+    ):
         app.add_resource("odd", 1.5)
     with pytest.raises(ValueError, match="max_cap 0 and no current_cap"):
         app.add_resource("none", max_cap=0)
@@ -2758,7 +2760,7 @@ def test_the_scenario_check_refuses_the_first_step_in_time_order(steps, message)
 def test_the_scenario_walk_yields_each_step_with_its_problem():
     """A-U4: the walk the scenario checks share takes the steps in time order, skips a
     step with no path, a member's path or a generated value, and ends at the first
-    problem; `convert` adds the YAML loader's type check, which a queue limit skips."""
+    problem the registry's own check finds."""
     from desflow.core.context import scratch_registry
     from desflow.core.scenario import walk_steps
     from desflow.values.models import Expr
@@ -2766,26 +2768,16 @@ def test_the_scenario_walk_yields_each_step_with_its_problem():
     app = SimulationContext("S", factor=0)
     app.add_resource("m", current_cap=1, max_cap=2, queue_limit=3)
 
-    def walk(steps, convert=False):
+    def walk(steps):
         member = lambda path: path.startswith("S.resources.desk[")  # noqa: E731
-        return list(walk_steps(steps, scratch_registry(app), member, convert=convert))
+        return list(walk_steps(steps, scratch_registry(app), member))
 
     cap = "S.resources.m.current_cap"
-    assert walk([(1, cap, "x")], convert=True) == [(0, "type", 1)]
-    assert walk([(1, cap, "x")]) == [
-        (0, "value", f"'{cap}' holds a int, and 'x' cannot be converted to one")
-    ]
+    refusal = "resource 'm' needs a whole number of 0 or more for current_cap, got 'x'"
+    assert walk([(1, cap, "x")]) == [(0, "value", refusal)]
     assert walk(
         [(2, "S.nope", 1), (1, None, None), (1, "S.resources.desk[3].current_cap", 1)]
     ) == [(1, None, None), (2, None, None), (0, "path", None)]
-    assert walk([(1, cap, Expr(gen="expr", expr="1"))], convert=True) == [
-        (0, None, None)
-    ]
-    assert walk([(1, cap, 2.0), (1, cap, 2)], convert=True) == [
-        (0, None, None),
-        (1, None, None),
-    ]
-    assert walk([(1, "S.resources.m.queue_limit", "x")], convert=True)[0][:2] == (
-        0,
-        "value",
-    )
+    assert walk([(1, cap, Expr(gen="expr", expr="1"))]) == [(0, None, None)]
+    assert walk([(1, cap, 2.0), (1, cap, 2)]) == [(0, None, None), (1, None, None)]
+    assert walk([(1, "S.resources.m.queue_limit", "x")])[0][:2] == (0, "value")

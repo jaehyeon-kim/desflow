@@ -197,4 +197,60 @@ async def test_keyed_entry_skips(iceberg_catalog, namespace, caplog):
 
     rows = iceberg_catalog.load_table(identifier).scan().to_arrow().to_pylist()
     assert [(r["order_id"], r["s"]) for r in rows] == [(1, "y")]
-    assert "1 had none of the key columns of their table" in caplog.text
+    assert "1 had a null or missing key column of their table" in caplog.text
+
+
+def _in_new_loop(coroutine):
+    """Runs `coroutine` in an event loop of its own, in a thread, as a run does."""
+    import asyncio
+
+    return asyncio.to_thread(asyncio.run, coroutine)
+
+
+@pytest.mark.asyncio
+async def test_drop_and_create_runs_on_every_run_of_one_sink(
+    iceberg_catalog, namespace
+):
+    """The second run of one `drop_and_create` sink drops the table of the
+    first, so the table holds the rows of the second run only."""
+    identifier = f"{namespace}.rerun"
+    egress = IcebergStorageEgress(
+        catalog=iceberg_catalog,
+        default_table=identifier,
+        table_policy="drop_and_create",
+    )
+
+    async def one_run(first):
+        q: queue.Queue = queue.Queue()
+        q.put([{"key": f"task-{first + i}", "n": first + i} for i in range(3)])
+        await drain(egress, q)
+
+    await _in_new_loop(one_run(0))
+    await _in_new_loop(one_run(10))
+    rows = iceberg_catalog.load_table(identifier).scan().to_arrow().to_pylist()
+    assert sorted(r["n"] for r in rows) == [10, 11, 12]
+
+
+@pytest.mark.asyncio
+async def test_a_record_with_no_namespace_loses_no_other_table(
+    iceberg_catalog, namespace
+):
+    """One record routed to a table name with no namespace, and one with a null
+    upsert key, are skipped, and the rows of the tables of their batch are written."""
+    good, other = f"{namespace}.good", f"{namespace}.other"
+    egress = IcebergStorageEgress(catalog=iceberg_catalog, upsert_keys={good: ["id"]})
+    q: queue.Queue = queue.Queue()
+    q.put(
+        [
+            {"key": "a", "value": {"__table__": good, "id": 1, "n": 1}},
+            {"key": "b", "value": {"__table__": "plain", "id": 2, "n": 2}},
+            {"key": "c", "value": {"__table__": other, "id": 3, "n": 3}},
+            {"key": "d", "value": {"__table__": good, "id": None, "n": 4}},
+            {"key": "e", "value": {"__table__": good, "id": 5, "n": 5}},
+        ]
+    )
+    await drain(egress, q)
+    rows = iceberg_catalog.load_table(good).scan().to_arrow().to_pylist()
+    assert sorted(r["n"] for r in rows) == [1, 5]
+    rows = iceberg_catalog.load_table(other).scan().to_arrow().to_pylist()
+    assert [r["n"] for r in rows] == [3]

@@ -98,10 +98,19 @@ def pack_order_process(env, sampler, packers, key, task_id, label_ids):
     def publish(value):
         env.publish_event(key, value, task="pack_order", instance=task_id)
 
-    publish({"path_id": path_id, "status": "queued"})
+    publish(
+        {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+    )
     with packers.request() as request:
         yield request
-        publish({"path_id": path_id, "status": "started"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            }
+        )
         payload = {"event_type": "order_packed"}
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         publish(payload)
@@ -120,7 +129,14 @@ def print_label_process(env, sampler, key, task_id):
     def publish(value):
         env.publish_event(key, value, task="print_label", instance=task_id)
 
-    publish({"path_id": path_id, "status": "started"})
+    publish(
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "labelling",
+            "status": "started",
+        }
+    )
     yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
     publish({"event_type": "label_printed"})
 

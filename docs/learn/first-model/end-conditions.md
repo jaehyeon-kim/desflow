@@ -151,10 +151,10 @@ Each tab prints both runs: the orders started, finished and still in the shop, a
     {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.finished","value":2398}
     {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.started","value":2436}
     {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.in_system","value":38}
-    {"stream_type":"telemetry","sim_ts":3656.383,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":71.50563836690414}
-    {"stream_type":"telemetry","sim_ts":3656.383,"timestamp":"...","path_id":"Shop.stats.flows.orders.finished","value":2436}
-    {"stream_type":"telemetry","sim_ts":3656.383,"timestamp":"...","path_id":"Shop.stats.flows.orders.started","value":2436}
-    {"stream_type":"telemetry","sim_ts":3656.383,"timestamp":"...","path_id":"Shop.stats.flows.orders.in_system","value":0}
+    {"stream_type":"telemetry","sim_ts":3656.3828405403037,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":71.50563836690414}
+    {"stream_type":"telemetry","sim_ts":3656.3828405403037,"timestamp":"...","path_id":"Shop.stats.flows.orders.finished","value":2436}
+    {"stream_type":"telemetry","sim_ts":3656.3828405403037,"timestamp":"...","path_id":"Shop.stats.flows.orders.started","value":2436}
+    {"stream_type":"telemetry","sim_ts":3656.3828405403037,"timestamp":"...","path_id":"Shop.stats.flows.orders.in_system","value":0}
     ```
 
 === "Builder"
@@ -353,11 +353,20 @@ A fixed horizon answers a question about a period, such as how many orders the s
                 env.publish_event(key, value, task="pack_order", instance=task_id)
 
             env.stats.flow_started("orders")  # the order enters the shop
-            publish({"path_id": path_id, "status": "queued"})
+            publish(
+                {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+            )
             env.stats.task_queued("pack_order", task_id)
             with packers.request() as request:
                 yield request
-                publish({"path_id": path_id, "status": "started"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    }
+                )
                 env.stats.task_started("pack_order", task_id)
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 publish({"event_type": "order_packed"})

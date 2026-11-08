@@ -52,11 +52,25 @@ def build(env):
             env.publish_event(key, value, task="answer_call", instance=instance)
 
         waits = 60 + (300 - 60) * patience.random()
-        publish({"path_id": path_id, "status": "queued"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Centre",
+                "service": "talk",
+                "status": "queued",
+            }
+        )
         with agents.request() as request:
             got = yield request | env.timeout(waits)
             if request not in got:
-                publish({"path_id": path_id, "status": "reneged"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Centre",
+                        "service": "talk",
+                        "status": "reneged",
+                    }
+                )
                 env.publish_event(
                     key,
                     {"event_type": "hung_up"},
@@ -64,7 +78,14 @@ def build(env):
                     instance=next(instances["hang_up"]),
                 )
                 return
-            publish({"path_id": path_id, "status": "started"})
+            publish(
+                {
+                    "path_id": path_id,
+                    "sim_id": "Centre",
+                    "service": "talk",
+                    "status": "started",
+                }
+            )
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
             publish({"event_type": "answered", "call_id": instance})
 

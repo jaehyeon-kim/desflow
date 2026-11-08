@@ -6,7 +6,6 @@ validates it with the same models, so a mistake raises Pydantic's `ValidationErr
 `looked_up` finds what some values, templates among them, read from other records.
 """
 
-import itertools
 from pathlib import Path
 from typing import (
     Any,
@@ -105,7 +104,30 @@ def _runtime(context: Any) -> Any:
     return values
 
 
-_UNNAMED = itertools.count(1)
+# How many unnamed templates the process has made, and that count when the last
+# `ValueRuntime` was made: the templates made since belong to the next run's build
+_made = 0
+_window_start = 0
+
+
+def _next_serial() -> int:
+    """The creation number of a new unnamed template, counted from 1 by the process."""
+    global _made
+    _made += 1
+    return _made
+
+
+def start_window() -> int:
+    """Marks the start of a new run's build and returns the count of unnamed templates
+    made before the previous mark, which the runtime numbers its templates from.
+
+    A `ValueRuntime` calls it when it is made. The unnamed templates made since the
+    previous runtime belong to this one's build, so a template made `n`-th in a build
+    takes the key `template<n>` whatever was built earlier in the process.
+    """
+    global _window_start
+    start, _window_start = _window_start, _made
+    return start
 
 
 class Template:
@@ -165,9 +187,12 @@ class Template:
                 exist (a relative path is read from the working directory).
         """
         # An unnamed template is numbered in creation order, so two never share a
-        # random sequence or a counter
+        # random sequence or a counter. The first run that renders it numbers it from
+        # the start of its build (`_renumber`), so two builds of one code give one key.
         self.name = name
-        self.key: str = name or f"template{next(_UNNAMED)}"
+        self._serial: Optional[int] = None if name else _next_serial()
+        self._renumbered = name is not None
+        self.key: str = name or f"template{self._serial}"
         base = (self.key,)
         self.payload: Any = payload_adapter().validate_python(payload)
         self.vars: Dict[str, Any] = values_adapter().validate_python(dict(vars or {}))
@@ -190,6 +215,31 @@ class Template:
         }
         if check:
             self._check(base)
+
+    def _renumber(self, start: int) -> None:
+        """Numbers an unnamed template from the start of the build it was made in,
+        once, and binds its generators to that key, so their random sequences and
+        counters do not depend on how many templates the process made before.
+
+        A template made before `start` keeps its key, as it belongs to an earlier
+        build. Later runs keep the key the first one gave.
+
+        Args:
+            start: The count of unnamed templates made before the build began.
+        """
+        if self._renumbered:
+            return
+        self._renumbered = True
+        if self._serial is None or self._serial <= start:
+            return
+        key = f"template{self._serial - start}"
+        if key == self.key:
+            return
+        self.key = key
+        base = (key,)
+        bind(self.payload, base + ("payload",), overwrite=True)
+        bind(self.vars, base + ("vars",), overwrite=True)
+        bind(self.vars_once, base + ("vars_once",), overwrite=True)
 
     def _check(self, base: Tuple[str, ...]) -> None:
         problems: List[str] = []

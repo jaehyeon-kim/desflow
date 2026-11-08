@@ -186,7 +186,13 @@ def test_kafka():
     finished = _finished(records)
     assert finished
     assert all(
-        value == {"path_id": "Shop.service.packing", "status": "finished"}
+        value
+        == {
+            "path_id": "Shop.service.packing",
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": "finished",
+        }
         for value in finished
     )
     # The names kafka_dashboard.py reads
@@ -238,6 +244,8 @@ def test_parquet(tmp_path, monkeypatch):
         "task",
         "instance",
         "path_id",
+        "sim_id",
+        "service",
         "status",
     }
     assert {row["status"] for row in rows} == {"queued", "started", "finished"}

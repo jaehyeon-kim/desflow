@@ -11,6 +11,7 @@ def mock_pool():
     acquire_ctx = AsyncMock()
     acquire_ctx.__aenter__.return_value = conn
     pool.acquire.return_value = acquire_ctx
+    pool.close = AsyncMock()
     return pool, conn
 
 
@@ -349,7 +350,7 @@ async def test_table_policy_create_makes_the_schema_first(mock_create_pool, mock
         "CREATE TABLE IF NOT EXISTS shop.orders (order_id INT)",
         "CREATE TABLE IF NOT EXISTS plain (a INT)",
     ]
-    assert conn.fetch.call_args.args[1:] == ("shop", "orders")
+    assert conn.fetch.call_args.args[1:] == ("shop.orders",)
     assert egress.valid_columns == {"order_id"}
 
 
@@ -457,7 +458,7 @@ async def test_keyed_entry_skips_a_record_without_its_key_columns(
     assert "ON CONFLICT (id) DO UPDATE" in query
     assert values == [(1, "new"), (2, "new")]
     [warning] = [r for r in caplog.records if "skipped records" in r.getMessage()]
-    assert "2 had none of the key columns of their table" in warning.getMessage()
+    assert "2 had a null or missing key column of their table" in warning.getMessage()
 
 
 @pytest.mark.asyncio

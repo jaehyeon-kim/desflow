@@ -2201,6 +2201,8 @@ def test_c3_preemption_record_shape(tmp_path):
         ]
         assert record == {
             "path_id": "B3.service.low",
+            "sim_id": "B3",
+            "service": "low",
             "status": "preempted",
             "resource": "machine",
             "preempted_by": "high-1",
@@ -2208,6 +2210,8 @@ def test_c3_preemption_record_shape(tmp_path):
         }
         assert list(record) == [
             "path_id",
+            "sim_id",
+            "service",
             "status",
             "resource",
             "preempted_by",

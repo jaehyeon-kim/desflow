@@ -66,7 +66,15 @@ def pack(shop, key):
     """Packs an order, then fires ready with its finished payload."""
     env, task_id = shop.env, shop.next_id("pack")
     shop.publish(
-        key, "pack", task_id, {"path_id": "Shop.service.packing", "status": "started"}
+        key,
+        "pack",
+        task_id,
+        {
+            "path_id": "Shop.service.packing",
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": "started",
+        },
     )
     yield env.timeout(shop.service("packing"))
     payload = {"event_type": "order_packed"}
@@ -87,7 +95,15 @@ def sweep(shop, key):
     """Sweeps the floor, a timed step started after the shop closes."""
     env, task_id = shop.env, shop.next_id("sweep")
     shop.publish(
-        key, "sweep", task_id, {"path_id": "Shop.service.sweeping", "status": "started"}
+        key,
+        "sweep",
+        task_id,
+        {
+            "path_id": "Shop.service.sweeping",
+            "sim_id": "Shop",
+            "service": "sweeping",
+            "status": "started",
+        },
     )
     yield env.timeout(shop.service("sweeping"))
     shop.publish(key, "sweep", task_id, {"event_type": "floor_swept"})
@@ -105,7 +121,15 @@ def alarm(shop, key):
     """The alarm round: a timed step that ends with its payload."""
     env, task_id = shop.env, shop.next_id("alarm")
     shop.publish(
-        key, "alarm", task_id, {"path_id": "Shop.service.alarming", "status": "started"}
+        key,
+        "alarm",
+        task_id,
+        {
+            "path_id": "Shop.service.alarming",
+            "sim_id": "Shop",
+            "service": "alarming",
+            "status": "started",
+        },
     )
     yield env.timeout(shop.service("alarming"))
     payload = {"event_type": "alarm_rang"}
@@ -117,7 +141,15 @@ def guard(shop, key):
     """Starts the alarm round and is interrupted when it ends, then ends the shift."""
     env, task_id = shop.env, shop.next_id("guard")
     shop.publish(
-        key, "guard", task_id, {"path_id": "Shop.service.guarding", "status": "started"}
+        key,
+        "guard",
+        task_id,
+        {
+            "path_id": "Shop.service.guarding",
+            "sim_id": "Shop",
+            "service": "guarding",
+            "status": "started",
+        },
     )
     alarm_round = env.process(alarm(shop, key))
     done = yield env.any_of([alarm_round, env.timeout(100)])
@@ -129,6 +161,8 @@ def guard(shop, key):
             task_id,
             {
                 "path_id": "Shop.service.guarding",
+                "sim_id": "Shop",
+                "service": "guarding",
                 "status": "interrupted",
                 "cause": cause,
             },

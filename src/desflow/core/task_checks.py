@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 
 # The keys of a shared batch that are compared by `_same_form`
-_COMPARED_BY_FORM = ("size", "timeout", "close_when", "service_time")
+_COMPARED_BY_FORM = ("size", "timeout", "close_when", "resource", "service_time")
 
 
 def _same_form(value: Any) -> Any:
@@ -58,6 +58,14 @@ def _same_form(value: Any) -> Any:
         return {key: _same_form(part) for key, part in value.items()}
     if isinstance(value, (list, tuple)):
         return [_same_form(part) for part in value]
+    if isinstance(value, Reference):
+        # Its text is the family's name, so compare the parts that make it
+        return (
+            "reference",
+            _same_form(value.of),
+            _same_form(value.key),
+            _same_form(value.lowest),
+        )
     if isinstance(value, str):
         try:
             return float(value)
@@ -775,10 +783,7 @@ def first_family_problem(
             return FamilyProblem("read", holder, key, reason, where)
     if entries is None:
         entries = [
-            (SECTIONS[kind], name)
-            for kind, names in declared.items()
-            for name in names
-            if name not in families
+            (SECTIONS[kind], name) for kind, names in declared.items() for name in names
         ]
     for section, name in entries:
         for family in families:
@@ -819,7 +824,7 @@ def rule_expressions(
 ) -> List[Tuple[str, Expression, Tuple[Any, ...]]]:
     """The `queue` ranks, `preempt` rules, store and container ranks, telemetry
     readings and the `when` of a signal's `on` entries, each with the place it is
-    written for a message and, for a signal's `when`, its location in a blueprint
+    written for a message and, for a signal's `on` entry, its location in a blueprint
     (`()` for the others).
 
     Args:
@@ -853,12 +858,19 @@ def rule_expressions(
                         ("signals", name, "on", index, "when"),
                     )
                 )
-            for _where, generator in generators_in(action, (Expr,)):
-                try:
-                    read = Expression(generator.expr, names=ANY_NAME)
-                except ValueError:
-                    continue
-                found.append((f"signal '{name}' on entry {index} value", read, ()))
+            for where, generator in generators_in(action, (_Gen,)):
+                for text in generator_expressions(generator):
+                    try:
+                        read = Expression(text, names=ANY_NAME)
+                    except ValueError:
+                        continue
+                    found.append(
+                        (
+                            f"signal '{name}' on entry {index} value",
+                            read,
+                            ("signals", name, "on", index, *where),
+                        )
+                    )
     return found
 
 

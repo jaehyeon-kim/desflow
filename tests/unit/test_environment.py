@@ -852,7 +852,7 @@ def test_a_value_the_serializer_cannot_handle_still_raises():
     env = _buffered_env()
     try:
         with pytest.raises(PydanticSerializationError):
-            env.publish_event("task-001", {"i": np.int64(7)})
+            env.publish_event("task-001", {"i": object()})
         with pytest.raises(PydanticSerializationError):
             env.publish_telemetry("metric", object())
     finally:

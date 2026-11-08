@@ -441,8 +441,8 @@ def test_update_logs_each_refusal_at_its_level(registry, sample_params, caplog):
         ),
         (
             logging.ERROR,
-            "Type mismatch for 'Shop.resources.packers.max_cap'. Expected int, "
-            "got str with value 'not a number'. Update ignored.",
+            "resource 'packers' needs a whole number of 0 or more for max_cap, "
+            "got 'not a number'. Update ignored.",
         ),
         (
             logging.ERROR,
@@ -511,7 +511,7 @@ def test_change_accepts_a_cast_and_a_clamp(registry, sample_params):
     "path,value,fragment",
     [
         ("Shop.resources.lath.current_cap", 3, "is not a registry path"),
-        ("Shop.resources.packers.max_cap", "x", "cannot be converted"),
+        ("Shop.resources.packers.max_cap", "x", "needs a whole number of 0 or more"),
         ("Shop.service.packing.std", -1.0, "invalid value for"),
     ],
 )
@@ -531,7 +531,7 @@ def test_change_raises_for_each_refusal(
     assert isinstance(exc, ValueError)
     assert (exc.path, exc.value) == (path, value)
     assert fragment in exc.reason and str(exc) == exc.reason
-    assert path in exc.reason
+    assert path.rsplit(".", 1)[-1] in exc.reason
     assert caplog.records == []
     assert seen == []
     if path in registry._values:
@@ -735,7 +735,7 @@ def test_a_refusal_inside_a_process_ends_the_run_as_param_rejected(
 
 def test_a_number_over_a_number_is_stored_as_given(registry):
     """A live update keeps the number as written, as SimPy keeps it: 0.5 over 2 is
-    0.5, 3 over 2.5 is 3, true is 1, and 9.5 over a variable of 10 is 9.5. Text is still
+    0.5, 3 over 2.5 is 3, true over a variable is 1, and 9.5 over a variable of 10 is 9.5. Text is still
     cast to the type of the current value, so "7" over 10 is 7.0."""
     registry.register_sim_parameter(
         SimParameter(
@@ -749,7 +749,7 @@ def test_a_number_over_a_number_is_stored_as_given(registry):
     cases = [
         ("Shop.arrival.orders.rate", 0.5, 0.5, float),
         ("Shop.service.pack.mean", 3, 3, int),
-        ("Shop.arrival.orders.rate", True, 1, int),
+        ("Shop.variables.count", True, 1, int),
         ("Shop.containers.tank.level", 4, 4, int),
         ("Shop.containers.tank.level", 4.5, 4.5, float),
         ("Shop.variables.count", 9.5, 9.5, float),

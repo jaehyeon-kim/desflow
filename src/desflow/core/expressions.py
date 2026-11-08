@@ -90,6 +90,34 @@ _LARGEST_EXPONENT = 10_000
 _LARGEST_POWER_BITS = 1_000_000
 
 
+# The deepest parse tree an expression may have. Python's own parser and the passes
+# here recurse, so a sum of 500 terms ran past the recursion limit
+_LARGEST_DEPTH = 200
+
+
+def _depth_of(tree: ast.AST) -> int:
+    """The depth of a parse tree, counted without recursion."""
+    deepest = 0
+    stack: List[Tuple[ast.AST, int]] = [(tree, 1)]
+    while stack:
+        node, depth = stack.pop()
+        deepest = max(deepest, depth)
+        stack.extend((child, depth + 1) for child in ast.iter_child_nodes(node))
+    return deepest
+
+
+def _round(number: Any, digits: Any = None) -> Any:
+    """`round(number, digits)`, refusing negative digits whose power of ten is too
+    large to compute, as `**` does."""
+    if (
+        isinstance(digits, int)
+        and not isinstance(digits, bool)
+        and digits < -_LARGEST_POWER_BITS // 4
+    ):
+        raise OverflowError(f"round to {digits} digits is too large to compute")
+    return round(number) if digits is None else round(number, digits)
+
+
 def _power(base: Any, exponent: Any) -> Any:
     """`base ** exponent`, refusing a whole-number power too large to compute."""
     if (
@@ -106,7 +134,10 @@ def _power(base: Any, exponent: Any) -> Any:
         and abs(base).bit_length() * exponent > _LARGEST_POWER_BITS
     ):
         raise OverflowError("the power is too large to compute")
-    return base**exponent
+    result = base**exponent
+    if isinstance(result, complex):
+        raise ValueError(f"{base!r} ** {exponent!r} gives a complex number")
+    return result
 
 
 class _Work:
@@ -221,7 +252,7 @@ _FUNCTIONS: Dict[str, Tuple[Callable[..., Any], int, Optional[int]]] = {
     "get_key": (_get_key, 3, 3),
     "set_key": (_set_key, 3, 3),
     "drop_key": (_drop_key, 2, 2),
-    "round": (round, 1, 2),
+    "round": (_round, 1, 2),
     "floor": (math.floor, 1, 1),
     "ceil": (math.ceil, 1, 1),
     "sqrt": (math.sqrt, 1, 1),
@@ -656,10 +687,15 @@ class Expression:
         # with no index, as (source, name), so a loader can match them to the families
         self.indexed: Set[Tuple[str, str]] = set()
         self.plain: Set[Tuple[str, str]] = set()
+        nested = f"'{text}' is nested too deeply"
         try:
             tree = ast.parse(text.strip(), mode="eval")
         except SyntaxError as exc:
             raise ValueError(f"'{text}' is not a valid expression: {exc.msg}") from None
+        except (RecursionError, MemoryError):
+            raise ValueError(nested) from None
+        if _depth_of(tree) > _LARGEST_DEPTH:
+            raise ValueError(nested)
         tree = _attr_indexes_as_reads(tree)
         self.references: Dict[str, Set[str]] = {
             "payload": set(),
@@ -781,6 +817,8 @@ class Expression:
         place = f"{self.where}: " if self.where else ""
         try:
             return self._value(self._tree, scope)
+        except RecursionError:
+            raise ValueError(f"{place}'{self.text}' is nested too deeply") from None
         except MemoryError:
             raise ValueError(
                 f"{place}cannot evaluate '{self.text}': it needs more memory than "

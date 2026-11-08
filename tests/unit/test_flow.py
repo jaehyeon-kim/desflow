@@ -136,7 +136,15 @@ def test_a_timed_step_has_no_queued_event_and_waits_nothing():
     _arrivals(app, "orders", ship, count=1)
     events = _run(app, 20)
     assert [(r["sim_ts"], r["value"]) for r in events] == [
-        (10.0, {"path_id": "Shop.service.shipping", "status": "started"}),
+        (
+            10.0,
+            {
+                "path_id": "Shop.service.shipping",
+                "sim_id": "Shop",
+                "service": "shipping",
+                "status": "started",
+            },
+        ),
         (14.0, {"status": "shipped"}),
     ]
     readings = app.env.stats.readings()
@@ -380,8 +388,26 @@ def test_yaml_routes_and_includes_only_the_attributes_it_names(tmp_path):
     events = _run(app, 3)
     assert [(r["key"], r["task"], r["value"]) for r in events][:4] == [
         ("orders-1", "pick", {"event_type": "picked", "gift": 1}),
-        ("orders-1", "pack", {"path_id": "Shop.service.packing", "status": "queued"}),
-        ("orders-1", "pack", {"path_id": "Shop.service.packing", "status": "started"}),
+        (
+            "orders-1",
+            "pack",
+            {
+                "path_id": "Shop.service.packing",
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "queued",
+            },
+        ),
+        (
+            "orders-1",
+            "pack",
+            {
+                "path_id": "Shop.service.packing",
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            },
+        ),
         ("orders-2", "pick", {"event_type": "picked", "gift": 1}),
     ]
 

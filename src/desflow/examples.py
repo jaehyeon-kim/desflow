@@ -74,10 +74,6 @@ EXAMPLES: Dict[str, Example] = {
             profile="kafka-lite",
             extras="kafka",
             shared=["kafka_dashboard.py"],
-            notes=[
-                "Watch and steer a run: cd kafka && python kafka_dashboard.py "
-                "(needs nicegui; serves http://localhost:8080)"
-            ],
             until_stopped=True,
             watch="kafka_dashboard.py",
             watch_needs="nicegui",
