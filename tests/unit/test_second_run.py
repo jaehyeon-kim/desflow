@@ -66,6 +66,11 @@ SHORTER: Dict[str, Tuple[str, str]] = {
 
 Case = Tuple[str, Callable[[], Any], Any, Dict[str, Any]]
 
+# The engine-wide sweeps of the tests leave out the Generators examples: each runs in
+# `tests/docs/test_generator_examples.py`, which compares it with the records its page
+# shows. The regression capture still runs them.
+NOT_SWEPT = "examples/generators/"
+
 
 def _cases() -> List[Case]:
     """Each run of the capture that runs a context: its name in the capture, how its
@@ -96,6 +101,8 @@ def _cases() -> List[Case]:
     left_out = regression._left_out(ROOT / "tests" / "regression" / "left_out.yaml")
     for path in regression._other_blueprints(ROOT, twins, left_out):
         name = path.relative_to(ROOT).as_posix()
+        if name.startswith(NOT_SWEPT):
+            continue
         until = SHORTER[f"file:{name}"][0] if f"file:{name}" in SHORTER else None
         cases.append(
             (f"file:{name}", functools.partial(twins._from_yaml, path), until, {})

@@ -1,0 +1,28 @@
+# Upstream: a value from the record of the task that routed here.
+# An order starts every 60 seconds and routes to an invoice. The run lasts 200 seconds,
+# so three orders start.
+#
+# Run it with: desflow run examples/generators/upstream.yaml
+
+simulation:
+  sim_id: Gen
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  orders: {dist: constant, value: 60, spawn: order}
+
+tasks:
+  order:
+    payload:
+      amount: {gen: integer, bounds: [10, 20]}
+    next: invoice
+  invoice:
+    payload:
+      amount: {gen: upstream, path: amount}
+
+run: {until: 200}

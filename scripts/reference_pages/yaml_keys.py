@@ -17,7 +17,7 @@ def paragraphs(text: str) -> List[str]:
     return [" ".join(part.split()) for part in text.strip().split("\n\n") if part]
 
 
-def yaml_keys_body(level: int = 2) -> List[str]:
+def yaml_keys_body(level: int = 2, kinds: bool = True) -> List[str]:
     """One section per top-level key of a blueprint, as lines of Markdown.
 
     A key whose entries are a model shows that model's keys in a table, and each model
@@ -26,6 +26,9 @@ def yaml_keys_body(level: int = 2) -> List[str]:
 
     Args:
         level: The heading level of the top-level keys.
+        kinds: Whether to list the keys of each generator kind. The skill lists them;
+            the YAML Keys page links to the Generators section, which has a page for
+            each kind.
 
     Returns:
         List[str]: The lines of Markdown.
@@ -85,23 +88,31 @@ def yaml_keys_body(level: int = 2) -> List[str]:
                 if nested not in taken:
                     lines += section(nested, f"{sub} {nested}")
     # The generators are reached through `Value`, which the schema writes as a
-    # condition on `gen`, so no key above links them; each kind is listed here
-    kinds = [
+    # condition on `gen`, so no key above links them
+    generators = [
         name
         for name, node in defs.items()
         if name not in taken and "gen" in node.get("properties", {})
     ]
-    if kinds:
+    if generators:
+        follow = " The keys of each kind follow." if kinds else ""
         lines += [
             f"{hashes} Generators",
             "",
             "A value place takes a constant or a generator: a mapping with a `gen` key "
-            "that names its kind. The keys of each kind follow. `null_rate`, `unique`, "
+            f"that names its kind.{follow} `null_rate`, `unique`, "
             "`omit_rate` and `omit_when` go on any kind.",
             "",
         ]
-        for name in kinds:
-            lines += section(name, f"{sub} {name}")
+        if kinds:
+            for name in generators:
+                lines += section(name, f"{sub} {name}")
+        else:
+            lines += [
+                "The [Generators](../generators/index.md) section has a page for each "
+                "kind, with its keys, an example and its JSON Schema.",
+                "",
+            ]
     return lines
 
 
@@ -124,4 +135,4 @@ def yaml_keys_page() -> str:
         "Duration.",
         "",
     ]
-    return "\n".join(lines + yaml_keys_body(2)).rstrip("\n") + "\n"
+    return "\n".join(lines + yaml_keys_body(2, kinds=False)).rstrip("\n") + "\n"

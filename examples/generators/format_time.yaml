@@ -1,0 +1,25 @@
+# Format Time: the simulation time in a chosen format.
+# A task `order` starts every 60 seconds, and the run lasts 200 seconds, so three orders
+# start.
+#
+# Run it with: desflow run examples/generators/format_time.yaml
+
+simulation:
+  sim_id: Gen
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  orders: {dist: constant, value: 60, spawn: order}
+
+tasks:
+  order:
+    payload:
+      day: {gen: format_time, format: "%Y-%m-%d %H:%M"}
+      epoch_s: {gen: format_time, format: epoch_s}
+
+run: {until: 200}

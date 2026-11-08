@@ -54,7 +54,7 @@ uv run --all-extras pytest tests/integration -ra  # needs Docker; starts odctl p
 uv run odctl up <profile> && uv run --all-extras pytest tests/integration/test_service_examples.py -m examples -k <example> -ra  # one service example in its three versions; start the profile first, and stop it with uv run odctl down <profile> --volumes
 uvx pre-commit run --all-files                    # ruff, ruff format, mypy, whitespace, YAML
 uv run --all-extras lint-imports                  # the import contracts in pyproject.toml, [tool.importlinter]
-DISABLE_MKDOCS_2_WARNING=true uv run --all-extras mkdocs build --strict
+DISABLE_MKDOCS_2_WARNING=true NO_MKDOCS_2_WARNING=1 uv run --all-extras mkdocs build --strict
 uv run --all-extras mkdocs serve -a 127.0.0.1:8001             # docs at http://127.0.0.1:8001/desflow/
 ```
 

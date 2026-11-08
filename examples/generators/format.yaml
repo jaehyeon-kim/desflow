@@ -1,0 +1,29 @@
+# Format: text built from a template and named parts.
+# A task `order` starts every 60 seconds, and the run lasts 200 seconds, so three orders
+# start.
+#
+# Run it with: desflow run examples/generators/format.yaml
+
+simulation:
+  sim_id: Gen
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  orders: {dist: constant, value: 60, spawn: order}
+
+tasks:
+  order:
+    payload:
+      label:
+        gen: format
+        template: "{region}-{number}"
+        names:
+          region: {gen: one_of, choices: [north, south]}
+          number: {gen: integer, bounds: [10, 99]}
+
+run: {until: 200}

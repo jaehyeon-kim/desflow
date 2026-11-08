@@ -1,0 +1,25 @@
+# Previous: a value from the last finished record of the same task.
+# An order starts every 60 seconds, and the run lasts 200 seconds, so three orders
+# start.
+#
+# Run it with: desflow run examples/generators/previous.yaml
+
+simulation:
+  sim_id: Gen
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  orders: {dist: constant, value: 60, spawn: order}
+
+tasks:
+  order:
+    payload:
+      reading: {gen: integer, bounds: [10, 20]}
+      before: {gen: previous, path: reading, default: 0}
+
+run: {until: 200}

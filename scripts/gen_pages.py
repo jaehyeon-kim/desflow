@@ -16,6 +16,10 @@ pages:
 - SimPy Compatibility: every SimPy feature in `tests/conformance/simpy_constructs.yaml`,
   with its form in each API from `tests/conformance/register.yaml`, its conformance
   tests, its page and its gaps.
+- Generators: an overview page and one page for each `gen` kind of the JSON Schema,
+  with its keys, its example in YAML, Builder and Low-level, and its JSON Schema.
+- Known Cases: every known case of `tests/known_cases/index.yaml` in the 14 topics, each
+  with its YAML, Builder and Low-level form, from the case folders.
 - CLI: one page per command and sub-command of `desflow`, each its help as Click
   prints it, and an index page for `desflow` itself.
 """
@@ -41,6 +45,11 @@ from reference_pages.distributions import (  # noqa: E402
     distribution_sections,
     distributions_page,
 )
+from reference_pages.generators import (  # noqa: E402
+    generator_pages,
+    record_outputs,
+)
+from reference_pages.known_cases import known_cases_files  # noqa: E402
 from reference_pages.statistics import statistic_names, statistics_page  # noqa: E402
 from reference_pages.yaml_keys import (  # noqa: E402
     paragraphs,
@@ -60,6 +69,8 @@ __all__ = [
     "constructs",
     "distribution_sections",
     "distributions_page",
+    "generator_pages",
+    "known_cases_files",
     "paragraphs",
     "register",
     "simpy_version",
@@ -83,6 +94,8 @@ def write() -> None:
         ("reference/yaml-keys.md", yaml_keys_page()),
         ("simpy/compatibility.md", compatibility_page()),
         *cli_pages().items(),
+        *generator_pages().items(),
+        *known_cases_files().items(),
     ):
         with mkdocs_gen_files.open(path, "w") as file:
             file.write(page)
@@ -96,3 +109,8 @@ def write() -> None:
 # mkdocs-gen-files runs this file with runpy, under this name
 if __name__ == "<run_path>":
     write()
+elif __name__ == "__main__":
+    # `python scripts/gen_pages.py` rewrites the records that the Generators pages show,
+    # from a run of each kind's YAML example
+    for changed in record_outputs():
+        print(f"rewrote examples/generators/{changed}_output.txt")

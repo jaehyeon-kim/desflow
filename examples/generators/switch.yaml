@@ -1,0 +1,33 @@
+# Switch: the value of the first case that matches.
+# A task `order` starts every 60 seconds, and the run lasts 200 seconds, so three orders
+# start.
+#
+# Run it with: desflow run examples/generators/switch.yaml
+
+simulation:
+  sim_id: Gen
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  orders: {dist: constant, value: 60, spawn: order}
+
+tasks:
+  order:
+    vars:
+      quantity: {gen: integer, bounds: [1, 6]}
+    payload:
+      quantity: {gen: var, name: quantity}
+      band:
+        gen: switch
+        on: {gen: var, name: quantity}
+        cases:
+          - {max: 3, value: small}
+          - {min: 3, max: 5, value: medium}
+        default: large
+
+run: {until: 200}

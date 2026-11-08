@@ -529,6 +529,7 @@ jobs:
       - name: Build the docs in strict mode
         env:
           DISABLE_MKDOCS_2_WARNING: "true"
+          NO_MKDOCS_2_WARNING: "1"
         run: uv run mkdocs build --strict
 
   # Every example, conformance blueprint and regression scenario runs unpaced on the

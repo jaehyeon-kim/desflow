@@ -5316,6 +5316,7 @@
           "default": null
         },
         "queue": {
+          "default": "fifo",
           "anyOf": [
             {
               "type": "string"
@@ -5323,10 +5324,10 @@
             {
               "$ref": "#/$defs/QueueRule"
             }
-          ],
-          "default": "fifo"
+          ]
         },
         "preempt": {
+          "default": false,
           "anyOf": [
             {
               "type": "boolean"
@@ -5337,8 +5338,7 @@
             {
               "$ref": "#/$defs/Placeholder"
             }
-          ],
-          "default": false
+          ]
         },
         "queue_limit": {
           "anyOf": [
@@ -5677,6 +5677,7 @@
           "default": null
         },
         "drain": {
+          "default": false,
           "anyOf": [
             {
               "type": "boolean"
@@ -5687,8 +5688,7 @@
             {
               "$ref": "#/$defs/Placeholder"
             }
-          ],
-          "default": false
+          ]
         },
         "on_unhandled_failure": {
           "default": "stop",

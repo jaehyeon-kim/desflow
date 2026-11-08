@@ -9,7 +9,7 @@ span, alone or followed by a colon.
 import re
 import typing
 from desflow.blueprint import models
-from feature_lists import gen_pages
+from feature_lists import generator_only, keys_pages
 
 
 def _models_in(annotation: object) -> list:
@@ -28,11 +28,15 @@ def _models_in(annotation: object) -> list:
 # name on another model (such as a future `TimeoutAfter.value`) is still required.
 _DISTRIBUTION_PARAMS = set(models.Distribution.model_fields)
 _PARAM_MODELS = (models.Distribution, models.Arrival)
+# The keys of these models are on the Generators pages, which YAML Keys links to and
+# `test_gen_pages.py` checks
+_GENERATOR_MODELS = generator_only()
 
 
 def _all_fields() -> set:
-    """Every field name of every model reachable from `Blueprint`, except the
-    distribution parameters the page documents on the Distributions reference."""
+    """Every field name of the models reachable from `Blueprint`, except the
+    distribution parameters the page documents on the Distributions reference and the
+    keys of the generator kinds."""
     seen: set = set()
     queue = [models.Blueprint]
     fields: set = set()
@@ -41,8 +45,11 @@ def _all_fields() -> set:
         if model in seen:
             continue
         seen.add(model)
+        on_generators = model.__name__ in _GENERATOR_MODELS
         for name, info in model.model_fields.items():
-            if not (model in _PARAM_MODELS and name in _DISTRIBUTION_PARAMS):
+            if not on_generators and not (
+                model in _PARAM_MODELS and name in _DISTRIBUTION_PARAMS
+            ):
                 # A blueprint writes the alias, such as `from` for `from_`
                 fields.add(info.alias or name)
             for nested in _models_in(info.annotation):
@@ -66,7 +73,6 @@ def _documented(page: str) -> set:
 
 
 def test_every_blueprint_field_is_on_yaml_keys():
-    page = gen_pages().yaml_keys_page()
-    documented = _documented(page)
+    documented = _documented(keys_pages("Blueprint")["reference/yaml-keys.md"])
     missing = sorted(name for name in _all_fields() if name not in documented)
     assert not missing, f"fields missing from YAML Keys: {missing}"

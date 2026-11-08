@@ -23,6 +23,7 @@ from feature_lists import (
     extras,
     families,
     gen_pages,
+    keys_pages,
 )
 
 # --- Blueprint keys -------------------------------------------------------------
@@ -43,8 +44,13 @@ def test_every_blueprint_key_has_an_example(model, key):
 
 @pytest.mark.parametrize("model,key", pairs(), ids=KEY_IDS)
 def test_every_blueprint_key_has_a_reference_and_a_skill_entry(model, key):
-    page = gen_pages().yaml_keys_page()
-    assert f"`{key}`" in page or f"## {key}\n" in page, f"{key}: not on YAML Keys"
+    # The keys of the generator kinds are on the page of each kind that has them, every
+    # other key is on YAML Keys
+    for path, page in keys_pages(model).items():
+        # A table row on a kind's page, not the key named anywhere on it
+        in_table = path.startswith("generators/") and model != "Generator"
+        row = f"| `{key}` |" if in_table else f"`{key}`"
+        assert row in page or f"## {key}\n" in page, f"{model}.{key}: not on {path}"
     keys = (SKILL / "references" / "blueprint-keys.md").read_text(encoding="utf-8")
     assert f"`{key}`" in keys or f"## {key}\n" in keys, f"{key}: not in the skill"
 
