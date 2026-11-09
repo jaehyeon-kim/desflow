@@ -8,6 +8,7 @@ at the `all` level are published every hour.
 """
 
 import itertools
+from importlib.metadata import version
 
 from desflow import (
     CapacityConfig,
@@ -46,6 +47,17 @@ SCHEDULE = [
 ]
 
 
+# desflow 1.0 writes the simulation and the service into each status record, and the
+# last release does not. The regression runs this file on both, so it writes them
+# only from 1.0 on, as desflow's own records do.
+_NAMED = int(version("desflow").split(".")[0]) >= 1
+
+
+def named(service):
+    """The `sim_id` and `service` fields of a status record, from desflow 1.0 on."""
+    return {"sim_id": "Shop", "service": service} if _NAMED else {}
+
+
 def order(env, sampler, shop, key, task_id):
     """Packs an order, then ships it."""
 
@@ -59,8 +71,7 @@ def order(env, sampler, shop, key, task_id):
         task_id,
         {
             "path_id": pack_path,
-            "sim_id": "Shop",
-            "service": "packing",
+            **named("packing"),
             "status": "queued",
         },
     )
@@ -73,8 +84,7 @@ def order(env, sampler, shop, key, task_id):
         task_id,
         {
             "path_id": pack_path,
-            "sim_id": "Shop",
-            "service": "packing",
+            **named("packing"),
             "status": "started",
         },
     )
@@ -90,8 +100,7 @@ def order(env, sampler, shop, key, task_id):
         ship_id,
         {
             "path_id": ship_path,
-            "sim_id": "Shop",
-            "service": "shipping",
+            **named("shipping"),
             "status": "started",
         },
     )

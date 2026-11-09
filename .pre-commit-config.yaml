@@ -3,11 +3,12 @@ repos:
     rev: v4.6.0
     hooks:
       # The draw.io app saves diagrams without a trailing newline, so every edit to
-      # the architecture diagram failed these two hooks in CI.
+      # the architecture diagram failed these two hooks in CI. tests/copied_projects
+      # holds other projects' files unchanged, among them CRLF data files.
       - id: trailing-whitespace
-        exclude: \.drawio$
+        exclude: \.drawio$|^tests/copied_projects/
       - id: end-of-file-fixer
-        exclude: \.drawio$
+        exclude: \.drawio$|^tests/copied_projects/
       - id: check-yaml
         # The YAML examples use the !python tag, which a safe load rejects. --unsafe
         # checks syntax only, without constructing the tags.
@@ -63,4 +64,6 @@ repos:
         # skills/desflow/ is written by scripts/gen_skill.py, so its
         # scripts/check_model.py is a copy of scripts/skill/scripts/check_model.py,
         # and two modules named check_model stop mypy in the same way.
-        exclude: ^examples/|_pb2\.py$|^tests/known_cases/[a-z0-9_]+/|^skills/
+        #
+        # tests/copied_projects holds other projects' files, copied unchanged.
+        exclude: ^examples/|_pb2\.py$|^tests/known_cases/[a-z0-9_]+/|^skills/|^tests/copied_projects/

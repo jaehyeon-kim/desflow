@@ -71,6 +71,7 @@ These changes make a task go on in the same step as the SimPy process it stands 
 
 ## Sinks and Connectors
 
+- **A status record** (`queued`, `started` and each other status of a task) carries `sim_id` and `service` beside `path_id`. 0.28.0 wrote `path_id` alone. A consumer that checks the fields of a status value, or a table whose columns 0.28.0 records made, gets the two new fields. See [Records and Telemetry](../reference/records-and-telemetry.md).
 - **Routing keys in a payload.** A payload key `__topic__` (Kafka), `__table__` (Iceberg) or `__path__` (Parquet, JSON Lines) now chooses the destination, and the sink removes it. 0.28.0 dropped it with a warning. Rename such a key if it was only data. A `__table__` that PostgreSQL and Iceberg share on one record needs the form `namespace.table` for Iceberg, or a `table_router`. See [Reserved Payload Keys](../reference/records-and-telemetry.md#reserved-payload-keys).
 - **A sink with `upsert_keys`** now writes the other records of a batch and skips only those that have none of the key columns, with one warning per flush that gives the counts. 0.28.0 lost the whole batch. Check the warning count after a run.
 - **An Iceberg column that is an integer in the first batch** is no longer truncated when a later batch holds a fraction: that batch is logged at ERROR and lost. Name the column as a double in `schemas`, such as `schemas: {shop.events: {key: string, v: double}}`. See [Iceberg](../user-guide/live-runs-and-connectors/egress.md#iceberg).

@@ -1,10 +1,10 @@
 """HR-01 to HR-26, DX-16, DX-17 and DX-19: the hot rolling twin's own generator.
 
-The original is `sim_control/generator.py` of the hot rolling twin (read only, at
-`DESFLOW_HOTROLLING`, default `~/personal/oml-digital-twin-hotrolling`, and skipped
-when it is not there). `generate` runs its `run()` with what needs a broker or the
-wall clock replaced, so that the twin's own processes (`drift_engine`,
-`telemetry_monitor`, `roll_slab` and `arrival_process`) make the records:
+The original is `sim_control/generator.py` of the hot rolling twin (its copy in
+`tests/copied_projects/oml-digital-twin-hotrolling`, read only). `generate` runs its
+`run()` with what needs a broker or the wall clock replaced, so that the twin's own
+processes (`drift_engine`, `telemetry_monitor`, `roll_slab` and `arrival_process`) make
+the records:
 
 - `DynamicRealtimeEnvironment` is unpaced, has the document's start time and takes the
   document's scenario steps as registry updates, as the dashboard's control topic does;
@@ -35,15 +35,12 @@ What differs between the twin and the YAML, each stated by the row that chose it
 import contextlib
 import copy
 import logging
-import os
 import re
 import sys
 import types
 from pathlib import Path
 from typing import Any
 from unittest import mock
-
-import pytest
 
 import desflow
 from desflow import SimulationContext
@@ -54,9 +51,10 @@ from tests.known_cases.bt_support import importable
 
 HERE = Path(__file__).parent
 TWIN = (
-    Path(os.environ.get("DESFLOW_HOTROLLING", "~/personal/oml-digital-twin-hotrolling"))
-    .expanduser()
-    .joinpath("sim_control")
+    Path(__file__).resolve().parents[2]
+    / "copied_projects"
+    / "oml-digital-twin-hotrolling"
+    / "sim_control"
 )
 
 # The values of `${NAME}` of model.yaml for every run: unpaced.
@@ -290,7 +288,7 @@ _PRISTINE: list[Any] = []
 def _twin() -> tuple[Any, Any, Any]:
     """The twin's `generator`, `routing` and `sim_logic` modules, read from its folder."""
     if not TWIN.is_dir():
-        pytest.skip(f"the hot rolling twin is not at {TWIN}")
+        raise FileNotFoundError(f"the hot rolling twin is not at {TWIN}")
     # The twin imports `dynamic_des`, the name before the rename, which 1.0 removes.
     # Its import is answered with `desflow` itself, so the test needs no old name.
     before = sys.modules.get("dynamic_des")

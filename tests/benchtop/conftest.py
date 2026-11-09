@@ -1,18 +1,13 @@
-"""Where the benchtop projects are. They are read and never changed.
-
-The folder is `DESFLOW_BENCHTOP` when set, otherwise `~/personal/benchtop`. A test that
-needs a project skips when the folder is not there.
+"""Where the benchtop projects are: the copy in `tests/copied_projects/benchtop`, which the
+tests read and never change.
 """
 
-import os
 import sys
 from pathlib import Path
 
 import pytest
 
-
-def _root() -> Path:
-    return Path(os.environ.get("DESFLOW_BENCHTOP", "~/personal/benchtop")).expanduser()
+ROOT = Path(__file__).resolve().parents[1] / "copied_projects" / "benchtop"
 
 
 @pytest.fixture(scope="session")
@@ -21,9 +16,9 @@ def project():
     no bytecode is written into the project."""
 
     def find(name: str) -> Path:
-        path = _root() / name
+        path = ROOT / name
         if not path.is_dir():
-            pytest.skip(f"the benchtop project {name} is not at {path}")
+            raise FileNotFoundError(f"the benchtop project {name} is not at {path}")
         sys.dont_write_bytecode = True
         if str(path) not in sys.path:
             sys.path.insert(0, str(path))

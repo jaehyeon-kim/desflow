@@ -1,19 +1,19 @@
 # Differences against the release named by `compare --baseline`. Each entry names a run key, the release that changed it and the changelog line that says so.
 - run: blueprint:c3_preemption.yaml
-  since: 0.23.0
-  changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
 - run: blueprint:c3_preemption_tie.yaml
-  since: 0.23.0
-  changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
 - run: blueprint:c3_two_preemptions.yaml
-  since: 0.23.0
-  changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
 - run: blueprint:c4_renege_ahead.yaml
-  since: 0.23.0
-  changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
 - run: blueprint:c7_patience_preempted.yaml
-  since: 0.23.0
-  changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
 - run: blueprint:c1_running.yaml
   since: 0.29.0
   changelog: "`next`, `on_fail` and `on_interrupt_next` now run the following task in the same process and the same step, so it asks for a unit before a child spawned at that instant, and a process you wait for ends when its whole flow ends; to let the child go first, give the following task `wait: {timeout: 0}`, which matches SimPy but does not restore the old records at ties above 1 (at 3 the old order is cuse-1, a-1, cuse-2, and now it is cuse-1, cuse-2, cuse-3). A `subscribe` interrupt or a preempted kept unit now reaches the following task, which `on_interrupt: abandon` cuts short."
@@ -379,7 +379,7 @@
   changelog: "With `on_interrupt: resume` or `restart`, a plain interrupt no longer gives back a unit the task holds, so the task goes on at once with it and other entities waiting for the unit wait until the task ends. A task with several resources asks again only for the unit it lost or still waited for, so it can wait for one while it holds the others, and a task preempted on one resource, or broken down on one, keeps the rest. A unit the task before kept with `keep` stays until the task starts, unless its resource breaks down or a preemption takes it, and now goes back at once when the task reneges, its wait fails or its function raises with no `on_fail`, or it has no next task. With `resume`, a task interrupted at the exact end of its service now goes on one step later, after other processes whose service ends then, as `yield env.timeout(0)` does. A preemption or a breakdown still takes the unit. To give the unit back and queue again, use `on_interrupt: abandon` with `on_interrupt_next` naming a task that asks for it; that keeps neither the `resumed` record, nor the time left (the next task draws its own service time), nor the task's counts (the interrupted task counts `interrupted` and neither `resumed` nor `finished`, and the next task counts its own `finished`). `sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
 - run: file:docs/snippets/yaml/process_interaction.yaml
   since: 1.0.0
-  changelog: "A signal is one-shot by default: a second firing of a signal is refused, so a signal that fires more than once gets `once: false`. A wait for a signal that has fired resumes at once."
+  changelog: "A signal is one-shot by default: a second firing of a signal is refused, so a signal that fires more than once gets `once: false`. A wait for a signal that has fired resumes at once. The Process Interaction example declares `courier_left` with `once: false`, because each courier fires it; signals are one-shot by default in 1.0."
 - run: file:docs/snippets/yaml/queues_and_capacity.yaml
   since: 1.0.0
   changelog: "With `on_interrupt: resume` or `restart`, a plain interrupt no longer gives back a unit the task holds, so the task goes on at once with it and other entities waiting for the unit wait until the task ends. A task with several resources asks again only for the unit it lost or still waited for, so it can wait for one while it holds the others, and a task preempted on one resource, or broken down on one, keeps the rest. A unit the task before kept with `keep` stays until the task starts, unless its resource breaks down or a preemption takes it, and now goes back at once when the task reneges, its wait fails or its function raises with no `on_fail`, or it has no next task. With `resume`, a task interrupted at the exact end of its service now goes on one step later, after other processes whose service ends then, as `yield env.timeout(0)` does. A preemption or a breakdown still takes the unit. To give the unit back and queue again, use `on_interrupt: abandon` with `on_interrupt_next` naming a task that asks for it; that keeps neither the `resumed` record, nor the time left (the next task draws its own service time), nor the task's counts (the interrupted task counts `interrupted` and neither `resumed` nor `finished`, and the next task counts its own `finished`). `sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
@@ -424,7 +424,7 @@
   changelog: "With `on_interrupt: resume` or `restart`, a plain interrupt no longer gives back a unit the task holds, so the task goes on at once with it and other entities waiting for the unit wait until the task ends. A task with several resources asks again only for the unit it lost or still waited for, so it can wait for one while it holds the others, and a task preempted on one resource, or broken down on one, keeps the rest. A unit the task before kept with `keep` stays until the task starts, unless its resource breaks down or a preemption takes it, and now goes back at once when the task reneges, its wait fails or its function raises with no `on_fail`, or it has no next task. With `resume`, a task interrupted at the exact end of its service now goes on one step later, after other processes whose service ends then, as `yield env.timeout(0)` does. A preemption or a breakdown still takes the unit. To give the unit back and queue again, use `on_interrupt: abandon` with `on_interrupt_next` naming a task that asks for it; that keeps neither the `resumed` record, nor the time left (the next task draws its own service time), nor the task's counts (the interrupted task counts `interrupted` and neither `resumed` nor `finished`, and the next task counts its own `finished`). `sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
 - run: file:docs/snippets/yaml/tasks.yaml
   since: 1.0.0
-  changelog: "With `on_interrupt: resume` or `restart`, a plain interrupt no longer gives back a unit the task holds, so the task goes on at once with it and other entities waiting for the unit wait until the task ends. A task with several resources asks again only for the unit it lost or still waited for, so it can wait for one while it holds the others, and a task preempted on one resource, or broken down on one, keeps the rest. A unit the task before kept with `keep` stays until the task starts, unless its resource breaks down or a preemption takes it, and now goes back at once when the task reneges, its wait fails or its function raises with no `on_fail`, or it has no next task. With `resume`, a task interrupted at the exact end of its service now goes on one step later, after other processes whose service ends then, as `yield env.timeout(0)` does. A preemption or a breakdown still takes the unit. To give the unit back and queue again, use `on_interrupt: abandon` with `on_interrupt_next` naming a task that asks for it; that keeps neither the `resumed` record, nor the time left (the next task draws its own service time), nor the task's counts (the interrupted task counts `interrupted` and neither `resumed` nor `finished`, and the next task counts its own `finished`). `sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+  changelog: "With `on_interrupt: resume` or `restart`, a plain interrupt no longer gives back a unit the task holds, so the task goes on at once with it and other entities waiting for the unit wait until the task ends. A task with several resources asks again only for the unit it lost or still waited for, so it can wait for one while it holds the others, and a task preempted on one resource, or broken down on one, keeps the rest. A unit the task before kept with `keep` stays until the task starts, unless its resource breaks down or a preemption takes it, and now goes back at once when the task reneges, its wait fails or its function raises with no `on_fail`, or it has no next task. With `resume`, a task interrupted at the exact end of its service now goes on one step later, after other processes whose service ends then, as `yield env.timeout(0)` does. A preemption or a breakdown still takes the unit. To give the unit back and queue again, use `on_interrupt: abandon` with `on_interrupt_next` naming a task that asks for it; that keeps neither the `resumed` record, nor the time left (the next task draws its own service time), nor the task's counts (the interrupted task counts `interrupted` and neither `resumed` nor `finished`, and the next task counts its own `finished`). `sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is. The Tasks examples show an entity that drives the breaks from the start and a payload of generated fields, in place of a payload computed by a Python function."
 - run: file:docs/snippets/yaml/test_a_model.yaml
   since: 1.0.0
   changelog: "With `on_interrupt: resume` or `restart`, a plain interrupt no longer gives back a unit the task holds, so the task goes on at once with it and other entities waiting for the unit wait until the task ends. A task with several resources asks again only for the unit it lost or still waited for, so it can wait for one while it holds the others, and a task preempted on one resource, or broken down on one, keeps the rest. A unit the task before kept with `keep` stays until the task starts, unless its resource breaks down or a preemption takes it, and now goes back at once when the task reneges, its wait fails or its function raises with no `on_fail`, or it has no next task. With `resume`, a task interrupted at the exact end of its service now goes on one step later, after other processes whose service ends then, as `yield env.timeout(0)` does. A preemption or a breakdown still takes the unit. To give the unit back and queue again, use `on_interrupt: abandon` with `on_interrupt_next` naming a task that asks for it; that keeps neither the `resumed` record, nor the time left (the next task draws its own service time), nor the task's counts (the interrupted task counts `interrupted` and neither `resumed` nor `finished`, and the next task counts its own `finished`). `sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
@@ -435,8 +435,8 @@
   since: 1.0.0
   changelog: "A signal is one-shot by default: a second firing of a signal is refused, so a signal that fires more than once gets `once: false`. A wait for a signal that has fired resumes at once."
 - run: file:docs/snippets/yaml/wait_groups.yaml
-  since: 0.29.0
-  changelog: "`next`, `on_fail` and `on_interrupt_next` now run the following task in the same process and the same step, so it asks for a unit before a child spawned at that instant, and a process you wait for ends when its whole flow ends; to let the child go first, give the following task `wait: {timeout: 0}`, which matches SimPy but does not restore the old records at ties above 1 (at 3 the old order is cuse-1, a-1, cuse-2, and now it is cuse-1, cuse-2, cuse-3). A `subscribe` interrupt or a preempted kept unit now reaches the following task, which `on_interrupt: abandon` cuts short."
+  since: 1.0.0
+  changelog: "`next`, `on_fail` and `on_interrupt_next` now run the following task in the same process and the same step, so it asks for a unit before a child spawned at that instant, and a process you wait for ends when its whole flow ends; to let the child go first, give the following task `wait: {timeout: 0}`, which matches SimPy but does not restore the old records at ties above 1 (at 3 the old order is cuse-1, a-1, cuse-2, and now it is cuse-1, cuse-2, cuse-3). A `subscribe` interrupt or a preempted kept unit now reaches the following task, which `on_interrupt: abandon` cuts short. The Wait for One or All example asks for a packer with a priority and without preemption, and shows a signal that fires more than once and a spawned task, so every key of a wait has an example."
 - run: file:docs/snippets/yaml/python_error.yaml
   since: 1.0.0
   changelog: "The YAML blueprint files of the repository, the examples and the docs snippets are written in one layout, checked by two pre-commit hooks; no blueprint changes meaning."
@@ -452,12 +452,147 @@
 - run: file:docs/snippets/pages/blueprint_error.yaml
   since: 1.0.0
   changelog: "The YAML blueprint files of the repository, the examples and the docs snippets are written in one layout, checked by two pre-commit hooks; no blueprint changes meaning."
-- run: file:docs/snippets/yaml/process_interaction.yaml
+- run: blueprint:balk.yaml
   since: 1.0.0
-  changelog: "The Process Interaction example declares `courier_left` with `once: false`, because each courier fires it; signals are one-shot by default in 1.0."
-- run: file:docs/snippets/yaml/tasks.yaml
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c1_child.yaml
   since: 1.0.0
-  changelog: "The Tasks examples show an entity that drives the breaks from the start and a payload of generated fields, in place of a payload computed by a Python function."
-- run: file:docs/snippets/yaml/wait_groups.yaml
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c1_child_failure.yaml
   since: 1.0.0
-  changelog: "The Wait for One or All example asks for a packer with a priority and without preemption, and shows a signal that fires more than once and a spawned task, so every key of a wait has an example."
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c1_child_on_fail.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c1_failure_continue.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c1_on_fire.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c1_process.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c1_running_two.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c1_spawn.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c1_spawn_delay.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c1_subscribe.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c2_all.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c2_all_failure.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c2_request.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c3_interrupt_service_abandon.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c3_interrupt_service_restart.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c3_interrupt_waiting_abandon.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c3_interrupt_waiting_resume.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c3_preemption_equal.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c4_cancel_granted.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c4_cancel_waiting.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c4_conditions.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c4_default_capacity.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c4_keep.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c4_mixed_preempt.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c4_no_limit.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c4_several.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c6_drain.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c6_drain_limit.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:c7_queue_limit_wait.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:initial_time.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:patience_queue.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:patience_renege.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:patience_tie_reneged.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:resource_priority.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:resource_queue.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:s1_breakdown_abandon.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:s1_breakdown_finish.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:s1_breakdown_restart.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:s1_breakdown_resume.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: blueprint:timed_service.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: example:process_events:builder
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: example:process_events:low_level
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: example:process_events:yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: file:docs/snippets/yaml/checking_a_model.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: file:docs/snippets/yaml/preemption.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: file:docs/snippets/yaml/task_endings.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: file:docs/snippets/yaml/write_a_connector.yaml
+  since: 1.0.0
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."

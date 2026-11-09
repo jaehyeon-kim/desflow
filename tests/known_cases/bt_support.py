@@ -1,23 +1,22 @@
 """Shared by the BT cases (the benchtop projects): the project folders, the builder
 helpers, and the stand-ins the originals need.
 
-The projects are read only. Their folder is `DESFLOW_BENCHTOP`, default
-`~/personal/benchtop`, and a test that needs one skips when it is not there.
+The projects are the copy in `tests/copied_projects/benchtop`, which the tests read and never
+change.
 """
 
 import contextlib
 import functools
 import importlib
-import os
 import sys
 import types
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from desflow.values import generator
+
+PROJECTS = Path(__file__).resolve().parents[1] / "copied_projects" / "benchtop"
 
 
 @contextlib.contextmanager
@@ -46,8 +45,7 @@ def importable(path: Path) -> Iterator[None]:
 
 @contextlib.contextmanager
 def project_path(name: str) -> Iterator[Path]:
-    """The folder of a benchtop project, made importable for the block; the test skips
-    when the project is not there.
+    """The folder of a benchtop project, made importable for the block.
 
     Args:
         name: The project's folder, such as `live-dashboard`.
@@ -55,10 +53,9 @@ def project_path(name: str) -> Iterator[Path]:
     Yields:
         Path: The folder.
     """
-    root = Path(os.environ.get("DESFLOW_BENCHTOP", "~/personal/benchtop")).expanduser()
-    path = root / name
+    path = PROJECTS / name
     if not path.is_dir():
-        pytest.skip(f"the benchtop project {name} is not at {path}")
+        raise FileNotFoundError(f"the benchtop project {name} is not at {path}")
     with importable(path):
         yield path
 

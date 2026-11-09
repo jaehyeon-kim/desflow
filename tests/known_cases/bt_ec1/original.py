@@ -1,8 +1,7 @@
 """BT-EC1 to BT-EC9: the ecommerce-cdc project's own simulation.
 
 The original is the project's `ecommerce.simulation.run.build` and its processes
-(`~/personal/benchtop/ecommerce-cdc`, read only, at `DESFLOW_BENCHTOP`; the test skips
-without it), run unpaced to the document's end with stand-ins for what is random:
+(its copy in `tests/copied_projects/benchtop/ecommerce-cdc`, read only), run unpaced to the document's end with stand-ins for what is random:
 
 - `_Sampler` gives every arrival gap and every service time a fixed value, and `rng` the
   fixed draws below;

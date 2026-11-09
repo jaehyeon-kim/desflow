@@ -1,21 +1,27 @@
 """Decides which jobs a run of `pipeline.yml` runs, for its `plan` job.
 
-A push to `main` or `release-1.0.0` runs the full set. A pull request runs a short set,
-skips the code jobs when it changes only docs, and runs the integration and service
-example jobs only when it changes what they cover (issue #90).
+There are three sets (issue #90):
 
-    python scripts/ci_plan.py push < /dev/null
+- `pr`, a pull request: the unit and conformance tests on Python 3.11 and 3.15.
+- `main`, a push to `main`: the same on every Python from 3.11 to 3.15.
+- `full`, the daily schedule or a run started by hand: everything, adding the tests
+  marked `every_model`, the known cases, Windows and macOS, the paced cases, the
+  lowest Pydantic, the newest SimPy and the service jobs.
+
+In `pr` and `main`, the docs tests run only when the files they read change, and the
+service jobs only when the connectors, the examples or the dependencies change.
+
+    python scripts/ci_plan.py schedule < /dev/null
     git diff --name-only <base>...HEAD | python scripts/ci_plan.py pull_request
 
 It writes `name=value` lines for `$GITHUB_OUTPUT`.
 
-The test legs are sized from the times in `tests/durations.json`, measured on the
-runners (run 42609301404, Python 3.12, minutes of test time on Ubuntu): the tests
-marked `every_model` take 71, `tests/known_cases` 33, and the rest of `tests/unit`,
-`tests/conformance` and `tests/benchtop` 41. A share of about 21 minutes of test time
-runs in about 11 minutes on the runner's 4 CPUs. So the tests marked `every_model` and
-the known cases run on Python 3.12 only, the version in `.python-version`, on each
-system, and the other versions run the rest.
+The parts of a test job are dealt by the times in `tests/durations.json`, measured on
+the runners: the unit, conformance and benchtop tests without those marked
+`every_model` take about 41 minutes of test time for one Python version, and about
+21 minutes of test time run in about 11 minutes on a runner. So each version runs in
+4 parts of about 6 minutes. With the tests marked `every_model` and the known cases, a
+version takes about 145 minutes of test time, which the full set runs in 7 parts.
 """
 
 import fnmatch
@@ -24,10 +30,27 @@ import sys
 from typing import Dict, List
 
 ALL = "tests/unit tests/conformance tests/benchtop tests/known_cases"
-REST = "tests/unit tests/conformance tests/benchtop"
+UNIT = "tests/unit tests/conformance tests/benchtop"
+VERSIONS = ["3.11", "3.12", "3.13", "3.14", "3.15"]
+UNIT_PARTS = 4
+ALL_PARTS = 7
 
 # Files whose change alone runs only the docs jobs
 DOCS_ONLY = ["docs/*", "mkdocs.yml", "*.md"]
+
+# Files the docs tests read, besides the docs themselves
+DOCS = DOCS_ONLY + [
+    "src/*",
+    "examples/*",
+    "skills/*",
+    "scripts/*",
+    "hooks/*",
+    "overrides/*",
+    "tests/docs/*",
+    "pyproject.toml",
+    "uv.lock",
+    ".github/workflows/pipeline.yml",
+]
 
 # Files the integration and service example jobs cover
 SERVICES = [
@@ -42,48 +65,59 @@ SERVICES = [
     "scripts/ci_plan.py",
 ]
 
+SYSTEMS = {
+    "ubuntu-latest": "Ubuntu",
+    "windows-latest": "Windows",
+    "macos-latest": "macOS",
+}
 
-def _leg(
-    os: str, python: str, label: str, paths: str, marks: str, count: int
-) -> List[Dict]:
-    system = "Ubuntu" if os.startswith("ubuntu") else "Windows"
+
+def _leg(os: str, python: str, everything: bool) -> List[Dict]:
+    """The parts of one test job: the unit, conformance and benchtop tests, or with
+    `everything` also the tests marked `every_model` and the known cases."""
+    label = "All tests" if everything else "Unit and conformance tests"
+    paths = ALL if everything else UNIT
+    marks = "not paced" if everything else "not paced and not every_model"
+    count = ALL_PARTS if everything else UNIT_PARTS
     return [
         {
-            "name": f"{system} {python} {label}"
-            + (f" {share}/{count}" if count > 1 else ""),
+            "name": f"{label}, Python {python}, {SYSTEMS[os]}, part {part} of {count}",
             "os": os,
             "python": python,
             "paths": paths,
             "marks": marks,
-            "shard": f"{share}/{count}" if count > 1 else "",
+            "shard": f"{part}/{count}",
         }
-        for share in range(1, count + 1)
+        for part in range(1, count + 1)
     ]
 
 
-def unit_legs(full: bool) -> List[Dict]:
-    legs = _leg("ubuntu-latest", "3.12", "all", ALL, "not paced", 7)
-    for python in ("3.11", "3.15"):
-        legs += _leg(
-            "ubuntu-latest", python, "rest", REST, "not paced and not every_model", 2
+def unit_legs(tier: str) -> List[Dict]:
+    if tier == "pr":
+        return _leg("ubuntu-latest", "3.11", False) + _leg(
+            "ubuntu-latest", "3.15", False
         )
-    if full:
-        for python in ("3.13", "3.14"):
-            legs += _leg(
-                "ubuntu-latest", python, "unit", "tests/unit", "not every_model", 1
-            )
-        legs += _leg("windows-latest", "3.12", "all", ALL, "not paced", 7)
+    legs: List[Dict] = []
+    for python in VERSIONS:
+        # The full set runs Python 3.12, the version in .python-version, with everything
+        legs += _leg("ubuntu-latest", python, tier == "full" and python == "3.12")
+    if tier == "full":
+        legs += _leg("windows-latest", "3.12", True)
+        legs += _leg("macos-latest", "3.12", True)
     return legs
 
 
-def paced_legs(full: bool) -> List[Dict]:
+def paced_legs(tier: str) -> List[Dict]:
     # The paced cases time themselves below one tick of the Windows clock, which is
     # 15.6 ms before Python 3.13 and 1 microsecond from it (the Python 3.13
     # changelog, "time"), so the Windows runner runs them on 3.13.
-    legs = [{"os": "ubuntu-latest", "python": "3.12"}]
-    if full:
-        legs.append({"os": "windows-latest", "python": "3.13"})
-    return legs
+    if tier != "full":
+        return []
+    return [
+        {"os": "ubuntu-latest", "python": "3.12"},
+        {"os": "windows-latest", "python": "3.13"},
+        {"os": "macos-latest", "python": "3.12"},
+    ]
 
 
 def _matches(path: str, patterns: List[str]) -> bool:
@@ -91,15 +125,23 @@ def _matches(path: str, patterns: List[str]) -> bool:
 
 
 def plan(event: str, changed: List[str]) -> Dict[str, str]:
-    full = event != "pull_request"
-    code = full or not changed or not all(_matches(p, DOCS_ONLY) for p in changed)
-    services = full or any(_matches(path, SERVICES) for path in changed)
+    """The jobs of a run. An empty `changed` means the changed files are not known,
+    so every job that depends on them runs."""
+    tier = {"pull_request": "pr", "push": "main"}.get(event, "full")
+    full = tier == "full"
+    known = bool(changed)
+    code = full or not known or not all(_matches(p, DOCS_ONLY) for p in changed)
+    docs = full or not known or any(_matches(p, DOCS) for p in changed)
+    services = full or not known or any(_matches(p, SERVICES) for p in changed)
+    paced = paced_legs(tier)
     return {
         "full": json.dumps(full),
         "code": json.dumps(code),
+        "docs": json.dumps(docs),
         "services": json.dumps(services),
-        "unit": json.dumps({"include": unit_legs(full)}),
-        "paced": json.dumps({"include": paced_legs(full)}),
+        "unit": json.dumps({"include": unit_legs(tier)}),
+        "paced": json.dumps({"include": paced or [{"os": "", "python": ""}]}),
+        "has_paced": json.dumps(bool(paced)),
         "simpy": json.dumps(["lowest", "newest"] if full else ["lowest"]),
     }
 

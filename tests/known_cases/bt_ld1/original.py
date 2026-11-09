@@ -1,8 +1,7 @@
 """BT-LD1 to BT-LD17: the live-dashboard shop.
 
 The original is the project's own model, `sales.simulation.run.build`
-(`~/personal/benchtop/live-dashboard`, read only, at `DESFLOW_BENCHTOP`; the test skips
-without it), run unpaced to the document's end with a stand-in sampler that gives fixed
+(its copy in `tests/copied_projects/benchtop/live-dashboard`, read only), run unpaced to the document's end with a stand-in sampler that gives fixed
 draws, and with `publish_event` recorded. Its imports of `asyncpg`, which only its
 store needs, are answered with a stand-in module when it is not installed.
 

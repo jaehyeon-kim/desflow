@@ -2,9 +2,14 @@ name: Pipeline
 
 on:
   push:
-    branches: [main, release-1.0.0]
+    branches: [main]
   pull_request:
     branches: [main]
+  # The full set, every day at 17:00 UTC (03:00 or 04:00 in Melbourne), and by hand
+  # before a release: gh workflow run pipeline.yml --ref <branch>
+  schedule:
+    - cron: "0 17 * * *"
+  workflow_dispatch:
 
 # Read-only by default, so a pull request build cannot write to the repository.
 # The docs job raises its own permissions, because it is the only one that pushes.
@@ -19,21 +24,25 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Two runs (issue #90). A push to main, or to release-1.0.0 until the 1.0.0 merge,
-  # runs the full set and then deploys the docs from main. A pull request runs a short
-  # set: it skips the code jobs when it changes only docs, and runs the integration
-  # and service example jobs only when it changes what they cover. The plan job reads
-  # the event and the changed files, and scripts/ci_plan.py decides. Every other job
-  # starts as soon as the plan is read, and checks-passed collects their results.
+  # Three sets (issue #90). A pull request tests Python 3.11 and 3.15, a push to main
+  # every Python from 3.11 to 3.15 and then deploys the docs, and the daily schedule or
+  # a run by hand runs everything. A pull request or a push runs the docs tests only
+  # when the files they read change, and the integration and service example jobs only
+  # when what they cover changes. The plan job reads the event and the changed files,
+  # and scripts/ci_plan.py decides. Every other job starts as soon as the plan is
+  # read, and checks-passed collects their results.
   plan:
+    name: Plan the jobs
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       full: ${{ steps.plan.outputs.full }}
       code: ${{ steps.plan.outputs.code }}
+      docs: ${{ steps.plan.outputs.docs }}
       services: ${{ steps.plan.outputs.services }}
       unit: ${{ steps.plan.outputs.unit }}
       paced: ${{ steps.plan.outputs.paced }}
+      has_paced: ${{ steps.plan.outputs.has_paced }}
       simpy: ${{ steps.plan.outputs.simpy }}
     steps:
       - uses: actions/checkout@v7
@@ -45,9 +54,14 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+        # A push compares with the commit before it. A list that cannot be read stays
+        # empty, and the plan then runs every job.
         run: |
           if [ "$EVENT" = pull_request ]; then
             git diff --name-only "$BASE...HEAD" > changed.txt
+          elif [ "$EVENT" = push ]; then
+            git diff --name-only "$BEFORE" HEAD > changed.txt 2> /dev/null || : > changed.txt
           else
             : > changed.txt
           fi
@@ -55,6 +69,7 @@ jobs:
 
   # Linting is not version specific, so it runs once.
   lint:
+    name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -83,6 +98,7 @@ jobs:
   # user's first command does. One job loops over them, because each takes seconds
   # and most of a job's time is its setup.
   install-checks:
+    name: Install the core and each extra alone
     needs: plan
     if: needs.plan.outputs.code == 'true'
     runs-on: ubuntu-latest
@@ -137,13 +153,13 @@ jobs:
       - name: Resolve a time zone
         run: uv run --no-project --python core-venv python -c "from desflow.core.environment import resolve_zone; print(resolve_zone('Australia/Sydney'))"
 
-  # The unit, conformance, benchtop and known case tests, in the legs and shares that
-  # scripts/ci_plan.py lists. A share (TEST_SHARD) is dealt by the time of each test in
-  # tests/durations.json, so the shares of a leg take about the same time. Each job
+  # The unit, conformance, benchtop and known case tests, in the jobs and parts that
+  # scripts/ci_plan.py lists. A part (TEST_SHARD) is dealt by the time of each test in
+  # tests/durations.json, so the parts of a job take about the same time. Each job
   # writes a JUnit file, from which scripts/test_durations.py records the times again.
   # The tests run in parallel worker processes (pytest-xdist, one per CPU).
   unit-test:
-    name: Tests (${{ matrix.name }})
+    name: ${{ matrix.name }}
     needs: plan
     if: needs.plan.outputs.code == 'true'
     strategy:
@@ -176,11 +192,11 @@ jobs:
           path: junit.xml
 
   # The known cases that run against the wall clock, in a job of their own, so the
-  # CPU time of other tests cannot make a strict case late.
+  # CPU time of other tests cannot make a strict case late. The full set only.
   paced:
-    name: Paced known cases (${{ matrix.os }}, ${{ matrix.python }})
+    name: Paced known cases, Python ${{ matrix.python }}, ${{ matrix.os }}
     needs: plan
-    if: needs.plan.outputs.code == 'true'
+    if: needs.plan.outputs.has_paced == 'true'
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.paced) }}
@@ -203,7 +219,7 @@ jobs:
   # SimPy is what desflow is checked against, so the conformance tests run at both
   # ends of the `simpy` requirement: the floor in pyproject.toml, on every run, and
   # the newest release, which may be newer than uv.lock until Dependabot updates it,
-  # on the full run. The test jobs run them at the locked version. Only SimPy moves;
+  # in the full set. The test jobs run them at the locked version. Only SimPy moves;
   # every other package stays at its locked version.
   simpy-range:
     name: Conformance at the ${{ matrix.bound }} SimPy
@@ -245,9 +261,9 @@ jobs:
   # The two schema tests compare a committed file with one that the installed
   # Pydantic writes, which another release may write differently. The public API
   # snapshot does the same for the signatures and fields of the Pydantic models. It
-  # runs on the full run, in two shares, without the tests marked every_model.
+  # runs in the full set, in two parts, without the tests marked every_model.
   pydantic-floor:
-    name: Unit and conformance at the lowest Pydantic (${{ matrix.shard }}/2)
+    name: Unit and conformance tests at the lowest Pydantic, part ${{ matrix.shard }} of 2
     needs: plan
     if: needs.plan.outputs.full == 'true'
     runs-on: ubuntu-latest
@@ -283,8 +299,10 @@ jobs:
   # (fake-gcs-server). The odctl tests are split in two so that neither job holds
   # up the stage. The emulators are containers that the tests start with
   # `docker run`.
-  # They run on the full run, and on a pull request that changes what they cover.
+  # They run in the full set, and on a pull request or a push that changes what they
+  # cover.
   integration-test:
+    name: Integration tests, ${{ matrix.group }}
     needs: plan
     if: needs.plan.outputs.services == 'true'
     runs-on: ubuntu-latest
@@ -326,6 +344,7 @@ jobs:
   # Each job starts the example's profile, runs the example's three versions against
   # it for a set simulation time, and reads their records back from the service.
   service-examples:
+    name: Service example, ${{ matrix.example }}
     needs: plan
     if: needs.plan.outputs.services == 'true'
     runs-on: ubuntu-latest
@@ -408,7 +427,9 @@ jobs:
   # passed them. Material prints a notice about MkDocs 2.0 that strict mode counts as
   # a warning; the variable turns that notice off.
   docs-build:
+    name: Docs tests, part ${{ matrix.group }} of 8
     needs: plan
+    if: needs.plan.outputs.docs == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -429,7 +450,9 @@ jobs:
         run: uv run --all-extras pytest tests/docs/ -q -n auto
 
   docs-strict-build:
+    name: Docs strict build
     needs: plan
+    if: needs.plan.outputs.docs == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -453,13 +476,19 @@ jobs:
   # its entry with the next version. The baseline is the newest `v*` tag in the
   # history, so once a release is tagged, later pushes are compared with it. The
   # baseline side runs from outside the repository, because uv run --no-project
-  # inside it imports the working tree's desflow. The steps from "Check out v1.0.0"
-  # on pin 1.0 once the tag v1.0.0 exists.
-  regression:
+  # inside it imports the working tree's desflow. The runs are captured in 6 parts at
+  # once (`capture --shard`), and the regression job joins the parts and compares
+  # them. The steps from "Check out v1.0.0" on pin 1.0 once the tag v1.0.0 exists.
+  regression-capture:
+    name: Regression capture, part ${{ matrix.part }} of 6
     needs: plan
     if: needs.plan.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -475,20 +504,21 @@ jobs:
           tag=$(git describe --tags --abbrev=0 --match 'v*')
           echo "BASELINE=${tag#v}" >> "$GITHUB_ENV"
           git worktree add "$RUNNER_TEMP/baseline" "$tag"
+          mkdir -p "$RUNNER_TEMP/capture"
 
       - name: Capture this commit
-        run: uv run --all-extras python scripts/regression.py capture --root . --out "$RUNNER_TEMP/new.json"
+        run: uv run --all-extras python scripts/regression.py capture --root . --shard ${{ matrix.part }}/6 --out "$RUNNER_TEMP/capture/new-${{ matrix.part }}.json"
 
       # On a pull request the last release's capture is kept between runs. It changes
       # only with the tag, the scenarios, the list of left-out files or the script, so
-      # those are its key. The full run captures it again.
+      # those are its key. A push and the full set capture it again.
       - name: Restore the capture of the last release
         if: github.event_name == 'pull_request'
         id: baseline
         uses: actions/cache@v6
         with:
-          path: ${{ runner.temp }}/old.json
-          key: regression-${{ env.BASELINE }}-${{ hashFiles('tests/regression/scenarios/**', 'tests/regression/left_out.yaml', 'scripts/regression.py') }}
+          path: ${{ runner.temp }}/capture/old-${{ matrix.part }}.json
+          key: regression-${{ env.BASELINE }}-${{ matrix.part }}-${{ hashFiles('tests/regression/scenarios/**', 'tests/regression/left_out.yaml', 'scripts/regression.py') }}
 
       - name: Capture the last release
         if: steps.baseline.outputs.cache-hit != 'true'
@@ -499,10 +529,8 @@ jobs:
             --root "$RUNNER_TEMP/baseline" \
             --scenarios "$GITHUB_WORKSPACE/tests/regression/scenarios" \
             --left-out "$GITHUB_WORKSPACE/tests/regression/left_out.yaml" \
-            --out "$RUNNER_TEMP/old.json"
-
-      - name: Compare the two captures
-        run: uv run --all-extras python scripts/regression.py compare "$RUNNER_TEMP/old.json" "$RUNNER_TEMP/new.json" --baseline "$BASELINE"
+            --shard ${{ matrix.part }}/6 \
+            --out "$RUNNER_TEMP/capture/old-${{ matrix.part }}.json"
 
       # From the tag v1.0.0 on, the output of every 1.0 blueprint is pinned: both sides
       # run the files of v1.0.0 (its examples, blueprints, scenarios and its own
@@ -520,7 +548,7 @@ jobs:
 
       - name: Capture the files of v1.0.0 on this commit
         if: steps.pin.outputs.exists == 'true'
-        run: uv run --all-extras python scripts/regression.py capture --root "$RUNNER_TEMP/v1.0.0" --out "$RUNNER_TEMP/pin-new.json"
+        run: uv run --all-extras python scripts/regression.py capture --root "$RUNNER_TEMP/v1.0.0" --shard ${{ matrix.part }}/6 --out "$RUNNER_TEMP/capture/pin-new-${{ matrix.part }}.json"
 
       - name: Capture the files of v1.0.0 on desflow 1.0.0
         if: steps.pin.outputs.exists == 'true'
@@ -529,19 +557,63 @@ jobs:
           uv run --no-project --python 3.12 --with "desflow[all]==1.0.0" --with pytest \
             python "$GITHUB_WORKSPACE/scripts/regression.py" capture \
             --root "$RUNNER_TEMP/v1.0.0" \
-            --out "$RUNNER_TEMP/pin-old.json"
+            --shard ${{ matrix.part }}/6 \
+            --out "$RUNNER_TEMP/capture/pin-old-${{ matrix.part }}.json"
 
-      - name: Compare the two captures of the v1.0.0 files
-        if: steps.pin.outputs.exists == 'true'
-        run: uv run --all-extras python scripts/regression.py compare "$RUNNER_TEMP/pin-old.json" "$RUNNER_TEMP/pin-new.json" --baseline 1.0.0 --set-aside-absent
+      - name: Upload the captures
+        uses: actions/upload-artifact@v7
+        with:
+          name: regression-${{ matrix.part }}
+          path: ${{ runner.temp }}/capture/
+
+  regression:
+    name: Regression compare
+    needs: [plan, regression-capture]
+    if: needs.plan.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Download the captures of every part
+        uses: actions/download-artifact@v8
+        with:
+          pattern: regression-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/capture
+
+      - name: Join the parts and compare the two captures
+        run: |
+          tag=$(git describe --tags --abbrev=0 --match 'v*')
+          cd "$RUNNER_TEMP/capture"
+          uv run --project "$GITHUB_WORKSPACE" --all-extras python "$GITHUB_WORKSPACE/scripts/regression.py" merge --out old.json old-*.json
+          uv run --project "$GITHUB_WORKSPACE" --all-extras python "$GITHUB_WORKSPACE/scripts/regression.py" merge --out new.json new-*.json
+          uv run --project "$GITHUB_WORKSPACE" --all-extras python "$GITHUB_WORKSPACE/scripts/regression.py" compare old.json new.json --baseline "${tag#v}"
+
+      - name: Join the parts and compare the two captures of the v1.0.0 files
+        run: |
+          cd "$RUNNER_TEMP/capture"
+          if ls pin-new-*.json > /dev/null 2>&1; then
+            uv run --project "$GITHUB_WORKSPACE" --all-extras python "$GITHUB_WORKSPACE/scripts/regression.py" merge --out pin-old.json pin-old-*.json
+            uv run --project "$GITHUB_WORKSPACE" --all-extras python "$GITHUB_WORKSPACE/scripts/regression.py" merge --out pin-new.json pin-new-*.json
+            uv run --project "$GITHUB_WORKSPACE" --all-extras python "$GITHUB_WORKSPACE/scripts/regression.py" compare pin-old.json pin-new.json --baseline 1.0.0 --set-aside-absent
+          fi
 
   # The one check that branch protection on main requires. A job skipped because a
   # job it needs failed would not block a merge (GitHub docs, "Troubleshooting
   # required status checks"), so this job runs whatever happened and fails when any
   # job failed or was cancelled. A job the plan skipped counts as passed.
   checks-passed:
+    name: checks-passed
     if: always()
-    needs: [plan, lint, install-checks, windows-core-install, unit-test, paced, simpy-range, pydantic-floor, integration-test, service-examples, parquet-s3-example, docs-build, docs-strict-build, regression]
+    needs: [plan, lint, install-checks, windows-core-install, unit-test, paced, simpy-range, pydantic-floor, integration-test, service-examples, parquet-s3-example, docs-build, docs-strict-build, regression-capture, regression]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -558,11 +630,13 @@ jobs:
           PY
 
   docs:
+    name: Deploy the docs
     needs: checks-passed
     permissions:
       contents: write
       pages: write
-    if: github.ref == 'refs/heads/main'
+    # A push to main only: the schedule and a run by hand deploy nothing
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

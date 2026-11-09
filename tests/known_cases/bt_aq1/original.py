@@ -1,7 +1,7 @@
 """BT-AQ1 to BT-AQ13: the air-quality project's own generator.
 
-The original is the project's `airq.feature` package (`~/personal/benchtop/air-quality`,
-read only, at `DESFLOW_BENCHTOP`; the test skips without it):
+The original is the project's `airq.feature` package (its copy in
+`tests/copied_projects/benchtop/air-quality`, read only):
 
 - `generate` runs the project's `generator.generate` with a random number generator that
   gives fixed draws (`_FixedRng`), then the project's `HourlyPublisher` over the hours of

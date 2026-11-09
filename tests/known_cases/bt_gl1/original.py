@@ -1,8 +1,7 @@
 """BT-GL1 to BT-GL10: the game-leaderboard simulation.
 
 The original is the project's own model, `leaderboard.simulation.run.build` and its
-`Game` (`~/personal/benchtop/game-leaderboard`, read only, at `DESFLOW_BENCHTOP`; the
-test skips without it), run unpaced to the document's end with a stand-in sampler that
+`Game` (its copy in `tests/copied_projects/benchtop/game-leaderboard`, read only), run unpaced to the document's end with a stand-in sampler that
 gives fixed draws, and with `publish_event` recorded. Its imports of `confluent_kafka`
 and `httpx`, which only its sinks need, are answered with stand-in modules.
 

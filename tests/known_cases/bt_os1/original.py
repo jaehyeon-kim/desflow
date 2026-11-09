@@ -1,7 +1,7 @@
 """BT-OS1 to BT-OS10: the order-streams JSON producer.
 
 The project's generator is Kotlin (`orders-json-clients/.../ProducerApp.kt` of
-`~/personal/benchtop/order-streams`, read only), so there is no Python function to run.
+the benchtop project `order-streams`, read only), so there is no Python function to run.
 `check` states what that producer does, from its source, and the test runs it on the
 records of the YAML form. The producer sends one `Order` a second, keyed by its id, with
 a UUID, a bid time of the form `yyyy-MM-dd HH:mm:ss` up to `DELAY_SECONDS` seconds in

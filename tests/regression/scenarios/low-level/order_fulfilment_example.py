@@ -10,6 +10,7 @@ benches as packing.
 """
 
 import itertools
+from importlib.metadata import version
 
 from desflow import (
     CapacityConfig,
@@ -47,6 +48,17 @@ PARAMS = SimParameter(
 ORDERS = {"orders": (2, 40), "express": (1, 25)}
 
 
+# desflow 1.0 writes the simulation and the service into each status record, and the
+# last release does not. The regression runs this file on both, so it writes them
+# only from 1.0 on, as desflow's own records do.
+_NAMED = int(version("desflow").split(".")[0]) >= 1
+
+
+def named(service):
+    """The `sim_id` and `service` fields of a status record, from desflow 1.0 on."""
+    return {"sim_id": "Shop", "service": service} if _NAMED else {}
+
+
 class Shop:
     """The shop's parts, its sampler and the task counters its processes share."""
 
@@ -72,8 +84,7 @@ class Shop:
             publish(
                 {
                     "path_id": path_id,
-                    "sim_id": "Shop",
-                    "service": service,
+                    **named(service),
                     "status": state,
                 }
             )

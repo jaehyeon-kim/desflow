@@ -9,6 +9,7 @@ seconds, which ends the run by its stop condition; 900 seconds and a drain of at
 """
 
 import itertools
+from importlib.metadata import version
 
 import simpy
 
@@ -45,6 +46,17 @@ CHANGES = [
 ]
 
 
+# desflow 1.0 writes the simulation and the service into each status record, and the
+# last release does not. The regression runs this file on both, so it writes them
+# only from 1.0 on, as desflow's own records do.
+_NAMED = int(version("desflow").split(".")[0]) >= 1
+
+
+def named(service):
+    """The `sim_id` and `service` fields of a status record, from desflow 1.0 on."""
+    return {"sim_id": "Shop", "service": service} if _NAMED else {}
+
+
 def pack(env, sampler, shop, key, task_id):
     path_id = "Shop.service.packing"
 
@@ -52,9 +64,7 @@ def pack(env, sampler, shop, key, task_id):
         env.publish_event(key, value, task="pack", instance=task_id)
 
     env.stats.flow_started("orders")
-    publish(
-        {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
-    )
+    publish({"path_id": path_id, **named("packing"), "status": "queued"})
     env.stats.task_queued("pack", task_id)
     with shop["packers"].request() as req:
         yield req
@@ -62,8 +72,7 @@ def pack(env, sampler, shop, key, task_id):
         publish(
             {
                 "path_id": path_id,
-                "sim_id": "Shop",
-                "service": "packing",
+                **named("packing"),
                 "status": "started",
             }
         )

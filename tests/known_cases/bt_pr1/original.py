@@ -1,7 +1,7 @@
 """BT-PR1 to BT-PR10: the product-recommender's own Python.
 
-The original is the project's `recommender` package (`~/personal/benchtop/
-product-recommender`, read only, at `DESFLOW_BENCHTOP`; the test skips without it):
+The original is the project's `recommender` package (its copy in
+`tests/copied_projects/benchtop/product-recommender`, read only):
 
 - `generate` makes the users with `recommender.data.users.new_user` and a stand-in
   `Faker` that gives fixed draws (`_FixedFake`), so every user is known;

@@ -14,6 +14,10 @@ runs on the baseline:
     uv run --all-extras python scripts/regression.py compare /tmp/old.json new.json \\
         --baseline 0.22.0
 
+`capture --shard 2/6` runs the second of six parts, and `merge --out new.json
+new-*.json` joins the parts of one side before `compare`. A run goes to the same part
+on each side, so the CI pipeline captures the parts in jobs at the same time.
+
 Run the old side from a directory outside the repository, such as `/tmp`, and name
 the working tree's script by its absolute path. From inside the repository,
 `uv run --no-project` imports the working tree's desflow, not the released wheel
@@ -58,6 +62,7 @@ import importlib.util
 import json
 import signal
 import sys
+import zlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from unittest.mock import MagicMock, patch
@@ -70,6 +75,18 @@ EXPECTED = (
 # Seconds one file of `_all_blueprints` may run. The limit stops a file with no end;
 # the slowest file takes 30 s on a laptop and over 60 s on a CI runner.
 RUN_LIMIT = 180
+# The part of the runs this capture takes, as (part, count), set by `--shard`
+SHARD = (1, 1)
+
+
+def _mine(key: str) -> bool:
+    """Whether this capture's part runs the run or group of runs named `key`.
+
+    A key goes to the same part on every machine, so the parts of the last release
+    and of this commit hold the same runs.
+    """
+    part, count = SHARD
+    return zlib.crc32(key.encode()) % count == part - 1
 
 
 def _load(root: Path):
@@ -87,6 +104,8 @@ def _examples(twins) -> Dict[str, Any]:
     captured: Dict[str, Any] = {}
     for name, yaml_file, extra, until, processes in twins.EXAMPLE_CASES:
         if extra and importlib.util.find_spec(extra) is None:
+            continue
+        if not _mine(f"example:{name}"):
             continue
         captured[f"example:{name}:builder"] = twins._builder_records(name, until)
         low = twins._load(twins.EXAMPLES / "low-level" / f"{name}_example.py")
@@ -106,6 +125,8 @@ def _blueprints(root: Path, twins, harness) -> Dict[str, Any]:
     captured: Dict[str, Any] = {}
     folder = root / "tests" / "conformance" / "blueprints"
     for path in sorted(folder.glob("*.yaml")):
+        if not _mine(f"blueprint:{path.name}"):
+            continue
         try:
             records, _ = harness.run_yaml(path.name)
             captured[f"blueprint:{path.name}"] = twins._records(records)
@@ -228,6 +249,8 @@ def _all_blueprints(
     captured: Dict[str, Any] = {}
     for path in _other_blueprints(root, twins, left_out):
         name = path.relative_to(root).as_posix()
+        if not _mine(f"file:{name}"):
+            continue
         try:
             with (
                 _restored_imports(),
@@ -286,6 +309,8 @@ def _scenarios(twins, folder: Path) -> Dict[str, Any]:
         raise SystemExit("scenarios folder: " + "; ".join(problems))
     captured: Dict[str, Any] = {}
     for name, yaml_file, _extra, until, processes in cases.SCENARIO_CASES:
+        if not _mine(f"scenario:{name}"):
+            continue
         run = cases.SCENARIO_RUN.get(name, {})
         builder = twins._load(folder / "builder" / f"{name}_example.py")
         app = builder.app
@@ -344,6 +369,27 @@ def capture(
         captured.update(_scenarios(twins, folder.resolve()))
     Path(out).write_text(json.dumps(captured, default=str, sort_keys=True))
     print(f"captured {len(captured)} runs from {root_path} to {out}")
+
+
+def merge(parts: List[str], out: str) -> None:
+    """Joins the capture files of the parts of one side into one file.
+
+    Args:
+        parts: The capture files of the parts.
+        out: The JSON file to write.
+
+    Raises:
+        SystemExit: When two parts hold the same run.
+    """
+    joined: Dict[str, Any] = {}
+    for part in parts:
+        captured = json.loads(Path(part).read_text())
+        both = sorted(set(joined) & set(captured))
+        if both:
+            raise SystemExit(f"{part} repeats runs of another part: {both[:5]}")
+        joined.update(captured)
+    Path(out).write_text(json.dumps(joined, sort_keys=True))
+    print(f"joined {len(joined)} runs from {len(parts)} parts to {out}")
 
 
 def _version(text: str) -> Tuple[int, ...]:
@@ -457,6 +503,14 @@ def main() -> int:
         "--left-out",
         help="the list of left-out files (default: <root>/tests/regression/left_out.yaml)",
     )
+    cap.add_argument(
+        "--shard",
+        default="1/1",
+        help="capture one part of the runs, such as 2/6; `merge` joins the parts",
+    )
+    mrg = commands.add_parser("merge", help="join the capture files of the parts")
+    mrg.add_argument("--out", required=True)
+    mrg.add_argument("parts", nargs="+")
     cmp = commands.add_parser("compare", help="compare two capture files")
     cmp.add_argument("old")
     cmp.add_argument("new")
@@ -471,7 +525,15 @@ def main() -> int:
     )
     args = parser.parse_args()
     if args.command == "capture":
+        global SHARD
+        part, count = (int(n) for n in args.shard.split("/"))
+        if not 1 <= part <= count:
+            raise SystemExit(f"--shard {args.shard}: the part must be 1 to {count}")
+        SHARD = (part, count)
         capture(args.root, args.out, args.scenarios, args.left_out)
+        return 0
+    if args.command == "merge":
+        merge(args.parts, args.out)
         return 0
     return compare(
         args.old, args.new, args.baseline, args.expected, args.set_aside_absent
