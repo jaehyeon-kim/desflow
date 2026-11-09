@@ -1,8 +1,8 @@
 name: Publish the last dynamic-des release
 
 # dynamic-des is the name of desflow before 0.20.0. Its last release, in
-# compat/dynamic-des/, installs desflow. Run this once, by hand,
-# after desflow 0.20.0 is on PyPI.
+# compat/dynamic-des/, installs desflow below 1.0.0. Run it by hand on main,
+# before desflow 1.0.0 is on PyPI.
 on:
   workflow_dispatch:
 
