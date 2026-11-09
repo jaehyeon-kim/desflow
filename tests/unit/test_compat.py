@@ -67,6 +67,9 @@ def test_ddes_warns_then_runs_desflow():
 # installs them under the old name.
 _ADDED_AFTER_THE_LAST_RELEASE = {"fit"}
 
+# The desflow versions the last dynamic-des release installs.
+_DESFLOW_RANGE = ">=0.20.0,<1.0.0"
+
 
 def test_last_dynamic_des_release_has_every_desflow_extra():
     """`pip install "dynamic-des[kafka]"` must install what `desflow[kafka]` does."""
@@ -74,10 +77,11 @@ def test_last_dynamic_des_release_has_every_desflow_extra():
     compat = tomllib.loads(
         (ROOT / "compat" / "dynamic-des" / "pyproject.toml").read_text(encoding="utf-8")
     )
-    # The last dynamic-des release needs at least the desflow of the same version.
-    version = compat["project"]["version"]
+    # The last dynamic-des release installs desflow from the rename to below 1.0.0,
+    # which removes the dynamic_des import and the ddes command.
+    assert compat["project"]["dependencies"] == [f"desflow{_DESFLOW_RANGE}"]
     assert compat["project"]["optional-dependencies"] == {
-        extra: [f"desflow[{extra}]>={version}"]
+        extra: [f"desflow[{extra}]{_DESFLOW_RANGE}"]
         for extra in main["project"]["optional-dependencies"]
         if extra not in _ADDED_AFTER_THE_LAST_RELEASE
     }
