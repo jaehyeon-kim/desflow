@@ -1,13 +1,19 @@
 name: Full set
 
 # Everything, every day at 17:00 UTC (03:00 or 04:00 in Melbourne), and by hand before
-# a release: gh workflow run full.yml --ref <branch>. The jobs of checks.yml run their
+# a release: gh workflow run full.yml --ref <branch>. GitHub starts a workflow by hand
+# only when its file is on the default branch, so a pull request starts it from its
+# own branch with the label `full set`:
+# gh pr edit <n> --remove-label "full set" && gh pr edit <n> --add-label "full set".
+# The jobs of checks.yml run their
 # full set (the tests marked every_model, the known cases, Windows, macOS, the newest
 # SimPy, the docs and the service jobs), and the jobs below run only here.
 on:
   schedule:
     - cron: "0 17 * * *"
   workflow_dispatch:
+  pull_request:
+    types: [labeled]
 
 permissions:
   contents: read
@@ -15,15 +21,20 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
+# A label other than `full set` starts a run whose jobs are all skipped.
 jobs:
   checks:
     name: Checks
+    if: github.event_name != 'pull_request' || github.event.label.name == 'full set'
     uses: ./.github/workflows/checks.yml
+    with:
+      full: true
 
   # --all-extras installs pandas, which brings tzdata, so the test jobs cannot show
   # whether the core install has a time zone database on Windows.
   windows-core-install:
     name: Resolve a time zone with the core install on Windows
+    if: github.event_name != 'pull_request' || github.event.label.name == 'full set'
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
@@ -47,6 +58,7 @@ jobs:
   # runs them on 3.13.
   paced:
     name: Paced known cases, Python ${{ matrix.python }}, ${{ matrix.os }}
+    if: github.event_name != 'pull_request' || github.event.label.name == 'full set'
     strategy:
       fail-fast: false
       matrix:
@@ -81,6 +93,7 @@ jobs:
   # runs in two parts, without the tests marked every_model.
   pydantic-floor:
     name: Unit and conformance tests at the lowest Pydantic, part ${{ matrix.shard }} of 2
+    if: github.event_name != 'pull_request' || github.event.label.name == 'full set'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:

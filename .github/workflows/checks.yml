@@ -9,6 +9,12 @@ name: Checks
 # jobs only when what they cover changes.
 on:
   workflow_call:
+    inputs:
+      # full.yml passes true, so a run it starts from a pull request label is planned
+      # as the full set, not as the pull request set
+      full:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -32,7 +38,7 @@ jobs:
       - name: Read the changed files and plan the jobs
         id: plan
         env:
-          EVENT: ${{ github.event_name }}
+          EVENT: ${{ inputs.full && 'full' || github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
           BEFORE: ${{ github.event.before }}
         # A push compares with the commit before it. A list that cannot be read stays
@@ -407,7 +413,7 @@ jobs:
       # only with the tag, the scenarios, the list of left-out files or the script, so
       # those are its key. A push and the full set capture it again.
       - name: Restore the capture of the last release
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && !inputs.full
         id: baseline
         uses: actions/cache@v6
         with:
