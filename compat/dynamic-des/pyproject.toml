@@ -1,9 +1,10 @@
 # The last release of dynamic-des, the name of desflow before 0.20.0. It installs
-# desflow, so `pip install dynamic-des` keeps working. The workflow
+# desflow below 1.0.0, so `pip install dynamic-des` keeps working: desflow 1.0.0
+# removes the dynamic_des import and the ddes command. The workflow
 # .github/workflows/publish-dynamic-des.yml builds and publishes it.
 [project]
 name = "dynamic-des"
-version = "0.20.0"
+version = "0.21.0"
 description = "dynamic-des is renamed desflow. This package installs desflow."
 readme = "README.md"
 authors = [
@@ -11,7 +12,7 @@ authors = [
 ]
 requires-python = ">=3.11"
 license = "MIT"
-dependencies = ["desflow>=0.20.0"]
+dependencies = ["desflow>=0.20.0,<1.0.0"]
 classifiers = [
     "Development Status :: 7 - Inactive",
     "Programming Language :: Python :: 3",
@@ -24,14 +25,14 @@ ddes = "desflow.blueprint.cli:ddes"
 
 # The extras of desflow, so `pip install "dynamic-des[kafka]"` installs what it did.
 [project.optional-dependencies]
-kafka = ["desflow[kafka]>=0.20.0"]
-redis = ["desflow[redis]>=0.20.0"]
-postgres = ["desflow[postgres]>=0.20.0"]
-confluent = ["desflow[confluent]>=0.20.0"]
-glue = ["desflow[glue]>=0.20.0"]
-parquet = ["desflow[parquet]>=0.20.0"]
-iceberg = ["desflow[iceberg]>=0.20.0"]
-all = ["desflow[all]>=0.20.0"]
+kafka = ["desflow[kafka]>=0.20.0,<1.0.0"]
+redis = ["desflow[redis]>=0.20.0,<1.0.0"]
+postgres = ["desflow[postgres]>=0.20.0,<1.0.0"]
+confluent = ["desflow[confluent]>=0.20.0,<1.0.0"]
+glue = ["desflow[glue]>=0.20.0,<1.0.0"]
+parquet = ["desflow[parquet]>=0.20.0,<1.0.0"]
+iceberg = ["desflow[iceberg]>=0.20.0,<1.0.0"]
+all = ["desflow[all]>=0.20.0,<1.0.0"]
 
 [project.urls]
 Homepage = "https://jaehyeon.me/desflow/"
