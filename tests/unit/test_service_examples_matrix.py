@@ -1,6 +1,6 @@
 """The `service-examples` job runs every example that has an odctl profile.
 
-The job's matrix in `pipeline.yml` is written by hand, and `EXAMPLES` is the list of
+The job's matrix in `checks.yml` is written by hand, and `EXAMPLES` is the list of
 examples. An example registered with a profile and left out of the matrix would never
 run in CI, and a name left in the matrix after its example goes would select no test.
 """
@@ -11,9 +11,7 @@ import yaml
 
 from desflow.examples import EXAMPLES
 
-PIPELINE = (
-    Path(__file__).resolve().parents[2] / ".github" / "workflows" / "pipeline.yml"
-)
+PIPELINE = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "checks.yml"
 
 
 def test_matrix_lists_the_examples_with_a_profile():
@@ -23,7 +21,7 @@ def test_matrix_lists_the_examples_with_a_profile():
     listed = job["strategy"]["matrix"]["example"]
     registered = sorted(name for name, e in EXAMPLES.items() if e.profile)
     assert sorted(listed) == registered, (
-        "The service-examples matrix in pipeline.yml and the examples with a profile "
+        "The service-examples matrix in checks.yml and the examples with a profile "
         f"in EXAMPLES differ: matrix {sorted(listed)}, EXAMPLES {registered}."
     )
 

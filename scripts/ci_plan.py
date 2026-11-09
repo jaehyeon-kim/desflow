@@ -1,12 +1,13 @@
-"""Decides which jobs a run of `pipeline.yml` runs, for its `plan` job.
+"""Decides which jobs a run of `checks.yml` runs, for its `plan` job.
 
 There are three sets (issue #90):
 
 - `pr`, a pull request: the unit and conformance tests on Python 3.11 and 3.15.
 - `main`, a push to `main`: the same on every Python from 3.11 to 3.15.
-- `full`, the daily schedule or a run started by hand: everything, adding the tests
-  marked `every_model`, the known cases, Windows and macOS, the paced cases, the
-  lowest Pydantic, the newest SimPy and the service jobs.
+- `full`, the daily schedule or a run started by hand (`full.yml`): everything,
+  adding the tests marked `every_model`, the known cases, Windows and macOS, the
+  newest SimPy and the service jobs. `full.yml` also runs the paced cases and the
+  lowest Pydantic itself.
 
 In `pr` and `main`, the docs tests run only when the files they read change, and the
 service jobs only when the connectors, the examples or the dependencies change.
@@ -49,7 +50,7 @@ DOCS = DOCS_ONLY + [
     "tests/docs/*",
     "pyproject.toml",
     "uv.lock",
-    ".github/workflows/pipeline.yml",
+    ".github/workflows/checks.yml",
 ]
 
 # Files the integration and service example jobs cover
@@ -61,7 +62,7 @@ SERVICES = [
     "tests/integration/*",
     "pyproject.toml",
     "uv.lock",
-    ".github/workflows/pipeline.yml",
+    ".github/workflows/checks.yml",
     "scripts/ci_plan.py",
 ]
 
@@ -107,19 +108,6 @@ def unit_legs(tier: str) -> List[Dict]:
     return legs
 
 
-def paced_legs(tier: str) -> List[Dict]:
-    # The paced cases time themselves below one tick of the Windows clock, which is
-    # 15.6 ms before Python 3.13 and 1 microsecond from it (the Python 3.13
-    # changelog, "time"), so the Windows runner runs them on 3.13.
-    if tier != "full":
-        return []
-    return [
-        {"os": "ubuntu-latest", "python": "3.12"},
-        {"os": "windows-latest", "python": "3.13"},
-        {"os": "macos-latest", "python": "3.12"},
-    ]
-
-
 def _matches(path: str, patterns: List[str]) -> bool:
     return any(fnmatch.fnmatch(path, pattern) for pattern in patterns)
 
@@ -133,15 +121,11 @@ def plan(event: str, changed: List[str]) -> Dict[str, str]:
     code = full or not known or not all(_matches(p, DOCS_ONLY) for p in changed)
     docs = full or not known or any(_matches(p, DOCS) for p in changed)
     services = full or not known or any(_matches(p, SERVICES) for p in changed)
-    paced = paced_legs(tier)
     return {
-        "full": json.dumps(full),
         "code": json.dumps(code),
         "docs": json.dumps(docs),
         "services": json.dumps(services),
         "unit": json.dumps({"include": unit_legs(tier)}),
-        "paced": json.dumps({"include": paced or [{"os": "", "python": ""}]}),
-        "has_paced": json.dumps(bool(paced)),
         "simpy": json.dumps(["lowest", "newest"] if full else ["lowest"]),
     }
 

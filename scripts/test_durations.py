@@ -1,6 +1,6 @@
 """Records the time of each test from the JUnit files of a CI run.
 
-The `unit-test` jobs of `pipeline.yml` upload a JUnit file each. Download the Ubuntu
+The `unit-test` jobs of `checks.yml` upload a JUnit file each. Download the Ubuntu
 ones of a run of the full set (the daily schedule, or a run by hand) and write the
 times that `TEST_SHARD` deals the tests by:
 

@@ -1,4 +1,4 @@
-"""scripts/ci_plan.py picks the jobs of a pipeline run.
+"""scripts/ci_plan.py picks the jobs of a run of checks.yml.
 
 A pull request tests Python 3.11 and 3.15, a push to main every Python from 3.11 to
 3.15, and the schedule or a run by hand everything. A pull request or a push skips the
@@ -31,18 +31,18 @@ def _versions(plan, os="ubuntu-latest"):
 
 def test_a_pull_request_tests_the_lowest_and_highest_python():
     plan = _plan("pull_request", SRC)
-    assert not plan["full"] and plan["code"] and not plan["services"]
+    assert plan["code"] and not plan["services"]
     assert {leg["os"] for leg in plan["unit"]["include"]} == {"ubuntu-latest"}
     assert _versions(plan) == {"3.11", "3.15"}
-    assert plan["simpy"] == ["lowest"] and not plan["has_paced"]
+    assert plan["simpy"] == ["lowest"]
 
 
 def test_a_push_to_main_tests_every_python_on_ubuntu():
     plan = _plan("push", SRC)
-    assert not plan["full"] and plan["code"] and not plan["services"]
+    assert plan["code"] and not plan["services"]
     assert {leg["os"] for leg in plan["unit"]["include"]} == {"ubuntu-latest"}
     assert _versions(plan) == {"3.11", "3.12", "3.13", "3.14", "3.15"}
-    assert plan["simpy"] == ["lowest"] and not plan["has_paced"]
+    assert plan["simpy"] == ["lowest"]
 
 
 def test_the_short_sets_leave_out_the_every_model_tests_and_known_cases():
@@ -55,8 +55,8 @@ def test_the_short_sets_leave_out_the_every_model_tests_and_known_cases():
 def test_the_schedule_and_a_run_by_hand_run_everything():
     for event in ("schedule", "workflow_dispatch"):
         plan = _plan(event, [])
-        assert plan["full"] and plan["code"] and plan["docs"] and plan["services"]
-        assert plan["simpy"] == ["lowest", "newest"] and plan["has_paced"]
+        assert plan["code"] and plan["docs"] and plan["services"]
+        assert plan["simpy"] == ["lowest", "newest"]
         legs = plan["unit"]["include"]
         assert {leg["os"] for leg in legs} == {
             "ubuntu-latest",
