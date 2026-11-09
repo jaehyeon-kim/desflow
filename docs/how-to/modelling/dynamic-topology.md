@@ -39,7 +39,7 @@ The code below does all four. In a blueprint and in the builder, the supervisor 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/dynamic_topology.yaml:shop"
-    simulation: {sim_id: Shop, factor: 0, strict: false}
+    simulation: {sim_id: Shop, factor: 0}
 
     egress:
       - {type: Console}
@@ -88,7 +88,7 @@ The code below does all four. In a blueprint and in the builder, the supervisor 
 
     ```python title="docs/snippets/guides/dynamic_topology_builder.py:shop"
     app = (
-        SimulationContext(sim_id="Shop", factor=0, strict=False)
+        SimulationContext(sim_id="Shop", factor=0)
         .add_egress(ConsoleEgress())
         .add_resource("packers", current_cap=1, max_cap=5)
         # Called as supervisor(context); it adds the wrappers during the run
@@ -197,7 +197,7 @@ The wrappers' capacity is live like any other. A scenario, a connector or a proc
         ```yaml title="docs/snippets/yaml/dynamic_topology.yaml"
         # The Add Resources Mid-run guide: a supervisor adds gift wrappers at 12 seconds.
         # Run it with: desflow run dynamic_topology.yaml, beside dynamic_topology_logic.py
-        simulation: {sim_id: Shop, factor: 0, strict: false}
+        simulation: {sim_id: Shop, factor: 0}
 
         egress:
           - {type: Console}
@@ -284,7 +284,7 @@ The wrappers' capacity is live like any other. A scenario, a connector or a proc
         logging.basicConfig(level=logging.INFO)
 
         app = (
-            SimulationContext(sim_id="Shop", factor=0, strict=False)
+            SimulationContext(sim_id="Shop", factor=0)
             .add_egress(ConsoleEgress())
             .add_resource("packers", current_cap=1, max_cap=5)
             # Called as supervisor(context); it adds the wrappers during the run
@@ -363,7 +363,7 @@ The wrappers' capacity is live like any other. A scenario, a connector or a proc
 
 
         def run(until=20.0, factor=0):
-            env = DynamicRealtimeEnvironment(factor=factor, strict=False)
+            env = DynamicRealtimeEnvironment(factor=factor)
             env.registry.register_sim_parameter(PARAMS)
             env.setup_egress([ConsoleEgress()])
 

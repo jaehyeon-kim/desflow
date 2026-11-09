@@ -37,8 +37,10 @@ def build(env: DynamicRealtimeEnvironment) -> None:
     sampler = Sampler(seed=42)
     gaps = sampler.generator("arrivals.cars.gap")
     levels = sampler.generator("arrivals.cars.attributes.level")
+    # --8<-- [start:pumps-and-tank]
     gas_station = simpy.Resource(env, 2)
     station_tank = simpy.Container(env, STATION_TANK_SIZE, init=STATION_TANK_SIZE)
+    # --8<-- [end:pumps-and-tank]
     numbers = {
         task: itertools.count()
         for task in ("car", "control", "call_truck", "await_truck", "truck", "pause")
@@ -47,6 +49,7 @@ def build(env: DynamicRealtimeEnvironment) -> None:
     def publish(name, task, number, value):
         env.publish_event(name, value, task=task, instance=number)
 
+    # --8<-- [start:car-refuels]
     def car(name, car_tank_level):
         number = next(numbers["car"])
         with gas_station.request() as req:
@@ -60,6 +63,9 @@ def build(env: DynamicRealtimeEnvironment) -> None:
                 name, "car", number, {"event_type": "refueled", "litres": fuel_required}
             )
 
+    # --8<-- [end:car-refuels]
+
+    # --8<-- [start:truck-fills-tank]
     def tank_truck(name):
         number = next(numbers["truck"])
         publish(name, "truck", number, {"status": "started"})
@@ -70,6 +76,9 @@ def build(env: DynamicRealtimeEnvironment) -> None:
             name, "truck", number, {"event_type": "truck_arrived", "litres": amount}
         )
 
+    # --8<-- [end:truck-fills-tank]
+
+    # --8<-- [start:control-calls-truck]
     def gas_station_control(name):
         while True:
             publish(
@@ -88,6 +97,9 @@ def build(env: DynamicRealtimeEnvironment) -> None:
             yield env.timeout(10)
             publish(name, "pause", pause, {"event_type": "waited"})
 
+    # --8<-- [end:control-calls-truck]
+
+    # --8<-- [start:cars-arrive]
     def car_generator():
         for i in itertools.count():
             yield env.timeout(int(gaps.integers(30, 301)))
@@ -95,6 +107,7 @@ def build(env: DynamicRealtimeEnvironment) -> None:
 
     env.process(gas_station_control("control-1"))
     env.process(car_generator())
+    # --8<-- [end:cars-arrive]
 
 
 def run() -> None:

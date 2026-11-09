@@ -266,10 +266,10 @@ def check(folder: str, customers: int, days: int) -> int:
 
 
 if __name__ == "__main__":
-    args = sys.argv[1:]
-    check(
-        *(args[:1] or ["scale_output"]), *(int(a) for a in (args[1:] or ["1000", "30"]))
-    )
+    folder = sys.argv[1] if len(sys.argv) > 1 else "scale_output"
+    customers = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
+    days = int(sys.argv[3]) if len(sys.argv) > 3 else 30
+    check(folder, customers, days)
 ```
 
 ```bash
@@ -550,8 +550,8 @@ The check stops with an error when a day has no file, or when the total is more 
 
 
     if __name__ == "__main__":
-        args = sys.argv[1:]
-        check(
-            *(args[:1] or ["scale_output"]), *(int(a) for a in (args[1:] or ["1000", "30"]))
-        )
+        folder = sys.argv[1] if len(sys.argv) > 1 else "scale_output"
+        customers = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
+        days = int(sys.argv[3]) if len(sys.argv) > 3 else 30
+        check(folder, customers, days)
     ```

@@ -22,8 +22,11 @@ def build() -> SimulationContext:
     """Builds the gas station."""
     app = SimulationContext(sim_id="GasStation", factor=0, random_seed=42)
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:pumps-and-tank]
     app.add_resource("pumps", current_cap=2)
     app.add_container("tank", current_cap=200, level=200)
+    # --8<-- [end:pumps-and-tank]
+    # --8<-- [start:cars-arrive]
     app.add_initial_arrival("control", 1, spawn="control")
     app.add_arrival(
         "cars",
@@ -32,6 +35,8 @@ def build() -> SimulationContext:
         attributes={"level": generator({"gen": "integer", "bounds": [5, 25]})},
         spawn="car",
     )
+    # --8<-- [end:cars-arrive]
+    # --8<-- [start:car-refuels]
     car_payload = Template(
         {
             "event_type": "refueled",
@@ -50,6 +55,9 @@ def build() -> SimulationContext:
         """Refuels at a pump."""
         return car_payload
 
+    # --8<-- [end:car-refuels]
+
+    # --8<-- [start:control-calls-truck]
     @app.task(
         name="control",
         next={
@@ -73,6 +81,9 @@ def build() -> SimulationContext:
         """Waits for the tank truck."""
         return {"event_type": "truck_returned"}
 
+    # --8<-- [end:control-calls-truck]
+
+    # --8<-- [start:truck-fills-tank]
     truck_payload = Template(
         {
             "event_type": "truck_arrived",
@@ -90,10 +101,15 @@ def build() -> SimulationContext:
         """Fills the tank on arrival."""
         return truck_payload
 
+    # --8<-- [end:truck-fills-tank]
+
+    # --8<-- [start:pause]
     @app.task(name="pause", service_time=10, next="control")
     def pause(task_id):
         """Waits until the next check."""
         return {"event_type": "waited"}
+
+    # --8<-- [end:pause]
 
     return app
 

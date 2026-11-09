@@ -16,7 +16,14 @@
     "statistics-and-sinks": "reference/yaml-keys/#stats"
   },
   "learn/concepts/common-mistakes/": {
-    "busy-hour-figures": "learn/first-model/first-simulation/#busy-hour-figures"
+    "busy-hour-figures": "learn/concepts/output-analysis/#busy-hour-figures"
+  },
+  "learn/first-model/first-simulation/": {
+    "busy-hour-figures": "learn/concepts/output-analysis/#busy-hour-figures"
+  },
+  "learn/first-model/queues-and-capacity/": {
+    "networks-and-bottlenecks": "learn/shop-logic/flow-of-tasks/#networks-and-bottlenecks",
+    "tuning": "cli/#check-it-before-a-long-run"
   },
   "user-guide/resources/": {
     "task-priority": "user-guide/resources/priority-and-preemption/#task-priority",
@@ -27,11 +34,11 @@
     "example-interruptions": "user-guide/resources/priority-and-preemption/#example-interruptions",
     "example-competing-resources": "user-guide/resources/several-resources/#example-competing-resources"
   },
-  "how-to/examples/backfill-live/": {
+  "gallery/simulation-models/backfill-live/": {
     "why-one-run-rather-than-two": "user-guide/time-and-pacing/clocks-and-pacing/#go-live",
     "how-the-three-settings-fit-together": "user-guide/time-and-pacing/clocks-and-pacing/#go-live",
-    "two-details-to-get-right": "how-to/examples/backfill-live/#get-two-details-right",
-    "what-the-run-logs": "how-to/examples/backfill-live/#check-the-result",
+    "two-details-to-get-right": "gallery/simulation-models/backfill-live/#get-two-details-right",
+    "what-the-run-logs": "gallery/simulation-models/backfill-live/#check-the-result",
     "low-level-api": "user-guide/time-and-pacing/clocks-and-pacing/#go-live"
   },
   "user-guide/tasks-and-processes/": {
@@ -68,6 +75,9 @@
     "compare-with-observed-values": "user-guide/results/experiment-results/#compare-with-observed-values",
     "files": "user-guide/results/experiment-results/#files",
     "read-the-report": "user-guide/results/experiment-results/#read-the-report"
+  },
+  "user-guide/model-parts/task-flow/": {
+    "entity-key": "user-guide/model-parts/task-flow/#record-key-and-fields"
   },
   "user-guide/model-parts/arrivals-and-services/": {
     "exponential": "reference/distributions/#exponential",

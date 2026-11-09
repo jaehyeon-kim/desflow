@@ -23,28 +23,31 @@ This page adds a signal, `courier_left`, that the courier fires as it leaves, an
 
 ## A Signal
 
-So far a process has waited for time, a resource or an item. Processes can also wait for each other. In SimPy one process yields an event, and another process succeeds it, which marks the event as happened. Every process waiting for the event then resumes. desflow gives such an event a name and calls it a **signal**. A signal is declared once, and a task fires it when the task finishes. The signal can fire again later, and each firing wakes every process that is waiting for it at that moment:
+So far a process has waited for time, a resource or an item. Processes can also wait for each other. In SimPy one process yields an event, and another process succeeds it, which marks the event as happened. Every process waiting for the event then resumes. desflow gives such an event a name and calls it a **signal**. A signal is declared once, and a task fires it when the task finishes. A signal is one-shot by default: it fires once, and a second firing is an error. The courier comes every 10 minutes, so this signal says `once: false`, and each firing wakes every process that is waiting for it at that moment:
 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/process_interaction.yaml:signal"
     signals:
-      # Fired by the courier as it leaves with every order that waits for it
-      - courier_left
+      # Fired by the courier as it leaves with every order that waits for it,
+      # and again at each later courier, so it is not one-shot
+      courier_left: {once: false}
     ```
 
 === "Builder"
 
     ```python title="docs/snippets/tutorials/process_interaction.py:signal"
-    # Fired by the courier as it leaves with every order that waits for it
-    app.add_signal("courier_left")
+    # Fired by the courier as it leaves with every order that waits for it,
+    # and again at each later courier, so it is not one-shot
+    app.add_signal("courier_left", once=False)
     ```
 
 === "Low-level"
 
     ```python title="docs/snippets/tutorials/process_interaction_low_level.py:signal"
-    # Fired by the courier as it leaves with every order that waits for it
-    "courier_left": Signal(env, "courier_left"),
+    # Fired by the courier as it leaves with every order that waits for it,
+    # and again at each later courier, so it is not one-shot
+    "courier_left": Signal(env, "courier_left", once=False),
     ```
 
     `Signal` holds one pending SimPy `Event`. `wait()` returns it. `fire(value)` succeeds it and puts a fresh one in its place. So a process that starts waiting after a firing waits for the next firing. [SimPy and desflow](../../simpy/index.md#events-and-callbacks) describes events.
@@ -106,7 +109,7 @@ A packed order waits for the courier or for its limit. SimPy waits for the first
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml/process_interaction.yaml:dispatch" hl_lines="3 4 5 6 9 10"
+    ```yaml title="docs/snippets/yaml/process_interaction.yaml:dispatch" hl_lines="3 4 5 6 9 10 11"
     dispatch:
       # The courier's departure, or the limit, whichever comes first
       wait:
@@ -116,7 +119,8 @@ A packed order waits for the courier or for its limit. SimPy waits for the first
       payload: {event_type: dispatched}
       # wait.courier.done is true when the courier came before the limit
       next:
-        when: [{condition: wait.courier.done, task: by_courier}]
+        when:
+          - {condition: wait.courier.done, task: by_courier}
         default: by_post
     ```
 
@@ -235,7 +239,7 @@ Each tab prints both runs: the orders sent by courier and by post, and the mean 
     limit 8 min: 11005 by courier, 2872 by post, mean wait  288.2 s
     ```
 
-Orders are packed at random moments, so the time from packing to the next courier is spread evenly over the 10 minutes between couriers. A limit of 5 minutes catches the courier for half the orders, and a limit of 8 minutes for 8 in 10. The runs show these shares: 49.8% and 79.3% of the orders go by courier. Every waiting order resumes at the same firing, so the courier takes them all at once. These shares come from one run, and [Replications](../concepts/output-analysis.md#replications) explains how runs with other seeds would give each share an interval.
+Orders are packed at random moments, so the time from packing to the next courier is spread evenly over the 10 minutes between couriers. A limit of 5 minutes catches the courier for half the orders, and a limit of 8 minutes for 8 in 10. The runs show these shares: 49.8% and 79.3% of the orders go by courier. Every waiting order resumes at the same firing, so the courier takes them all at once. The mean wait for dispatch rises with the limit for the same reason: an order waits for the smaller of the time to the courier, spread evenly from 0 to 10 minutes, and the limit. Its mean is the limit less the limit squared divided by 20 minutes: 3.75 minutes (225 seconds) for a limit of 5 minutes and 4.8 minutes (288 seconds) for 8 minutes. These shares come from one run, and [Replications](../concepts/output-analysis.md#replications) explains how runs with other seeds would give each share an interval.
 
 [SimPy and desflow](../../simpy/index.md#waiting-for-one-or-all) shows the plain SimPy forms. [Signals and Waiting](../../user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows) describes every kind of wait, and [Wait for One or All](../../how-to/modelling/wait-for-one-or-all.md) shows ties and failures.
 
@@ -257,10 +261,7 @@ Orders are packed at random moments, so the time from packing to the next courie
         # The Process Interaction tutorial: packed orders wait for the courier, with a limit.
         # Run it with: desflow run process_interaction.yaml
         # With a limit of 8 minutes: LIMIT="8 min" desflow run process_interaction.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           packers: {current_cap: 1, max_cap: 4}
@@ -269,8 +270,9 @@ Orders are packed at random moments, so the time from packing to the next courie
           packing: {dist: constant, value: 1.5 s}
 
         signals:
-          # Fired by the courier as it leaves with every order that waits for it
-          - courier_left
+          # Fired by the courier as it leaves with every order that waits for it,
+          # and again at each later courier, so it is not one-shot
+          courier_left: {once: false}
 
         arrivals:
           orders: {dist: exponential, rate: 0.5, spawn: pack_order}
@@ -292,7 +294,8 @@ Orders are packed at random moments, so the time from packing to the next courie
             payload: {event_type: dispatched}
             # wait.courier.done is true when the courier came before the limit
             next:
-              when: [{condition: wait.courier.done, task: by_courier}]
+              when:
+                - {condition: wait.courier.done, task: by_courier}
               default: by_post
           by_courier:
             payload: {event_type: sent_by_courier}
@@ -307,10 +310,9 @@ Orders are packed at random moments, so the time from packing to the next courie
         stats: {level: typical, interval: 8 h}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 8 h
+        run: {until: 8 h}
         ```
 
     === "Builder"
@@ -346,8 +348,9 @@ Orders are packed at random moments, so the time from packing to the next courie
                 .with_stats("typical", interval=8 * 3600)
                 .add_egress(ConsoleEgress())
             )
-            # Fired by the courier as it leaves with every order that waits for it
-            app.add_signal("courier_left")
+            # Fired by the courier as it leaves with every order that waits for it,
+            # and again at each later courier, so it is not one-shot
+            app.add_signal("courier_left", once=False)
 
             @app.task(service_id="packing", resource_id="packers", next="dispatch")
             def pack_order(task_id: int):
@@ -548,8 +551,9 @@ Orders are packed at random moments, so the time from packing to the next courie
             env.setup_stats("Shop", "typical", interval=8 * 3600)
             shop = {
                 "packers": DynamicResource(env, "Shop", "packers"),
-                # Fired by the courier as it leaves with every order that waits for it
-                "courier_left": Signal(env, "courier_left"),
+                # Fired by the courier as it leaves with every order that waits for it,
+                # and again at each later courier, so it is not one-shot
+                "courier_left": Signal(env, "courier_left", once=False),
                 "limit": limit,
             }
             names = ("pack_order", "dispatch", "by_courier", "by_post", "collect")

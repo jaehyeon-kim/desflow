@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = ROOT / "examples"
-PAGES = ROOT / "docs" / "how-to" / "examples"
+PAGES = ROOT / "docs" / "gallery" / "simulation-models"
 DESFLOW = str(Path(sys.executable).with_name("desflow"))
 
 
@@ -61,7 +61,7 @@ def _backfill_without_kafka(tmp_path: Path) -> Path:
 
 def test_backfill_live_history_rows_and_first_live_event(tmp_path):
     """957 history rows, and the first event at or after go-live is orders-320 queued
-    at 600.111, as the page says. The rows stay below batch_size, so the page's 10
+    at 600.1107008261746, as the page says. The rows stay below batch_size, so the page's 10
     seconds rests on the flush_interval setting, which this checks. The timing itself
     was measured once and is not checked here."""
     import pyarrow.parquet as pq
@@ -86,9 +86,9 @@ def test_backfill_live_history_rows_and_first_live_event(tmp_path):
     assert (first["key"], first["value"]["status"], first["sim_ts"]) == (
         "orders-320",
         "queued",
-        600.111,
+        600.1107008261746,
     )
-    assert "(`orders-320` queued, at `sim_ts` 600.111)" in page
+    assert "(`orders-320` queued, at `sim_ts` 600.1107008261746)" in page
 
 
 def test_iceberg_rows_and_snapshots_are_the_pages_figures(tmp_path):

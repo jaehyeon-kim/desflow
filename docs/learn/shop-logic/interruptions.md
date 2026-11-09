@@ -63,11 +63,13 @@ Equal priorities do not preempt, so one express order does not take the packer f
 
 ## Resume, Restart or Abandon
 
-A preempted or interrupted task stops waiting for anything. A preemption takes its packer, so it gives that up. A plain `interrupt` leaves a packer it already holds with it, as a SimPy process that keeps its request does, and a unit it was still waiting for goes back to the end of the line. A breakdown takes the unit too. Its `on_interrupt` then says what it does:
+A preempted or interrupted task stops waiting for anything. A preemption takes its packer, so it gives that up. A plain `interrupt` leaves a packer it already holds with it, as a SimPy process that keeps its request does. A packer it was still waiting for depends on how the task asks for it. With `resource:`, the request goes back to the end of the line. With `seize` or a `request` in a wait, the request keeps its place under `resume`, and asks again at the back of the line under `restart`. A packer granted at the instant of the interrupt stays held. A breakdown takes the unit too. Its `on_interrupt` then says what it does:
 
 - `resume`, the default: it goes on at once with a packer it still holds, or queues again and, once it has the packer back, packs for the time it had left;
 - `restart`: it does the same but packs for a new time, drawn from the same seeded stream, as if the work were spoiled;
 - `abandon`: it gives back every unit and ends, and its flow with it, unless `on_interrupt_next` names a task to go to. A task that names a task which asks for the packer again queues behind the orders already waiting.
+
+A task can also do work of its own when the interrupt arrives, without giving up its place in the flow. `on_interrupt_run` names a task that runs as a child flow of the same entity after each interrupt or preemption under `resume` or `restart`. The task then goes on with the time it had left, or with a new time under `restart`. An interrupt that arrives while the child runs reaches the child, and a child that fails fails the task. `on_interrupt_run` is refused with `abandon`, with `resource` and with a `request` in a wait, because it is for work that holds no unit of its own.
 
 An order that is abandoned when it loses its packer, and goes to be packed by hand:
 
@@ -114,7 +116,7 @@ An order that is abandoned when it loses its packer, and goes to be packed by ha
 
     In the low-level API the process catches the `Interrupt` and packs by hand with `yield from`, in the same process.
 
-The task publishes `preempted` (or `interrupted`) when it loses the packer, and `resumed` when it is served again, also when it never gave the packer up. A `preempted` record names the express order that took the packer (`preempted_by`, its entity key) and the time the regular order had held it (`usage_since`):
+The task publishes `preempted` (or `interrupted`) when it loses the packer, and `resumed` when it is served again, also when it never gave the packer up. A preempted request is marked as preempted, so the packer is never given back to it by mistake. If the order that lost the packer has already ended, the preemption fails the flow that asked, with SimPy's `RuntimeError`. A `seize` unit is asked for again under `resume` and `restart`. A `preempted` record names the express order that took the packer (`preempted_by`, its entity key) and the time the regular order had held it (`usage_since`). In a blueprint, a task that `on_interrupt_next` names reads the same facts as `cause.by`, `cause.usage_since` and `cause.left` (the service time that was left). An expression reads who holds a unit and who waits as `held(packers)` and `waiting(packers)`, lists with each entity and its `rank` and `time`:
 
 === "YAML"
 
@@ -264,7 +266,8 @@ Preemption is one source of interrupts, and a model can send others. An `interru
     scenario:
       # A recall at 31 minutes: every regular order in the shop,
       # waiting or being packed, is interrupted
-      - {at: 31 min, interrupt: {task: pack_order, cause: recalled}}
+      - at: 31 min
+        interrupt: {task: pack_order, cause: recalled}
     ```
 
     A task can carry the same `interrupt`, applied when it finishes.
@@ -366,7 +369,7 @@ Each tab prints all three policies: the orders packed, preempted and recalled (`
     abandon: 312 preempted, 2 recalled, 1293 packed, mean wait  3.60 s, mean packing 1.50 s
     ```
 
-Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders. The mean time packed rises from 1.50 to 1.69 seconds, and the load nears what one packer can do. Waits then grow fast, as [Queueing Basics](../concepts/queueing-basics.md#waits-near-full-use) explains. `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost. So report their count beside it. [Priority and Preemption](../../user-guide/resources/priority-and-preemption.md#preemption) describes preemption, and [Tasks and Processes](../../user-guide/tasks-and-processes/index.md) the task's steps.
+Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders. The mean time packed rises from 1.50 to 1.69 seconds, and the load nears what one packer can do. Waits then grow fast, as [Queueing Basics](../concepts/queueing-basics.md#waits-near-full-use) explains. `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost. The decision is `resume`: it loses no order and its mean wait, 8.12 seconds, is the lowest of the two policies that keep every order. So report their count beside it. [Priority and Preemption](../../user-guide/resources/priority-and-preemption.md#preemption) describes preemption, and [Tasks and Processes](../../user-guide/tasks-and-processes/index.md) the task's steps.
 
 ## Key Takeaways
 
@@ -386,10 +389,7 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
         # The Interruptions tutorial: express orders take the packer from regular ones.
         # Run it with: desflow run interruptions.yaml
         # With restart instead of resume: POLICY=restart desflow run interruptions.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           # An express order takes the packer from a regular one being packed
@@ -420,16 +420,16 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
         scenario:
           # A recall at 31 minutes: every regular order in the shop,
           # waiting or being packed, is interrupted
-          - {at: 31 min, interrupt: {task: pack_order, cause: recalled}}
+          - at: 31 min
+            interrupt: {task: pack_order, cause: recalled}
 
         # Counts of preemptions and resumptions, and the mean wait and service, at the end
         stats: {level: typical, interval: 1 h}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"

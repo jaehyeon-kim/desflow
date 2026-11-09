@@ -57,8 +57,8 @@ def pack_order(env, sampler, packers, key, task_id, patience):
     with packers.request() as request:
         # --8<-- [start:patience]
         # A customer cancels an order not started within 30 seconds
-        yield request | env.timeout(patience)
-        if not request.triggered:
+        result = yield request | env.timeout(patience)
+        if request not in result:
             # Leaving the with block takes the request out of the queue
             publish("reneged")
             env.stats.task_reneged("pack_order", task_id)

@@ -68,7 +68,7 @@ The blueprint of the same name in [Changing Demand](../../learn/inputs/changing-
 
 Return each parameter to its usual value with a later step. A schedule does not repeat on its own. The example does it at 180 seconds.
 
-The steps change the registry, so everything that reads the path follows: the next arrival gap is drawn from the new rate, and the packers grant or owe units as on [Resources](../../user-guide/resources/index.md#under-live-changes).
+The steps change the registry, so everything that reads the path follows: the next arrival gap is drawn from the new rate, and the packers grant or owe units as on [Resources](../../user-guide/resources/units-and-queues.md#under-live-changes).
 
 ---
 

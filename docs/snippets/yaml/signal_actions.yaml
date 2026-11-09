@@ -1,0 +1,74 @@
+# The Signals and Waiting page: a task that fails a signal, an action that runs only
+# when a condition holds, a signal fired by priority, a task that listens to a signal,
+# and a task that turns arrivals on and off and wakes parked orders. Run it with:
+# desflow run signal_actions.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:signals]
+signals:
+  closing: {once: true}
+  till: {once: true}
+  reminder: {once: true}
+  # Every failure of this signal is defused, so none of them stops the run
+  logged: {once: true, defused: true}
+  # A family of signals: one for each lane, numbered 0 to 2
+  lane: {family: true, members: 3}
+# --8<-- [end:signals]
+
+arrivals:
+  closers: {dist: constant, value: 10 s, spawn: close, max_events: 1}
+  reopeners: {dist: constant, value: 20 s, spawn: reopen, max_events: 1}
+  watchers: {initial: 1, spawn: watch}
+  # A source that starts off, and one that runs until it is turned off
+  rush: {dist: constant, value: 5 s, active: false, spawn: tick}
+  walkins:
+    dist: constant
+    value: 4 s
+    spawn: parked
+    attributes:
+      vip: {gen: boolean, p: 0.8}
+
+tasks:
+  close:
+    signal: closing
+    # --8<-- [start:actions]
+    on:
+      # Fail the till signal with a reason; waiters receive the failure, and a failure
+      # that nobody waits for is defused, so it does not stop the run
+      - fire: {signal: till, fail: true, defused: true, value: the till did not balance}
+      # Run this entry only when the condition holds
+      - when: t >= 10
+        fire: {signal: reminder, value: last parcels, priority: 2, after: 3 s}
+    # --8<-- [end:actions]
+    payload: {event_type: closed}
+  # --8<-- [start:listen]
+  watch:
+    # Adds a callback to the next firing of closing, before the task waits
+    listen:
+      signal: closing
+      on:
+        - fire: {signal: logged, value: closing seen}
+    wait: {signal: closing}
+    payload: {event_type: watched}
+  # --8<-- [end:listen]
+  # An order that parks until it is woken
+  parked:
+    wait: {suspend: true}
+    payload: {event_type: woken}
+  tick:
+    payload: {event_type: ticked}
+  # --8<-- [start:toggle]
+  reopen:
+    on:
+      # Turn the rush source on, turn the walk-in source off, and wake the parked
+      # orders of vip customers
+      - {activate: rush}
+      - {deactivate: walkins}
+      - resume: {task: parked, where: attr.vip}
+    payload: {event_type: reopened}
+  # --8<-- [end:toggle]
+
+run: {until: 30 s}

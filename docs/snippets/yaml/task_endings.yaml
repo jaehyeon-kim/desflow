@@ -88,7 +88,7 @@ egress:
 run:
   until: 1 min
   # --8<-- [start:unhandled]
-  # continue, the default: a failure nobody handles is defused and the run goes on;
-  # stop raises it to the caller of run()
+  # stop, the default, raises a failure nobody handles to the caller of run();
+  # continue defuses it and the run goes on
   on_unhandled_failure: continue
   # --8<-- [end:unhandled]

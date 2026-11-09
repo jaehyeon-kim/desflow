@@ -17,7 +17,7 @@ Both have a capacity, or no limit. A task that takes waits while there is not en
 
 ### Declare Them
 
-A container has three settings. `current_cap` is its capacity, the largest amount it holds. `max_cap` is the largest capacity a live change can set. `level` is the amount it holds when the run starts, 0 when left out. A store has a `current_cap` and a `max_cap`, in whole items, and starts empty unless it lists `items` ([Start With Items and Serve by Priority](#start-with-items-and-serve-by-priority)). `run()` builds a `DynamicContainer` and a `DynamicStore` for each one the context declares. A store and a container cannot share a name.
+A container has three settings. `current_cap` is its capacity, the largest amount it holds. `max_cap` is the largest capacity a live change can set. `level` is the amount it holds when the run starts, 0 when left out. A store has a `current_cap` and a `max_cap`, in whole items, and starts empty unless it lists `items` ([Start With Items and Serve by Priority](#start-with-items-and-serve-by-priority)). `run()` builds a `DynamicContainer` and a `DynamicStore` for each one the context declares. A store and a container cannot share a name, and no name is shared with a resource or a signal. A name with a dot or a space is refused, because an expression cannot name it. A capacity or `max_cap` below 0, `true`, or a fraction for a store's whole number is refused, naming the store or container, and so is a container `level` outside 0 to its capacity. A store's `priority` is `true` or `false`.
 
 === "YAML"
 
@@ -68,7 +68,7 @@ A store or container with no `current_cap` has no capacity limit, as `simpy.Stor
 
 ### Take and Add
 
-A task takes with `get` and adds with `put`. For a container, each names the container and an `amount`. The amount can be a number, or an expression such as `payload.boxes` for a field of the previous task's payload. In the builder, it can also be a function of the task id and the previous task's payload. The amount is 1 when left out. For a store, each names the store. A `put` adds the task's finished payload as the item, and a `get` takes the oldest item and passes it to the task's function as `item`.
+A task takes with `get` and adds with `put`. For a container, each names the container and an `amount`. The amount can be a number, or an expression such as `payload.boxes` for a field of the previous task's payload. In the builder, it can also be a function of the task id and the previous task's payload. The amount is 1 when left out. For a store, each names the store. A `put` adds the task's finished payload as the item, or the value of its `item`, and a `get` takes the oldest item and passes it to the task's function as `item`.
 
 === "YAML"
 
@@ -123,7 +123,9 @@ A task takes with `get` and adds with `put`. For a container, each names the con
 
     `get(amount)`, `put(amount)`, `put(item)` and `get()` are SimPy events: yielding one waits until it succeeds, and a store's `get()` succeeds with the item.
 
-A task with a resource gets its unit first and then takes its `get`, so it waits for stock while holding the unit. A task adds its `put` after its service time, then publishes the finished event. [Tasks and Processes](../tasks-and-processes/index.md#what-apptask-does) lists every step.
+An `amount` that is not a finite number above 0 is refused, naming the container. A `put` with `item` adds that value in place of the payload: a constant, a mapping or a list, or a generator read as the put is made, including one nested in a mapping or a list. After a store `get`, the bare name `item` in an expression is the whole item the get took, and it lasts through the task's `next` chain. So `item: {gen: expr, expr: item}` puts the item that was taken into another store, and `item_priority` is the priority of the item a priority store gave. [Rank the Waiting Gets and Puts](#rank-the-waiting-gets-and-puts) shows both.
+
+A task with a resource gets its unit first and then takes its `get`, so it waits for stock while holding the unit. A task adds its `put` after its service time, then publishes the finished event. [Tasks and Processes](../tasks-and-processes/tasks.md#what-apptask-does) lists every step.
 
 A `put` or `get` makes the task wait until it is granted. With `wait: false` (`"wait": False` in the builder), the task makes the request and goes on at once, as a SimPy `put` that is not yielded does. It publishes `finished` without waiting, and the request stays in the queue until it can be granted. Such a request follows these rules:
 
@@ -139,7 +141,7 @@ The `pump` task of [Example: Fuel Dock](#example-fuel-dock) puts fuel into a tan
 
 A store can hold items when the run starts, such as parcels left from yesterday. `items` lists them in the order a get returns them. A store cannot start with more items than its `current_cap`: the blueprint or `add_store` is refused with the reason.
 
-A store with `priority` returns the item with the lowest `priority` value first, as SimPy's `PriorityStore` does. Its items are `[priority, item]` pairs, and a task's `put` gives each new item its `priority`. Items of equal priority come out in the order they went in. A priority can be:
+A store with `priority` returns the item with the lowest `priority` value first, as SimPy's `PriorityStore` does. Its items are `[priority, item]` pairs, and a task's `put` gives each new item its `priority`. Items of equal priority come out in SimPy's heap order, which is not always the order they went in. A priority can be:
 
 - a number, or an expression such as `attr.priority` that gives one;
 - a list such as `[1, 2]`, ordered element by element, as a tuple is;
@@ -154,7 +156,8 @@ A priority keeps the value it is given, so the text `'10'` sorts as text, before
       parcels:
         current_cap: 10
         max_cap: 10
-        # A courier takes the lowest priority value first, the oldest first among equals
+        # A courier takes the lowest priority value first; equal priorities leave in
+        # SimPy's heap order
         priority: true
         # Left from yesterday: [priority, item] pairs, held before the first put
         items:
@@ -174,7 +177,8 @@ A priority keeps the value it is given, so the text `'10'` sorts as text, before
 
     ```python title="docs/snippets/pages/parcel_store.py:builder-store"
     app = SimulationContext(sim_id="Shop", factor=0.0)
-    # A courier takes the lowest priority value first, the oldest first among equals.
+    # A courier takes the lowest priority value first; equal priorities leave in
+    # SimPy's heap order.
     # Left from yesterday: (priority, item) pairs, held before the first put.
     app.add_store(
         "parcels",
@@ -195,7 +199,7 @@ A priority keeps the value it is given, so the text `'10'` sorts as text, before
         "Shop",
         "parcels",
         priority=True,
-        # Each pair is held as a PriorityItem, ranked by priority and then by order
+        # Each pair is held as a PriorityItem
         items=[(2, {"order": "standard-0"}), (1, {"order": "express-0"})],
     )
 
@@ -203,11 +207,11 @@ A priority keeps the value it is given, so the text `'10'` sorts as text, before
     def courier_process(env):
         first = yield parcels.get()  # a PriorityItem; .item is the parcel
         print(f"collected {first.item['order']}")
-        # A put of your own wraps the item the same way, so ties keep their order
+        # A put of your own wraps the item the same way
         yield parcels.put(parcels.wrap({"order": "express-1"}, 1))
     ```
 
-    A low-level priority store holds `simpy.PriorityItem`s. `wrap(item, priority)` makes one, ranked by the priority and then by a rising number. The builder and YAML use it to keep equal priorities in order. A plain `PriorityItem(priority, item)` also works, but keeps no order among equal priorities.
+    A low-level priority store holds `simpy.PriorityItem`s. `wrap(item, priority)` returns a plain `PriorityItem(priority, item)`, the same as writing it by hand, and the builder and YAML use it. Equal priorities leave in SimPy's heap order either way. Assigning a list to a store's `items` replaces them, and a waiting get is served at the next put or get, not at the assignment.
 
 A `get` on a priority store takes no `priority` of its own and is refused with one: the item's priority decides the order. [Priorities](../../learn/shop-logic/priorities.md) compares priority storage with a resource's priority queue.
 
@@ -284,7 +288,162 @@ A task's `patience` covers its whole wait: for its `wait`, then its resource, th
         env.stats.flow_finished(flow)
     ```
 
+A store or container `get` can be a branch of a `wait`, and a group `wait: {when: <expression>, of: {...}}` ends when the expression holds. It reads `done_count`, the number of branches done, and cancels the requests that did not win, as `any` does. [Wait, Signals and Child Flows](../tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows) describes the groups.
+
 `item.<field>` can also be read in the task's `put` and `next`, after its get. [Filtered Inventory](../../learn/shop-logic/filtered-inventory.md) uses a filter and patience on a shelf of shirts.
+
+### Rank the Waiting Gets and Puts
+
+Gets and puts that wait are served first in, first out. `get_queue` and `put_queue` rank them instead, on a store or a container, as a resource's `queue` ranks its requests: each is `{rank: <expression>, ties: fifo or lifo}`. The expression is read once as each get or put is made, in the scope of the task that makes it. A rank that is NaN or text fails the task, with a message that names the task and the value. The lowest rank is served first, and `ties` serves equal ranks oldest first (`fifo`, the default) or latest first (`lifo`). They rank the waiters, not the items: a store's `priority` still ranks the items. A `type` that sets its own order refuses both, as [Custom Store and Container Types](#custom-store-and-container-types) says.
+
+A container serves its waiting gets in queue order and stops at the first one its level cannot meet, as SimPy's `Container` does. A get that waits for more than the container holds therefore blocks the gets behind it, even a small one that the level could serve.
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/store_items.yaml:declare"
+    stores:
+      # A shelf of two, served by priority. The puts that wait for room go in rank order,
+      # and the latest of equal ranks goes first. The gets go in rank order too.
+      returns:
+        current_cap: 2
+        max_cap: 2
+        priority: true
+        put_queue: {rank: attr.rank, ties: lifo}
+        get_queue: {rank: attr.rank}
+      archive: {}
+
+    containers:
+      # The gets and the puts that wait go in rank order, the oldest of equal ranks first
+      stock:
+        current_cap: 10
+        max_cap: 10
+        get_queue: {rank: attr.rank}
+        put_queue: {rank: attr.rank}
+      # A family of two containers, crates[0] and crates[1], made when the run starts
+      crates: {current_cap: 5, max_cap: 5, family: true, members: 2}
+    ```
+
+    ```yaml title="docs/snippets/yaml/store_items.yaml:items"
+    return_parcel:
+      # The item put on the shelf is written here, and not the payload: a mapping, with
+      # a generator inside it. The priority is read as the put is made.
+      put:
+        store: returns
+        priority: attr.rank
+        item:
+          parcel: {gen: sequence}
+          rank: {gen: attr, name: rank}
+      # putting() lists the puts that wait for room at a store or container
+      payload:
+        event_type: parcel_returned
+        waiting: {gen: expr, expr: "len(putting(returns))"}
+    file_return:
+      get: {store: returns}
+      # item is the whole item the get took, and it goes into the archive as it is
+      put:
+        store: archive
+        item: {gen: expr, expr: item}
+      # item_priority is the priority of the item a priority store gave
+      payload:
+        event_type: parcel_filed
+        priority: {gen: expr, expr: item_priority}
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/store_items.py:declare"
+    # A shelf of two, served by priority. The puts that wait for room go in rank order,
+    # and the latest of equal ranks goes first. The gets go in rank order too.
+    app.add_store(
+        "returns",
+        current_cap=2,
+        max_cap=2,
+        priority=True,
+        put_queue={"rank": "attr.rank", "ties": "lifo"},
+        get_queue={"rank": "attr.rank"},
+    )
+    app.add_store("archive")
+    # The gets and the puts that wait go in rank order, the oldest of equal ranks first
+    app.add_container(
+        "stock",
+        current_cap=10,
+        max_cap=10,
+        get_queue={"rank": "attr.rank"},
+        put_queue={"rank": "attr.rank"},
+    )
+    # A family of two containers, crates[0] and crates[1], made when the run starts
+    app.add_container("crates", current_cap=5, max_cap=5, family=True, members=2)
+    ```
+
+    ```python title="docs/snippets/pages/store_items.py:items"
+    returned = Template(
+        {
+            "event_type": "parcel_returned",
+            # putting() lists the puts that wait for room at a store or container
+            "waiting": {"gen": "expr", "expr": "len(putting(returns))"},
+        },
+        name="tasks.return_parcel",
+    )
+
+
+    @app.task(
+        # The item put on the shelf is written here, and not the payload: a mapping, with
+        # a generator inside it. The priority is read as the put is made.
+        put={
+            "store": "returns",
+            "priority": "attr.rank",
+            "item": {
+                "parcel": {"gen": "sequence"},
+                "rank": {"gen": "attr", "name": "rank"},
+            },
+        }
+    )
+    def return_parcel(task_id):
+        return returned
+
+
+    filed = Template(
+        {
+            "event_type": "parcel_filed",
+            # item_priority is the priority of the item a priority store gave
+            "priority": {"gen": "expr", "expr": "item_priority"},
+        },
+        name="tasks.file_return",
+    )
+
+
+    # item is the whole item the get took, and it goes into the archive as it is
+    @app.task(
+        get={"store": "returns"},
+        put={"store": "archive", "item": {"gen": "expr", "expr": "item"}},
+    )
+    def file_return(task_id):
+        return filed
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/store_items.py:low-level-queue"
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    env.registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop", stores={"returns": CapacityConfig(current_cap=1, max_cap=1)}
+        )
+    )
+    # The waiting puts go in rank order, and the latest of equal ranks goes first
+    shelf = DynamicStore(env, "Shop", "returns", put_ties="lifo")
+    taken = []
+
+
+    def filing(env):
+        yield shelf.put("a")  # fills the shelf of one
+        for parcel, rank in (("b", 2), ("c", 1), ("d", 1)):
+            shelf.put(parcel, rank=rank)  # each waits for room, with its rank
+        for _ in range(4):
+            taken.append((yield shelf.get()))
+    ```
+
+    `DynamicStore` and `DynamicContainer` take `get_ties` and `put_ties`, and a `get` or `put` takes the `rank` keyword. A get or put with no `rank` has rank 0.
 
 ### Custom Store and Container Types
 
@@ -302,8 +461,16 @@ A store or container of your own class changes how items or amounts go in and ou
       tank: {current_cap: 100, max_cap: 100}
 
     arrivals:
-      diesel_trucks: {dist: constant, value: 3, spawn: park, attributes: {fuel: diesel}}
-      petrol_trucks: {dist: constant, value: 5, spawn: park, attributes: {fuel: petrol}}
+      diesel_trucks:
+        dist: constant
+        value: 3
+        spawn: park
+        attributes: {fuel: diesel}
+      petrol_trucks:
+        dist: constant
+        value: 5
+        spawn: park
+        attributes: {fuel: petrol}
       crew: {dist: constant, value: 7, spawn: unload}
       tankers: {dist: constant, value: 4, spawn: pump}
       marshals: {dist: constant, value: 15, spawn: marshal}
@@ -470,11 +637,11 @@ A container has three registry paths, `<sim_id>.containers.<name>.current_cap`, 
 ```text
 [TEL] {'sim_ts': 30.0, 'timestamp': '...', 'path_id': 'Shop.stats.stores.parcels.level', 'value': 3}
 [TEL] {'sim_ts': 30.0, 'timestamp': '...', 'path_id': 'Shop.stats.stores.parcels.putters_waiting', 'value': 0}
-[TEL] {'sim_ts': 30.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 0.0}
+[TEL] {'sim_ts': 30.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 0}
 [TEL] {'sim_ts': 30.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 2}
 [TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'Shop.stats.stores.parcels.level', 'value': 5}
 [TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'Shop.stats.stores.parcels.putters_waiting', 'value': 2}
-[TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 38.0}
+[TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 38}
 [TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 0}
 ```
 
@@ -490,6 +657,9 @@ A condition can also read how many tasks wait at a store or container, and what 
 | `count(<store>)` | the number of items the store holds, as `level.<store>` |
 | `count(<store>, <condition>)` | how many items meet the condition, which reads `item.<field>` of each |
 | `items(<store>)`, `items(<store>, item.<field>)` | the list of items, or that field of each; a priority store gives its items unwrapped |
+| `putting(<store>)`, `getting(<store>)` | the puts and gets that wait, as a list of mappings with `entity` and, for a put, `item` or `amount`; `len()` counts them, as `putters.` does |
+| `item`, `item_priority` | the whole item the task's store `get` took, and the priority a priority store gave it |
+| `peek()` | the simulation time of the next scheduled event, infinity when there is none |
 
 `in` and `not in` read an `items(...)` list, as in `payload.sku in items(shelf, item.sku)`, which is true while the shelf holds that sku. The store is a bare name, and `count` and `items` cannot be nested inside each other. The names are checked at load: each must name a store, and `putters.` and `getters.` may also name a container.
 

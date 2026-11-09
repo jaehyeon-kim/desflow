@@ -74,7 +74,7 @@ Give the model, the number of replications, the seed they are spawned from and t
 
 A measure is a statistic's published name without the sim id and `stats`, such as `tasks.pack.wait_mean` for `Shop.stats.tasks.pack.wait_mean`. [Reference, Statistics](../../reference/statistics.md) lists them. Each replication keeps the statistics level its measures need, whatever level the model sets: `basic` for counts and time averages, `typical` for means and maxima of waits and services, and `all` for percentiles. A higher level the model sets stays.
 
-A name that no replication publishes is refused, with the names the model does publish. A count that is published only once it is above 0, such as `reneged`, is 0 in a replication without one. A mean with no observation in a replication, such as the wait of a task that never started, is refused with the replication's number rather than left out.
+A name that no replication publishes is refused, with the names the model does publish. The exception is a count that the statistics leave out while it is 0: a task's `in_progress`, `finished`, `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed`, and a flow's `finished`, `started`, `in_system` and `failed`. Such a count is 0 in a replication that did not publish it, also when no replication published it, once a replication published another statistic of the same task or flow. A name of a task or flow that no replication published anything of is still refused. `desflow test`, an experiment's counts and `desflow explain --verify` read these counts the same way. A mean with no observation in a replication, such as the wait of a task that never started, is refused with the replication's number rather than left out.
 
 ### Read the Result
 

@@ -37,7 +37,7 @@ Write the question and its measures down before building anything. Name the meas
 
 ### What the Result Means
 
-[Queues and Capacity](../first-model/queues-and-capacity.md) answers the question: 3 packers. [Trusting Results](../studies/trusting-results.md) measures the mean wait of an order with 3 packers: 2.32 ± 0.20 seconds, the mean of 40 [replications](output-analysis.md#replications) with the half-width of its [95% interval](output-analysis.md#interval-and-half-width). Those runs use the measured packing times and a 2-minute [warm-up](output-analysis.md#one-run-starts-empty), and [other pages run the hour in other ways](../first-model/first-simulation.md#busy-hour-figures). The whole interval is far below 10 seconds, so the answer holds at this precision.
+[Queues and Capacity](../first-model/queues-and-capacity.md) answers the question: 3 packers. [Trusting Results](../studies/trusting-results.md) measures the mean wait of an order with 3 packers: 2.32 ± 0.20 seconds, the mean of 40 [replications](output-analysis.md#replications) with the half-width of its [95% interval](output-analysis.md#interval-and-half-width). Those runs use the measured packing times and a 2-minute [warm-up](output-analysis.md#one-run-starts-empty), and [other pages run the hour in other ways](output-analysis.md#busy-hour-figures). The whole interval is far below 10 seconds, so the answer holds at this precision.
 
 ---
 

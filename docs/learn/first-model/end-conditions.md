@@ -100,9 +100,9 @@ Save the files from [Full Files](#full-files) in one folder and run the commands
 
     `env.now` is the clock, which the script reads to report the end time. [SimPy and desflow](../../simpy/index.md#environment-and-the-event-list) explains the clock.
 
-The stop at `until` is an event that SimPy schedules with the `URGENT` priority, so it comes before the other events at that time. A low-level script that stops its own run at an event can do the same with `env.schedule(event, URGENT, delay)`. In a blueprint, the `fire` action's `urgent` and `after` keys do it, as [Signals and Waiting](../../user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens) shows.
+    The stop at `until` is an event that SimPy schedules with the `URGENT` priority, so it comes before the other events at that time. A script that stops its own run at an event can do the same with `env.schedule(event, URGENT, delay)`. In a blueprint, the `fire` action's `urgent` and `after` keys do it, as [Signals and Waiting](../../user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens) shows.
 
-A drain can also take a limit, `drain: {limit: 10 min}`, so a model that never empties still ends. A `stop` ends the run as soon as an event or a condition happens. [Run Length](../../user-guide/time-and-pacing/run-length.md#stop-early) describes both.
+A drain can also take a limit, `drain: {limit: 10 min}`, so a model that never empties still ends. A limit of 0, below 0 or NaN is refused, and an infinite limit means no limit. A `stop` ends the run as soon as an event or a condition happens. [Run Length](../../user-guide/time-and-pacing/run-length.md#stop-early) describes both.
 
 ---
 
@@ -199,10 +199,7 @@ A fixed horizon answers a question about a period, such as how many orders the s
         # The End Conditions tutorial: a fixed horizon against a drain.
         # Run it with: desflow run end_conditions.yaml
         # With a drain after the hour: DRAIN=true desflow run end_conditions.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           packers: {current_cap: 1, max_cap: 4}
@@ -223,7 +220,7 @@ A fixed horizon answers a question about a period, such as how many orders the s
         stats: {level: typical, interval: 2 h}
 
         egress:
-          - type: Console
+          - {type: Console}
 
         run:
           # No new orders after one hour

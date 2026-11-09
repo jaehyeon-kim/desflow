@@ -133,7 +133,7 @@ While the order waits for the bench it holds the picker: a **partial holding**. 
 
 ## One Order of Acquisition
 
-Two orders that each hold one resource and wait for the other wait for ever: a **deadlock**. If a picking task held the picker and waited for the bench while a wrapping task held the bench and waited for the picker, both could stop. desflow prevents a deadlock by refusing such a model when it is built. Every task, handoffs included, must acquire shared resources in one order, and the error names the two tasks that disagree. Here every order goes picker first, then bench.
+Two orders that each hold one resource and wait for the other wait for ever: a **deadlock**. If a picking task held the picker and waited for the bench while a wrapping task held the bench and waited for the picker, both could stop. SimPy runs such a model, and its run ends with no error when the tasks wait. desflow checks the order when the model loads. A model whose tasks acquire two resources in opposite orders still loads, and the run logs one WARNING that names both places. A `seize` counts as holding a resource until its `release`. A `keep` for a task that requests the same resource in a `wait` is refused, because that wait would queue behind the unit it keeps. Here every order goes picker first, then bench, so there is nothing to warn about.
 
 ---
 
@@ -150,7 +150,20 @@ Each tab prints both: the picker's busy share and the mean waits, first with the
 
 === "YAML"
 
-    The first run is the shop without the handoff. Copy `competing_resources.yaml` to `competing_resources_free.yaml` and remove its `keep: [picker]` line.
+    The first run is the shop without the handoff. `competing_resources_free.yaml` is `competing_resources.yaml` without its `keep: [picker]` line:
+
+    ```yaml title="docs/snippets/yaml/competing_resources_free.yaml:tasks"
+    tasks:
+      pick_order:
+        service: picking
+        resource: picker
+        payload: {event_type: order_picked}
+        next: pack_order
+      pack_order:
+        service: packing
+        resource: bench
+        payload: {event_type: order_packed}
+    ```
 
     ```bash
     # Without the handoff: the mean waits and the pickers' utilisation
@@ -212,10 +225,7 @@ Each order brings 2 seconds of packing on average and arrives every 2.5 seconds 
         ```yaml title="docs/snippets/yaml/competing_resources.yaml"
         # The Competing Resources tutorial: an order keeps the picker until it is on the bench.
         # Run it with: desflow run competing_resources.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           picker: {current_cap: 1, max_cap: 2}
@@ -245,10 +255,9 @@ Each order brings 2 seconds of packing on average and arrives every 2.5 seconds 
         stats: {level: typical, interval: 1 h}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"

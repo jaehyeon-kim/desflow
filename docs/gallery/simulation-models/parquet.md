@@ -1,6 +1,6 @@
 # Fast-Forward to Parquet
 
-This example generates a week of a shop's orders at `factor=0.0` and writes them to Parquet files, on the local disk or in S3-compatible storage. [Write to Cloud Storage](../storage-and-tables/cloud-storage.md) shows Amazon S3, Google Cloud Storage and Azure Blob Storage. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../../user-guide/writing-a-model/index.md) compares the three.
+This example generates a week of a shop's orders at `factor=0.0` and writes them to Parquet files, on the local disk or in S3-compatible storage. [Write to Cloud Storage](../../how-to/storage-and-tables/cloud-storage.md) shows Amazon S3, Google Cloud Storage and Azure Blob Storage. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../../user-guide/writing-a-model/index.md) compares the three.
 
 desflow is built for real-time digital twins, but the same model can also run faster than real time. With `factor` set to 0 the clock does not wait for the wall clock, and `logical_start_time` puts the week before now, so the records are stamped as history. Look for the Parquet files the run writes, one per batch, with one row for each lifecycle event.
 
@@ -8,7 +8,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
 ## Before You Start
 
-The example needs only desflow, which each Quick Start below installs, and no other service. With `PARQUET_FILESYSTEM=s3` it writes to an object store instead, which needs Docker and the odctl profile `storage`. [Services for the Examples](index.md#services-for-the-examples) lists the services the other examples need.
+The example needs only desflow, which each Quick Start below installs, and no other service. With `PARQUET_FILESYSTEM=s3` it writes to an object store instead, which needs Docker and the odctl profile `storage`. [Services for the Examples](../index.md#services-for-the-examples) lists the services the other examples need.
 
 ---
 
@@ -218,8 +218,8 @@ Each event becomes one row of a file, and the two fields of `value`, `path_id` a
         ```yaml title="examples/yaml/parquet.yaml"
         # Historical data generation in YAML.
         #
-        # The YAML version of parquet_example.py, which --api builder downloads. With factor 0 the
-        # clock is detached from the wall clock, so a week of shop orders is written to
+        # The YAML version of parquet_example.py, which --api builder downloads. With factor 0
+        # the clock is detached from the wall clock, so a week of shop orders is written to
         # Parquet as fast as the machine allows. Without a router, each event is written as
         # one flat row and telemetry is left out. Each batch is a file of its own,
         # data/events_<8 hex digits>.parquet.
@@ -247,9 +247,7 @@ Each event becomes one row of a file, and the two fields of `value`, `path_id` a
                 access_key: ${S3_ACCESS_KEY:-}
                 secret_key: ${S3_SECRET_KEY:-}
 
-        batching:
-          batch_size: 5000
-          flush_interval: 86400
+        batching: {batch_size: 5000, flush_interval: 86400}
 
         resources:
           packers: {current_cap: 4, max_cap: 10}
@@ -266,8 +264,7 @@ Each event becomes one row of a file, and the two fields of `value`, `path_id` a
             resource: packers
             payload: {path_id: Shop.service.packing, status: finished}
 
-        run:
-          until: 1 week
+        run: {until: 1 week}
         ```
 
     === "Builder"
@@ -294,7 +291,8 @@ Each event becomes one row of a file, and the two fields of `value`, `path_id` a
         from desflow import ParquetStorageEgress, SimulationContext
 
         # Logging is configured here rather than in a wrapper, because this script is run
-        # directly. Without it the run produces no output at all.
+        # directly. Without it the run prints no INFO log lines, such as its progress
+        # messages.
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",

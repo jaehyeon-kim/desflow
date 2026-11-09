@@ -31,9 +31,9 @@ A sweep runs every variant at every value of its paths. Here that is two variant
     variants:
       three: {}
       four: {Shop.resources.packers.current_cap: 4}
+
     # Each variant at each rate: 8 designs, all run with the same 20 seeds
-    sweep:
-      Shop.arrival.orders.rate: [1.6, 1.7, 1.8, 1.9]
+    sweep: {Shop.arrival.orders.rate: [1.6, 1.7, 1.8, 1.9]}
     ```
 
 === "Builder"
@@ -54,7 +54,7 @@ A sweep runs every variant at every value of its paths. Here that is two variant
 
 Changing one input while every other input stays the same is called **one-factor sensitivity** analysis. It shows how much the answer depends on that input. A sweep with two paths runs every combination of their values, so its size is the product of the list lengths.
 
-Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow experiment parameter_sweeps_experiment.yaml`, or `python parameter_sweeps.py` and `python parameter_sweeps_low_level.py`. Each design's name is its variant followed by its swept value, such as `three Shop.arrival.orders.rate=1.9`. `results.csv` and `summary.csv` have a column for the swept path. The table gives the mean wait of each design over its 20 replications, with the 95% [half-width](../concepts/output-analysis.md#interval-and-half-width). The row for 1.8 orders a second is the experiment of Comparing Designs, as [Busy Hour Figures](../first-model/first-simulation.md#busy-hour-figures) lists:
+Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow experiment parameter_sweeps_experiment.yaml`, or `python parameter_sweeps.py` and `python parameter_sweeps_low_level.py`. Each design's name is its variant followed by its swept value, such as `three Shop.arrival.orders.rate=1.9`. `results.csv` and `summary.csv` have a column for the swept path. The table gives the mean wait of each design over its 20 replications, with the 95% [half-width](../concepts/output-analysis.md#interval-and-half-width). The row for 1.8 orders a second is the experiment of Comparing Designs, as [Busy Hour Figures](../concepts/output-analysis.md#busy-hour-figures) lists:
 
 | Orders a second | Three packers (s) | Four packers (s) |
 |---|---|---|
@@ -93,19 +93,27 @@ Three packers that take 1.5 seconds an order on average pack 2 orders a second a
         # The Parameter Sweeps tutorial: how much does the mean wait depend on the demand?
         # Run it with: desflow experiment parameter_sweeps_experiment.yaml
         experiment: demand
+
         question: How sensitive is the busy hour's mean wait to the arrival rate?
+
         # The busy hour of Trusting Results, with its 2-minute warm-up
         model: trusting_results.yaml
+
         until: 1 h
+
         replications: 20
+
         seed: 42
+
         measures: [tasks.pack_order.wait_mean]
+
         variants:
           three: {}
           four: {Shop.resources.packers.current_cap: 4}
+
         # Each variant at each rate: 8 designs, all run with the same 20 seeds
-        sweep:
-          Shop.arrival.orders.rate: [1.6, 1.7, 1.8, 1.9]
+        sweep: {Shop.arrival.orders.rate: [1.6, 1.7, 1.8, 1.9]}
+
         output: results/demand
         ```
 
@@ -130,9 +138,8 @@ Three packers that take 1.5 seconds an order on average pack 2 orders a second a
           # The 40 packing times measured at the bench, in seconds
           packing:
             dist: empirical
-            values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
-                     2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
-                     1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+            values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7, 2.7, 1.4, 1.9, 1.4, 1.3,
+                     1.8, 2.0, 1.4, 1.4, 1.9, 1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
                      2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
 
         tasks:
@@ -145,10 +152,9 @@ Three packers that take 1.5 seconds an order on average pack 2 orders a second a
         stats: {level: typical, interval: 10}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"

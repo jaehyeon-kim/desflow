@@ -18,6 +18,7 @@ simulation: {sim_id: Bank, factor: 0, random_seed: 42}
 egress:
   - {type: Console}
 
+# --8<-- [start:customers-arrive]
 resources:
   counter: {current_cap: 1}
 
@@ -29,10 +30,13 @@ arrivals:
     max_events: 5
     key: {gen: sequence, format: "Customer{:02d}"}
     spawn: customer
+# --8<-- [end:customers-arrive]
 
+# --8<-- [start:customer-waits-or-reneges]
 tasks:
   customer:
     resource: counter
     patience: {gen: uniform, low: 1, high: 3}
     service_time: {gen: sample, dist: exponential, rate: 0.08333333333333333}
     payload: {event_type: finished}
+# --8<-- [end:customer-waits-or-reneges]

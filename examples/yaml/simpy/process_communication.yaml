@@ -17,16 +17,23 @@ simulation: {sim_id: Pipes, factor: 0, random_seed: 42}
 egress:
   - {type: Console}
 
+# --8<-- [start:pipe]
 stores:
   pipe: {}
+# --8<-- [end:pipe]
 
 arrivals:
+  # --8<-- [start:generator-arrives]
   generator:
     gap: {gen: integer, bounds: [6, 10]}
     spawn: speak
+  # --8<-- [end:generator-arrives]
+  # --8<-- [start:consumer-arrives]
   consumer: {initial: 1, spawn: listen}
+  # --8<-- [end:consumer-arrives]
 
 tasks:
+  # --8<-- [start:generator-sends]
   speak:
     payload: {event_type: said}
     # The generator does not wait for its put, as SimPy's `out_pipe.put(msg)` does not
@@ -40,6 +47,8 @@ tasks:
           template: "Generator A says hello at {now:g}"
           names:
             now: {gen: expr, expr: t}
+  # --8<-- [end:generator-sends]
+  # --8<-- [start:consumer-gets]
   listen:
     get: {store: pipe}
     payload:
@@ -51,5 +60,6 @@ tasks:
     service_time: {gen: integer, bounds: [4, 8]}
     payload: {event_type: handled}
     next: listen
+  # --8<-- [end:consumer-gets]
 
 run: {until: 100}

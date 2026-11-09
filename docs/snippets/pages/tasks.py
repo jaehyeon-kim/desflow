@@ -15,6 +15,7 @@ from desflow import (
     SimParameter,
     SimulationContext,
 )
+from desflow.values import Template
 
 app = (
     SimulationContext(sim_id="Shop", factor=0.0, random_seed=1)
@@ -48,6 +49,25 @@ def print_label(task_id: int):
 
 
 # --8<-- [end:builder-timed-step]
+
+
+# --8<-- [start:builder-payload-mapping]
+# A payload with generated fields: nine orders in ten are standard, one is express
+delivery = Template(
+    {
+        "event_type": "order_packed",
+        "delivery": {"gen": "weighted", "options": {"standard": 0.9, "express": 0.1}},
+    },
+    name="tasks.pack_with_delivery",
+)
+
+
+@app.task(service_id="packing", resource_id="packers")
+def pack_with_delivery(task_id: int):
+    return delivery
+
+
+# --8<-- [end:builder-payload-mapping]
 
 
 # --8<-- [start:builder-arrival]

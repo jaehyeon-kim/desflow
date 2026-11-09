@@ -1,17 +1,35 @@
-# Runnable Examples
+# Gallery
 
-Each example is a complete model that you can download with `desflow examples get` and run, as [Get an Example](../../cli/index.md#get-an-example) shows. Each is written three ways: as a YAML blueprint, with the builder API and with the low-level API. Its page shows the versions in tabs.
+The Gallery holds end-to-end examples. Each is a complete file that you can run, and each is written three ways: as a YAML blueprint, with the builder API and with the low-level API. Its page shows the three versions in tabs. [Ways to write a simulation](../user-guide/writing-a-model/index.md) compares the three.
+
+## Data Generation
+
+Blueprints that generate data for a table, a stream or a test. They run unpaced and need no service unless the page says so.
+
+| Page | What it covers |
+| --- | --- |
+| [Data Sets](data-generation/data-sets.md) | a retail set written to three sinks, a film rental store, auction streams, a group-by table, taxi rides, labelled text and a point-in-time training set |
+| [Event Streams](data-generation/event-streams.md) | orders that carry their customer's tier, a stolen card that makes three large payments, stock queries, traces of nested spans and customer deletes that become Kafka tombstones |
+| [Processes with Queues](data-generation/processes-with-queues.md) | busy packers, a machine that wears, a falling capacity, callers who hang up, urgent tickets, shopping carts, a sign-up funnel, bets and audits |
+
+## Simulation Models
+
+Complete models that read from or write to a service, or that run unpaced to files.
 
 | Example | What it covers |
 | --- | --- |
-| [Local Simulation](local.md) | prints events and telemetry, with no container |
-| [Kafka Digital Twin](kafka.md) | takes updates from Kafka and publishes events and telemetry to Kafka |
-| [Fast-Forward to Parquet](parquet.md) | data generated unpaced at `factor=0.0`: a week written to Parquet |
-| [Fast-Forward to Iceberg](iceberg.md) | data generated unpaced at `factor=0.0`: a day appended to an Iceberg table |
-| [PostgreSQL](postgres.md) | writes orders to PostgreSQL and takes updates from a table |
-| [Redis](redis.md) | writes to a Redis Stream and takes updates from Pub/Sub |
-| [Parquet History, Kafka Live](backfill-live.md) | backdated history to Parquet, then live to Kafka |
-| [Related Records](advanced-postgres-orders.md) | orders and their line items, in two PostgreSQL tables |
+| [Local Simulation](simulation-models/local.md) | prints events and telemetry, with no container |
+| [Kafka Digital Twin](simulation-models/kafka.md) | takes updates from Kafka and publishes events and telemetry to Kafka |
+| [Fast-Forward to Parquet](simulation-models/parquet.md) | data generated unpaced at `factor=0.0`: a week written to Parquet |
+| [Fast-Forward to Iceberg](simulation-models/iceberg.md) | data generated unpaced at `factor=0.0`: a day appended to an Iceberg table |
+| [PostgreSQL](simulation-models/postgres.md) | writes orders to PostgreSQL and takes updates from a table |
+| [Redis](simulation-models/redis.md) | writes to a Redis Stream and takes updates from Pub/Sub |
+| [Parquet History, Kafka Live](simulation-models/backfill-live.md) | backdated history to Parquet, then live to Kafka |
+| [Related Records](simulation-models/advanced-postgres-orders.md) | orders and their line items, in two PostgreSQL tables |
+
+## More Examples
+
+[Projects Using desflow](projects.md) lists public projects that generate their data with desflow. The seven programs of SimPy's own documentation, each written in desflow, are in [SimPy Examples](../simpy/examples/index.md).
 
 Each example page says how to download and run it, and which odctl profile from [Services for the Examples](#services-for-the-examples) it needs. `desflow examples get` prints the extra an example needs, and `pip install "desflow[all]"` installs every extra, so each example runs once its profile is up.
 
@@ -44,7 +62,7 @@ pip install "odctl>=1.0,<2"
 
 Each example needs at most one odctl profile. Start the profile before you run the example, and stop it afterwards:
 
-![Every example that desflow examples marks (no service) needs nothing started; kafka and backfill-live need odctl up kafka-lite; postgres and related-records need postgres; redis needs valkey; iceberg needs catalog; parquet written to S3 needs storage](../../assets/diagrams/example-infrastructure.png)
+![Every example that desflow examples marks (no service) needs nothing started; kafka and backfill-live need odctl up kafka-lite; postgres and related-records need postgres; redis needs valkey; iceberg needs catalog; parquet written to S3 needs storage](../assets/diagrams/example-infrastructure.png)
 
 | Example | Start | Stop |
 |---|---|---|

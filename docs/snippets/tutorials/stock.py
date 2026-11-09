@@ -67,8 +67,8 @@ def shop(delivery: float = 60) -> SimulationContext:
     def delivery_generator(context: SimulationContext):
         task_id = 0
         while True:
-            delivery = yield context.wait_for_arrival("deliveries")
-            context.spawn(restock(task_id, entity=delivery))
+            arrival = yield context.wait_for_arrival("deliveries")
+            context.spawn(restock(task_id, entity=arrival))
             task_id += 1
 
     # --8<-- [end:restock]

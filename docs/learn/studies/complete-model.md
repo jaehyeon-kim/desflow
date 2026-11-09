@@ -101,22 +101,30 @@ Fit each column, with no time below 0:
 The best fit of each column, as `desflow fit` wrote it:
 
 ```yaml title="docs/snippets/yaml/fitted/complete_orders.yaml"
-# Fitted by desflow fit from complete_model_observed.csv, column gap_seconds: exponential, from 300 values in s, written in seconds.
+# Fitted by desflow fit from complete_model_observed.csv, column gap_seconds:
+# exponential, from 300 values in s, written in seconds.
 dist: exponential
+
 rate: 1.50719
 ```
 
 ```yaml title="docs/snippets/yaml/fitted/complete_picking.yaml"
-# Fitted by desflow fit from complete_model_observed.csv, column picking_seconds: gamma, from 300 values in s, written in seconds.
+# Fitted by desflow fit from complete_model_observed.csv, column picking_seconds: gamma,
+# from 300 values in s, written in seconds.
 dist: gamma
+
 shape: 4.01421
+
 scale: 0.110615
 ```
 
 ```yaml title="docs/snippets/yaml/fitted/complete_packing.yaml"
-# Fitted by desflow fit from complete_model_observed.csv, column packing_seconds: gamma, from 300 values in s, written in seconds.
+# Fitted by desflow fit from complete_model_observed.csv, column packing_seconds: gamma,
+# from 300 values in s, written in seconds.
 dist: gamma
+
 shape: 8.56765
+
 scale: 0.204467
 ```
 
@@ -518,14 +526,15 @@ The experiment runs each design 40 times, with the measures of the decision and 
     ```yaml title="docs/snippets/yaml/complete_model_experiment.yaml:model"
     # The busy hour, with its 2-minute warm-up; 40 runs of each design
     model: complete_model.yaml
+
     until: 1 h
+
     replications: 40
+
     seed: 42
-    measures:
-      - tasks.pick_order.wait_mean
-      - tasks.pack_order.wait_mean
-      - resources.packers.utilization_avg
-      - tasks.ship_order.wait_mean
+
+    measures: [tasks.pick_order.wait_mean, tasks.pack_order.wait_mean,
+               resources.packers.utilization_avg, tasks.ship_order.wait_mean]
     ```
 
 === "Builder"
@@ -568,9 +577,11 @@ Each design changes one capacity, and every design runs with the same seeds, so 
     ```yaml title="docs/snippets/yaml/complete_model_experiment.yaml:designs"
     # Every design runs with the same seeds, so they are compared seed by seed
     pairing: common
+
     compare:
       - {baseline: current, variant: second-picker}
       - {baseline: current, variant: fourth-packer}
+
     variants:
       current: {}
       second-picker: {Shop.resources.pickers.current_cap: 2}
@@ -672,7 +683,9 @@ The recommendation rests on the fitted arrival rate of 1.50719 orders a second. 
 
     ```yaml title="docs/snippets/yaml/complete_model_experiment.yaml:sensitivity"
     # The recommended design, with orders 10% faster than the fitted rate of 1.50719
-    fourth-packer-busier: {Shop.resources.packers.current_cap: 4, Shop.arrival.orders.rate: 1.65791}
+    fourth-packer-busier:
+      Shop.resources.packers.current_cap: 4
+      Shop.arrival.orders.rate: 1.65791
     ```
 
 === "Builder"
@@ -736,14 +749,19 @@ The experiment states its assumptions, where each input came from, and its limit
       - Orders arrive at random, at a steady rate, through the busy hour.
       - One picker and three packers work the whole hour; nobody takes a break.
       - Every order is one parcel in one shipping box.
+
     inputs:
-      Shop.arrival.orders: gaps between 300 orders observed in the shop, fitted by desflow fit
+      Shop.arrival.orders: gaps between 300 orders observed in the shop, fitted by desflow
+        fit
       Shop.service.picking: picking times of the same 300 orders, fitted by desflow fit
       Shop.service.packing: packing times of the same 300 orders, fitted by desflow fit
       Shop.arrival.deliveries: the supplier's schedule, a delivery every 10 minutes
+
     limits:
       - One busy hour only; the rest of the day is not modelled.
-      - The observed values were made from the model's own runs, so comparing with them shows the method only.
+      - The observed values were made from the model's own runs, so comparing with them
+        shows the method only.
+
     output: results/complete-model
     ```
 
@@ -861,9 +879,12 @@ Each step answers a different doubt about the result. The fits test the inputs, 
         # The Complete Model tutorial: the shop's busy hour, from order to shipment, with its
         # inputs fitted to the observed orders.
         # Fit the inputs, then run it:
-        #   desflow fit complete_model_observed.csv --column gap_seconds --lower 0 --out fitted/complete_orders.yaml
-        #   desflow fit complete_model_observed.csv --column picking_seconds --lower 0 --out fitted/complete_picking.yaml
-        #   desflow fit complete_model_observed.csv --column packing_seconds --lower 0 --out fitted/complete_packing.yaml
+        #   desflow fit complete_model_observed.csv --column gap_seconds --lower 0 \
+        #     --out fitted/complete_orders.yaml
+        #   desflow fit complete_model_observed.csv --column picking_seconds --lower 0 \
+        #     --out fitted/complete_picking.yaml
+        #   desflow fit complete_model_observed.csv --column packing_seconds --lower 0 \
+        #     --out fitted/complete_packing.yaml
         #   desflow run complete_model.yaml
         simulation:
           sim_id: Shop
@@ -914,8 +935,7 @@ Each step answers a different doubt about the result. The fits test the inputs, 
         # Waits, utilisation and the stock's level, published at the end
         stats: {level: typical, interval: 1 h}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
         ```yaml title="docs/snippets/yaml/complete_model_experiment.yaml"
@@ -923,31 +943,41 @@ Each step answers a different doubt about the result. The fits test the inputs, 
         # Run it with: desflow experiment complete_model_experiment.yaml
         # Rebuild the report from its files with: desflow report results/complete-model
         experiment: complete-model
+
         question: Which design keeps both mean waits of the busy hour under 1 second?
+
         # The busy hour, with its 2-minute warm-up; 40 runs of each design
         model: complete_model.yaml
+
         until: 1 h
+
         replications: 40
+
         seed: 42
-        measures:
-          - tasks.pick_order.wait_mean
-          - tasks.pack_order.wait_mean
-          - resources.packers.utilization_avg
-          - tasks.ship_order.wait_mean
+
+        measures: [tasks.pick_order.wait_mean, tasks.pack_order.wait_mean,
+                   resources.packers.utilization_avg, tasks.ship_order.wait_mean]
+
         # Values made from the model's own runs to show the method, not shop records;
         # the real shop runs the current design
         observed: {file: complete_model_outputs.csv, variant: current}
+
         # Every design runs with the same seeds, so they are compared seed by seed
         pairing: common
+
         compare:
           - {baseline: current, variant: second-picker}
           - {baseline: current, variant: fourth-packer}
+
         variants:
           current: {}
           second-picker: {Shop.resources.pickers.current_cap: 2}
           fourth-packer: {Shop.resources.packers.current_cap: 4}
           # The recommended design, with orders 10% faster than the fitted rate of 1.50719
-          fourth-packer-busier: {Shop.resources.packers.current_cap: 4, Shop.arrival.orders.rate: 1.65791}
+          fourth-packer-busier:
+            Shop.resources.packers.current_cap: 4
+            Shop.arrival.orders.rate: 1.65791
+
         checks:
           # The recommended design: the upper end of each wait's interval is under 1 second
           - {measure: tasks.pick_order.wait_mean, variant: fourth-packer, max: 1}
@@ -959,18 +989,24 @@ Each step answers a different doubt about the result. The fits test the inputs, 
           # With orders 10% faster, the fourth packer keeps both waits under 1 second
           - {measure: tasks.pick_order.wait_mean, variant: fourth-packer-busier, max: 1}
           - {measure: tasks.pack_order.wait_mean, variant: fourth-packer-busier, max: 1}
+
         assumptions:
           - Orders arrive at random, at a steady rate, through the busy hour.
           - One picker and three packers work the whole hour; nobody takes a break.
           - Every order is one parcel in one shipping box.
+
         inputs:
-          Shop.arrival.orders: gaps between 300 orders observed in the shop, fitted by desflow fit
+          Shop.arrival.orders: gaps between 300 orders observed in the shop, fitted by desflow
+            fit
           Shop.service.picking: picking times of the same 300 orders, fitted by desflow fit
           Shop.service.packing: packing times of the same 300 orders, fitted by desflow fit
           Shop.arrival.deliveries: the supplier's schedule, a delivery every 10 minutes
+
         limits:
           - One busy hour only; the rest of the day is not modelled.
-          - The observed values were made from the model's own runs, so comparing with them shows the method only.
+          - The observed values were made from the model's own runs, so comparing with them
+            shows the method only.
+
         output: results/complete-model
         ```
 

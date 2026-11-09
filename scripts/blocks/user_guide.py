@@ -69,6 +69,22 @@ def gift_flow() -> List[str]:
     ]
 
 
+def task_values() -> List[str]:
+    """Task Flow: the records that carry the key, the draws and the carried values."""
+    lines = event_lines(yaml_records("docs/snippets/yaml/task_values.yaml"))
+    return [
+        line
+        for line in lines
+        if (fields(line)["key"] == "c-0" and fields(line)["task"] == "sign_up")
+        or (
+            fields(line)["key"] == "orders-1"
+            and fields(line)["task"] in ("place_order", "pack")
+            and "status" not in fields(line)["value"]
+        )
+        or fields(line)["task"] == "day_report"
+    ]
+
+
 def refused_expressions() -> List[str]:
     """Task Flow: the errors of three refused expressions."""
     return printed_lines(lambda: load_script("docs/snippets/pages/task_flow.py"))
@@ -91,6 +107,7 @@ BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "statistics-final": statistics_final,
     "gift-flow": gift_flow,
     "refused-expressions": refused_expressions,
+    "task-values": task_values,
     "holder-readings": holder_readings,
     "resources-printed": resources_printed,
     "task-events": task_events,

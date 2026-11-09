@@ -76,7 +76,7 @@ courier 2 at 1.5: order 1
 triggered, processed, ok: (True, True, True)
 ```
 
-In desflow, a **signal** is an event that tasks wait for and fire, such as a restock. `Signal` is its low-level form, `add_signal` its builder form and `signals:` its YAML form. A failed event that nothing handles stops a SimPy run, and the low-level API keeps that. By default the builder and YAML publish a `failed` record and go on (`on_unhandled_failure: continue`). With `on_unhandled_failure: stop` they stop the run, as SimPy does. [Failures](../user-guide/tasks-and-processes/failures.md) explains both.
+In desflow, a **signal** is an event that tasks wait for and fire, such as a restock. `Signal` is its low-level form, `add_signal` its builder form and `signals:` its YAML form. A signal is one-shot by default, as a SimPy event is, and `once: false` makes it fire again. A task's `listen: {signal: s, on: [...]}` adds callbacks to the next firing of the signal when the task starts, in the order they were added and before waiters added later, as `event.callbacks.append(f)` does. A signal whose firing was processed already takes no callback, which fails the task, as `event.callbacks.append` raises. A flow that wants to keep listening listens again. A failed event that nothing handles stops the run in all three forms, as it does in SimPy. `on_unhandled_failure: continue` publishes a `failed` record and goes on instead. [Failures](../user-guide/tasks-and-processes/failures.md) explains both.
 
 ---
 
@@ -196,7 +196,7 @@ At 1.0 the limit was processed and the packing was not, so the courier stopped w
 [(1.0, False, True), (4.0, 2)]
 ```
 
-In desflow, `wait: {any: ...}` and `wait: {all: ...}` in YAML and `wait={"any": ...}` in the builder wait on named branches of signals, tasks and timeouts. [Wait for One or All](../how-to/modelling/wait-for-one-or-all.md) shows ties and failures.
+In desflow, `wait: {any: ...}` and `wait: {all: ...}` in YAML and `wait={"any": ...}` in the builder wait on named branches of signals, tasks and timeouts. To wait on a computed list, as `env.all_of(events)` does, `wait` takes `each`, `group` and `branch`: `group` is `all`, `any`, `{at_least: ...}` or `{when: ...}`, and `branch` is the one leaf that each element waits on. [Wait for One or All](../how-to/modelling/wait-for-one-or-all.md) shows ties, failures and the forms of `each`.
 
 ---
 
@@ -292,7 +292,7 @@ def preemptive():
 [('standard preempted', 1.0, 0), ('express packed', 2.0)]
 ```
 
-In desflow, `DynamicResource` is all three: `queue: fifo` is `Resource`, `queue: priority` is `PriorityResource`, and `preempt: true` with it is `PreemptiveResource`. It also follows a capacity in the registry. [Resources](../user-guide/resources/index.md) and [Priority and Preemption](../user-guide/resources/priority-and-preemption.md) explain them.
+In desflow, `DynamicResource` is all three: `queue: fifo` is `Resource`, `queue: lifo` serves the latest request first (SimPy has no class for it), `queue: priority` is `PriorityResource`, and `preempt: true` with it is `PreemptiveResource`. It also follows a capacity in the registry. [Resources](../user-guide/resources/index.md) and [Priority and Preemption](../user-guide/resources/priority-and-preemption.md) explain them.
 
 ---
 
@@ -359,7 +359,7 @@ def stores():
 {'store': 'p1', 'filter': ('p2', 'large'), 'priority': 'express'}
 ```
 
-In desflow, a task's `put` and `get` use these: `put: {container: stock, amount: 2}` for a container, and `get: {store: parcels, filter: ...}` for a filtered store. A store declared with `priority: true` is a `PriorityStore`. [Stores and Containers](../user-guide/model-parts/stores-and-containers.md) and [Stock](../learn/shop-logic/stock.md) explain them.
+In desflow, a task's `put` and `get` use these: `put: {container: stock, amount: 2}` for a container, and `get: {store: parcels, filter: ...}` for a filtered store. A store declared with `priority: true` is a `PriorityStore`. `get_queue` and `put_queue`, each `{rank, ties}`, order the waiting gets and puts by an expression, as a resource's `queue` orders its requests, and a store whose `type` sets its own queues refuses them. The `SortedQueue` that a custom store type sets its own queue with stays valid. [Stores and Containers](../user-guide/model-parts/stores-and-containers.md) and [Stock](../learn/shop-logic/stock.md) explain them.
 
 ---
 

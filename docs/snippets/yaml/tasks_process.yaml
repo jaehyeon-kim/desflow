@@ -1,0 +1,31 @@
+# The Processes page: a Python process that takes the packers off for a break.
+# Run it with: desflow run tasks_process.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 1}
+
+egress:
+  - {type: Console}
+
+resources:
+  packers: {current_cap: 1, max_cap: 3}
+
+services:
+  packing: {dist: normal, mean: 4 s, std: 1 s}
+
+arrivals:
+  # An order every 5 s on average (rate 0.2)
+  orders: {dist: exponential, rate: 0.2, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# --8<-- [start:process]
+processes:
+  # Called as breaks(context, resource="packers", every=50, duration=5)
+  - function: !python shop_logic.breaks
+    kwargs: {resource: packers, every: 50, duration: 5}
+# --8<-- [end:process]
+
+run: {until: 3 min}

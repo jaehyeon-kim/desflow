@@ -55,7 +55,7 @@ The statistics are telemetry, so they reach every sink, and they can also be rea
     ```yaml title="docs/snippets/yaml/measuring_a_run.yaml:read"
     # The statistics are telemetry, so every sink receives them
     egress:
-      - type: Console
+      - {type: Console}
     ```
 
 === "Builder"
@@ -78,7 +78,11 @@ The statistics are telemetry, so they reach every sink, and they can also be rea
             print(f"{name} = {value}")
     ```
 
-Every name has the same form, `<sim_id>.stats.<kind>.<name>.<statistic>`, such as `Shop.stats.tasks.pack_order.wait_mean`. Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow run measuring_a_run.yaml`, `python measuring_a_run.py` or `python measuring_a_run_low_level.py`. These are the statistics published at the end of the hour:
+Every name has the same form, `<sim_id>.stats.<kind>.<name>.<statistic>`, such as `Shop.stats.tasks.pack_order.wait_mean`. Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow run measuring_a_run.yaml`, `python measuring_a_run.py` or `python measuring_a_run_low_level.py`. The run prints about 24,000 lines, because the console also prints every event. These 15 are the statistics published at the end of the hour. The command keeps only the telemetry records stamped 3600.0:
+
+```bash
+desflow run measuring_a_run.yaml 2>&1 | grep "\[TEL\] {'sim_ts': 3600.0"
+```
 
 <!-- records: measuring-final -->
 ```text
@@ -108,7 +112,7 @@ The statistics mean:
 - `flows.orders.started`: the orders that entered the shop, 6,261.
 - `flows.orders.in_system`: the 11 orders still in the shop when the hour ended. `tasks.pack_order.in_progress` gives the same 11.
 
-The names use the spelling `utilization`, and the text uses "utilisation" for the same thing. The mean wait is 1.38 seconds, over the orders that started packing in [this one run with the seed 42](first-simulation.md#busy-hour-figures). [End Conditions](end-conditions.md) shows what a run leaves out when it ends.
+The names use the spelling `utilization`, and the text uses "utilisation" for the same thing. The mean wait is 1.38 seconds, over the orders that started packing in [this one run with the seed 42](../concepts/output-analysis.md#busy-hour-figures). [End Conditions](end-conditions.md) shows what a run leaves out when it ends.
 
 ---
 
@@ -167,10 +171,7 @@ The numbers check each other. [Little's Law](../concepts/queueing-basics.md#litt
         ```yaml title="docs/snippets/yaml/measuring_a_run.yaml"
         # The Measuring a Run tutorial: the busy hour, with built-in statistics.
         # Run it with: desflow run measuring_a_run.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           packers: {current_cap: 3, max_cap: 10}
@@ -182,9 +183,8 @@ The numbers check each other. [Little's Law](../concepts/queueing-basics.md#litt
           # The 40 packing times measured at the bench, in seconds
           packing:
             dist: empirical
-            values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
-                     2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
-                     1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+            values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7, 2.7, 1.4, 1.9, 1.4, 1.3,
+                     1.8, 2.0, 1.4, 1.4, 1.9, 1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
                      2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
 
         tasks:
@@ -198,10 +198,9 @@ The numbers check each other. [Little's Law](../concepts/queueing-basics.md#litt
 
         # The statistics are telemetry, so every sink receives them
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"

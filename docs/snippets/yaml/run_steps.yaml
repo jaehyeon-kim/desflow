@@ -1,0 +1,33 @@
+# Run steps: a reading of the run after every model event.
+#
+# `steps` publishes `system.simulation.step`, with the step number, the clock and the
+# time of the next event, as a loop of `env.step()` and `env.peek()` reads them.
+# `sync` calls `env.sync()` as the run starts.
+#
+# Needs: nothing.
+# Run it with: desflow run docs/snippets/yaml/run_steps.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  orders: {dist: constant, value: 20 s, spawn: pack_order}
+
+tasks:
+  pack_order:
+    payload: {event_type: order_packed}
+
+# --8<-- [start:steps]
+run:
+  until: 1 min
+  # system.simulation.step after each model event
+  steps: true
+  # env.sync() as the run starts
+  sync: true
+# --8<-- [end:steps]

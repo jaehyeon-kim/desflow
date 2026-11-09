@@ -29,7 +29,7 @@ env.registry.register_sim_parameter(params)
 # Registered paths include:
 #   Shop.arrival.orders.rate
 #   Shop.service.packing.mean, Shop.service.packing.std
-#   Shop.resources.packers.current_cap, Shop.resources.packers.max_cap
+#   Shop.resources.packers.current_cap, .max_cap and .queue_limit (None: no limit)
 #   Shop.containers.stock.current_cap, .max_cap and .level
 #   Shop.variables.conveyor_speed
 print(env.registry.get("Shop.resources.packers.current_cap").value)  # 2
@@ -45,6 +45,17 @@ env.registry.update("Shop.resources.lath.current_cap", 3)  # no such path: ignor
 env.registry.update("Shop.service.packing.rate", 2.0)  # normal has no rate: ignored
 env.registry.update("Shop.containers.stock.level", 150)  # stored as 100, the capacity
 # --8<-- [end:update]
+
+# --8<-- [start:rules]
+# Each path checks a value by its own rule; `change` raises where `update` logs
+env.registry.update("Shop.resources.packers.max_cap", "6")  # text of a whole number: 6
+env.registry.update(
+    "Shop.resources.packers.queue_limit", 4
+)  # a limit: whole, 0 or more
+env.registry.update("Shop.resources.packers.queue_limit", None)  # no limit again
+env.registry.update("Shop.resources.packers.current_cap", 2.5)  # refused: not whole
+env.registry.update("Shop.containers.stock.level", float("nan"))  # refused: not finite
+# --8<-- [end:rules]
 
 # --8<-- [start:change]
 change = env.registry.change(

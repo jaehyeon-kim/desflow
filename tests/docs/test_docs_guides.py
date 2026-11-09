@@ -712,7 +712,9 @@ def test_an_each_when_group_reads_only_done_count(tmp_path):
     )
     with pytest.raises(Exception, match="when of an each group reads done_count"):
         SimulationContext.from_yaml(refused)
-    page = (ROOT / "docs/how-to/modelling/wait-for-one-or-all.md").read_text("utf-8")
+    page = (
+        ROOT / "docs/user-guide/tasks-and-processes/signals-and-waiting.md"
+    ).read_text("utf-8")
     assert "The `when` of an `each` group reads only `done_count`." in page
     assert "A `when` group reads `done_count` and `wait.<name>.values`" not in page
 
@@ -835,7 +837,7 @@ def test_repair_desk_runs_and_explain_names_no_bottleneck(tmp_path):
     error and logs the lines the page shows, and `desflow explain` names no
     bottleneck."""
     blueprint = ROOT / "docs" / "snippets" / "yaml" / "repair_desk.yaml"
-    page = (ROOT / "docs/how-to/tools/use-an-ai-assistant.md").read_text("utf-8")
+    page = (ROOT / "docs/ai/build-a-model.md").read_text("utf-8")
 
     def desflow(*args):
         ran = subprocess.run(

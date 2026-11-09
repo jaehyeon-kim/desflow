@@ -20,6 +20,10 @@ arrivals:
   # A return every 10 s on average (rate 0.1)
   returns: {dist: exponential, rate: 0.1, spawn: return_logged}
 # --8<-- [end:arrival]
+# --8<-- [start:break-arrival]
+  # One entity exists when the run starts and drives the breaks
+  shifts: {initial: 1, spawn: take_break}
+# --8<-- [end:break-arrival]
 
 # --8<-- [start:task]
 tasks:
@@ -38,20 +42,32 @@ tasks:
     service: labelling
     payload: {event_type: label_printed}
   # --8<-- [end:timed-step]
-# --8<-- [start:payload-function]
-  # also under tasks: a payload computed by a Python function
+  # --8<-- [start:payload-mapping]
+  # A payload with generated fields: nine orders in ten are standard, one is express
   pack_with_delivery:
     service: packing
     resource: packers
-    # Called as choose_delivery(task_id, context) when the order gets a packer
-    payload: !python shop_logic.choose_delivery
-# --8<-- [end:payload-function]
-
-# --8<-- [start:process]
-processes:
-  # Called as breaks(context, resource="packers", every=50, duration=5)
-  - function: !python shop_logic.breaks
-    kwargs: {resource: packers, every: 50, duration: 5}
-# --8<-- [end:process]
+    payload:
+      event_type: order_packed
+      delivery:
+        gen: weighted
+        options: {standard: 0.9, express: 0.1}
+  # --8<-- [end:payload-mapping]
+  # --8<-- [start:break]
+  # The packers go on a 5-second break every 50 seconds: wait, set the capacity with
+  # on:, and hand over to the other task, which sets it back
+  take_break:
+    wait: {timeout: 50 s}
+    on:
+      - {path: Shop.resources.packers.current_cap, value: 0}
+    payload: {event_type: break_started}
+    next: end_break
+  end_break:
+    wait: {timeout: 5 s}
+    on:
+      - {path: Shop.resources.packers.current_cap, value: 1}
+    payload: {event_type: break_ended}
+    next: take_break
+  # --8<-- [end:break]
 
 run: {until: 3 min}

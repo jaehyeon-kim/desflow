@@ -1,6 +1,6 @@
 # Fitting the Inputs
 
-[Choosing Inputs](choosing-inputs.md) compared four candidates for the packing time by hand and chose the 40 times measured at the bench. desflow can fit every distribution family to those times and say which fits best. This page asks: **which supported distribution fits the 40 packing times, and does the choice change the busy hour's answer?**
+[Choosing Inputs](choosing-inputs.md) compared four candidates for the packing time by hand and chose the 40 times measured at the bench. desflow can fit every distribution family to those times and say which fits best. A fit is worth making for two reasons. The 40 times can only repeat themselves, while a fitted distribution also draws longer times than any of the 40, in the tail where long waits come from. A fitted distribution's parameters are also registry paths, so a running model can change them, which a list of 40 times cannot do. This page asks: **which supported distribution fits the 40 packing times, and does the choice change the busy hour's answer?**
 
 - **Decision:** which fitted distribution the busy hour uses for packing.
 - **Measures:** how well each distribution fits the times, and the busy hour's mean wait with the two best fits and with the 40 times.
@@ -120,10 +120,14 @@ The fitted settings go where the 40 times were:
     `!include` reads a mapping from another file, relative to the blueprint. The file `desflow fit` wrote:
 
     ```yaml title="docs/snippets/yaml/fitted/packing.yaml"
-    # Fitted by desflow fit from packing_times.csv, column packing_seconds: triangular, from 40 values in s, written in seconds.
+    # Fitted by desflow fit from packing_times.csv, column packing_seconds: triangular, from
+    # 40 values in s, written in seconds.
     dist: triangular
+
     low: 0.546332
+
     mode: 1.2
+
     high: 2.83766
     ```
 
@@ -174,14 +178,13 @@ Each tab prints the mean wait and half-width of the three rows below, in the ord
     ```
 
     ```yaml title="docs/snippets/yaml/fitted/packing_times.yaml"
-    # The 40 packing times of packing_times.csv, column packing_seconds, as they are, in seconds.
+    # The 40 packing times of packing_times.csv, column packing_seconds, as they are, in
+    # seconds.
     dist: empirical
-    values: [
-      1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
-      2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
-      1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
-      2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1
-    ]
+
+    values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7, 2.7, 1.4, 1.9, 1.4, 1.3, 1.8,
+             2.0, 1.4, 1.4, 1.9, 1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5, 2.1, 1.3,
+             1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
     ```
 
 === "Builder"
@@ -208,7 +211,7 @@ Each tab prints the mean wait and half-width of the three rows below, in the ord
     empirical: mean wait 2.32 ± 0.20 s
     ```
 
-The table gives each distribution's mean packing time, and the [mean wait over the 40 replications](../first-model/first-simulation.md#busy-hour-figures) with its half-width:
+The table gives each distribution's mean packing time, and the [mean wait over the 40 replications](../concepts/output-analysis.md#busy-hour-figures) with its half-width:
 
 | Packing time | Mean packing time (s) | Mean wait over 40 replications (s) |
 |---|---|---|
@@ -222,7 +225,7 @@ The table gives each distribution's mean packing time, and the [mean wait over t
 
 Which supported distribution fits the 40 packing times? The `triangular` has the lowest AIC, but the `gamma` fits almost as well, 0.11 behind. By the guideline in [AIC and the KS Test](../concepts/a-simulation-study.md#aic-and-the-ks-test), a difference this small does not tell two fits apart. The choice does change the answer. Over 40 replications after a 2-minute warm-up, with seeds spawned from 42, the triangular gives a mean wait of **2.93 ± 0.25 seconds**, and the gamma **2.33 ± 0.19**, which agrees with the 2.32 ± 0.20 of the 40 times. The gamma fits almost as well and gives the same answer as the measured times, so it is the better choice for this question.
 
-The first file the page loads holds the triangular only because `desflow fit` writes the candidate with the lowest AIC. An AIC difference this small does not make it the better fit. `--candidates gamma` fits only the gamma, and `PACKING_FIT` makes the blueprint include its file:
+The first file the page loads holds the triangular only because `desflow fit` writes the candidate with the lowest AIC. An AIC difference this small does not make it the better fit. `--candidates gamma` fits only the gamma (spaces around a name are ignored, and an unknown name is refused with the name quoted), and `PACKING_FIT` makes the blueprint include its file:
 
 ```bash
 # Fit only the gamma
@@ -234,9 +237,12 @@ PACKING_FIT=fitted/packing_gamma.yaml desflow run fit_the_inputs.yaml --replicat
 The file it writes:
 
 ```yaml title="docs/snippets/yaml/fitted/packing_gamma.yaml"
-# Fitted by desflow fit from packing_times.csv, column packing_seconds: gamma, from 40 values in s, written in seconds.
+# Fitted by desflow fit from packing_times.csv, column packing_seconds: gamma, from 40
+# values in s, written in seconds.
 dist: gamma
+
 shape: 9.55777
+
 scale: 0.15694
 ```
 
@@ -259,18 +265,16 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
     === "YAML"
 
         ```yaml title="docs/snippets/yaml/fit_the_inputs.yaml"
-        # The Fitting the Inputs tutorial: the busy hour, with a packing time fitted to the data.
-        # Fit, then run it:
-        #   desflow fit packing_times.csv --column packing_seconds --lower 0 --out fitted/packing.yaml
+        # The Fitting the Inputs tutorial: the busy hour, with a packing time fitted to the
+        # data. Fit, then run it:
+        #   desflow fit packing_times.csv --column packing_seconds --lower 0 \
+        #     --out fitted/packing.yaml
         #   desflow run fit_the_inputs.yaml
-        # 40 replications: desflow run fit_the_inputs.yaml --replications 40 --measure tasks.pack_order.wait_mean
+        # 40 replications: desflow run fit_the_inputs.yaml --replications 40 --measure \
+        #   tasks.pack_order.wait_mean
         # The gamma fit instead: write fitted/packing_gamma.yaml with --candidates gamma, then
         #   PACKING_FIT=fitted/packing_gamma.yaml desflow run fit_the_inputs.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
-          warmup: 2 min
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42, warmup: 2 min}
 
         resources:
           packers: {current_cap: 3, max_cap: 10}
@@ -291,34 +295,39 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
 
         stats: typical
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
         ```yaml title="docs/snippets/yaml/fitted/packing.yaml"
-        # Fitted by desflow fit from packing_times.csv, column packing_seconds: triangular, from 40 values in s, written in seconds.
+        # Fitted by desflow fit from packing_times.csv, column packing_seconds: triangular, from
+        # 40 values in s, written in seconds.
         dist: triangular
+
         low: 0.546332
+
         mode: 1.2
+
         high: 2.83766
         ```
 
         ```yaml title="docs/snippets/yaml/fitted/packing_gamma.yaml"
-        # Fitted by desflow fit from packing_times.csv, column packing_seconds: gamma, from 40 values in s, written in seconds.
+        # Fitted by desflow fit from packing_times.csv, column packing_seconds: gamma, from 40
+        # values in s, written in seconds.
         dist: gamma
+
         shape: 9.55777
+
         scale: 0.15694
         ```
 
         ```yaml title="docs/snippets/yaml/fitted/packing_times.yaml"
-        # The 40 packing times of packing_times.csv, column packing_seconds, as they are, in seconds.
+        # The 40 packing times of packing_times.csv, column packing_seconds, as they are, in
+        # seconds.
         dist: empirical
-        values: [
-          1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
-          2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
-          1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
-          2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1
-        ]
+
+        values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7, 2.7, 1.4, 1.9, 1.4, 1.3, 1.8,
+                 2.0, 1.4, 1.4, 1.9, 1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5, 2.1, 1.3,
+                 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
         ```
 
         ```csv title="docs/snippets/yaml/packing_times.csv"

@@ -1,0 +1,54 @@
+# Run segments: the shop is read where each segment ends.
+#
+# The first segment ends at 1 minute. The second ends when 4 orders wait for a packer.
+# At each stop, an order of the task `look` reads how many orders wait. The last
+# segment, `{}`, runs on to the end of the run.
+#
+# Needs: nothing.
+# Run it with: desflow run docs/snippets/yaml/run_segments.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+resources:
+  packers: {current_cap: 1}
+
+services:
+  packing: {dist: constant, value: 40 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.05, spawn: pack_order}
+
+# --8<-- [start:look]
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+  # An order of this task reads the model where a segment stops, before any event due
+  # at that time runs
+  look:
+    payload:
+      event_type: queue_read
+      waiting: {gen: expr, expr: queue.packers}
+# --8<-- [end:look]
+
+# --8<-- [start:segments]
+run:
+  until: 3 min
+  segments:
+    - {until: 1 min, look: look}
+    # Ends at the first moment 4 orders wait; sync re-anchors the wall clock for the
+    # segment, which changes nothing at factor 0
+    - stop: {condition: queue.packers >= 4}
+      look: look
+      sync: true
+    # No end of its own: runs to the end of the run
+    - {}
+# --8<-- [end:segments]

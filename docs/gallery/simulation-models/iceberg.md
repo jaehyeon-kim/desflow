@@ -1,6 +1,6 @@
 # Fast-Forward to Iceberg
 
-This example generates a day of a shop's orders at `factor=0.0` and appends them to an Apache Iceberg table through an Iceberg REST catalog. [Write to Iceberg Tables](../storage-and-tables/iceberg-tables.md) shows the other catalogs. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../../user-guide/writing-a-model/index.md) compares the three.
+This example generates a day of a shop's orders at `factor=0.0` and appends them to an Apache Iceberg table through an Iceberg REST catalog. [Write to Iceberg Tables](../../how-to/storage-and-tables/iceberg-tables.md) shows the other catalogs. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../../user-guide/writing-a-model/index.md) compares the three.
 
 `ParquetStorageEgress` writes files and leaves registering them as a table to you. `IcebergStorageEgress` appends into an Iceberg table instead, so one run ends with a table another engine can query. Look for the day's events as rows of `simulation.events`, and for the few snapshots that hold them.
 
@@ -10,7 +10,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
 ## Before You Start
 
-The example needs Docker and the odctl profile `catalog`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](index.md#services-for-the-examples) shows how to install odctl.
+The example needs Docker and the odctl profile `catalog`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](../index.md#services-for-the-examples) shows how to install odctl.
 
 ---
 
@@ -292,8 +292,7 @@ Each event becomes one row of the table, and the two fields of `value`, `path_id
             resource: packers
             payload: {path_id: Shop.service.packing, status: finished}
 
-        run:
-          until: 1 day
+        run: {until: 1 day}
         ```
 
     === "Builder"
@@ -327,7 +326,8 @@ Each event becomes one row of the table, and the two fields of `value`, `path_id
         from desflow import IcebergStorageEgress, SimulationContext
 
         # Logging is configured here rather than in a wrapper, because this script is run
-        # directly. Without it the run produces no output at all.
+        # directly. Without it the run prints no INFO log lines, such as its progress
+        # messages.
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",

@@ -1,6 +1,6 @@
 # Custom Resource Types
 
-A [resource](index.md) can grant its units by a rule of your own. This page shows how to write one.
+A [resource](units-and-queues.md) can grant its units by a rule of your own. This page shows how to write one.
 
 ---
 
@@ -14,9 +14,9 @@ Some shops grant their units by a rule of their own, such as sharing a packer be
 
 To change how a resource grants units, subclass `ResourceBase` and name the class in `type`. `ResourceBase` is built on the hooks of SimPy's `BaseResource`, as a subclass of SimPy's `Resource` is. A subclass can change these:
 
-- Override `_do_put(request)` to decide when a request is granted, and `_do_get(release)` to decide what a release gives back.
-- Set `PutQueue` to the class of the waiting line. It can be SimPy's `SortedQueue`, written `staticmethod(functools.partial(SortedQueue, maxlen=2))`.
-- Set `request` to `BoundClass(MyRequest)`, for a request class that subclasses `DynamicResourceRequest`, or set `release` the same way, for a release class that subclasses `DynamicRelease`. Both base classes are in `desflow.resources.resource`.
+- Override `_do_put(request)` to decide when a request is granted, and `_do_get(release)` to decide what a release gives back. An override calls the base method, which wakes `when_busy()` and `when_idle()`, so a breakdown that counts busy time still works.
+- Set `PutQueue` to the class of the waiting line. It can be SimPy's `SortedQueue`, written `staticmethod(functools.partial(SortedQueue, maxlen=2))`. On a store or container, a `type` that sets its own queues refuses `get_queue` and `put_queue`.
+- Set `request` to `BoundClass(MyRequest)`, for a request class that subclasses `DynamicResourceRequest`, or set `release` the same way, for a release class that subclasses `DynamicRelease`. Both base classes are in `desflow.resources`. A request or release class calls the base constructor, which publishes the `on_change` reading.
 
 This resource keeps how long each request waited:
 
@@ -90,9 +90,3 @@ This resource keeps how long each request waited:
 ## How It Works
 
 `DynamicResource` is `ResourceBase` with nothing changed. The constructor is `DynamicResource`'s, because the resource reads its capacity from the registry. A subclass that defines `__init__` therefore takes `*args, **kwargs` and passes them on. A `PutQueue` of your own sets its own order and length, so it takes no `queue_limit`. The tests run each of these beside the same SimPy subclass in all three APIs.
-
----
-
-## Stability and Limits
-
-The limits of this page are listed with those of the whole section, in [Stability and Limits](index.md#stability-and-limits) on the Resources page.

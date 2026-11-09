@@ -471,7 +471,7 @@ Every code form uses the serializers in `json_schema_and_protobuf_serializers.py
 ??? example "Full files"
 
     ```python title="docs/snippets/guides/json_schema_and_protobuf_serializers.py"
-    """The serializers and order readers of the JSON Schema and Protobuf page.
+    """The serializers and order readers of the Use Schema Serializers page.
 
     The code forms of the shop import the serializers from this file:
     json_schema_and_protobuf.py (builder) and json_schema_and_protobuf_low_level.py. It builds
@@ -611,7 +611,7 @@ Every code form uses the serializers in `json_schema_and_protobuf_serializers.py
     === "YAML"
 
         ```yaml title="docs/snippets/yaml/json_schema_and_protobuf.yaml"
-        # The JSON Schema and Protobuf guide: each packed order publishes an order record, sent
+        # The Use Schema Serializers guide: each packed order publishes an order record, sent
         # to orders-json as JSON Schema or to orders-protobuf as Protobuf; every other record
         # goes to sim-events as JSON. Needs order_record.schema.json and shop_record.desc beside
         # it, and a Kafka broker with a schema registry: odctl up kafka-lite. Run it with:
@@ -740,7 +740,7 @@ Every code form uses the serializers in `json_schema_and_protobuf_serializers.py
     === "Builder"
 
         ```python title="docs/snippets/guides/json_schema_and_protobuf.py"
-        """The shop of the JSON Schema and Protobuf page, built with the builder API.
+        """The shop of the Use Schema Serializers page, built with the builder API.
 
         The shop publishes each packed order as JSON Schema or Protobuf and every other record as
         JSON. It needs a Kafka broker and a schema registry: start both with `odctl up kafka-lite`,
@@ -798,7 +798,7 @@ Every code form uses the serializers in `json_schema_and_protobuf_serializers.py
     === "Low-level"
 
         ```python title="docs/snippets/guides/json_schema_and_protobuf_low_level.py"
-        """The JSON Schema and Protobuf guide, low-level API: each packed order publishes
+        """The Use Schema Serializers guide, low-level API: each packed order publishes
         an order record, sent to orders-json as JSON Schema or to orders-protobuf as Protobuf, and
         every other record goes to its topic as JSON.
 

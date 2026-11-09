@@ -29,10 +29,13 @@ def build(size: int = 10) -> SimulationContext:
     """Builds the shop, with `size` machines."""
     app = SimulationContext(sim_id="MachineShop", factor=0, random_seed=42)
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:shop-settings]
     app.add_resource("repairman", current_cap=1, queue="priority", preempt=True)
     app.add_variable("target", -1)
     app.add_variable("parts_made", {})
     app.add_service("repair_time", dist="constant", value=30)
+    # --8<-- [end:shop-settings]
+    # --8<-- [start:machines-arrive]
     app.add_initial_arrival(
         "machines",
         size,
@@ -40,8 +43,12 @@ def build(size: int = 10) -> SimulationContext:
         attributes={"id": generator({"gen": "sequence"}), "parts_made": 0, "broken": 0},
         spawn="start_machine",
     )
+    # --8<-- [end:machines-arrive]
+    # --8<-- [start:others-arrive]
     app.add_initial_arrival("others", 1, spawn="other_job")
+    # --8<-- [end:others-arrive]
 
+    # --8<-- [start:machine-works-and-breaks]
     @app.task(
         name="start_machine",
         spawn={"task": "break_loop", "copy_attributes": True},
@@ -124,6 +131,9 @@ def build(size: int = 10) -> SimulationContext:
         """Breaks the machine down."""
         return {"event_type": "tick"}
 
+    # --8<-- [end:machine-works-and-breaks]
+
+    # --8<-- [start:repairman-other-jobs]
     @app.task(
         name="other_job",
         resource_id="repairman",
@@ -135,6 +145,8 @@ def build(size: int = 10) -> SimulationContext:
     def other_job(task_id):
         """Does one of the repairman's other jobs."""
         return {"event_type": "other_done"}
+
+    # --8<-- [end:repairman-other-jobs]
 
     return app
 

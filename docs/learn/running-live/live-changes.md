@@ -218,7 +218,7 @@ Each command ends with the same five lines, which [What You Get and Why](#what-y
 
 ## Send It Live
 
-A scenario is planned in advance. A change from outside arrives while the run goes on, from an ingress connector. `LocalIngress` is the ingress connector that needs no broker. It applies each change after a delay in wall-clock seconds, so the run must be paced. Here the run lasts 5 simulated minutes, paced at 200 simulated seconds for each wall-clock second (`factor: 0.005`, so each simulated second takes 0.005 wall-clock seconds), so it takes 1.5 wall-clock seconds:
+A scenario is planned in advance. A change from outside arrives while the run goes on, from an ingress connector. `LocalIngress` is the ingress connector that needs no broker. It applies each change after a delay in wall-clock seconds, so the run must be paced. Here the run lasts 5 simulated minutes, paced at 200 simulated seconds for each wall-clock second (`factor: 0.005`, so each simulated second takes 0.005 wall-clock seconds), so it takes 1.5 wall-clock seconds. A paced run raises an error when a step starts more than `factor` wall-clock seconds late, because `strict` is on at a factor above 0, as [Clocks and Pacing](../../user-guide/time-and-pacing/clocks-and-pacing.md#strict-pacing) describes. This run sets `strict` off, so a slow machine can fall behind without stopping it:
 
 === "YAML"
 
@@ -226,8 +226,7 @@ A scenario is planned in advance. A change from outside arrives while the run go
     # Half a wall-clock second after the start, set packing to 3 seconds
     ingress:
       - type: Local
-        config:
-          schedule: [[0.5, Shop.service.packing.value, 3.0]]
+        config: {schedule: [[0.5, Shop.service.packing.value, 3.0]]}
     ```
 
 === "Builder"
@@ -324,10 +323,7 @@ During the jam the packer finishes one order every 3 seconds (20 a minute), whil
         # The Live Changes tutorial: a label printer jam, written as a scenario.
         # Run it with: desflow run live_changes.yaml
         # The events are written to events/ and the ground-truth records to labels/.
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           packers: {current_cap: 1, max_cap: 1}
@@ -364,18 +360,16 @@ During the jam the packer finishes one order every 3 seconds (20 a minute), whil
             config: {default_path: labels/labels.jsonl}
             when: labels
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
         ```yaml title="docs/snippets/yaml/live_changes_live.yaml"
         # The Live Changes tutorial: the same jam sent live, from a LocalIngress schedule.
         # Run it with: desflow run live_changes_live.yaml
-        # The run is paced at 200 simulated seconds a wall-clock second, so 5 minutes take 1.5 s.
-        simulation:
-          sim_id: Shop
-          factor: 0.005
-          random_seed: 42
+        # The run is paced at 200 simulated seconds a wall-clock second, so 5 minutes take 1.5
+        # s.
+        # strict: false keeps a slow machine from stopping the run if it falls behind
+        simulation: {sim_id: Shop, factor: 0.005, strict: false, random_seed: 42}
 
         resources:
           packers: {current_cap: 1, max_cap: 1}
@@ -395,8 +389,7 @@ During the jam the packer finishes one order every 3 seconds (20 a minute), whil
         # Half a wall-clock second after the start, set packing to 3 seconds
         ingress:
           - type: Local
-            config:
-              schedule: [[0.5, Shop.service.packing.value, 3.0]]
+            config: {schedule: [[0.5, Shop.service.packing.value, 3.0]]}
 
         egress:
           # Flush every 60 simulated seconds: at this pace the default of 1 s flushes on a timer
@@ -409,8 +402,7 @@ During the jam the packer finishes one order every 3 seconds (20 a minute), whil
             config: {default_path: live/labels/labels.jsonl}
             when: labels
 
-        run:
-          until: 5 min
+        run: {until: 5 min}
         ```
 
     === "Builder"
@@ -563,6 +555,8 @@ During the jam the packer finishes one order every 3 seconds (20 a minute), whil
             """The same jam sent live, half a second of wall-clock time after the start."""
             app = shop(out, jam=False)
             app.factor = 0.005
+            # A paced run raises when it falls behind the wall clock, unless strict is off
+            app.strict = False
             # Half a wall-clock second after the start, set packing to 3 seconds
             app.add_ingress(LocalIngress(schedule=[(0.5, "Shop.service.packing.value", 3.0)]))
             # Flush every 60 simulated seconds: at this pace the default of 1 s flushes on a

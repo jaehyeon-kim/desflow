@@ -8,7 +8,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
 ## Before You Start
 
-The example needs Docker and the odctl profile `kafka-lite`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](index.md#services-for-the-examples) shows how to install odctl.
+The example needs Docker and the odctl profile `kafka-lite`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](../index.md#services-for-the-examples) shows how to install odctl.
 
 ---
 
@@ -66,7 +66,7 @@ The example needs Docker and the odctl profile `kafka-lite`. Each Quick Start be
 
     **What It Does**
 
-    The run keeps going until you stop it. When it starts, `KafkaEgress` creates `sim-events` and `sim-telemetry` if they do not exist. The run then publishes task lifecycle events to `sim-events`, and the packers' four readings (`capacity`, `in_use`, `queue_length` and `utilization`) and the task's `in_progress` to `sim-telemetry`. It applies parameter updates sent to `sim-config`.
+    The run keeps going until you stop it. When it starts, `KafkaEgress` creates `sim-events` and `sim-telemetry` if they do not exist, and `KafkaIngress` creates `sim-config` if it does not exist. The run then publishes task lifecycle events to `sim-events`, and the packers' four readings (`capacity`, `in_use`, `queue_length` and `utilization`) and the task's `in_progress` to `sim-telemetry`. It applies parameter updates sent to `sim-config`.
 
     The dashboard in the Quick Start works with this run unchanged, because it reads the same topics and the same four packer readings.
 
@@ -189,12 +189,12 @@ docker exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 --topic sim-events --from-beginning --max-messages 3
 ```
 
-It prints three JSON lines, then `Processed a total of 3 messages`. The first two are `orders-1` queued and started, both at `sim_ts` 1.276, and the third is `orders-2` queued. Each `timestamp` is the wall-clock time of your run:
+It prints three JSON lines, then `Processed a total of 3 messages`. The first two are `orders-1` queued and started, both at `sim_ts` 1.2761899383482334, and the third is `orders-2` queued. Each `timestamp` is the wall-clock time of your run:
 
 ```text
-{"sim_ts":1.276,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
-{"sim_ts":1.276,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
-{"sim_ts":1.348,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"sim_ts":1.3479226635723796,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
 ```
 
 Use `--topic sim-telemetry` to read the packers' readings, or open the Kafka UI at http://127.0.0.1:8086. A second run appends to the same topics, so start again with an empty broker when you want only one run in them. When you have checked the result, stop the service:

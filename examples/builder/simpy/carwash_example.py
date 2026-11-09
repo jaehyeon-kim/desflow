@@ -22,8 +22,11 @@ def build(size: int = 4) -> SimulationContext:
     """Builds the carwash, with `size` cars waiting when it opens."""
     app = SimulationContext(sim_id="Carwash", factor=0, random_seed=42)
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:machines]
     app.add_resource("machine", current_cap=2)
     app.add_service("wash", dist="constant", value=5)
+    # --8<-- [end:machines]
+    # --8<-- [start:cars-arrive]
     app.add_arrival(
         "cars",
         gap=generator({"gen": "integer", "bounds": [5, 9]}),
@@ -31,7 +34,9 @@ def build(size: int = 4) -> SimulationContext:
         initial=size,
         spawn="car",
     )
+    # --8<-- [end:cars-arrive]
 
+    # --8<-- [start:car-is-washed]
     @app.task(name="car", seize="machine", next="washing")
     def car(task_id):
         """Takes a machine and keeps it."""
@@ -43,6 +48,9 @@ def build(size: int = 4) -> SimulationContext:
         """Leaves once its wash has finished."""
         return {"event_type": "leaves"}
 
+    # --8<-- [end:car-is-washed]
+
+    # --8<-- [start:machines-wash]
     wash_payload = Template(
         {
             "event_type": "washed",
@@ -56,6 +64,8 @@ def build(size: int = 4) -> SimulationContext:
     def wash(task_id):
         """Washes the car."""
         return wash_payload
+
+    # --8<-- [end:machines-wash]
 
     return app
 

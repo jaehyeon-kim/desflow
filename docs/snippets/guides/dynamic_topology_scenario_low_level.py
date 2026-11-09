@@ -68,7 +68,7 @@ def build(env: DynamicRealtimeEnvironment) -> None:
 
 
 def run(egress=None):
-    env = DynamicRealtimeEnvironment(factor=0, strict=False)
+    env = DynamicRealtimeEnvironment(factor=0)
     env.registry.register_sim_parameter(PARAMS)
     env.setup_egress(egress or [ConsoleEgress()])
     build(env)

@@ -1,0 +1,19 @@
+# The value of each event alone: envelope false on a sink.
+# Run it with: desflow run egress_envelope.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+# --8<-- [start:envelope]
+egress:
+  # Each event's value alone is written: no telemetry, and no queued or started record
+  - {type: Console, envelope: false}
+# --8<-- [end:envelope]
+
+arrivals:
+  orders: {dist: exponential, rate: 1, spawn: place_order}
+
+tasks:
+  place_order:
+    payload:
+      order_id: {gen: sequence}
+
+run: {until: 5}

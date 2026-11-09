@@ -33,13 +33,16 @@ UNTIL = None  # the run ends when no event is left
 
 def build(env: DynamicRealtimeEnvironment) -> None:
     """Starts the customers' source on `env`."""
+    # --8<-- [start:draws-and-counter]
     sampler = Sampler(seed=42)
     gap = DistributionConfig(dist="exponential", rate=0.1)
     gap.stream = "arrival.customers"  # the sequence the blueprint's arrival draws from
     patiences = sampler.generator("tasks.customer.patience")
     services = sampler.generator("tasks.customer.service_time")
     counter = simpy.Resource(env, capacity=1)
+    # --8<-- [end:draws-and-counter]
 
+    # --8<-- [start:customer-waits-or-reneges]
     def customer(name, number):
         def publish(value):
             env.publish_event(name, value, task="customer", instance=number)
@@ -56,12 +59,16 @@ def build(env: DynamicRealtimeEnvironment) -> None:
             else:
                 publish({"status": "reneged"})
 
+    # --8<-- [end:customer-waits-or-reneges]
+
+    # --8<-- [start:customers-arrive]
     def source():
         for i in range(NEW_CUSTOMERS):
             env.process(customer(f"Customer{i:02d}", i))
             yield env.timeout(sampler.sample(gap))
 
     env.process(source())
+    # --8<-- [end:customers-arrive]
 
 
 def run() -> None:

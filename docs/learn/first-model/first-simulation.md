@@ -230,7 +230,7 @@ A sink, called an egress, receives every record the simulation publishes. `Conso
 
     ```yaml title="docs/snippets/yaml/first_shop.yaml:records"
     egress:
-      - type: Console
+      - {type: Console}
     ```
 
 === "Builder"
@@ -254,8 +254,7 @@ Every event record carries the order's key, `orders-1` for the first order, so a
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/first_shop.yaml:run"
-    run:
-      until: 20
+    run: {until: 20}
     ```
 
 === "Builder"
@@ -344,7 +343,44 @@ desflow run first_shop.yaml --sample 5
 
 They are the first five events above, each printed as the whole record, with its `stream_type`. The run's log stays on stderr, so a pipe such as `| jq .key` reads only the records. [YAML Blueprints](../../user-guide/writing-a-model/blueprints.md#preview-the-records) lists the other ways to run a blueprint.
 
+While you edit the file, `desflow run first_shop.yaml --sample 5 --watch` runs it again each time the file changes. `--watch` needs the `watch` extra: `pip install "desflow[watch]"`, or `uv tool install "desflow[watch]"` for the command.
+
+`desflow check first_shop.yaml` loads the file and reports its mistakes without running it, which is cheaper than finding them after a long run. It prints `ok` and the `sim_id` for a valid file.
+
 `desflow` on its own lists every command, grouped by what it does, with examples. `desflow run --help` lists the options of `run`, also with examples. [Command Line](../../cli/index.md) uses every command on one shop.
+
+---
+
+## Test the Model
+
+A blueprint can hold the answers you expect from it. A `tests` entry names a seed and an end time (both default to the file's own) and the statistics the run must give. `desflow test` runs each entry once, unpaced and with no sink, so it contacts no service, and reports each statistic that differs:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/first_shop.yaml:tests"
+    tests:
+      # Run with: desflow test first_shop.yaml
+      - name: nine_orders_in_20_seconds
+        expect: {tasks.pack_order.finished: 9}
+    ```
+
+=== "Builder"
+
+    A builder file reads its tests from a `tests.yaml` in the same folder, with the same entries.
+
+=== "Low-level"
+
+    A low-level script has no `desflow test`. [Test a Model](../../how-to/analysis/test-a-model.md) tests it with pytest.
+
+```bash
+desflow test first_shop.yaml
+```
+
+```text
+ok first_shop.yaml: nine_orders_in_20_seconds
+```
+
+Nine orders are packed in the first 20 seconds with the seed 42. A number is compared exactly. `{value: 9, within: 1}` allows a difference. The seed and the desflow version are part of the answer: after an upgrade, `desflow test --fix` writes the new numbers, and you read them before you keep them. [Test a Model](../../how-to/analysis/test-a-model.md) shows more.
 
 ---
 
@@ -352,9 +388,9 @@ They are the first five events above, each printed as the whole record, with its
 
 How long does an order wait with one packer? It depends on how many orders are ahead of it, as the same records on a timeline show: each order waits (yellow) until the packer is free, then holds it for 1.5 seconds of packing (blue).
 
-![orders-1 arrives at 2.552 and is packed at once; orders-2 arrives at 2.696 and waits 1.356 seconds until orders-1 finishes at 4.052; orders-3 arrives at 3.737 and waits until 5.552](../../assets/diagrams/first-trace.png)
+![orders-1 arrives at 2.552 and is packed at once; orders-2 arrives at 2.696 and waits 1.357 seconds until orders-1 finishes at 4.052; orders-3 arrives at 3.737 and waits until 5.552](../../assets/diagrams/first-trace.png)
 
-These records come from one run of the first 20 seconds, with the seed 42. `orders-1` finds the packer free, so its `queued` and `started` events have the same time. `orders-2` is the first order that has to wait: it is `queued` at 2.696 and `started` at 4.052, when `orders-1` finishes. **It waits 1.356 seconds.** `orders-3` arrives while `orders-2` is waiting and waits longer, 1.815 seconds, because two orders are ahead of it.
+These records come from one run of the first 20 seconds, with the seed 42. `orders-1` finds the packer free, so its `queued` and `started` events have the same time. `orders-2` is the first order that has to wait: it is `queued` at 2.696 and `started` at 4.052, when `orders-1` finishes. **It waits 1.357 seconds.** `orders-3` arrives while `orders-2` is waiting and waits longer, 1.815 seconds, because two orders are ahead of it.
 
 So with one packer, an order that arrives while the packer is busy waits until every order ahead of it has been packed. The wait depends on when orders happen to arrive, which is why the next pages measure it over many orders.
 
@@ -365,34 +401,6 @@ A discrete-event simulation keeps a list of future events, ordered by time. It t
 - A model has entities that arrive, resources they wait for, and service times that hold them. desflow calls the work an entity does a task.
 - A task publishes `queued`, `started` and a finished event, and an order's wait is its `started` time minus its `queued` time.
 - The simulation clock jumps from one event to the next, so a run gives the same records at any pace.
-
----
-
-## Busy Hour Figures
-
-The later pages of this tutorial and the concept pages run the busy hour with 3 packers in different ways, so they give different figures for its mean wait. A figure changes with the number of runs, the packing times, the [warm-up](../concepts/output-analysis.md#one-run-starts-empty), the run length and the seeds. The table lists each figure, the pages that give it and how it was run. Every run is one hour at 1.8 orders a second unless the row says otherwise. Two terms in the table need a definition:
-
-- "Measured times" are the 40 packing times measured at the bench, drawn as an `empirical` distribution.
-- "Replications" have seeds spawned from 42. A run of 5, 10 or 20 replications uses the first 5, 10 or 20 of the 40 seeds.
-
-| Mean wait (s) | Pages | How it was run |
-|---|---|---|
-| 1.27 | [Queues and Capacity](queues-and-capacity.md), [Choosing Inputs](../inputs/choosing-inputs.md), [Queueing Basics](../concepts/queueing-basics.md), [Common Mistakes](../concepts/common-mistakes.md) | one run, seed 42, constant packing, no warm-up |
-| 1.28 | [Choosing Inputs](../inputs/choosing-inputs.md), [Queueing Basics](../concepts/queueing-basics.md) | one run, seed 42, the expert's triangular packing (1 to 2.25 s, mode 1.25), no warm-up |
-| 1.35 | [Choosing Inputs](../inputs/choosing-inputs.md), [Queueing Basics](../concepts/queueing-basics.md), [Randomness and Seeds](randomness-and-seeds.md) | one run, seed 42, measured times in a service named `empirical`, no warm-up |
-| 1.38 | [Measuring a Run](measuring-a-run.md), [Trusting Results](../studies/trusting-results.md), [Output Analysis](../concepts/output-analysis.md), [Randomness and Seeds](randomness-and-seeds.md) | one run, seed 42, measured times in a service named `packing`, without a warm-up (1.382) or with a 2-minute warm-up (1.381) |
-| 2.37 | [Choosing Inputs](../inputs/choosing-inputs.md), [Queueing Basics](../concepts/queueing-basics.md), [Common Mistakes](../concepts/common-mistakes.md) | one run, seed 42, exponential packing, no warm-up |
-| 2.11 | [Common Mistakes](../concepts/common-mistakes.md#taking-one-run-as-the-answer) | 10 replications, constant packing, no warm-up |
-| 1.99 | [Common Mistakes](../concepts/common-mistakes.md#comparing-designs-with-one-run-each) | 20 replications with seeds spawned from 1, constant packing, no warm-up |
-| 2.05 ± 0.13 | [Queueing Basics](../concepts/queueing-basics.md#check-a-formula-against-the-shop) | 10 replications of 20,000 seconds, constant packing, the first 2,000 seconds left out |
-| 2.20 to 2.23 | [Trusting Results](../studies/trusting-results.md#compare-warm-ups) | 5 replications, measured times, warm-ups of 1, 2 and 4 minutes |
-| 2.25 ± 0.25 | [Trusting Results](../studies/trusting-results.md), [Checking a Model](../studies/checking-a-model.md) | 10 replications, measured times, 2-minute warm-up |
-| 2.48 ± 0.32 | [Trusting Results](../studies/trusting-results.md), [Comparing Designs](../studies/comparing-designs.md), [Parameter Sweeps](../studies/parameter-sweeps.md), [Checking a Model](../studies/checking-a-model.md), [Checking and Validating](../concepts/checking-and-validating.md), [Queueing Basics](../concepts/queueing-basics.md) | 20 replications, measured times, 2-minute warm-up |
-| 2.32 ± 0.20 | [Trusting Results](../studies/trusting-results.md), [Fitting the Inputs](../inputs/fit-the-inputs.md), [Comparing Designs](../studies/comparing-designs.md), [Output Analysis](../concepts/output-analysis.md), [A Simulation Study](../concepts/a-simulation-study.md) | 40 replications, measured times, 2-minute warm-up |
-| 2.33 ± 0.19 | [Fitting the Inputs](../inputs/fit-the-inputs.md) | 40 replications, the gamma fitted to the measured times, 2-minute warm-up |
-| 2.93 ± 0.25 | [Fitting the Inputs](../inputs/fit-the-inputs.md) | 40 replications, the triangular fitted to the measured times, 2-minute warm-up |
-
-The 1.35 and 1.38 seconds come from the same measured times. The two services draw the times in a different order, because each distribution draws from a random number stream named after its registry path, `service.empirical` or `service.packing` ([Randomness and Seeds](randomness-and-seeds.md#add-returns) explains the streams).
 
 ---
 
@@ -431,10 +439,14 @@ The 1.35 and 1.38 seconds come from the same measured times. The two services dr
             payload: {event_type: order_packed}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 20
+        run: {until: 20}
+
+        tests:
+          # Run with: desflow test first_shop.yaml
+          - name: nine_orders_in_20_seconds
+            expect: {tasks.pack_order.finished: 9}
         ```
 
     === "Builder"

@@ -195,16 +195,7 @@ def test_docs_examples_and_the_skill_import_only_from_promised_paths():
 # page and line, and the row of docs-changes.md (its page and Section cell) that
 # names the fix. Remove the entry when the row is handled. The guard fails for a
 # line that is not here, and for an entry that no longer matches an import.
-KNOWN_OUTSIDE_IN_PAGES: Dict[str, str] = {
-    "docs/learn/first-model/queues-and-capacity.md:642": (
-        "docs-changes.md, queues-and-capacity.md (line 642), "
-        "`from desflow.explain.render import render_terminal`"
-    ),
-    "docs/user-guide/model-parts/input-fitting.md:51": (
-        "docs-changes.md, input-fitting.md (line 51), "
-        'the sentence "imported with `from desflow.analysis.fit import read_column`"'
-    ),
-}
+KNOWN_OUTSIDE_IN_PAGES: Dict[str, str] = {}
 
 _FENCE = re.compile(r"^\s*```(\w*)")
 _IMPORT_TEXT = re.compile(

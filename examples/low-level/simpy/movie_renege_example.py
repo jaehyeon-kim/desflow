@@ -44,11 +44,14 @@ def build(env: DynamicRealtimeEnvironment) -> None:
     gap.stream = "arrival.goers"  # the sequence the blueprint's arrival draws from
     movie_choices = sampler.generator("arrivals.goers.attributes.movie")
     ticket_counts = sampler.generator("arrivals.goers.attributes.tickets")
+    # --8<-- [start:theater]
     counter = simpy.Resource(env, capacity=1)
     available = {movie: TICKETS for movie in MOVIES}
     sold_out = {movie: env.event() for movie in MOVIES}
     numbers = {task: itertools.count() for task in TASKS}
+    # --8<-- [end:theater]
 
+    # --8<-- [start:moviegoer-waits]
     def moviegoer(name, movie, num_tickets):
         number = next(numbers["moviegoer"])
 
@@ -76,6 +79,8 @@ def build(env: DynamicRealtimeEnvironment) -> None:
                 counter.release(turn)
             publish("leave", {"event_type": "reneged", "movie": movie})
             return
+        # --8<-- [end:moviegoer-waits]
+        # --8<-- [start:counter-sells]
         publish("serve", {"event_type": "served"})
         if available[movie] < num_tickets:
             arguing = publish("argue", {"status": "started"})
@@ -86,6 +91,8 @@ def build(env: DynamicRealtimeEnvironment) -> None:
         publish("buy", {"event_type": "bought"})
         available[movie] -= num_tickets
         publish("check", {"event_type": "checked"})
+        # --8<-- [end:counter-sells]
+        # --8<-- [start:film-sells-out]
         if available[movie] < 2:
             publish("sold", {"event_type": "sold_out", "movie": movie})
             sold_out[movie].succeed()
@@ -94,7 +101,9 @@ def build(env: DynamicRealtimeEnvironment) -> None:
         yield env.timeout(1)
         publish("finish", {"event_type": "done"}, finishing)
         counter.release(turn)
+        # --8<-- [end:film-sells-out]
 
+    # --8<-- [start:moviegoers-arrive]
     def customer_arrivals():
         for number in itertools.count(1):
             yield env.timeout(sampler.sample(gap))
@@ -103,6 +112,7 @@ def build(env: DynamicRealtimeEnvironment) -> None:
             env.process(moviegoer(f"goers-{number}", movie, num_tickets))
 
     env.process(customer_arrivals())
+    # --8<-- [end:moviegoers-arrive]
 
 
 def run() -> None:

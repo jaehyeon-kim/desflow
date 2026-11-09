@@ -1,0 +1,60 @@
+# The Priority and Preemption page: a line ranked by an expression, a rule that decides
+# each preemption, a task that reads who holds a unit, and a task that reads why it was
+# interrupted. Run it with: desflow run priority_rules.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:rank]
+resources:
+  packers:
+    current_cap: 1
+    max_cap: 3
+    # The line is ranked by an expression read as each request joins; the lowest rank
+    # is served first, and equal ranks are served the latest first
+    queue: {rank: attr.tier, ties: lifo}
+    # A request takes a unit only from a holder whose rank is 2 or more above its own
+    preempt: {when: "holder.rank - request.rank >= 2", victim: holder.rank}
+# --8<-- [end:rank]
+
+services:
+  packing: {dist: constant, value: 4 s}
+
+arrivals:
+  # Regular orders of tier 3, and a rush order of tier 1 every 15 s
+  orders:
+    dist: constant
+    value: 3 s
+    spawn: pack
+    attributes: {tier: 3}
+  rush:
+    dist: constant
+    value: 15 s
+    spawn: pack
+    attributes: {tier: 1}
+
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    # --8<-- [start:abandon]
+    # An order that loses its packer reads why in the task it goes to
+    on_interrupt: abandon
+    on_interrupt_next: apologise
+    # --8<-- [end:abandon]
+    # --8<-- [start:read]
+    payload:
+      event_type: packed
+      # held(r) lists the units in use and waiting(r) the requests in line, each with
+      # its entity, rank and time
+      in_use: {gen: expr, expr: "len(held(packers))"}
+      waiting: {gen: expr, expr: "len(waiting(packers))"}
+    # --8<-- [end:read]
+  apologise:
+    payload:
+      event_type: apologised
+      taken_by: {gen: expr, expr: cause.by}
+      held_since: {gen: expr, expr: cause.usage_since}
+
+run: {until: 60 s}

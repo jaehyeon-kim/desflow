@@ -33,14 +33,15 @@ def test_every_example_file_is_listed():
         for e in examples.EXAMPLES.values()
         for p in [x for paths in e.files.values() for x in paths] + e.shared
     }
-    # The gallery is not downloaded with `desflow examples get`; test_yaml_examples.py
-    # checks that each of its examples has its three files and a test
+    # The gallery and the generator examples are not downloaded with `desflow examples
+    # get`: test_yaml_examples.py checks that each gallery example has its three files
+    # and a test, and test_generator_examples.py runs the files of each generator kind
     on_disk = {
         str(p.relative_to(EXAMPLES_DIR))
         for p in EXAMPLES_DIR.rglob("*")
         if p.suffix in (".py", ".yaml", ".csv")
         and "__pycache__" not in p.parts
-        and "gallery" not in p.relative_to(EXAMPLES_DIR).parts
+        and p.relative_to(EXAMPLES_DIR).parts[0] not in ("gallery", "generators")
     }
     assert on_disk == listed
 

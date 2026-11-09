@@ -8,7 +8,7 @@ from desflow import SimulationContext
 
 
 def build() -> SimulationContext:
-    app = SimulationContext(sim_id="Shop", factor=0, strict=False)
+    app = SimulationContext(sim_id="Shop", factor=0)
     app.add_resource("packers", current_cap=1, max_cap=5)
     # --8<-- [start:scenario]
     # No units yet: a job that asks for one waits

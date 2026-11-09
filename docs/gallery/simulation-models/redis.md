@@ -8,7 +8,7 @@ Look for one entry in the `order_events` stream for each order. After you publis
 
 ## Before You Start
 
-The example needs Docker and the odctl profile `valkey`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](index.md#services-for-the-examples) shows how to install odctl.
+The example needs Docker and the odctl profile `valkey`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](../index.md#services-for-the-examples) shows how to install odctl.
 
 ---
 
@@ -246,19 +246,16 @@ This command leaves out the `__stream__` key that names the stream, because only
         ```yaml title="examples/yaml/redis.yaml"
         # Redis Streams output with live parameter updates, in YAML.
         #
-        # The YAML version of redis_example.py, which --api builder downloads: a simulation that records
-        # each order as it is placed. Each order spawns record_order, a task with no service
-        # or resource, which publishes its payload at once. RedisEgress writes it to the
+        # The YAML version of redis_example.py, which --api builder downloads: a simulation that
+        # records each order as it is placed. Each order spawns record_order, a task with no
+        # service or resource, which publishes its payload at once. RedisEgress writes it to the
         # order_events stream that the __stream__ key names, while RedisIngress subscribes to
         # the simulation_params channel.
         #
         # Needs Valkey: odctl up valkey. Runs until interrupted with Ctrl + C.
         # Run it from its folder with: desflow run redis.yaml
 
-        simulation:
-          sim_id: Shop
-          factor: 1.0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 1.0, random_seed: 42}
 
         ingress:
           - type: Redis
@@ -270,9 +267,7 @@ This command leaves out the `__stream__` key that names the stream, because only
 
         egress:
           - type: Redis
-            config:
-              url: redis://user:password@127.0.0.1:6379/0
-              stream_name: events
+            config: {url: redis://user:password@127.0.0.1:6379/0, stream_name: events}
 
         arrivals:
           orders: {dist: exponential, rate: 2.0, spawn: record_order}

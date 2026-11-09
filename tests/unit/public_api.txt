@@ -143,8 +143,6 @@ desflow.KafkaEgress = desflow.connectors.egress.kafka.KafkaEgress
 desflow.KafkaIngress = desflow.connectors.ingress.kafka.KafkaIngress
 desflow.LabelPayload(*, stream_type: Literal['label'] = 'label', sim_ts: float, timestamp: str, path: str | None = None, old: Any = None, new: Any = None, label: dict[str, Any]) -> None
 desflow.LabelPayload.model_config: dict
-desflow.LiveScope(env: Any, run: Any, families: collections.abc.Mapping[str, Any]) -> None
-desflow.LiveScope.scope(upstream: desflow.Upstream | None = None, attributes: collections.abc.Mapping[str, Any] | None = None, **given: Any) -> desflow.Scope
 desflow.LocalIngress = desflow.connectors.ingress.local.LocalIngress
 desflow.LowLevelModel(function: collections.abc.Callable[[desflow.DynamicRealtimeEnvironment, desflow.Sampler], Any], sim_id: str) -> None
 desflow.NO_RECORD: _NoRecord

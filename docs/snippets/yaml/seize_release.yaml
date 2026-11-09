@@ -1,0 +1,49 @@
+# The Several Resources page: a task asks for the picker with seize, the next task
+# gives it back with release once the order is on the bench, and a supervisor frees the
+# picker from the rush orders that still hold it.
+# Run it with: desflow run seize_release.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console}
+
+resources:
+  picker: {current_cap: 1, max_cap: 1, queue: priority}
+  bench: {current_cap: 1, max_cap: 1}
+
+services:
+  picking: {dist: constant, value: 2 s}
+  packing: {dist: constant, value: 3 s}
+
+arrivals:
+  orders:
+    dist: constant
+    value: 4 s
+    spawn: pick
+    attributes:
+      rush: {gen: boolean, p: 0.3}
+  # A supervisor who walks by every 15 s
+  supervisor: {dist: constant, value: 15 s, spawn: clear}
+
+# --8<-- [start:seize]
+tasks:
+  pick:
+    service: picking
+    # Asks for the picker now, with priority 1 and without taking the unit from
+    # another order, and keeps it across the next task
+    seize: {resource: picker, priority: 1, preempt: false}
+    payload: {event_type: order_picked}
+    next: pack
+  pack:
+    service: packing
+    resource: bench
+    # Gives the picker back once the order is on the bench
+    release: picker
+    payload: {event_type: order_packed}
+  # Frees the picker from every rush order that still holds it
+  clear:
+    release: {resource: picker, task: pick, where: attr.rush}
+    payload: {event_type: picker_cleared}
+# --8<-- [end:seize]
+
+run: {until: 40 s}

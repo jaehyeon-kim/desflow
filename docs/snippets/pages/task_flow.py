@@ -150,7 +150,7 @@ choices = [rework.choose(finished) for _ in range(1000)]
 # --8<-- [end:low-level-weights]
 
 # --8<-- [start:refused]
-for text in ("payload.total ** 2", "x > 1", "open('orders.csv')"):
+for text in ("payload.total @ 2", "x > 1", "open('orders.csv')"):
     try:
         Expression(text)
     except ValueError as error:

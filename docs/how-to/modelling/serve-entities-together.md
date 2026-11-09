@@ -26,7 +26,8 @@ Here seven orders arrive 1 second apart, and an oven bakes them in batches of 3,
     ```yaml title="docs/snippets/yaml/serve_together.yaml:batch"
     bake:
       # The batch closes with 3 members, or 2.5 seconds after its first member
-      batch: {size: 3, timeout: 2.5}
+      # name defaults to the task's name; tasks with the same name share one open batch
+      batch: {name: oven_run, size: 3, timeout: 2.5}
       resource: oven  # one run of the oven serves the whole batch
       service_time: 4
       payload: {event_type: baked}
@@ -200,7 +201,8 @@ Run `serve_together_low_level.py` for the Low-level form. It prints the same row
         tasks:
           bake:
             # The batch closes with 3 members, or 2.5 seconds after its first member
-            batch: {size: 3, timeout: 2.5}
+            # name defaults to the task's name; tasks with the same name share one open batch
+            batch: {name: oven_run, size: 3, timeout: 2.5}
             resource: oven  # one run of the oven serves the whole batch
             service_time: 4
             payload: {event_type: baked}

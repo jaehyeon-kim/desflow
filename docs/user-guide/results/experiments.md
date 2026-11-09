@@ -37,34 +37,48 @@ An experiment names its model, how long and how often to run it, what to measure
 # Run it with: desflow experiment experiment.yaml
 
 experiment: packers
+
 question: Does a third packer keep the mean wait under 2 seconds?
+
 model: experiment_shop.yaml
+
 assumptions:
   - Orders arrive at random, at a steady rate, through the hour.
   - Every packer works at the same speed.
-inputs:
-  Shop.service.packing: 40 packing times measured at the bench
+
+inputs: {Shop.service.packing: 40 packing times measured at the bench}
+
 until: 1 h
+
 warmup: 3 min
+
 replications: 20
+
 seed: 42
+
 # Both designs run with the same 20 seeds, so they are compared seed by seed
 pairing: common
+
 measures: [tasks.pack.wait_mean, resources.packers.utilization_avg]
+
 variants:
   two: {}
   three: {Shop.resources.packers.current_cap: 3}
+
 compare:
   - {baseline: two, variant: three}
+
 checks:
   # The upper end of the interval must be under 2 seconds
   - {measure: tasks.pack.wait_mean, variant: three, max: 2}
+
 observed:
   # The mean wait measured in the real shop, which has two packers
   file: ../observed_waits.csv
   variant: two
-limits:
-  - One hour of steady demand; the rest of the day is not modelled.
+
+limits: [One hour of steady demand; the rest of the day is not modelled.]
+
 output: results/packers
 ```
 
@@ -74,7 +88,7 @@ In Python the same settings are a mapping, and the model is a blueprint path, a 
 |---|---|---|
 | `experiment` | the experiment's name | required |
 | `question` | the question the experiment answers, the report's first section | not stated |
-| `model` | a blueprint path; `!python module.function`, a function returning a new `SimulationContext`; or `{function: !python module.function, sim_id: Shop}`, a [low-level function](replications.md#run-replications) | required |
+| `model` | a blueprint path, such as `experiment_shop.yaml`; to build the model in code instead, `!python module.function`, a function returning a new `SimulationContext`, or `{function: !python module.function, sim_id: Shop}`, a [low-level function](replications.md#run-replications) | required |
 | `assumptions` | sentences the report lists | none |
 | `inputs` | each distribution's registry path, such as `Shop.service.packing`, and where its values came from | none |
 | `until` | where each run's arrivals stop, in seconds or a duration such as `8 h`; the run ends there unless `stop` ends it earlier or `drain` runs on | required |
@@ -237,10 +251,10 @@ The tutorial page [Comparing Designs](../../learn/studies/comparing-designs.md) 
     ```yaml title="examples/yaml/experiment_shop.yaml"
     # The model of the experiment in experiment.yaml: one hour of the shop.
     #
-    # The YAML version of the shop function in experiment_example.py, which --api builder downloads. Two packers,
-    # orders every 2.5 seconds on average and a packing time of 4 seconds on average.
-    # It has no sinks and no statistics level: the experiment runs it without sinks and
-    # keeps the statistics its measures need.
+    # The YAML version of the shop function in experiment_example.py, which --api builder
+    # downloads. Two packers, orders every 2.5 seconds on average and a packing time of 4
+    # seconds on average. It has no sinks and no statistics level: the experiment runs it
+    # without sinks and keeps the statistics its measures need.
     #
     # Needs no containers.
     # Run the experiment with: desflow experiment experiment.yaml

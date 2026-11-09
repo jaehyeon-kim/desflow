@@ -27,12 +27,15 @@ UNTIL = 100
 
 def build(env: DynamicRealtimeEnvironment, size: int = 1) -> None:
     """Starts the generator and `size` consumers on `env`."""
+    # --8<-- [start:pipe-and-draws]
     sampler = Sampler(seed=42)
     gaps = sampler.generator("arrivals.generator.gap")
     busy_times = sampler.generator("tasks.busy.service_time")
     pipe = simpy.Store(env)
     numbers = {task: itertools.count() for task in ("listen", "busy")}
+    # --8<-- [end:pipe-and-draws]
 
+    # --8<-- [start:generator-sends]
     def message_generator(name, out_pipe):
         for number in itertools.count(1):
             yield env.timeout(int(gaps.integers(6, 11)))
@@ -45,6 +48,9 @@ def build(env: DynamicRealtimeEnvironment, size: int = 1) -> None:
                 instance=number - 1,
             )
 
+    # --8<-- [end:generator-sends]
+
+    # --8<-- [start:consumer-gets]
     def message_consumer(key, in_pipe):
         def publish(task, number, value):
             env.publish_event(key, value, task=task, instance=number)
@@ -66,9 +72,13 @@ def build(env: DynamicRealtimeEnvironment, size: int = 1) -> None:
             yield env.timeout(int(busy_times.integers(4, 9)))
             publish("busy", busy, {"event_type": "handled"})
 
+    # --8<-- [end:consumer-gets]
+
+    # --8<-- [start:start-processes]
     env.process(message_generator("Generator A", pipe))
     for number in range(1, size + 1):
         env.process(message_consumer(f"consumer-{number}", pipe))
+    # --8<-- [end:start-processes]
 
 
 def run() -> None:

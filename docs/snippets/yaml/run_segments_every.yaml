@@ -1,0 +1,27 @@
+# Equal run segments: a reading of the run after every 30 seconds.
+#
+# Needs: nothing.
+# Run it with: desflow run docs/snippets/yaml/run_segments_every.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  orders: {dist: constant, value: 20 s, spawn: pack_order}
+
+tasks:
+  pack_order:
+    payload: {event_type: order_packed}
+
+# --8<-- [start:every]
+run:
+  until: 2 min
+  # A segment every 30 seconds up to until
+  segments: {every: 30 s}
+# --8<-- [end:every]

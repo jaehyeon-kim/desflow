@@ -148,7 +148,7 @@ An order picked while the shelf is empty waits for the supplier for a minute, th
 
 ## Rework
 
-One parcel in 20 fails its check and is packed again. Sending work back to a task it has passed is called **rework**. `weights` chooses the next task at random, in proportion to the weights. It draws from the routing task's own random number stream, `route.pack_order`. So a seeded run repeats, and the choice does not change any other draw:
+One parcel in 20 fails its check and is packed again. Sending work back to a task it has passed is called **rework**. `weights` chooses the next task at random, in proportion to the weights. A weight of infinity or `true` is refused when the blueprint loads. It draws from the routing task's own random number stream, `route.pack_order`. So a seeded run repeats, and the choice does not change any other draw:
 
 === "YAML"
 
@@ -198,8 +198,16 @@ An order is an **entity** with **attributes**: values it carries from task to ta
     ```yaml title="docs/snippets/yaml/flow_of_tasks.yaml:attributes"
     arrivals:
       # Each order starts with the attributes given here, read as attr.<name>
-      orders: {dist: exponential, rate: 0.4, spawn: pick_order, attributes: {express: 0}}
-      express: {dist: exponential, rate: 0.1, spawn: pick_order, attributes: {express: 1}}
+      orders:
+        dist: exponential
+        rate: 0.4
+        spawn: pick_order
+        attributes: {express: 0}
+      express:
+        dist: exponential
+        rate: 0.1
+        spawn: pick_order
+        attributes: {express: 1}
     ```
 
 === "Builder"
@@ -259,6 +267,179 @@ Attributes are not published. A condition reads them as `attr.express`, and a pa
 ```
 
 ![The events of orders-172 in order: pick_order, backorder, pick_order again, pack_order twice, and ship_order with express 0 and backordered 1, all under the key orders-172](../../assets/diagrams/entity-key-timeline.png)
+
+---
+
+## Networks and Bottlenecks
+
+A shop with several tasks is a network: each task's rate comes from the tasks before it. This version of the shop checks every packed order with one checker, and sends one order in ten back to be packed again. A weight in `next.weights` is a number or an expression read when the task finishes, such as `attr.w`, `registry[...]`, `level.<store>` or `t`, with no bare name. The draw is one number from `route.<task>`. A result below 0, or text that is not a number, fails the run with the weight's name, and weights that add up to 0 fail the run. `desflow explain` makes the cumulative shares once, for numbers only, and gives no shares for expression weights:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/queues_network.yaml:network"
+    arrivals:
+      orders: {dist: exponential, rate: 1.6, spawn: pack_order}
+
+    services:
+      packing: {dist: constant, value: 1.5 s}
+      checking: {dist: exponential, rate: 2.5}  # 0.4 s on average
+
+    resources:
+      packers: {current_cap: 4, max_cap: 10}
+      checkers: {current_cap: 1, max_cap: 4}
+
+    tasks:
+      pack_order:
+        service: packing
+        resource: packers
+        payload: {event_type: order_packed}
+        next: check_order
+      check_order:
+        service: checking
+        resource: checkers
+        payload: {event_type: order_checked}
+        # Nine in ten pass; the tenth is packed again
+        next:
+          weights: {ship_order: 9, pack_order: 1}
+      ship_order:
+        payload: {event_type: order_shipped}
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/tutorials/queues_and_capacity.py:network"
+    app = SimulationContext(sim_id="Shop", factor=0, random_seed=42)
+    app.add_arrival("orders", dist="exponential", rate=1.6, spawn="pack_order")
+    app.add_service("packing", dist="constant", value=1.5)
+    app.add_service("checking", dist="exponential", rate=2.5)  # 0.4 s on average
+    app.add_resource("packers", current_cap=4, max_cap=10)
+    app.add_resource("checkers", current_cap=1, max_cap=4)
+
+    @app.task(service_id="packing", resource_id="packers", next="check_order")
+    def pack_order(task_id):
+        return {"event_type": "order_packed"}
+
+    # Nine in ten pass; the tenth is packed again
+    @app.task(
+        service_id="checking",
+        resource_id="checkers",
+        next={"weights": {"ship_order": 9, "pack_order": 1}},
+    )
+    def check_order(task_id):
+        return {"event_type": "order_checked"}
+
+    @app.task()
+    def ship_order(task_id):
+        return {"event_type": "order_shipped"}
+
+    # print(render_terminal(app.analyze())) prints what desflow explain prints
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/tutorials/queues_and_capacity_low_level.py:network"
+    NETWORK = SimParameter(
+        sim_id="Shop",
+        arrival={"orders": DistributionConfig(dist="exponential", rate=1.6)},
+        service={
+            "packing": DistributionConfig(dist="constant", value=1.5),
+            # One check takes 0.4 s on average
+            "checking": DistributionConfig(dist="exponential", rate=2.5),
+        },
+        resources={
+            "packers": CapacityConfig(current_cap=4, max_cap=10),
+            "checkers": CapacityConfig(current_cap=1, max_cap=4),
+        },
+    )
+    # Each task's service and resource, and the task after it
+    STEPS = {
+        "pack_order": ("packing", "packers", Router("check_order")),
+        # Nine in ten pass; the tenth is packed again
+        "check_order": (
+            "checking",
+            "checkers",
+            Router({"weights": {"ship_order": 9, "pack_order": 1}}),
+        ),
+        "ship_order": (None, None, Router(None)),
+    }
+
+
+    def step(env, sampler, shop, name, entity, counters):
+        """One task of an order, then the task its router chooses."""
+        service, resource, router = STEPS[name]
+        task_id = next(counters[name])
+        if resource is None:
+            env.stats.task_finished(name, task_id)
+        else:
+            env.stats.task_queued(name, task_id)
+            with shop[resource].request() as request:
+                yield request
+                env.stats.task_started(name, task_id)
+                config = env.registry.get_config(f"Shop.service.{service}")
+                yield env.timeout(sampler.sample(config))
+            env.stats.task_finished(name, task_id)
+        following = router.choose(Upstream(task_id, entity, {}, {}), env)
+        if following is None:
+            env.stats.flow_finished("orders")
+        else:
+            yield from step(env, sampler, shop, following, entity, counters)
+    ```
+
+    `Router` is the object that chooses the task after a finished one, from the same `next` rule a blueprint uses: a name, `when` rules or `weights`. `Upstream` is what the finished task hands it: the instance id, the entity key, the entity's attributes and the payload. Here no condition reads them, so the router gets an empty `Upstream` with the entity. `counters` gives each task's instance numbers, counting from 0. `flow_finished` tells the statistics that the order has left the shop.
+
+    `desflow explain` does not support low-level models. It reads which arrival starts which task and which resource each task uses, and a low-level model does not declare those links: its SimPy code makes them as it runs.
+
+Every packed order is checked. Packing receives the new orders, 1.6 a second, and also the tenth of the checked orders that come back. Call the rate into packing x: then x = 1.6 + 0.1 × x, which gives x = 1.6 ÷ 0.9 = 1.778 orders a second. `desflow explain queues_network.yaml` solves this [flow balance](../concepts/queueing-basics.md#flow-balance-and-the-bottleneck) for every task. This is its output without the hints at the end:
+
+<!-- records: queues-network -->
+```text
+Shop
+`-- orders (arrival, rate 1.6/s)
+    `-- spawn -> pack_order (task, rate 1.778/s)
+        +-- uses packers (resource)
+        `-- next (share 1) -> check_order (task, rate 1.778/s)
+            +-- uses checkers (resource)
+            +-- next (share 0.9) -> ship_order (task, rate 1.6/s)
+            |   `-- next (share 1) -> exit
+            `-- next (share 0.1) -> pack_order (again)
+Resources
++----------------------------------------------------------+
+| resource |     λ |      μ | c |      ρ | Wq | L | status |
+|----------+-------+--------+---+--------+----+---+--------|
+| packers  | 1.778 | 0.6667 | 4 | 0.6667 |  - | - | OK     |
+| checkers | 1.778 |    2.5 | 1 | 0.7111 |  - | - | OK     |
++----------------------------------------------------------+
+packers by units
++-------------------------+
+|  c |      ρ | status    |
+|----+--------+-----------|
+|  1 |  2.667 | UNSTABLE  |
+|  2 |  1.333 | UNSTABLE  |
+|  3 | 0.8889 | CONGESTED |
+|  4 | 0.6667 | OK        |
+|  5 | 0.5333 | OK        |
+|  6 | 0.4444 | OK        |
+|  7 |  0.381 | OK        |
+|  8 | 0.3333 | OK        |
+|  9 | 0.2963 | OK        |
+| 10 | 0.2667 | OK        |
++-------------------------+
+checkers by units
++---------------------+
+| c |      ρ | status |
+|---+--------+--------|
+| 1 | 0.7111 | OK     |
+| 2 | 0.3556 | OK     |
+| 3 |  0.237 | OK     |
+| 4 | 0.1778 | OK     |
++---------------------+
+Bottleneck: checkers
+Not estimated:
+  wait at packers: no closed formula for c > 1 with non-exponential times; run --verify to measure it
+  wait at checkers: its input is not one arrival or a Poisson flow, which Kingman's formula needs; run --verify to measure it
+```
+
+The four packers are at utilisation 0.667 and the checker at 0.711, the higher of the two, so the checker is the bottleneck. In the table by units, 3 packers would be at utilisation 0.889, above the checker. So with 3 packers the packers are the bottleneck, and a fourth packer moves the bottleneck to the checker. Relieving a bottleneck makes the next busiest resource the new one. `desflow explain` estimates neither wait here, and says why: four packers with constant packing have no closed formula, and the checker's input is the packers' output, which is neither one arrival nor a [Poisson](../concepts/queueing-basics.md#kendalls-notation) flow. `--verify`, in [Check Against Theory](../../how-to/analysis/check-against-theory.md), measures both.
 
 ---
 
@@ -335,10 +516,7 @@ The counts are:
         ```yaml title="docs/snippets/yaml/flow_of_tasks.yaml"
         # The A Flow of Tasks tutorial: orders are picked, packed and shipped.
         # Run it with: desflow run flow_of_tasks.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           pickers: {current_cap: 2, max_cap: 4}
@@ -356,8 +534,16 @@ The counts are:
 
         arrivals:
           # Each order starts with the attributes given here, read as attr.<name>
-          orders: {dist: exponential, rate: 0.4, spawn: pick_order, attributes: {express: 0}}
-          express: {dist: exponential, rate: 0.1, spawn: pick_order, attributes: {express: 1}}
+          orders:
+            dist: exponential
+            rate: 0.4
+            spawn: pick_order
+            attributes: {express: 0}
+          express:
+            dist: exponential
+            rate: 0.1
+            spawn: pick_order
+            attributes: {express: 1}
           deliveries: {dist: constant, value: 100 s, spawn: restock}
 
         tasks:
@@ -397,10 +583,9 @@ The counts are:
         stats: {level: basic, interval: 1 h}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"

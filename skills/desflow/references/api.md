@@ -29,7 +29,6 @@ Every name `from desflow import ...` gives, with the extra it needs and the firs
 | `KafkaEgress` | `kafka` | High-throughput Kafka producer for simulation telemetry and events. |
 | `KafkaIngress` | `kafka` | Resilient Kafka consumer for dynamic simulation configuration updates. |
 | `LabelPayload` | none | Schema for ground-truth records: what a scenario step changed, and why. |
-| `LiveScope` | none | What every scope of a run reads, in one place: the run's clock and registry, its stores, containers, resources, signals and running instances, and the model's families. |
 | `LocalIngress` | none | Ingress provider for deterministic, time-scheduled parameter updates. |
 | `LowLevelModel` | none | A model written with the low-level API, for `replicate` and `run_experiment`. |
 | `NO_RECORD` | none | What a task function returns to finish with no record: the Builder form of a blueprint's `payload: null`. |

@@ -181,21 +181,62 @@ A script can run the model in segments by calling `env.run(until=...)` again, as
 
 An environment subclass is plain Python: `class Traced(DynamicRealtimeEnvironment)`, whose `__init__` takes `**kwargs` and passes them on, and whose `step` or `schedule` calls `super()`. Inside `run()`, `step` runs once per event, desflow's own events included.
 
+### Low-level Forms of the Keys
+
+A script writes by hand what the keys of a blueprint do. These are the calls and attributes that match the arguments of the [Builder API](builder-api.md#arguments-for-the-keys-of-a-blueprint):
+
+- **Generated values.** `ValueRuntime.value(spec, entity=None)` evaluates a typed generator from `desflow.values.generator`, or any value that holds one, now. Call it on the same object each time: a `sequence` counts and a `unique` choice refuses on it. A `row` generator is read from the working directory at the call, and a missing or unusable file raises `ValueError` naming the generator's place and the file. A `row` gives a mapping, so a place that needs a number or text takes it only inside another generator.
+- **Resources and signals.** `DynamicResourceRequest.preempted` is true once a request of a higher rank took the unit. `Signal.fire(value, urgent, after, priority)` and `Signal.fail(reason, urgent, after, priority, defused)` take a `priority`, and `fail` takes `defused`. `Signal.processed` is true once the latest firing's event has been processed.
+- **Transfers.** `Transfer(item=...)` is the item a store `put` adds.
+- **Trace.** `env.trace_events()` switches the event trace on, and `env.trace_events(False)` off. A trace record goes only to the sinks added as trace sinks.
+
+### Read a Value, an Expression and a Trace
+
+`env.registry.get(path)` gives the registry's `DynamicValue` for a path. Its `value` is the value now, and `name` is the path:
+
+```python title="docs/snippets/pages/low_level_reads.py:value"
+env = DynamicRealtimeEnvironment(factor=0.0)
+env.registry.register_sim_parameter(
+    SimParameter(
+        sim_id="Shop",
+        resources={"packers": CapacityConfig(current_cap=2, max_cap=5)},
+    )
+)
+packers: DynamicValue = env.registry.get("Shop.resources.packers.current_cap")
+print(packers.name, packers.value)
+```
+
+This prints `Shop.resources.packers.current_cap 2`.
+
+An `Expression` is parsed and checked when it is made, and `evaluate` reads its names from a `Scope`. A scope you make yourself holds only the parts you give it, here a payload and the time `t`:
+
+```python title="docs/snippets/pages/low_level_reads.py:expression"
+rule = Expression("payload.total > 100 and t >= 60")
+scope = Scope(payload={"total": 120}, now=75.0)
+print(rule.evaluate(scope))
+```
+
+This prints `True`.
+
+`read_trace` reads the arrivals of a trace, from a CSV or Parquet path or from a list of mappings, into a list of `Row` objects. Each has its `time`, its row `number` and the `fields` that become the entity's attributes:
+
+```python title="docs/snippets/pages/low_level_reads.py:trace"
+rows: list[Row] = read_trace(
+    [{"time": 0.5, "id": "a"}, {"time": 2.0, "id": "b"}], fields=["id"]
+)
+for row in rows:
+    print(row.number, row.time, row.fields)
+```
+
+This prints `1 0.5 {'id': 'a'}` and `2 2.0 {'id': 'b'}`.
+
 ---
 
 ## How It Works
 
 The environment does little for you. It paces the clock, holds the registry, writes records on the egress thread and keeps the statistics that `setup_stats` switches on. Everything else is your code. [Builder API](builder-api.md#how-it-works) lists what `SimulationContext.run()` writes for you on top of the same steps.
 
-The environment runs on three threads: the SimPy thread runs your processes, the ingress thread runs the sources and the egress thread runs the sinks. Alongside your processes, the environment starts processes of its own on the SimPy thread:
-
-- The ingress monitor applies the sources' changes to the registry every 0.1 simulation seconds.
-- Each sink has a process that flushes its buffer on the sink's interval.
-- The lag monitor measures how far the clock is behind the wall clock once the run is live.
-- The statistics timer publishes the statistics every interval.
-- One process ends the warm-up.
-
-`env.step()` and `env.peek()` do not count these processes. [Time and Pacing](../time-and-pacing/index.md#how-it-works) shows the threads and the switch to real time.
+The threads, the queues and the processes the environment starts on the SimPy thread are in [Threads and Queues](../how-desflow-works.md#threads-and-queues). `env.step()` and `env.peek()` do not count those processes.
 
 ---
 
@@ -206,142 +247,11 @@ Nothing is checked before the run as a whole. Each call checks only what it read
 - **An unregistered path raises `KeyError`** when a resource, a process or a `registry.get` asks for it, so register the parameters before creating anything that reads them.
 - **A record without egress is dropped.** Until `setup_egress` runs, `publish_event` and `publish_telemetry` do nothing, without an error.
 - **A `Sampler()` with no seed draws nothing at random,** as [Arrivals and Services](../model-parts/arrivals-and-services.md#how-it-works) explains, so give it a seed.
-- **A paced run is strict by default.** [Strict Pacing](../time-and-pacing/clocks-and-pacing.md#strict-pacing) gives what it does and its default in each API.
-- **An unhandled failure stops the run under `stop`.** `DynamicRealtimeEnvironment(on_unhandled_failure=...)` is `stop` by default, as a plain SimPy environment is. Under `stop`, a one-shot `Signal` failure that nobody waits for raises `SignalFailed`, and the run stops. Pass `"continue"` to defuse such a failure and let the run go on. A re-arming signal's failure is always defused. An exception raised in a process stops the run under both settings. The keyword must be `stop` or `continue`.
+- **`strict` is left unset by default.** It is true when `factor` is above 0 or `go_live_at` is set, and false otherwise. [Strict Pacing](../time-and-pacing/clocks-and-pacing.md#strict-pacing) gives what it does in each API.
+- **An unhandled failure stops the run under `stop`.** `DynamicRealtimeEnvironment(on_unhandled_failure=...)` is `stop` by default, as a plain SimPy environment is. Under `stop`, a one-shot `Signal` failure that nobody waits for raises `SignalFailed`, and the run stops. Pass `"continue"` to defuse such a failure and let the run go on. A re-arming signal's failure is always defused, and `Signal.fail(reason, defused=True)` defuses one failure of a one-shot signal. A failure with an empty or 0 reason keeps that reason. An exception raised in a process stops the run under both settings. The keyword must be `stop` or `continue`.
 
 Beyond those, a process can do anything SimPy can model.
 
 ---
 
-## Example
-
-??? example "Full script"
-
-    The complete file, which the documentation tests run:
-
-    ```python title="docs/snippets/pages/low_level.py"
-    """A complete low-level simulation, as the Low-level API page explains it step by step.
-
-    One packing team with a stock of boxes and a store of packed orders. Run it with
-    `python low_level.py`: it runs unpaced for 10 simulation minutes and prints every record
-    to the terminal.
-    """
-
-    import logging
-
-    from desflow import (
-        CapacityConfig,
-        ConsoleEgress,
-        ContainerConfig,
-        DistributionConfig,
-        DynamicContainer,
-        DynamicRealtimeEnvironment,
-        DynamicResource,
-        DynamicStore,
-        Sampler,
-        SimParameter,
-        time_to_seconds,
-    )
-
-    env = DynamicRealtimeEnvironment(factor=0.0)  # unpaced; 1.0 follows the wall clock
-
-    env.registry.register_sim_parameter(
-        SimParameter(
-            sim_id="Shop",
-            # An order every 2 s on average (rate 0.5)
-            arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
-            service={"packing": DistributionConfig(dist="normal", mean=1.5, std=0.3)},
-            resources={"packers": CapacityConfig(current_cap=1, max_cap=3)},
-            containers={"boxes": ContainerConfig(current_cap=100, max_cap=100, level=100)},
-            stores={"finished": CapacityConfig(current_cap=50, max_cap=50)},
-            variables={"boxes_per_order": 1.0},
-        )
-    )
-
-    env.setup_egress([ConsoleEgress()])  # starts the egress thread
-    # env.setup_ingress([KafkaIngress(...)]) would start the ingress thread
-    env.setup_stats("Shop", "basic", interval=60)  # readings and counts every minute
-
-    packers = DynamicResource(env, "Shop", "packers")  # reads Shop.resources.packers.*
-    boxes = DynamicContainer(env, "Shop", "boxes")  # starts at its level, 100
-    finished = DynamicStore(env, "Shop", "finished")
-    sampler = Sampler(seed=42)  # a random stream per distribution, from one seed
-
-
-    def order(env, key, task_id):
-        """One order: queue for a packer, take a box, pack, then store the result."""
-        path_id = "Shop.service.packing"
-
-        def publish(value):
-            env.publish_event(key, value, task="pack_order", instance=task_id)
-
-        publish(
-            {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
-        )
-        env.stats.task_queued("pack_order", task_id)  # what @app.task reports for you
-        with packers.request() as request:
-            yield request
-            count = env.registry.get("Shop.variables.boxes_per_order").value
-            yield boxes.get(count)  # waits if the stock is too low
-            publish(
-                {
-                    "path_id": path_id,
-                    "sim_id": "Shop",
-                    "service": "packing",
-                    "status": "started",
-                }
-            )
-            env.stats.task_started("pack_order", task_id)
-            yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
-            yield finished.put({"order": key})
-            publish({"event_type": "order_packed"})
-        env.stats.task_finished("pack_order", task_id)
-        env.stats.flow_finished("orders")
-
-
-    def arrivals(env):
-        gap = env.registry.get_config("Shop.arrival.orders")  # the live config object
-        task_id = 0
-        while True:
-            yield env.timeout(sampler.sample(gap))  # each draw reads the current rate
-            env.process(order(env, f"orders-{task_id + 1}", task_id))  # the entity key
-            task_id += 1
-
-
-    def telemetry(env):
-        """A reading of your own, beside the built-in statistics."""
-        while True:
-            env.publish_telemetry("Shop.boxes_per_packer", boxes.level / packers.capacity)
-            yield env.timeout(10.0)
-
-
-    def refill_and_rush(env):
-        """Refills boxes every minute, and doubles arrivals after five minutes."""
-        while True:
-            yield env.timeout(60.0)
-            missing = boxes.capacity - boxes.level
-            if missing > 0:  # SimPy refuses a put of 0
-                yield boxes.put(missing)
-            if env.now >= 300 and env.registry.get("Shop.arrival.orders.rate").value < 1.0:
-                env.registry.update("Shop.arrival.orders.rate", 1.0)
-                env.registry.update("Shop.resources.packers.current_cap", 2)
-
-
-    env.process(arrivals(env))
-    env.process(telemetry(env))
-    env.process(refill_and_rush(env))
-
-    if __name__ == "__main__":
-        logging.basicConfig(
-            level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
-        )
-        try:
-            env.run(until=time_to_seconds("10 min"))  # until is in simulation seconds
-        finally:
-            env.teardown()  # flushes the buffers and stops the threads
-        assert (
-            packers.capacity == 2
-            and env.registry.get("Shop.arrival.orders.rate").value == 1.0
-        )
-        assert len(finished.items) > 0
-    ```
+The complete file, which the documentation tests run, is `docs/snippets/pages/low_level.py`. [Builder API](builder-api.md) writes the same kind of model with less code.

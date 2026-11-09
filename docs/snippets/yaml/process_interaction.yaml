@@ -11,8 +11,9 @@ services:
 
 # --8<-- [start:signal]
 signals:
-  # Fired by the courier as it leaves with every order that waits for it
-  - courier_left
+  # Fired by the courier as it leaves with every order that waits for it,
+  # and again at each later courier, so it is not one-shot
+  courier_left: {once: false}
 # --8<-- [end:signal]
 
 arrivals:

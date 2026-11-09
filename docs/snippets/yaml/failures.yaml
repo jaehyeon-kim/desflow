@@ -1,0 +1,54 @@
+# The Failures page: a task that fails, the task a failure goes to, and a wait that
+# fails. Orders are checked, and packed after 12 seconds fail.
+# Run it with: desflow run failures.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console}
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 2 s}
+
+arrivals:
+  # An order every 5 s and a checked order every 7 s
+  orders: {dist: constant, value: 5 s, spawn: pack}
+  checks: {dist: constant, value: 7 s, spawn: check}
+
+tasks:
+  # --8<-- [start:fail]
+  pack:
+    service: packing
+    resource: packers
+    # The task fails when this condition holds after its service
+    fail: t > 12
+    # The reason is text, a number or a generator
+    fail_reason: after the cut-off
+    # Where the order goes after a failure; it reads upstream.status and upstream.reason
+    on_fail: refund
+    payload: {event_type: packed}
+  refund:
+    payload:
+      event_type: refunded
+      why: {gen: expr, expr: upstream.reason}
+  # --8<-- [end:fail]
+  # --8<-- [start:on-fail-alone]
+  check:
+    # The wait fails when the child flow fails; on_fail needs no fail condition
+    wait: {task: inspect}
+    on_fail: hold
+    payload: {event_type: checked}
+  inspect:
+    service: packing
+    fail: t > 12
+    fail_reason: failed inspection
+    payload: {event_type: inspected}
+  hold:
+    payload:
+      event_type: held
+      why: {gen: expr, expr: upstream.reason}
+  # --8<-- [end:on-fail-alone]
+
+run: {until: 40 s}

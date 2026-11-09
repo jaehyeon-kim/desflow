@@ -104,6 +104,18 @@ def _walk(value: Any, node: Any, model: str, used: Set[Pair]) -> None:
             _walk(value, alternative, model, used)
     for part in node.get("allOf", []):
         _walk(value, part, model, used)
+    # A value is a generator when it is a mapping with a `gen` key, else a mapping or
+    # a list of values: the schema says so with if, then and else
+    if "if" in node:
+        test = node["if"]
+        kind = {"object": dict, "array": list}.get(test.get("type"), object)
+        holds = isinstance(value, kind) and all(
+            key in value for key in test.get("required", [])
+        )
+        if holds and "then" in node:
+            _walk(value, node["then"], model, used)
+        elif not holds and "else" in node:
+            _walk(value, node["else"], model, used)
     if isinstance(value, dict):
         props = node.get("properties", {})
         for key, inner in value.items():

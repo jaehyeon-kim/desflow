@@ -99,7 +99,9 @@ def test_every_extra_has_an_example_a_reference_a_skill_and_a_readme_line(extra)
     assert f"| `{extra}` |" in getting_started, f"{extra}: not on Installation"
     assert f"| `{extra}` |" in README, f"{extra}: not in the README"
     if extra != "all":  # all installs every other extra, so it has no feature
-        assert f"`{extra}`" in SKILL_TEXT, f"{extra}: not in the skill"
+        # the command help, which the skill copies, says "the watch extra" with no backticks
+        named = f"`{extra}`" in SKILL_TEXT or f"the {extra} extra" in SKILL_TEXT
+        assert named, f"{extra}: not in the skill"
 
 
 # --- Distribution families ------------------------------------------------------

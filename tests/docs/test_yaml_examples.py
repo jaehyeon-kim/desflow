@@ -701,7 +701,9 @@ def test_every_gallery_file_has_its_forms_and_a_test():
     for slug in slugs:
         text = (GALLERY / f"{slug}.yaml").read_text(encoding="utf-8")
         assert "!python" not in text
-        assert f"# Run it with: desflow run examples/gallery/{slug}.yaml" in text
+        # A run line over 88 characters is wrapped by the YAML line limit
+        run_line = f"# Run it with: desflow run examples/gallery/{slug}.yaml"
+        assert run_line in text or run_line.replace("run ex", "run\n# ex") in text
         assert "# Needs: " in text
         assert "random_seed: 42" in text
         yaml_context = _gallery_yaml(slug)

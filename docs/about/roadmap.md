@@ -5,28 +5,16 @@ Releases come in the order shown, without dates: a release ships when it is read
 ## Before 1.0
 
 ::timeline::
-- title: '0.30.0: Run and time rules'
-  content: 'A run ends when no event is left, as in SimPy, `strict` and `on_unhandled_failure` default to SimPy''s values, and a time or a count that you write as an integer stays an integer. Each change that alters records is listed under Upgrading. [#105](https://github.com/jaehyeon-kim/desflow/issues/105)'
+- title: '1.0.0rc1: What 1.0 brings'
+  content: 'SimPy''s run, time and tie rules, YAML with no Python, `--var`, `--watch`, `desflow check` and `desflow test`, generated values, SimPy''s examples ported, the record contract frozen, the old names removed, and the rewritten docs. A run ends when no event is left, as in SimPy, `strict` and `on_unhandled_failure` default to SimPy''s values, and a task with one `wait` branch, the task after `next`, the actions of `on:` and a resumed job go on in the same simulation step as SimPy''s process, so records at one instant can change order. The SimPy Compatibility page shows each SimPy feature in YAML, Builder and Low-level with its status. Each change that alters records is listed under Upgrading. [#105](https://github.com/jaehyeon-kim/desflow/issues/105) [#104](https://github.com/jaehyeon-kim/desflow/issues/104) [#95](https://github.com/jaehyeon-kim/desflow/issues/95) [#51](https://github.com/jaehyeon-kim/desflow/issues/51) [#84](https://github.com/jaehyeon-kim/desflow/issues/84)'
   icon: ':material-play:'
   key: now
-- title: '0.31.0: Resources, waits and interrupts'
-  content: 'The remaining places where a resource, a wait or an interrupt gives other results than SimPy at a tie are fixed. [#105](https://github.com/jaehyeon-kim/desflow/issues/105)'
+- title: '1.0.0rc2 to 1.0.0rc4: A cleaner internal structure'
+  content: 'The code is reorganised with no change of behaviour. No format, command or record changes. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
   icon: ':material-clock-outline:'
   key: planned
-- title: '0.32.0: More SimPy forms and a preview loop'
-  content: 'The Low-level stores and containers gain SimPy''s queue attributes, a Builder filter can be written by parameter name, and `--var`, `--watch`, `desflow check` and `desflow test` are added. [#104](https://github.com/jaehyeon-kim/desflow/issues/104)'
-  icon: ':material-clock-outline:'
-  key: planned
-- title: '0.33.0 to 0.40.0: YAML with no Python'
-  content: 'Each release adds keys for what still needs `!python`: generated values, computed times and arrivals, names and lists, relationships between records, holding resources, interrupts and failures, breakdowns and batches, and computed sets and events.'
-  icon: ':material-clock-outline:'
-  key: planned
-- title: '0.41.0: Preparation for 1.0'
-  content: 'Every SimPy feature is written in YAML, the builder and the low-level API without `!python`, SimPy''s seven examples are ported, the record contract is frozen, and the names kept for compatibility are removed. [#95](https://github.com/jaehyeon-kim/desflow/issues/95) [#51](https://github.com/jaehyeon-kim/desflow/issues/51) [#84](https://github.com/jaehyeon-kim/desflow/issues/84)'
-  icon: ':material-clock-outline:'
-  key: planned
-- title: '0.42.0: Last check before 1.0'
-  content: 'This release changes no format or record. The docs gain their final structure, and every page is checked. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
+- title: '1.0.0rc5: The last candidate'
+  content: 'About two weeks of checks and fixes only. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
   icon: ':material-clock-outline:'
   key: planned
 - title: '1.0.0: Stable'
@@ -37,17 +25,24 @@ Releases come in the order shown, without dates: a release ships when it is read
 
 ## What 1.0 means
 
-From 1.0, the YAML blueprint format, the `desflow` command, the public Python API (`SimulationContext`, `DynamicRealtimeEnvironment` and the connectors) and the published record format stay compatible across every 1.x release. The package status moves from Beta to Production/Stable. The names kept for compatibility, `dynamic_des`, `ddes` and the old registry settings, are removed in 0.41.0, and Upgrading to 1.0 lists each.
+From 1.0, the YAML blueprint format, the `desflow` command, the public Python API and the published record format stay compatible across every 1.x release. The public Python API is the set of promised import paths, which the Compatibility Policy lists. The package status moves from Beta to Production/Stable. The names kept for compatibility, `dynamic_des`, `ddes` and the old registry settings, are removed in 1.0, and Upgrading to 1.0 lists each.
 
 ## After 1.0
 
+### From history to simulation
+
+- **Model discovery:** a model discovered from an event log.
+- **Comparison with the log:** a run compared with the log.
+- **A model kept current:** the model updated from new logs.
+
 ### Simulation model
 
-- **Maintenance, schedules and incidents:** planned maintenance, a failure clock that runs only while a resource works, schedules that repeat by time of day, and incidents that change several parameters at once. 0.22.0 ships random breakdowns with repair and finite schedules.
-- **More flow and resource features:** batching, matching and splitting, setup times, and resources chosen by skill.
+- **Maintenance, schedules and incidents:** planned maintenance, schedules that repeat by time of day, and incidents that change several parameters at once. 0.22.0 ships random breakdowns with repair and finite schedules, and 1.0 ships a failure clock that runs only while a resource works (`clock: busy`).
+- **More flow and resource features:** matching and splitting, setup times, and resources chosen by skill. 1.0 ships batching.
 - **Reuse, costs and continuous flow:** parts of a model defined once and used several times, costs and energy per resource state, and levels that rise and fall continuously.
 - **Transport on maps:** vehicles that move between locations on real roads and publish their positions.
 - **Data-driven inputs:** arrivals replayed from a database, or taken live from a Kafka topic.
+- **Models read from a store:** a value that a model reads from a store during a run, such as the trained model of a recommender, with a key of its own. In 1.0 this is a `!python` function, as [Call Python from YAML](../how-to/tools/yaml-advanced.md) shows.
 - **Decisions from outside:** a dispatcher or an agent answers for one order or session, and a run can repeat exactly from a log of those answers.
 
 ### Analysis
@@ -68,11 +63,7 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 
 ### Writing simulations
 
-- **Generated values in blueprints:** random values, IDs and timestamps in YAML, then entities, relations between records, states and ramps.
-- **Preview loop:** run a blueprint again each time the file changes, and check a file without running it.
-- **Tests in blueprints:** results a model must keep at a fixed seed, checked by `desflow test`, which can also write the values from a run for you to review.
-- **Variables from the command line:** `--var NAME=VALUE` fills `${NAME}` in a blueprint, as an environment variable does today.
-- **Example gallery and visual builder.**
+- **Visual builder.**
 - **Conversion:** turn a YAML blueprint into builder code, and builder code into YAML with no Python, with an error that names each part that cannot be converted and how to rewrite it.
 
 ### Connectors
@@ -82,23 +73,19 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 - **Delivery faults:** records delivered late, twice, damaged or not at all, to test how a pipeline handles them.
 - **Lineage:** each run reported to OpenLineage and OpenMetadata.
 
+### Integrations
+
+- **Orchestrators:** Airflow, Dagster and similar tools.
+- **AI assistants:** the Claude Code plugin and its marketplace.
+- **Testing tools:** a pytest plugin and a GitHub Action.
+- **Query engines and streaming databases.**
+- **Data quality and evaluation tools.**
+
 ### Platform
 
 - **More speed:** cheaper record publishing, which takes about 40 percent of a run's time, with the same published records ([#69](https://github.com/jaehyeon-kim/desflow/issues/69)), and a faster runtime for YAML-only blueprints if measurements show the need.
 
-### Docs
-
-- **Reference:** a page for each generator and connector, with examples and the records they produce, and a command-line cheat sheet.
-- **How-To:** generating data at scale, and testing pipelines with simulated data.
-
 ## Released
-
-??? note "0.29.0: SimPy's scheduling and a compatibility page"
-
-    - **Scheduling like SimPy:** a task with one `wait` branch, the task after `next`, the actions of `on:` and a resumed job go on in the same simulation step as SimPy's process, so records at one instant can change order. Upgrading lists each change. [#105](https://github.com/jaehyeon-kim/desflow/issues/105)
-    - **SimPy Compatibility:** the page shows each SimPy feature in YAML, Builder and Low-level with its status, and the gaps that remain.
-    - **SimPy behaviour in YAML:** Call Python from YAML shows how to write, with `!python`, the SimPy behaviour that the keys do not give yet.
-    - **Removal date:** the old registry keys, the `dynamic_des` import name and the `ddes` command are removed in 0.41.0, not 0.30.0.
 
 ??? note "0.28.0: Library hooks for the server"
 
@@ -159,6 +146,6 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 
 ??? note "0.20.0: Rename to desflow"
 
-    - **Rename to desflow:** the package, its import name and its command are all `desflow`. The old names, `dynamic-des`, `dynamic_des` and `ddes`, still work with a warning until 0.30.0.
+    - **Rename to desflow:** the package, its import name and its command are all `desflow`. The old names, `dynamic-des`, `dynamic_des` and `ddes`, were removed in 1.0.
 
 The [Changelog](changelog.md) lists every release.

@@ -26,6 +26,7 @@ simulation: {sim_id: MachineShop, factor: 0, random_seed: 42}
 egress:
   - {type: Console}
 
+# --8<-- [start:shop-settings]
 variables:
   target: -1
   parts_made: {}
@@ -35,8 +36,10 @@ resources:
 
 services:
   repair_time: {dist: constant, value: 30}
+# --8<-- [end:shop-settings]
 
 arrivals:
+  # --8<-- [start:machines-arrive]
   machines:
     initial: 10
     spawn: start_machine
@@ -45,9 +48,13 @@ arrivals:
       id: {gen: sequence}
       parts_made: 0
       broken: 0
+  # --8<-- [end:machines-arrive]
+  # --8<-- [start:others-arrive]
   others: {initial: 1, spawn: other_job}
+  # --8<-- [end:others-arrive]
 
 tasks:
+  # --8<-- [start:machine-works-and-breaks]
   start_machine:
     payload: {event_type: machine_started}
     spawn: {task: break_loop, copy_attributes: true}
@@ -89,6 +96,8 @@ tasks:
           where: "attr.id == registry['MachineShop.variables.target'] and attr.broken ==
             0"
     next: break_loop
+  # --8<-- [end:machine-works-and-breaks]
+  # --8<-- [start:repairman-other-jobs]
   other_job:
     resource: repairman
     priority: 2
@@ -96,5 +105,6 @@ tasks:
     on_interrupt: resume
     payload: {event_type: other_done}
     next: other_job
+  # --8<-- [end:repairman-other-jobs]
 
 run: {until: 40320}

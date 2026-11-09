@@ -17,13 +17,16 @@ simulation: {sim_id: Pipes, factor: 0, random_seed: 42}
 egress:
   - {type: Console}
 
+# --8<-- [start:broadcast-pipe]
 stores:
   pipe: {family: true, members: 2}
+# --8<-- [end:broadcast-pipe]
 
 arrivals:
   generator:
     gap: {gen: integer, bounds: [6, 10]}
     spawn: speak
+  # --8<-- [start:consumers-arrive]
   consumer_a:
     initial: 1
     spawn: listen
@@ -32,9 +35,11 @@ arrivals:
     initial: 1
     spawn: listen
     attributes: {idx: 1}
+  # --8<-- [end:consumers-arrive]
 
 tasks:
   # The message is the payload of `speak`, which each put of `send` takes as its item
+  # --8<-- [start:broadcast-sends]
   speak:
     payload:
       event_type: said
@@ -53,6 +58,8 @@ tasks:
           put:
             store: {of: pipe, key: "each.value"}
     payload: {event_type: sent}
+  # --8<-- [end:broadcast-sends]
+  # --8<-- [start:consumer-gets]
   listen:
     get:
       store: {of: pipe, key: "attr.idx"}
@@ -65,5 +72,6 @@ tasks:
     service_time: {gen: integer, bounds: [4, 8]}
     payload: {event_type: handled}
     next: listen
+  # --8<-- [end:consumer-gets]
 
 run: {until: 100}

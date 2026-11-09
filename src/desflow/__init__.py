@@ -46,7 +46,7 @@ from desflow.connectors.ingress.local import LocalIngress
 from desflow.core.context import SimulationContext
 from desflow.core.environment import DynamicRealtimeEnvironment
 from desflow.core.expressions import Expression, Scope
-from desflow.core.flow import LiveScope, Router, Transfer
+from desflow.core.flow import Router, Transfer
 from desflow.core.registry import (
     DynamicValue,
     ParamChange,
@@ -97,7 +97,6 @@ __all__ = [
     "SimulationContext",
     "Expression",
     "Scope",
-    "LiveScope",
     "DynamicValue",
     "Row",
     "load_context",

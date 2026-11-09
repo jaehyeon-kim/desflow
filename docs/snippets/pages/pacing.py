@@ -132,18 +132,21 @@ assert stepped.env.now == 20 and stepped.peek() == 30
 
 
 # --8<-- [start:strict]
-# A paced step more than factor seconds behind the wall clock raises RuntimeError;
-# the builder's default is False
-checked = SimulationContext(sim_id="Shop", factor=1.0, strict=True)
+# A paced run is strict unless it says otherwise; false lets a live run go on when a
+# slow sink makes it fall behind the wall clock
+tolerant = SimulationContext(sim_id="Shop", factor=1.0, strict=False)
 # --8<-- [end:strict]
 # --8<-- [start:low-level-strict]
-# The low-level API is strict unless you pass strict=False, as SimPy's is
+# Left unset, strict is true at a factor above 0 and false at factor 0, as SimPy's
+# RealtimeEnvironment would raise at the first step of an unpaced script
 raising = DynamicRealtimeEnvironment(factor=1.0)
-tolerant = DynamicRealtimeEnvironment(factor=1.0, strict=False)
+unpaced_strict = DynamicRealtimeEnvironment(factor=0.0)
+low_level_tolerant = DynamicRealtimeEnvironment(factor=1.0, strict=False)
 # --8<-- [end:low-level-strict]
-assert not SimulationContext(sim_id="Shop").strict
-assert checked.strict and raising.strict and not tolerant.strict
-for e in (raising, tolerant):
+assert SimulationContext(sim_id="Shop", factor=1.0).strict is None
+assert not tolerant.strict and not low_level_tolerant.strict
+assert raising.strict and not unpaced_strict.strict
+for e in (raising, unpaced_strict, low_level_tolerant):
     e.teardown()
 
 # --8<-- [start:resume-pacing]
@@ -171,3 +174,49 @@ print(f"paused at {segmented.env.now}")
 segmented.finish()  # on to start()'s until, 60, and closes
 # --8<-- [end:segments]
 assert segmented.env.now == 60
+
+
+# --8<-- [start:run-segments]
+shop = SimulationContext(sim_id="Shop", factor=0.0, random_seed=42)
+shop.add_resource("packers", current_cap=1)
+shop.add_service("packing", dist="constant", value=40)
+shop.add_arrival("orders", dist="exponential", rate=0.05, spawn="pack_order")
+
+
+@shop.task(service_id="packing", resource_id="packers")
+def pack_order(task_id):
+    return {"event_type": "order_packed"}
+
+
+@shop.task()
+def look(task_id):
+    """An order of this task reads the model where a segment stops."""
+    return {
+        "event_type": "queue_read",
+        "waiting": len(shop.get_resource("packers").queue),
+    }
+
+
+shop.run(
+    until="3 min",
+    segments=[
+        {"until": "1 min", "look": "look"},
+        {"stop": {"condition": "queue.packers >= 4"}, "look": "look", "sync": True},
+        {},  # no end of its own: runs to the end of the run
+    ],
+)
+# --8<-- [end:run-segments]
+
+# --8<-- [start:run-steps]
+stepper = SimulationContext(sim_id="Shop", factor=0.0)
+stepper.add_arrival("orders", dist="constant", value=20, spawn="tick")
+
+
+@stepper.task()
+def tick(task_id):
+    return {"event_type": "order_packed"}
+
+
+# system.simulation.step after each model event, and env.sync() as the run starts
+stepper.run(until="1 min", steps=True, sync=True)
+# --8<-- [end:run-steps]

@@ -43,6 +43,7 @@ TASKS = ("start_machine", "part", "begin_repair", "repair", "break_loop", "other
 
 def build(env: DynamicRealtimeEnvironment, size: int = NUM_MACHINES) -> None:
     """Starts `size` machines and the repairman's other jobs on `env`."""
+    # --8<-- [start:shop-settings]
     sampler = Sampler(seed=42)
     part = DistributionConfig(dist="truncated_normal", mean=10, std=2, low=0)
     part.stream = "tasks.part.service_time"  # the sequence the blueprint draws from
@@ -51,10 +52,12 @@ def build(env: DynamicRealtimeEnvironment, size: int = NUM_MACHINES) -> None:
     repairman = simpy.PreemptiveResource(env, capacity=1)
     names: dict = {}  # each machine's process, by the name its records carry
     numbers = {task: itertools.count() for task in TASKS}
+    # --8<-- [end:shop-settings]
 
     def publish(name, task, number, value):
         env.publish_event(name, value, task=task, instance=number)
 
+    # --8<-- [start:machine-works-and-breaks]
     class Machine:
         """A machine that makes parts and breaks down now and then."""
 
@@ -126,6 +129,9 @@ def build(env: DynamicRealtimeEnvironment, size: int = NUM_MACHINES) -> None:
                 if not self.broken:
                     self.process.interrupt()
 
+    # --8<-- [end:machine-works-and-breaks]
+
+    # --8<-- [start:repairman-other-jobs]
     def other_jobs(name):
         while True:
             number = next(numbers["other_job"])
@@ -157,9 +163,13 @@ def build(env: DynamicRealtimeEnvironment, size: int = NUM_MACHINES) -> None:
                         status = "resumed"
             publish(name, "other_job", number, {"event_type": "other_done"})
 
+    # --8<-- [end:repairman-other-jobs]
+
+    # --8<-- [start:start-machines]
     for number in range(size):
         Machine(f"Machine {number}", number)
     env.process(other_jobs("others-1"))
+    # --8<-- [end:start-machines]
 
 
 def run() -> None:

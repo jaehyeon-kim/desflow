@@ -26,6 +26,7 @@ from desflow import ConsoleEgress, DynamicRealtimeEnvironment, Sampler
 UNTIL = 100
 
 
+# --8<-- [start:broadcast-pipe]
 class BroadcastPipe:
     """A pipe that puts each message into the store of every consumer."""
 
@@ -44,6 +45,9 @@ class BroadcastPipe:
         return pipe
 
 
+# --8<-- [end:broadcast-pipe]
+
+
 def build(env: DynamicRealtimeEnvironment, size: int = 1) -> None:
     """Starts the generator, `size` consumers on the first pipe and one on the second."""
     sampler = Sampler(seed=42)
@@ -53,6 +57,7 @@ def build(env: DynamicRealtimeEnvironment, size: int = 1) -> None:
     pipes = [bc_pipe.get_output_conn(), bc_pipe.get_output_conn()]
     numbers = {task: itertools.count() for task in ("listen", "busy")}
 
+    # --8<-- [start:broadcast-sends]
     def message_generator(name, out_pipe):
         for number in itertools.count(1):
             yield env.timeout(int(gaps.integers(6, 11)))
@@ -68,6 +73,9 @@ def build(env: DynamicRealtimeEnvironment, size: int = 1) -> None:
                 key, {"event_type": "sent"}, task="send", instance=number - 1
             )
 
+    # --8<-- [end:broadcast-sends]
+
+    # --8<-- [start:consumer-gets]
     def message_consumer(key, in_pipe):
         def publish(task, number, value):
             env.publish_event(key, value, task=task, instance=number)
@@ -89,10 +97,14 @@ def build(env: DynamicRealtimeEnvironment, size: int = 1) -> None:
             yield env.timeout(int(busy_times.integers(4, 9)))
             publish("busy", busy, {"event_type": "handled"})
 
+    # --8<-- [end:consumer-gets]
+
+    # --8<-- [start:start-processes]
     env.process(message_generator("Generator A", bc_pipe))
     for number in range(1, size + 1):
         env.process(message_consumer(f"consumer_a-{number}", pipes[0]))
     env.process(message_consumer("consumer_b-1", pipes[1]))
+    # --8<-- [end:start-processes]
 
 
 def run() -> None:

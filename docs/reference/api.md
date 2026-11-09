@@ -72,12 +72,6 @@ A task's flow is built from the classes below. The signals and failures here are
       heading_level: 3
       show_root_heading: true
 
-<!-- prettier-ignore -->
-::: desflow.LiveScope
-    options:
-      heading_level: 3
-      show_root_heading: true
-
 ## Loading a Model
 
 `SimulationContext.from_yaml` is the usual entry point for a blueprint. `from_yaml` calls `build`, which returns the context and the `run` section. `load_context` loads a blueprint or a builder Python file from a folder, local or in object storage, in the way `desflow run` loads a blueprint. `desflow run --sample` and `--stdout` pass a `Preview` to these functions. `preview_builder` changes a context that a builder file defines, so that it runs as such a preview. `check_model` checks a blueprint or a builder file as `desflow check` does and returns a `ModelCheck`.

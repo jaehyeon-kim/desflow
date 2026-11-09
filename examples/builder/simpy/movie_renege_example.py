@@ -31,11 +31,14 @@ def build() -> SimulationContext:
     """Builds the theatre."""
     app = SimulationContext(sim_id="Movie", factor=0, random_seed=42)
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:theater]
     app.add_resource("counter", current_cap=1)
     app.add_variable("available", {movie: 50 for movie in MOVIES})
     app.add_variable("when_sold_out", {})
     app.add_variable("num_renegers", {movie: 0 for movie in MOVIES})
     app.add_signal("sold_out", family=True, once=True)
+    # --8<-- [end:theater]
+    # --8<-- [start:moviegoers-arrive]
     app.add_arrival(
         "goers",
         "exponential",
@@ -46,7 +49,9 @@ def build() -> SimulationContext:
         },
         spawn="moviegoer",
     )
+    # --8<-- [end:moviegoers-arrive]
 
+    # --8<-- [start:moviegoer-waits]
     @app.task(
         name="moviegoer",
         balk="registry['Movie.variables.available'][attr.movie] == 0",
@@ -91,6 +96,9 @@ def build() -> SimulationContext:
         """Leaves the queue: the movie sold out."""
         return leave_payload
 
+    # --8<-- [end:moviegoer-waits]
+
+    # --8<-- [start:counter-sells]
     @app.task(
         name="serve",
         next={
@@ -147,6 +155,9 @@ def build() -> SimulationContext:
         """Checks how many tickets are left."""
         return {"event_type": "checked"}
 
+    # --8<-- [end:counter-sells]
+
+    # --8<-- [start:film-sells-out]
     sold_payload = Template(
         {"event_type": "sold_out", "movie": {"gen": "expr", "expr": "attr.movie"}},
         name="sold",
@@ -185,6 +196,8 @@ def build() -> SimulationContext:
     def finish(task_id):
         """Finishes the sale."""
         return {"event_type": "done"}
+
+    # --8<-- [end:film-sells-out]
 
     return app
 

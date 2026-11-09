@@ -22,6 +22,7 @@ def build() -> SimulationContext:
     """Builds the bank."""
     app = SimulationContext(sim_id="Bank", factor=0, random_seed=42)
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:customers-arrive]
     app.add_resource("counter", current_cap=1)
     app.add_arrival(
         "customers",
@@ -32,7 +33,9 @@ def build() -> SimulationContext:
         key=lambda n: "Customer{:02d}".format(n - 1),
         spawn="customer",
     )
+    # --8<-- [end:customers-arrive]
 
+    # --8<-- [start:customer-waits-or-reneges]
     @app.task(
         name="customer",
         resource_id="counter",
@@ -45,6 +48,8 @@ def build() -> SimulationContext:
     def customer(task_id):
         """Is served at the counter."""
         return {"event_type": "finished"}
+
+    # --8<-- [end:customer-waits-or-reneges]
 
     return app
 

@@ -15,7 +15,8 @@ from datetime import datetime, timedelta, timezone
 from desflow import ParquetStorageEgress, SimulationContext
 
 # Logging is configured here rather than in a wrapper, because this script is run
-# directly. Without it the run produces no output at all.
+# directly. Without it the run prints no INFO log lines, such as its progress
+# messages.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",

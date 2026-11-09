@@ -8,7 +8,7 @@ In the output, look for each order's `queued`, `started` and finished events, an
 
 ## Before You Start
 
-The example needs only desflow, which each Quick Start below installs, and no other service. [Services for the Examples](index.md#services-for-the-examples) lists the services the other examples need.
+The example needs only desflow, which each Quick Start below installs, and no other service. [Services for the Examples](../index.md#services-for-the-examples) lists the services the other examples need.
 
 ---
 
@@ -162,20 +162,17 @@ Each order produces a `queued`, a `started` and a finished event. Every event ca
         ```yaml title="examples/yaml/local.yaml"
         # Local simulation in YAML, with no Python and no containers.
         #
-        # The YAML version of local_example.py, which --api builder downloads. This simulation models a shop
-        # packing orders. ConsoleEgress prints events and telemetry to the terminal.
-        # A scenario adds packers at 10 seconds and removes one at 20 seconds.
+        # The YAML version of local_example.py, which --api builder downloads. This simulation
+        # models a shop packing orders. ConsoleEgress prints events and telemetry to the
+        # terminal. A scenario adds packers at 10 seconds and removes one at 20 seconds.
         # The run ends on its own after 30 simulation seconds.
         #
         # Run it from its folder with: desflow run local.yaml
 
-        simulation:
-          sim_id: Shop
-          factor: 1.0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 1.0, random_seed: 42}
 
         egress:
-          - type: Console
+          - {type: Console}
 
         resources:
           packers: {current_cap: 1, max_cap: 5}
@@ -204,8 +201,7 @@ Each order produces a `queued`, a `started` and a finished event. Every event ca
           - {at: 10, path: Shop.resources.packers.current_cap, value: 3}
           - {at: 20, path: Shop.resources.packers.current_cap, value: 2}
 
-        run:
-          until: 30
+        run: {until: 30}
         ```
 
     === "Builder"
@@ -231,7 +227,8 @@ Each order produces a `queued`, a `started` and a finished event. Every event ca
         from desflow import ConsoleEgress, SimulationContext
 
         # Logging is configured here rather than in a wrapper, because this script is run
-        # directly. Without it the run produces no output at all.
+        # directly. Without it the run prints no records, and a ConsoleEgress in the log
+        # format prints one warning on stderr that says so and names the fix.
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",

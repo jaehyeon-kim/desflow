@@ -39,10 +39,10 @@ ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
 SKILL = ROOT / "skills" / "desflow"
 README = (ROOT / "README.md").read_text(encoding="utf-8")
-# The Learn, User Guide, How-To and SimPy and desflow pages
+# The Learn, User Guide, How-To, SimPy and desflow, and Gallery pages
 PAGES = sorted(
     page
-    for folder in ("learn", "user-guide", "how-to", "simpy")
+    for folder in ("learn", "user-guide", "how-to", "simpy", "gallery")
     for page in (DOCS / folder).rglob("*.md")
 )
 LABELLED = re.compile(

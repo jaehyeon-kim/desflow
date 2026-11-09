@@ -44,14 +44,13 @@ HOW_TO_PAGES = sorted(
 # The Runnable Examples, and those whose example reads an ingress while it runs.
 RUNNABLE_PAGES = sorted(
     p.relative_to(DOCS).as_posix()
-    for p in (DOCS / "how-to" / "examples").glob("*.md")
-    if p.name != "index.md"
+    for p in (DOCS / "gallery" / "simulation-models").glob("*.md")
 )
 LIVE_PAGES = {
-    "how-to/examples/kafka.md",
-    "how-to/examples/redis.md",
-    "how-to/examples/postgres.md",
-    "how-to/examples/advanced-postgres-orders.md",
+    "gallery/simulation-models/kafka.md",
+    "gallery/simulation-models/redis.md",
+    "gallery/simulation-models/postgres.md",
+    "gallery/simulation-models/advanced-postgres-orders.md",
 }
 
 TUTORIAL_SECTIONS = [
@@ -71,6 +70,8 @@ CONCEPT_IDEA_PARTS = [
     "How to Use It",
     "What the Result Means",
 ]
+# A concept page section that is a table of figures, not an idea with four parts
+TABLE_SECTIONS = {"Busy Hour Figures"}
 # What Is DES? is a general introduction, so it has no Learn sections.
 INTRO_PAGE = "learn/what-is-des.md"
 # Every How-To page, the Runnable Examples included, in this order; it then ends with
@@ -102,6 +103,7 @@ NOT_TABBED = {
     "how-to/tools/set-up-your-editor.md",
     "simpy/index.md",
     "simpy/coming-from-simpy.md",
+    "simpy/examples/index.md",
     "reference/api.md",
 }
 NOT_TABBED_FOLDERS = ("reference/", "about/")
@@ -202,10 +204,14 @@ def test_concept_page_explains_each_idea_from_the_shop(page):
     incomplete = []
     for section in re.split(r"^## ", text, flags=re.M)[1:]:
         title = section.split("\n", 1)[0].strip()
-        if title in CONCEPT_PAGE_SECTIONS:
+        if title in CONCEPT_PAGE_SECTIONS or title in TABLE_SECTIONS:
             continue
         parts = _headings("\n" + section, 3)
-        missing = [p for p in CONCEPT_IDEA_PARTS if p not in parts]
+        # A case that no tutorial page runs is headed "In the Shop"
+        first = "In the Shop" if "In the Shop" in parts else "In the Tutorial"
+        missing = [p for p in CONCEPT_IDEA_PARTS[1:] if p not in parts]
+        if first not in parts:
+            missing.insert(0, first)
         if missing:
             incomplete.append(f"{title}: {missing}")
     assert incomplete == []
@@ -287,7 +293,7 @@ def test_every_page_has_a_link_to_it():
 
 def _figure_rows():
     """Each row of Busy Hour Figures: the figure and the pages that quote it."""
-    text = _text("learn/first-model/first-simulation.md")
+    text = _text("learn/concepts/output-analysis.md")
     table = text[text.index("## Busy Hour Figures") :].split("\n---", 1)[0]
     rows = []
     for line in table.splitlines():
@@ -302,7 +308,7 @@ def test_every_busy_hour_figure_is_on_the_pages_listed():
     for figure, pages in _figure_rows():
         for link in pages:
             page = (
-                (DOCS / "learn" / "first-model" / link)
+                (DOCS / "learn" / "concepts" / link)
                 .resolve()
                 .relative_to(DOCS)
                 .as_posix()
@@ -333,7 +339,8 @@ def _is_desflow_code(language, title, body):
         if title is None:
             return "desflow" in body
         path = ROOT / title.split(":")[0]
-        if not path.is_file():
+        # SimPy's own example files are SimPy code, whatever names they use
+        if not path.is_file() or title.startswith("docs/snippets/simpy/"):
             return False
         names = _desflow_names(path.read_text(encoding="utf-8"))
         uses_desflow = any(re.search(rf"\b{re.escape(n)}\b", body) for n in names)
@@ -390,3 +397,33 @@ def test_desflow_code_is_in_tabs(page):
         "put desflow code in YAML, Builder and Low-level tabs; a tab that cannot "
         "show it says so in one line and links the form that can"
     )
+
+
+SIMPY_EXAMPLE_PAGES = sorted(
+    p.relative_to(DOCS).as_posix()
+    for p in (DOCS / "simpy" / "examples").glob("*.md")
+    if p.name != "index.md"
+)
+SIMPY_EXAMPLE_SECTIONS = [
+    "Before You Start",
+    "Steps",
+    "Check the Result",
+    "Full Files",
+    "Sources",
+]
+
+
+def test_there_is_a_page_for_each_simpy_example():
+    assert len(SIMPY_EXAMPLE_PAGES) == 7
+
+
+@pytest.mark.parametrize("page", SIMPY_EXAMPLE_PAGES)
+def test_simpy_example_page_has_its_sections(page):
+    """A SimPy example page has the sections of the plan, in order: the steps end with
+    Run It, and Full Files has a tab for each form and one for SimPy's own file."""
+    text = _text(page)
+    assert _headings(text, 2) == SIMPY_EXAMPLE_SECTIONS
+    steps = text.split("\n## Steps\n", 1)[1].split("\n## ", 1)[0]
+    assert _headings(steps, 3)[-1] == "Run It"
+    full = text.split("\n## Full Files\n", 1)[1].split("\n## ", 1)[0]
+    assert re.findall(r'^    === "([^"]+)"', full, re.M) == [*TABS, "SimPy"]

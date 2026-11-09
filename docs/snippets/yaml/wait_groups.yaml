@@ -3,8 +3,11 @@
 simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 resources:
-  packers: {current_cap: 1, max_cap: 1}
+  packers: {current_cap: 1, max_cap: 1, queue: priority}
   vans: {current_cap: 1, max_cap: 1}
+
+signals:
+  second_done: {once: false}
 
 containers:
   boxes: {current_cap: 50, max_cap: 50, level: 6}
@@ -56,15 +59,20 @@ tasks:
     next: pack
   pack:
     # --8<-- [start:request]
-    # A packer, or give up after 30 seconds; a packer won is held through packing
+    # A packer asked for with priority 1 and without taking the unit from another order,
+    # or give up after 30 seconds; a packer won is held through packing
     wait:
       any:
-        unit: {request: packers}
+        unit:
+          request: {resource: packers, priority: 1, preempt: false}
         limit: {timeout: 30 s}
     # --8<-- [end:request]
     service: packing
     payload: {event_type: packed}
-    spawn: {task: deliver}
+    # --8<-- [start:spawn]
+    # Two deliveries start for each packed order
+    spawn: {task: deliver, count: 2}
+    # --8<-- [end:spawn]
     next: close
   deliver:
     service: driving
@@ -72,9 +80,10 @@ tasks:
     payload: {event_type: delivered}
   close:
     # --8<-- [start:running]
-    # Wait for the delivery this order started, unless it has left with the van
+    # Wait until every flow of the deliver task has ended, unless it has left with the
+    # van
     wait:
-      running: {task: deliver, where: process.target != 'service'}
+      running: {task: deliver, where: process.target != 'service', whole_flow: true}
     # --8<-- [end:running]
     payload: {event_type: closed}
     next: file
@@ -99,8 +108,71 @@ tasks:
             limit: {timeout: 5 s}
     # --8<-- [end:nested]
     payload: {event_type: shipped}
+    next: inspect
+  inspect:
+    # --8<-- [start:each-when]
+    # Pack three boxes and go on when two are done; the group reads only done_count
+    wait:
+      all:
+        boxes:
+          each: [2, 5, 9]
+          group: {when: done_count >= 2}
+          branch:
+            timeout: {after: each.value}
+    # --8<-- [end:each-when]
+    payload: {event_type: inspected}
+    next: sort
+  sort:
+    # --8<-- [start:child]
+    # Start a child flow of label_box for this entity, with the box number as arg.box
+    wait:
+      any:
+        child:
+          task: label_box
+          args: {box: 7}
+        limit: {timeout: 30 s}
+    # --8<-- [end:child]
+    payload: {event_type: sorted}
+    next: stage
+  stage:
+    # --8<-- [start:handles]
+    # Open three child flows and two requests for a van, without waiting for them
+    open:
+      boxes:
+        each: 3
+        branch:
+          task: label_box
+          args:
+            box: {gen: expr, expr: each.index}
+      seats:
+        each: 2
+        branch: {request: vans}
+    # Hear the end of the second child flow
+    listen:
+      handle: boxes
+      index: 1
+      on:
+        - fire: {signal: second_done}
+    service_time: 1 s
+    # Stop the third child flow, give up the second request, and give back the first
+    interrupt: {handle: boxes, index: 2, cause: stop}
+    cancel: {handle: seats, index: 1}
+    release: {handle: seats, index: 0}
+    # --8<-- [end:handles]
+    payload: {event_type: staged}
+  label_box:
+    service: packing
+    on_interrupt: abandon
+    on_interrupt_next: box_stopped
+    payload:
+      event_type: box_labelled
+      box: {gen: expr, expr: arg.box}
+  box_stopped:
+    payload:
+      event_type: box_stopped
+      box: {gen: expr, expr: arg.box}
 
 egress:
   - {type: Console}
 
-run: {until: 1 min}
+run: {until: 5 min}

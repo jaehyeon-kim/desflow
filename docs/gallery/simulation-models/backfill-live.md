@@ -6,7 +6,7 @@ One run writes ten minutes of backdated history to Parquet. It then publishes to
 
 ## Before You Start
 
-The example needs Docker and the odctl profile `kafka-lite`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](index.md#services-for-the-examples) shows how to install odctl.
+The example needs Docker and the odctl profile `kafka-lite`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](../index.md#services-for-the-examples) shows how to install odctl.
 
 ---
 
@@ -167,8 +167,7 @@ The example needs Docker and the odctl profile `kafka-lite`. Each Quick Start be
     ```yaml title="examples/yaml/backfill_live.yaml:split"
     egress:
       - type: Parquet
-        config:
-          default_path: data/backfill/events.parquet
+        config: {default_path: data/backfill/events.parquet}
         # Records stamped before go_live_at.
         when: history
       - type: Kafka
@@ -264,7 +263,7 @@ docker exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 --topic sim-events --from-beginning --max-messages 1
 ```
 
-It prints one JSON line and `Processed a total of 1 messages`. Its `sim_ts` is just over 600, the length of the history in simulation seconds, because the live tail starts where the history ends (`orders-320` queued, at `sim_ts` 600.111). A second run appends to both sinks. When you have checked the result, stop the service:
+It prints one JSON line and `Processed a total of 1 messages`. Its `sim_ts` is just over 600, the length of the history in simulation seconds, because the live tail starts where the history ends (`orders-320` queued, at `sim_ts` 600.1107008261746). A second run appends to both sinks. When you have checked the result, stop the service:
 
 ```bash
 odctl down kafka-lite --volumes
@@ -319,8 +318,7 @@ During the live tail the run can look as if it has stopped responding. History i
 
         egress:
           - type: Parquet
-            config:
-              default_path: data/backfill/events.parquet
+            config: {default_path: data/backfill/events.parquet}
             # Records stamped before go_live_at.
             when: history
           - type: Kafka
@@ -334,9 +332,7 @@ During the live tail the run can look as if it has stopped responding. History i
         # batch_size flushes the history only when 2000 records are waiting. The interval
         # flush starts at go-live, so it writes what is left about 10 seconds later, and the
         # live tail also flushes every 10 seconds.
-        batching:
-          batch_size: 2000
-          flush_interval: 10.0
+        batching: {batch_size: 2000, flush_interval: 10.0}
 
         resources:
           packers: {current_cap: 4, max_cap: 10}
@@ -391,7 +387,8 @@ During the live tail the run can look as if it has stopped responding. History i
         )
 
         # Logging is configured here rather than in a wrapper, because this script is run
-        # directly. Without it the run produces no output at all.
+        # directly. Without it the run prints no INFO log lines, such as its progress
+        # messages.
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",

@@ -417,7 +417,9 @@ While `kafka-lite` is up, the Kafka UI at http://127.0.0.1:8086 lists the topics
 
         if __name__ == "__main__":
             logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-            chosen = router_egress() if os.environ.get("ROUTING") == "router" else payload_egress()
+            chosen = (
+                router_egress() if os.environ.get("ROUTING") == "router" else payload_egress()
+            )
             build(chosen).run(until="1 min")
         ```
 

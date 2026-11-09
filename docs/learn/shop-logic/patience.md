@@ -41,23 +41,23 @@ An entity that leaves a queue after waiting too long **reneges**. In SimPy it wa
     patience=patience,
     ```
 
-    `patience` is 30 here, in seconds. It also takes a duration, as in YAML: `patience="30 s"`. A distribution's parameters in the builder take seconds only.
+    `patience` is 30 here, in seconds. It also takes a duration, as in YAML: `patience="30 s"`. `add_service` and `add_arrival` take a duration too, such as `value="4 min"`, as YAML does. Only the low-level `DistributionConfig` takes seconds.
 
 === "Low-level"
 
     ```python title="docs/snippets/tutorials/patience_low_level.py:patience"
     # A customer cancels an order not started within 30 seconds
-    yield request | env.timeout(patience)
-    if not request.triggered:
+    result = yield request | env.timeout(patience)
+    if request not in result:
         # Leaving the with block takes the request out of the queue
         publish("reneged")
         env.stats.task_reneged("pack_order", task_id)
         return
     ```
 
-    `request | env.timeout(patience)` is SimPy's `AnyOf`: it happens when either event does. `request.triggered` is true once the unit is granted. Leaving the `with` block takes a waiting request out of the queue at once, so the packer is never granted to an order that has gone. [SimPy and desflow](../../simpy/index.md#waiting-for-one-or-all) describes events and conditions.
+    `request | env.timeout(patience)` is SimPy's `AnyOf`: it happens when either event does, and the yield gives back a mapping of the events that had happened by then. `request not in result` is true when the patience ran out first. Reading the result, and not `request.triggered`, matters when the unit is granted at the instant the patience ends: the order then reneges, as it does in a blueprint, where `request.triggered` would be true and serve it. Leaving the `with` block takes a waiting request out of the queue at once, so the packer is never granted to an order that has gone. [SimPy and desflow](../../simpy/index.md#waiting-for-one-or-all) describes events and conditions.
 
-A reneged order publishes `reneged` in place of `started` and its finished event, and adds nothing to the wait statistics, because it was never served.
+A reneged order publishes `reneged` in place of `started` and its finished event, and adds nothing to the wait statistics, because it was never served. Its flow ends there, unless the task names another to go on to: `on_renege` for an order that gave up and `on_balk` for one that was refused (it needs `balk`, `resource`, `seize` or `open`). The task they name reads `upstream.status`, which is `reneged` or `balked`. [Go On After Leaving](../../how-to/modelling/reneging-and-balking.md#go-on-after-leaving) shows it in the three forms.
 
 `--stdout` prints the run's records as JSON lines, one record per line, instead of sending them to the blueprint's sinks. So `grep` can pick out one kind of record. These are the first two orders that leave:
 
@@ -107,7 +107,7 @@ An entity that does not join a queue at all **balks**. In SimPy it is an `if` be
 
 The condition reads the names every expression reads, such as `attr.<name>` for the order's own attributes and `level.<name>` for a store or container. [Task Flow](../../user-guide/model-parts/task-flow.md#how-it-works) lists them.
 
-A resource can refuse an order too. With a `queue_limit`, the resource refuses a request made while that many requests already wait, and the task balks, as [Queue Limit](../../user-guide/resources/index.md#queue-limit) describes.
+A resource can refuse an order too. With a `queue_limit`, the resource refuses a request made while that many requests already wait, and the task balks, as [Queue Limit](../../user-guide/resources/units-and-queues.md#queue-limit) describes. The limit is also a registry path, `Shop.resources.packers.queue_limit`, so a scenario step can change it during a run. A smaller limit removes nobody who waits, and `null` is no limit.
 
 ---
 
@@ -209,13 +209,10 @@ Orders arrive at 42 a minute and bring 0.7 × 1.5 = 1.05 seconds of packing each
     === "YAML"
 
         ```yaml title="docs/snippets/yaml/patience.yaml"
-        # The Patience tutorial: orders leave after waiting too long, and none join near closing.
-        # Run it with: desflow run patience.yaml
+        # The Patience tutorial: orders leave after waiting too long, and none join near
+        # closing. Run it with: desflow run patience.yaml
         # With no time limit: PATIENCE="1 h" desflow run patience.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           packers: {current_cap: 1, max_cap: 4}
@@ -241,10 +238,9 @@ Orders arrive at 42 a minute and bring 0.7 × 1.5 = 1.05 seconds of packing each
         stats: {level: typical, interval: 1 h}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"
@@ -384,8 +380,8 @@ Orders arrive at 42 a minute and bring 0.7 × 1.5 = 1.05 seconds of packing each
             env.stats.task_queued("pack_order", task_id)
             with packers.request() as request:
                 # A customer cancels an order not started within 30 seconds
-                yield request | env.timeout(patience)
-                if not request.triggered:
+                result = yield request | env.timeout(patience)
+                if request not in result:
                     # Leaving the with block takes the request out of the queue
                     publish("reneged")
                     env.stats.task_reneged("pack_order", task_id)

@@ -33,8 +33,9 @@ def shop(limit: float = 300) -> SimulationContext:
         .add_egress(ConsoleEgress())
     )
     # --8<-- [start:signal]
-    # Fired by the courier as it leaves with every order that waits for it
-    app.add_signal("courier_left")
+    # Fired by the courier as it leaves with every order that waits for it,
+    # and again at each later courier, so it is not one-shot
+    app.add_signal("courier_left", once=False)
     # --8<-- [end:signal]
 
     @app.task(service_id="packing", resource_id="packers", next="dispatch")

@@ -20,6 +20,7 @@ from desflow import ConsoleEgress, DynamicRealtimeEnvironment
 UNTIL = 100
 
 
+# --8<-- [start:cable-delays]
 class Cable:
     """A cable that delivers each value `delay` seconds after it was put in."""
 
@@ -51,11 +52,17 @@ class Cable:
         return self.store.get()
 
 
+# --8<-- [end:cable-delays]
+
+
 def build(env: DynamicRealtimeEnvironment, size: int = 1) -> None:
     """Starts the sender and `size` receivers on `env`."""
+    # --8<-- [start:cable-and-counter]
     cable = Cable(env, 10)
     gets = itertools.count()
+    # --8<-- [end:cable-and-counter]
 
+    # --8<-- [start:sender-sends]
     def sender():
         for number in itertools.count(1):
             yield env.timeout(5)
@@ -67,6 +74,9 @@ def build(env: DynamicRealtimeEnvironment, size: int = 1) -> None:
             )
             cable.put(f"Sender sent this at {env.now:g}")
 
+    # --8<-- [end:sender-sends]
+
+    # --8<-- [start:receiver-gets]
     def receiver(name):
         def publish(number, record):
             env.publish_event(name, record, task="receive", instance=number)
@@ -78,9 +88,13 @@ def build(env: DynamicRealtimeEnvironment, size: int = 1) -> None:
             publish(number, {"status": "started"})
             publish(number, {"event_type": "received", "msg": msg})
 
+    # --8<-- [end:receiver-gets]
+
+    # --8<-- [start:start-processes]
     env.process(sender())
     for number in range(1, size + 1):
         env.process(receiver(f"receiver-{number}"))
+    # --8<-- [end:start-processes]
 
 
 def run() -> None:

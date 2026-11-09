@@ -1,7 +1,7 @@
 # The Add Resources Mid-run guide: the gift wrappers exist from the start with no units,
 # and a scenario step gives them 2 units at 12 seconds. Run it with:
 # desflow run dynamic_topology_scenario.yaml --stdout
-simulation: {sim_id: Shop, factor: 0, strict: false, random_seed: 42}
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 # --8<-- [start:scenario]
 resources:

@@ -452,3 +452,12 @@
 - run: file:docs/snippets/pages/blueprint_error.yaml
   since: 1.0.0
   changelog: "The YAML blueprint files of the repository, the examples and the docs snippets are written in one layout, checked by two pre-commit hooks; no blueprint changes meaning."
+- run: file:docs/snippets/yaml/process_interaction.yaml
+  since: 1.0.0
+  changelog: "The Process Interaction example declares `courier_left` with `once: false`, because each courier fires it; signals are one-shot by default in 1.0."
+- run: file:docs/snippets/yaml/tasks.yaml
+  since: 1.0.0
+  changelog: "The Tasks examples show an entity that drives the breaks from the start and a payload of generated fields, in place of a payload computed by a Python function."
+- run: file:docs/snippets/yaml/wait_groups.yaml
+  since: 1.0.0
+  changelog: "The Wait for One or All example asks for a packer with a priority and without preemption, and shows a signal that fires more than once and a spawned task, so every key of a wait has an example."

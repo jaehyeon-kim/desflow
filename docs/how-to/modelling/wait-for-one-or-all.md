@@ -581,10 +581,12 @@ This wait is for a packer or a time limit, and gives up the packer request if th
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/wait_groups.yaml:request"
-    # A packer, or give up after 30 seconds; a packer won is held through packing
+    # A packer asked for with priority 1 and without taking the unit from another order,
+    # or give up after 30 seconds; a packer won is held through packing
     wait:
       any:
-        unit: {request: packers}
+        unit:
+          request: {resource: packers, priority: 1, preempt: false}
         limit: {timeout: 30 s}
     ```
 
@@ -646,9 +648,7 @@ A model whose tasks acquire two resources in opposite orders loads and logs one 
 
 ### Park a Task Until Another Resumes It
 
-`wait: {suspend: true}` parks the task until a `resume` of another task wakes it. `resume` is a key of the waking task, or an `on:` entry, and takes a `task`, and optionally a `where`, a `value` and a `limit`. It wakes the instances of `task` that are parked, oldest first. `limit` is how many to wake at most: no `limit` wakes all of them, and `limit: 0` wakes nobody. `where` keeps the instances whose scope it holds for. `value` is read once for each `resume`, and each instance it wakes reads it as `wait.suspend.value`. A `resume` that finds nobody parked does nothing. `suspend` stands alone or in a group, and `open` does not take it.
-
-An interrupt that reaches a parked instance follows its `on_interrupt`: under `resume` it stays parked in its place, under `restart` it parks again behind the others, and under `abandon` it ends.
+`wait: {suspend: true}` parks the task until a `resume` of another task wakes it. The rules of `resume` and of an interrupt that reaches a parked task are in [Park a Task Until Another Resumes It](../../user-guide/tasks-and-processes/signals-and-waiting.md#park-a-task-until-another-resumes-it).
 
 Here three orders park, at 1, 2 and 3 seconds, and a truck at 5 seconds wakes the two oldest:
 
@@ -742,7 +742,7 @@ Every form wakes the first two orders at 5 seconds, with the value `truck-1`. Th
 
 ### Wait for a Computed Number of Branches
 
-`wait: {each: ..., group: ..., branch: ...}` makes the same `branch` once for each element of `each`, when the wait starts. `each` is a whole number, a list, an expression written as text, or any generator, and is read once. Inside `branch`, `each.index` counts from 0, and `each.value` is the element, or the index when `each` is a number. `group` is `all`, the default, `any`, `{at_least: <expression>}` or `{when: <expression>}`. The results are `wait.<name>.values` and `wait.<name>.flags`, lists in the order of the elements.
+`wait: {each: ..., group: ..., branch: ...}` makes the same `branch` once for each element of `each`, when the wait starts. The rules of `each`, `group` and `branch` are in [Wait for a Computed Number of Branches](../../user-guide/tasks-and-processes/signals-and-waiting.md#wait-for-a-computed-number-of-branches).
 
 Here an order packs three boxes of 2, 5 and 9 seconds, and goes on when two are packed:
 
@@ -827,17 +827,6 @@ Here an order packs three boxes of 2, 5 and 9 seconds, and goes on when two are 
     ```
 
 Every form goes on at 5 seconds, and the flags are `[True, True, False]`. In SimPy, a `Condition` over the list of timeouts does the same: its count rule ends the wait at the second box.
-
-These rules hold for `each`:
-
-- The `branch` is one leaf: a signal, task, timeout, request, get, put or handle. A group as the branch is refused.
-- A literal `each: 2.0` is refused, and an `each` that computes 2.0 fails the run.
-- An empty `each` succeeds at once under every group.
-- The `when` of an `each` group reads only `done_count`. A reference to `wait.<name>`, its `values` or its `flags` is refused when the file loads. Read the flags in the payload or the task function after the wait, as above.
-- `each.index` and `each.value` are read only in the `branch`. A read in a `when` group, an `at_least` count, an `on` entry or a `listen` is refused when the file loads.
-- A request of an `each` that is still queued is cancelled when the task ends.
-- `subscribe` refuses an `each` branch.
-- After a `resume` the wait keeps every leaf's event and reads no reference or index again. After a `restart` it reads `each` again. A granted request is kept for the leaf of the same name that asks for the same resource, and any other kept grant is given back and its leaf asks again.
 
 `open` takes the same form, `open: {pool: {each: ..., branch: ...}}`, and starts the branches without waiting for them. A later `wait: {handle: pool, index: 0}`, `cancel`, `release` or `interrupt` names one element with `{handle: pool, index: <expression>}`, and `cancel: pool` cancels every element not yet granted. `cancel` works on requests, gets and puts, and `interrupt` on child flows. A `handle` leaf with an `index` waits for the element it first resolved, after a resume and after a restart. `handle.pool.values` and `handle.pool.flags` read the results. Here an order asks for three packers at once and packs with the first it is given. It cancels the two requests that were not granted and releases the first unit by name. A second order arrives at 1 second and asks for a packer:
 

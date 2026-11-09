@@ -1,0 +1,97 @@
+# The Stores and Containers page: ranked queues, an item put by hand and the priority
+# of an item taken. Returned parcels wait for room on a shelf of two, the lowest rank
+# first, and a clerk files each into an archive. Buyers wait for boxes, the lowest
+# rank first.
+# Run it with: desflow run store_items.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:declare]
+stores:
+  # A shelf of two, served by priority. The puts that wait for room go in rank order,
+  # and the latest of equal ranks goes first. The gets go in rank order too.
+  returns:
+    current_cap: 2
+    max_cap: 2
+    priority: true
+    put_queue: {rank: attr.rank, ties: lifo}
+    get_queue: {rank: attr.rank}
+  archive: {}
+
+containers:
+  # The gets and the puts that wait go in rank order, the oldest of equal ranks first
+  stock:
+    current_cap: 10
+    max_cap: 10
+    get_queue: {rank: attr.rank}
+    put_queue: {rank: attr.rank}
+  # A family of two containers, crates[0] and crates[1], made when the run starts
+  crates: {current_cap: 5, max_cap: 5, family: true, members: 2}
+# --8<-- [end:declare]
+
+arrivals:
+  # A returned parcel every second on average, and a buyer every 2 s on average
+  returned:
+    dist: exponential
+    rate: 1
+    spawn: return_parcel
+    attributes:
+      rank: {gen: integer, bounds: [1, 3]}
+  buyers:
+    dist: exponential
+    rate: 0.5
+    spawn: buy
+    attributes:
+      rank: {gen: integer, bounds: [1, 3]}
+  # A clerk every 4 s, and a delivery of 3 boxes every 5 s
+  clerk:
+    dist: constant
+    value: 4 s
+    spawn: file_return
+    attributes:
+      rank: {gen: integer, bounds: [1, 3]}
+  deliveries:
+    dist: constant
+    value: 5 s
+    spawn: deliver
+    attributes:
+      rank: {gen: integer, bounds: [1, 3]}
+
+tasks:
+  # --8<-- [start:items]
+  return_parcel:
+    # The item put on the shelf is written here, and not the payload: a mapping, with
+    # a generator inside it. The priority is read as the put is made.
+    put:
+      store: returns
+      priority: attr.rank
+      item:
+        parcel: {gen: sequence}
+        rank: {gen: attr, name: rank}
+    # putting() lists the puts that wait for room at a store or container
+    payload:
+      event_type: parcel_returned
+      waiting: {gen: expr, expr: "len(putting(returns))"}
+  file_return:
+    get: {store: returns}
+    # item is the whole item the get took, and it goes into the archive as it is
+    put:
+      store: archive
+      item: {gen: expr, expr: item}
+    # item_priority is the priority of the item a priority store gave
+    payload:
+      event_type: parcel_filed
+      priority: {gen: expr, expr: item_priority}
+  # --8<-- [end:items]
+  buy:
+    get: {container: stock, amount: 2}
+    payload:
+      event_type: boxes_sold
+      waiting: {gen: expr, expr: "len(getting(stock))"}
+  deliver:
+    put: {container: stock, amount: 3}
+    payload: {event_type: boxes_delivered}
+
+run: {until: 100 s}

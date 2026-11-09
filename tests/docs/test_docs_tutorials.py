@@ -83,7 +83,26 @@ def test_first_simulation_same_records_and_first_wait(caplog):
     ]
     key, wait = waiting[0]
     assert key == "orders-2"
-    assert round(wait, 3) == 1.356
+    assert round(wait, 3) == 1.357
+
+
+def test_first_simulation_blueprint_test_passes_and_a_wrong_one_fails(tmp_path):
+    """The `tests` entry on the page passes with `desflow test` and prints the line the
+    page shows; the same entry with another count fails and names both numbers."""
+    from typer.testing import CliRunner
+
+    from desflow.cli import app as cli
+
+    source = BLUEPRINTS / "first_shop.yaml"
+    run = CliRunner().invoke(cli, ["test", str(source)])
+    assert run.exit_code == 0, run.output
+    assert run.output.startswith("ok ")
+    assert run.output.strip().endswith("first_shop.yaml: nine_orders_in_20_seconds")
+    wrong = tmp_path / "first_shop.yaml"
+    wrong.write_text(source.read_text().replace("finished: 9}", "finished: 8}"))
+    run = CliRunner().invoke(cli, ["test", str(wrong)])
+    assert run.exit_code == 1
+    assert "expected 8, measured 9" in run.output
 
 
 QUEUE_WAITS = {1: 1127.21, 2: 426.31, 3: 1.27, 4: 0.20}
@@ -168,7 +187,7 @@ def _run_yaml(path, caplog):
 
 @pytest.mark.parametrize("api", APIS)
 def test_randomness_and_seeds_twelfth_order(api, caplog):
-    """orders-12 waits 0.702 s with the seed 42, in every tab."""
+    """orders-12 waits 0.701 s with the seed 42, in every tab."""
     with caplog.at_level(logging.INFO, logger="desflow"):
         if api == "yaml":
             SimulationContext.from_yaml(BLUEPRINTS / "randomness_and_seeds.yaml").run()
@@ -176,7 +195,7 @@ def test_randomness_and_seeds_twelfth_order(api, caplog):
             _load("randomness_and_seeds").app.run(until="1 min")
         else:
             _load("randomness_and_seeds_low_level").run()
-    assert _wait_of(_events(caplog), "orders-12") == 0.702
+    assert _wait_of(_events(caplog), "orders-12") == 0.701
 
 
 def test_randomness_and_seeds_same_wait_on_every_run_and_after_returns(
@@ -192,7 +211,7 @@ def test_randomness_and_seeds_same_wait_on_every_run_and_after_returns(
     no_returns.write_text(yaml.safe_dump(blueprint))
 
     for path in (source, source, no_returns):
-        assert _wait_of(_run_yaml(path, caplog), "orders-12") == 0.702
+        assert _wait_of(_run_yaml(path, caplog), "orders-12") == 0.701
 
 
 CANDIDATE_WAITS = {
@@ -1052,7 +1071,7 @@ def _streaming_run(api, tmp_path, monkeypatch):
     module = _load("streaming_out" + ("" if api == "builder" else "_low_level"))
     result = module.outcomes(tmp_path)
     files = module.read_files(tmp_path / "packed")
-    assert result["row"]["sim_ts"] == 29.702
+    assert result["row"]["sim_ts"] == 29.70220884909981
     return result["file_rows"], files
 
 
@@ -1060,7 +1079,7 @@ def _streaming_run(api, tmp_path, monkeypatch):
 def test_streaming_out_records(api, tmp_path, monkeypatch, caplog):
     """The console gets 4,299 events (1,434 queued, 1,433 started, 1,432 packed) and 30
     telemetry records; the file sink gets the 1,432 packed orders in files of 500, 500
-    and 432 rows; orders-12 is queued at 26.97, started at 28.202, packed at 29.702."""
+    and 432 rows; orders-12 is queued at 26.9695, started at 28.2022, packed at 29.7022."""
     caplog.clear()
     with caplog.at_level(logging.INFO, logger="desflow"):
         file_rows, files = _streaming_run(api, tmp_path, monkeypatch)
@@ -1092,16 +1111,20 @@ def test_streaming_out_records(api, tmp_path, monkeypatch, caplog):
         "instance",
         "event_type",
     ]
-    assert (row["sim_ts"], row["task"], row["instance"]) == (29.702, "pack_order", 11)
+    assert (row["sim_ts"], row["task"], row["instance"]) == (
+        29.70220884909981,
+        "pack_order",
+        11,
+    )
     order = [
         (e["sim_ts"], e["task"], e["instance"])
         for e in events
         if e["key"] == "orders-12"
     ]
     assert order == [
-        (26.97, "pack_order", 11),
-        (28.202, "pack_order", 11),
-        (29.702, "pack_order", 11),
+        (26.96951531079364, "pack_order", 11),
+        (28.20220884909981, "pack_order", 11),
+        (29.70220884909981, "pack_order", 11),
     ]
 
 

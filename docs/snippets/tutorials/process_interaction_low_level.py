@@ -138,8 +138,9 @@ def run(limit=300, until=8 * 3600, factor=0.0):
     shop = {
         "packers": DynamicResource(env, "Shop", "packers"),
         # --8<-- [start:signal]
-        # Fired by the courier as it leaves with every order that waits for it
-        "courier_left": Signal(env, "courier_left"),
+        # Fired by the courier as it leaves with every order that waits for it,
+        # and again at each later courier, so it is not one-shot
+        "courier_left": Signal(env, "courier_left", once=False),
         # --8<-- [end:signal]
         "limit": limit,
     }

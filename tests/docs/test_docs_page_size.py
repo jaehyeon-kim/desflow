@@ -45,6 +45,7 @@ SHAPE_SECTIONS = {
     "Check the Result",
     # The four parts of each idea on a concept page
     "In the Tutorial",
+    "In the Shop",
     "Why It Matters",
     "How to Use It",
     "What the Result Means",

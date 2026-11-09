@@ -131,8 +131,8 @@ Save the files from [Full Files](#full-files) in one folder and run the commands
     def delivery_generator(context: SimulationContext):
         task_id = 0
         while True:
-            delivery = yield context.wait_for_arrival("deliveries")
-            context.spawn(restock(task_id, entity=delivery))
+            arrival = yield context.wait_for_arrival("deliveries")
+            context.spawn(restock(task_id, entity=arrival))
             task_id += 1
     ```
 
@@ -188,16 +188,16 @@ With deliveries of 40, the shelf runs out before the second delivery. Each readi
 <!-- records: stock-out -->
 ```text
 [TEL] {'sim_ts': 170.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 0}
-[TEL] {'sim_ts': 170.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 1.0}
+[TEL] {'sim_ts': 170.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 1}
 [TEL] {'sim_ts': 170.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 0}
 [TEL] {'sim_ts': 180.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 3}
-[TEL] {'sim_ts': 180.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 0.0}
+[TEL] {'sim_ts': 180.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 0}
 [TEL] {'sim_ts': 180.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 1}
 [TEL] {'sim_ts': 190.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 8}
-[TEL] {'sim_ts': 190.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 0.0}
+[TEL] {'sim_ts': 190.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 0}
 [TEL] {'sim_ts': 190.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 1}
 [TEL] {'sim_ts': 200.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 12}
-[TEL] {'sim_ts': 200.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 40.0}
+[TEL] {'sim_ts': 200.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 40}
 [TEL] {'sim_ts': 200.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 1}
 ```
 
@@ -254,7 +254,31 @@ Each tab prints the mean wait for deliveries of 60, then of 40:
     deliveries of 40: mean wait 341.89 s
     ```
 
-Stock adds a second queue: orders wait at the shelf as well as at the packer. Packing takes its packer before its box. So the shelf's queue is never longer than the number of packers, and the other orders wait in the packer queue behind it. An empty shelf therefore also stops the packer. A task whose resource is scarce can take the box first instead: the long queue then forms at the shelf, and the packer stays free. Either way, supply below demand means a queue that grows for as long as the run lasts, as [Queueing Basics](../concepts/queueing-basics.md#utilisation) explains for a packer. [Stores and Containers](../../user-guide/model-parts/stores-and-containers.md) describes both kinds of holding.
+Stock adds a second queue: orders wait at the shelf as well as at the packer. Packing takes its packer before its box. So the shelf's queue is never longer than the number of packers, and the other orders wait in the packer queue behind it. An empty shelf therefore also stops the packer. A task whose resource is scarce can take the box first instead: the `get` goes in a task of its own, with no resource, and that task names the packing task in `next`. The long queue then forms at the shelf, and the packer stays free:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/stock_box_first.yaml:box-first"
+    take_box:
+      # One box per order, taken before the packer; waits while stock is 0
+      get: {container: stock, amount: 1}
+      payload: {event_type: box_taken}
+      next: pack_order
+    pack_order:
+      service: packing
+      resource: packers
+      payload: {event_type: order_packed}
+    ```
+
+=== "Builder"
+
+    The Builder writes `take_box` with `get={"container": "stock", "amount": 1}` and `next="pack_order"`, and `pack_order` with `resource_id="packers"`. The YAML tab shows the keys.
+
+=== "Low-level"
+
+    The low-level form takes the box first with `yield stock.get(1)` and then requests a packer. The YAML tab shows the two tasks.
+
+The arrival spawns `take_box` in place of `pack_order`. Either way, supply below demand means a queue that grows for as long as the run lasts, as [Queueing Basics](../concepts/queueing-basics.md#utilisation) explains for a packer. [Stores and Containers](../../user-guide/model-parts/stores-and-containers.md) describes both kinds of holding.
 
 ## Key Takeaways
 
@@ -274,10 +298,7 @@ Stock adds a second queue: orders wait at the shelf as well as at the packer. Pa
         # The Stock tutorial: packing takes a box from stock, and deliveries restock it.
         # Run it with: desflow run stock.yaml
         # With smaller deliveries: DELIVERY=40 desflow run stock.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           packers: {current_cap: 1, max_cap: 4}
@@ -313,10 +334,9 @@ Stock adds a second queue: orders wait at the shelf as well as at the packer. Pa
         stats: typical
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"
@@ -384,8 +404,8 @@ Stock adds a second queue: orders wait at the shelf as well as at the packer. Pa
             def delivery_generator(context: SimulationContext):
                 task_id = 0
                 while True:
-                    delivery = yield context.wait_for_arrival("deliveries")
-                    context.spawn(restock(task_id, entity=delivery))
+                    arrival = yield context.wait_for_arrival("deliveries")
+                    context.spawn(restock(task_id, entity=arrival))
                     task_id += 1
 
             return app

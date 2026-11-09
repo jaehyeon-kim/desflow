@@ -31,15 +31,18 @@ WASH = "Carwash.service.wash"  # the service that the wash's started record name
 
 def build(env: DynamicRealtimeEnvironment, size: int = 4) -> None:
     """Starts the carwash on `env`, with `size` cars waiting when it opens."""
+    # --8<-- [start:machines]
     sampler = Sampler(seed=42)
     gaps = sampler.generator("arrivals.cars.gap")
     dirt = sampler.generator("tasks.wash.payload.dirt_removed_pct")
     machine = simpy.Resource(env, NUM_MACHINES)
     numbers = {task: itertools.count() for task in ("car", "washing", "wash")}
+    # --8<-- [end:machines]
 
     def publish(name, task, number, value):
         env.publish_event(name, value, task=task, instance=number)
 
+    # --8<-- [start:machines-wash]
     def wash(name):
         number = next(numbers["wash"])
         publish(
@@ -59,6 +62,9 @@ def build(env: DynamicRealtimeEnvironment, size: int = 4) -> None:
             name, "wash", number, {"event_type": "washed", "dirt_removed_pct": removed}
         )
 
+    # --8<-- [end:machines-wash]
+
+    # --8<-- [start:car-is-washed]
     def car(name):
         number = next(numbers["car"])
         with machine.request() as request:
@@ -73,6 +79,9 @@ def build(env: DynamicRealtimeEnvironment, size: int = 4) -> None:
             publish(name, "washing", waiting, {"status": "started"})
             publish(name, "washing", waiting, {"event_type": "leaves"})
 
+    # --8<-- [end:car-is-washed]
+
+    # --8<-- [start:cars-arrive]
     def setup():
         for i in range(size):
             env.process(car(f"Car {i}"))
@@ -83,6 +92,7 @@ def build(env: DynamicRealtimeEnvironment, size: int = 4) -> None:
             i += 1
 
     env.process(setup())
+    # --8<-- [end:cars-arrive]
 
 
 def run() -> None:

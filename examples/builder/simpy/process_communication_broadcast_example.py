@@ -21,14 +21,19 @@ def build(size: int = 1) -> SimulationContext:
     """Builds the two pipes, with `size` consumers on the first."""
     app = SimulationContext(sim_id="Pipes", factor=0, random_seed=42)
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:broadcast-pipe]
     app.add_store("pipe", family=True, members=2)
+    # --8<-- [end:broadcast-pipe]
     app.add_arrival(
         "generator",
         gap=generator({"gen": "integer", "bounds": [6, 10]}),
         spawn="speak",
     )
+    # --8<-- [start:consumers-arrive]
     app.add_initial_arrival("consumer_a", size, spawn="listen", attributes={"idx": 0})
     app.add_initial_arrival("consumer_b", 1, spawn="listen", attributes={"idx": 1})
+    # --8<-- [end:consumers-arrive]
+    # --8<-- [start:broadcast-sends]
     speak_payload = Template(
         {
             "event_type": "said",
@@ -61,6 +66,9 @@ def build(size: int = 1) -> SimulationContext:
         """Puts the message into every pipe."""
         return {"event_type": "sent"}
 
+    # --8<-- [end:broadcast-sends]
+
+    # --8<-- [start:consumer-gets]
     listen_payload = Template(
         {
             "event_type": "received",
@@ -85,6 +93,8 @@ def build(size: int = 1) -> SimulationContext:
     def busy(task_id):
         """Works on the message."""
         return {"event_type": "handled"}
+
+    # --8<-- [end:consumer-gets]
 
     return app
 

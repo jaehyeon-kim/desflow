@@ -17,9 +17,9 @@ The simulation is a discrete-event simulation (DES): the model moves from one ev
 ## What It Is For
 
 - **Simulation studies.** A question such as how many packers a shop needs is answered from many runs of a model, not from one. desflow repeats the runs, gives each result with its margin of error and compares designs of the shop. Before a long run, `desflow explain` names the busiest resource from the model alone.
-- **Data engineering.** Batch and streaming pipelines need test data that behaves like a real system. One run can write a week of history at full speed, then keep streaming in real time. In the [Kafka Digital Twin](https://jaehyeon.me/desflow/latest/how-to/examples/kafka/) example, a dashboard changes an arrival rate or a capacity during a run, and the data follows without a restart.
+- **Data engineering.** Batch and streaming pipelines need test data that behaves like a real system. One run can write a week of history at full speed, then keep streaming in real time. In the [Kafka Digital Twin](https://jaehyeon.me/desflow/latest/gallery/simulation-models/kafka/) example, a dashboard changes an arrival rate or a capacity during a run, and the data follows without a restart.
 - **Machine learning and MLOps.** A model that predicts delays needs training data in which queues build and clear for a reason. A change made during a run shifts the data at a known time, which is what a drift monitor has to catch.
-- **AI.** An anomaly detector or an AI agent is scored against a known answer. A run can plant a fault, such as a label printer going offline, and record what it planted in separate label records. An AI coding assistant can write and check models with the [desflow skill](https://jaehyeon.me/desflow/latest/how-to/tools/use-an-ai-assistant/).
+- **AI.** An anomaly detector or an AI agent is scored against a known answer. A run can plant a fault, such as a label printer going offline, and record what it planted in separate label records. An AI coding assistant can write and check models with the [desflow skill](https://jaehyeon.me/desflow/latest/ai/).
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/assets/dashboard-preview.gif" alt="Live parameter updates from the control dashboard" width="700" />
@@ -36,7 +36,7 @@ The simulation is a discrete-event simulation (DES): the model moves from one ev
 | [Records](https://jaehyeon.me/desflow/latest/reference/records-and-telemetry/) | an event for each step of each entity, telemetry with the statistics, and label records that hold the ground truth of each planned change. Records are JSON, Avro, JSON Schema or Protobuf through the Confluent or AWS Glue Schema Registry, or Pydantic models. |
 | [Connectors](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/egress/) | several sinks in one run, each with its own filter: Kafka, including SASL, mTLS, OAuth and AWS IAM clusters, Redis, PostgreSQL, Parquet or JSONL files on local disk, S3-compatible storage, Google Cloud Storage or Azure Blob Storage, and Iceberg tables. A connector of your own is one class. |
 | [Studies](https://jaehyeon.me/desflow/latest/user-guide/results/statistics/) | built-in statistics with a warm-up, replications with a 95% interval for each statistic, experiments that compare designs with the same random numbers and write a report, a check against the queueing formulas before a long run, and distributions fitted to measured times |
-| [Tools](https://jaehyeon.me/desflow/latest/how-to/tools/use-an-ai-assistant/) | the `desflow` command, a JSON Schema that gives an editor completion for blueprints, and a skill with which an AI coding assistant writes and checks blueprints |
+| [Tools](https://jaehyeon.me/desflow/latest/ai/) | the `desflow` command, a JSON Schema that gives an editor completion for blueprints, and a skill with which an AI coding assistant writes and checks blueprints |
 
 ## Installation
 
@@ -70,9 +70,13 @@ Connectors and input fitting are optional extras. For example, `uv add "desflow[
 | `parquet` | Parquet and JSONL files on local disk, S3-compatible storage, Google Cloud Storage or Azure Blob Storage |
 | `iceberg` | Apache Iceberg tables through a REST catalog, a SQL catalog on SQLite or PostgreSQL, or the Glue catalog |
 | `fit` | scipy and matplotlib, for [input fitting](https://jaehyeon.me/desflow/latest/user-guide/model-parts/input-fitting/) with `desflow fit` |
-| `all` | Every extra above |
+| `fake` | Faker, for the `fake` generator of realistic names, addresses and dates |
+| `watch` | watchfiles, for `desflow run --watch`, which runs the file again each time it changes |
+| `all` | Every extra above except `watch` |
 
-**Upgrading from dynamic-des.** desflow was previously called dynamic-des. Install, import and run `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until a release before 1.0 removes them. The [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/) says what to change.
+Two cautions apply to the `fake` extra. A seeded `fake` field gives the same values again only with the same version of Faker. A Faker method that reads the date, such as `date_between`, reads the wall clock and not the simulation clock.
+
+**Upgrading from dynamic-des.** desflow was previously called dynamic-des. Install, import and run `desflow`. Version 1.0 removed the `dynamic_des` module and the `ddes` command, so code that imports `dynamic_des` and scripts that run `ddes` must change to `desflow`. The [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/) says what to change.
 
 ## Quick Start
 
@@ -105,15 +109,19 @@ tasks:
     payload: {event_type: order_packed}
 
 egress:
-  - type: Console
+  - {type: Console}
 
-run:
-  until: 20
+run: {until: 20}
+
+tests:
+  # Run with: desflow test first_shop.yaml
+  - name: nine_orders_in_20_seconds
+    expect: {tasks.pack_order.finished: 9}
 ```
 
 Save it as `first_shop.yaml` and run `desflow run first_shop.yaml`. [First Simulation](https://jaehyeon.me/desflow/latest/learn/first-model/first-simulation/) builds this model step by step, with the YAML, builder and low-level code side by side.
 
-Each [runnable example](https://jaehyeon.me/desflow/latest/how-to/examples/) is a complete model. The local example needs no container. `desflow examples get` downloads it at the release you installed, into a folder of its own, and `desflow run` runs it:
+Each [runnable example](https://jaehyeon.me/desflow/latest/gallery/) is a complete model. The local example needs no container. `desflow examples get` downloads it at the release you installed, into a folder of its own, and `desflow run` runs it:
 
 ```bash
 desflow examples get local --api yaml
@@ -131,7 +139,9 @@ desflow run local.yaml
 |---|---|---|---|
 | `desflow examples` | list the examples, and download one with `get` | [Get an Example](https://jaehyeon.me/desflow/latest/cli/#get-an-example) | [`desflow examples`](https://jaehyeon.me/desflow/latest/cli/examples/), [`desflow examples get`](https://jaehyeon.me/desflow/latest/cli/examples-get/) |
 | `desflow explain` | check a model for bottlenecks before a long run | [Check It Before a Long Run](https://jaehyeon.me/desflow/latest/cli/#check-it-before-a-long-run) | [`desflow explain`](https://jaehyeon.me/desflow/latest/cli/explain/) |
+| `desflow check` | check that blueprints and builder files build, without running them | [Check It Before a Long Run](https://jaehyeon.me/desflow/latest/cli/#check-it-before-a-long-run) | [`desflow check`](https://jaehyeon.me/desflow/latest/cli/check/) |
 | `desflow run` | run a blueprint, or its replications with a 95% interval for each statistic | [Run It](https://jaehyeon.me/desflow/latest/cli/#run-it) | [`desflow run`](https://jaehyeon.me/desflow/latest/cli/run/) |
+| `desflow test` | run the `tests` of a blueprint and report the statistics that differ | [Run It](https://jaehyeon.me/desflow/latest/cli/#run-it) | [`desflow test`](https://jaehyeon.me/desflow/latest/cli/test/) |
 | `desflow experiment` | compare designs of a model and check them against bounds | [Compare Designs](https://jaehyeon.me/desflow/latest/cli/#compare-designs) | [`desflow experiment`](https://jaehyeon.me/desflow/latest/cli/experiment/) |
 | `desflow report` | build an experiment's report again from its files | [Compare Designs](https://jaehyeon.me/desflow/latest/cli/#compare-designs) | [`desflow report`](https://jaehyeon.me/desflow/latest/cli/report/) |
 | `desflow fit` | fit every distribution family to measured times | [Fit Measured Times](https://jaehyeon.me/desflow/latest/cli/#fit-measured-times) | [`desflow fit`](https://jaehyeon.me/desflow/latest/cli/fit/) |
@@ -140,7 +150,7 @@ desflow run local.yaml
 
 ## Projects Using desflow
 
-Six public projects generate their data with desflow: four data engineering and MLOps demos in [benchtop](https://github.com/jaehyeon-kim/benchtop), the [Agentic Analytics System](https://github.com/jaehyeon-kim/agentic-analytics-system) and a [hot strip mill digital twin](https://github.com/jaehyeon-kim/oml-digital-twin-hotrolling). [Projects Using desflow](https://jaehyeon.me/desflow/latest/how-to/projects/) says what desflow simulates in each.
+Six public projects generate their data with desflow: four data engineering and MLOps demos in [benchtop](https://github.com/jaehyeon-kim/benchtop), the [Agentic Analytics System](https://github.com/jaehyeon-kim/agentic-analytics-system) and a [hot strip mill digital twin](https://github.com/jaehyeon-kim/oml-digital-twin-hotrolling). [Projects Using desflow](https://jaehyeon.me/desflow/latest/gallery/projects/) says what desflow simulates in each.
 
 ## Roadmap
 

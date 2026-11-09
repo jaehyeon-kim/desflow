@@ -8,7 +8,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
 ## Before You Start
 
-The example needs Docker and the odctl profile `postgres`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](index.md#services-for-the-examples) shows how to install odctl.
+The example needs Docker and the odctl profile `postgres`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](../index.md#services-for-the-examples) shows how to install odctl.
 
 ---
 
@@ -273,8 +273,8 @@ The fields of `value` and the `timestamp` fill the columns of `orders`. The task
         ```yaml title="examples/yaml/postgres.yaml"
         # Relational output in YAML.
         #
-        # The YAML version of postgres_example.py, which --api builder downloads: a simulation that
-        # writes order records to one table. Each order spawns place_order, a task with no
+        # The YAML version of postgres_example.py, which --api builder downloads: a simulation
+        # that writes order records to one table. Each order spawns place_order, a task with no
         # service or resource, which publishes its payload at once. PostgresEgress creates
         # the orders table at start and writes one row per order. PostgresIngress creates
         # simulation_params and polls it for parameter updates.
@@ -282,10 +282,7 @@ The fields of `value` and the `timestamp` fill the columns of `orders`. The task
         # Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
         # Run it from its folder with: desflow run postgres.yaml
 
-        simulation:
-          sim_id: Shop
-          factor: 1.0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 1.0, random_seed: 42}
 
         ingress:
           - type: Postgres

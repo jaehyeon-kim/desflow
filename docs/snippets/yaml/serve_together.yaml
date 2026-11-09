@@ -13,7 +13,8 @@ tasks:
   # --8<-- [start:batch]
   bake:
     # The batch closes with 3 members, or 2.5 seconds after its first member
-    batch: {size: 3, timeout: 2.5}
+    # name defaults to the task's name; tasks with the same name share one open batch
+    batch: {name: oven_run, size: 3, timeout: 2.5}
     resource: oven  # one run of the oven serves the whole batch
     service_time: 4
     payload: {event_type: baked}

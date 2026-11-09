@@ -89,8 +89,6 @@ def test_how_to_titles_match_the_sidebar(mkdocs_nav):
         f"{page}: {title!r}"
         for title, page in _nav_pages(mkdocs_nav)
         if page.startswith("how-to/")
-        and not page.startswith("how-to/examples/")
-        and page != "how-to/projects.md"
         and (ROOT / "docs" / page).read_text(encoding="utf-8").split("\n")[0]
         != f"# {HOW_TO_PAGE_TITLES.get(page, title)}"
     ]

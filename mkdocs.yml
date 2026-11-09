@@ -83,7 +83,7 @@ plugins:
         guides/builder-api.md: user-guide/writing-a-model/builder-api.md
         architecture/low-level.md: user-guide/writing-a-model/low-level-api.md
         guides/low-level-api.md: user-guide/writing-a-model/low-level-api.md
-        guides/backfill-then-live.md: how-to/examples/backfill-live.md
+        guides/backfill-then-live.md: gallery/simulation-models/backfill-live.md
         architecture/records.md: reference/records-and-telemetry.md
         # Local Studies became Experiments, before 0.22.0 was released
         user-guide/local-studies.md: user-guide/results/experiments.md
@@ -99,39 +99,39 @@ plugins:
         # Pages removed before 0.17.0. Older versions name latest/<page> as their
         # canonical address, so each needs a page there.
         concepts.md: learn/what-is-des.md
-        examples/declarative/history.md: how-to/examples/backfill-live.md
-        examples/declarative/iceberg.md: how-to/examples/iceberg.md
-        examples/declarative/kafka.md: how-to/examples/kafka.md
-        examples/declarative/local.md: how-to/examples/local.md
-        examples/declarative/parquet.md: how-to/examples/parquet.md
-        examples/declarative/postgres.md: how-to/examples/postgres.md
-        examples/declarative/redis.md: how-to/examples/redis.md
-        examples/history.md: how-to/examples/backfill-live.md
-        examples/imperative/history.md: how-to/examples/backfill-live.md
-        examples/imperative/iceberg.md: how-to/examples/iceberg.md
-        examples/imperative/kafka.md: how-to/examples/kafka.md
-        examples/imperative/local.md: how-to/examples/local.md
-        examples/imperative/parquet.md: how-to/examples/parquet.md
-        examples/imperative/postgres.md: how-to/examples/postgres.md
-        examples/imperative/redis.md: how-to/examples/redis.md
-        examples/yaml/advanced-postgres-orders.md: how-to/examples/advanced-postgres-orders.md
-        examples/yaml/backfill-live.md: how-to/examples/backfill-live.md
-        examples/yaml/iceberg.md: how-to/examples/iceberg.md
-        examples/yaml/kafka.md: how-to/examples/kafka.md
-        examples/yaml/local.md: how-to/examples/local.md
-        examples/yaml/parquet.md: how-to/examples/parquet.md
-        examples/yaml/postgres.md: how-to/examples/postgres.md
-        examples/yaml/redis.md: how-to/examples/redis.md
+        examples/declarative/history.md: gallery/simulation-models/backfill-live.md
+        examples/declarative/iceberg.md: gallery/simulation-models/iceberg.md
+        examples/declarative/kafka.md: gallery/simulation-models/kafka.md
+        examples/declarative/local.md: gallery/simulation-models/local.md
+        examples/declarative/parquet.md: gallery/simulation-models/parquet.md
+        examples/declarative/postgres.md: gallery/simulation-models/postgres.md
+        examples/declarative/redis.md: gallery/simulation-models/redis.md
+        examples/history.md: gallery/simulation-models/backfill-live.md
+        examples/imperative/history.md: gallery/simulation-models/backfill-live.md
+        examples/imperative/iceberg.md: gallery/simulation-models/iceberg.md
+        examples/imperative/kafka.md: gallery/simulation-models/kafka.md
+        examples/imperative/local.md: gallery/simulation-models/local.md
+        examples/imperative/parquet.md: gallery/simulation-models/parquet.md
+        examples/imperative/postgres.md: gallery/simulation-models/postgres.md
+        examples/imperative/redis.md: gallery/simulation-models/redis.md
+        examples/yaml/advanced-postgres-orders.md: gallery/simulation-models/advanced-postgres-orders.md
+        examples/yaml/backfill-live.md: gallery/simulation-models/backfill-live.md
+        examples/yaml/iceberg.md: gallery/simulation-models/iceberg.md
+        examples/yaml/kafka.md: gallery/simulation-models/kafka.md
+        examples/yaml/local.md: gallery/simulation-models/local.md
+        examples/yaml/parquet.md: gallery/simulation-models/parquet.md
+        examples/yaml/postgres.md: gallery/simulation-models/postgres.md
+        examples/yaml/redis.md: gallery/simulation-models/redis.md
         tutorials/01-first-factory.md: learn/first-model/first-simulation.md
         tutorials/02-distributions-resources.md: learn/first-model/first-simulation.md
-        tutorials/03-connecting-kafka.md: how-to/examples/kafka.md
+        tutorials/03-connecting-kafka.md: gallery/simulation-models/kafka.md
         getting-started.md: installation.md
         des/how-it-works.md: learn/what-is-des.md
         user-guide/experiments/index.md: user-guide/results/experiments.md
         user-guide/experiments/experiment-results.md: user-guide/results/experiment-results.md
         user-guide/command-line/index.md: cli/index.md
         guides/index.md: how-to/index.md
-        projects.md: how-to/projects.md
+        projects.md: gallery/projects.md
         des/simpy-and-desflow/index.md: simpy/index.md
         des/coming-from-simpy.md: simpy/coming-from-simpy.md
         reference/simpy-compatibility.md: simpy/compatibility.md
@@ -196,7 +196,7 @@ plugins:
         guides/animate-a-run.md: how-to/analysis/animate-a-run.md
         guides/yaml-advanced.md: how-to/tools/yaml-advanced.md
         guides/set-up-your-editor.md: how-to/tools/set-up-your-editor.md
-        guides/use-an-ai-assistant.md: how-to/tools/use-an-ai-assistant.md
+        guides/use-an-ai-assistant.md: ai/build-a-model.md
         guides/performance-tuning.md: how-to/tools/performance-tuning.md
         reference/cli/run.md: cli/run.md
         reference/cli/explain.md: cli/explain.md
@@ -208,15 +208,26 @@ plugins:
         reference/cli/examples.md: cli/examples.md
         reference/cli/examples-list.md: cli/examples-list.md
         reference/cli/examples-get.md: cli/examples-get.md
-        examples/index.md: how-to/examples/index.md
-        examples/local.md: how-to/examples/local.md
-        examples/kafka.md: how-to/examples/kafka.md
-        examples/parquet.md: how-to/examples/parquet.md
-        examples/iceberg.md: how-to/examples/iceberg.md
-        examples/postgres.md: how-to/examples/postgres.md
-        examples/redis.md: how-to/examples/redis.md
-        examples/backfill-live.md: how-to/examples/backfill-live.md
-        examples/advanced-postgres-orders.md: how-to/examples/advanced-postgres-orders.md
+        examples/index.md: gallery/index.md
+        examples/local.md: gallery/simulation-models/local.md
+        examples/kafka.md: gallery/simulation-models/kafka.md
+        examples/parquet.md: gallery/simulation-models/parquet.md
+        examples/iceberg.md: gallery/simulation-models/iceberg.md
+        examples/postgres.md: gallery/simulation-models/postgres.md
+        examples/redis.md: gallery/simulation-models/redis.md
+        examples/backfill-live.md: gallery/simulation-models/backfill-live.md
+        examples/advanced-postgres-orders.md: gallery/simulation-models/advanced-postgres-orders.md
+        how-to/examples/index.md: gallery/index.md
+        how-to/examples/local.md: gallery/simulation-models/local.md
+        how-to/examples/kafka.md: gallery/simulation-models/kafka.md
+        how-to/examples/parquet.md: gallery/simulation-models/parquet.md
+        how-to/examples/iceberg.md: gallery/simulation-models/iceberg.md
+        how-to/examples/postgres.md: gallery/simulation-models/postgres.md
+        how-to/examples/redis.md: gallery/simulation-models/redis.md
+        how-to/examples/backfill-live.md: gallery/simulation-models/backfill-live.md
+        how-to/examples/advanced-postgres-orders.md: gallery/simulation-models/advanced-postgres-orders.md
+        how-to/projects.md: gallery/projects.md
+        how-to/tools/use-an-ai-assistant.md: ai/build-a-model.md
   # llms.txt and llms-full.txt for AI assistants (#41): an index of the pages with
   # their links, and the pages themselves as Markdown. hooks/llmstxt_sections.py
   # builds the sections from the nav.
@@ -329,11 +340,13 @@ nav:
           - Stores and Containers: user-guide/model-parts/stores-and-containers.md
       - Tasks and Processes:
           - user-guide/tasks-and-processes/index.md
+          - Tasks: user-guide/tasks-and-processes/tasks.md
           - Processes: user-guide/tasks-and-processes/processes.md
           - Signals and Waiting: user-guide/tasks-and-processes/signals-and-waiting.md
           - Failures: user-guide/tasks-and-processes/failures.md
       - Resources:
           - user-guide/resources/index.md
+          - Units and Queues: user-guide/resources/units-and-queues.md
           - Priority and Preemption: user-guide/resources/priority-and-preemption.md
           - Several Resources: user-guide/resources/several-resources.md
           - Custom Resource Types: user-guide/resources/custom-resource-types.md
@@ -367,6 +380,11 @@ nav:
       - desflow examples: cli/examples.md
       - desflow examples list: cli/examples-list.md
       - desflow examples get: cli/examples-get.md
+  - Agent Skill:
+      - ai/index.md
+      - Build a Model: ai/build-a-model.md
+      - Port from SimPy: ai/from-simpy.md
+      - Evaluation: ai/evaluation.md
   # Generated by scripts/gen_pages.py: an overview and one page for each `gen` kind,
   # in the groups of GROUPS in scripts/reference_pages/generators.py.
   - Generators:
@@ -463,22 +481,35 @@ nav:
       - Tools:
           - Call Python from YAML: how-to/tools/yaml-advanced.md
           - Set Up Your Editor: how-to/tools/set-up-your-editor.md
-          - Use an AI Assistant: how-to/tools/use-an-ai-assistant.md
           - Tune Performance: how-to/tools/performance-tuning.md
-      - Runnable Examples:
-          - how-to/examples/index.md
-          - Local Simulation: how-to/examples/local.md
-          - Kafka Digital Twin: how-to/examples/kafka.md
-          - Fast-Forward to Parquet: how-to/examples/parquet.md
-          - Fast-Forward to Iceberg: how-to/examples/iceberg.md
-          - PostgreSQL: how-to/examples/postgres.md
-          - Redis: how-to/examples/redis.md
-          - Parquet History, Kafka Live: how-to/examples/backfill-live.md
-          - Related Records: how-to/examples/advanced-postgres-orders.md
-      - Projects Using desflow: how-to/projects.md
+  - Gallery:
+      - Overview: gallery/index.md
+      - Data Generation:
+          - Data Sets: gallery/data-generation/data-sets.md
+          - Event Streams: gallery/data-generation/event-streams.md
+          - Processes with Queues: gallery/data-generation/processes-with-queues.md
+      - Simulation Models:
+          - Local Simulation: gallery/simulation-models/local.md
+          - Kafka Digital Twin: gallery/simulation-models/kafka.md
+          - Fast-Forward to Parquet: gallery/simulation-models/parquet.md
+          - Fast-Forward to Iceberg: gallery/simulation-models/iceberg.md
+          - PostgreSQL: gallery/simulation-models/postgres.md
+          - Redis: gallery/simulation-models/redis.md
+          - Parquet History, Kafka Live: gallery/simulation-models/backfill-live.md
+          - Related Records: gallery/simulation-models/advanced-postgres-orders.md
+      - Projects Using desflow: gallery/projects.md
   - SimPy and desflow:
       - simpy/index.md
       - Coming from SimPy: simpy/coming-from-simpy.md
+      - SimPy Examples:
+          - simpy/examples/index.md
+          - Bank Renege: simpy/examples/bank-renege.md
+          - Carwash: simpy/examples/carwash.md
+          - Machine Shop: simpy/examples/machine-shop.md
+          - Movie Renege: simpy/examples/movie-renege.md
+          - Gas Station Refueling: simpy/examples/gas-station-refuel.md
+          - Process Communication: simpy/examples/process-communication.md
+          - Event Latency: simpy/examples/latency.md
       - SimPy Compatibility: simpy/compatibility.md
   - Reference:
       - YAML Keys: reference/yaml-keys.md

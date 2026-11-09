@@ -26,6 +26,7 @@ simulation: {sim_id: Movie, factor: 0, random_seed: 42}
 egress:
   - {type: Console}
 
+# --8<-- [start:theater]
 variables:
   available: {Python Unchained: 50, Kill Process: 50, Pulp Implementation: 50}
   when_sold_out: {}
@@ -36,7 +37,9 @@ resources:
 
 signals:
   sold_out: {family: true, once: true}
+# --8<-- [end:theater]
 
+# --8<-- [start:moviegoers-arrive]
 arrivals:
   goers:
     dist: exponential
@@ -47,8 +50,10 @@ arrivals:
         gen: one_of
         choices: [Python Unchained, Kill Process, Pulp Implementation]
       tickets: {gen: integer, bounds: [1, 6]}
+# --8<-- [end:moviegoers-arrive]
 
 tasks:
+  # --8<-- [start:moviegoer-waits]
   moviegoer:
     balk: "registry['Movie.variables.available'][attr.movie] == 0"
     open:
@@ -75,6 +80,8 @@ tasks:
           gen: expr
           expr: "set_key(registry['Movie.variables.num_renegers'], attr.movie,
             get_key(registry['Movie.variables.num_renegers'], attr.movie, 0) + 1)"
+  # --8<-- [end:moviegoer-waits]
+  # --8<-- [start:counter-sells]
   serve:
     payload: {event_type: served}
     next:
@@ -102,6 +109,8 @@ tasks:
         - condition: "registry['Movie.variables.available'][attr.movie] < 2"
           task: sold
       default: finish
+  # --8<-- [end:counter-sells]
+  # --8<-- [start:film-sells-out]
   sold:
     payload:
       event_type: sold_out
@@ -122,5 +131,6 @@ tasks:
     service_time: 1
     payload: {event_type: done}
     release: {handle: slot}
+  # --8<-- [end:film-sells-out]
 
 run: {until: 120}

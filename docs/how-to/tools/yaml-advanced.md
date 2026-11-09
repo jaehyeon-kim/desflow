@@ -34,13 +34,7 @@ Everything else is a key. Look there first:
 
 ### How a Reference Is Resolved
 
-`!python module.attribute` imports `module` and returns its `attribute`: a function, a class, a dictionary or a constant. The longest prefix that is a module is imported, and the rest is read as attributes. The folder of the YAML file is added to the front of `sys.path`, so a module beside the blueprint is found from any working directory. `${VAR}` is replaced inside a reference too. Every reference is resolved when the file is loaded, so a wrong one fails before the run starts, with the file and line.
-
-![A !python value such as call_python_ranking.top_products imports the longest prefix that is a module and returns the rest, which the blueprint uses as a gen: call function or a class built from type; a missing module or attribute raises BlueprintError](../../assets/diagrams/python-reference.png)
-
-### Security
-
-**Loading a blueprint runs the imports it names.** Importing a module runs its top-level code. A blueprint is therefore as trusted as a Python script: load only files you would run as code, in a local or trusted CI workflow. Every other node is built by `yaml.SafeLoader`, and only `!python` and `!include` are added to it.
+[YAML Blueprints](../../user-guide/writing-a-model/blueprints.md#how-it-works) describes how `!python module.attribute` is resolved, and [its Security section](../../user-guide/writing-a-model/blueprints.md#security) says why a blueprint with a reference needs the trust of a Python script.
 
 ---
 

@@ -28,7 +28,7 @@ egress:
   # The finished orders only, one flat row each
   - type: Jsonl
     config: {default_path: packed/orders.jsonl}
-    when: !python streaming_out_logic.packed_only
+    when: {expr: "record.value.event_type == 'order_packed'"}
 # --8<-- [end:sinks]
 
 run: {until: 1 h}

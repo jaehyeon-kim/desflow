@@ -2,7 +2,8 @@
 # Run it with: desflow run live_changes_live.yaml
 # The run is paced at 200 simulated seconds a wall-clock second, so 5 minutes take 1.5
 # s.
-simulation: {sim_id: Shop, factor: 0.005, random_seed: 42}
+# strict: false keeps a slow machine from stopping the run if it falls behind
+simulation: {sim_id: Shop, factor: 0.005, strict: false, random_seed: 42}
 
 resources:
   packers: {current_cap: 1, max_cap: 1}

@@ -21,15 +21,22 @@ def build(size: int = 1) -> SimulationContext:
     """Builds the pipe, with `size` consumers."""
     app = SimulationContext(sim_id="Pipes", factor=0, random_seed=42)
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:pipe]
     app.add_store("pipe")
+    # --8<-- [end:pipe]
+    # --8<-- [start:generator-arrives]
     app.add_arrival(
         "generator",
         gap=generator({"gen": "integer", "bounds": [6, 10]}),
         spawn="speak",
     )
+    # --8<-- [end:generator-arrives]
+    # --8<-- [start:consumer-arrives]
     app.add_initial_arrival("consumer", size, spawn="listen")
+    # --8<-- [end:consumer-arrives]
 
     # The generator does not wait for its put, as SimPy's `out_pipe.put(msg)` does not
+    # --8<-- [start:generator-sends]
     @app.task(
         name="speak",
         put={
@@ -51,6 +58,9 @@ def build(size: int = 1) -> SimulationContext:
         """Puts a message into the pipe."""
         return {"event_type": "said"}
 
+    # --8<-- [end:generator-sends]
+
+    # --8<-- [start:consumer-gets]
     listen_payload = Template(
         {
             "event_type": "received",
@@ -73,6 +83,8 @@ def build(size: int = 1) -> SimulationContext:
     def busy(task_id):
         """Works on the message."""
         return {"event_type": "handled"}
+
+    # --8<-- [end:consumer-gets]
 
     return app
 

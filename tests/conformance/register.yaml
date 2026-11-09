@@ -48,7 +48,7 @@
     - tests/conformance/test_yaml_only.py::test_v1_a_negative_service_time_fails_the_run
     - tests/conformance/test_c1_timed_wait.py::test_a_constant_arrival_keeps_integer_times
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_single_branch_wait_goes_on_in_the_step_its_event_is_processed
-  page: user-guide/tasks-and-processes/index.md#a-timed-step
+  page: user-guide/tasks-and-processes/tasks.md#a-timed-step
 
 - id: C1
   inventory: [SP-V1]
@@ -312,7 +312,7 @@
     - tests/conformance/test_yaml_only.py::test_known_case_of_batch_8_runs_at_other_sizes
     - tests/conformance/test_yaml_only.py::test_known_case_of_batch_8_document_equals_the_docs_snippet
     - tests/conformance/test_yaml_only.py::test_every_known_case_of_batch_8_runs_in_a_document_that_a_case_runs
-  page: user-guide/resources/index.md#declare-a-resource
+  page: user-guide/resources/units-and-queues.md#declare-a-resource
 
 - id: C4
   inventory: [SP-Q1, SP-Q3]
@@ -348,7 +348,7 @@
     - tests/conformance/test_yaml_only.py::test_unit_states_cancel_of_a_queued_request_and_release_after_it
     - tests/conformance/test_yaml_only.py::test_unit_states_cancel_of_a_request_that_left_the_line_fails_the_run
     - tests/conformance/test_yaml_only.py::test_y4_cancel_of_a_get_and_of_a_put_and_a_get_granted_before_the_cancel
-  page: user-guide/resources/index.md#cancel-and-release
+  page: user-guide/resources/units-and-queues.md#cancel-and-release
 
 - id: C4
   inventory: [SP-S9]
@@ -361,7 +361,7 @@
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_cancel_after_a_grant
     - tests/conformance/test_yaml_only.py::test_h9_a_cancel_after_the_grant_keeps_the_unit_until_the_release
-  page: user-guide/resources/index.md#cancel-and-release
+  page: user-guide/resources/units-and-queues.md#cancel-and-release
 
 - id: C4
   inventory: [SP-S12]
@@ -395,7 +395,7 @@
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_default_capacity
     - tests/conformance/test_c4_resources.py::test_c4_resource_with_no_capacity_limit
-  page: user-guide/resources/index.md#declare-a-resource
+  page: user-guide/resources/units-and-queues.md#declare-a-resource
 
 - id: C4
   inventory: [SP-S4, SP-S5, SP-S6]
@@ -412,7 +412,7 @@
     - tests/conformance/test_yaml_only.py::test_st_r11_users_and_queue_read_by_look
     - tests/conformance/test_yaml_only.py::test_y7_running_waiting_held_peek_and_list_forms
     - tests/conformance/test_yaml_only.py::test_y5_list_mapping_and_function_forms
-  page: user-guide/resources/index.md#read-the-queue-and-users
+  page: user-guide/resources/units-and-queues.md#read-the-queue-and-users
   differences: "A `lifo` queue serves the newest request first, which SimPy has no counterpart of."
 
 - id: C4
@@ -425,7 +425,7 @@
   low_level: "`resource.release(request)` returns a `DynamicRelease` whose `request` is the request"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_release_event
-  page: user-guide/resources/index.md#cancel-and-release
+  page: user-guide/resources/units-and-queues.md#cancel-and-release
 
 - id: C4
   inventory: [SP-S11]
@@ -437,7 +437,7 @@
   low_level: "`request.usage_since`"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_usage_since
-  page: user-guide/resources/index.md#read-the-queue-and-users
+  page: user-guide/resources/units-and-queues.md#read-the-queue-and-users
 
 - id: C4
   inventory: [SP-Q2]

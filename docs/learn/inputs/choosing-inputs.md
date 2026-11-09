@@ -65,9 +65,8 @@ When times can be measured, use them. An **empirical** distribution draws from a
     # 40 packing times measured at the bench, in seconds
     empirical:
       dist: empirical
-      values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
-               2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
-               1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+      values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7, 2.7, 1.4, 1.9, 1.4, 1.3,
+               1.8, 2.0, 1.4, 1.4, 1.9, 1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
                2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
     ```
 
@@ -238,7 +237,7 @@ Which distribution fits packing times? **The empirical distribution**, because i
 
 ![On the left, the four packing distributions: exponential spread from 0 to over 6 seconds, empirical and triangular between 0.5 and 2.75 seconds, constant a line at 1.5; on the right, the mean waits: constant 1.27, triangular 1.28, empirical 1.35 and exponential 2.37 seconds](../../assets/charts/choosing-inputs.png)
 
-With the empirical distribution the mean wait is **1.35 seconds**, from [one run of the hour with the seed 42 and no warm-up](../first-model/first-simulation.md#busy-hour-figures), like each figure here. The constant mean gives 1.27 seconds, 6% shorter than with the measured times. The exponential guess gives 2.37 seconds, 75% longer. The expert's triangle is close to the constant, because its range is narrower than the measured one.
+With the empirical distribution the mean wait is **1.35 seconds**, from [one run of the hour with the seed 42 and no warm-up](../concepts/output-analysis.md#busy-hour-figures), like each figure here. The constant mean gives 1.27 seconds, 6% shorter than with the measured times. The exponential guess gives 2.37 seconds, 75% longer. The expert's triangle is close to the constant, because its range is narrower than the measured one.
 
 In the busy hour the mean wait grows with the spread of the gaps between orders and with the spread of the packing times. [Kingman's formula](../concepts/queueing-basics.md#variation-lengthens-waits) puts it in numbers: the wait is roughly proportional to the square of one spread plus the square of the other, each spread measured relative to its mean. The gaps are the same in all four runs, so only the packing spread differs: none for `constant`, a little for `triangular`, more for the measured times, and as much as the mean itself for `exponential`. Replacing a distribution by its mean, as `constant` does, is one of the [Common Mistakes](../concepts/common-mistakes.md#replacing-a-distribution-by-its-mean).
 
@@ -262,10 +261,7 @@ In the busy hour the mean wait grows with the spread of the gaps between orders 
         # The Choosing Inputs tutorial: the busy hour with four candidate packing times.
         # Run it once per candidate, and read the mean wait from the last lines:
         #   PACKING=empirical desflow run choosing_inputs.yaml 2>&1 | grep wait_mean
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           packers: {current_cap: 3, max_cap: 10}
@@ -282,9 +278,8 @@ In the busy hour the mean wait grows with the spread of the gaps between orders 
           # 40 packing times measured at the bench, in seconds
           empirical:
             dist: empirical
-            values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
-                     2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
-                     1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+            values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7, 2.7, 1.4, 1.9, 1.4, 1.3,
+                     1.8, 2.0, 1.4, 1.4, 1.9, 1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
                      2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
 
         tasks:
@@ -298,10 +293,9 @@ In the busy hour the mean wait grows with the spread of the gaps between orders 
         stats: {level: typical, interval: 1 h}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"

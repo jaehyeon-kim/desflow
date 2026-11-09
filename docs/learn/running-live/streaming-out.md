@@ -23,30 +23,23 @@ This page adds two **sinks**: `ConsoleEgress`, which prints every record to the 
 
 ## Choose What Each Sink Gets
 
-Every sink receives every event and every telemetry record, unless its `when` says otherwise. `when` is a function that takes one record and returns True to send it to that sink. This one passes the events whose value says `order_packed`:
+Every sink receives every event and every telemetry record, unless its `when` says otherwise. `when` is a test of one record that is true when the record goes to that sink. This one passes the events whose value says `order_packed`:
 
 === "YAML"
 
-    ```python title="docs/snippets/yaml/streaming_out_logic.py:packed"
-    def packed_only(record: dict) -> bool:
-        """Keeps the finished orders: events whose value says order_packed."""
-        return (
-            record["stream_type"] == "event"
-            and record["value"].get("event_type") == "order_packed"
-        )
-    ```
-
-    A blueprint names the function with `!python module.function`, and the module sits beside the blueprint:
+    A blueprint writes `when` as an expression over the record. It reads `record.stream_type` (`event` or `telemetry`), `record.key`, `record.task` and `record.value.<field>`. A name the record lacks reads as nothing, so the test is false for a telemetry record and for an event without that field:
 
     ```yaml title="docs/snippets/yaml/streaming_out.yaml:sinks"
     egress:
       # Every event and every telemetry record
-      - type: Console
+      - {type: Console}
       # The finished orders only, one flat row each
       - type: Jsonl
         config: {default_path: packed/orders.jsonl}
-        when: !python streaming_out_logic.packed_only
+        when: {expr: "record.value.event_type == 'order_packed'"}
     ```
+
+    `when: events` and `when: telemetry` pass every record of that stream. A function of your own is written as `when: !python module.function`, as [Call Python from YAML](../../how-to/tools/yaml-advanced.md) shows.
 
 === "Builder"
 
@@ -85,7 +78,7 @@ Every sink receives every event and every telemetry record, unless its `when` sa
 
     `predicates` takes one entry per sink, in the order of the list, and `None` passes every record. `packed_only` is the same function as in the Builder tab.
 
-The predicate sees the record as published, so an event's payload is still under `value`. It checks `stream_type` first, because a telemetry record's `value` is a single number. A record that no sink passes is written nowhere.
+The test sees the record as published, so an event's payload is still under `value`. A telemetry record's `value` is a single number, so a function checks `stream_type` first. A record that no sink passes is written nowhere.
 
 ---
 
@@ -94,15 +87,15 @@ The predicate sees the record as published, so an event's payload is still under
 Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow run streaming_out.yaml`, `python streaming_out.py` or `python streaming_out_low_level.py`. Every event carries three names. `key` names the entity, here the order, and the arrival names the orders `orders-1`, `orders-2`, and so on. `task` names the task, and `instance` names this run of it. The terminal shows the three events of `orders-12`, each with the same three names:
 
 ```text
-[EVT] {'sim_ts': 26.97, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
-[EVT] {'sim_ts': 28.202, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
-[EVT] {'sim_ts': 29.702, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'event_type': 'order_packed'}}
+[EVT] {'sim_ts': 26.96951531079364, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 28.20220884909981, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
+[EVT] {'sim_ts': 29.70220884909981, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'event_type': 'order_packed'}}
 ```
 
 The file sink receives only the last of the three, the `order_packed` event. Without a router it writes one flat row per event, with the payload's fields beside the record's own:
 
 ```text
-{"stream_type":"event","sim_ts":29.702,"timestamp":"...","key":"orders-12","task":"pack_order","instance":11,"event_type":"order_packed"}
+{"stream_type":"event","sim_ts":29.70220884909981,"timestamp":"...","key":"orders-12","task":"pack_order","instance":11,"event_type":"order_packed"}
 ```
 
 To find one order's records among the 4,329 of the hour, print the records as JSON lines with `--stdout` and keep the lines with its key. `--stdout` sends the records to the terminal in place of the sinks, so this run writes no files:
@@ -119,7 +112,7 @@ A reader that joins the files with another source uses `key`, and one that follo
 
 ## Read the Files
 
-The file sink writes one file per batch, named after `default_path` with 8 random hexadecimal digits, such as `packed/orders_1a2b3c4d.jsonl`. A file, once written, is never changed:
+The file sink writes one file per batch, named after `default_path` with 8 random hexadecimal digits, such as `packed/orders_1a2b3c4d.jsonl`. A file sink with neither a `default_path` nor a `path_router` writes only the records that carry a `__path__`, and each flush logs a warning that says how many records it skipped. A file, once written, is never changed:
 
 ```python title="docs/snippets/tutorials/streaming_out.py:read"
 def read_files(folder: Path) -> dict:
@@ -172,7 +165,7 @@ Which records reach the team's files? These figures come from one unpaced run of
 - The terminal receives every record: **4,299** events (**1,434** orders queued, **1,433** started and **1,432** packed) and **30** telemetry records, five statistics read every 10 minutes.
 - The file sink receives only the **1,432** packed orders, one row each, in **3** files of **500**, **500** and **432** rows. The two files of 500 were handed over while the model ran. The file of 432 was handed over at teardown, after the model stopped.
 
-The run returns only when teardown has finished, so the team's job should start only after the run has returned. One order's records share its `key`: `orders-12` was queued at **26.97** seconds, started at **28.202** and packed at **29.702**.
+The run returns only when teardown has finished, so the team's job should start only after the run has returned. One order's records share its `key`: `orders-12` was queued at **26.9695** seconds, started at **28.2022** and packed at **29.7022**, rounded to four places.
 
 Each tab gives the files' rows and the records of `orders-12`:
 
@@ -202,7 +195,7 @@ Each tab gives the files' rows and the records of `orders-12`:
 
     ```text
     3 files, with [432, 500, 500] rows
-    orders-12: {'stream_type': 'event', 'sim_ts': 29.702, 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'event_type': 'order_packed'}
+    orders-12: {'stream_type': 'event', 'sim_ts': 29.70220884909981, 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'event_type': 'order_packed'}
     ```
 
 === "Low-level"
@@ -213,7 +206,7 @@ Each tab gives the files' rows and the records of `orders-12`:
 
     ```text
     3 files, with [432, 500, 500] rows
-    orders-12: {'stream_type': 'event', 'sim_ts': 29.702, 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'event_type': 'order_packed'}
+    orders-12: {'stream_type': 'event', 'sim_ts': 29.70220884909981, 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'event_type': 'order_packed'}
     ```
 
 A record goes from `publish_event` to each sink's `when` test, then into that sink's buffer, then to a queue that a separate thread writes from. The model only fills buffers, so it can finish while the threads are still writing. Teardown is the step that waits for them. Writing records on background threads is one of the things desflow adds to SimPy, as [What desflow Changes](../../simpy/coming-from-simpy.md#what-desflow-changes) sets out. [Egress, Batching and Delivery](../../user-guide/live-runs-and-connectors/egress.md#how-it-works) shows each stage of that path. Finding one order's records by its key is also how a run is checked by hand, as [Read the Trace](../concepts/checking-and-validating.md#read-the-trace) shows.
@@ -236,10 +229,7 @@ A record goes from `publish_event` to each sink's `when` test, then into that si
         # The Streaming Out tutorial: the shop's records, to the terminal and to a file.
         # Run it with: desflow run streaming_out.yaml
         # Every record is printed; the finished orders are written to packed/.
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           packers: {current_cap: 1, max_cap: 1}
@@ -261,26 +251,13 @@ A record goes from `publish_event` to each sink's `when` test, then into that si
 
         egress:
           # Every event and every telemetry record
-          - type: Console
+          - {type: Console}
           # The finished orders only, one flat row each
           - type: Jsonl
             config: {default_path: packed/orders.jsonl}
-            when: !python streaming_out_logic.packed_only
+            when: {expr: "record.value.event_type == 'order_packed'"}
 
-        run:
-          until: 1 h
-        ```
-
-        ```python title="docs/snippets/yaml/streaming_out_logic.py"
-        """Python for the Streaming Out blueprint beside it: the file sink's predicate."""
-
-
-        def packed_only(record: dict) -> bool:
-            """Keeps the finished orders: events whose value says order_packed."""
-            return (
-                record["stream_type"] == "event"
-                and record["value"].get("event_type") == "order_packed"
-            )
+        run: {until: 1 h}
         ```
 
     === "Builder"
@@ -509,4 +486,4 @@ A record goes from `publish_event` to each sink's `when` test, then into that si
             print(f"orders-12: {row}")
         ```
 
-[Experiments](../../user-guide/results/experiments.md) describes every setting of an experiment, its files and its report, and the rest of the [User Guide](../../user-guide/writing-a-model/index.md) describes each part of desflow in full. The [Kafka Digital Twin](../../how-to/examples/kafka.md) example takes live changes from Kafka and sends its records to Kafka.
+[Experiments](../../user-guide/results/experiments.md) describes every setting of an experiment, its files and its report, and the rest of the [User Guide](../../user-guide/writing-a-model/index.md) describes each part of desflow in full. The [Kafka Digital Twin](../../gallery/simulation-models/kafka.md) example takes live changes from Kafka and sends its records to Kafka.

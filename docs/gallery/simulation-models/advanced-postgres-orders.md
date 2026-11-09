@@ -1,6 +1,6 @@
 # Related Records
 
-Related records are rows that belong together across tables. Here every customer order has 1 to 5 line items with random products, prices and quantities, and a total computed from them. The orders and their items are written to two PostgreSQL tables, `orders` and `order_items`. Each tab shows the example written one way. In YAML a mapping payload is a constant and cannot hold random values, so the order generator is a Python process in `postgres_orders_logic.py`, referenced with `!python`. [Call Python from YAML](../tools/yaml-advanced.md) explains how references work. The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
+Related records are rows that belong together across tables. Here every customer order has 1 to 5 line items with random products, prices and quantities, and a total computed from them. The orders and their items are written to two PostgreSQL tables, `orders` and `order_items`. Each tab shows the example written one way. In YAML a mapping payload is a constant and cannot hold random values, so the order generator is a Python process in `postgres_orders_logic.py`, referenced with `!python`. [Call Python from YAML](../../how-to/tools/yaml-advanced.md) explains how references work. The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
 
 Look for each order's line items in `order_items`, with the same `order_id` as the order's row in `orders`, and for a `total_amount` that is the sum of its items.
 
@@ -12,7 +12,7 @@ When the run starts, each `PostgresEgress` creates its table, `orders` or `order
 
 ## Before You Start
 
-The example needs Docker and the odctl profile `postgres`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](index.md#services-for-the-examples) shows how to install odctl.
+The example needs Docker and the odctl profile `postgres`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](../index.md#services-for-the-examples) shows how to install odctl.
 
 ---
 
@@ -205,10 +205,7 @@ This command leaves out the `__table__` key that picks each record's table, beca
         # Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
         # Run it from its folder with: desflow run postgres_orders.yaml
 
-        simulation:
-          sim_id: Shop
-          factor: 1.0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 1.0, random_seed: 42}
 
         ingress:
           - type: Postgres

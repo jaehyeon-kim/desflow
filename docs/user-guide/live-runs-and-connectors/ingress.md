@@ -35,9 +35,7 @@ Each connector is attached with `add_ingress` in the builder, passed to `env.set
     ```yaml title="docs/snippets/yaml_build/connectors.yaml:local-ingress"
     # 10 wall-clock seconds after the start, set the packers capacity to 3
     - type: Local
-      config:
-        schedule:
-          - [10.0, Shop.resources.packers.current_cap, 3]
+      config: {schedule: [[10.0, Shop.resources.packers.current_cap, 3]]}
     ```
 
 === "Builder"
@@ -57,16 +55,14 @@ Each connector is attached with `add_ingress` in the builder, passed to `env.set
 
 `FileIngress` watches a local YAML file of `path: value` lines and applies a line when you edit it. It needs no service and no extra, so it is the quickest way to change a parameter while a local run goes. It checks the file's modification time every `poll` wall-clock seconds, 1 by default, and reads the file only when the time has changed.
 
-An entry is applied when it first appears or when its value differs from the last valid read. The file as it stands when the run starts counts as a first read, so the entries in it apply at the start. A save that changes no value applies nothing. An entry you remove changes nothing, and the model keeps the value it has. A file that does not exist yet is waited for.
+An entry is applied when it first appears or when its value differs from the last valid read. The file as it stands when the run starts counts as a first read, so the entries in it apply at the start. A save that changes no value applies nothing, and an entry whose value is NaN is not applied again when you edit the file, because two NaN values count as the same. An entry you remove changes nothing, and the model keeps the value it has. A file that does not exist yet is waited for.
 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml_build/connectors.yaml:file-ingress"
     # Applies an entry of params.yaml when it first appears or its value changes
     - type: File
-      config:
-        path: params.yaml
-        poll: 1.0
+      config: {path: params.yaml, poll: 1.0}
     ```
 
 === "Builder"
@@ -93,6 +89,8 @@ A relative `path` is relative to the folder the run starts in.
 
 `KafkaIngress` consumes a topic and reads each message as a JSON object with `path` and `value`, or through a deserializer of your own, such as Avro, JSON Schema or Protobuf, as [Use Avro and Pydantic](../../how-to/records-and-kafka/avro-and-pydantic.md) and [JSON Schema and Protobuf](../../how-to/records-and-kafka/json-schema-and-protobuf.md) show. [Connect to Secure Kafka](../../how-to/records-and-kafka/kafka-security.md) connects it to a secured cluster.
 
+At the start of a run, `KafkaIngress` creates its topic when it is missing, as `KafkaEgress` does. A consumer that starts before any producer therefore does not wait for a topic that is not there. `topic_policy` sets this: `create` is the default, `drop_and_create` deletes the topic and creates it again, and `manual` creates nothing and keeps the behaviour before 1.0, when the ingress never created its topic. A `desflow run --stdout` run keeps its ingress, so it applies the ingress's `topic_policy` too: it creates the control topic, and with `drop_and_create` it deletes and recreates it. A `--sample` run leaves the ingress out.
+
 === "YAML"
 
     ```yaml title="docs/snippets/yaml_build/connectors.yaml:kafka-ingress"
@@ -114,7 +112,7 @@ A relative `path` is relative to the folder the run starts in.
 
     The low-level API passes the same `KafkaIngress` to `env.setup_ingress`, in its list of connectors, as [Low-level API](../writing-a-model/low-level-api.md#attach-the-connectors) shows.
 
-`KafkaAdminConnector.send_config(topic, path, value)` sends one such message. The [Kafka example](../../how-to/examples/kafka.md) listens on `sim-config`, and this sets its number of packers:
+`KafkaAdminConnector.send_config(topic, path, value)` sends one such message. The [Kafka example](../../gallery/simulation-models/kafka.md) listens on `sim-config`, and this sets its number of packers:
 
 === "YAML"
 
@@ -202,7 +200,7 @@ async def send_with_redis(rate: float) -> None:
     await client.aclose()
 ```
 
-With the [Redis example](../../how-to/examples/redis.md) running, `valkey-cli` sends one from a shell:
+With the [Redis example](../../gallery/simulation-models/redis.md) running, `valkey-cli` sends one from a shell:
 
 ```bash
 # Change the order arrival rate of the running simulation
@@ -213,7 +211,7 @@ docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation
 
 `PostgresIngress` polls a table, `simulation_params` by default, every `poll_interval` seconds, 2 by default. It creates the table when it is missing, with the columns `id`, `path`, `value`, `is_applied` and `created_at`. It applies the rows in two steps:
 
-1. At the start, it applies the latest applied value of each path, so a restarted run resumes from the last settings.
+1. At the start, it applies the latest applied value of each path, in the order the changes were made, so a restarted run resumes from the last settings. A `current_cap` that was made after a `max_cap` is applied after it, so the new maximum clamps it as it did the first time.
 2. At each poll, it applies every row whose `is_applied` is false and marks it true, so the table keeps the history of every change.
 
 `value` is read as JSON, and as plain text when it is not JSON.
@@ -264,7 +262,7 @@ async def send_with_postgres(rate: float) -> None:
         await conn.close()
 ```
 
-With the [PostgreSQL example](../../how-to/examples/postgres.md) running, `psql` adds one from a shell:
+With the [PostgreSQL example](../../gallery/simulation-models/postgres.md) running, `psql` adds one from a shell:
 
 ```bash
 # Change the order arrival rate of the running simulation
@@ -318,8 +316,7 @@ The `file` example has a shop with one packer and more orders than one packer ca
     ingress:
       # A relative path is relative to the folder the command runs in
       - type: File
-        config:
-          path: ../params.yaml
+        config: {path: ../params.yaml}
     ```
 
     **Quick Start**
