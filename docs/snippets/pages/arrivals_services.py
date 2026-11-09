@@ -9,8 +9,13 @@ from typing import Any, Dict, List
 
 import simpy
 
-from desflow import DistributionConfig, Sampler, SimParameter, SimulationContext
-from desflow.core.registry import SimulationRegistry
+from desflow import (
+    DistributionConfig,
+    Sampler,
+    SimParameter,
+    SimulationContext,
+    SimulationRegistry,
+)
 
 # --8<-- [start:builder-seed]
 # The same draws on every run; leave it out to draw a seed and log it

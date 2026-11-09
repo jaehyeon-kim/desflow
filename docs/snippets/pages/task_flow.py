@@ -6,12 +6,12 @@ low-level part routes an entity with a Router and checks a refused expression.
 
 from desflow import (
     Entity,
+    Expression,
     Router,
     Sampler,
     SimulationContext,
     Upstream,
 )
-from desflow.core.expressions import Expression
 
 app = (
     SimulationContext(sim_id="Shop", factor=0.0, random_seed=42)

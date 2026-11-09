@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 from simpy import Environment
+from simpy.resources.store import StoreGet
 
 from desflow.models.distributions import get_distribution
 from desflow.internal import InternalStore
@@ -329,7 +330,7 @@ class DynamicValue:
         """
         self._value = new_value
 
-    def wait_for_change(self):
+    def wait_for_change(self) -> StoreGet:
         """
         Returns a SimPy event that will be triggered when the value updates.
 

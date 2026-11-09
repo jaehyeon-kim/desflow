@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 
 from desflow import SimulationContext
-from desflow.blueprint.loader import BlueprintError
+from desflow.blueprint import BlueprintError
 
 os.chdir(Path(__file__).resolve().parent)  # the blueprint's folder
 

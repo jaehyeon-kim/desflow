@@ -45,14 +45,20 @@ from desflow.connectors.ingress.file import FileIngress
 from desflow.connectors.ingress.local import LocalIngress
 from desflow.core.context import SimulationContext
 from desflow.core.environment import DynamicRealtimeEnvironment
-from desflow.core.flow import Router, Transfer
-from desflow.core.registry import ParamChange, ParamRejected, SimulationRegistry
+from desflow.core.expressions import Expression, Scope
+from desflow.core.flow import LiveScope, Router, Transfer
+from desflow.core.registry import (
+    DynamicValue,
+    ParamChange,
+    ParamRejected,
+    SimulationRegistry,
+)
 from desflow.core.sampler import Sampler
 from desflow.core.signals import Signal, SignalFailed
 from desflow.core.task import NO_RECORD, TaskFailed
 from desflow.models.flow import Entity, Upstream
 from desflow.core.breakdowns import run_breakdowns
-from desflow.core.replay import read_trace
+from desflow.core.replay import Row, read_trace
 from desflow.core.scenario import run_scenario
 from desflow.models.params import (
     BreakdownConfig,
@@ -89,6 +95,11 @@ __all__ = [
     "TaskFailed",
     "NO_RECORD",
     "SimulationContext",
+    "Expression",
+    "Scope",
+    "LiveScope",
+    "DynamicValue",
+    "Row",
     "load_context",
     "ParamChange",
     "ParamRejected",

@@ -43,7 +43,8 @@ def check_fields(fields: Any) -> None:
 @dataclass
 class Row:
     """
-    One arrival of a trace.
+    One arrival of a trace, as `read_trace` gives it (the `row` generator is
+    `desflow.values.Row`).
 
     Attributes:
         time (float): Its simulation time.

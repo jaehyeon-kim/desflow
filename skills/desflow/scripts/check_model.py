@@ -341,24 +341,19 @@ def _check_one(argv: List[str]) -> int:
     settings the comparison needs, read with desflow's loader: the seed, whether
     the run has an end, and the start time as the file gives it after `${VAR}` and
     `!include` are read, since the validated value of `now` is a time."""
-    from desflow.blueprint.build import load_blueprint
-    from desflow.blueprint.loader import read_document
-    from desflow.cli.check import check_file
+    from desflow.blueprint import check_model
 
     file, report = Path(argv[0]), Path(argv[1])
-    checked = check_file(file)
+    checked = check_model(file)
     found: Dict[str, Any] = {
         "problem": checked.problem,
         "no_context": checked.no_context,
     }
-    if checked.context is not None and file.suffix != ".py":
-        run = load_blueprint(file).run
-        data = read_document(file)[0]
-        start = (data.get("simulation") or {}).get("logical_start_time")
+    if checked.context is not None and checked.run is not None:
         found["settings"] = {
             "seed": checked.context.random_seed,
-            "start": start if start is None or isinstance(start, str) else str(start),
-            "ends": _has_end(run),
+            "start": checked.start,
+            "ends": _has_end(checked.run),
         }
     report.write_text(json.dumps(found), encoding="utf-8")
     return 0
@@ -892,7 +887,7 @@ def _watch(seen: Dict[str, Any], seed: Optional[int]) -> None:
     A `SimulationContext` run starts through `start`, which builds its environment
     and its `Sampler`; what is made while it runs belongs to the context, not to
     the file."""
-    from desflow.blueprint.build import Preview, preview_builder
+    from desflow.blueprint import Preview, preview_builder
 
     seeds = _Seeds()
     seen["seeded"] = seeds.records

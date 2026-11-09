@@ -7,7 +7,7 @@ shop with a checker and rework.
 """
 
 from desflow import SimulationContext
-from desflow.explain.render import render_terminal
+from desflow.explain import render_terminal
 
 UNTIL = "1 h"  # the busy hour
 

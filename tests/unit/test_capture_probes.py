@@ -10,7 +10,8 @@ twice for 2 s. The second holds one place that must be refused, chosen by the mo
 position in the capture, so each place is tried in several models. Every second model
 gets the first load and every fourth the second (every sixteenth also an experiment),
 which keeps the file near a minute; `DESFLOW_PROBE_ALL=1` runs every model. A model
-that does not load as it is, or that ends in an error of its own, is skipped."""
+that does not load as it is, that ends in an error of its own, or that is strict (it stops
+at factor 0 as soon as the wall clock moves) is skipped."""
 
 import contextlib
 import copy
@@ -84,6 +85,10 @@ def _outcome(make: Callable[[], Any], change: Change, runs: int = 1) -> Dict[str
             app = make()
         except Exception as exc:
             return {"error": f"{type(exc).__name__}: {exc}"}
+        if app.strict:
+            # The capture runs at factor 0, where a strict model stops as soon as the
+            # wall clock moves, so its outcome depends on the clock's resolution
+            pytest.skip("a strict model at factor 0 stops when the wall clock moves")
         # The clock may start late, and a warm-up keeps back the records it covers
         until = app.initial_time + (app.warmup or 0) + SHORT
         for _ in range(runs):

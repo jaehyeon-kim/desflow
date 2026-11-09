@@ -11,7 +11,7 @@ import math
 import statistics
 
 from desflow import SimulationContext, replicate
-from desflow.analysis.intervals import interval, t_quantile
+from desflow.analysis import interval, t_quantile
 
 WAIT = "tasks.pack_order.wait_mean"
 

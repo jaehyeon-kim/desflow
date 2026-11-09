@@ -354,7 +354,7 @@ def api() -> str:
         lines.append(f"| `{name}` | {extra} | {_summary(getattr(desflow, name))} |")
     snapshot = (ROOT / "tests" / "unit" / "public_api.txt").read_text(encoding="utf-8")
     values = sorted(
-        set(re.findall(r"^desflow\.values\.(\w+) = ", snapshot, flags=re.M))
+        set(re.findall(r"^desflow\.values\.(\w+)(?:\(| = |:)", snapshot, flags=re.M))
     )
     lines += [
         "",
