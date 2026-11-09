@@ -10,6 +10,10 @@ The section's own heading is left out, because the release has its title. Links 
 docs pages are relative in the Changelog, so they become links to the latest docs. The
 notes end with a Full Changelog link comparing the release with the tag before it.
 
+A release candidate, such as `1.0.0rc1`, has no section of its own: its notes are the
+section of the release it leads to, `1.0.0`, and its link compares the last release
+before that with the candidate's tag.
+
 Usage: python scripts/release_notes.py <version>
 """
 
@@ -24,6 +28,7 @@ REPO_URL = "https://github.com/jaehyeon-kim/desflow"
 
 _HEADING = re.compile(r"^## Version (\S+)\s*$", re.MULTILINE)
 _TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+_CANDIDATE = re.compile(r"^(\d+\.\d+\.\d+)rc\d+$")
 _RELATIVE_LINK = re.compile(r"\]\((?!https?://|#|mailto:)([^)\s#]+)\.md(#[^)]*)?\)")
 
 
@@ -63,17 +68,30 @@ def section(version: str, text: str) -> str:
     raise ValueError(f"No '## Version {version}' section in {CHANGELOG}")
 
 
+def release(version: str) -> str:
+    """Return the release a version leads to: `1.0.0` for `1.0.0rc1`, else the version.
+
+    Args:
+        version (str): The version, such as `0.21.0` or `1.0.0rc1`.
+
+    Returns:
+        str: The version of the Changelog section that describes it.
+    """
+    match = _CANDIDATE.match(version)
+    return match.group(1) if match else version
+
+
 def previous_tag(version: str, tags: list[str]) -> str | None:
     """Return the highest `vX.Y.Z` tag below the version, or None for the first release.
 
     Args:
-        version (str): The version being released, such as `0.21.0`.
+        version (str): The version being released, such as `0.21.0` or `1.0.0rc1`.
         tags (list[str]): The repository's tags; others than `vX.Y.Z` are ignored.
 
     Returns:
         str | None: The previous release tag, such as `v0.20.0`.
     """
-    current = tuple(int(part) for part in version.split("."))
+    current = tuple(int(part) for part in release(version).split("."))
     older = []
     for tag in tags:
         match = _TAG.match(tag)
@@ -86,14 +104,14 @@ def notes(version: str, text: str, tags: list[str]) -> str:
     """Return the release notes: the Changelog section, then the Full Changelog link.
 
     Args:
-        version (str): The version, such as `0.21.0`.
+        version (str): The version, such as `0.21.0` or `1.0.0rc1`.
         text (str): The Changelog's Markdown.
         tags (list[str]): The repository's tags, to find the previous release.
 
     Returns:
         str: The text of the GitHub release.
     """
-    body = section(version, text)
+    body = section(release(version), text)
     previous = previous_tag(version, tags)
     if previous:
         body += f"\n**Full Changelog**: {REPO_URL}/compare/{previous}...v{version}\n"

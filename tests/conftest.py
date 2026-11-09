@@ -161,22 +161,21 @@ def mkdocs_nav():
     return yaml.load(text, Loader=_MkDocsLoader)["nav"]
 
 
+@pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(config, items):
     """
     Keeps one share of the tests when `TEST_SHARD` is set, for parallel CI jobs.
 
-    `TEST_SHARD=2/6` keeps the second of six shares. The tests are dealt in the
-    order of their ids, one to each share in turn, so every share collects the same
-    tests and each test runs in exactly one of them.
+    `TEST_SHARD=2/6` keeps the second of six shares, dealt by the times in
+    `tests/durations.json` (tests/sharding.py). It runs last, after `-m` has
+    deselected its tests, so the shares are even for the tests a job runs.
+    `python scripts/test_durations.py <folder of JUnit files>` records the times
+    again from a CI run.
     """
     import os
 
+    from tests.sharding import keep_share
+
     shard = os.environ.get("TEST_SHARD")
-    if not shard:
-        return
-    index, count = (int(part) for part in shard.split("/"))
-    order = {nodeid: n for n, nodeid in enumerate(sorted(i.nodeid for i in items))}
-    keep = [item for item in items if order[item.nodeid] % count == index - 1]
-    kept = {id(item) for item in keep}
-    config.hook.pytest_deselected(items=[i for i in items if id(i) not in kept])
-    items[:] = keep
+    if shard:
+        keep_share(config, items, shard, Path(__file__).parent / "durations.json")

@@ -29,6 +29,10 @@ from desflow.connectors.egress.base import BaseEgress
 from desflow.connectors.egress.kafka import KafkaEgress
 from desflow.core.sinks import Sink
 
+# It runs every model the regression capture runs, so CI runs it on one Python
+# version on each system (scripts/ci_plan.py).
+pytestmark = pytest.mark.every_model
+
 ROOT = Path(__file__).resolve().parents[2]
 
 

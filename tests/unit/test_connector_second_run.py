@@ -38,6 +38,10 @@ from desflow.connectors.ingress.postgres import PostgresIngress
 from desflow.core.environment import IngressMixIn
 from desflow.core.sinks import Sink
 
+# It runs every model the regression capture runs, so CI runs it on one Python
+# version on each system (scripts/ci_plan.py).
+pytestmark = pytest.mark.every_model
+
 ROOT = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location(
     "second_run_cases", ROOT / "tests" / "unit" / "test_second_run.py"

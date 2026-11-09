@@ -32,7 +32,8 @@ The [API Reference](../reference/api.md) shows each name at its path. A name imp
 - **Seeded output.** The records of a seeded run can change between 1.x releases, such as when a fix changes a draw or the order of events at one instant. Such a change is never made without a note, as the next section says.
 - **`desflow explain --json`.** Its shape can change in 1.x, and its `schema_version` changes with it.
 - **A form marked experimental.** A key or a command added in 1.x while it is marked experimental can change until a release removes the mark.
-- **The simulation server.** The server, its MCP tools and its `pattern` blueprint block ship after 1.0 behind the `server` extra and start as experimental. Its REST API under `/api/v1` only adds once it is released.
+- **A Python version.** A 1.x minor release may drop one, as [Supported Versions and Platforms](#supported-versions-and-platforms) says.
+- **Simulation server.** The server, its MCP tools and its `pattern` blueprint block ship after 1.0 behind the `server` extra and start as experimental. Its REST API under `/api/v1` only adds once it is released.
 
 ## No Silent Change to Results
 
@@ -48,7 +49,7 @@ A break is made only in a major version. It needs a stated reason and an Upgradi
 
 ## Supported Versions and Platforms
 
-Fixes, including security fixes, ship in 1.x releases, and a release before 1.0 gets none. [SECURITY.md](https://github.com/jaehyeon-kim/desflow/blob/main/SECURITY.md) says how to report a vulnerability. 1.0 supports Python 3.11 to 3.15, the versions the CI pipeline tests.
+Fixes, including security fixes, ship in 1.x releases, and a release before 1.0 gets none. [SECURITY.md](https://github.com/jaehyeon-kim/desflow/blob/main/SECURITY.md) says how to report a vulnerability. 1.0 supports Python 3.11 to 3.15, the versions the CI pipeline tests. A 1.x minor release may drop a Python version that has reached its end of life, or that a dependency no longer supports. That is not a break: the release raises `requires-python`, so pip installs the last release that supports the older Python.
 
 | Platform | What is supported |
 |---|---|

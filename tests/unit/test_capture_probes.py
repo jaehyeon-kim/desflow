@@ -30,6 +30,10 @@ import test_capture_places as places
 from test_capture_places import CASES, build_module, regression, second_run
 from desflow.core import arrivals as arrivals_module
 
+# It runs every model the regression capture runs, so CI runs it on one Python
+# version on each system (scripts/ci_plan.py).
+pytestmark = pytest.mark.every_model
+
 ROOT = places.ROOT
 SHORT = 2  # a probe starts within its first second
 SUM = "+".join(["1"] * 1000)

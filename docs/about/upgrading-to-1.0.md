@@ -89,7 +89,7 @@ These changes make a task go on in the same step as the SimPy process it stands 
 - **`compile_parameters()`** gives the config objects as the model declares them, so a capacity or a stream name left out is `None`. Read the starting values a run registers from `registry_paths()`.
 - **A task function that replaces `context.sampler`, `context.values` or `context.sim_id`** during a run no longer changes the arrivals, breakdowns and family members of that run. Set them before `start()`.
 - **After a `start()` that fails before it makes the run's holders,** `get_resource`, `get_store` and `get_container` raise `KeyError`, where they gave the previous run's object.
-- **The `egress_*` lists of `DynamicRealtimeEnvironment`** are read-only: assigning one raises `AttributeError`, and changing a list it returns does not reach the egress. Pass the sinks to `setup_egress`.
+- **`egress_*` lists of `DynamicRealtimeEnvironment`** are read-only: assigning one raises `AttributeError`, and changing a list it returns does not reach the egress. Pass the sinks to `setup_egress`.
 - **`fields` of `add_arrival_replay` and `read_trace`** takes `"all"` or a list of columns, as a blueprint's `replay.fields` does. Write `fields=["id"]` for one column. See [Replay](../user-guide/model-parts/arrivals-and-services.md#replay).
 - **A Builder `on=` entry,** in `task(on=)`, `task(listen=)` and `add_signal(on=)`, refuses a key other than the actions, `value` and `when`, where 0.28.0 ignored it. Remove the key, or move it into the action's own mapping.
 - **An index on a number,** such as `users.machine[0]`, is refused when the Builder context starts (`run()` or `start()`), not at `task()`. A Low-level `Expression("users.machine[0]")` now parses.

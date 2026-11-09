@@ -43,6 +43,10 @@ from desflow.core import sampler as sampler_module
 from desflow.core.statistics import LEFT_OUT_AT_ZERO, published_value
 from desflow.values import runtime as runtime_module
 
+# It runs every model the regression capture runs, so CI runs it on one Python
+# version on each system (scripts/ci_plan.py).
+pytestmark = pytest.mark.every_model
+
 # The module, not the function `desflow.blueprint.build` the package gives
 build_module = importlib.import_module("desflow.blueprint.build")
 ROOT = Path(__file__).resolve().parents[2]

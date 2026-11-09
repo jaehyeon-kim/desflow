@@ -48,7 +48,9 @@ The integration tests and the examples that need a service get it from [odctl](h
 ## Tests
 
 ```bash
-uv run --all-extras pytest tests/unit tests/conformance tests/benchtop tests/known_cases -m "not paced" -q -n auto  # unit, SimPy conformance and known case tests, as CI runs them
+uv run --all-extras pytest tests/unit tests/conformance tests/benchtop tests/known_cases -m "not paced" -q -n auto  # unit, SimPy conformance and known case tests; CI splits them into the legs of scripts/ci_plan.py
+TEST_SHARD=2/7 uv run --all-extras pytest tests/unit tests/conformance tests/benchtop tests/known_cases -m "not paced" -q -n auto  # one share of them, as a CI job runs it, dealt by the times in tests/durations.json
+gh run download <run id> -p 'junit-Linux-*' -D /tmp/junit && python scripts/test_durations.py /tmp/junit  # record those times again from a run on main, when tests are added or become much slower
 uv run --all-extras pytest tests/known_cases -m paced -q  # the known cases that run against the wall clock, without -n auto, because other tests slow them down
 uv run --all-extras pytest tests/docs -q -n auto  # docs, snippet, example and script tests, run in the docs-build CI job in 8 groups
 DOCS_STORE_DURATIONS=1 uv run --all-extras pytest tests/docs -q -n auto  # record the test times that balance the groups, in tests/docs/durations.json
@@ -88,7 +90,7 @@ Run the unit suite in full once before each commit. While fixing, run only the f
 
 1. Write the class in `src/desflow/connectors/egress/` or `ingress/`, on `BaseEgress` or `BaseIngress`, with one `async run(queue)`.
 2. Add its short name to `EGRESS_TYPES` or `INGRESS_TYPES` in `src/desflow/blueprint/build.py`, with its module, its class and the extra that installs what it imports.
-3. Put its dependencies in an extra in `pyproject.toml`, add the extra to `all`, and add a leg for it to the `extras-isolation` job in `.github/workflows/pipeline.yml`. Export the class from `src/desflow/__init__.py` inside a `try` block, as the other optional connectors are, then run `scripts/public_api.py`.
+3. Put its dependencies in an extra in `pyproject.toml`, add the extra to `all`, and add `scripts/install_checks/<extra>.py`, which imports and constructs the connector with that extra alone; the `install-checks` CI job runs it, and `tests/unit/test_ci_plan.py` fails until it exists. Export the class from `src/desflow/__init__.py` inside a `try` block, as the other optional connectors are, then run `scripts/public_api.py`.
 4. Add an integration test in `tests/integration/` with a module-level `pytestmark = [pytest.mark.integration, pytest.mark.<group>]` (a module whose tests need different groups marks `integration` on the module and one group on each test), against an odctl profile (`services` for `kafka-lite`, `postgres` and `valkey`; `storage` for `storage` and `catalog`, and for a test that also uses PostgreSQL beside them, such as the SQL catalog test, because the `catalog` profile starts PostgreSQL itself) or an emulator fixture (`floci`, `azure`, `gcp`). CI runs one job per group, so keep the two odctl groups at about the same run time.
 5. Document it: a section on the Ingress or Egress page with a labelled `type: <Name>` YAML block, a row in that page's `type` table, the extra on Installation (`docs/installation.md`) and in the README's extras table, and a README line naming the connector. Then run `scripts/gen_skill.py`.
 

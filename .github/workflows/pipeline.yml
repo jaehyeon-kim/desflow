@@ -2,7 +2,7 @@ name: Pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [main, release-1.0.0]
   pull_request:
     branches: [main]
 
@@ -12,25 +12,51 @@ permissions:
   contents: read
 
 # A new push to a pull request supersedes the run already going for it, so the older
-# run is cancelled rather than finishing work nobody reads. Pushes to main always
-# complete, because cancel-in-progress is limited to pull requests.
+# run is cancelled rather than finishing work nobody reads. Pushes always complete,
+# because cancel-in-progress is limited to pull requests.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Stages, each starting only when the one before it passes:
-  # 1. checks, in parallel: lint, extras-isolation and core-install;
-  # 2. tests, in parallel: unit-test, integration-test (five jobs, one per group),
-  #    service-examples (one job per example with a profile), parquet-s3-example, blueprint, simpy-range,
-  #    pydantic-floor, docs-build, docs-strict-build and regression;
-  # 3. docs, on main only, once every test job has passed.
-  # The unit, conformance and docs tests run in parallel worker processes
-  # (pytest-xdist, -n auto, one worker per CPU).
-  # Linting is not version specific, so it runs once rather than in all five
-  # unit-test legs, where a single hook failure used to fail the matrix five times.
+  # Two runs (issue #90). A push to main, or to release-1.0.0 until the 1.0.0 merge,
+  # runs the full set and then deploys the docs from main. A pull request runs a short
+  # set: it skips the code jobs when it changes only docs, and runs the integration
+  # and service example jobs only when it changes what they cover. The plan job reads
+  # the event and the changed files, and scripts/ci_plan.py decides. Every other job
+  # starts as soon as the plan is read, and checks-passed collects their results.
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.plan.outputs.full }}
+      code: ${{ steps.plan.outputs.code }}
+      services: ${{ steps.plan.outputs.services }}
+      unit: ${{ steps.plan.outputs.unit }}
+      paced: ${{ steps.plan.outputs.paced }}
+      simpy: ${{ steps.plan.outputs.simpy }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Read the changed files and plan the jobs
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            git diff --name-only "$BASE...HEAD" > changed.txt
+          else
+            : > changed.txt
+          fi
+          python3 scripts/ci_plan.py "$EVENT" < changed.txt | tee -a "$GITHUB_OUTPUT"
+
+  # Linting is not version specific, so it runs once.
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -49,213 +75,82 @@ jobs:
       - name: Check the import contracts
         run: uv run --all-extras lint-imports
 
-  # Each leg installs exactly one extra into an empty environment, then imports and
-  # constructs the connectors that extra exists to enable. Running the suite with
-  # --all-extras hides a missing transitive dependency in one extra, because another
-  # extra supplies it. None of these constructors open a socket, so no broker,
-  # registry or database is needed.
-  extras-isolation:
-    name: Import ${{ matrix.extra }} extra alone
+  # The core install, then each extra alone, each in an empty environment, imports
+  # and constructs what it exists to enable (scripts/install_checks/<name>.py).
+  # Running the suite with --all-extras hides a missing transitive dependency in one
+  # extra, because another extra supplies it. None of the checks opens a socket. The
+  # core install also starts the desflow command and runs a YAML blueprint, as a new
+  # user's first command does. One job loops over them, because each takes seconds
+  # and most of a job's time is its setup.
+  install-checks:
+    needs: plan
+    if: needs.plan.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install and check the core and each extra alone
+        run: |
+          set -euo pipefail
+          extras=$(python3 -c "import tomllib; print(' '.join(tomllib.load(open('pyproject.toml', 'rb'))['project']['optional-dependencies']))")
+          for name in core $extras; do
+            echo "::group::$name"
+            spec="."
+            [ "$name" = core ] || spec=".[$name]"
+            uv venv --python 3.12 "$RUNNER_TEMP/$name"
+            uv pip install --python "$RUNNER_TEMP/$name" "$spec"
+            "$RUNNER_TEMP/$name/bin/python" "scripts/install_checks/$name.py"
+            echo "::endgroup::"
+          done
+
+      - name: Start the desflow command and run a YAML blueprint with the core install
+        run: |
+          "$RUNNER_TEMP/core/bin/desflow" --help
+          "$RUNNER_TEMP/core/bin/desflow" schema > /dev/null
+          "$RUNNER_TEMP/core/bin/desflow" run examples/yaml/local.yaml --until 2
+
+  # --all-extras installs pandas, which brings tzdata, so the test jobs cannot show
+  # whether the core install has a time zone database on Windows.
+  windows-core-install:
+    name: Resolve a time zone with the core install on Windows
+    needs: plan
+    if: needs.plan.outputs.full == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install the core package in a new environment
+        run: |
+          uv venv --python 3.12 core-venv
+          uv pip install --python core-venv .
+
+      - name: Resolve a time zone
+        run: uv run --no-project --python core-venv python -c "from desflow.core.environment import resolve_zone; print(resolve_zone('Australia/Sydney'))"
+
+  # The unit, conformance, benchtop and known case tests, in the legs and shares that
+  # scripts/ci_plan.py lists. A share (TEST_SHARD) is dealt by the time of each test in
+  # tests/durations.json, so the shares of a leg take about the same time. Each job
+  # writes a JUnit file, from which scripts/test_durations.py records the times again.
+  # The tests run in parallel worker processes (pytest-xdist, one per CPU).
+  unit-test:
+    name: Tests (${{ matrix.name }})
+    needs: plan
+    if: needs.plan.outputs.code == 'true'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - extra: kafka
-            check: |
-              from desflow import KafkaAdminConnector, KafkaEgress, KafkaIngress
-
-              KafkaEgress(bootstrap_servers="localhost:9092")
-              KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092")
-              KafkaAdminConnector(bootstrap_servers="localhost:9092")
-          - extra: confluent
-            check: |
-              import importlib.util
-              import json
-
-              from desflow.connectors.egress.kafka import ConfluentAvroSerializer
-              from desflow.connectors.ingress.kafka import ConfluentAvroDeserializer
-
-              schema = json.dumps(
-                  {
-                      "type": "record",
-                      "name": "Ping",
-                      "fields": [{"name": "value", "type": "double"}],
-                  }
-              )
-              ConfluentAvroSerializer(registry_url="http://localhost:8081", schema_str=schema)
-              ConfluentAvroDeserializer(registry_url="http://localhost:8081")
-
-              # The JSON Schema and Protobuf classes need jsonschema and protobuf
-              from desflow.connectors.egress.kafka import ConfluentJsonSchemaSerializer
-              from desflow.connectors.ingress.kafka import ConfluentProtobufDeserializer
-              from google.protobuf import struct_pb2
-
-              ConfluentJsonSchemaSerializer(
-                  registry_url="http://localhost:8081", schema_str='{"type": "object"}'
-              )
-              ConfluentProtobufDeserializer("http://localhost:8081", struct_pb2.Struct)
-
-              # desflow writes the wire format itself, so the extra brings no confluent-kafka
-              assert importlib.util.find_spec("confluent_kafka") is None
-          - extra: glue
-            check: |
-              import json
-
-              from desflow.connectors.egress.kafka import GlueAvroSerializer
-              from desflow.connectors.ingress.kafka import GlueAvroDeserializer
-
-              schema = json.dumps(
-                  {
-                      "type": "record",
-                      "name": "Ping",
-                      "fields": [{"name": "value", "type": "double"}],
-                  }
-              )
-              GlueAvroSerializer(registry_name="sim-registry", schema_str=schema)
-              GlueAvroDeserializer(registry_name="sim-registry")
-
-              # The JSON Schema and Protobuf classes need fastjsonschema and protobuf
-              from desflow.connectors.egress.kafka import GlueJsonSchemaSerializer
-              from desflow.connectors.ingress.kafka import GlueProtobufDeserializer
-              from google.protobuf import struct_pb2
-
-              GlueJsonSchemaSerializer("sim-registry", '{"type": "object"}')
-              GlueProtobufDeserializer("sim-registry", struct_pb2.Struct)
-
-              # desflow speaks to Glue itself, so the extra brings no Glue client library
-              import importlib.util
-
-              assert importlib.util.find_spec("aws_schema_registry") is None
-          - extra: redis
-            check: |
-              from desflow import RedisEgress, RedisIngress
-
-              RedisEgress(url="redis://localhost:6379/0")
-              RedisIngress(url="redis://localhost:6379/0")
-          - extra: postgres
-            check: |
-              from desflow import PostgresEgress, PostgresIngress
-
-              PostgresEgress(connection_dsn="postgresql://user:pass@localhost:5432/sim")
-              PostgresIngress(connection_dsn="postgresql://user:pass@localhost:5432/sim")
-          - extra: parquet
-            check: |
-              from desflow import JsonlStorageEgress, ParquetStorageEgress
-
-              JsonlStorageEgress(default_path="data/events.jsonl")
-              ParquetStorageEgress(default_path="data/events.parquet")
-
-              # Both writers import pyarrow lazily inside their run loops, so
-              # constructing them does not prove pyarrow is installed.
-              import pyarrow.parquet
-              from pyarrow import fs
-          - extra: iceberg
-            check: |
-              from desflow import IcebergStorageEgress
-
-              IcebergStorageEgress(catalog=object(), default_table="sim.events")
-
-              # The connector takes the catalog from the caller and imports pyarrow
-              # lazily, so constructing it proves neither is installed. The extra has
-              # to carry the Arrow FileIO and every catalog the docs list: REST, SQL
-              # on SQLite or PostgreSQL, and Glue.
-              from pyiceberg.catalog import load_catalog
-              from pyiceberg.catalog.rest import RestCatalog
-              from pyiceberg.io.pyarrow import PyArrowFileIO
-              import psycopg2
-              load_catalog("local", type="sql", uri="sqlite:///:memory:", warehouse="file:///tmp/warehouse")
-              load_catalog("aws", type="glue", **{"glue.region": "us-east-1"})
-          - extra: fit
-            check: |
-              import numpy as np
-
-              from desflow import fit_column
-
-              # fit_column and plot import scipy and matplotlib only when they run
-              values = np.random.default_rng(1).gamma(4.0, 0.4, 50)
-              result = fit_column(values, lower=0)
-              assert result.best is not None, result.text()
-              result.plot("fit.png")
-          - extra: watch
-            check: |
-              from pathlib import Path
-
-              from watchfiles import DefaultFilter, watch  # noqa: F401
-
-              from desflow.cli.run import _BlueprintFilter
-
-              accept = _BlueprintFilter(Path("shop.yaml"))
-              assert accept(1, str(Path("shop.yaml").resolve()))
-              assert not accept(1, str(Path("other.yaml").resolve()))
-          - extra: fake
-            check: |
-              from faker import Faker
-
-              from desflow.values import Template
-
-              # gen: fake imports Faker when it is first used
-              Template({"name": {"gen": "fake", "method": "name"}}, name="t")
-              assert Faker("en_US").name()
-          - extra: all
-            check: |
-              # all names every other extra, fit and fake included
-              import importlib.util
-
-              for module in (
-                  "aiokafka", "fastavro", "fastjsonschema", "httpx", "boto3", "redis",
-                  "asyncpg", "pyarrow", "pyiceberg", "scipy", "matplotlib",
-                  "jsonschema", "google.protobuf", "faker",
-              ):
-                  assert importlib.util.find_spec(module), module
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-
-      - name: Install only the ${{ matrix.extra }} extra
-        run: |
-          uv venv --python 3.12
-          uv pip install ".[${{ matrix.extra }}]"
-
-      - name: Import and construct the ${{ matrix.extra }} connectors
-        env:
-          CHECK: ${{ matrix.check }}
-        run: .venv/bin/python -c "$CHECK"
-
-  # The core install alone must import and start the desflow command, which proves the
-  # entry point, Typer and PyYAML need no extra.
-  core-install:
-    name: Import the core install alone
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-
-      - name: Install the package with no extra
-        run: |
-          uv venv --python 3.12
-          uv pip install .
-
-      - name: Import desflow and start the desflow command
-        run: |
-          .venv/bin/python -c "import desflow"
-          .venv/bin/desflow --help
-          .venv/bin/desflow schema > /dev/null
-
-  unit-test:
-    needs: [lint, extras-isolation, core-install]
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+      matrix: ${{ fromJSON(needs.plan.outputs.unit) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
@@ -265,32 +160,61 @@ jobs:
           enable-cache: true
 
       # Pre-downloads the interpreter. `uv run --python` below is what selects it.
-      - name: Fetch Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
+      - name: Fetch Python ${{ matrix.python }}
+        run: uv python install ${{ matrix.python }}
 
-      - name: Run Unit and Conformance Tests
-        # --python is what selects the interpreter. `uv python install` above only
-        # downloads it, so without this every leg of the matrix would run the
-        # version in .python-version and the other four would test nothing new.
-        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ tests/conformance/ tests/benchtop/ tests/known_cases/ -m "not paced" -n auto --cov=src/desflow --cov-report=xml
+      - name: Run the tests
+        env:
+          TEST_SHARD: ${{ matrix.shard }}
+        run: uv run --python ${{ matrix.python }} --all-extras pytest ${{ matrix.paths }} -m "${{ matrix.marks }}" -q -n auto --tb=short --junitxml=junit.xml
 
-      # The known cases that run against the wall clock, apart from the parallel run
-      # above, so the CPU time of other tests cannot make a strict case late.
-      - name: Run Paced Known Cases
-        run: uv run --python ${{ matrix.python-version }} --all-extras pytest tests/known_cases/ -m paced -q
+      - name: Upload the test times
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-${{ runner.os }}-${{ matrix.python }}-${{ strategy.job-index }}
+          path: junit.xml
+
+  # The known cases that run against the wall clock, in a job of their own, so the
+  # CPU time of other tests cannot make a strict case late.
+  paced:
+    name: Paced known cases (${{ matrix.os }}, ${{ matrix.python }})
+    needs: plan
+    if: needs.plan.outputs.code == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.paced) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Fetch Python ${{ matrix.python }}
+        run: uv python install ${{ matrix.python }}
+
+      - name: Run the paced known cases
+        run: uv run --python ${{ matrix.python }} --all-extras pytest tests/known_cases -m paced -q --tb=short
 
   # SimPy is what desflow is checked against, so the conformance tests run at both
-  # ends of the `simpy` requirement: the floor in pyproject.toml and the newest
-  # release, which may be newer than uv.lock until Dependabot updates it. Only
-  # SimPy moves; every other package stays at its locked version.
+  # ends of the `simpy` requirement: the floor in pyproject.toml, on every run, and
+  # the newest release, which may be newer than uv.lock until Dependabot updates it,
+  # on the full run. The test jobs run them at the locked version. Only SimPy moves;
+  # every other package stays at its locked version.
   simpy-range:
     name: Conformance at the ${{ matrix.bound }} SimPy
-    needs: [lint, extras-isolation, core-install]
+    needs: plan
+    if: needs.plan.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        bound: [lowest, newest]
+        bound: ${{ fromJSON(needs.plan.outputs.simpy) }}
     steps:
       - uses: actions/checkout@v7
 
@@ -320,11 +244,18 @@ jobs:
   # Python 3.12 and earlier only, so the job runs the lowest Python desflow supports.
   # The two schema tests compare a committed file with one that the installed
   # Pydantic writes, which another release may write differently. The public API
-  # snapshot does the same for the signatures and fields of the Pydantic models.
+  # snapshot does the same for the signatures and fields of the Pydantic models. It
+  # runs on the full run, in two shares, without the tests marked every_model.
   pydantic-floor:
-    name: Unit and conformance at the lowest Pydantic
-    needs: [lint, extras-isolation, core-install]
+    name: Unit and conformance at the lowest Pydantic (${{ matrix.shard }}/2)
+    needs: plan
+    if: needs.plan.outputs.full == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v7
 
@@ -339,9 +270,11 @@ jobs:
           echo "PYDANTIC=pydantic==$floor" >> "$GITHUB_ENV"
 
       - name: Run the unit and conformance tests
+        env:
+          TEST_SHARD: ${{ matrix.shard }}/2
         run: |
           uv run --python 3.11 --all-extras --with "$PYDANTIC" python -c "import pydantic; print('Pydantic', pydantic.VERSION)"
-          uv run --python 3.11 --all-extras --with "$PYDANTIC" python -m pytest tests/unit tests/conformance -q -n auto --deselect tests/unit/test_schema.py::test_committed_schema_is_current --deselect tests/unit/test_explain.py::test_json_validates_and_the_committed_schema_is_current --deselect tests/unit/test_public_api.py::test_public_api_matches_the_snapshot
+          uv run --python 3.11 --all-extras --with "$PYDANTIC" python -m pytest tests/unit tests/conformance -m "not every_model" -q -n auto --deselect tests/unit/test_schema.py::test_committed_schema_is_current --deselect tests/unit/test_explain.py::test_json_validates_and_the_committed_schema_is_current --deselect tests/unit/test_public_api.py::test_public_api_matches_the_snapshot
 
   # One job per test group, named by its pytest mark: services (the odctl
   # kafka-lite, postgres and valkey profiles), storage (the odctl storage and
@@ -350,9 +283,12 @@ jobs:
   # (fake-gcs-server). The odctl tests are split in two so that neither job holds
   # up the stage. The emulators are containers that the tests start with
   # `docker run`.
+  # They run on the full run, and on a pull request that changes what they cover.
   integration-test:
-    needs: [lint, extras-isolation, core-install]
+    needs: plan
+    if: needs.plan.outputs.services == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -385,19 +321,15 @@ jobs:
         # skipped test.
         run: uv run --python 3.11 --all-extras pytest tests/integration/ -m ${{ matrix.group }} -ra
 
-      # - name: Upload coverage reports to Codecov
-      #   uses: codecov/codecov-action@v4
-      #   with:
-      #     token: ${{ secrets.CODECOV_TOKEN }}
-      #     file: ./coverage.xml
-
   # One job per example with an odctl profile (`EXAMPLES` in src/desflow/examples.py;
   # tests/unit/test_service_examples_matrix.py fails when this list differs from it).
   # Each job starts the example's profile, runs the example's three versions against
   # it for a set simulation time, and reads their records back from the service.
   service-examples:
-    needs: [lint, extras-isolation, core-install]
+    needs: plan
+    if: needs.plan.outputs.services == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -441,8 +373,10 @@ jobs:
   # variables, so service-examples does not cover its S3 read-back command.
   parquet-s3-example:
     name: Run the Parquet example against the storage profile
-    needs: [lint, extras-isolation, core-install]
+    needs: plan
+    if: needs.plan.outputs.services == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -464,28 +398,6 @@ jobs:
         if: always()
         run: uv run --python 3.11 --all-extras odctl down storage --volumes
 
-  # A plain YAML blueprint runs with the core install alone, as a new user's first
-  # command does.
-  blueprint:
-    name: Run a YAML blueprint with the core install alone
-    needs: [lint, extras-isolation, core-install]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-
-      - name: Install the package with no extra
-        run: |
-          uv venv --python 3.12
-          uv pip install .
-
-      - name: Run the local blueprint for two simulation seconds
-        run: .venv/bin/desflow run examples/yaml/local.yaml --until 2
-
   # The docs tests check that every page's code matches its file, that the snippets
   # and examples run, and that the generated pages and record blocks are current.
   # They run in 8 groups at once, which tests/docs/conftest.py balances by the times
@@ -496,8 +408,9 @@ jobs:
   # passed them. Material prints a notice about MkDocs 2.0 that strict mode counts as
   # a warning; the variable turns that notice off.
   docs-build:
-    needs: [lint, extras-isolation, core-install]
+    needs: plan
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -516,8 +429,9 @@ jobs:
         run: uv run --all-extras pytest tests/docs/ -q -n auto
 
   docs-strict-build:
-    needs: [lint, extras-isolation, core-install]
+    needs: plan
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -542,9 +456,10 @@ jobs:
   # inside it imports the working tree's desflow. The steps from "Check out v1.0.0"
   # on pin 1.0 once the tag v1.0.0 exists.
   regression:
-    needs: [lint, extras-isolation, core-install]
+    needs: plan
+    if: needs.plan.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -564,7 +479,19 @@ jobs:
       - name: Capture this commit
         run: uv run --all-extras python scripts/regression.py capture --root . --out "$RUNNER_TEMP/new.json"
 
+      # On a pull request the last release's capture is kept between runs. It changes
+      # only with the tag, the scenarios, the list of left-out files or the script, so
+      # those are its key. The full run captures it again.
+      - name: Restore the capture of the last release
+        if: github.event_name == 'pull_request'
+        id: baseline
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/old.json
+          key: regression-${{ env.BASELINE }}-${{ hashFiles('tests/regression/scenarios/**', 'tests/regression/left_out.yaml', 'scripts/regression.py') }}
+
       - name: Capture the last release
+        if: steps.baseline.outputs.cache-hit != 'true'
         working-directory: ${{ runner.temp }}
         run: |
           uv run --no-project --python 3.12 --with "desflow[all]==$BASELINE" --with pytest \
@@ -608,13 +535,36 @@ jobs:
         if: steps.pin.outputs.exists == 'true'
         run: uv run --all-extras python scripts/regression.py compare "$RUNNER_TEMP/pin-old.json" "$RUNNER_TEMP/pin-new.json" --baseline 1.0.0 --set-aside-absent
 
+  # The one check that branch protection on main requires. A job skipped because a
+  # job it needs failed would not block a merge (GitHub docs, "Troubleshooting
+  # required status checks"), so this job runs whatever happened and fails when any
+  # job failed or was cancelled. A job the plan skipped counts as passed.
+  checks-passed:
+    if: always()
+    needs: [plan, lint, install-checks, windows-core-install, unit-test, paced, simpy-range, pydantic-floor, integration-test, service-examples, parquet-s3-example, docs-build, docs-strict-build, regression]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail when a job failed or was cancelled
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          results = {name: job["result"] for name, job in json.loads(os.environ["RESULTS"]).items()}
+          for name, result in sorted(results.items()):
+              print(f"{name}: {result}")
+          sys.exit(any(r in ("failure", "cancelled") for r in results.values()))
+          PY
+
   docs:
-    needs: [unit-test, integration-test, service-examples, parquet-s3-example, blueprint, simpy-range, pydantic-floor, docs-build, docs-strict-build, regression]
+    needs: checks-passed
     permissions:
       contents: write
       pages: write
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:

@@ -5,6 +5,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # One pull request a week for all updates, so each update does not start a run.
+    groups:
+      all:
+        patterns: ["*"]
 
   # Python dependencies: the uv ecosystem updates uv.lock, so the versions CI tests,
   # SimPy above all, follow new releases. The pip ecosystem left the lower bounds
@@ -14,3 +18,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # One pull request a week for all updates, so each update does not start a run.
+    groups:
+      all:
+        patterns: ["*"]

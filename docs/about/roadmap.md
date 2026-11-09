@@ -5,16 +5,12 @@ Releases come in the order shown, without dates: a release ships when it is read
 ## Before 1.0
 
 ::timeline::
-- title: '1.0.0rc1: What 1.0 brings'
-  content: 'SimPy''s run, time and tie rules, YAML with no Python, `--var`, `--watch`, `desflow check` and `desflow test`, generated values, SimPy''s examples ported, the record contract frozen, the old names removed, and the rewritten docs. A run ends when no event is left, as in SimPy, `strict` and `on_unhandled_failure` default to SimPy''s values, and a task with one `wait` branch, the task after `next`, the actions of `on:` and a resumed job go on in the same simulation step as SimPy''s process, so records at one instant can change order. The SimPy Compatibility page shows each SimPy feature in YAML, Builder and Low-level with its status. Each change that alters records is listed under Upgrading. About two weeks of checks start with it: the examples, an upgrade from 0.28.0 and a read of the docs as a new user. [#105](https://github.com/jaehyeon-kim/desflow/issues/105) [#104](https://github.com/jaehyeon-kim/desflow/issues/104) [#95](https://github.com/jaehyeon-kim/desflow/issues/95) [#51](https://github.com/jaehyeon-kim/desflow/issues/51) [#84](https://github.com/jaehyeon-kim/desflow/issues/84)'
+- title: '1.0.0rc2: A cleaner internal structure'
+  content: 'The code is reorganised with no change of behaviour, and published within the two weeks of checks. No format, command or record changes. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
   icon: ':material-play:'
   key: now
-- title: '1.0.0rc2 to 1.0.0rc4: A cleaner internal structure'
-  content: 'The code is reorganised with no change of behaviour, and each candidate is published within the two weeks of checks. No format, command or record changes. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
-  icon: ':material-clock-outline:'
-  key: planned
-- title: '1.0.0rc5: The last candidate'
-  content: 'The fixes found in the checks, published before the two weeks end. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
+- title: '1.0.0rc3: The last candidate'
+  content: 'The fixes found in the checks and in a review of the reorganised code, published before the two weeks end. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
   icon: ':material-clock-outline:'
   key: planned
 - title: '1.0.0: Stable'
@@ -86,6 +82,17 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 - **More speed:** cheaper record publishing, which takes about 40 percent of a run's time, with the same published records ([#69](https://github.com/jaehyeon-kim/desflow/issues/69)), and a faster runtime for YAML-only blueprints if measurements show the need.
 
 ## Released
+
+??? note "1.0.0rc1: What 1.0 brings"
+
+    - **SimPy's rules:** a run ends when no event is left, as in SimPy, and `strict` and `on_unhandled_failure` default to SimPy's values. The SimPy Compatibility page shows each SimPy feature in YAML, Builder and Low-level with its status.
+    - **SimPy's step order at a tie:** a task with one `wait` branch, the task after `next`, the actions of `on:` and a resumed job go on in the same simulation step as SimPy's process, so records at one instant can change order. [#105](https://github.com/jaehyeon-kim/desflow/issues/105)
+    - **YAML with no Python:** every known case runs in YAML alone, with `--var`, `--watch`, generated values, `desflow check` and `desflow test`.
+    - **SimPy's examples:** the seven examples of SimPy's docs in YAML, Builder and Low-level. [#95](https://github.com/jaehyeon-kim/desflow/issues/95)
+    - **Record contract frozen:** the records 1.x keeps. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
+    - **Old names removed:** `dynamic_des`, `ddes` and the other names kept for compatibility. [#84](https://github.com/jaehyeon-kim/desflow/issues/84)
+    - **Pydantic 2.6.1 or later.** [#104](https://github.com/jaehyeon-kim/desflow/issues/104)
+    - **Rewritten docs.** Each change that alters records is listed under Upgrading to 1.0.
 
 ??? note "0.28.0: Library hooks for the server"
 
