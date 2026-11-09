@@ -178,7 +178,7 @@ Can express orders jump the queue? **Yes**, and the regular orders pay for it. E
 
 === "YAML"
 
-    The `fifo` run needs its own file, because a priority on a `fifo` resource is refused when the run starts. `priorities_fifo.yaml` is `priorities.yaml` without `queue: priority` and without the two `priority:` lines:
+    The `fifo` run needs its own file, because a priority on a `fifo` resource is refused when the file loads. `priorities_fifo.yaml` is `priorities.yaml` without `queue: priority` and without the two `priority:` lines:
 
     ```yaml title="docs/snippets/yaml/priorities_fifo.yaml:queue"
     resources:

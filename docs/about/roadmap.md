@@ -6,26 +6,26 @@ Releases come in the order shown, without dates: a release ships when it is read
 
 ::timeline::
 - title: '1.0.0rc1: What 1.0 brings'
-  content: 'SimPy''s run, time and tie rules, YAML with no Python, `--var`, `--watch`, `desflow check` and `desflow test`, generated values, SimPy''s examples ported, the record contract frozen, the old names removed, and the rewritten docs. A run ends when no event is left, as in SimPy, `strict` and `on_unhandled_failure` default to SimPy''s values, and a task with one `wait` branch, the task after `next`, the actions of `on:` and a resumed job go on in the same simulation step as SimPy''s process, so records at one instant can change order. The SimPy Compatibility page shows each SimPy feature in YAML, Builder and Low-level with its status. Each change that alters records is listed under Upgrading. [#105](https://github.com/jaehyeon-kim/desflow/issues/105) [#104](https://github.com/jaehyeon-kim/desflow/issues/104) [#95](https://github.com/jaehyeon-kim/desflow/issues/95) [#51](https://github.com/jaehyeon-kim/desflow/issues/51) [#84](https://github.com/jaehyeon-kim/desflow/issues/84)'
+  content: 'SimPy''s run, time and tie rules, YAML with no Python, `--var`, `--watch`, `desflow check` and `desflow test`, generated values, SimPy''s examples ported, the record contract frozen, the old names removed, and the rewritten docs. A run ends when no event is left, as in SimPy, `strict` and `on_unhandled_failure` default to SimPy''s values, and a task with one `wait` branch, the task after `next`, the actions of `on:` and a resumed job go on in the same simulation step as SimPy''s process, so records at one instant can change order. The SimPy Compatibility page shows each SimPy feature in YAML, Builder and Low-level with its status. Each change that alters records is listed under Upgrading. About two weeks of checks start with it: the examples, an upgrade from 0.28.0 and a read of the docs as a new user. [#105](https://github.com/jaehyeon-kim/desflow/issues/105) [#104](https://github.com/jaehyeon-kim/desflow/issues/104) [#95](https://github.com/jaehyeon-kim/desflow/issues/95) [#51](https://github.com/jaehyeon-kim/desflow/issues/51) [#84](https://github.com/jaehyeon-kim/desflow/issues/84)'
   icon: ':material-play:'
   key: now
 - title: '1.0.0rc2 to 1.0.0rc4: A cleaner internal structure'
-  content: 'The code is reorganised with no change of behaviour. No format, command or record changes. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
+  content: 'The code is reorganised with no change of behaviour, and each candidate is published within the two weeks of checks. No format, command or record changes. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
   icon: ':material-clock-outline:'
   key: planned
 - title: '1.0.0rc5: The last candidate'
-  content: 'About two weeks of checks and fixes only. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
+  content: 'The fixes found in the checks, published before the two weeks end. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
   icon: ':material-clock-outline:'
   key: planned
 - title: '1.0.0: Stable'
-  content: '1.0.0 sets the version number and the Production/Stable classifier, and adds its Changelog section. From here the format, the command, the public API and the record format stay compatible across 1.x. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
+  content: '1.0.0 sets the version number and the Production/Stable classifier, with only the fixes of the two weeks of checks. From here the format, the command, the public API and the record format stay compatible across 1.x, as the [Compatibility Policy](compatibility.md) sets out. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
   icon: ':material-clock-outline:'
   key: planned
 ::/timeline::
 
 ## What 1.0 means
 
-From 1.0, the YAML blueprint format, the `desflow` command, the public Python API and the published record format stay compatible across every 1.x release. The public Python API is the set of promised import paths, which the Compatibility Policy lists. The package status moves from Beta to Production/Stable. The names kept for compatibility, `dynamic_des`, `ddes` and the old registry settings, are removed in 1.0, and Upgrading to 1.0 lists each.
+From 1.0, the YAML blueprint format, the `desflow` command, the public Python API and the published record format stay compatible across every 1.x release. The public Python API is the set of promised import paths, which the [Compatibility Policy](compatibility.md) lists. The package status moves from Beta to Production/Stable. The names kept for compatibility, `dynamic_des`, `ddes` and the old registry settings, are removed in 1.0, and [Upgrading to 1.0](upgrading-to-1.0.md#removed-names) lists each.
 
 ## After 1.0
 

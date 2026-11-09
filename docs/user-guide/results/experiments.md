@@ -96,7 +96,7 @@ In Python the same settings are a mapping, and the model is a blueprint path, a 
 | `drain` | at `until`, stop the arrivals and run on until the model is empty: `true`, or `{limit: 1 h}`; a low-level model is drained when its function returns its arrival processes | a blueprint's `run.drain` |
 | `warmup` | each run's warm-up | the model's own |
 | `replications` | runs of each design, 2 or more | required |
-| `seed` | the seed every run's seed is spawned from | required |
+| `seed` | the seed every run's seed is spawned from: a whole number of 0 or more, not `true` | required |
 | `level` | the confidence level of every interval | 0.95 |
 | `pairing` | `common` or `independent` | `common` |
 | `measures` | the statistics to summarise, such as `tasks.pack.wait_mean` | required |

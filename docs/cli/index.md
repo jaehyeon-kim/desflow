@@ -404,7 +404,7 @@ Repeat one replication with: desflow run experiment/yaml/experiment_shop.yaml --
 
 The means are the same as before. At 99%, the half-width of the mean wait grows from 0.6483 to 0.9314 seconds, because more confidence needs a wider interval.
 
-`--stdout` prints the run's records as JSON lines, instead of writing to the file's sinks. `--drain` stops the arrivals at the end time and runs on until every order has left. This run stops the arrivals at 20 seconds, and its last record is the ninth order packed, at 24.789303362278915 seconds. A record keeps its time unrounded:
+`--stdout` prints the run's records as JSON lines, instead of writing to the file's sinks. The run keeps its ingress connectors, so a `KafkaIngress` still applies its `topic_policy`: it creates the control topic, and with `drop_and_create` it deletes it and creates it again. `--drain` stops the arrivals at the end time and runs on until every order has left. This run stops the arrivals at 20 seconds, and its last record is the ninth order packed, at 24.789303362278915 seconds. A record keeps its time unrounded:
 
 ```bash
 # Every record of a 20-second run that drains, as JSON lines in a file
@@ -471,7 +471,7 @@ The other options shape the fit, as [Input Fitting](../user-guide/model-parts/in
 - `--candidates` names the families to try. The default is every family that fits times, ten of them. `poisson` and `geometric` count whole numbers, so a fit does not try them, and named in `--candidates` they are skipped with the reason that they count whole numbers.
 - `--bins` offers the empirical distribution as a histogram with that many bins.
 - `--min-count` is the fewest values a family is fitted to.
-- `--tolerance` is how far a fitted mean and standard deviation may be from the data's, as a share of the data's.
+- `--tolerance` is how far a fitted mean and standard deviation may be from the data's, as a share of the data's. A tolerance that is negative or NaN, and a bound that is NaN, are refused, and so is a name in `--candidates` that is not a family, which the refusal quotes.
 - `--drop-invalid` leaves out values that are not numbers or lie outside the bounds, instead of stopping.
 - `--out` writes the best fit as YAML that a blueprint includes, and `--plot` draws the data against it as a PNG.
 

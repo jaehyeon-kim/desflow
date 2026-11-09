@@ -40,7 +40,7 @@ The warm-up drops early records. `go_live_at` drops nothing, and only decides wh
 
 ### Initial Time
 
-`initial_time` is the reading of the simulation clock when the run starts, 0 when left out, in seconds or as a duration. A model of a shift that starts at 8 in the morning can start its clock at 8 hours. Every event time, every record's `sim_ts` and `until` then read that clock. A record's `timestamp` is still `logical_start_time` plus `sim_ts`, to within 1 millisecond, because `sim_ts` is rounded and `timestamp` is truncated:
+`initial_time` is the reading of the simulation clock when the run starts, 0 when left out, in seconds or as a duration. A model of a shift that starts at 8 in the morning can start its clock at 8 hours. Every event time, every record's `sim_ts` and `until` then read that clock. A record's `timestamp` is still `logical_start_time` plus `sim_ts`, to within 1 millisecond, because `timestamp` is written to the millisecond and the rest is cut off:
 
 === "YAML"
 

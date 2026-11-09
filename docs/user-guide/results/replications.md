@@ -60,7 +60,7 @@ Give the model, the number of replications, the seed they are spawned from and t
 | Option | What it sets | Default |
 |---|---|---|
 | `n` | how many replications, 2 or more | |
-| `seed` | the seed the replications' seeds are spawned from; None draws one and logs it | |
+| `seed` | the seed the replications' seeds are spawned from, a whole number of 0 or more and not `true`; None draws one and logs it | |
 | `until` | where each replication's arrivals stop, in seconds or a duration such as `"1 h"`; the replication ends there unless `stop` ends it earlier or `drain` runs on | a blueprint's `run.until` |
 | `stop` | ends each replication when it happens, as for `run()`: `{"signal": name}`, a signal's name, or `{"condition": "..."}`; for a `LowLevelModel`, a function of the environment that returns the event | a blueprint's `run.stop` |
 | `drain` | at `until`, stop the arrivals and run each replication on until no entity is left: `True`, or `{"limit": "1 h"}`; a `LowLevelModel` is drained when its function returns its arrival processes and reports its entities with `env.stats.flow_started` and `flow_finished` | a blueprint's `run.drain` |

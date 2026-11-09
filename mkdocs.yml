@@ -536,6 +536,8 @@ nav:
   - About:
       - Why desflow: about/why-desflow.md
       - Roadmap: about/roadmap.md
+      - Upgrading to 1.0: about/upgrading-to-1.0.md
+      - Compatibility Policy: about/compatibility.md
       - Changelog: about/changelog.md
 
 markdown_extensions:

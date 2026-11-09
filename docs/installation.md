@@ -22,7 +22,7 @@ Install the core library with uv or pip:
     pip install desflow
     ```
 
-desflow was called dynamic-des before 0.20.0. The package, the Python module and the command are now all named `desflow`. Version 1.0 removed the `dynamic_des` module and the `ddes` command. Code that imports `dynamic_des` and scripts that run `ddes` must change to `desflow`, and the [Changelog](about/changelog.md) says what to change.
+desflow was called dynamic-des before 0.20.0. The package, the Python module and the command are now all named `desflow`. Version 1.0 removed the `dynamic_des` module and the `ddes` command. Code that imports `dynamic_des` and scripts that run `ddes` must change to `desflow`, and [Upgrading to 1.0](about/upgrading-to-1.0.md#removed-names) says what to change.
 
 Connectors and input fitting are optional extras. For example, `uv add "desflow[kafka,parquet]"` or `pip install "desflow[kafka,parquet]"`, and `uv tool install "desflow[kafka,parquet]"` for the `desflow` command:
 

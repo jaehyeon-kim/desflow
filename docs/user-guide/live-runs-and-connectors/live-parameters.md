@@ -112,7 +112,7 @@ Each source of a change suits a different job and lands at a different moment:
 
 Each path checks a value by its own rule before it stores it:
 
-- A resource's or a store's `current_cap` and `max_cap`, and a resource's `queue_limit`, are whole numbers of 0 or more. Text is accepted only if the whole text is such a number, so `"6"` is 6 and `"abc"` is refused. A store capacity with a fraction, such as 2.5, is refused and not rounded down. A `queue_limit` of `None` means no limit.
+- A resource's or a store's `max_cap`, and a resource's `queue_limit`, are whole numbers of 0 or more, and a `current_cap` is a whole number, stored clamped to 0 to `max_cap` with a warning. Text is accepted only if the whole text is such a number, so `"6"` is 6 and `"abc"` is refused. A store capacity with a fraction, such as 2.5, is refused and not rounded down. A `queue_limit` of `None` means no limit.
 - A container's `level` is a finite number. A level above the capacity is stored as the capacity.
 - A path that holds true or false takes `true`, `false` or that text. Any other text is refused. `true` written over a path that holds a number is stored as 1.
 

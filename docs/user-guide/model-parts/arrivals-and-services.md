@@ -492,7 +492,7 @@ Invalid value for 'Shop.service.packing.std': normal std must be 0 or more, got 
 
 ## Stability and Limits
 
-- **Refused at build.** The same checks refuse a bad distribution when the model is built. A parameter that is `true`, NaN or infinity is refused with its name, at load and on a live update. A negative `low` or `value` in a distribution of times (`uniform`, `triangular`, `truncated_normal` and `empirical`) is refused. So is a parameter whose draw would overflow: a `weibull` `shape`, a `lognormal` `mean` or a `poisson` `mean`. These three are an out-of-range `std`, a parameter `normal` does not take, and a `mode` above `high`:
+- **Refused at build.** The same checks refuse a bad distribution when the model is built. A parameter that is NaN or infinity is refused with its name, at load and on a live update. `true` is refused at load, and a live update stores it as 1, as [Live Parameters](../live-runs-and-connectors/live-parameters.md) says. A negative `low` or `value` in a distribution of times (`uniform`, `triangular`, `truncated_normal` and `empirical`) is refused. So is a parameter whose draw would overflow: a `weibull` `shape`, a `lognormal` `mean` or a `poisson` `mean`. These three are an out-of-range `std`, a parameter `normal` does not take, and a `mode` above `high`:
 
     === "YAML"
 

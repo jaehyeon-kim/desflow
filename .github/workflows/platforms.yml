@@ -11,11 +11,15 @@ permissions:
   contents: read
 
 jobs:
+  # The tests run in six shares on each system (TEST_SHARD in tests/conftest.py), so
+  # each job runs a sixth of them. Each share writes the time of every test to a
+  # JUnit file, uploaded as an artifact, from which the CI split is sized.
   unit-test:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        shard: [1, 2, 3, 4, 5, 6]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -28,24 +32,52 @@ jobs:
       - name: Fetch Python 3.12
         run: uv python install 3.12
 
-      - name: Run Unit and Conformance Tests
-        run: uv run --python 3.12 --all-extras pytest tests/unit tests/conformance tests/benchtop tests/known_cases -m "not paced" -q -n auto --tb=short
+      - name: Run Unit, Conformance, Benchtop and Known Case Tests
+        env:
+          TEST_SHARD: ${{ matrix.shard }}/6
+        run: uv run --python 3.12 --all-extras pytest tests/unit tests/conformance tests/benchtop tests/known_cases -m "not paced" -q -n auto --tb=short --junitxml=junit-${{ runner.os }}-${{ matrix.shard }}.xml
+
+      - name: Upload Test Times
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-${{ runner.os }}-${{ matrix.shard }}
+          path: junit-${{ runner.os }}-${{ matrix.shard }}.xml
+
+  paced:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: "3.12"
+          - os: windows-latest
+            python: "3.13"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
 
       # The paced cases time themselves below one tick of the Windows clock, which is
       # 15.6 ms before Python 3.13 and 1 microsecond from it (the Python 3.13 changelog,
-      # "time"), so the Windows runner runs them on 3.13. Linux keeps 3.12, as the step
-      # above does.
+      # "time"), so the Windows runner runs them on 3.13. Linux keeps 3.12, as the tests
+      # above do.
+      - name: Fetch Python ${{ matrix.python }}
+        run: uv python install ${{ matrix.python }}
+
       - name: Run Paced Known Cases
-        if: runner.os != 'Windows'
-        run: uv run --python 3.12 --all-extras pytest tests/known_cases -m paced -q --tb=short
+        run: uv run --python ${{ matrix.python }} --all-extras pytest tests/known_cases -m paced -q --tb=short --junitxml=junit-paced-${{ runner.os }}.xml
 
-      - name: Fetch Python 3.13
-        if: runner.os == 'Windows'
-        run: uv python install 3.13
-
-      - name: Run Paced Known Cases on Python 3.13
-        if: runner.os == 'Windows'
-        run: uv run --python 3.13 --all-extras pytest tests/known_cases -m paced -q --tb=short
+      - name: Upload Test Times
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-paced-${{ runner.os }}
+          path: junit-paced-${{ runner.os }}.xml
 
   core-install:
     # --all-extras installs pandas, which brings tzdata, so the job above cannot show
