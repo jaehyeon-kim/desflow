@@ -15,13 +15,18 @@ simulation:
   random_seed: 42
   logical_start_time: 2026-01-01T00:00:00
 
+# --8<-- [start:egress]
 egress:
   - {type: Console}
   - {type: Console, when: labels}
+# --8<-- [end:egress]
 
+# --8<-- [start:arrivals]
 arrivals:
   orders: {dist: constant, value: 10, spawn: order}
+# --8<-- [end:arrivals]
 
+# --8<-- [start:tasks]
 tasks:
   order:
     vars:
@@ -36,7 +41,9 @@ tasks:
         then: {gen: format, template: "{value}"}
         else: {gen: var, name: value}
         omit_when: "t < 120"
+# --8<-- [end:tasks]
 
+# --8<-- [start:scenario]
 scenario:
   - at: 60
     record: {change: field_added, field: currency}
@@ -44,5 +51,6 @@ scenario:
     record: {change: field_renamed, field: total, to: amount}
   - at: 180
     record: {change: field_retyped, field: amount, to: text}
+# --8<-- [end:scenario]
 
 run: {until: 240}

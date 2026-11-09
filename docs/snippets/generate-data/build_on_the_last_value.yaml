@@ -18,6 +18,7 @@ simulation:
 egress:
   - {type: Console}
 
+# --8<-- [start:arrivals]
 arrivals:
   prices:
     dist: constant
@@ -25,7 +26,9 @@ arrivals:
     spawn: price
     count: 5
     key: {gen: sequence, format: "product-{}"}
+# --8<-- [end:arrivals]
 
+# --8<-- [start:tasks]
 tasks:
   price:
     payload:
@@ -48,5 +51,6 @@ tasks:
                   - {gen: previous, path: stock, default: 250}
                   - {gen: normal, mean: 0, std: 40}
         decimals: 0
+# --8<-- [end:tasks]
 
 run: {until: 30}

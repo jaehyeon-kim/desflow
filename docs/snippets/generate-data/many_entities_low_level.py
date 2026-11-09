@@ -27,13 +27,16 @@ ENVIRONMENT: dict = {"logical_start_time": START, "timezone": "UTC"}
 
 def build(env: DynamicRealtimeEnvironment) -> None:
     """Starts the ten tills on `env`."""
+    # --8<-- [start:arrival]
     sampler = Sampler(seed=42)
     takings = sampler.generator("tasks.report.payload.takings")
     tills_gap = DistributionConfig(dist="constant", value=60)
     # The random sequence the blueprint's draw uses
     tills_gap.stream = "arrival.tills"
     sent = {"report": 0}
+    # --8<-- [end:arrival]
 
+    # --8<-- [start:payload]
     def till(key):
         while True:
             yield env.timeout(sampler.sample(tills_gap))
@@ -46,6 +49,7 @@ def build(env: DynamicRealtimeEnvironment) -> None:
 
     for number in range(1, 11):
         env.process(till(f"till-{number}"))
+    # --8<-- [end:payload]
 
 
 def run() -> None:

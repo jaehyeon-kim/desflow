@@ -21,13 +21,16 @@ ENVIRONMENT: dict = {"logical_start_time": START, "timezone": "UTC"}
 
 def build(env: DynamicRealtimeEnvironment) -> None:
     """Starts the five products on `env`."""
+    # --8<-- [start:arrival]
     sampler = Sampler(seed=42)
     # The places of the two draws in the blueprint name their random sequences
     step = sampler.generator("tasks.price.payload.price.args.1")
     drift = sampler.generator("tasks.price.payload.stock.args.1.args.1.args.1")
     last: dict = {}  # product key -> its last price and stock, 20 and 250 at first
     counts = {"price": 0}
+    # --8<-- [end:arrival]
 
+    # --8<-- [start:payload]
     def product(number):
         key = f"product-{number}"
         while True:
@@ -46,6 +49,7 @@ def build(env: DynamicRealtimeEnvironment) -> None:
 
     for number in range(5):
         env.process(product(number))
+    # --8<-- [end:payload]
 
 
 def run() -> None:

@@ -25,8 +25,11 @@ def build() -> SimulationContext:
         logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:arrival]
     app.add_arrival("payments", "constant", value=1, spawn="payment")
     app.add_arrival("purchases", "exponential", rate=1, spawn="purchase")
+    # --8<-- [end:arrival]
+    # --8<-- [start:payload]
     payment_payload = Template(
         {"method": {"gen": "weighted", "options": {"card": 60, "cash": 40}}},
         name="tasks.payment",
@@ -57,6 +60,8 @@ def build() -> SimulationContext:
     def purchase(task_id):
         """Gives one purchase record."""
         return purchase_payload
+
+    # --8<-- [end:payload]
 
     return app
 

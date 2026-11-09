@@ -17,10 +17,13 @@ simulation:
 egress:
   - {type: Console}
 
+# --8<-- [start:arrivals]
 arrivals:
   payments: {dist: constant, value: 1, spawn: payment}
   purchases: {dist: exponential, rate: 1, spawn: purchase}
+# --8<-- [end:arrivals]
 
+# --8<-- [start:tasks]
 tasks:
   payment:
     payload:
@@ -34,5 +37,6 @@ tasks:
       delivery_minutes: {gen: normal, mean: 120, std: 15, decimals: 1}
       channel: {gen: one_of, choices: [web, app, store]}
       gift: {gen: boolean, p: 0.1}
+# --8<-- [end:tasks]
 
 run: {until: 30}

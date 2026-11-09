@@ -25,7 +25,10 @@ def build() -> SimulationContext:
         logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:arrival]
     app.add_arrival("orders", "constant", value=2, spawn="order", max_events=12)
+    # --8<-- [end:arrival]
+    # --8<-- [start:payload]
     order_payload = Template(
         {"order_id": {"gen": "sequence", "start": 1}}, name="tasks.order"
     )
@@ -34,6 +37,8 @@ def build() -> SimulationContext:
     def order(task_id):
         """Gives one order record."""
         return order_payload
+
+    # --8<-- [end:payload]
 
     return app
 

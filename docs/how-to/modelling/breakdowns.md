@@ -13,9 +13,9 @@ Make a resource fail at random and be repaired, decide what happens to the work 
 
 ## Steps
 
-1. Give the resource a `breakdown` with two distributions: `time_to_failure`, the time from the start or from a repair to the next failure, and `repair`, how long a repair takes.
-2. Choose `work`: `interrupt`, the default, stops the tasks being served when the resource fails. `finish` lets them finish and stops only new work.
-3. With `interrupt`, give the task an `on_interrupt`: `resume` packs what was left after the repair, `restart` packs again from the start, and `abandon` ends the order.
+### Give the Resource a Breakdown
+
+Give the resource a `breakdown` with two distributions: `time_to_failure`, the time from the start or from a repair to the next failure, and `repair`, how long a repair takes.
 
 Here a packing station of two units fails about once a minute on average (`rate: 0.0167`) and takes 5 to 15 seconds to repair:
 
@@ -79,7 +79,7 @@ Here a packing station of two units fails about once a minute on average (`rate:
 
     An interrupted order catches `simpy.Interrupt`, whose cause is `"breakdown"`, gives back its request and asks again, as the full file shows.
 
-The failure clock runs on calendar time: the next failure is drawn at the start and after each repair, whether the station is busy or idle. A failure works as follows:
+With the default `clock: calendar`, the next failure is drawn at the start and after each repair, and the time to it passes whether the station is busy or idle. A failure works as follows:
 
 - All the station's units fail together. Its capacity is 0 until the repair ends, so no order starts.
 - Its `current_cap` keeps the planned value. A scenario step or an ingress message that changes it during the repair sets the capacity the station returns to. It does not end the repair.
@@ -88,6 +88,80 @@ The failure clock runs on calendar time: the next failure is drawn at the start 
 The two distributions are registry paths, `Shop.breakdown.station.time_to_failure` and `.repair`, so a live change can make failures more or less frequent.
 
 A breakdown that lets work finish and then holds the resource for a fixed time each day is a capacity schedule. [Vary Arrivals by Time](time-varying-arrivals.md) writes it as scenario steps.
+
+### Choose What Happens to the Work in Service
+
+Choose `work`: `interrupt`, the default, stops the tasks being served when the resource fails. `finish` lets them finish and stops only new work.
+
+### Choose What an Interrupted Order Does
+
+With `interrupt`, give the task an `on_interrupt`: `resume` packs what was left after the repair, `restart` packs again from the start, and `abandon` ends the order.
+
+### Count Only the Time the Station Works
+
+Choose the failure `clock`. `calendar`, the default, counts the time to failure whether the station is busy or idle. `clock: busy` counts it only while at least one unit of the resource is in use, so an idle station does not wear out. The time to failure is still drawn once for each cycle. A task's `resource`, a `seize`, a wait `request` and an `open` unit all count as in use. A time to failure of 0 fails at the grant of the first unit.
+
+The clock waits for two events of the resource. `when_busy()` succeeds when the resource next holds a unit after holding none, and `when_idle()` succeeds when it next holds none after holding one. A station that is down keeps the units its users hold, so it is not idle until they are given back.
+
+Here a station fails after 5 seconds of work. One order arrives at 10 seconds and takes 8, and `work: finish` lets it finish:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/breakdowns_busy.yaml:busy"
+    resources:
+      station:
+        current_cap: 1
+        breakdown:
+          time_to_failure: {dist: constant, value: 5}
+          repair: {dist: constant, value: 2}
+          work: finish
+          # Count the time to failure only while a unit is in use. The default, calendar,
+          # counts it from the start or the last repair, busy or idle.
+          clock: busy
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/guides/breakdowns_busy.py:busy"
+    app.add_breakdown(
+        "station",
+        time_to_failure={"dist": "constant", "value": 5},
+        repair={"dist": "constant", "value": 2},
+        work="finish",
+        # Count the time to failure only while a unit is in use. The default,
+        # "calendar", counts it from the start or the last repair, busy or idle.
+        clock=clock,
+    )
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/guides/breakdowns_busy_low_level.py:busy"
+    breakdowns={
+        "station": BreakdownConfig(
+            time_to_failure=DistributionConfig(dist="constant", value=5),
+            repair=DistributionConfig(dist="constant", value=2),
+            work="finish",
+            # Count the time to failure only while a unit is in use. The default,
+            # "calendar", counts it from the start or the last repair.
+            clock=clock,
+        )
+    },
+    ```
+
+    The process that fails and repairs the station takes the same `clock`:
+
+    ```python title="docs/snippets/guides/breakdowns_busy_low_level.py:process"
+    # A SimPy process that puts the station down at each failure and repairs it;
+    # clock is passed to it as well as set in the config
+    env.process(
+        run_breakdowns(env, station, Sampler(seed=42), work="finish", clock=clock)
+    )
+    ```
+
+In the Builder and Low-level blocks, `clock` is the argument of the function that builds the model: `"busy"` or `"calendar"`.
+
+With the busy clock, every form puts the station down at 15 seconds, 5 seconds into the order, and repairs it at 17 seconds: `[(15.0, 'down'), (17.0, 'repaired')]`. With `clock: calendar`, the same station fails at 5, 12, 19 and 26 seconds, mostly while it is idle.
 
 ---
 

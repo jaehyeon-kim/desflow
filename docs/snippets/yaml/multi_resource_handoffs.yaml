@@ -1,7 +1,7 @@
 # The Hand Off to a Resource guide: a picker carries each order to the packing bench
 # and stays with it until the bench is free.
 # Run it with: desflow run multi_resource_handoffs.yaml
-simulation: {sim_id: Shop, factor: 1, random_seed: 42}
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 egress:
   - {type: Console}

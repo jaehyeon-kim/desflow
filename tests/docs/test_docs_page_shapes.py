@@ -237,6 +237,25 @@ def test_how_to_page_has_its_sections(page):
         assert "Change a Parameter Live" in _headings(_text(page), 3)
 
 
+@pytest.mark.parametrize(
+    "page",
+    [
+        page
+        for page in HOW_TO_PAGES
+        if page.startswith(("how-to/modelling/", "how-to/generate-data/"))
+    ],
+)
+def test_modelling_and_generate_data_steps_are_one_section_each(page):
+    """The Steps of these pages are `###` sections, one for each step, and not a
+    numbered list that holds the steps before the first section. A numbered list stays
+    legitimate inside a step."""
+    text = re.sub(r"^ *```.*?^ *```", "", _text(page), flags=re.S | re.M)
+    steps = text.split("\n## Steps\n", 1)[1].split("\n## ", 1)[0]
+    first = re.search(r"^### ", steps, re.M)
+    assert first, "no ### section in Steps"
+    assert not re.search(r"^\d+\. ", steps[: first.start()], re.M), "steps in a list"
+
+
 @pytest.mark.parametrize("page", _params("tutorial_links", TUTORIAL_PAGES))
 def test_tutorial_page_links_a_concept_page(page):
     assert _links_to(page, set(CONCEPT_PAGES)), "link the concept pages it rests on"

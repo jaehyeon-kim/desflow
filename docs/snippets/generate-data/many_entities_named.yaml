@@ -15,13 +15,17 @@ simulation:
 egress:
   - {type: Console}
 
+# --8<-- [start:arrivals]
 arrivals:
   warehouses: {dist: constant, value: 2, spawn: report, keys: [north, south, east]}
+# --8<-- [end:arrivals]
 
+# --8<-- [start:tasks]
 tasks:
   report:
     payload:
       warehouse: {gen: entity}
       orders_waiting: {gen: integer, bounds: [0, 40]}
+# --8<-- [end:tasks]
 
 run: {until: 10}

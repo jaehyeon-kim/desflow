@@ -3,7 +3,8 @@
 # desflow run wait_for_one_or_all_example.yaml
 simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
-signals: [restocked]
+signals:
+  restocked: {once: false}
 
 arrivals:
   orders: {dist: exponential, rate: 0.1, spawn: order}

@@ -17,12 +17,15 @@ simulation:
 egress:
   - {type: Console}
 
+# --8<-- [start:arrivals]
 arrivals:
   stations:
     initial: 3
     spawn: running
     key: {gen: sequence, start: 1, format: "station-{}"}
+# --8<-- [end:arrivals]
 
+# --8<-- [start:tasks]
 tasks:
   running:
     service_time: 300
@@ -44,5 +47,6 @@ tasks:
       station: {gen: entity}
       state: stopped
     next: slow
+# --8<-- [end:tasks]
 
 run: {until: 2 hours}

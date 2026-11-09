@@ -26,6 +26,7 @@ def build() -> SimulationContext:
         logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:arrival]
     # A blueprint's `keys` is one arrival for each name here, each with its own key
     for name in ["north", "south", "east"]:
         app.add_arrival(
@@ -35,6 +36,8 @@ def build() -> SimulationContext:
             spawn="report",
             key=lambda n, name=name: name,
         )
+    # --8<-- [end:arrival]
+    # --8<-- [start:payload]
     report_payload = Template(
         {
             "warehouse": {"gen": "entity"},
@@ -47,6 +50,8 @@ def build() -> SimulationContext:
     def report(task_id):
         """Gives one report record."""
         return report_payload
+
+    # --8<-- [end:payload]
 
     return app
 

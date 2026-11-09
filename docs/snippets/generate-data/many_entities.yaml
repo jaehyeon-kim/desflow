@@ -16,6 +16,7 @@ simulation:
 egress:
   - {type: Console}
 
+# --8<-- [start:arrivals]
 arrivals:
   tills:
     dist: constant
@@ -23,11 +24,14 @@ arrivals:
     spawn: report
     count: 10
     key: {gen: sequence, start: 1, format: "till-{}"}
+# --8<-- [end:arrivals]
 
+# --8<-- [start:tasks]
 tasks:
   report:
     payload:
       till: {gen: entity}
       takings: {gen: normal, mean: 400, std: 60, decimals: 2}
+# --8<-- [end:tasks]
 
 run: {until: 300}

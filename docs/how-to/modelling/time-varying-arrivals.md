@@ -13,9 +13,13 @@ Change the arrival rate and the staffing at set times, such as a rush at lunch o
 
 ## Steps
 
-1. Find the registry path of each parameter that changes: `Shop.arrival.orders.rate` for an exponential arrival, `Shop.resources.packers.current_cap` for the number of packers.
-2. Write one step for each change, with the simulation time it applies at, `at`, in seconds or as a duration such as `20 min`.
-3. Return each parameter to its usual value with a later step. A schedule does not repeat on its own.
+### Find the Path of Each Parameter
+
+Find the registry path of each parameter that changes: `Shop.arrival.orders.rate` for an exponential arrival, `Shop.resources.packers.current_cap` for the number of packers.
+
+### Write One Step for Each Change
+
+Write one step for each change, with the simulation time it applies at, `at`, in seconds or as a duration such as `20 min`.
 
 The blueprint of the same name in [Changing Demand](../../learn/inputs/changing-demand.md) runs for an hour and packs in a constant 1.5 seconds. Its rush lasts from 20 to 40 minutes, with an order every 1.11 seconds on average (`rate: 0.9`). The example below, `examples/yaml/changing_demand.yaml`, runs for 5 minutes, and packing takes 1 to 3 seconds, most often 2 (a triangular distribution). From 120 to 180 seconds orders arrive twice as fast, an order every 1.25 seconds on average (`rate: 0.8`), and a second packer works for that time:
 
@@ -60,6 +64,10 @@ The blueprint of the same name in [Changing Demand](../../learn/inputs/changing-
 
     `run_scenario(env, SCHEDULE, until=300)` is the SimPy process that applies the steps. Start it with `env.process`, beside the arrivals.
 
+### Return Each Parameter to Its Usual Value
+
+Return each parameter to its usual value with a later step. A schedule does not repeat on its own. The example does it at 180 seconds.
+
 The steps change the registry, so everything that reads the path follows: the next arrival gap is drawn from the new rate, and the packers grant or owe units as on [Resources](../../user-guide/resources/index.md#under-live-changes).
 
 ---
@@ -81,12 +89,10 @@ This shop has an order every 10 seconds, and a step at 30 seconds that makes the
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/time_varying_arrivals.yaml:boundary"
-    simulation:
-      sim_id: Shop
-      factor: 0
+    simulation: {sim_id: Shop, factor: 0}
 
     egress:
-      - type: Console
+      - {type: Console}
 
     arrivals:
       orders: {dist: constant, value: 10 s, spawn: arrive}
@@ -99,8 +105,7 @@ This shop has an order every 10 seconds, and a step at 30 seconds that makes the
     scenario:
       - {at: 30 s, path: Shop.arrival.orders.value, value: 5}
 
-    run:
-      until: 50 s
+    run: {until: 50 s}
     ```
 
 === "Builder"

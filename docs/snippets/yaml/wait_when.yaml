@@ -1,0 +1,24 @@
+# The Wait for One or All guide: an order goes on once two of three checks have
+# answered, which a `when` wait reads as done_count >= 2. Run it with:
+# desflow run wait_when.yaml --stdout
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+arrivals:
+  orders: {initial: 1, spawn: approve}
+
+tasks:
+  approve:
+    # --8<-- [start:when]
+    # Go on when the expression holds, read each time a branch is processed
+    wait:
+      when: done_count >= 2 and wait.stock.done
+      of:
+        stock: {timeout: 1 s}
+        payment: {timeout: 3 s}
+        address: {timeout: 6 s}
+    # --8<-- [end:when]
+    payload:
+      event_type: approved
+      address_done: {gen: expr, expr: wait.address.done}
+
+run: {until: 30}

@@ -1,7 +1,7 @@
 # The Add Resources Mid-run guide: a supervisor adds gift wrappers at 12 seconds.
 # Run it with: desflow run dynamic_topology.yaml, beside dynamic_topology_logic.py
 # --8<-- [start:shop]
-simulation: {sim_id: Shop, factor: 1, strict: false}
+simulation: {sim_id: Shop, factor: 0, strict: false}
 
 egress:
   - {type: Console}

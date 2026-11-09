@@ -32,6 +32,7 @@ COUNTRIES = ["AU", "NZ", "SG"]
 
 def build(env: DynamicRealtimeEnvironment) -> None:
     """Starts the customers and the orders on `env`."""
+    # --8<-- [start:arrival]
     sampler = Sampler(seed=42)
     country = sampler.generator("tasks.customer.payload.country")
     pick = sampler.generator("tasks.order.payload.customer_id")
@@ -43,7 +44,9 @@ def build(env: DynamicRealtimeEnvironment) -> None:
     order_gap.stream = "arrival.orders"
     customer_rows: list = []  # the customers written so far, for a lookup
     sent = {"customer": 0, "order": 0}
+    # --8<-- [end:arrival]
 
+    # --8<-- [start:payload]
     def write_customer(key):
         """Publishes the next customer and keeps its row."""
         row = {
@@ -82,12 +85,14 @@ def build(env: DynamicRealtimeEnvironment) -> None:
     env.process(orders())
     for number in range(1, 6):
         env.process(first(number))
+    # --8<-- [end:payload]
 
 
 def run() -> None:
     """Runs the model unpaced, with a file for each kind of record."""
     env = DynamicRealtimeEnvironment(factor=0, **ENVIRONMENT)
     folder = os.environ.get("DEST_PATH", "data")
+    # --8<-- [start:egress]
     env.setup_egress(
         [
             JsonlStorageEgress(default_path=f"{folder}/customers.jsonl"),
@@ -98,6 +103,7 @@ def run() -> None:
             lambda record: record.get("task") == "order",
         ],
     )
+    # --8<-- [end:egress]
     build(env)
     try:
         env.run(until=UNTIL)

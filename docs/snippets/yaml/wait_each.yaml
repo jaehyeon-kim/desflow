@@ -1,0 +1,23 @@
+# The Wait for One or All guide: an order packs three boxes, which take 2, 5 and 9
+# seconds, and goes on when two of them are packed.
+# --8<-- [start:each]
+simulation: {sim_id: Shop, factor: 0}
+
+arrivals:
+  orders: {initial: 1, spawn: order}
+
+tasks:
+  order:
+    wait:
+      all:
+        boxes:
+          each: [2, 5, 9]  # one branch for each element
+          group: {at_least: 2}  # done when two branches are
+          branch:  # each.value is the element
+            timeout: {after: each.value}
+    payload:
+      event_type: packed
+      flags: {gen: expr, expr: wait.boxes.flags}  # which branches were done
+
+run: {until: 30}
+# --8<-- [end:each]

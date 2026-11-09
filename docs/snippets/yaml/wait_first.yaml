@@ -20,9 +20,12 @@ tasks:
       any:
         stock: {signal: restocked}
         limit: {timeout: 30}
-    # Called as branches(task_id, context, wait); its event says which branches were
-    # done
-    payload: !python wait_for_one_or_all_logic.branches
+    # wait.<branch>.done is true for each branch that was done when the wait ended
+    payload:
+      event_type: resumed
+      done:
+        stock: {gen: expr, expr: wait.stock.done}
+        limit: {gen: expr, expr: wait.limit.done}
   restock:
     signal: restocked
     payload: {boxes: 6}

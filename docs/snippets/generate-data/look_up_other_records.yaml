@@ -18,11 +18,14 @@ simulation:
 egress:
   - {type: Console}
 
+# --8<-- [start:arrivals]
 arrivals:
   customers: {initial: 5, dist: exponential, rate: 0.1, spawn: customer}
   orders: {dist: exponential, rate: 1, spawn: order}
   reports: {dist: constant, value: 10, spawn: report}
+# --8<-- [end:arrivals]
 
+# --8<-- [start:tasks]
 tasks:
   customer:
     payload:
@@ -42,5 +45,6 @@ tasks:
     payload:
       mean_total: {gen: aggregate, task: order, path: total, last: 10, function: mean}
       largest_total: {gen: aggregate, task: order, path: total, last: 10, function: max}
+# --8<-- [end:tasks]
 
 run: {until: 60}

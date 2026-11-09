@@ -1,0 +1,35 @@
+# The Wait for One or All guide: an order asks for three packers at once and packs with
+# the first it gets. It cancels the two requests it did not use, so the next order,
+# which arrives a second later, is served as soon as the first unit goes back.
+# --8<-- [start:pool]
+simulation: {sim_id: Shop, factor: 0}
+
+resources:
+  packers: {current_cap: 1}
+
+arrivals:
+  orders: {initial: 1, spawn: order}
+  late: {dist: constant, value: 1, first_at: 1, max_events: 1, spawn: late_order}
+
+tasks:
+  order:
+    open:
+      # three requests, made at once
+      pool:
+        each: 3
+        branch: {request: packers}
+    wait: {handle: pool, index: 0}  # the first of them
+    service_time: 2
+    cancel: pool  # the requests not yet granted: the second and the third
+    release: {handle: pool, index: 0}  # the unit of the first, when the task ends
+    payload:
+      event_type: packed
+      granted: {gen: expr, expr: handle.pool.flags}
+
+  late_order:
+    resource: packers
+    service_time: 1
+    payload: {event_type: late_packed}
+
+run: {until: 30}
+# --8<-- [end:pool]

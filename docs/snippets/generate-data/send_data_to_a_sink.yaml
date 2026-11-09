@@ -14,17 +14,23 @@ simulation:
   random_seed: 42
   logical_start_time: 2026-01-01T00:00:00
 
+# --8<-- [start:egress]
 egress:
   - {type: Console}
+# --8<-- [end:egress]
 
+# --8<-- [start:arrivals]
 arrivals:
   orders: {dist: exponential, rate: 1, spawn: order}
+# --8<-- [end:arrivals]
 
+# --8<-- [start:tasks]
 tasks:
   order:
     payload:
       order_id: {gen: sequence, start: 1}
       customer_id: {gen: integer, bounds: [1, 100]}
       total: {gen: uniform, low: 5, high: 200, decimals: 2}
+# --8<-- [end:tasks]
 
 run: {until: 10}

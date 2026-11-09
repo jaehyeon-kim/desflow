@@ -69,7 +69,7 @@ def _outcome(records: list) -> str:
 
 # --8<-- [start:tie]
 def tie(waiter_at: float, patience: float) -> str:
-    """The outcome of an order whose patience ends when the packer comes free."""
+    """The outcome of an order whose patience may end when the packer comes free."""
     app = SimulationContext("Shop", factor=0)
     app.add_resource("packers", current_cap=1, max_cap=1)
     app.add_service("hold", dist="constant", value=6)
@@ -145,8 +145,8 @@ def tie_low_level(waiter_at: float, patience: float) -> str:
         if waiter_at:  # at 0, its patience starts before the holder's service
             yield env.timeout(waiter_at)
         with packers.request() as unit:
-            yield unit | env.timeout(patience)
-            if not unit.triggered:
+            result = yield unit | env.timeout(patience)
+            if unit not in result:
                 env.publish_event("orders-1", {"status": "reneged"}, "pack", 0)
                 return
             yield env.timeout(1)
@@ -241,8 +241,14 @@ def low_level_form(path: str = "patience/low-level/patience_example.py") -> Coun
 if __name__ == "__main__":
     print("check: arrives at 3, patience 3:", tie(3, 3))
     print("check: arrives at 0, patience 6:", tie(0, 6))
-    print("check: the same in YAML:", tie_yaml(3, 3), tie_yaml(0, 6))
-    print("check: the same, low-level:", tie_low_level(3, 3), tie_low_level(0, 6))
+    print("check: arrives at 3, patience 4:", tie(3, 4))
+    print("check: the same in YAML:", tie_yaml(3, 3), tie_yaml(0, 6), tie_yaml(3, 4))
+    print(
+        "check: the same, low-level:",
+        tie_low_level(3, 3),
+        tie_low_level(0, 6),
+        tie_low_level(3, 4),
+    )
     for form in (yaml_form, builder_form, low_level_form):
         print("check:", dict(form()))
 # --8<-- [end:main]

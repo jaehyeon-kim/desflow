@@ -15,10 +15,14 @@ simulation:
 egress:
   - {type: Console}
 
+# --8<-- [start:arrivals]
 arrivals:
   orders: {dist: constant, value: 2, spawn: order, max_events: 12}
+# --8<-- [end:arrivals]
 
+# --8<-- [start:tasks]
 tasks:
   order:
     payload:
       order_id: {gen: sequence, start: 1}
+# --8<-- [end:tasks]

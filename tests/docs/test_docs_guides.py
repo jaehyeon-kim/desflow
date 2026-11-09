@@ -107,6 +107,118 @@ def test_breakdowns_downtime_matches_the_events():
     }
 
 
+def test_dynamic_topology_scenario_gives_the_wrappers_their_units_in_every_form():
+    """The wrappers exist from the start with no units and get 2 at 12 s: the packers
+    finish at 7, 11, 15 and 19 s, and the wrappers at 15 and 19 s, in the YAML,
+    builder and low-level forms."""
+    from desflow import SimulationContext
+
+    expected = [
+        (7.0, "packers"),
+        (11.0, "packers"),
+        (15.0, "packers"),
+        (15.0, "wrappers"),
+        (19.0, "packers"),
+        (19.0, "wrappers"),
+    ]
+
+    def finished(capture):
+        return sorted(
+            (r["sim_ts"], r["value"]["resource"])
+            for r in capture.records
+            if r["stream_type"] == "event" and r["value"].get("status") == "finished"
+        )
+
+    yaml = ROOT / "docs" / "snippets" / "yaml" / "dynamic_topology_scenario.yaml"
+    app = SimulationContext.from_yaml(yaml)
+    capture = _Capture()
+    app.add_egress(capture)
+    app.run()
+    assert finished(capture) == expected
+    app = _load("dynamic_topology_scenario_builder").build()
+    capture = _Capture()
+    app.add_egress(capture)
+    app.run(until=20)
+    assert finished(capture) == expected
+    low_level = _load("dynamic_topology_scenario_low_level")
+    capture = _Capture()
+    low_level.run([capture])
+    assert finished(capture) == expected
+    # The low-level step publishes the record the other forms give it: a label at 12 s
+    from desflow import DynamicRealtimeEnvironment
+
+    env = DynamicRealtimeEnvironment(factor=0, strict=False)
+    env.registry.register_sim_parameter(low_level.PARAMS)
+    labels = _Capture()
+    env.setup_egress([labels], labels=[True])
+    low_level.build(env)
+    env.run(until=20)
+    env.teardown()
+    assert [
+        (r["sim_ts"], r["label"]) for r in labels.records if r["stream_type"] == "label"
+    ] == [(12.0, {"status": "wrappers_added", "capacity": 2})]
+
+
+def test_serve_together_batches_agree_in_every_form():
+    """Seven orders, 1 s apart: the first batch of 3 closes at 3 s, the second at 6 s
+    (its members start then and the oven frees at 7 s), the seventh closes alone at
+    9.5 s by its timeout. A `close_when` batch of
+    `batch.size >= 2 and batch.age >= 2` closes at 3 s with orders 1 to 3 and at 6 s
+    with orders 4 to 6, the oven bakes them at 7 s and 11 s, and the seventh order
+    waits for ever. The YAML, builder and low-level forms agree for both batches, and
+    the page shows the rows."""
+    yaml = ROOT / "docs" / "snippets" / "yaml"
+    builder = _load("serve_together")
+    low_level = _load("serve_together_low_level")
+    rows = builder.batch_records()
+    assert rows[:3] == [(3.0, f"orders-{n}", "started") for n in (1, 2, 3)]
+    assert (9.5, "orders-7", "started") in rows
+    assert rows[-1] == (15.0, "orders-7", "baked")
+    assert builder.batch_records(str(yaml / "serve_together.yaml")) == rows
+    assert low_level.batch_records() == rows
+    early = [
+        (time, f"orders-{number}", status)
+        for time, numbers, status in (
+            (3.0, (1, 2, 3), "started"),
+            (6.0, (4, 5, 6), "started"),
+            (7.0, (1, 2, 3), "baked"),
+            (11.0, (4, 5, 6), "baked"),
+        )
+        for number in numbers
+    ]
+    early.sort()
+    assert builder.batch_records(str(yaml / "serve_together_close_when.yaml")) == early
+    assert builder.batch_records(close_when=True) == early
+    assert low_level.batch_records(close_when=True) == early
+    page = (ROOT / "docs/how-to/modelling/serve-entities-together.md").read_text(
+        "utf-8"
+    )
+    for shown_rows in (rows, early):
+        shown = "\n".join(f"check: {row}" for row in shown_rows)
+        assert f"```text\n{shown}\n```" in page
+
+
+def test_breakdowns_busy_clock_counts_only_the_time_in_use():
+    """A station that fails after 5 s of work fails once, 5 s into the order that
+    starts at 10 s, with the busy clock; with the calendar clock it fails every 7 s,
+    idle or not. The YAML, builder and low-level forms agree."""
+    yaml = ROOT / "docs" / "snippets" / "yaml" / "breakdowns_busy.yaml"
+    builder = _load("breakdowns_busy")
+    low_level = _load("breakdowns_busy_low_level")
+    busy = [(15.0, "down"), (17.0, "repaired")]
+    calendar = [
+        (time, status)
+        for start in (5.0, 12.0, 19.0, 26.0)
+        for time, status in ((start, "down"), (start + 2, "repaired"))
+    ]
+    for clock, expected in (("busy", busy), ("calendar", calendar)):
+        assert builder.down_periods(clock) == expected
+        assert builder.down_periods_yaml(clock, str(yaml)) == expected
+        assert low_level.down_periods(clock) == expected
+    page = (ROOT / "docs/how-to/modelling/breakdowns.md").read_text("utf-8")
+    assert "`[(15.0, 'down'), (17.0, 'repaired')]`" in page
+
+
 def test_breakdowns_check_runs_from_the_downloaded_files(tmp_path, monkeypatch):
     """The check finds the example where `desflow examples get breakdowns` writes it,
     and prints the lines the page shows."""
@@ -259,7 +371,9 @@ def test_how_to_check_scripts_run_as_the_page_builds_them(
             "wait_first.yaml",
             "wait_tie.yaml",
             "wait_all.yaml",
-            "wait_for_one_or_all_logic.py",
+            "wait_suspend.yaml",
+            "wait_each.yaml",
+            "wait_pool.yaml",
         ):
             _saved_file_from_page(page, name, tmp_path)
     text = _script_from_page(page, module, script, import_line, tmp_path, import_first)
@@ -758,11 +872,12 @@ def test_shop_record_module_declares_the_fields_of_the_proto_file():
 
 
 def test_reneging_and_balking_ties_and_balance(tmp_path, monkeypatch):
-    """At a tie, the order scheduled later is served and the one scheduled first
-    reneges, as the page says, in every form; and every order of the patience
-    example is packed, reneged, balked or still in the shop, in every form. The
-    script runs from the folder a reader works in: the saved blueprint beside it
-    and the files `desflow examples get patience` writes."""
+    """At a tie the patience's event comes first, so the order reneges, in every form:
+    one arriving at 3 with a patience of 3 and one arriving at 0 with a patience of 6.
+    An order whose patience ends after the grant is served. Every order of the patience
+    example is packed, reneged, balked or still in the shop, in every form. The script
+    runs from the folder a reader works in: the saved blueprint beside it and the files
+    `desflow examples get patience` writes."""
     shutil.copy(ROOT / "docs" / "snippets" / "yaml" / "reneging_tie.yaml", tmp_path)
     for api, name in (
         ("yaml", "patience.yaml"),
@@ -774,21 +889,97 @@ def test_reneging_and_balking_ties_and_balance(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     module = _load("reneging_and_balking")
     for tie in (module.tie, module.tie_yaml, module.tie_low_level):
-        assert tie(3, 3) == "served"
+        assert tie(3, 3) == "reneged"
         assert tie(0, 6) == "reneged"
+        assert tie(3, 4) == "served"
     forms = (module.yaml_form, module.builder_form, module.low_level_form)
     for form in forms:
         assert form() == {"order_packed": 49, "balked": 17, "reneged": 7, "started": 1}
     printed = [
         "check: arrives at 3, patience 3: " + module.tie(3, 3),
         "check: arrives at 0, patience 6: " + module.tie(0, 6),
-        f"check: the same in YAML: {module.tie_yaml(3, 3)} {module.tie_yaml(0, 6)}",
+        "check: arrives at 3, patience 4: " + module.tie(3, 4),
+        f"check: the same in YAML: {module.tie_yaml(3, 3)} {module.tie_yaml(0, 6)} "
+        f"{module.tie_yaml(3, 4)}",
         f"check: the same, low-level: {module.tie_low_level(3, 3)} "
-        f"{module.tie_low_level(0, 6)}",
+        f"{module.tie_low_level(0, 6)} {module.tie_low_level(3, 4)}",
         *(f"check: {dict(form())}" for form in forms),
     ]
     page = (ROOT / "docs/how-to/modelling/reneging-and-balking.md").read_text("utf-8")
     assert "```text\n" + "\n".join(printed) + "\n```" in page
+
+
+def test_patience_example_uses_the_tie_form():
+    """The Low-level patience example decides by `req not in result`, the form that
+    gives a tie to the grant, and not by `req.triggered`, which gives it to the
+    patience (row 187)."""
+    source = (ROOT / "examples/low-level/patience_example.py").read_text("utf-8")
+    assert "result = yield req | env.timeout(patience)" in source
+    assert "if req not in result:" in source
+    assert "req.triggered" not in source
+
+
+def _numbers(keys):
+    """The order numbers of keys such as `orders-7`, in order."""
+    return sorted(int(key.split("-")[1]) for key in keys)
+
+
+def test_reneging_follow_up_goes_on_to_a_task_in_every_form():
+    """An order that reneges or balks goes to `follow_up`, which reads the status of the
+    task it left. Of 12 orders 4 are packed, 3 renege (3, 5 and 6) and 5 balk (8 to 12),
+    and the YAML, Builder and Low-level forms publish the same records."""
+    from desflow import DynamicRealtimeEnvironment, SimulationContext
+
+    def outcome(records):
+        rows = [
+            (r["sim_ts"], r["key"], r["task"], r["value"].get("how"))
+            for r in records
+            if r["stream_type"] == "event"
+            and r["task"] in ("pack", "follow_up")
+            and "status" not in r["value"]
+        ]
+        return sorted(rows, key=lambda row: (row[0], row[1]))
+
+    yaml = SimulationContext.from_yaml(
+        ROOT / "docs" / "snippets" / "yaml" / "reneging_follow_up.yaml"
+    )
+    capture = _Capture()
+    yaml.add_egress(capture)
+    yaml.run()
+    expected = outcome(capture.records)
+
+    builder = _load("reneging_follow_up").build()
+    capture = _Capture()
+    builder.add_egress(capture)
+    builder.run(until=40)
+    assert outcome(capture.records) == expected
+
+    module = _load("reneging_follow_up_low_level")
+    env = DynamicRealtimeEnvironment(factor=0)
+    capture = _Capture()
+    env.setup_egress([capture])
+    module.build(env)
+    env.run(until=40)
+    env.teardown()
+    assert outcome(capture.records) == expected
+
+    by_how = {}
+    for _, key, task, how in expected:
+        by_how.setdefault(how if task == "follow_up" else "packed", []).append(key)
+    assert _numbers(by_how["packed"]) == [1, 2, 4, 7]
+    assert _numbers(by_how["reneged"]) == [3, 5, 6]
+    assert _numbers(by_how["balked"]) == [8, 9, 10, 11, 12]
+    page = (ROOT / "docs/how-to/modelling/reneging-and-balking.md").read_text("utf-8")
+    shown = re.search(
+        r"<!-- records: reneging-follow-up -->\n```text\n(.*?)\n```", page, re.S
+    )
+    assert shown is not None
+    shown_rows = [json.loads(line) for line in shown.group(1).split("\n")]
+    left = [row for row in expected if row[2] == "follow_up"]
+    assert len(shown_rows) == len(left) == 8
+    assert sorted(
+        (r["sim_ts"], r["key"], r["value"]["how"]) for r in shown_rows
+    ) == sorted((time, key, how) for time, key, _, how in left)
 
 
 def test_wait_for_one_or_all_first_ties_and_failure():
@@ -818,6 +1009,69 @@ def test_wait_for_one_or_all_first_ties_and_failure():
         ]
 
 
+def test_wait_suspend_each_and_pool_in_every_form(tmp_path):
+    """A truck wakes the two oldest of three parked orders with its value; an `each`
+    wait with `at_least: 2` ends at the second box with the flags of the elements; a
+    pool of three requests packs with the first and cancels the others, so a second
+    order arriving at 1 s is served from 2 s to 3 s: without the `cancel` it never is.
+    The builder, YAML and low-level forms agree, and a `when` wait ends when its expression holds."""
+    module = _load("wait_for_one_or_all")
+    low_level = _load("wait_for_one_or_all_low_level")
+    yaml = ROOT / "docs" / "snippets" / "yaml"
+    woken = [(5.0, "truck-1"), (5.0, "truck-1")]
+    boxes = (5.0, [True, True, False])
+    assert module.suspend_and_resume() == woken
+    assert module.suspend_and_resume_yaml(yaml / "wait_suspend.yaml") == woken
+    assert low_level.suspend_and_resume() == woken
+    assert module.each_of_three() == boxes
+    assert module.each_of_three_yaml(yaml / "wait_each.yaml") == boxes
+    assert low_level.each_of_three() == boxes
+    packed = (2.0, [True, False, False], 3.0)
+    assert module.pool_of_requests() == packed
+    assert module.pool_of_requests_yaml(yaml / "wait_pool.yaml") == packed
+    assert low_level.pool_of_requests() == packed
+    # Without the cancel the release hands the unit to a request nothing releases, so
+    # the second order is never served: the YAML form shows it
+    without_cancel = tmp_path / "wait_pool_without_cancel.yaml"
+    text = (yaml / "wait_pool.yaml").read_text(encoding="utf-8")
+    assert "    cancel: pool" in text
+    without_cancel.write_text(text.replace("    cancel: pool", ""), encoding="utf-8")
+    assert module.pool_of_requests_yaml(without_cancel) == (
+        2.0,
+        [True, False, False],
+        None,
+    )
+    when = module.run_blueprint(yaml / "wait_when.yaml", {})
+    approved = module._events("approve", when)[-1]
+    assert (approved["sim_ts"], approved["value"]["address_done"]) == (3.0, False)
+
+
+def test_an_each_when_group_reads_only_done_count(tmp_path):
+    """The page says the `when` of an `each` group reads only `done_count` and that a
+    `wait.<name>` reference is refused when the file loads: `done_count >= 2` loads and
+    ends the wait at 5 s, and adding `wait.boxes.flags[0]` is refused."""
+    from desflow import SimulationContext
+
+    text = (ROOT / "docs/snippets/yaml/wait_each.yaml").read_text(encoding="utf-8")
+    group = "group: {at_least: 2}"
+    assert group in text
+    allowed = tmp_path / "allowed.yaml"
+    allowed.write_text(
+        text.replace(group, 'group: {when: "done_count >= 2"}'), encoding="utf-8"
+    )
+    SimulationContext.from_yaml(allowed)
+    refused = tmp_path / "refused.yaml"
+    refused.write_text(
+        text.replace(group, 'group: {when: "done_count >= 2 and wait.boxes.flags[0]"}'),
+        encoding="utf-8",
+    )
+    with pytest.raises(Exception, match="when of an each group reads done_count"):
+        SimulationContext.from_yaml(refused)
+    page = (ROOT / "docs/how-to/modelling/wait-for-one-or-all.md").read_text("utf-8")
+    assert "The `when` of an `each` group reads only `done_count`." in page
+    assert "A `when` group reads `done_count` and `wait.<name>.values`" not in page
+
+
 def test_wait_for_one_or_all_example_packs_and_refunds():
     """The page's example: each restock waits for all of its delivery (10 s) and its
     stock count (20 s), so it comes 20 s after each delivery starts, at 80 s to 560 s;
@@ -843,9 +1097,15 @@ def test_wait_for_one_or_all_checks_run_from_saved_files(tmp_path, monkeypatch):
     from desflow.cli import app
 
     yaml = ROOT / "docs" / "snippets" / "yaml"
-    for name in ("wait_first.yaml", "wait_tie.yaml", "wait_all.yaml"):
+    for name in (
+        "wait_first.yaml",
+        "wait_tie.yaml",
+        "wait_all.yaml",
+        "wait_suspend.yaml",
+        "wait_each.yaml",
+        "wait_pool.yaml",
+    ):
         shutil.copy(yaml / name, tmp_path)
-    shutil.copy(yaml / "wait_for_one_or_all_logic.py", tmp_path)
     monkeypatch.chdir(tmp_path)
     module = _load("wait_for_one_or_all")
     printed = [
@@ -856,6 +1116,12 @@ def test_wait_for_one_or_all_checks_run_from_saved_files(tmp_path, monkeypatch):
         f"check: the same in YAML: {module.first_yaml(10)} {module.first_yaml(50)}",
         f"check: two at once in YAML: {module.two_at_once_yaml()}",
         f"check: all, with a failure, in YAML: {module.all_with_a_failure_yaml()}",
+        f"check: suspend and resume: {module.suspend_and_resume()}",
+        f"check: suspend and resume, in YAML: {module.suspend_and_resume_yaml()}",
+        f"check: two of three boxes: {module.each_of_three()}",
+        f"check: two of three boxes, in YAML: {module.each_of_three_yaml()}",
+        f"check: the first of three packers: {module.pool_of_requests()}",
+        f"check: the first of three packers, in YAML: {module.pool_of_requests_yaml()}",
     ]
     page = (ROOT / "docs/how-to/modelling/wait-for-one-or-all.md").read_text("utf-8")
     assert "```text\n" + "\n".join(printed) + "\n```" in page

@@ -32,6 +32,7 @@ COUNTRIES = ["AU", "NZ", "SG"]
 
 def build(env: DynamicRealtimeEnvironment) -> None:
     """Starts the customers, the orders and the reports on `env`."""
+    # --8<-- [start:arrival]
     sampler = Sampler(seed=42)
     country = sampler.generator("tasks.customer.payload.country")
     pick = sampler.generator("tasks.order.payload.customer_id")
@@ -46,7 +47,9 @@ def build(env: DynamicRealtimeEnvironment) -> None:
     customer_rows: list = []  # the customers written so far, for the lookup
     order_rows: list = []  # the orders written so far, for the aggregate
     sent = {"customer": 0, "report": 0}
+    # --8<-- [end:arrival]
 
+    # --8<-- [start:payload]
     def write_customer(key):
         """Publishes the next customer and keeps its row."""
         row = {
@@ -105,6 +108,7 @@ def build(env: DynamicRealtimeEnvironment) -> None:
     env.process(reports())
     for number in range(1, 6):
         env.process(first(number))
+    # --8<-- [end:payload]
 
 
 def run() -> None:

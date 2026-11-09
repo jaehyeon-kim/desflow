@@ -10,7 +10,7 @@ docs/snippets/yaml, and wait_for_one_or_all_low_level.py with the low-level API.
 
 python wait_for_one_or_all.py prints each result on a line that starts with
 "check: ". Run it in a folder that holds the blueprints wait_first.yaml, wait_tie.yaml
-and wait_all.yaml (docs/snippets/yaml/) and wait_for_one_or_all_logic.py.
+and wait_all.yaml (docs/snippets/yaml/).
 """
 
 # ruff: noqa: E402
@@ -19,7 +19,6 @@ and wait_all.yaml (docs/snippets/yaml/) and wait_for_one_or_all_logic.py.
 import asyncio
 import queue
 import shutil
-import sys
 import tempfile
 from pathlib import Path
 
@@ -157,7 +156,7 @@ def all_with_a_failure() -> list:
         context.spawn(restock(0, entity=delivery))
 
     app.add_process(script)
-    app.run(until=10)
+    app.run(until=10, on_unhandled_failure="continue")
     return [
         (e["sim_ts"], e["task"], e["value"].get("status", "finished"))
         for e in capture.events
@@ -166,6 +165,115 @@ def all_with_a_failure() -> list:
 
 
 # --8<-- [end:all]
+
+
+# --8<-- [start:suspend]
+def suspend_and_resume() -> list:
+    """(time, value) of each order a truck woke: it wakes the two oldest of three."""
+    app, capture = _shop()
+    woken = []
+
+    @app.task(wait={"suspend": True})
+    def hold(task_id, wait):
+        # wait["suspend"]["value"] is the value of the resume that woke the order
+        woken.append((float(app.env.now), wait["suspend"]["value"]))
+        return {"event_type": "released"}
+
+    @app.task(resume={"task": "hold", "limit": 2, "value": "truck-1"})
+    def unload(task_id):
+        return {"event_type": "unloaded"}
+
+    def script(context):
+        for number in range(3):
+            yield context.env.timeout(1)
+            context.spawn(hold(number))
+        yield context.env.timeout(2)
+        context.spawn(unload(0))
+
+    app.add_process(script)
+    app.run(until=10)
+    return woken
+
+
+# --8<-- [end:suspend]
+
+
+# --8<-- [start:each]
+def each_of_three() -> tuple:
+    """(time, flags) of an order that packs three boxes, of 2, 5 and 9 seconds, and
+    goes on when two are packed."""
+    app, capture = _shop()
+    seen = {}
+
+    @app.task(
+        wait={
+            "all": {
+                "boxes": {
+                    "each": [2, 5, 9],
+                    "group": {"at_least": 2},
+                    "branch": {"timeout": {"after": "each.value"}},
+                }
+            }
+        }
+    )
+    def order(task_id, wait):
+        seen["done"] = (float(app.env.now), wait["boxes"]["flags"])
+        return {"event_type": "packed"}
+
+    def script(context):
+        context.spawn(order(0))
+        yield context.env.timeout(0)
+
+    app.add_process(script)
+    app.run(until=30)
+    return seen["done"]
+
+
+# --8<-- [end:each]
+
+
+# --8<-- [start:pool]
+def pool_of_requests() -> tuple:
+    """(time, granted, time of the next order) of an order that asks for three packers
+    at once, packs with the first it gets and cancels the other two requests. A second
+    order arrives at 1 s and asks for a packer."""
+    from desflow.values import Template
+
+    app, capture = _shop()
+    app.add_resource("packers", current_cap=1)
+    packed = Template(
+        {
+            "event_type": "packed",
+            "granted": {"gen": "expr", "expr": "handle.pool.flags"},
+        },
+        name="tasks.order",
+    )
+
+    @app.task(
+        open={"pool": {"each": 3, "branch": {"request": "packers"}}},
+        wait={"handle": "pool", "index": 0},
+        service_time=2,
+        cancel="pool",  # the requests not yet granted: the second and the third
+        release={"handle": "pool", "index": 0},
+    )
+    def order(task_id):
+        return packed
+
+    @app.task(resource_id="packers", service_time=1)
+    def late_order(task_id):
+        return {"event_type": "late_packed"}
+
+    def script(context):
+        context.spawn(order(0))
+        yield context.env.timeout(1)
+        context.spawn(late_order(0))
+
+    app.add_process(script)
+    app.run(until=30)
+    return _pool_result(capture)
+
+
+# --8<-- [end:pool]
 
 
 # --8<-- [start:yaml]
@@ -177,18 +285,12 @@ def run_blueprint(blueprint: Path, arrivals: dict) -> Capture:
     with tempfile.TemporaryDirectory() as tmp:
         folder = Path(tmp)
         shutil.copy(blueprint, folder)
-        shutil.copy(blueprint.parent / "wait_for_one_or_all_logic.py", folder)
         for file, rows in arrivals.items():
             (folder / file).write_text(rows)
-        sys.path.insert(0, str(folder))  # the blueprint's !python payload
-        try:
-            app = SimulationContext.from_yaml(folder / blueprint.name)
-            capture = Capture()
-            app.add_egress(capture)
-            app.run()  # until the blueprint's run.until
-        finally:
-            sys.path.remove(str(folder))
-            sys.modules.pop("wait_for_one_or_all_logic", None)
+        app = SimulationContext.from_yaml(folder / blueprint.name)
+        capture = Capture()
+        app.add_egress(capture)
+        app.run()  # until the blueprint's run.until
     return capture
 
 
@@ -224,6 +326,36 @@ def all_with_a_failure_yaml(blueprint="wait_all.yaml") -> list:
     ]
 
 
+def suspend_and_resume_yaml(blueprint="wait_suspend.yaml") -> list:
+    capture = run_blueprint(Path(blueprint), {})
+    return [
+        (e["sim_ts"], e["value"]["by"])
+        for e in _events("hold", capture)
+        if e["value"].get("event_type") == "released"
+    ]
+
+
+def each_of_three_yaml(blueprint="wait_each.yaml") -> tuple:
+    packed = _events("order", run_blueprint(Path(blueprint), {}))[-1]
+    return packed["sim_ts"], packed["value"]["flags"]
+
+
+def _pool_result(capture: Capture) -> tuple:
+    """(time the order is packed, its granted flags, time the next order is packed),
+    with None for a record that never comes."""
+    packed = [e for e in _events("order", capture) if "granted" in e["value"]]
+    late = [e for e in _events("late_order", capture) if "event_type" in e["value"]]
+    return (
+        packed[0]["sim_ts"],
+        packed[0]["value"]["granted"],
+        late[0]["sim_ts"] if late else None,
+    )
+
+
+def pool_of_requests_yaml(blueprint="wait_pool.yaml") -> tuple:
+    return _pool_result(run_blueprint(Path(blueprint), {}))
+
+
 # --8<-- [end:yaml]
 
 
@@ -256,4 +388,10 @@ if __name__ == "__main__":
     print("check: the same in YAML:", first_yaml(10), first_yaml(50))
     print("check: two at once in YAML:", two_at_once_yaml())
     print("check: all, with a failure, in YAML:", all_with_a_failure_yaml())
+    print("check: suspend and resume:", suspend_and_resume())
+    print("check: suspend and resume, in YAML:", suspend_and_resume_yaml())
+    print("check: two of three boxes:", each_of_three())
+    print("check: two of three boxes, in YAML:", each_of_three_yaml())
+    print("check: the first of three packers:", pool_of_requests())
+    print("check: the first of three packers, in YAML:", pool_of_requests_yaml())
 # --8<-- [end:main]

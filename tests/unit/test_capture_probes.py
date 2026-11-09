@@ -290,9 +290,16 @@ def _signal(entry: Dict[str, Any]) -> Change:
 
 def _stop(d: Dict[str, Any]) -> None:
     _probe(d)
-    _section(d, "run")["stop"] = {
-        "condition": 'registry["S.resources.dsk.current_cap"] >= 1'
-    }
+    stop = {"condition": 'registry["S.resources.dsk.current_cap"] >= 1'}
+    run = _section(d, "run")
+    segments = run.get("segments")
+    if segments:
+        # `run.segments` refuses `run.stop`: a segment takes `until` or `stop`
+        last = segments[-1]
+        last.pop("until", None)
+        last["stop"] = stop
+    else:
+        run["stop"] = stop
 
 
 def _scenario(d: Dict[str, Any]) -> None:

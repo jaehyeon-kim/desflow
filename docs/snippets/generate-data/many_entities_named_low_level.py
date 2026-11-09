@@ -27,13 +27,16 @@ ENVIRONMENT: dict = {"logical_start_time": START, "timezone": "UTC"}
 
 def build(env: DynamicRealtimeEnvironment) -> None:
     """Starts the three warehouses on `env`."""
+    # --8<-- [start:arrival]
     sampler = Sampler(seed=42)
     waiting = sampler.generator("tasks.report.payload.orders_waiting")
     warehouses_gap = DistributionConfig(dist="constant", value=2)
     # The random sequence the blueprint's draw uses
     warehouses_gap.stream = "arrival.warehouses"
     sent = {"report": 0}
+    # --8<-- [end:arrival]
 
+    # --8<-- [start:payload]
     def warehouse(key):
         while True:
             yield env.timeout(sampler.sample(warehouses_gap))
@@ -46,6 +49,7 @@ def build(env: DynamicRealtimeEnvironment) -> None:
 
     for key in ["north", "south", "east"]:
         env.process(warehouse(key))
+    # --8<-- [end:payload]
 
 
 def run() -> None:

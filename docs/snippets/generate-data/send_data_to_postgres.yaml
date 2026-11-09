@@ -12,6 +12,7 @@ simulation:
   random_seed: 42
   logical_start_time: 2026-01-01T00:00:00
 
+# --8<-- [start:egress]
 egress:
   - type: Postgres
     config:
@@ -20,6 +21,7 @@ egress:
         orders:
           columns: {order_id: INT, customer_id: INT, total: REAL}
           primary_key: order_id
+# --8<-- [end:egress]
 
 arrivals:
   orders: {dist: exponential, rate: 1, spawn: order}

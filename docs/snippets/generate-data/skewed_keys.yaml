@@ -17,9 +17,12 @@ simulation:
 egress:
   - {type: Console}
 
+# --8<-- [start:arrivals]
 arrivals:
   orders: {dist: constant, value: 1, spawn: order}
+# --8<-- [end:arrivals]
 
+# --8<-- [start:tasks]
 tasks:
   order:
     vars:
@@ -32,5 +35,6 @@ tasks:
         condition: busy
         then: {gen: integer, bounds: [1, 5]}
         else: {gen: integer, bounds: [6, 25]}
+# --8<-- [end:tasks]
 
 run: {until: 1000}

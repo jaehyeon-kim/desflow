@@ -91,7 +91,8 @@ A task sets the class with its `priority`, and the loader refuses a task priorit
 
     ```yaml title="docs/snippets/yaml/share_by_weight.yaml:resource"
     resources:
-      # queue: priority lets a task set a priority; the class orders the waiting requests itself
+      # queue: priority lets a task set a priority; the class orders the waiting requests
+      # itself
       packers:
         current_cap: 1
         max_cap: 4
@@ -263,15 +264,13 @@ Every form uses the class in `share_by_weight_logic.py` unchanged. Put it, the b
     === "YAML"
 
         ```yaml title="docs/snippets/yaml/share_by_weight.yaml"
-        # The Share Work by Weight guide: one packer shared between two tiers of orders by weight.
-        # Run it with: desflow run share_by_weight.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        # The Share Work by Weight guide: one packer shared between two tiers of orders by
+        # weight. Run it with: desflow run share_by_weight.yaml
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
-          # queue: priority lets a task set a priority; the class orders the waiting requests itself
+          # queue: priority lets a task set a priority; the class orders the waiting requests
+          # itself
           packers:
             current_cap: 1
             max_cap: 4
@@ -295,10 +294,9 @@ Every form uses the class in `share_by_weight_logic.py` unchanged. Put it, the b
             payload: {event_type: order_packed}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 20 s
+        run: {until: 20 s}
         ```
 
         ```csv title="docs/snippets/yaml/share_by_weight_orders.csv"

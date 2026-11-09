@@ -1,0 +1,23 @@
+# The Wait for One or All guide: three orders park, and one truck wakes the two oldest.
+# The orders arrive at 1, 2 and 3 seconds, and the truck at 5.
+# --8<-- [start:suspend]
+simulation: {sim_id: Shop, factor: 0}
+
+arrivals:
+  orders: {dist: constant, value: 1, max_events: 3, spawn: hold}
+  trucks: {dist: constant, value: 5, first_at: 5, max_events: 1, spawn: unload}
+
+tasks:
+  # Parks until a resume wakes it; wait.suspend.value is the value of that resume
+  hold:
+    wait: {suspend: true}
+    payload:
+      event_type: released
+      by: {gen: expr, expr: wait.suspend.value}
+  # Wakes the two oldest parked orders; the third stays parked
+  unload:
+    resume: {task: hold, limit: 2, value: truck-1}
+    payload: {event_type: unloaded}
+
+run: {until: 10}
+# --8<-- [end:suspend]

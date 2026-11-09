@@ -26,6 +26,7 @@ def build() -> SimulationContext:
         logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:arrival]
     # A blueprint's `count: 10` is ten arrivals here, each with the key of its till
     for number in range(1, 11):
         app.add_arrival(
@@ -35,6 +36,8 @@ def build() -> SimulationContext:
             spawn="report",
             key=lambda n, number=number: f"till-{number}",
         )
+    # --8<-- [end:arrival]
+    # --8<-- [start:payload]
     report_payload = Template(
         {
             "till": {"gen": "entity"},
@@ -47,6 +50,8 @@ def build() -> SimulationContext:
     def report(task_id):
         """Gives one report record."""
         return report_payload
+
+    # --8<-- [end:payload]
 
     return app
 

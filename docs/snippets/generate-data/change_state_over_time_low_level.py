@@ -23,16 +23,19 @@ UNTIL = 7200
 START = datetime(2026, 1, 1, tzinfo=timezone.utc)
 ENVIRONMENT: dict = {"logical_start_time": START, "timezone": "UTC"}
 
+# --8<-- [start:states]
 DWELL = {"running": 300, "slow": 120, "stopped": 240}  # seconds in each state
 NEXT = {
     "running": {"weights": {"running": 85, "slow": 15}},
     "slow": {"weights": {"running": 55, "slow": 25, "stopped": 20}},
     "stopped": "slow",
 }
+# --8<-- [end:states]
 
 
 def build(env: DynamicRealtimeEnvironment) -> None:
     """Starts the three stations on `env`."""
+    # --8<-- [start:arrival]
     sampler = Sampler(seed=42)
     routers = {
         state: Router(rule, rng=sampler.generator(f"route.{state}"))
@@ -40,7 +43,9 @@ def build(env: DynamicRealtimeEnvironment) -> None:
         if isinstance(rule, dict)
     }
     counts = {state: 0 for state in DWELL}
+    # --8<-- [end:arrival]
 
+    # --8<-- [start:payload]
     def station(number):
         key = f"station-{number}"
         state = "running"
@@ -61,6 +66,7 @@ def build(env: DynamicRealtimeEnvironment) -> None:
 
     for number in range(1, 4):
         env.process(station(number))
+    # --8<-- [end:payload]
 
 
 def run() -> None:

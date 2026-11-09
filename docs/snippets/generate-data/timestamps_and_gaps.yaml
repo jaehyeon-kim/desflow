@@ -17,11 +17,14 @@ simulation:
 egress:
   - {type: Console}
 
+# --8<-- [start:arrivals]
 arrivals:
   orders:
     gap: {gen: normal, mean: 0.4, std: 0.03}
     spawn: order
+# --8<-- [end:arrivals]
 
+# --8<-- [start:tasks]
 tasks:
   order:
     payload:
@@ -30,5 +33,6 @@ tasks:
         gen: now
         offset: {gen: uniform, low: 0, high: 172800}
       epoch_ms: {gen: format_time, format: epoch_ms}
+# --8<-- [end:tasks]
 
 run: {until: 10}

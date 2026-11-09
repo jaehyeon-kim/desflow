@@ -25,9 +25,14 @@ def build() -> SimulationContext:
         random_seed=42,
         logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
+    # --8<-- [start:egress]
     app.add_egress(ConsoleEgress())
     app.add_egress(ConsoleEgress(), when="labels")
+    # --8<-- [end:egress]
+    # --8<-- [start:arrival]
     app.add_arrival("orders", "constant", value=10, spawn="order")
+    # --8<-- [end:arrival]
+    # --8<-- [start:scenario]
     app.add_scenario(
         [
             {"at": 60, "record": {"change": "field_added", "field": "currency"}},
@@ -49,6 +54,8 @@ def build() -> SimulationContext:
             },
         ]
     )
+    # --8<-- [end:scenario]
+    # --8<-- [start:payload]
     order_payload = Template(
         {
             "order_id": {"gen": "sequence", "start": 1},
@@ -70,6 +77,8 @@ def build() -> SimulationContext:
     def order(task_id):
         """Gives one order record."""
         return order_payload
+
+    # --8<-- [end:payload]
 
     return app
 

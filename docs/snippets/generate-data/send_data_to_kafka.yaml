@@ -12,11 +12,13 @@ simulation:
   random_seed: 42
   logical_start_time: 2026-01-01T00:00:00
 
+# --8<-- [start:egress]
 egress:
   - type: Kafka
     config:
       bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
       event_topic: orders
+# --8<-- [end:egress]
 
 arrivals:
   orders: {dist: exponential, rate: 1, spawn: order}

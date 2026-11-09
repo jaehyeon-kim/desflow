@@ -19,9 +19,12 @@ simulation:
 egress:
   - {type: Console}
 
+# --8<-- [start:arrivals]
 arrivals:
   signups: {dist: exponential, rate: 0.5, spawn: signup}
+# --8<-- [end:arrivals]
 
+# --8<-- [start:tasks]
 tasks:
   signup:
     payload:
@@ -32,5 +35,6 @@ tasks:
       german_city: {gen: fake, method: city, locale: de_DE}
       job: {gen: fake, method: job}
       favourite: {gen: row, file: realistic_fields_products.csv, weight: popularity}
+# --8<-- [end:tasks]
 
 run: {until: 20}

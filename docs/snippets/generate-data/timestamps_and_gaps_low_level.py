@@ -25,10 +25,13 @@ EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 def build(env: DynamicRealtimeEnvironment) -> None:
     """Starts the arrival on `env`."""
+    # --8<-- [start:arrival]
     sampler = Sampler(seed=42)
     gap = sampler.generator("arrivals.orders.gap")
     offset = sampler.generator("tasks.order.payload.deliver_by.offset")
+    # --8<-- [end:arrival]
 
+    # --8<-- [start:payload]
     def order_time(seconds=0.0):
         """The logical time now plus `seconds`, as the environment counts it."""
         return env.start_datetime + timedelta(seconds=env.now + seconds)
@@ -48,6 +51,7 @@ def build(env: DynamicRealtimeEnvironment) -> None:
             )
 
     env.process(orders_source())
+    # --8<-- [end:payload]
 
 
 def run() -> None:

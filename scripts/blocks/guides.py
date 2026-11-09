@@ -12,7 +12,7 @@ from .capture import (
     printed_lines,
     yaml_records,
 )
-from .commands import explain, lines_from
+from .commands import explain, lines_from, sample
 
 _THEORY = "docs/snippets/yaml/check_against_theory.yaml"
 
@@ -87,7 +87,14 @@ def python_error() -> List[str]:
     return result.output.rstrip("\n").split("\n")
 
 
+def reneging_follow_up() -> List[str]:
+    """Add Reneging and Balking: the records `follow_up` writes for the orders that left."""
+    lines = sample("docs/snippets/yaml/reneging_follow_up.yaml", 100)
+    return [line for line in lines if "order_left" in line]
+
+
 BLOCKS: Dict[str, Callable[[], List[str]]] = {
+    "reneging-follow-up": reneging_follow_up,
     "hybrid-events": hybrid_events,
     "python-error": python_error,
     "record-examples": record_examples,

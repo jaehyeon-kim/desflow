@@ -14,7 +14,7 @@ app = (
     .add_arrival("orders", dist="exponential", rate=0.1, spawn="order")
     .add_arrival("deliveries", dist="constant", value=60, spawn="restock")
     .add_service("counting", dist="constant", value=20)
-    .add_signal("restocked")
+    .add_signal("restocked", once=False)
     .with_stats("basic")
 )
 

@@ -27,6 +27,7 @@ ENVIRONMENT: dict = {"logical_start_time": START, "timezone": "UTC"}
 
 def build(env: DynamicRealtimeEnvironment) -> None:
     """Starts the arrival on `env`."""
+    # --8<-- [start:arrival]
     sampler = Sampler(seed=42)
     busy = sampler.generator("tasks.order.vars.busy")
     busy_customer = sampler.generator("tasks.order.payload.customer_id.then")
@@ -34,7 +35,9 @@ def build(env: DynamicRealtimeEnvironment) -> None:
     orders_gap = DistributionConfig(dist="constant", value=1)
     # The random sequence the blueprint's draw uses
     orders_gap.stream = "arrival.orders"
+    # --8<-- [end:arrival]
 
+    # --8<-- [start:payload]
     def orders_source():
         number = 0
         while True:
@@ -52,6 +55,7 @@ def build(env: DynamicRealtimeEnvironment) -> None:
             )
 
     env.process(orders_source())
+    # --8<-- [end:payload]
 
 
 def run() -> None:

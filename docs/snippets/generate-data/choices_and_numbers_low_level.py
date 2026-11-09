@@ -29,6 +29,7 @@ CHANNELS = ["web", "app", "store"]
 
 def build(env: DynamicRealtimeEnvironment) -> None:
     """Starts the arrivals on `env`."""
+    # --8<-- [start:arrival]
     sampler = Sampler(seed=42)
     method = sampler.generator("tasks.payment.payload.method")
     price = sampler.generator("tasks.purchase.payload.price")
@@ -42,7 +43,9 @@ def build(env: DynamicRealtimeEnvironment) -> None:
     purchases_gap = DistributionConfig(dist="exponential", rate=1)
     purchases_gap.stream = "arrival.purchases"
     sent = {"payment": 0, "purchase": 0}
+    # --8<-- [end:arrival]
 
+    # --8<-- [start:payload]
     def publish(task, payload):
         """Publishes a finished payload."""
         env.publish_event(
@@ -73,6 +76,7 @@ def build(env: DynamicRealtimeEnvironment) -> None:
 
     env.process(payments_source())
     env.process(purchases_source())
+    # --8<-- [end:payload]
 
 
 def run() -> None:

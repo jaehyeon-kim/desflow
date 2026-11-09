@@ -28,8 +28,16 @@ Here each order brings its own patience as an attribute, which its arrival sets 
 
     ```yaml title="examples/yaml/patience.yaml:pack"
     arrivals:
-      orders: {dist: exponential, rate: 0.5, spawn: pack, attributes: {patience: 20}}
-      walk_ins: {dist: exponential, rate: 0.1, spawn: pack, attributes: {patience: 10}}
+      orders:
+        dist: exponential
+        rate: 0.5
+        spawn: pack
+        attributes: {patience: 20}
+      walk_ins:
+        dist: exponential
+        rate: 0.1
+        spawn: pack
+        attributes: {patience: 10}
 
     tasks:
       pack:
@@ -89,8 +97,8 @@ Here each order brings its own patience as an attribute, which its arrival sets 
         env.stats.task_queued("pack", task_id)
         with packers.request() as req:
             # Each order's own patience: it leaves the queue when it runs out
-            yield req | env.timeout(patience)
-            if not req.triggered:
+            result = yield req | env.timeout(patience)
+            if req not in result:
                 publish(
                     {
                         "path_id": path_id,
@@ -117,16 +125,127 @@ Here each order brings its own patience as an attribute, which its arrival sets 
         env.stats.flow_finished(flow)
     ```
 
-    A low-level process writes both by hand: an `if` before the request, and SimPy's `request | env.timeout(patience)`, which triggers when either event is processed. Leaving the `with` block takes a waiting request out of the queue at once, so it is never granted later.
+    A low-level process writes both by hand: an `if` before the request, and SimPy's `result = yield request | env.timeout(patience)`, which resumes when either event is processed. `request not in result` tells that the patience came first. Leaving the `with` block takes a waiting request out of the queue at once, so it is never granted later.
 
 `patience` takes seconds, a duration such as `30 s`, an expression such as `attr.patience`, or in the builder a function of the task id and the entity's attributes. `balk` takes any condition an expression can write, such as `level.stock == 0`.
 
-### Ties Between a Grant and a Patience
+### Go On After Leaving
 
-A unit can come free at the same instant a waiting order's patience runs out. Plain SimPy does not settle this with a rule: the event scheduled first is processed first. desflow grants units with the same events SimPy uses, so it gives the same answer:
+An order that reneges or balks publishes `reneged` or `balked`, and its flow ends there. `on_renege` and `on_balk` name a task for it to go on to instead. `on_renege` needs `patience`, and `on_balk` needs `balk`, `resource`, `seize` or `open`. The task they name reads the status of the task the order left as `upstream.status`, which is `reneged` or `balked`, and the Builder takes both as arguments of `task`.
 
-- a patience timeout scheduled after the holder's service end (the order arrived at 3 with a patience of 3, the holder started at 0 with 6 seconds of service) is processed after the release, and the order is served;
-- a patience timeout scheduled before it (the order arrived at 0 with a patience of 6, just after the holder) is processed first, and the order reneges.
+One packer packs for 3 seconds and an order arrives every second, with a patience of 4 seconds. No order joins from 8 seconds on. Both ways of leaving go to the same task, `follow_up`, which records how the order left:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/reneging_follow_up.yaml:tasks"
+    pack:
+      service: packing
+      resource: packers
+      patience: 4
+      balk: t >= 8
+      # Where an order goes after it leaves the line, by reneging or by balking
+      on_renege: follow_up
+      on_balk: follow_up
+      payload: {event_type: order_packed}
+    follow_up:
+      payload:
+        event_type: order_left
+        # reneged or balked: the status of the task the order came from
+        how: {gen: expr, expr: upstream.status}
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/guides/reneging_follow_up.py:tasks"
+    @app.task(
+        name="pack",
+        service_id="packing",
+        resource_id="packers",
+        patience=4,
+        balk="t >= 8",
+        # Where an order goes after it leaves the line, by reneging or by balking
+        on_renege="follow_up",
+        on_balk="follow_up",
+    )
+    def pack(task_id):
+        """Packs one order."""
+        return {"event_type": "order_packed"}
+
+    # reneged or balked: the status of the task the order came from
+    follow_up_payload = Template(
+        {"event_type": "order_left", "how": {"gen": "expr", "expr": "upstream.status"}},
+        name="tasks.follow_up",
+    )
+
+    @app.task(name="follow_up")
+    def follow_up(task_id):
+        """Records how the order left the line."""
+        return follow_up_payload
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/guides/reneging_follow_up_low_level.py:tasks"
+    def follow_up(key, how):
+        """Records how the order left the line."""
+        value = {"event_type": "order_left", "how": how}
+        env.publish_event(key, value, task="follow_up", instance=sent["follow_up"])
+        sent["follow_up"] += 1
+
+    def pack(number):
+        key = f"orders-{number}"
+        if env.now >= 8:  # balk: t >= 8
+            follow_up(key, "balked")
+            return
+        with packers.request() as unit:
+            # SimPy's request | timeout: the patience is 4 seconds
+            result = yield unit | env.timeout(4)
+            if unit not in result:
+                follow_up(key, "reneged")
+                return
+            yield env.timeout(
+                sampler.sample(env.registry.get_config("Shop.service.packing"))
+            )
+            env.publish_event(
+                key, {"event_type": "order_packed"}, task="pack", instance=number - 1
+            )
+    ```
+
+    A low-level process has no `on_renege`. It calls the follow-up itself where it leaves the line, and `follow_up` publishes the record.
+
+Of the 12 orders, 4 are packed (1, 2, 4 and 7), 3 renege (3, 5 and 6) and 5 balk (8 to 12). Each of the 8 that leave publishes an `order_left` record from `follow_up` with its `how`.
+
+Run the YAML file from the root of a clone of the repository and keep the records of `follow_up`:
+
+```bash
+git clone https://github.com/jaehyeon-kim/desflow.git
+cd desflow
+desflow run docs/snippets/yaml/reneging_follow_up.yaml --sample 100 | grep order_left
+```
+
+It prints one record for each of the 8 orders that left, with the order's key and its `how` after the time it left:
+
+<!-- records: reneging-follow-up -->
+```text
+{"stream_type":"event","sim_ts":7.0,"timestamp":"...","key":"orders-3","task":"follow_up","instance":0,"value":{"event_type":"order_left","how":"reneged"}}
+{"stream_type":"event","sim_ts":8.0,"timestamp":"...","key":"orders-8","task":"follow_up","instance":1,"value":{"event_type":"order_left","how":"balked"}}
+{"stream_type":"event","sim_ts":9.0,"timestamp":"...","key":"orders-9","task":"follow_up","instance":2,"value":{"event_type":"order_left","how":"balked"}}
+{"stream_type":"event","sim_ts":9.0,"timestamp":"...","key":"orders-5","task":"follow_up","instance":3,"value":{"event_type":"order_left","how":"reneged"}}
+{"stream_type":"event","sim_ts":10.0,"timestamp":"...","key":"orders-10","task":"follow_up","instance":4,"value":{"event_type":"order_left","how":"balked"}}
+{"stream_type":"event","sim_ts":10.0,"timestamp":"...","key":"orders-6","task":"follow_up","instance":5,"value":{"event_type":"order_left","how":"reneged"}}
+{"stream_type":"event","sim_ts":11.0,"timestamp":"...","key":"orders-11","task":"follow_up","instance":6,"value":{"event_type":"order_left","how":"balked"}}
+{"stream_type":"event","sim_ts":12.0,"timestamp":"...","key":"orders-12","task":"follow_up","instance":7,"value":{"event_type":"order_left","how":"balked"}}
+```
+
+The Builder and Low-level scripts, `reneging_follow_up.py` and `reneging_follow_up_low_level.py`, publish the same records, which a test checks.
+
+### Settle a Tie Between a Grant and a Patience
+
+A unit can come free at the same instant a waiting order's patience runs out. Plain SimPy settles this with no rule of its own: the wait ends with whichever event is processed first, and the order is served only when its request is in the result. The unit is granted by an event that the holder's release schedules at the instant of the release. The patience's timeout was scheduled when the order began to wait, so it comes first. desflow grants units with the same events SimPy uses, so it gives the same answer:
+
+- an order that arrived at 3 with a patience of 3, while the holder started at 0 with 6 seconds of service, reneges at 6;
+- an order that arrived at 0 with a patience of 6, just after the holder, reneges at 6 as well;
+- an order that arrived at 3 with a patience of 4 is served, because the unit is granted at 6 and the patience ends at 7.
 
 Each form runs both from one script, `check_reneging.py`, made of the blocks in this section and the next, in order. It starts with the imports of the standard library and a class that keeps every record the model publishes. The imports of desflow follow the class, in the line `from desflow import CapacityConfig, DynamicRealtimeEnvironment, DynamicResource, Sampler, SimParameter, SimulationContext`:
 
@@ -175,9 +294,7 @@ The YAML form replays the two arrivals at their times from CSV files. Save its b
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/reneging_tie.yaml:tie"
-    simulation:
-      sim_id: Shop
-      factor: 0
+    simulation: {sim_id: Shop, factor: 0}
 
     resources:
       packers: {current_cap: 1, max_cap: 1}
@@ -187,8 +304,12 @@ The YAML form replays the two arrivals at their times from CSV files. Save its b
       packing: {dist: constant, value: 1}
 
     arrivals:
-      holders: {replay: {path: holders.csv}, spawn: holder}
-      orders: {replay: {path: orders.csv}, spawn: pack}
+      holders:
+        replay: {path: holders.csv}
+        spawn: holder
+      orders:
+        replay: {path: orders.csv}
+        spawn: pack
 
     tasks:
       holder:
@@ -201,8 +322,7 @@ The YAML form replays the two arrivals at their times from CSV files. Save its b
         patience: attr.patience  # from the patience column of orders.csv
         payload: {event_type: order_packed}
 
-    run:
-      until: 8
+    run: {until: 8}
     ```
 
     `tie_yaml` replays the holder at 0 and the order from CSV files beside the blueprint:
@@ -230,7 +350,7 @@ The YAML form replays the two arrivals at their times from CSV files. Save its b
 
     ```python title="docs/snippets/guides/reneging_and_balking.py:tie"
     def tie(waiter_at: float, patience: float) -> str:
-        """The outcome of an order whose patience ends when the packer comes free."""
+        """The outcome of an order whose patience may end when the packer comes free."""
         app = SimulationContext("Shop", factor=0)
         app.add_resource("packers", current_cap=1, max_cap=1)
         app.add_service("hold", dist="constant", value=6)
@@ -283,8 +403,8 @@ The YAML form replays the two arrivals at their times from CSV files. Save its b
             if waiter_at:  # at 0, its patience starts before the holder's service
                 yield env.timeout(waiter_at)
             with packers.request() as unit:
-                yield unit | env.timeout(patience)
-                if not unit.triggered:
+                result = yield unit | env.timeout(patience)
+                if unit not in result:
                     env.publish_event("orders-1", {"status": "reneged"}, "pack", 0)
                     return
                 yield env.timeout(1)
@@ -297,7 +417,7 @@ The YAML form replays the two arrivals at their times from CSV files. Save its b
         return _outcome(capture.records)
     ```
 
-In each form, an order arriving at 3 with a patience of 3 is served, and one arriving at 0 with a patience of 6 reneges. A model that must not depend on this order can avoid exact ties, for example by drawing patience from a distribution.
+In each form, an order arriving at 3 with a patience of 3, or at 0 with a patience of 6, reneges, and one arriving at 3 with a patience of 4 is served. A model that must not depend on this order can avoid exact ties, for example by drawing patience from a distribution.
 
 ---
 
@@ -381,8 +501,14 @@ Last, the script prints the results of the ties and of the three forms. The exam
 if __name__ == "__main__":
     print("check: arrives at 3, patience 3:", tie(3, 3))
     print("check: arrives at 0, patience 6:", tie(0, 6))
-    print("check: the same in YAML:", tie_yaml(3, 3), tie_yaml(0, 6))
-    print("check: the same, low-level:", tie_low_level(3, 3), tie_low_level(0, 6))
+    print("check: arrives at 3, patience 4:", tie(3, 4))
+    print("check: the same in YAML:", tie_yaml(3, 3), tie_yaml(0, 6), tie_yaml(3, 4))
+    print(
+        "check: the same, low-level:",
+        tie_low_level(3, 3),
+        tie_low_level(0, 6),
+        tie_low_level(3, 4),
+    )
     for form in (yaml_form, builder_form, low_level_form):
         print("check:", dict(form()))
 ```
@@ -396,10 +522,11 @@ python check_reneging.py | grep "^check:"
 ```
 
 ```text
-check: arrives at 3, patience 3: served
+check: arrives at 3, patience 3: reneged
 check: arrives at 0, patience 6: reneged
-check: the same in YAML: served reneged
-check: the same, low-level: served reneged
+check: arrives at 3, patience 4: served
+check: the same in YAML: reneged reneged served
+check: the same, low-level: reneged reneged served
 check: {'order_packed': 49, 'reneged': 7, 'started': 1, 'balked': 17}
 check: {'order_packed': 49, 'reneged': 7, 'started': 1, 'balked': 17}
 check: {'order_packed': 49, 'reneged': 7, 'started': 1, 'balked': 17}

@@ -1,0 +1,21 @@
+# The Serve Entities Together guide: the same oven, with a batch that closes by an
+# expression. Run it with: desflow run serve_together_close_when.yaml --stdout
+simulation: {sim_id: Bakery, factor: 0, random_seed: 42}
+
+resources:
+  oven: {current_cap: 1}
+
+arrivals:
+  orders: {dist: constant, value: 1, max_events: 7, spawn: bake}
+
+tasks:
+  bake:
+    # --8<-- [start:close]
+    # Close with 2 members once the first has waited 2 seconds, or at 5 members
+    batch: {size: 5, close_when: batch.size >= 2 and batch.age >= 2}
+    # --8<-- [end:close]
+    resource: oven
+    service_time: 4
+    payload: {event_type: baked}
+
+run: {until: 30}

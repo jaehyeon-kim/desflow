@@ -2,7 +2,7 @@
 
 The low-level version of multi_resource_handoffs.py: pick requests the picker and
 passes the granted request to pack, which releases it once the order is on the bench.
-python multi_resource_handoffs_low_level.py runs 30 seconds in real time.
+python multi_resource_handoffs_low_level.py runs 30 simulated seconds at once.
 """
 
 import itertools
@@ -109,7 +109,7 @@ def orders(env, shop):
         env.process(pick(env, shop, f"orders-{number}"))
 
 
-def run(until=30.0, factor=1.0, egress=None):
+def run(until=30.0, factor=0, egress=None):
     env = DynamicRealtimeEnvironment(factor=factor)
     env.registry.register_sim_parameter(PARAMS)
     env.setup_egress(egress or [ConsoleEgress()])

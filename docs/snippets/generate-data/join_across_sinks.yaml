@@ -14,6 +14,7 @@ simulation:
   random_seed: 42
   logical_start_time: 2026-01-01T00:00:00
 
+# --8<-- [start:egress]
 egress:
   - type: Jsonl
     when: {expr: "record.task == 'customer'"}
@@ -23,11 +24,15 @@ egress:
     when: {expr: "record.task == 'order'"}
     config:
       default_path: ${DEST_PATH:-data}/orders.jsonl
+# --8<-- [end:egress]
 
+# --8<-- [start:arrivals]
 arrivals:
   customers: {initial: 5, dist: exponential, rate: 0.1, spawn: customer}
   orders: {dist: exponential, rate: 1, spawn: order}
+# --8<-- [end:arrivals]
 
+# --8<-- [start:tasks]
 tasks:
   customer:
     payload:
@@ -38,5 +43,6 @@ tasks:
       order_id: {gen: sequence, start: 1}
       customer_id: {gen: lookup, task: customer, path: customer_id}
       total: {gen: uniform, low: 5, high: 200, decimals: 2}
+# --8<-- [end:tasks]
 
 run: {until: 60}

@@ -27,7 +27,10 @@ def build() -> SimulationContext:
         logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:arrival]
     app.add_arrival("signups", "exponential", rate=0.5, spawn="signup")
+    # --8<-- [end:arrival]
+    # --8<-- [start:payload]
     signup_payload = Template(
         {
             "customer_id": {"gen": "sequence", "start": 1},
@@ -45,6 +48,8 @@ def build() -> SimulationContext:
     def signup(task_id):
         """Gives one signup record."""
         return signup_payload
+
+    # --8<-- [end:payload]
 
     return app
 

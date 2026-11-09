@@ -25,10 +25,13 @@ def build() -> SimulationContext:
         logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:arrival]
     app.add_initial_arrival(
         "stations", 3, spawn="running", key=lambda n: f"station-{n}"
     )
+    # --8<-- [end:arrival]
 
+    # --8<-- [start:payload]
     def state(name):
         return Template(
             {"station": {"gen": "entity"}, "state": name}, name=f"tasks.{name}"
@@ -58,6 +61,8 @@ def build() -> SimulationContext:
     def stopped_task(task_id):
         """The station is stopped."""
         return stopped
+
+    # --8<-- [end:payload]
 
     return app
 

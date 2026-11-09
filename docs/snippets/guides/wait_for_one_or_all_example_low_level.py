@@ -30,7 +30,7 @@ def outcome() -> dict:
     the restocks."""
     env = DynamicRealtimeEnvironment(factor=0)
     env.registry.register_sim_parameter(PARAMS)
-    restocked = Signal(env, "restocked")
+    restocked = Signal(env, "restocked", once=False)
     counts = {"pack": 0, "refund": 0}
     restocked_at = []  # the time of each restock
 

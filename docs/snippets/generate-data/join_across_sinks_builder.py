@@ -29,6 +29,7 @@ def build() -> SimulationContext:
         random_seed=42,
         logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
+    # --8<-- [start:egress]
     app.add_egress(
         JsonlStorageEgress(default_path=f"{folder}/customers.jsonl"),
         when=lambda record: record.get("task") == "customer",
@@ -37,8 +38,12 @@ def build() -> SimulationContext:
         JsonlStorageEgress(default_path=f"{folder}/orders.jsonl"),
         when=lambda record: record.get("task") == "order",
     )
+    # --8<-- [end:egress]
+    # --8<-- [start:arrival]
     app.add_arrival("customers", "exponential", rate=0.1, spawn="customer", initial=5)
     app.add_arrival("orders", "exponential", rate=1, spawn="order")
+    # --8<-- [end:arrival]
+    # --8<-- [start:payload]
     customer_payload = Template(
         {
             "customer_id": {"gen": "sequence", "start": 1},
@@ -67,6 +72,8 @@ def build() -> SimulationContext:
     def order(task_id):
         """Gives one order record."""
         return order_payload
+
+    # --8<-- [end:payload]
 
     return app
 

@@ -12,8 +12,12 @@ import csv
 import datetime
 import importlib.util
 import json
+import os
 import queue
+import re
 import statistics
+import subprocess
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -252,6 +256,48 @@ def test_send_data_to_a_sink_forms_make_each_sink():
     assert type(egress).__name__ == "KafkaEgress"
     [egress] = [sink.provider for sink in module.build()._sinks.egress]
     assert type(egress).__name__ == "ConsoleEgress"
+
+
+def test_send_data_to_a_sink_page_commands_run_each_sink_without_editing_a_file(
+    tmp_path,
+):
+    """Every `SINK=<name>` command of the page names a sink of both scripts. The console
+    and file variants run as the page says, and print or write the page's 10 records. The
+    Kafka and PostgreSQL variants make their connectors, and the YAML files load."""
+    page = (ROOT / "docs/how-to/generate-data/send-data-to-a-sink.md").read_text(
+        encoding="utf-8"
+    )
+    names = set(re.findall(r"^\s+SINK=(\w+) python ", page, re.MULTILINE))
+    assert names == {"kafka", "postgres", "file"}
+    for form in ("builder", "low_level"):
+        module = _module("send_data_to_a_sink", form)
+        assert set(module.SINKS) == names | {"console"}, form
+        for name, expected in (
+            ("kafka", "KafkaEgress"),
+            ("postgres", "PostgresEgress"),
+        ):
+            assert type(module.SINKS[name]()).__name__ == expected, (form, name)
+        script = SNIPPETS / f"send_data_to_a_sink_{form}.py"
+        environment = {**os.environ, "DEST_PATH": str(tmp_path / form)}
+        run = subprocess.run(
+            [sys.executable, str(script)],
+            env={k: v for k, v in environment.items() if k != "SINK"},
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert run.stdout.count("[EVT]") + run.stderr.count("[EVT]") == 10, form
+        subprocess.run(
+            [sys.executable, str(script)],
+            env={**environment, "SINK": "file"},
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert len(_json_rows(tmp_path / form, "orders")) == 10, form
+    for slug in ("send_data_to_kafka", "send_data_to_postgres", "send_data_to_a_file"):
+        assert f"docs/snippets/generate-data/{slug}.yaml" in page, slug
+        SimulationContext.from_yaml(SNIPPETS / f"{slug}.yaml")
 
 
 # ---------------------------------------------------------------------------

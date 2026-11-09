@@ -70,8 +70,8 @@ def pack(env, sampler, packers, key, patience, task_id):
     env.stats.task_queued("pack", task_id)
     with packers.request() as req:
         # Each order's own patience: it leaves the queue when it runs out
-        yield req | env.timeout(patience)
-        if not req.triggered:
+        result = yield req | env.timeout(patience)
+        if req not in result:
             publish(
                 {
                     "path_id": path_id,

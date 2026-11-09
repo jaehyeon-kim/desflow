@@ -26,21 +26,26 @@ UNTIL = 240
 START = datetime(2026, 1, 1, tzinfo=timezone.utc)
 ENVIRONMENT: dict = {"logical_start_time": START, "timezone": "UTC"}
 
+# --8<-- [start:changes]
 CHANGES = [  # (time in seconds, the label record)
     (60, {"change": "field_added", "field": "currency"}),
     (120, {"change": "field_renamed", "field": "total", "to": "amount"}),
     (180, {"change": "field_retyped", "field": "amount", "to": "text"}),
 ]
+# --8<-- [end:changes]
 
 
 def build(env: DynamicRealtimeEnvironment) -> None:
     """Starts the orders and the changes on `env`."""
+    # --8<-- [start:arrival]
     sampler = Sampler(seed=42)
     value = sampler.generator("tasks.order.vars.value")
     gap = DistributionConfig(dist="constant", value=10)
     # The random sequence the blueprint's draw uses
     gap.stream = "arrival.orders"
+    # --8<-- [end:arrival]
 
+    # --8<-- [start:payload]
     def order(number):
         """The payload of one order, as it is at the time `t` it is written."""
         t = env.now
@@ -71,12 +76,15 @@ def build(env: DynamicRealtimeEnvironment) -> None:
 
     env.process(source())
     env.process(changes())
+    # --8<-- [end:payload]
 
 
 def run() -> None:
     """Runs the model unpaced: the orders to one sink, the labels to another."""
     env = DynamicRealtimeEnvironment(factor=0, **ENVIRONMENT)
+    # --8<-- [start:egress]
     env.setup_egress([ConsoleEgress(), ConsoleEgress()], labels=[False, True])
+    # --8<-- [end:egress]
     build(env)
     try:
         env.run(until=UNTIL)

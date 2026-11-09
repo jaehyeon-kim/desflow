@@ -29,9 +29,12 @@ def build() -> SimulationContext:
         logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:arrival]
     app.add_arrival("customers", "exponential", rate=0.1, spawn="customer", initial=5)
     app.add_arrival("orders", "exponential", rate=1, spawn="order")
     app.add_arrival("reports", "constant", value=10, spawn="report")
+    # --8<-- [end:arrival]
+    # --8<-- [start:payload]
     customer_payload = Template(
         {
             "customer_id": {"gen": "sequence", "start": 1},
@@ -96,6 +99,8 @@ def build() -> SimulationContext:
     def report(task_id):
         """Gives one report record."""
         return report_payload
+
+    # --8<-- [end:payload]
 
     return app
 

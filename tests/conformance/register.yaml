@@ -1340,7 +1340,7 @@
     - tests/conformance/test_c2_conditions.py::test_c2_custom_rule_with_a_failing_member
     - tests/conformance/test_yaml_only.py::test_v11_wait_when_over_the_events_done
     - tests/conformance/test_yaml_only.py::test_v11_a_when_group_cancels_the_requests_that_lose
-  page: how-to/modelling/wait-for-one-or-all.md#at-least-some-of-them
+  page: how-to/modelling/wait-for-one-or-all.md#wait-for-some-of-them
 
 - id: C2
   inventory: [SP-C7]
@@ -1352,7 +1352,7 @@
   low_level: "`env.any_of([])`"
   checks:
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_condition_over_no_events
-  page: how-to/modelling/wait-for-one-or-all.md#an-empty-wait
+  page: how-to/modelling/wait-for-one-or-all.md#wait-for-nothing
 
 - id: C2
   inventory: [SP-C8]

@@ -33,6 +33,7 @@ ENVIRONMENT: dict = {"logical_start_time": START, "timezone": "UTC"}
 
 def build(env: DynamicRealtimeEnvironment) -> None:
     """Starts the arrival on `env`."""
+    # --8<-- [start:fields]
     sampler = Sampler(seed=42)
 
     def faker(place, locale="en_US"):
@@ -60,10 +61,14 @@ def build(env: DynamicRealtimeEnvironment) -> None:
     total = sum(product["popularity"] for product in products)
     shares = [product["popularity"] / total for product in products]
     favourite = sampler.generator("tasks.signup.payload.favourite")
+    # --8<-- [end:fields]
+    # --8<-- [start:arrival]
     signups_gap = DistributionConfig(dist="exponential", rate=0.5)
     # The random sequence the blueprint's draw uses
     signups_gap.stream = "arrival.signups"
+    # --8<-- [end:arrival]
 
+    # --8<-- [start:payload]
     def signups_source():
         number = 0
         while True:
@@ -85,6 +90,7 @@ def build(env: DynamicRealtimeEnvironment) -> None:
             )
 
     env.process(signups_source())
+    # --8<-- [end:payload]
 
 
 def run() -> None:

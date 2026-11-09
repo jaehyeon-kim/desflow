@@ -15,9 +15,13 @@ A handoff passes an order from one resource to the next without letting go of th
 
 ## Steps
 
-1. Give the first task the resource and `keep` it: `pick` holds the picker and hands it to the next task.
-2. Give the next task the second resource: `pack` waits for the bench while the order still holds the picker, and gives the picker back once it publishes `started`.
-3. Acquire the two resources in the same order everywhere. A task that takes the bench first and the picker second would be refused when the model is built, because two orders could then wait for each other for ever.
+### Keep the Picker When the First Task Ends
+
+Give the first task the resource and `keep` it: `pick` holds the picker and hands it to the next task.
+
+### Ask for the Bench While Holding the Picker
+
+Give the next task the second resource: `pack` waits for the bench while the order still holds the picker, and gives the picker back once it publishes `started`.
 
 In the low-level API, `pick` passes its granted request to `pack`, which releases it in place of a `with` block:
 
@@ -122,11 +126,19 @@ In the low-level API, `pick` passes its granted request to `pack`, which release
             env.publish_event(key, {"event_type": "order_packed"}, "pack", task_id)
     ```
 
+### Acquire the Resources in the Same Order
+
+Acquire the two resources in the same order everywhere. A task that takes the bench first and the picker second does not stop the model from loading: the model logs one WARNING, from the logger `desflow.core.context`, because two orders could then wait for each other for ever. A resource held with `seize` counts as held for this check.
+
+### Know When the Kept Unit Goes Back
+
+Know when the kept unit goes back. The picker stays held until `pack` starts. A child flow that a task starts with `wait: {task: ...}` gives back only the units its own tasks asked for, so it never gives back a unit that its parent kept.
+
 ---
 
 ## Check the Result
 
-Save the files from [Full Files](#full-files) and run `desflow run multi_resource_handoffs.yaml`, `python multi_resource_handoffs.py` or `python multi_resource_handoffs_low_level.py`. Each runs for 30 seconds in real time and prints each event, and the three print the same events, because they use the same seed, 42.
+Save the files from [Full Files](#full-files) and run `desflow run multi_resource_handoffs.yaml`, `python multi_resource_handoffs.py` or `python multi_resource_handoffs_low_level.py`. Each runs 30 simulated seconds at once and prints each event, and the three print the same events, because they use the same seed, 42.
 
 Each order is queued for the picker, picked, queued for the bench and packed, in that order. Orders arrive about once a second, and the one bench takes 4 seconds to pack each, so it can pack only one order every 4 seconds. The bench is therefore the [bottleneck](../../learn/concepts/queueing-basics.md#flow-balance-and-the-bottleneck): an order that waits for the bench keeps the picker, and the orders behind it wait for the picker.
 
@@ -144,13 +156,10 @@ A task that needs both resources for the whole of its work lists them instead, `
         # The Hand Off to a Resource guide: a picker carries each order to the packing bench
         # and stays with it until the bench is free.
         # Run it with: desflow run multi_resource_handoffs.yaml
-        simulation:
-          sim_id: Shop
-          factor: 1
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         egress:
-          - type: Console
+          - {type: Console}
 
         resources:
           picker: {current_cap: 1, max_cap: 1}
@@ -179,8 +188,7 @@ A task that needs both resources for the whole of its work lists them instead, `
             resource: bench
             payload: {event_type: order_packed}
 
-        run:
-          until: 30 s
+        run: {until: 30 s}
         ```
 
     === "Builder"
@@ -193,7 +201,7 @@ A task that needs both resources for the whole of its work lists them instead, `
         logging.basicConfig(level=logging.INFO)
 
         app = (
-            SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
+            SimulationContext(sim_id="Shop", factor=0, random_seed=42)
             .add_resource("picker", current_cap=1, max_cap=1)
             .add_resource("bench", current_cap=1, max_cap=1)
             # The picker takes 1 s to carry an order to the bench, and packing takes 4 s
@@ -235,7 +243,7 @@ A task that needs both resources for the whole of its work lists them instead, `
 
         The low-level version of multi_resource_handoffs.py: pick requests the picker and
         passes the granted request to pack, which releases it once the order is on the bench.
-        python multi_resource_handoffs_low_level.py runs 30 seconds in real time.
+        python multi_resource_handoffs_low_level.py runs 30 simulated seconds at once.
         """
 
         import itertools
@@ -340,7 +348,7 @@ A task that needs both resources for the whole of its work lists them instead, `
                 env.process(pick(env, shop, f"orders-{number}"))
 
 
-        def run(until=30.0, factor=1.0, egress=None):
+        def run(until=30.0, factor=0, egress=None):
             env = DynamicRealtimeEnvironment(factor=factor)
             env.registry.register_sim_parameter(PARAMS)
             env.setup_egress(egress or [ConsoleEgress()])

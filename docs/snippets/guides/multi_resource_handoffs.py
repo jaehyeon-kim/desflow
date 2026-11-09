@@ -5,7 +5,7 @@ from desflow import ConsoleEgress, SimulationContext
 logging.basicConfig(level=logging.INFO)
 
 app = (
-    SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
+    SimulationContext(sim_id="Shop", factor=0, random_seed=42)
     .add_resource("picker", current_cap=1, max_cap=1)
     .add_resource("bench", current_cap=1, max_cap=1)
     # The picker takes 1 s to carry an order to the bench, and packing takes 4 s

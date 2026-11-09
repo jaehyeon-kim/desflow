@@ -26,6 +26,7 @@ def build() -> SimulationContext:
         logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     app.add_egress(ConsoleEgress())
+    # --8<-- [start:arrival]
     # A blueprint's `count: 5` is five arrivals here, each with the key of its product
     for number in range(5):
         app.add_arrival(
@@ -35,6 +36,8 @@ def build() -> SimulationContext:
             spawn="price",
             key=lambda n, number=number: f"product-{number}",
         )
+    # --8<-- [end:arrival]
+    # --8<-- [start:payload]
     price_payload = Template(
         {
             "product": {"gen": "entity"},
@@ -78,6 +81,8 @@ def build() -> SimulationContext:
     def price(task_id):
         """Gives one price record."""
         return price_payload
+
+    # --8<-- [end:payload]
 
     return app
 

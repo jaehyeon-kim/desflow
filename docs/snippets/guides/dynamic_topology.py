@@ -62,7 +62,7 @@ def supervisor(env, resources):
         job_id += 1
 
 
-def run(until=20.0, factor=1.0):
+def run(until=20.0, factor=0):
     env = DynamicRealtimeEnvironment(factor=factor, strict=False)
     env.registry.register_sim_parameter(PARAMS)
     env.setup_egress([ConsoleEgress()])

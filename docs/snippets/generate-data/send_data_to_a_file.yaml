@@ -13,10 +13,12 @@ simulation:
   random_seed: 42
   logical_start_time: 2026-01-01T00:00:00
 
+# --8<-- [start:egress]
 egress:
   - type: Jsonl
     config:
       default_path: ${DEST_PATH:-data}/orders.jsonl
+# --8<-- [end:egress]
 
 arrivals:
   orders: {dist: exponential, rate: 1, spawn: order}

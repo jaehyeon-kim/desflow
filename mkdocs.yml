@@ -429,6 +429,20 @@ nav:
           - Share Work by Weight: how-to/modelling/share-by-weight.md
           - Model Breakdowns: how-to/modelling/breakdowns.md
           - Add Resources Mid-run: how-to/modelling/dynamic-topology.md
+          - Serve Entities Together: how-to/modelling/serve-entities-together.md
+      - Generate Data:
+          - Send Data to a Sink: how-to/generate-data/send-data-to-a-sink.md
+          - Realistic Fields: how-to/generate-data/realistic-fields.md
+          - Choices and Numbers: how-to/generate-data/choices-and-numbers.md
+          - Timestamps and Gaps: how-to/generate-data/timestamps-and-gaps.md
+          - Stop After a Count: how-to/generate-data/stop-after-a-count.md
+          - Many Entities: how-to/generate-data/many-entities.md
+          - Build on the Last Value: how-to/generate-data/build-on-the-last-value.md
+          - Skewed Keys: how-to/generate-data/skewed-keys.md
+          - Change State Over Time: how-to/generate-data/change-state-over-time.md
+          - Look Up Other Records: how-to/generate-data/look-up-other-records.md
+          - Join Across Sinks: how-to/generate-data/join-across-sinks.md
+          - Change the Schema: how-to/generate-data/change-the-schema.md
       - Records and Kafka:
           - Route Records to Topics: how-to/records-and-kafka/complex-routing.md
           - Use Avro and Pydantic: how-to/records-and-kafka/avro-and-pydantic.md

@@ -34,5 +34,5 @@ tasks:
     fail_reason: broken delivery
     payload: {boxes: 6}
 
-run: {until: 10}
+run: {until: 10, on_unhandled_failure: continue}
 # --8<-- [end:all]

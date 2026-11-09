@@ -8,6 +8,7 @@ Needs: the kafka and postgres extras, because the file imports every sink, and t
 parquet extra for the file sink. The console needs no service. The Kafka sink needs a
 broker (odctl up kafka-lite) and the PostgreSQL sink a database (odctl up postgres).
 Run it with: python docs/snippets/generate-data/send_data_to_a_sink_builder.py
+SINK sets the sink: console (the default), kafka, postgres or file.
 """
 
 import logging
@@ -27,6 +28,7 @@ UNTIL = 10
 DSN = "postgresql://user:password@127.0.0.1:5432/odctl"
 
 
+# --8<-- [start:sinks]
 def console_sink() -> ConsoleEgress:
     """Prints each record."""
     return ConsoleEgress()
@@ -60,6 +62,17 @@ def file_sink() -> JsonlStorageEgress:
     )
 
 
+# --8<-- [end:sinks]
+
+
+SINKS = {
+    "console": console_sink,
+    "kafka": kafka_sink,
+    "postgres": postgres_sink,
+    "file": file_sink,
+}
+
+
 def build(sink=console_sink) -> SimulationContext:
     """Builds the model, with the egress that `sink` makes."""
     app = SimulationContext(
@@ -69,7 +82,10 @@ def build(sink=console_sink) -> SimulationContext:
         logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     app.add_egress(sink())
+    # --8<-- [start:arrival]
     app.add_arrival("orders", "exponential", rate=1, spawn="order")
+    # --8<-- [end:arrival]
+    # --8<-- [start:payload]
     order_payload = Template(
         {
             "order_id": {"gen": "sequence", "start": 1},
@@ -84,9 +100,11 @@ def build(sink=console_sink) -> SimulationContext:
         """Gives one order record."""
         return order_payload
 
+    # --8<-- [end:payload]
+
     return app
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    build().run(until=UNTIL)
+    build(SINKS[os.environ.get("SINK", "console")]).run(until=UNTIL)

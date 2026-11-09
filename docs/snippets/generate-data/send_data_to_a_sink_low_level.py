@@ -10,6 +10,7 @@ Needs: the kafka and postgres extras, because the file imports every sink, and t
 parquet extra for the file sink. The console needs no service. The Kafka sink needs a
 broker (odctl up kafka-lite) and the PostgreSQL sink a database (odctl up postgres).
 Run it with: python docs/snippets/generate-data/send_data_to_a_sink_low_level.py
+SINK sets the sink: console (the default), kafka, postgres or file.
 """
 
 import logging
@@ -30,6 +31,7 @@ UNTIL = 10
 DSN = "postgresql://user:password@127.0.0.1:5432/odctl"
 
 
+# --8<-- [start:sinks]
 def console_sink() -> ConsoleEgress:
     """Prints each record."""
     return ConsoleEgress()
@@ -63,19 +65,25 @@ def file_sink() -> JsonlStorageEgress:
     )
 
 
+# --8<-- [end:sinks]
+
+
 START = datetime(2026, 1, 1, tzinfo=timezone.utc)
 ENVIRONMENT: dict = {"logical_start_time": START, "timezone": "UTC"}
 
 
 def build(env: DynamicRealtimeEnvironment) -> None:
     """Starts the arrivals on `env`."""
+    # --8<-- [start:arrival]
     sampler = Sampler(seed=42)
     customer = sampler.generator("tasks.order.payload.customer_id")
     total = sampler.generator("tasks.order.payload.total")
     orders_gap = DistributionConfig(dist="exponential", rate=1)
     # The random sequence the blueprint's draw uses
     orders_gap.stream = "arrival.orders"
+    # --8<-- [end:arrival]
 
+    # --8<-- [start:payload]
     def orders_source():
         number = 0
         while True:
@@ -91,6 +99,15 @@ def build(env: DynamicRealtimeEnvironment) -> None:
             )
 
     env.process(orders_source())
+    # --8<-- [end:payload]
+
+
+SINKS = {
+    "console": console_sink,
+    "kafka": kafka_sink,
+    "postgres": postgres_sink,
+    "file": file_sink,
+}
 
 
 def run(sink=console_sink) -> None:
@@ -106,4 +123,4 @@ def run(sink=console_sink) -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    run()
+    run(SINKS[os.environ.get("SINK", "console")])

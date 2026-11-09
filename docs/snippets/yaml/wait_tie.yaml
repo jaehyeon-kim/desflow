@@ -23,7 +23,11 @@ tasks:
       any:
         boxes: {signal: boxes}
         labels: {signal: labels}
-    payload: !python wait_for_one_or_all_logic.branches
+    payload:
+      event_type: resumed
+      done:
+        boxes: {gen: expr, expr: wait.boxes.done}
+        labels: {gen: expr, expr: wait.labels.done}
   deliver_boxes:
     signal: boxes
     payload: {item: boxes}
