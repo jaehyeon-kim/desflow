@@ -4,8 +4,19 @@
 import importlib.util
 
 for module in (
-    "aiokafka", "fastavro", "fastjsonschema", "httpx", "boto3", "redis",
-    "asyncpg", "pyarrow", "pyiceberg", "scipy", "matplotlib",
-    "jsonschema", "google.protobuf", "faker",
+    "aiokafka",
+    "fastavro",
+    "fastjsonschema",
+    "httpx",
+    "boto3",
+    "redis",
+    "asyncpg",
+    "pyarrow",
+    "pyiceberg",
+    "scipy",
+    "matplotlib",
+    "jsonschema",
+    "google.protobuf",
+    "faker",
 ):
     assert importlib.util.find_spec(module), module

@@ -87,5 +87,8 @@ def test_every_extra_has_an_install_check():
 
     pyproject = tomllib.loads((SCRIPT.parents[1] / "pyproject.toml").read_text())
     extras = set(pyproject["project"]["optional-dependencies"])
-    checks = {p.stem for p in (SCRIPT.parent / "install_checks").glob("*.py")}
+    checks = {
+        p.stem.removeprefix("check_")
+        for p in (SCRIPT.parent / "install_checks").glob("check_*.py")
+    }
     assert checks == extras | {"core"}

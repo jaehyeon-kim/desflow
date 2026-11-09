@@ -12,5 +12,8 @@ from pyiceberg.catalog import load_catalog
 from pyiceberg.catalog.rest import RestCatalog
 from pyiceberg.io.pyarrow import PyArrowFileIO
 import psycopg2
-load_catalog("local", type="sql", uri="sqlite:///:memory:", warehouse="file:///tmp/warehouse")
+
+load_catalog(
+    "local", type="sql", uri="sqlite:///:memory:", warehouse="file:///tmp/warehouse"
+)
 load_catalog("aws", type="glue", **{"glue.region": "us-east-1"})

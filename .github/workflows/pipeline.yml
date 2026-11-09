@@ -76,7 +76,7 @@ jobs:
         run: uv run --all-extras lint-imports
 
   # The core install, then each extra alone, each in an empty environment, imports
-  # and constructs what it exists to enable (scripts/install_checks/<name>.py).
+  # and constructs what it exists to enable (scripts/install_checks/check_<name>.py).
   # Running the suite with --all-extras hides a missing transitive dependency in one
   # extra, because another extra supplies it. None of the checks opens a socket. The
   # core install also starts the desflow command and runs a YAML blueprint, as a new
@@ -105,7 +105,7 @@ jobs:
             [ "$name" = core ] || spec=".[$name]"
             uv venv --python 3.12 "$RUNNER_TEMP/$name"
             uv pip install --python "$RUNNER_TEMP/$name" "$spec"
-            "$RUNNER_TEMP/$name/bin/python" "scripts/install_checks/$name.py"
+            "$RUNNER_TEMP/$name/bin/python" "scripts/install_checks/check_$name.py"
             echo "::endgroup::"
           done
 

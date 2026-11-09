@@ -34,7 +34,7 @@ its reason, when it is not a blueprint, has no end, needs a running service, giv
 an import error because its `!python` module is neither beside it nor in a folder it
 names, or gives a different capture on two runs of one commit. `--left-out` names another list, and the baseline
 side passes the working tree's, as it does the scenarios. A file that does not end
-within 60 s stops the capture and is named, so give it `run.until` or list it.
+within 180 s stops the capture and is named, so give it `run.until` or list it.
 
 The regression scenarios (`tests/regression/scenarios`, listed in `cases.py` beside
 it) are not in a v0.22.0 checkout: `--scenarios` names the folder to run, by default
@@ -67,7 +67,9 @@ import yaml
 EXPECTED = (
     Path(__file__).resolve().parents[1] / "tests" / "regression" / "expected.yaml"
 )
-RUN_LIMIT = 60  # seconds one file of `_all_blueprints` may run
+# Seconds one file of `_all_blueprints` may run. The limit stops a file with no end;
+# the slowest file takes 30 s on a laptop and over 60 s on a CI runner.
+RUN_LIMIT = 180
 
 
 def _load(root: Path):
