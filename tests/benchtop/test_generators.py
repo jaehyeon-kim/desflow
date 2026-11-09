@@ -95,7 +95,7 @@ def test_ecommerce_user_fields_follow_the_projects_rules(tmp_path, project):
         rows.append(
             f"{c.country},{c.state},{c.city},{c.postal_code},{c.latitude},{c.longitude},{c.population}"
         )
-    (tmp_path / "cities.csv").write_text("\n".join(rows) + "\n")
+    (tmp_path / "cities.csv").write_text("\n".join(rows) + "\n", encoding="utf-8")
     text = (
         HEAD % 3
         + "arrivals: {u: {replay: {path: u.csv}, spawn: new_user}}\n"
