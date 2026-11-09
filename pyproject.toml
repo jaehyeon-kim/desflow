@@ -291,6 +291,6 @@ markers = [
     "azure: integration tests that start an Azurite container (Azure Blob Storage emulator)",
     "gcp: integration tests that start a fake-gcs-server container (Google Cloud Storage emulator)",
     "paced: known cases that run against the wall clock (factor above 0); CI runs them in a step without -n auto (deselect with '-m \"not paced\"')",
-    "every_model: tests that run every model the regression capture runs; CI runs them in the daily full set, on one Python version on each system (deselect with '-m \"not every_model\"')",
+    "every_model: tests that run every model the regression capture runs; manual.yaml runs them every day, on one Python version on each system (deselect with '-m \"not every_model\"')",
     "examples: integration tests that run the examples with an odctl profile against the profile the CI job `service-examples` or the developer started",
 ]

@@ -1,27 +1,30 @@
-"""The `service-examples` job runs every example that has an odctl profile.
+"""The `service-examples` jobs run every example that has an odctl profile.
 
-The job's matrix in `checks.yml` is written by hand, and `EXAMPLES` is the list of
-examples. An example registered with a profile and left out of the matrix would never
-run in CI, and a name left in the matrix after its example goes would select no test.
+The job's matrix in `pipeline.yml` and in `manual.yaml` is written by hand, and
+`EXAMPLES` is the list of examples. An example registered with a profile and left out
+of a matrix would never run in that workflow, and a name left in a matrix after its
+example goes would select no test.
 """
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from desflow.examples import EXAMPLES
 
-PIPELINE = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "checks.yml"
+WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 
 
-def test_matrix_lists_the_examples_with_a_profile():
-    job = yaml.safe_load(PIPELINE.read_text(encoding="utf-8"))["jobs"][
+@pytest.mark.parametrize("workflow", ["pipeline.yml", "manual.yaml"])
+def test_matrix_lists_the_examples_with_a_profile(workflow):
+    job = yaml.safe_load((WORKFLOWS / workflow).read_text(encoding="utf-8"))["jobs"][
         "service-examples"
     ]
     listed = job["strategy"]["matrix"]["example"]
     registered = sorted(name for name, e in EXAMPLES.items() if e.profile)
     assert sorted(listed) == registered, (
-        "The service-examples matrix in checks.yml and the examples with a profile "
+        f"The service-examples matrix in {workflow} and the examples with a profile "
         f"in EXAMPLES differ: matrix {sorted(listed)}, EXAMPLES {registered}."
     )
 

@@ -1,18 +1,18 @@
-"""Decides which jobs a run of `checks.yml` runs, for its `plan` job.
+"""Decides the test jobs of `pipeline.yml` and `manual.yaml`, for their `plan` jobs.
 
 There are three sets (issue #90):
 
 - `pr`, a pull request: the unit and conformance tests on Python 3.11 and 3.15.
 - `main`, a push to `main`: the same on every Python from 3.11 to 3.15.
-- `full`, the daily schedule or a run started by hand (`full.yml`): everything,
-  adding the tests marked `every_model`, the known cases, Windows and macOS, the
-  newest SimPy and the service jobs. `full.yml` also runs the paced cases and the
-  lowest Pydantic itself.
+- `manual`, a run of `manual.yaml` (the daily schedule, by hand, or the label
+  `manual tests` on a pull request): every test, with the tests marked `every_model`
+  and the known cases, on Python 3.12 on Ubuntu, Windows and macOS. `manual.yaml`
+  holds its other long jobs itself.
 
 In `pr` and `main`, the docs tests run only when the files they read change, and the
 service jobs only when the connectors, the examples or the dependencies change.
 
-    python scripts/ci_plan.py schedule < /dev/null
+    python scripts/ci_plan.py manual < /dev/null
     git diff --name-only <base>...HEAD | python scripts/ci_plan.py pull_request
 
 It writes `name=value` lines for `$GITHUB_OUTPUT`.
@@ -22,7 +22,7 @@ the runners: the unit, conformance and benchtop tests without those marked
 `every_model` take about 41 minutes of test time for one Python version, and about
 21 minutes of test time run in about 11 minutes on a runner. So each version runs in
 4 parts of about 6 minutes. With the tests marked `every_model` and the known cases, a
-version takes about 145 minutes of test time, which the full set runs in 7 parts.
+version takes about 145 minutes of test time, which `manual` runs in 7 parts.
 """
 
 import fnmatch
@@ -50,7 +50,7 @@ DOCS = DOCS_ONLY + [
     "tests/docs/*",
     "pyproject.toml",
     "uv.lock",
-    ".github/workflows/checks.yml",
+    ".github/workflows/pipeline.yml",
 ]
 
 # Files the integration and service example jobs cover
@@ -62,7 +62,7 @@ SERVICES = [
     "tests/integration/*",
     "pyproject.toml",
     "uv.lock",
-    ".github/workflows/checks.yml",
+    ".github/workflows/pipeline.yml",
     "scripts/ci_plan.py",
 ]
 
@@ -98,14 +98,10 @@ def unit_legs(tier: str) -> List[Dict]:
         return _leg("ubuntu-latest", "3.11", False) + _leg(
             "ubuntu-latest", "3.15", False
         )
-    legs: List[Dict] = []
-    for python in VERSIONS:
-        # The full set runs Python 3.12, the version in .python-version, with everything
-        legs += _leg("ubuntu-latest", python, tier == "full" and python == "3.12")
-    if tier == "full":
-        legs += _leg("windows-latest", "3.12", True)
-        legs += _leg("macos-latest", "3.12", True)
-    return legs
+    if tier == "manual":
+        # Python 3.12, the version in .python-version, with every test
+        return [leg for os in SYSTEMS for leg in _leg(os, "3.12", True)]
+    return [leg for python in VERSIONS for leg in _leg("ubuntu-latest", python, False)]
 
 
 def _matches(path: str, patterns: List[str]) -> bool:
@@ -115,8 +111,8 @@ def _matches(path: str, patterns: List[str]) -> bool:
 def plan(event: str, changed: List[str]) -> Dict[str, str]:
     """The jobs of a run. An empty `changed` means the changed files are not known,
     so every job that depends on them runs."""
-    tier = {"pull_request": "pr", "push": "main"}.get(event, "full")
-    full = tier == "full"
+    tier = {"pull_request": "pr", "push": "main"}.get(event, "manual")
+    full = tier == "manual"
     known = bool(changed)
     code = full or not known or not all(_matches(p, DOCS_ONLY) for p in changed)
     docs = full or not known or any(_matches(p, DOCS) for p in changed)
@@ -126,7 +122,6 @@ def plan(event: str, changed: List[str]) -> Dict[str, str]:
         "docs": json.dumps(docs),
         "services": json.dumps(services),
         "unit": json.dumps({"include": unit_legs(tier)}),
-        "simpy": json.dumps(["lowest", "newest"] if full else ["lowest"]),
     }
 
 

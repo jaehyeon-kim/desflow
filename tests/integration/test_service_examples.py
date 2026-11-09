@@ -8,7 +8,7 @@ entries in the Redis stream, rows in the Iceberg table. The record content is ch
 by the twin tests in `tests/docs`, so a count above zero and one record that parses
 are enough here.
 
-The tests start nothing. The `service-examples` job in `checks.yml` starts the
+The tests start nothing. The `service-examples` job in `pipeline.yml` and `manual.yaml` starts the
 profile with `odctl up <profile>`, and a developer does the same before running one
 example: `pytest tests/integration/test_service_examples.py -m examples -k <example>`.
 

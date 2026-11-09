@@ -1,7 +1,7 @@
 """Records the time of each test from the JUnit files of a CI run.
 
-The `unit-test` jobs of `checks.yml` upload a JUnit file each. Download the Ubuntu
-ones of a run of the full set (the daily schedule, or a run by hand) and write the
+The `unit-test` jobs of `manual.yaml` upload a JUnit file each. Download the Ubuntu
+ones of a run of `manual.yaml` (the daily schedule, or a run by hand) and write the
 times that `TEST_SHARD` deals the tests by:
 
     gh run download <run id> -p 'junit-Linux-*' -D /tmp/junit

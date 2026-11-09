@@ -1,7 +1,7 @@
-"""scripts/ci_plan.py picks the jobs of a run of checks.yml.
+"""scripts/ci_plan.py picks the test jobs of pipeline.yml and manual.yaml.
 
 A pull request tests Python 3.11 and 3.15, a push to main every Python from 3.11 to
-3.15, and the schedule or a run by hand everything. A pull request or a push skips the
+3.15, and manual.yaml every test on Python 3.12 on each system. A pull request or a push skips the
 code jobs when it changes only docs, and runs the docs and service jobs only when it
 changes what they cover. Each job's parts cover every part number once, so no test is
 left out.
@@ -34,7 +34,6 @@ def test_a_pull_request_tests_the_lowest_and_highest_python():
     assert plan["code"] and not plan["services"]
     assert {leg["os"] for leg in plan["unit"]["include"]} == {"ubuntu-latest"}
     assert _versions(plan) == {"3.11", "3.15"}
-    assert plan["simpy"] == ["lowest"]
 
 
 def test_a_push_to_main_tests_every_python_on_ubuntu():
@@ -42,7 +41,6 @@ def test_a_push_to_main_tests_every_python_on_ubuntu():
     assert plan["code"] and not plan["services"]
     assert {leg["os"] for leg in plan["unit"]["include"]} == {"ubuntu-latest"}
     assert _versions(plan) == {"3.11", "3.12", "3.13", "3.14", "3.15"}
-    assert plan["simpy"] == ["lowest"]
 
 
 def test_the_short_sets_leave_out_the_every_model_tests_and_known_cases():
@@ -52,24 +50,17 @@ def test_the_short_sets_leave_out_the_every_model_tests_and_known_cases():
             assert "not every_model" in leg["marks"]
 
 
-def test_the_schedule_and_a_run_by_hand_run_everything():
-    for event in ("schedule", "workflow_dispatch"):
-        plan = _plan(event, [])
-        assert plan["code"] and plan["docs"] and plan["services"]
-        assert plan["simpy"] == ["lowest", "newest"]
-        legs = plan["unit"]["include"]
-        assert {leg["os"] for leg in legs} == {
-            "ubuntu-latest",
-            "windows-latest",
-            "macos-latest",
-        }
-        for os in ("ubuntu-latest", "windows-latest", "macos-latest"):
-            assert any(
-                leg["os"] == os
-                and "tests/known_cases" in leg["paths"]
-                and "every_model" not in leg["marks"]
-                for leg in legs
-            ), os
+def test_the_manual_set_runs_every_test_on_python_3_12_on_each_system():
+    legs = _plan("manual", [])["unit"]["include"]
+    assert {leg["os"] for leg in legs} == {
+        "ubuntu-latest",
+        "windows-latest",
+        "macos-latest",
+    }
+    for leg in legs:
+        assert leg["python"] == "3.12"
+        assert "tests/known_cases" in leg["paths"]
+        assert "every_model" not in leg["marks"]
 
 
 def test_a_docs_only_change_skips_the_code_jobs():
@@ -102,7 +93,7 @@ def test_unknown_changes_run_every_job():
 
 
 def test_every_job_runs_each_of_its_parts_once():
-    for event in ("pull_request", "push", "schedule"):
+    for event in ("pull_request", "push", "manual"):
         parts = defaultdict(list)
         for leg in _plan(event, SRC)["unit"]["include"]:
             parts[(leg["os"], leg["python"], leg["paths"], leg["marks"])].append(
