@@ -1,0 +1,8 @@
+# A SQL catalog on the PostgreSQL of `odctl up postgres`, with local table files
+name: postgres
+
+type: sql
+
+uri: postgresql+psycopg2://user:password@127.0.0.1:5432/odctl
+
+warehouse: iceberg/warehouse

@@ -1,0 +1,46 @@
+# The Data at Scale guide: a month of orders for 1,000 customers, written as one Parquet
+# file for each day. CUSTOMERS, DAYS and OUT change the size and the folder, FIRST names
+# the number of the first customer and SEED the random seed, so that separate runs can
+# each cover some of the customers. Run it with: desflow run data_at_scale.yaml
+# --8<-- [start:span]
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: ${SEED:-42}
+  timezone: UTC
+  logical_start_time: "2026-01-01T00:00:00+00:00"
+
+run: {until: "${DAYS:-30} days"}
+# --8<-- [end:span]
+
+# --8<-- [start:volume]
+arrivals:
+  # Each customer orders about once a day: a gap of 12 to 36 hours, drawn again after
+  # each order
+  customers:
+    dist: uniform
+    low: 43200
+    high: 129600
+    spawn: place_order
+    count: ${CUSTOMERS:-1000}
+    key: {gen: sequence, start: "${FIRST:-1}", format: "customer-{}"}
+# --8<-- [end:volume]
+
+# --8<-- [start:files]
+tasks:
+  place_order:
+    payload:
+      # Numbered within the run, so the first customer of the run is part of the id
+      order_id: {gen: sequence, format: "${FIRST:-1}-{}"}
+      customer: {gen: entity}
+      amount: {gen: normal, mean: 40, std: 10, decimals: 2}
+      # The file of the order: the day it was placed, in the simulated calendar
+      __path__: {gen: format_time, format: "${OUT:-scale_output}/%Y-%m-%d.parquet"}
+
+egress:
+  - type: Parquet
+    # One file for each batch, so a large batch gives few, large files
+    batch_size: 10000
+    config:
+      default_path: ${OUT:-scale_output}/other.parquet
+# --8<-- [end:files]

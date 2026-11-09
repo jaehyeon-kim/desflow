@@ -3,7 +3,7 @@
 # KAFKA_API_KEY and KAFKA_API_SECRET, then run it with:
 # desflow run kafka_security.yaml
 # --8<-- [start:shop]
-simulation: {sim_id: Shop, factor: 1, random_seed: 42}
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 resources:
   packers: {current_cap: 1, max_cap: 1}

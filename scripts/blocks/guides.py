@@ -66,14 +66,6 @@ def record_examples() -> List[str]:
     return telemetry + events
 
 
-def hybrid_events() -> List[str]:
-    """Call Python from YAML: the first packed order and the first break."""
-    lines = event_lines(yaml_records("docs/snippets/yaml/hybrid.yaml"))
-    packed = [line for line in lines if "'delivery'" in line][:1]
-    breaks = [line for line in lines if "packers-break" in line][:2]
-    return packed + breaks
-
-
 def python_error() -> List[str]:
     """Call Python from YAML: what `desflow run` prints for a reference that does not
     resolve, run from the blueprint's folder."""
@@ -95,7 +87,6 @@ def reneging_follow_up() -> List[str]:
 
 BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "reneging-follow-up": reneging_follow_up,
-    "hybrid-events": hybrid_events,
     "python-error": python_error,
     "record-examples": record_examples,
     "fit-gaps": fit_gaps,

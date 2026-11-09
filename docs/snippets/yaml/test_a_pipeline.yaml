@@ -1,0 +1,44 @@
+# The Test a Pipeline guide: a shop with a planted fault. Orders surge at 300 seconds
+# and the label of the fault goes only to the labels sink. OUT is the folder the two
+# sinks write under. Run it with: desflow run test_a_pipeline.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+resources:
+  packers: {current_cap: 3, max_cap: 5}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# --8<-- [start:sinks]
+egress:
+  # The data under test: events only, with no label
+  - type: Jsonl
+    config: {default_path: "${OUT:-output}/data/events.jsonl"}
+    when: events
+  # The labels only, for the scorer
+  - type: Jsonl
+    config: {default_path: "${OUT:-output}/labels/labels.jsonl"}
+    when: labels
+# --8<-- [end:sinks]
+
+# --8<-- [start:scenario]
+scenario:
+  # The fault: the order rate triples at 300 seconds, and the label says so
+  - at: 300
+    path: Shop.arrival.orders.rate
+    value: 1.5
+    record: {fault: order_surge}
+  # The end of the fault, which needs no label
+  - {at: 360, path: Shop.arrival.orders.rate, value: 0.5}
+# --8<-- [end:scenario]
+
+run: {until: 10 min}

@@ -1,7 +1,7 @@
 # The Write to Cloud Storage guide: the shop writes an hour of orders as Parquet and
 # JSON Lines files, as fast as the machine allows. STORAGE picks the store (local, the
 # default, s3, gcs or azure) and STORAGE_BUCKET the bucket, container or local folder.
-# Needs cloud_storage_stores.py and cloud_storage_logic.py beside it. Run it with:
+# Needs the folder cloud_storage_stores beside it. Run it with:
 # desflow run cloud_storage.yaml
 simulation: {sim_id: Shop, factor: 0.0, random_seed: 42}
 
@@ -19,7 +19,9 @@ tasks:
     service: packing
     resource: packers
     # The finished event is the order record
-    payload: !python cloud_storage_logic.order_record
+    payload:
+      order_id: {gen: sequence}
+      amount: 19.99
 
 # --8<-- [start:egress]
 egress:
@@ -27,11 +29,11 @@ egress:
   - type: Parquet
     config:
       default_path: ${STORAGE_BUCKET:-output}/parquet/events.parquet
-      filesystem: !python cloud_storage_stores.filesystem
+      filesystem: !include cloud_storage_stores/${STORAGE:-local}.yaml
   - type: Jsonl
     config:
       default_path: ${STORAGE_BUCKET:-output}/jsonl/events.jsonl
-      filesystem: !python cloud_storage_stores.filesystem
+      filesystem: !include cloud_storage_stores/${STORAGE:-local}.yaml
 # --8<-- [end:egress]
 
 run: {until: 1 hour}

@@ -84,6 +84,12 @@ sink = iceberg_sink(catalog)
 BATCH_SIZE = 200_000
 ```
 
+The first batch sets the type of each column, and a column that a later batch adds is added to the table. A whole number in the first batch gives an integer column. A telemetry `value`, the `now` and `peek` of a `run.steps` or `run.segments` reading and the `usage_since` of a preempted unit are read as doubles instead, so a later fraction is kept.
+
+A table that has an integer column refuses a later batch with a fraction in it. The sink logs an error, such as `could not write 1 rows to shop.events: row 1 holds 2.5 for the int64 column 'amount', which would lose its fraction`, and the rows of that batch are not written. To keep every row, name the columns in `schemas`, such as `schemas: {shop.events: {key: string, amount: double}}`. A table named there is created with those columns, and every batch is cast to them. The columns listed are the columns kept.
+
+A statistic (a number) and an event or a reading (a mapping) cannot share a table or a file, because the `value` column has one type. If a `table_router` or a `path_router` sends both to one place, the error names this cause. Send each kind to its own table.
+
 Each form runs the shop for an hour of simulated time at `factor=0.0`. The run flushes once, at its end, so the hour of orders is one commit:
 
 === "YAML"
@@ -94,12 +100,12 @@ Each form runs the shop for an hour of simulated time at `factor=0.0`. The run f
       - type: Iceberg
         config:
           default_table: shop.events
-          catalog: !python iceberg_tables_catalog.catalog
+          catalog: !include iceberg_tables_catalogs/${ICEBERG_CATALOG:-sqlite}.yaml
         # One commit per flush, so the sink gets a large batch of its own
         batch_size: 200000
     ```
 
-    The blueprint loads the mapping of `iceberg_tables_catalog.py` with `!python`, so `ICEBERG_CATALOG` picks the catalog in every form.
+    The YAML form keeps the same four mappings in the files `sqlite.yaml`, `rest.yaml`, `postgres.yaml` and `glue.yaml` of the folder `iceberg_tables_catalogs`. `!include iceberg_tables_catalogs/${ICEBERG_CATALOG:-sqlite}.yaml` reads the one that `ICEBERG_CATALOG` names, so the variable picks the catalog in every form. The Builder and Low-level scripts create the folder `iceberg` for the SQLite files. For the YAML form, run `mkdir iceberg` first, because SQLite does not create the folder of its database.
 
 === "Builder"
 
@@ -214,7 +220,7 @@ def read_events(catalog: dict, table: str = "shop.events"):
     )
 ```
 
-A second run appends its rows to the same table. To replace the rows of an earlier run instead, give the sink `upsert_keys`, as [Egress](../../user-guide/live-runs-and-connectors/egress.md#iceberg) shows.
+A second run appends its rows to the same table. To replace the rows of an earlier run instead, give the sink `upsert_keys`, as [Egress](../../user-guide/live-runs-and-connectors/egress.md#iceberg) shows. A sink with `upsert_keys` skips a record that has no destination or that has a null or missing key column, and logs one warning at the end of each flush with the number skipped and the reason. An entry that names its tables in `schemas`, `locations` or `upsert_keys` needs no `default_table` or router: a record routes by its `__table__`. A record whose `__table__` is null or empty goes to `default_table`. A record whose `__table__` names no namespace, such as `events` in place of `shop.events`, is skipped, and the flush logs a warning with the number skipped.
 
 ---
 
@@ -250,15 +256,16 @@ The count of one run is 5,291 rows. A second run appends its rows to the table, 
 
 ## Full Files
 
-Every form uses the catalog and the sink of `iceberg_tables_catalog.py`, which builds no shop, so keep the files in one folder.
+The Builder and Low-level forms use the catalog and the sink of `iceberg_tables_catalog.py`, which builds no shop. The YAML form uses the folder `iceberg_tables_catalogs` instead. Keep the files of the form you run in one folder.
 
 ??? example "Full files"
 
     ```python title="docs/snippets/guides/iceberg_tables_catalog.py"
     """The catalogs, sink and reader of the Write Iceberg Tables page.
 
-    Every form of the shop imports the catalog and the sink from this file: iceberg_tables.py
-    (builder), iceberg_tables.yaml and iceberg_tables_low_level.py. It builds no simulation.
+    The builder and low-level forms of the shop import the catalog and the sink from this file:
+    iceberg_tables.py and iceberg_tables_low_level.py. iceberg_tables.yaml reads the same
+    mappings from the folder iceberg_tables_catalogs. It builds no simulation.
     ICEBERG_CATALOG picks the catalog: sqlite (the default), rest, postgres or glue.
     """
 
@@ -342,12 +349,10 @@ Every form uses the catalog and the sink of `iceberg_tables_catalog.py`, which b
         ```yaml title="docs/snippets/yaml/iceberg_tables.yaml"
         # The Write to Iceberg Tables guide: the shop appends an hour of orders to the Iceberg
         # table shop.events, as fast as the machine allows. ICEBERG_CATALOG picks the catalog
-        # (sqlite, the default, rest, postgres or glue). Needs iceberg_tables_catalog.py and
-        # iceberg_tables_logic.py beside it. Run it with: desflow run iceberg_tables.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0.0
-          random_seed: 42
+        # (sqlite, the default, rest, postgres or glue). Needs the folder
+        # iceberg_tables_catalogs beside it, and for sqlite an empty folder iceberg. Run it
+        # with: desflow run iceberg_tables.yaml
+        simulation: {sim_id: Shop, factor: 0.0, random_seed: 42}
 
         resources:
           packers: {current_cap: 1, max_cap: 1}
@@ -363,30 +368,77 @@ Every form uses the catalog and the sink of `iceberg_tables_catalog.py`, which b
             service: packing
             resource: packers
             # The finished event is the order record
-            payload: !python iceberg_tables_logic.order_record
+            payload:
+              order_id: {gen: sequence}
+              amount: 19.99
 
         egress:
           # Every event as a row of shop.events, which the sink creates from the first batch
           - type: Iceberg
             config:
               default_table: shop.events
-              catalog: !python iceberg_tables_catalog.catalog
+              catalog: !include iceberg_tables_catalogs/${ICEBERG_CATALOG:-sqlite}.yaml
             # One commit per flush, so the sink gets a large batch of its own
             batch_size: 200000
 
-        run:
-          until: 1 hour
+        run: {until: 1 hour}
         ```
 
-        ```python title="docs/snippets/yaml/iceberg_tables_logic.py"
-        """Python for iceberg_tables.yaml: the order record each packed order publishes. The catalog
-        is that of iceberg_tables_catalog.py, which must be beside the blueprint."""
+        ```yaml title="docs/snippets/yaml/iceberg_tables_catalogs/sqlite.yaml"
+        # A SQL catalog on SQLite, with no service, for a first run. The folder iceberg must
+        # exist
+        name: sqlite
 
+        type: sql
 
-        def order_record(task_id, context, entity):
-            """The finished event of a packed order: the order record."""
-            return {"order_id": task_id, "amount": 19.99}
+        uri: sqlite:///iceberg/catalog.db
+
+        warehouse: iceberg/warehouse
         ```
+
+        ```yaml title="docs/snippets/yaml/iceberg_tables_catalogs/rest.yaml"
+        # The REST catalog of `odctl up catalog`, with the table files on its SeaweedFS
+        name: rest
+
+        type: rest
+
+        uri: http://127.0.0.1:8181
+
+        warehouse: s3://warehouse/
+
+        s3.endpoint: http://127.0.0.1:8333
+
+        s3.access-key-id: user
+
+        s3.secret-access-key: password
+
+        s3.region: us-east-1
+        ```
+
+        ```yaml title="docs/snippets/yaml/iceberg_tables_catalogs/postgres.yaml"
+        # A SQL catalog on the PostgreSQL of `odctl up postgres`, with local table files
+        name: postgres
+
+        type: sql
+
+        uri: postgresql+psycopg2://user:password@127.0.0.1:5432/odctl
+
+        warehouse: iceberg/warehouse
+        ```
+
+        ```yaml title="docs/snippets/yaml/iceberg_tables_catalogs/glue.yaml"
+        # The AWS Glue Data Catalog, with the table files in S3 and the standard AWS settings
+        name: glue
+
+        type: glue
+
+        glue.region: us-east-1
+
+        s3.region: us-east-1
+
+        warehouse: ${ICEBERG_WAREHOUSE:-s3://my-bucket/warehouse}
+        ```
+
 
     === "Builder"
 

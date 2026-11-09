@@ -48,6 +48,15 @@ NOT_BLUEPRINTS = {
     "docs/snippets/yaml/fitted/complete_orders.yaml",
     "docs/snippets/yaml/fitted/complete_picking.yaml",
     "docs/snippets/yaml/fitted/complete_packing.yaml",
+    "docs/snippets/yaml/cloud_storage_stores/azure.yaml",
+    "docs/snippets/yaml/cloud_storage_stores/gcs.yaml",
+    "docs/snippets/yaml/cloud_storage_stores/local.yaml",
+    "docs/snippets/yaml/cloud_storage_stores/s3.yaml",
+    "docs/snippets/yaml/iceberg_tables_catalogs/glue.yaml",
+    "docs/snippets/yaml/iceberg_tables_catalogs/postgres.yaml",
+    "docs/snippets/yaml/iceberg_tables_catalogs/rest.yaml",
+    "docs/snippets/yaml/iceberg_tables_catalogs/sqlite.yaml",
+    "docs/snippets/yaml/test_a_model_tests.yaml",
 }
 FOLDERS = (
     "examples/yaml",

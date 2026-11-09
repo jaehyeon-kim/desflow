@@ -1,0 +1,16 @@
+# The Test a Model guide, Builder tab: the tests of test_a_model.py. Save this file as
+# tests.yaml in the folder of test_a_model.py, and run: desflow test test_a_model.py
+# --8<-- [start:tests]
+tests:
+  # A builder file has no run.until, so each test names its end
+  - name: two packers
+    until: 600
+    expect:
+      tasks.pack_order.finished: 319
+      tasks.pack_order.wait_mean: {value: 0.1106, within: 0.001}
+  # The same shop at another seed
+  - name: another seed
+    seed: 7
+    until: 600
+    expect: {tasks.pack_order.finished: 313}
+# --8<-- [end:tests]

@@ -8,8 +8,9 @@ test that runs its files:
 
 - `docs/snippets/pages/`: test_docs_page_snippets.py runs every file.
 - `docs/snippets/tutorials/`: test_docs_tutorials.py.
-- `docs/snippets/guides/`: test_docs_guides.py, which needs a test per file, so a new
-  guide's script is checked against what its page says.
+- `docs/snippets/guides/`: test_docs_guides.py and every test_docs_guides_*.py file,
+  which need a test per file, so a new guide's script is checked against what its page
+  says.
 - `docs/snippets/editor/`: test_docs_guides.py, test_editor_settings_hold_the_schema_and_the_three_tags.
 - `docs/snippets/simpy/`: test_simpy_examples.py runs each of SimPy's files and
   compares what it prints with its `.out` file.
@@ -17,9 +18,6 @@ test that runs its files:
   each snippet and asserts what its page shows.
 - `docs/snippets/yaml/` and `yaml_build/`: test_docs_snippets.py runs or builds each
   blueprint that test_docs_tutorials.py and test_docs_guides.py do not run.
-
-`docs/snippets/hot_rolling/` is the one exception: its adapter imports modules of the
-hot rolling mill project, which is not in this repository, so it cannot run here.
 """
 
 import re
@@ -47,14 +45,18 @@ def test_every_python_block_is_a_labelled_copy():
 
 
 def test_every_guide_script_has_a_test():
-    tests = (ROOT / "tests" / "docs" / "test_docs_guides.py").read_text(
-        encoding="utf-8"
+    tests = "".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "tests" / "docs").glob("test_docs_guides*.py"))
     )
     untested = [
         script.name
         for script in sorted((SNIPPETS / "guides").glob("*.py"))
         if f'_load("{script.stem}")' not in tests
-        and f'_load_from(tmp_path, "{script.stem}")' not in tests
+        and not re.search(rf'_load_from\(\w+, "{script.stem}"\)', tests)
+        and not re.search(rf"^\s*from {script.stem} import ", tests, re.M)
+        and not re.search(rf'run_path\(\s*str\(\w+ / "{script.name}"\)', tests)
+        and not re.search(rf'"pytest",\s*"{script.name}"', tests)
     ]
     assert untested == [], (
         "Add a test to tests/docs/test_docs_guides.py that runs and checks: "
@@ -74,10 +76,7 @@ def test_snippet_folders_are_all_run():
         "simpy",
         "generate-data",
     }
-    not_runnable = {"hot_rolling"}  # imports another project's modules
     folders = {
         p.name for p in SNIPPETS.iterdir() if p.is_dir() and p.name != "__pycache__"
     }
-    assert folders <= run | not_runnable, (
-        f"Add a test that runs: {sorted(folders - run - not_runnable)}"
-    )
+    assert folders <= run, f"Add a test that runs: {sorted(folders - run)}"

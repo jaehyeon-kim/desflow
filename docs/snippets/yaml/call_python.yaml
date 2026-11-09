@@ -1,0 +1,32 @@
+# The Call Python from YAML guide: a visit every 0.1 seconds, each shown the three
+# products with the highest score from the models in Valkey. Needs
+# call_python_ranking.py beside it. Run it with: desflow run call_python.yaml
+simulation: {sim_id: Recommender, factor: 0, random_seed: 42}
+
+arrivals:
+  visits: {dist: constant, value: 0.1, spawn: recommend}
+
+# --8<-- [start:task]
+tasks:
+  recommend:
+    vars:
+      # The visitor's three features, each between 0 and 1
+      x:
+        gen: repeat
+        times: 3
+        value: {gen: uniform, low: 0, high: 1, decimals: 3}
+    payload:
+      features: {gen: var, name: x}
+      # call_python_ranking.top_products(context, x=...) gives the three products
+      shown:
+        gen: call
+        function: !python call_python_ranking.top_products
+        kwargs:
+          x: {gen: var, name: x}
+# --8<-- [end:task]
+
+egress:
+  - type: Console
+    config: {format: json}
+
+run: {until: 1 s}

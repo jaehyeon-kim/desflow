@@ -1,0 +1,32 @@
+# The Connect to Secure Kafka guide: a shop that publishes its events to Amazon MSK with
+# IAM access control. Needs the package aws-msk-iam-sasl-signer-python and AWS
+# credentials in the environment. Run it with: desflow run kafka_security_msk.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+# --8<-- [start:egress]
+egress:
+  - type: Kafka
+    config:
+      bootstrap_servers: b-1.my-msk.amazonaws.com:9098
+      security_protocol: SASL_SSL
+      sasl_mechanism: OAUTHBEARER
+      # The token comes from the AWS credentials of your environment or role
+      sasl_oauth_token_provider: {type: aws_msk_iam, region: us-east-1}
+# --8<-- [end:egress]
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+run: {until: 1 min}

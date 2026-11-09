@@ -1,0 +1,34 @@
+# The Write to Cloud Storage guide, "Write a File for Each Day": two days of orders,
+# each day in a file of its own. STORAGE picks the store and STORAGE_BUCKET the bucket,
+# as in cloud_storage.yaml. Needs the folder cloud_storage_stores beside it. Run it
+# with: desflow run cloud_storage_daily.yaml
+simulation:
+  sim_id: Shop
+  factor: 0.0
+  random_seed: 42
+  timezone: UTC
+  logical_start_time: "2026-01-01T00:00:00+00:00"
+
+arrivals:
+  orders: {dist: constant, value: 3600, spawn: pack_order}
+
+tasks:
+  pack_order:
+    # --8<-- [start:payload]
+    payload:
+      order_id: {gen: sequence}
+      amount: 19.99
+      # The file of the order: the day it was packed, in the simulated calendar
+      __path__:
+        gen: format_time
+        format: "${STORAGE_BUCKET:-output}/daily/%Y-%m-%d.jsonl"
+    # --8<-- [end:payload]
+
+egress:
+  - type: Jsonl
+    config:
+      # The file of a record with no __path__
+      default_path: ${STORAGE_BUCKET:-output}/daily/other.jsonl
+      filesystem: !include cloud_storage_stores/${STORAGE:-local}.yaml
+
+run: {until: 2 days}

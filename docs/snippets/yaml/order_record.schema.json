@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "properties": {
+    "key": {"type": "string"},
+    "task": {"type": ["string", "null"]},
+    "instance": {"type": ["integer", "null"]},
+    "sim_ts": {"type": "number"},
+    "timestamp": {"type": "string"},
+    "value": {
+      "type": "object",
+      "properties": {
+        "order_id": {"type": "integer"},
+        "amount": {"type": "number"}
+      },
+      "required": ["order_id", "amount"]
+    }
+  },
+  "required": ["key", "sim_ts", "timestamp", "value"]
+}

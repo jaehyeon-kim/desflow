@@ -21,10 +21,7 @@ Add a Parquet sink, `ParquetStorageEgress`, to the shop. It writes one flat row 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/analyse_the_event_log.yaml:run"
-    simulation:
-      sim_id: Shop
-      factor: 0
-      random_seed: 42
+    simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
     resources:
       packers: {current_cap: 1, max_cap: 1}
@@ -48,8 +45,7 @@ Add a Parquet sink, `ParquetStorageEgress`, to the shop. It writes one flat row 
         config:
           default_path: ${OUT:-analyse_output}/events.parquet
 
-    run:
-      until: 120
+    run: {until: 120}
     ```
 
     `run_yaml` loads it with the folder in `OUT`, and runs it:
@@ -273,7 +269,7 @@ mean wait 1.250 s
 throughput 31.5 orders a minute
 ```
 
-The first order waits **0.0** seconds and is in the shop for **1.5** seconds. The mean wait is **1.250** seconds and the longest wait is **3.66** seconds. These come from one 2-minute run of a shop with one packer, not from the busy hour of the tutorials. **63** orders leave in two minutes, a throughput of **31.5** orders a minute. The 64th is still being packed, so it has a wait and no time in the shop.
+The first order waits **0.0** seconds and is in the shop for **1.5** seconds. The mean wait is **1.250** seconds and the longest wait is **3.659** seconds. These come from one 2-minute run of a shop with one packer, not from the busy hour of the tutorials. **63** orders leave in two minutes, a throughput of **31.5** orders a minute. The 64th is still being packed, so it has a wait and no time in the shop.
 
 ---
 
@@ -288,10 +284,7 @@ The first order waits **0.0** seconds and is in the shop for **1.5** seconds. Th
         # written to Parquet. The files go to analyse_output/, or to the folder in OUT, which
         # run_yaml() in analyse_the_event_log.py sets. Run it with:
         # desflow run analyse_the_event_log.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           packers: {current_cap: 1, max_cap: 1}
@@ -315,8 +308,7 @@ The first order waits **0.0** seconds and is in the shop for **1.5** seconds. Th
             config:
               default_path: ${OUT:-analyse_output}/events.parquet
 
-        run:
-          until: 120
+        run: {until: 120}
         ```
 
         The analysis and `run_yaml` are in `analyse_the_event_log.py`, in the Builder tab.

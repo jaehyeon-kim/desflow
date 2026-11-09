@@ -1,0 +1,10 @@
+# The AWS Glue Data Catalog, with the table files in S3 and the standard AWS settings
+name: glue
+
+type: glue
+
+glue.region: us-east-1
+
+s3.region: us-east-1
+
+warehouse: ${ICEBERG_WAREHOUSE:-s3://my-bucket/warehouse}

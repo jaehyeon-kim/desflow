@@ -2,20 +2,18 @@
 
 The original is the snippets' own objects: `protobuf_serializer` and `json_serializer` of
 docs/snippets/guides/json_schema_and_protobuf_serializers.py, built from the class `protoc`
-generated and from the schema text, and `prediction_serializer` of
-docs/snippets/guides/avro_and_pydantic_models.py, built from its schema text. `check`
-builds the model and compares each serializer of its three sinks with the snippet's:
-the same class and the same schema text, and the bytes one record encodes to, which
-need no registry (`serialize` registers the schema first, so the encoders are called
-without it). The Avro snippet's module needs `dataclasses-avroschema`, which is in the dev
-dependency group, and `harness.guide_avro_models` imports it.
+generated and from the schema text, and `prediction_serializer` below, an Avro serializer
+built from a schema written by hand. `check` builds the model and compares each serializer
+of its three sinks with the original: the same class and the same schema text, and the
+bytes one record encodes to, which need no registry (`serialize` registers the schema
+first, so the encoders are called without it).
 """
 
 import sys
 from pathlib import Path
 
 from desflow import SimulationContext
-from tests.known_cases.harness import guide_avro_models
+from desflow.connectors.egress.kafka import ConfluentAvroSerializer
 
 HERE = Path(__file__).parent
 SNIPPETS = HERE.parents[2] / "docs" / "snippets" / "guides"
@@ -27,6 +25,31 @@ RECORD = {
     "sim_ts": 3.5,
     "timestamp": "2026-01-01T00:00:03.500000+00:00",
 }
+
+# An Avro serializer with a schema written by hand. The schema describes the whole record
+# KafkaEgress sends, with the prediction as its value.
+prediction_serializer = ConfluentAvroSerializer(
+    registry_url="http://127.0.0.1:8081",
+    schema_str="""{
+      "type": "record", "name": "PredictionEvent", "namespace": "com.desflow.ml",
+      "fields": [
+        {"name": "key", "type": "string"},
+        {"name": "task", "type": ["null", "string"], "default": null},
+        {"name": "instance", "type": ["null", "long"], "default": null},
+        {"name": "sim_ts", "type": "double"},
+        {"name": "timestamp", "type": "string"},
+        {"name": "value", "type": {
+          "type": "record", "name": "MLPrediction",
+          "fields": [
+            {"name": "event_type", "type": "string"},
+            {"name": "task_id", "type": "string"},
+            {"name": "confidence", "type": "double"}
+          ]
+        }}
+      ]
+    }""",
+)
+
 ORDER = {**RECORD, "value": {"order_id": 1, "amount": 19.99}}
 PREDICTION = {
     **RECORD,
@@ -45,8 +68,7 @@ def check(records):
         )
     finally:
         sys.path.remove(str(SNIPPETS))
-    with guide_avro_models() as models:
-        avro_serializer = models.prediction_serializer
+    avro_serializer = prediction_serializer
     app = SimulationContext.from_yaml(HERE / "model.yaml")
     protobuf, avro, json = (
         sink.provider.default_serializer for sink in app._sinks.egress

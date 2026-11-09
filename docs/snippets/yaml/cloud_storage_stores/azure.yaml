@@ -1,0 +1,4 @@
+# Azure Blob Storage, with Azure's default credentials for the storage account
+type: azure
+
+account_name: ${AZURE_STORAGE_ACCOUNT}

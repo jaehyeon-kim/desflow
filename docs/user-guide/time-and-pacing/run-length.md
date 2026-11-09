@@ -289,6 +289,37 @@ It prints `paused at 40.0`. A run in segments gives the same records as one `run
 - The event that ends a segment stays in the queue: `peek()` gives the segment's time and `step()` processes it.
 - `advance()` does not move the wall-clock anchor. A paced run that waited between segments is behind when it goes on, so call `env.resume_pacing()` first.
 
+### Set Up Before the Run
+
+`run.before` lists functions called with no arguments, once, at the start of `run()`. Connectors already create what they write to when they can: Kafka its event and telemetry topics, Postgres the tables under `tables`, and Parquet and JSONL their folders. `run.before` is for any other setup, such as creating the topics of a router.
+
+Put such setup in a function rather than at the top of the module. The module is imported when the file is loaded, so its top-level code runs even when a blueprint is loaded and never run. This function creates the folder `events` when the run starts:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/run_before.yaml:before"
+    run: {until: 1 min, before: [!python run_before_logic.make_output_folder]}
+    ```
+
+    ```python title="docs/snippets/yaml/run_before_logic.py"
+    """Python for docs/snippets/yaml/run_before.yaml: a setup function."""
+
+    import os
+
+
+    def make_output_folder() -> None:
+        """Called once by run.before, when the run starts, not when the file is loaded."""
+        os.makedirs("events", exist_ok=True)
+    ```
+
+=== "Builder"
+
+    The Builder API has no `run.before`: call the function before `run()`, as the [YAML form](#set-up-before-the-run) calls it.
+
+=== "Low-level"
+
+    The low-level API has no `run.before`: call the function before `env.run()`, as the [YAML form](#set-up-before-the-run) calls it.
+
 ---
 
 ## How It Works

@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 # --8<-- [start:egress]
 class CsvEgress(BaseEgress):
-    """Writes one CSV row per event: its time, key and task, then the payload
-    fields that `columns` names."""
+    """Writes one CSV row per record it is given: its time, key and task, then the
+    payload fields that `columns` names. The sink's `when` keeps telemetry out."""
 
     def __init__(self, path: str, columns: List[str]):
         self.path = Path(path)
@@ -38,12 +38,7 @@ class CsvEgress(BaseEgress):
                     continue
                 self.active_tasks += 1
                 try:
-                    # A batch also holds telemetry; this sink writes only the events
-                    rows = [
-                        self._row(record)
-                        for record in batch
-                        if record["stream_type"] == "event"
-                    ]
+                    rows = [self._row(record) for record in batch]
                     # A file write blocks, so it runs on a worker thread
                     await asyncio.to_thread(self._write, file, writer, rows)
                 finally:

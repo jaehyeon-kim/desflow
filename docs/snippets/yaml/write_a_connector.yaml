@@ -30,6 +30,7 @@ ingress:
 
 egress:
   - type: !python write_a_connector_logic.CsvEgress
+    when: events  # events only; the readings of telemetry stay out of the file
     config: {path: events.csv, columns: [status, event_type]}
 # --8<-- [end:connectors]
 

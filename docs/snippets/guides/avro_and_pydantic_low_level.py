@@ -2,22 +2,23 @@
 prediction, sent to ml-predictions as Avro, and every other record goes to its topic
 as JSON.
 
-The model, the router and the serializer are those of avro_and_pydantic_models.py, which
-must be beside this script. It needs a Kafka broker and a schema registry: start both with
+The model and the serializer are those of avro_and_pydantic_models.py, which must be
+beside this script. It needs a Kafka broker and a schema registry: start both with
 `odctl up kafka-lite`, then run `python avro_and_pydantic_low_level.py`.
 """
 
 import itertools
 import logging
+import os
 
-from avro_and_pydantic_models import MLPrediction, egress
+from avro_and_pydantic_models import MLPrediction, generated_serializer
 
 from desflow import (
     CapacityConfig,
     DistributionConfig,
     DynamicRealtimeEnvironment,
     DynamicResource,
-    KafkaAdminConnector,
+    KafkaEgress,
     Sampler,
     SimParameter,
 )
@@ -28,6 +29,14 @@ PARAMS = SimParameter(
     service={"packing": DistributionConfig(dist="constant", value=1.5)},
     resources={"packers": CapacityConfig(current_cap=1, max_cap=1)},
 )
+
+
+# --8<-- [start:egress]
+egress = KafkaEgress(
+    bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092"),
+    topics={"ml-predictions": {"serializer": generated_serializer}},  # Avro
+)
+# --8<-- [end:egress]
 
 
 # --8<-- [start:model]
@@ -58,10 +67,10 @@ def pack_order(env, packers, sampler, key, task_id):
             task_id,
         )
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
-        # The finished event is a prediction for the order, published as the model;
-        # publish_event turns it into a dict
+        # The finished event is a prediction for the order: the fields of MLPrediction
         prediction = MLPrediction(task_id=key, confidence=0.9)
-        env.publish_event(key, prediction, "pack_order", task_id)
+        payload = {**prediction.model_dump(), "__topic__": "ml-predictions"}
+        env.publish_event(key, payload, "pack_order", task_id)
 
 
 # --8<-- [end:model]
@@ -75,7 +84,7 @@ def orders(env, packers, sampler):
         env.process(pack_order(env, packers, sampler, f"orders-{number}", number - 1))
 
 
-def shop(sinks: list, factor: float = 1.0) -> DynamicRealtimeEnvironment:
+def shop(sinks: list, factor: float = 0.0) -> DynamicRealtimeEnvironment:
     """The shop, publishing to the sinks given."""
     env = DynamicRealtimeEnvironment(factor=factor)
     env.registry.register_sim_parameter(PARAMS)
@@ -91,10 +100,6 @@ if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
     )
-    # With a router, KafkaEgress creates no topics, so create them first
-    admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092")
-    topics = ["sim-events", "sim-telemetry", "ml-predictions"]
-    admin.create_topics([{"name": topic} for topic in topics])
     env = shop([egress])  # predictions as Avro, the rest as JSON
     try:
         env.run(until=60)

@@ -1,6 +1,6 @@
 # The Test a Model guide: the shop that test_a_model_yaml.py tests. Its inputs are
 # variables, so a test sets PACKERS, RATE and SEED and loads it again; each has the
-# value the tests use by default.
+# value the tests use by default. `desflow test test_a_model.yaml` runs its `tests`.
 # --8<-- [start:shop]
 simulation:
   sim_id: Shop
@@ -26,3 +26,17 @@ stats: {level: typical, interval: 600}
 
 run: {until: 600}
 # --8<-- [end:shop]
+
+# --8<-- [start:tests]
+tests:
+  # The statistics of one run of the file at its seed: 319 orders packed, 0.1106 s of
+  # wait
+  - name: two packers
+    expect:
+      tasks.pack_order.finished: 319
+      tasks.pack_order.wait_mean: {value: 0.1106, within: 0.001}
+  # The same shop at another seed
+  - name: another seed
+    seed: 7
+    expect: {tasks.pack_order.finished: 313}
+# --8<-- [end:tests]

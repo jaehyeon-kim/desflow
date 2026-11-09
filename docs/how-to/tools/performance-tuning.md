@@ -1,6 +1,6 @@
 # Tune Performance
 
-Make a run that generates data go as fast as the machine allows, and measure how many records a second it publishes.
+Make a run that generates data go as fast as the machine allows, and measure how many records a second it publishes. To choose the size of a dataset and split a large job, see [Data at Scale](../records-and-kafka/data-at-scale.md).
 
 ---
 
@@ -47,8 +47,7 @@ This shop takes ten orders a second with 25 packers, and has no sink of its own:
     # minimal: readings every 10 s, not the costlier task statistics
     stats: {level: minimal, interval: 10}
 
-    run:
-      until: 1 h
+    run: {until: 1 h}
     ```
 
 === "Builder"
@@ -282,8 +281,7 @@ Run `uv run --all-extras python benchmarks/throughput.py configs` to measure you
         # minimal: readings every 10 s, not the costlier task statistics
         stats: {level: minimal, interval: 10}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"

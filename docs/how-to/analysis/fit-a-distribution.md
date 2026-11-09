@@ -59,7 +59,7 @@ lognormal         skipped                                          lognormal nee
 truncated_normal  did not fit                                      RuntimeError: Maximum number of function evaluations has been exceeded.
 constant          skipped                                          the values are not all equal
 uniform           rejected                                         its mean is 12.75, the data's is 2.748: more than 25% apart
-triangular        rejected                                         its mean is 7.702, the data's is 2.748: more than 25% apart
+triangular        rejected                                         out of the family's range: triangular low is a time and must be 0 or more, got -1.2701238878321361
 gamma             skipped                                          gamma needs every value above 0; 5 are not
 weibull           skipped                                          weibull needs every value above 0; 5 are not
 empirical         fitted                                           values: 299 numbers
@@ -70,7 +70,7 @@ empirical         fitted                                           values: 299 n
 
 - **Skipped** families were not fitted, and the reason says why. Here the log's times are given to a tenth of a second, so some orders share a time, and 5 gaps are 0. `gamma`, `weibull` and `lognormal` need every value above 0, so they are skipped.
 - **Did not fit** means scipy's fit failed. Its message is the reason. Here the truncated normal's search did not settle, because the gaps are far from a normal shape.
-- **Rejected** families were fitted, but their mean or standard deviation is more than 25% from the data's, or a parameter is out of range. Here `uniform` and `triangular` reach far beyond most gaps.
+- **Rejected** families were fitted, but their mean or standard deviation is more than 25% from the data's, or a parameter is out of range. Here `uniform` reaches far beyond most gaps, and the fitted `triangular` has a start below 0, which a time cannot have.
 - **Fitted** families have an [AIC](../../learn/concepts/a-simulation-study.md#aic-and-the-ks-test), where lower is better, and a Kolmogorov-Smirnov p-value, which is approximate. The `exponential` has the lowest AIC and a p-value of 0.84. Its rate, `rate: 0.36388`, is one over the mean gap of 2.75 seconds: an order every 2.75 seconds on average. `normal` fits too, but it can draw below 0.
 
 When two families' AIC are too close to tell them apart, as [AIC and the KS Test](../../learn/concepts/a-simulation-study.md#aic-and-the-ks-test) explains, run the model with each and see whether the answer changes, as [Fitting the Inputs](../../learn/inputs/fit-the-inputs.md#does-the-choice-matter) does. Read `--plot fit.png`, or `result.plot("fit.png")`, as well as the table.
@@ -98,8 +98,10 @@ When two families' AIC are too close to tell them apart, as [AIC and the KS Test
     The file:
 
     ```yaml title="docs/snippets/yaml/fitted/orders.yaml"
-    # Fitted by desflow fit from order_log.csv, gaps between placed_at: exponential, from 299 values in s, written in seconds.
+    # Fitted by desflow fit from order_log.csv, gaps between placed_at: exponential, from
+    # 299 values in s, written in seconds.
     dist: exponential
+
     rate: 0.36388
     ```
 
@@ -199,11 +201,9 @@ cd desflow/docs/snippets/guides
         # The Fit a Distribution guide: the shop with arrivals fitted to an order log.
         # The fitted/ folder beside it holds the best fit, orders.yaml. write() in
         # docs/snippets/guides/fit_a_distribution.py, or desflow fit on gaps.csv with
-        # --out fitted/orders.yaml, writes it again. Run it with: desflow run fit_a_distribution.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        # --out fitted/orders.yaml, writes it again. Run it with: desflow run
+        # fit_a_distribution.yaml
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           packers: {current_cap: 1, max_cap: 2}
@@ -223,13 +223,14 @@ cd desflow/docs/snippets/guides
 
         stats: basic
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
         ```yaml title="docs/snippets/yaml/fitted/orders.yaml"
-        # Fitted by desflow fit from order_log.csv, gaps between placed_at: exponential, from 299 values in s, written in seconds.
+        # Fitted by desflow fit from order_log.csv, gaps between placed_at: exponential, from
+        # 299 values in s, written in seconds.
         dist: exponential
+
         rate: 0.36388
         ```
 

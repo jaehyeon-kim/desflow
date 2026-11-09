@@ -1,0 +1,59 @@
+{
+  "type": "record",
+  "name": "PredictionEvent",
+  "fields": [
+    {
+      "name": "key",
+      "type": "string"
+    },
+    {
+      "name": "task",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    },
+    {
+      "name": "instance",
+      "type": [
+        "null",
+        "long"
+      ],
+      "default": null
+    },
+    {
+      "name": "sim_ts",
+      "type": "double"
+    },
+    {
+      "name": "timestamp",
+      "type": "string"
+    },
+    {
+      "name": "value",
+      "type": {
+        "type": "record",
+        "name": "MLPrediction",
+        "fields": [
+          {
+            "name": "event_type",
+            "type": "string",
+            "default": "prediction"
+          },
+          {
+            "name": "task_id",
+            "type": "string"
+          },
+          {
+            "name": "confidence",
+            "type": "double"
+          }
+        ],
+        "doc": "The prediction, published as the event value."
+      }
+    }
+  ],
+  "doc": "The record KafkaEgress serializes for an event.",
+  "namespace": "com.desflow.ml"
+}

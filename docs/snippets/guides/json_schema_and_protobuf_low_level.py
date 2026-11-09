@@ -1,24 +1,25 @@
-"""The JSON Schema and Protobuf guide, low-level API: each packed order publishes
+"""The Use Schema Serializers guide, low-level API: each packed order publishes
 an order record, sent to orders-json as JSON Schema or to orders-protobuf as Protobuf, and
 every other record goes to its topic as JSON.
 
-The serializers and the router are those of json_schema_and_protobuf_serializers.py,
-which must be beside this script, with shop_record.proto and shop_record_pb2.py. It needs a Kafka broker
-and a schema registry: start both with `odctl up kafka-lite`, then run
+The serializers are those of json_schema_and_protobuf_serializers.py, which must be
+beside this script, with shop_record.proto and shop_record_pb2.py. It needs a Kafka
+broker and a schema registry: start both with `odctl up kafka-lite`, then run
 `python json_schema_and_protobuf_low_level.py`.
 """
 
 import itertools
 import logging
+import os
 
-from json_schema_and_protobuf_serializers import egress
+from json_schema_and_protobuf_serializers import json_serializer, protobuf_serializer
 
 from desflow import (
     CapacityConfig,
     DistributionConfig,
     DynamicRealtimeEnvironment,
     DynamicResource,
-    KafkaAdminConnector,
+    KafkaEgress,
     Sampler,
     SimParameter,
 )
@@ -29,6 +30,17 @@ PARAMS = SimParameter(
     service={"packing": DistributionConfig(dist="constant", value=1.5)},
     resources={"packers": CapacityConfig(current_cap=1, max_cap=1)},
 )
+
+
+# --8<-- [start:egress]
+egress = KafkaEgress(
+    bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092"),
+    topics={
+        "orders-json": {"serializer": json_serializer},
+        "orders-protobuf": {"serializer": protobuf_serializer},
+    },
+)
+# --8<-- [end:egress]
 
 
 # --8<-- [start:shop]
@@ -59,8 +71,9 @@ def pack_order(env, packers, sampler, key, task_id):
             task_id,
         )
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
-        # The finished event is the order record
-        order = {"order_id": task_id, "amount": 19.99}
+        # Orders alternate between the two formats, so one run shows both
+        topic = "orders-protobuf" if task_id % 2 else "orders-json"
+        order = {"__topic__": topic, "order_id": task_id, "amount": 19.99}
         env.publish_event(key, order, "pack_order", task_id)
 
 
@@ -71,7 +84,7 @@ def orders(env, packers, sampler):
         env.process(pack_order(env, packers, sampler, f"orders-{number}", number - 1))
 
 
-def shop(sinks: list, factor: float = 1.0) -> DynamicRealtimeEnvironment:
+def shop(sinks: list, factor: float = 0.0) -> DynamicRealtimeEnvironment:
     """The shop, publishing to the sinks given."""
     env = DynamicRealtimeEnvironment(factor=factor)
     env.registry.register_sim_parameter(PARAMS)
@@ -88,10 +101,6 @@ if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
     )
-    # With a router, KafkaEgress creates no topics, so create them first
-    admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092")
-    topics = ["sim-events", "sim-telemetry", "orders-json", "orders-protobuf"]
-    admin.create_topics([{"name": topic} for topic in topics])
     env = shop([egress])  # orders as JSON Schema or Protobuf, the rest as JSON
     try:
         env.run(until=60)

@@ -1,0 +1,22 @@
+# The Run Length guide: a setup function called once, when the run starts. Needs
+# run_before_logic.py beside it. Run it with: desflow run run_before.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# --8<-- [start:before]
+run: {until: 1 min, before: [!python run_before_logic.make_output_folder]}
+# --8<-- [end:before]

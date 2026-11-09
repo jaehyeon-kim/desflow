@@ -440,9 +440,15 @@
 - run: file:docs/snippets/yaml/python_error.yaml
   since: 1.0.0
   changelog: "The YAML blueprint files of the repository, the examples and the docs snippets are written in one layout, checked by two pre-commit hooks; no blueprint changes meaning."
+- run: file:docs/snippets/yaml/cloud_storage.yaml
+  since: 1.0.0
+  changelog: "The Write to Cloud Storage example runs from its folder as its page shows: the stores are YAML files in `cloud_storage_stores/` and the order record is written with YAML keys. Before, it named Python modules that were not beside it, so it stopped when it loaded."
+- run: file:docs/snippets/yaml/iceberg_tables.yaml
+  since: 1.0.0
+  changelog: "The Write to Iceberg Tables example runs from its folder as its page shows: the catalogs are YAML files in `iceberg_tables_catalogs/` and the order record is written with YAML keys. Before, it named Python modules that were not beside it, so it stopped when it loaded."
 - run: file:docs/snippets/hot_rolling/hot_rolling.yaml
   since: 1.0.0
-  changelog: "The YAML blueprint files of the repository, the examples and the docs snippets are written in one layout, checked by two pre-commit hooks; no blueprint changes meaning."
+  changelog: "The hot rolling example is removed from the docs: Call Python from YAML no longer shows it, so the snippet folder docs/snippets/hot_rolling is deleted."
 - run: file:docs/snippets/pages/blueprint_error.yaml
   since: 1.0.0
   changelog: "The YAML blueprint files of the repository, the examples and the docs snippets are written in one layout, checked by two pre-commit hooks; no blueprint changes meaning."

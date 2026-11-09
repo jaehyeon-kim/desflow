@@ -36,7 +36,7 @@ Each page here does one task, step by step, with code that you can run. To see w
 
 | Group | What it covers |
 | --- | --- |
-| [Records and Kafka](records-and-kafka/complex-routing.md) | records routed to Kafka topics, Avro, JSON Schema, Protobuf and Pydantic records, secure Kafka connections, and connectors of your own |
+| [Records and Kafka](records-and-kafka/complex-routing.md) | records routed to Kafka topics, Avro, JSON Schema, Protobuf and Pydantic records, secure Kafka connections, connectors of your own, and datasets of a size you choose |
 | [Storage and Tables](storage-and-tables/cloud-storage.md) | Parquet and JSON Lines files on S3, Google Cloud Storage and Azure Blob Storage, and Iceberg tables through REST, SQL and Glue catalogs |
 | [Analysis](analysis/fit-a-distribution.md) | distributions fitted to measured times, checks against the queueing formulas, tests for a model, and a run's event log, analysed and animated |
 | [Tools](tools/yaml-advanced.md) | Python logic in a blueprint, completion and checks for blueprints in an editor, an AI coding assistant, and the fastest data generation |

@@ -1,10 +1,10 @@
-"""The serializers, router and order readers of the JSON Schema and Protobuf page.
+"""The serializers and order readers of the Use Schema Serializers page.
 
-Every form of the shop imports the serializers and the router from this file:
-json_schema_and_protobuf.py (builder), json_schema_and_protobuf.yaml and
-json_schema_and_protobuf_low_level.py. It builds no simulation. shop_record.proto and
-shop_record_pb2.py, generated from it, must be beside this file. It needs a Kafka broker
-and a schema registry: start both with `odctl up kafka-lite`.
+The code forms of the shop import the serializers from this file:
+json_schema_and_protobuf.py (builder) and json_schema_and_protobuf_low_level.py. It builds
+no simulation. shop_record.proto and shop_record_pb2.py, generated from it, must be beside
+this file. It needs a Kafka broker and a schema registry: start both with
+`odctl up kafka-lite`.
 
 After a shop has run, `python json_schema_and_protobuf_serializers.py` reads the first
 order of each order topic back.
@@ -79,33 +79,23 @@ def glue_serializers():
     return glue_json, glue_protobuf
 
 
+def glue_egress():
+    """The egress of the shop, sending the two order topics through the Glue serializers."""
+    import os
+
+    from desflow import KafkaEgress
+
+    glue_json, glue_protobuf = glue_serializers()
+    return KafkaEgress(
+        bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092"),
+        topics={
+            "orders-json": {"serializer": glue_json},
+            "orders-protobuf": {"serializer": glue_protobuf},
+        },
+    )
+
+
 # --8<-- [end:glue]
-
-
-# --8<-- [start:router]
-from desflow import KafkaEgress
-
-
-# A topic router that sends orders to their own topics.
-def order_topic_router(data: dict) -> str:
-    if data.get("stream_type") == "telemetry":
-        return "sim-telemetry"
-    if "order_id" in data.get("value", {}):
-        # Orders alternate between the two formats, so one run shows both
-        return "orders-protobuf" if data["instance"] % 2 else "orders-json"
-    return "sim-events"
-
-
-egress = KafkaEgress(
-    bootstrap_servers="127.0.0.1:9092",
-    topic_router=order_topic_router,
-    # Orders are JSON Schema or Protobuf; sim-telemetry and sim-events use JSON.
-    topic_serializers={
-        "orders-json": json_serializer,
-        "orders-protobuf": protobuf_serializer,
-    },
-)
-# --8<-- [end:router]
 
 
 # --8<-- [start:read-back]

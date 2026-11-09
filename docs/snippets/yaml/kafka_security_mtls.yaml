@@ -1,0 +1,34 @@
+# The Connect to Secure Kafka guide: a shop that publishes its events to a cluster that
+# requires mutual TLS. Set KAFKA_BOOTSTRAP_SERVERS, KAFKA_CA_FILE, KAFKA_CERT_FILE and
+# KAFKA_KEY_FILE, then run it with: desflow run kafka_security_mtls.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+# --8<-- [start:egress]
+egress:
+  - type: Kafka
+    config:
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS}
+      security_protocol: SSL
+      # The arguments of aiokafka.helpers.create_ssl_context
+      ssl:
+        cafile: ${KAFKA_CA_FILE}
+        certfile: ${KAFKA_CERT_FILE}
+        keyfile: ${KAFKA_KEY_FILE}
+# --8<-- [end:egress]
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+run: {until: 1 min}

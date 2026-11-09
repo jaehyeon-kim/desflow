@@ -28,12 +28,27 @@ examples/yaml/packing_fit.yaml: "a distribution fitted by `desflow fit` that a b
 
 examples/params.yaml: "the parameter file of `desflow run --params`, not a blueprint"
 
+docs/snippets/yaml/cloud_storage_stores/azure.yaml: "a store mapping that cloud_storage.yaml includes, not a blueprint"
+docs/snippets/yaml/cloud_storage_stores/gcs.yaml: "a store mapping that cloud_storage.yaml includes, not a blueprint"
+docs/snippets/yaml/cloud_storage_stores/local.yaml: "a store mapping that cloud_storage.yaml includes, not a blueprint"
+docs/snippets/yaml/cloud_storage_stores/s3.yaml: "a store mapping that cloud_storage.yaml includes, not a blueprint"
+docs/snippets/yaml/iceberg_tables_catalogs/glue.yaml: "an Iceberg catalog file that iceberg_tables.yaml includes, not a blueprint"
+docs/snippets/yaml/iceberg_tables_catalogs/postgres.yaml: "an Iceberg catalog file that iceberg_tables.yaml includes, not a blueprint"
+docs/snippets/yaml/iceberg_tables_catalogs/rest.yaml: "an Iceberg catalog file that iceberg_tables.yaml includes, not a blueprint"
+docs/snippets/yaml/iceberg_tables_catalogs/sqlite.yaml: "an Iceberg catalog file that iceberg_tables.yaml includes, not a blueprint"
+docs/snippets/yaml/test_a_model_tests.yaml: "the tests.yaml of a builder file, which `desflow test` reads beside it, not a blueprint"
+
 tests/known_cases/dx_22/catalogs/rest.yaml: "an Iceberg catalog file that the model of case DX-22 includes, not a blueprint"
 tests/known_cases/dx_22/catalogs/sqlite.yaml: "an Iceberg catalog file that the model of case DX-22 includes, not a blueprint"
 
 docs/snippets/yaml/check_against_theory_constant.yaml: "has no `run.until`, so an unpaced run never ends (it is for `desflow explain`)"
 
 docs/snippets/yaml/complex_routing.yaml: "its Kafka admin connector connects to a broker when the run starts"
+docs/snippets/yaml/complex_routing_router.yaml: "its Kafka admin connector connects to a broker when the run starts"
+docs/snippets/yaml/kafka_security_registry.yaml: "its Kafka connector needs a broker and a secured schema registry, and the variables and TLS files its page sets"
+docs/snippets/yaml/json_schema_and_protobuf_glue.yaml: "its Kafka connector needs a broker, and its serializers an AWS Glue Schema Registry"
+docs/snippets/yaml/kafka_security_msk.yaml: "its Kafka connector needs the aws-msk-iam-sasl-signer-python package and a broker"
+docs/snippets/yaml/kafka_security_mtls.yaml: "its Kafka connector needs a broker, and the variables and TLS files its page sets"
 
 docs/snippets/yaml/environment.yaml: "a strict run: the capture stops it with \"too slow for real time\", and the lag in the message depends on the wall clock"
 tests/known_cases/gd_r1/model.yaml: "a strict run: the capture stops it with \"too slow for real time\", and the lag in the message depends on the wall clock"
@@ -45,10 +60,9 @@ tests/known_cases/st_rt3/model.yaml: "a strict run: the capture stops it with \"
 tests/known_cases/st_e04/model.yaml: "its error text holds the memory address of an event, which differs from run to run"
 tests/known_cases/st_rt7/model.yaml: "its error text holds the memory address of an event, which differs from run to run"
 
-docs/snippets/yaml/avro_and_pydantic.yaml: "one of its `!python` modules is kept in `docs/snippets/guides/`, and the page has the reader put it beside the blueprint, so the capture is only an import error"
-docs/snippets/yaml/cloud_storage.yaml: "one of its `!python` modules is kept in `docs/snippets/guides/`, and the page has the reader put it beside the blueprint, so the capture is only an import error"
-docs/snippets/yaml/iceberg_tables.yaml: "one of its `!python` modules is kept in `docs/snippets/guides/`, and the page has the reader put it beside the blueprint, so the capture is only an import error"
-docs/snippets/yaml/json_schema_and_protobuf.yaml: "one of its `!python` modules is kept in `docs/snippets/guides/`, and the page has the reader put it beside the blueprint, so the capture is only an import error"
+docs/snippets/yaml/avro_and_pydantic.yaml: "its Kafka connector connects to a broker, and its serializer to a schema registry, when the run starts"
+docs/snippets/yaml/json_schema_and_protobuf.yaml: "its Kafka connector connects to a broker, and its serializers to a schema registry, when the run starts"
+docs/snippets/yaml/call_python.yaml: "its function reads a Valkey server, and its `!python` module is kept in `docs/snippets/guides/`, so the capture is only an import error"
 
 tests/known_cases/dx_1/original.yaml: "its `!python` module is kept in `examples/yaml/advanced/`, and the known-case test puts that folder on the path, so the capture is only an import error"
 

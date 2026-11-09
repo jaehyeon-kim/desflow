@@ -1,0 +1,4 @@
+# Amazon S3, with the standard AWS settings: environment variables, ~/.aws or a role
+type: s3
+
+region: ${AWS_REGION:-us-east-1}

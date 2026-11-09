@@ -27,7 +27,9 @@ a block):
    comments at column 0 above it.
 6. A full-line comment over 88 characters is wrapped at the same indentation, and
    its last words join the next line of the same paragraph. A comment whose text
-   starts after two or more spaces, such as a command, is kept as written. An
+   starts after two or more spaces, such as a command, is kept as written. So is an
+   editor modeline (`# yaml-language-server: $schema=...`) or a `# yamllint` line, and
+   no words are carried onto either. An
    end-of-line comment on a line over 88 characters moves onto its own lines above
    that line, and one on a sequence item that opens moves above the item.
 7. A scalar value still over 88 characters is folded at single spaces onto lines
@@ -560,12 +562,24 @@ def _is_preformatted(body: str) -> bool:
     return body.startswith("  ")
 
 
+_DIRECTIVE = re.compile(r"\s+(?:yaml-language-server\s*:|\$schema:|yamllint\b)")
+
+
+def _is_directive(body: str) -> bool:
+    """True for the text of a comment that a tool reads, which is kept whole: an editor
+    modeline, which yaml-language-server reads from one line (it matches
+    `#\\s+(?:yaml-language-server\\s*:|\\$schema:)` and takes the schema from the same
+    line), or a yamllint directive."""
+    return bool(_DIRECTIVE.match(body))
+
+
 def _continues_paragraph(body: str) -> bool:
     """True when a comment line can take words carried from the line above: it is not
-    empty, preformatted, a snippet marker or a list item."""
+    empty, preformatted, a directive, a snippet marker or a list item."""
     return (
         bool(body.strip())
         and not _is_preformatted(body)
+        and not _is_directive(body)
         and not _LIST_ITEM.match(body.strip())
     )
 
@@ -594,7 +608,9 @@ def _wrap_comments(text: str) -> str:
         if column is None or len(row) <= MAX_WIDTH:
             out.append(row)
             continue
-        if is_full_line and _is_preformatted(row[column + 1 :]):
+        if is_full_line and (
+            _is_preformatted(row[column + 1 :]) or _is_directive(row[column + 1 :])
+        ):
             out.append(row)  # shortened by hand, if at all
             continue
         content = row[:column].rstrip()

@@ -48,7 +48,10 @@ def low_level_form():
         )
     )
     env.setup_ingress([JsonlIngress("changes.jsonl")])
-    env.setup_egress([CsvEgress("events.csv", columns=["status", "event_type"])])
+    env.setup_egress(
+        [CsvEgress("events.csv", columns=["status", "event_type"])],
+        predicates=[lambda record: record["stream_type"] == "event"],  # no telemetry
+    )
     packers = DynamicResource(env, "Shop", "packers")
 
     def order(env, number):

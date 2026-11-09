@@ -44,8 +44,6 @@ twins, _harness = regression._load(ROOT)
 # capture records it, so there is no context to run twice
 _AT_LOAD = "refused at load, so there is no context to run twice: "
 NOT_COMPARED: Dict[str, str] = {
-    "file:docs/snippets/hot_rolling/hot_rolling.yaml": _AT_LOAD
-    + "its `!python` module imports `generator`, which is not beside it",
     "file:docs/snippets/pages/blueprint_error.yaml": _AT_LOAD
     + "it shows an error message on purpose",
     "file:docs/snippets/yaml/python_error.yaml": _AT_LOAD

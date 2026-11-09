@@ -293,12 +293,17 @@ def _stop(d: Dict[str, Any]) -> None:
     stop = {"condition": 'registry["S.resources.dsk.current_cap"] >= 1'}
     run = _section(d, "run")
     segments = run.get("segments")
-    if segments:
-        # `run.segments` refuses `run.stop`: a segment takes `until` or `stop`
+    # `run.segments` and `run.steps` each refuse `run.stop`
+    if isinstance(segments, list) and segments:
+        # A segment takes `until` or `stop`: the last one ends by the condition
         last = segments[-1]
         last.pop("until", None)
         last["stop"] = stop
+    elif segments:
+        # `{every: ...}` has no entry to hold `stop`: one segment that ends by it
+        run["segments"] = [{"stop": stop}]
     else:
+        run.pop("steps", None)
         run["stop"] = stop
 
 
@@ -536,22 +541,31 @@ def test_a_sweep_and_a_variant_give_summary_rows_of_every_replication(
     if resource is None or not sim:
         pytest.skip("no plain resource or no sim_id to sweep")
     key = f"{sim}.resources.{resource[0]}.current_cap"
+    # `until` is a time on the model's clock, which starts at its `initial_time`
+    start = (data.get("simulation") or {}).get("initial_time") or 0
     spec = {
         "experiment": "zz",
         "model": str(path),
-        "until": SHORT,
+        "until": start + SHORT,
         "replications": 2,
         "seed": 1,
         "measures": [f"resources.{resource[0]}.utilization_avg"],
         "sweep": {key: [resource[1], 0]},
         "variants": {"one": {}, "two": {}},
     }
-    with _setting(lambda d: None):
-        result = run_experiment(spec, output=tmp_path, raise_on_failure=False)
+    try:
+        with _setting(lambda d: None):
+            result = run_experiment(spec, output=tmp_path, raise_on_failure=False)
+    except Exception:
+        # A model that needs a file its own test writes, such as a replay CSV
+        _skip_if_the_model_alone_fails(make)
+        raise
     short = [
         f"{row['design']} {row['statistic']} n={row['n']}"
         for row in result.summary
         if row["n"] != 2
     ]
+    if not (result.summary and len(result.designs) == 4) or short:
+        _skip_if_the_model_alone_fails(make)
     assert result.summary and len(result.designs) == 4, "too few designs"
     assert not short, "\n".join(short[:5])

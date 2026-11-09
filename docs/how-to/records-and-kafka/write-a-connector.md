@@ -18,8 +18,8 @@ An egress subclasses `BaseEgress` and has one method, `async run(queue)`. desflo
 
 ```python title="docs/snippets/yaml/write_a_connector_logic.py:egress"
 class CsvEgress(BaseEgress):
-    """Writes one CSV row per event: its time, key and task, then the payload
-    fields that `columns` names."""
+    """Writes one CSV row per record it is given: its time, key and task, then the
+    payload fields that `columns` names. The sink's `when` keeps telemetry out."""
 
     def __init__(self, path: str, columns: List[str]):
         self.path = Path(path)
@@ -38,12 +38,7 @@ class CsvEgress(BaseEgress):
                     continue
                 self.active_tasks += 1
                 try:
-                    # A batch also holds telemetry; this sink writes only the events
-                    rows = [
-                        self._row(record)
-                        for record in batch
-                        if record["stream_type"] == "event"
-                    ]
+                    rows = [self._row(record) for record in batch]
                     # A file write blocks, so it runs on a worker thread
                     await asyncio.to_thread(self._write, file, writer, rows)
                 finally:
@@ -102,7 +97,7 @@ A line of the file that is not a change is logged as one WARNING and skipped, as
 
 ### Use Them
 
-A connector of your own goes where a built-in one goes. Each `config` key is an argument of the class's constructor:
+A connector of your own goes where a built-in one goes. Each `config` key is an argument of the class's constructor. An egress receives every event and telemetry record, and `when` limits it, as [Egress](../../user-guide/live-runs-and-connectors/egress.md#choose-what-each-sink-gets) shows. This sink takes events only.
 
 === "YAML"
 
@@ -113,6 +108,7 @@ A connector of your own goes where a built-in one goes. Each `config` key is an 
 
     egress:
       - type: !python write_a_connector_logic.CsvEgress
+        when: events  # events only; the readings of telemetry stay out of the file
         config: {path: events.csv, columns: [status, event_type]}
     ```
 
@@ -127,7 +123,10 @@ A connector of your own goes where a built-in one goes. Each `config` key is an 
         .add_service("packing", dist="constant", value=1.5)
         .add_arrival("orders", dist="constant", value=1.0)
         .add_ingress(JsonlIngress("changes.jsonl"))
-        .add_egress(CsvEgress("events.csv", columns=["status", "event_type"]))
+        .add_egress(
+            CsvEgress("events.csv", columns=["status", "event_type"]),
+            when=lambda record: record["stream_type"] == "event",  # no telemetry
+        )
     )
 
     @app.task(service_id="packing", resource_id="packers")
@@ -155,7 +154,10 @@ A connector of your own goes where a built-in one goes. Each `config` key is an 
         )
     )
     env.setup_ingress([JsonlIngress("changes.jsonl")])
-    env.setup_egress([CsvEgress("events.csv", columns=["status", "event_type"])])
+    env.setup_egress(
+        [CsvEgress("events.csv", columns=["status", "event_type"])],
+        predicates=[lambda record: record["stream_type"] == "event"],  # no telemetry
+    )
     packers = DynamicResource(env, "Shop", "packers")
 
     def order(env, number):
@@ -292,8 +294,8 @@ Every form uses the two connectors in `write_a_connector_logic.py` unchanged. Pu
 
 
     class CsvEgress(BaseEgress):
-        """Writes one CSV row per event: its time, key and task, then the payload
-        fields that `columns` names."""
+        """Writes one CSV row per record it is given: its time, key and task, then the
+        payload fields that `columns` names. The sink's `when` keeps telemetry out."""
 
         def __init__(self, path: str, columns: List[str]):
             self.path = Path(path)
@@ -312,12 +314,7 @@ Every form uses the two connectors in `write_a_connector_logic.py` unchanged. Pu
                         continue
                     self.active_tasks += 1
                     try:
-                        # A batch also holds telemetry; this sink writes only the events
-                        rows = [
-                            self._row(record)
-                            for record in batch
-                            if record["stream_type"] == "event"
-                        ]
+                        rows = [self._row(record) for record in batch]
                         # A file write blocks, so it runs on a worker thread
                         await asyncio.to_thread(self._write, file, writer, rows)
                     finally:
@@ -381,10 +378,7 @@ Every form uses the two connectors in `write_a_connector_logic.py` unchanged. Pu
           packing: {dist: constant, value: 1.5 s}
 
         arrivals:
-          orders:
-            dist: constant
-            value: 1 s
-            spawn: pack_order
+          orders: {dist: constant, value: 1 s, spawn: pack_order}
 
         tasks:
           pack_order:
@@ -398,10 +392,10 @@ Every form uses the two connectors in `write_a_connector_logic.py` unchanged. Pu
 
         egress:
           - type: !python write_a_connector_logic.CsvEgress
+            when: events  # events only; the readings of telemetry stay out of the file
             config: {path: events.csv, columns: [status, event_type]}
 
-        run:
-          until: 20 s
+        run: {until: 20 s}
         ```
 
     === "Builder"
@@ -458,7 +452,10 @@ Every form uses the two connectors in `write_a_connector_logic.py` unchanged. Pu
                 .add_service("packing", dist="constant", value=1.5)
                 .add_arrival("orders", dist="constant", value=1.0)
                 .add_ingress(JsonlIngress("changes.jsonl"))
-                .add_egress(CsvEgress("events.csv", columns=["status", "event_type"]))
+                .add_egress(
+                    CsvEgress("events.csv", columns=["status", "event_type"]),
+                    when=lambda record: record["stream_type"] == "event",  # no telemetry
+                )
             )
 
             @app.task(service_id="packing", resource_id="packers")
@@ -535,7 +532,10 @@ Every form uses the two connectors in `write_a_connector_logic.py` unchanged. Pu
                 )
             )
             env.setup_ingress([JsonlIngress("changes.jsonl")])
-            env.setup_egress([CsvEgress("events.csv", columns=["status", "event_type"])])
+            env.setup_egress(
+                [CsvEgress("events.csv", columns=["status", "event_type"])],
+                predicates=[lambda record: record["stream_type"] == "event"],  # no telemetry
+            )
             packers = DynamicResource(env, "Shop", "packers")
 
             def order(env, number):

@@ -34,9 +34,6 @@
     "what-the-run-logs": "how-to/examples/backfill-live/#check-the-result",
     "low-level-api": "user-guide/time-and-pacing/clocks-and-pacing/#go-live"
   },
-  "how-to/tools/yaml-advanced/": {
-    "worked-case-lift-the-oml-hot-rolling-twin": "how-to/tools/yaml-advanced/#example"
-  },
   "user-guide/tasks-and-processes/": {
     "a-process": "user-guide/tasks-and-processes/processes/#a-process",
     "processes-and-the-low-level-api": "user-guide/tasks-and-processes/processes/#how-it-works",

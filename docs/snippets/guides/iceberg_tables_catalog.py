@@ -1,7 +1,8 @@
 """The catalogs, sink and reader of the Write Iceberg Tables page.
 
-Every form of the shop imports the catalog and the sink from this file: iceberg_tables.py
-(builder), iceberg_tables.yaml and iceberg_tables_low_level.py. It builds no simulation.
+The builder and low-level forms of the shop import the catalog and the sink from this file:
+iceberg_tables.py and iceberg_tables_low_level.py. iceberg_tables.yaml reads the same
+mappings from the folder iceberg_tables_catalogs. It builds no simulation.
 ICEBERG_CATALOG picks the catalog: sqlite (the default), rest, postgres or glue.
 """
 

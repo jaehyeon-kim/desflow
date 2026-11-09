@@ -516,361 +516,6 @@ def test_supervisor_adds_the_wrappers_in_every_form(tmp_path, monkeypatch, caplo
     assert ("supervisor", {"status": "wrappers_added", "capacity": 2}) in low_level
 
 
-def test_router_sends_each_record_to_its_topic(tmp_path, monkeypatch):
-    """The router picks each record's topic; the three forms send the same events, to
-    all three topics, and only failed orders to the alarms."""
-    from desflow import SimulationContext
-
-    # A reader copies the page's files into one folder and runs them there
-    for source in (
-        GUIDES / "complex_routing.py",
-        GUIDES / "complex_routing_low_level.py",
-        ROOT / "docs" / "snippets" / "yaml" / "complex_routing.yaml",
-        ROOT / "docs" / "snippets" / "yaml" / "complex_routing_logic.py",
-    ):
-        shutil.copy(source, tmp_path)
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.syspath_prepend(str(tmp_path))
-    logic = _load_from(tmp_path, "complex_routing_logic")
-    route = logic.custom_kafka_router
-    telemetry = {"stream_type": "telemetry", "path_id": "Shop.packers.in_use"}
-    assert route({**telemetry, "value": 1}) == "shop-telemetry"
-    event = {"stream_type": "event", "key": "orders-1"}
-    assert route({**event, "value": {"status": "packing_failed"}}) == "system-alarms"
-    assert route({**event, "value": {"level": "ERROR"}}) == "system-alarms"
-    assert route({**event, "value": {"status": "finished"}}) == "shop-events"
-    assert route({**event, "value": "a plain string"}) == "shop-events"
-
-    # The blueprint creates its topics in run.before; here there is no broker
-    import complex_routing_logic
-
-    monkeypatch.setattr(complex_routing_logic, "create_topics", lambda: None)
-    yaml_records = _captured(
-        SimulationContext.from_yaml(tmp_path / "complex_routing.yaml"), 120
-    )
-    builder_records = _captured(_load_from(tmp_path, "complex_routing").app, 120)
-    capture = _Capture()
-    _load_from(tmp_path, "complex_routing_low_level").run(120, 0.0, [capture])
-    low_level_records = capture.records
-    for records in (yaml_records, builder_records, low_level_records):
-        assert {route(r) for r in records} == set(logic.TOPICS)
-        alarms = [r for r in records if route(r) == "system-alarms"]
-        assert alarms and all(r["instance"] % 10 == 9 for r in alarms)
-    assert (
-        _event_rows(yaml_records)
-        == _event_rows(builder_records)
-        == _event_rows(low_level_records)
-    )
-
-
-def test_secure_egress_passes_its_settings_to_the_client(monkeypatch):
-    """The SASL settings reach the client in the builder and the blueprint, and the
-    three forms publish the same events."""
-    from desflow import SimulationContext
-
-    monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker.example.com:9092")
-    monkeypatch.setenv("KAFKA_API_KEY", "test-key")
-    monkeypatch.setenv("KAFKA_API_SECRET", "test-secret")
-    sys.path.insert(0, str(GUIDES))  # the builder script imports the egress
-    try:
-        connections = _load("kafka_security_connections")
-        module = _load("kafka_security")
-    finally:
-        sys.path.remove(str(GUIDES))
-    blueprint = SimulationContext.from_yaml(
-        ROOT / "docs" / "snippets" / "yaml" / "kafka_security.yaml"
-    )
-    assert connections.connection["sasl_plain_username"] == "test-key"
-    for egress in (module.egress, blueprint._sinks.egress[0].provider):
-        config = egress.producer_config
-        assert config["security_protocol"] == "SASL_SSL"
-        assert config["sasl_plain_username"] == "test-key"
-        assert egress.topic_router is None  # so it creates its own topics
-
-    records = _captured(module.app, until=30)
-    assert any(r.get("value") == {"event_type": "order_packed"} for r in records)
-    sys.path.insert(0, str(GUIDES))  # the low-level script imports the egress
-    try:
-        low_level = _load("kafka_security_low_level")
-    finally:
-        sys.path.remove(str(GUIDES))
-    capture = _Capture()
-    env = low_level.shop([capture], 0.0)
-    env.run(until=30)
-    env.teardown()
-    assert (
-        _event_rows(_captured(blueprint, until=30))
-        == _event_rows(records)
-        == _event_rows(capture.records)
-    )
-
-
-def test_predictions_fit_the_avro_schema(tmp_path, monkeypatch):
-    """The generated schema describes the record KafkaEgress sends, and the
-    predictions of the builder, YAML and low-level forms fit it."""
-    fastavro = pytest.importorskip("fastavro")
-    from desflow import SimulationContext
-
-    module = _load("avro_and_pydantic_models")
-    schema = json.loads(module.schema_string)
-    assert [f["name"] for f in schema["fields"]] == [
-        "key",
-        "task",
-        "instance",
-        "sim_ts",
-        "timestamp",
-        "value",
-    ]
-
-    # A reader puts the files in one folder; the blueprint's !python tags import
-    # from it, and here there is no broker to create the topics on
-    for source in (
-        GUIDES / "avro_and_pydantic.py",
-        GUIDES / "avro_and_pydantic_models.py",
-        GUIDES / "avro_and_pydantic_low_level.py",
-        ROOT / "docs" / "snippets" / "yaml" / "avro_and_pydantic.yaml",
-        ROOT / "docs" / "snippets" / "yaml" / "avro_and_pydantic_logic.py",
-    ):
-        shutil.copy(source, tmp_path)
-    monkeypatch.syspath_prepend(str(tmp_path))
-    import avro_and_pydantic_logic
-
-    monkeypatch.setattr(avro_and_pydantic_logic, "create_topics", lambda: None)
-    yaml_records = _captured(
-        SimulationContext.from_yaml(tmp_path / "avro_and_pydantic.yaml"), 30
-    )
-    capture = _Capture()
-    env = _load_from(tmp_path, "avro_and_pydantic_low_level").shop([capture], 0.0)
-    env.run(until=30)
-    env.teardown()
-
-    route = module.ml_topic_router
-    parsed = fastavro.parse_schema(schema)
-    builder = _load_from(tmp_path, "avro_and_pydantic")
-    for records in (_captured(builder.app, until=30), yaml_records, capture.records):
-        predictions = [r for r in records if route(r) == "ml-predictions"]
-        assert predictions
-        assert {"ml-predictions", "sim-events"} <= {route(r) for r in records}
-        for record in predictions:
-            sent = {k: v for k, v in record.items() if k != "stream_type"}
-            assert fastavro.validate(sent, parsed)
-
-
-def test_secured_registry_serializer_sends_its_credentials(registry_transport):
-    """The Registry Connection section builds a serializer whose requests carry `auth`."""
-    httpx = pytest.importorskip("httpx")
-    sent = []
-
-    def registry(request):
-        sent.append(request)
-        return httpx.Response(200, json={"id": 1})
-
-    registry_transport(registry)
-    sys.path.insert(0, str(GUIDES))  # the registry file imports the models
-    try:
-        module = _load("avro_and_pydantic_registry")
-    finally:
-        sys.path.remove(str(GUIDES))
-
-    payload = module.secured_serializer.serialize(
-        "ml-predictions",
-        {
-            "key": "o1",
-            "task": None,
-            "instance": None,
-            "sim_ts": 1.0,
-            "timestamp": "2026-01-01T00:00:00Z",
-            "value": {"event_type": "prediction", "task_id": "o1", "confidence": 0.9},
-        },
-    )
-
-    assert sent[0].url.host == "registry.example.com"
-    assert sent[0].headers["Authorization"].startswith("Basic ")
-    assert payload[:5] == b"\x00\x00\x00\x00\x01"
-
-
-class _Registry:
-    """A schema registry that keeps every schema registered and serves it back by id."""
-
-    def __init__(self):
-        self.registered = []
-
-    def __call__(self, request):
-        import httpx
-
-        if request.method == "POST":
-            self.registered.append(json.loads(request.content))
-            return httpx.Response(200, json={"id": len(self.registered)})
-        schema_id = int(request.url.path.rsplit("/", 1)[1])
-        return httpx.Response(200, json=self.registered[schema_id - 1])
-
-
-_SHOP_MODULES = (
-    "json_schema_and_protobuf",
-    "json_schema_and_protobuf_serializers",
-    "json_schema_and_protobuf_logic",
-    "json_schema_and_protobuf_low_level",
-)
-
-
-def _run_shop_form(form, tmp_path, monkeypatch):
-    """Runs one form of the JSON Schema and Protobuf shop for 30 simulated seconds.
-
-    Returns the records it publishes and the serializers its egress holds by topic.
-    """
-    from desflow import SimulationContext
-
-    # A reader puts the files in one folder; the blueprint's !python tags import from
-    # it, and here there is no broker to create the topics on
-    for source in (
-        GUIDES / "json_schema_and_protobuf.py",
-        GUIDES / "json_schema_and_protobuf_serializers.py",
-        GUIDES / "json_schema_and_protobuf_low_level.py",
-        GUIDES / "shop_record.proto",
-        GUIDES / "shop_record_pb2.py",
-        ROOT / "docs" / "snippets" / "yaml" / "json_schema_and_protobuf.yaml",
-        ROOT / "docs" / "snippets" / "yaml" / "json_schema_and_protobuf_logic.py",
-    ):
-        shutil.copy(source, tmp_path)
-    monkeypatch.syspath_prepend(str(tmp_path))
-    for name in _SHOP_MODULES:
-        monkeypatch.delitem(sys.modules, name, raising=False)
-    try:
-        if form == "builder":
-            module = _load_from(tmp_path, "json_schema_and_protobuf")
-            return _captured(module.app, until=30), module.egress.topic_serializers
-        if form == "yaml":
-            import json_schema_and_protobuf_logic
-
-            monkeypatch.setattr(
-                json_schema_and_protobuf_logic, "create_topics", lambda: None
-            )
-            app = SimulationContext.from_yaml(
-                tmp_path / "json_schema_and_protobuf.yaml"
-            )
-            serializers = app._sinks.egress[0].provider.topic_serializers
-            return _captured(app, until=30), serializers
-        module = _load_from(tmp_path, "json_schema_and_protobuf_low_level")
-        capture = _Capture()
-        env = module.shop([capture], 0.0)
-        env.run(until=30)
-        env.teardown()
-        return capture.records, module.egress.topic_serializers
-    finally:
-        for name in _SHOP_MODULES:
-            sys.modules.pop(name, None)
-
-
-@pytest.mark.parametrize("form", ["builder", "yaml", "low-level"])
-def test_orders_round_trip_as_json_schema_and_protobuf(
-    form, tmp_path, monkeypatch, registry_transport
-):
-    """Each form sends the orders to orders-json and orders-protobuf; both formats
-    read back what was sent, and the 64 bit integers of a Protobuf record come back
-    as strings, as the page says."""
-    pytest.importorskip("jsonschema")
-    pytest.importorskip("google.protobuf")
-
-    registry = _Registry()
-    registry_transport(registry)
-    records, serializers = _run_shop_form(form, tmp_path, monkeypatch)
-    assert set(serializers) == {"orders-json", "orders-protobuf"}
-
-    # The page's read_order decodes each message, as a consumer of the topics would
-    page = _load("json_schema_and_protobuf_serializers")
-    route = page.order_topic_router
-    assert {"sim-events", "orders-json", "orders-protobuf"} <= {
-        route(r) for r in records
-    }
-    for record in records:
-        topic = route(record)
-        if topic not in serializers:
-            continue
-        sent = {k: v for k, v in record.items() if k != "stream_type"}
-        payload = serializers[topic].serialize(topic, sent)
-        if topic == "orders-json":
-            assert page.read_order(topic, payload) == sent
-        else:
-            as_strings = {
-                **sent,
-                "instance": str(sent["instance"]),
-                "value": {**sent["value"], "order_id": str(sent["value"]["order_id"])},
-            }
-            assert page.read_order(topic, payload) == as_strings
-
-    # The Confluent JSON serializer registers the schema as given
-    kinds = {schema["schemaType"] for schema in registry.registered}
-    assert kinds == {"JSON", "PROTOBUF"}
-    assert registry.registered[0]["schema"] == page.json_schema
-
-
-def test_glue_serializers_round_trip_the_order_record(monkeypatch):
-    """The Glue serializers of the page take the same record, and the Protobuf one is
-    given the text of shop_record.proto as its schema."""
-    pytest.importorskip("boto3")
-    pytest.importorskip("fastjsonschema")
-    pytest.importorskip("google.protobuf")
-    from desflow.connectors.ingress.kafka import (
-        GlueJsonSchemaDeserializer,
-        GlueProtobufDeserializer,
-    )
-
-    class _Glue:
-        """Registers each definition once and serves its versions back."""
-
-        def __init__(self):
-            self.definitions = {}
-
-        def get_schema_by_definition(self, SchemaId, SchemaDefinition):
-            version = f"00000000-0000-0000-0000-{len(self.definitions):012d}"
-            self.definitions.setdefault(version, SchemaDefinition)
-            return {"SchemaVersionId": version, "Status": "AVAILABLE"}
-
-        def get_schema_version(self, SchemaVersionId):
-            definition = self.definitions[SchemaVersionId]
-            return {
-                "SchemaVersionId": SchemaVersionId,
-                "Status": "AVAILABLE",
-                "DataFormat": "JSON" if definition.startswith("{") else "PROTOBUF",
-                "SchemaDefinition": definition,
-            }
-
-    glue = _Glue()
-    monkeypatch.setattr("boto3.client", lambda service, **kwargs: glue)
-    module = _load("json_schema_and_protobuf_serializers")
-    glue_json, glue_protobuf = module.glue_serializers()
-    record = {
-        "key": "orders-1",
-        "task": "pack_order",
-        "instance": 0,
-        "sim_ts": 1.5,
-        "timestamp": "2026-01-01T00:00:00Z",
-        "value": {"order_id": 0, "amount": 19.99},
-    }
-
-    json_payload = glue_json.serialize("orders-json", record)
-    protobuf_payload = glue_protobuf.serialize("orders-protobuf", record)
-
-    assert GlueJsonSchemaDeserializer("shop").deserialize("o", json_payload) == record
-    read = GlueProtobufDeserializer("shop", module.ShopRecord).deserialize(
-        "o", protobuf_payload
-    )
-    assert read["value"] == {"order_id": "0", "amount": 19.99}
-    assert (GUIDES / "shop_record.proto").read_text() in glue.definitions.values()
-
-
-def test_shop_record_module_declares_the_fields_of_the_proto_file():
-    """shop_record_pb2.py is generated from shop_record.proto; a field the file changed
-    and the module did not shows up here."""
-    pytest.importorskip("google.protobuf")
-    text = (GUIDES / "shop_record.proto").read_text()
-    shop_record = _load("shop_record_pb2").ShopRecord
-    assert shop_record.DESCRIPTOR.full_name == "com.desflow.shop.ShopRecord"
-    for message in shop_record.DESCRIPTOR.file.message_types_by_name.values():
-        for field in message.fields:
-            assert f"{field.name} = {field.number};" in text
-
-
 def test_reneging_and_balking_ties_and_balance(tmp_path, monkeypatch):
     """At a tie the patience's event comes first, so the order reneges, in every form:
     one arriving at 3 with a patience of 3 and one arriving at 0 with a patience of 6.
@@ -1347,7 +992,7 @@ def test_analyse_the_event_log_waits_and_throughput(tmp_path):
     per_order = module.waits_and_times(log)
     assert len(per_order) == 64 and len(module.times(log, "depart")) == 63
     assert per_order["orders-1"] == {"wait": 0.0, "in_shop": 1.5}
-    assert max(row["wait"] for row in per_order.values()) == 3.66
+    assert round(max(row["wait"] for row in per_order.values()), 3) == 3.659
     assert round(module.mean_wait(per_order), 3) == 1.25
     assert module.throughput_per_minute(log, module.RUN_SECONDS) == 31.5
     arrived = module.times(log, "arrival")
@@ -1579,13 +1224,13 @@ def test_write_a_connector_applies_the_change_and_writes_the_events(
 _STORAGE_MODULES = (
     "cloud_storage",
     "cloud_storage_stores",
-    "cloud_storage_logic",
     "cloud_storage_low_level",
 )
 
 
-def _run_storage_form(form, tmp_path, monkeypatch):
-    """Runs one form of the Write to Cloud Storage shop on the local disk, in tmp_path.
+def _run_storage_form(form, tmp_path, monkeypatch, until=600):
+    """Runs one form of the Write to Cloud Storage shop on the local disk, in tmp_path,
+    for `until` simulated seconds.
 
     Returns the Parquet and the JSON Lines tables, read back with the page's
     read_events.
@@ -1599,9 +1244,12 @@ def _run_storage_form(form, tmp_path, monkeypatch):
         GUIDES / "cloud_storage_stores.py",
         GUIDES / "cloud_storage_low_level.py",
         ROOT / "docs" / "snippets" / "yaml" / "cloud_storage.yaml",
-        ROOT / "docs" / "snippets" / "yaml" / "cloud_storage_logic.py",
     ):
         shutil.copy(source, tmp_path)
+    shutil.copytree(
+        ROOT / "docs" / "snippets" / "yaml" / "cloud_storage_stores",
+        tmp_path / "cloud_storage_stores",
+    )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("STORAGE", "local")
     monkeypatch.setenv("STORAGE_BUCKET", "output")
@@ -1611,15 +1259,17 @@ def _run_storage_form(form, tmp_path, monkeypatch):
     try:
         if form == "builder":
             module = _load_from(tmp_path, "cloud_storage")
-            module.app.run(until=600)
+            module.app.run(until=until)
             module = sys.modules["cloud_storage_stores"]
         elif form == "yaml":
-            SimulationContext.from_yaml(tmp_path / "cloud_storage.yaml").run(until=600)
-            module = sys.modules["cloud_storage_stores"]
+            SimulationContext.from_yaml(tmp_path / "cloud_storage.yaml").run(
+                until=until
+            )
+            module = _load_from(tmp_path, "cloud_storage_stores")
         else:
             low_level = _load_from(tmp_path, "cloud_storage_low_level")
             env = low_level.shop(low_level.sinks)
-            env.run(until=600)
+            env.run(until=until)
             env.teardown()
             module = sys.modules["cloud_storage_stores"]
         store = fs.LocalFileSystem()
@@ -1649,12 +1299,19 @@ def test_cloud_storage_shop_writes_the_same_events_as_parquet_and_jsonl(
 
 
 def test_cloud_storage_forms_write_the_same_rows(tmp_path, monkeypatch):
-    """The seeded shop gives the same rows in YAML, Builder and Low-level."""
+    """The seeded shop gives the same rows in YAML, Builder and Low-level, in the hour the
+    scripts run, and the page shows the number of rows they hold."""
     rows = []
     for form in ("builder", "yaml", "low-level"):
         folder = tmp_path / form
         folder.mkdir()
-        parquet, _ = _run_storage_form(form, folder, monkeypatch)
+        parquet, jsonl = _run_storage_form(form, folder, monkeypatch, until=3600)
+        # The check block of the page: the number of rows each folder holds
+        page = (ROOT / "docs/how-to/storage-and-tables/cloud-storage.md").read_text()
+        assert (
+            f"parquet: {parquet.num_rows} rows\njsonl: {jsonl.num_rows} rows\n```"
+            in page
+        )
         columns = ["sim_ts", "key", "status", "order_id"]
         rows.append(sorted(parquet.select(columns).to_pylist(), key=str))
     assert rows[0] == rows[1] == rows[2]
@@ -1684,7 +1341,6 @@ def test_cloud_storage_stores_make_their_filesystems(monkeypatch):
 _ICEBERG_MODULES = (
     "iceberg_tables",
     "iceberg_tables_catalog",
-    "iceberg_tables_logic",
     "iceberg_tables_low_level",
 )
 
@@ -1700,9 +1356,12 @@ def _run_iceberg_form(form, tmp_path, monkeypatch):
         GUIDES / "iceberg_tables_catalog.py",
         GUIDES / "iceberg_tables_low_level.py",
         ROOT / "docs" / "snippets" / "yaml" / "iceberg_tables.yaml",
-        ROOT / "docs" / "snippets" / "yaml" / "iceberg_tables_logic.py",
     ):
         shutil.copy(source, tmp_path)
+    shutil.copytree(
+        ROOT / "docs" / "snippets" / "yaml" / "iceberg_tables_catalogs",
+        tmp_path / "iceberg_tables_catalogs",
+    )
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("ICEBERG_CATALOG", raising=False)
     monkeypatch.syspath_prepend(str(tmp_path))
@@ -1714,8 +1373,10 @@ def _run_iceberg_form(form, tmp_path, monkeypatch):
             module.app.run(until=600)
             module = sys.modules["iceberg_tables_catalog"]
         elif form == "yaml":
+            # The SQLite database needs its folder, which the scripts make themselves
+            (tmp_path / "iceberg").mkdir()
             SimulationContext.from_yaml(tmp_path / "iceberg_tables.yaml").run(until=600)
-            module = sys.modules["iceberg_tables_catalog"]
+            module = _load_from(tmp_path, "iceberg_tables_catalog")
         else:
             low_level = _load_from(tmp_path, "iceberg_tables_low_level")
             env = low_level.shop(low_level.sink)
@@ -1793,97 +1454,6 @@ def test_storage_checks_print_the_row_counts_the_pages_show(tmp_path):
     docs = ROOT / "docs" / "how-to" / "storage-and-tables"
     assert f"```text\n{cloud}```" in (docs / "cloud-storage.md").read_text("utf-8")
     assert f"```text\n{iceberg}```" in (docs / "iceberg-tables.md").read_text("utf-8")
-
-
-class _FakeConsumer:
-    """Stands in for AIOKafkaConsumer: serves the messages given, as a broker would."""
-
-    messages: list = []
-    settings: dict = {}
-
-    def __init__(self, *topics, **settings):
-        type(self).settings = {"topics": topics, **settings}
-        self._messages = iter(type(self).messages)
-
-    async def start(self):
-        pass
-
-    async def stop(self):
-        pass
-
-    async def getone(self):
-        from types import SimpleNamespace
-
-        return SimpleNamespace(value=next(self._messages))
-
-
-def test_kafka_checks_read_the_topics_with_the_connection_they_were_given(
-    monkeypatch, capsys, registry_transport
-):
-    """The read-back of the Check the Result sections consumes the topic of the page
-    with the settings of the egress, and prints what the page shows."""
-    import asyncio
-
-    monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker.example.com:9092")
-    monkeypatch.setenv("KAFKA_API_KEY", "test-key")
-    monkeypatch.setenv("KAFKA_API_SECRET", "test-secret")
-    security = _load("kafka_security_connections")
-    monkeypatch.setattr(security, "AIOKafkaConsumer", _FakeConsumer)
-    events = [b'{"key":"orders-1"}', b'{"key":"orders-2"}', b'{"key":"orders-3"}']
-    _FakeConsumer.messages = events
-    asyncio.run(security.show_events())
-    assert capsys.readouterr().out.splitlines() == [e.decode() for e in events]
-    # The consumer gets the egress's own security settings
-    assert _FakeConsumer.settings["topics"] == ("sim-events",)
-    assert _FakeConsumer.settings["security_protocol"] == "SASL_SSL"
-    assert _FakeConsumer.settings["sasl_plain_username"] == "test-key"
-    assert _FakeConsumer.settings["bootstrap_servers"] == "broker.example.com:9092"
-
-    registry = _Registry()
-    registry_transport(registry)
-    serializers = _load("json_schema_and_protobuf_serializers")
-    monkeypatch.setattr(serializers, "AIOKafkaConsumer", _FakeConsumer)
-    record = {
-        "key": "orders-1",
-        "task": "pack_order",
-        "instance": 0,
-        "sim_ts": 1.5,
-        "timestamp": "2026-01-01T00:00:00Z",
-        "value": {"order_id": 0, "amount": 19.99},
-    }
-    pytest.importorskip("jsonschema")
-    payload = serializers.json_serializer.serialize("orders-json", record)
-    _FakeConsumer.messages = [payload]
-    asyncio.run(serializers.show_first_order("orders-json"))
-    assert capsys.readouterr().out == f"orders-json {record}\n"
-    assert _FakeConsumer.settings["topics"] == ("orders-json",)
-
-
-def test_avro_check_prints_the_prediction_it_reads(
-    monkeypatch, capsys, registry_transport
-):
-    """The read-back of the Avro page decodes a prediction with the schema the
-    registry holds for it."""
-    import asyncio
-
-    pytest.importorskip("fastavro")
-    registry_transport(_Registry())
-    models = _load("avro_and_pydantic_models")
-    monkeypatch.setattr(models, "AIOKafkaConsumer", _FakeConsumer)
-    record = {
-        "key": "orders-1",
-        "task": "pack_order",
-        "instance": 0,
-        "sim_ts": 4.052,
-        "timestamp": "2026-01-01T00:00:00Z",
-        "value": {"event_type": "prediction", "task_id": "orders-1", "confidence": 0.9},
-    }
-    _FakeConsumer.messages = [
-        models.generated_serializer.serialize("ml-predictions", record)
-    ]
-    asyncio.run(models.show_first_prediction())
-    assert capsys.readouterr().out == f"{record}\n"
-    assert _FakeConsumer.settings["topics"] == ("ml-predictions",)
 
 
 # Call Python from YAML: each form of SimPy behaviour the keys do not give yet runs
