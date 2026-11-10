@@ -54,8 +54,7 @@ from desflow.resources.resource import QueueFull
 from desflow.models.flow import Entity, Upstream, payload_of
 from desflow.utils import checked_seconds, suggestion
 from desflow.values.check import names_read
-from desflow.core.arrivals import whole
-from desflow.core.families import Reference, name_of, references
+from desflow.core.families import Reference, name_of, references, whole
 from desflow.values.models import Gen, has_generator
 from desflow.values.runtime import RunStopped, stream_of
 from desflow.values.template import BoundPayload, Template

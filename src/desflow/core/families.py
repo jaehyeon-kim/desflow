@@ -11,6 +11,11 @@ or signal named after the family and the key: `desk[3]`, `desk['north']`. A refe
 `Reference` is how a task names a member. It is a `str` whose text is the first name of
 `of`, so a check that reads names finds the declared entry, and code that opens the
 member calls `resolve`.
+
+The module also holds `read_place`, which reads a place of a run, and `whole`, which
+takes a count as `range` does: an integer, or a boolean as 1 or 0, and refuses any
+other value, even `2.0`. A family reads its `members` with them, and the model layer
+of `core` imports them from here, below it.
 """
 
 from dataclasses import dataclass, field, replace
@@ -27,8 +32,7 @@ from typing import (
     Union,
 )
 
-from desflow.core.arrivals import read_place, whole
-from desflow.core.expressions import Expression, Scope
+from desflow.core.expressions import Expression, Scope, member_name, normal_key
 
 if TYPE_CHECKING:
     from desflow.core.holders import HolderRun
@@ -47,42 +51,39 @@ SECTIONS = {
 EXPRESSION_FIELDS = ("current_cap", "max_cap", "level")
 
 
-def normal_key(key: Any) -> Union[int, str]:
-    """The key a family member is made for.
-
-    `true` and `false` are 1 and 0, because a Python `dict` holds `True` and `1` as one
-    key. A NumPy integer is an integer.
+def whole(value: Any, what: str) -> int:
+    """A count place's result: a whole number, a boolean counting as 1, as `range`
+    takes it.
 
     Args:
-        key: The value a reference computed.
-
-    Returns:
-        Union[int, str]: The key.
+        value: The result of the place.
+        what: Where it was written, for the message.
 
     Raises:
-        TypeError: If the key is neither an integer, a boolean nor text.
+        TypeError: If it is not a whole number, as `range(2.0)` raises.
     """
-    if isinstance(key, bool):
-        return int(key)
-    if isinstance(key, Integral):
-        return int(key)
-    if isinstance(key, str):
-        return key
-    raise TypeError(f"a family key is an integer or text, got {key!r}")
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, Integral):
+        return int(value)
+    raise TypeError(f"{what} gave {value!r}, which is not a whole number")
 
 
-def member_name(family: str, key: Any) -> str:
-    """The name of a family's member: the family's name and Python's `repr` of the key
-    in brackets, so `3` and `'3'` are two members, and every key has one name.
+def read_place(
+    values: "ValueRuntime", place: Any, names: Optional[Dict[str, Any]] = None
+) -> Any:
+    """Reads a place over the run: a number as it is, an expression or a generator,
+    with `names` as its bare names.
 
     Args:
-        family: The family's name.
-        key: The member's key.
-
-    Returns:
-        str: The name, such as `desk[3]` or `desk['a.b']`.
+        values: The run's values, which give the run scope and evaluate a generator.
+        place: The place: a number, an expression or a generator.
+        names: The bare names the place reads; None for none.
     """
-    return f"{family}[{normal_key(key)!r}]"
+    scope = values.scope_of(names=names)
+    if isinstance(place, Expression):
+        return place.evaluate(scope)
+    return values.evaluate(place, scope)
 
 
 def family_of(name: str, families: Iterable[str]) -> Optional[str]:

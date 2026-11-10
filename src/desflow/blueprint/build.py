@@ -50,8 +50,9 @@ from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.core.arrivals import ArrivalPlan
 from desflow.core.families import member_path, name_of, name_problem, references
 from desflow.core.flow import Open, Release, Wait
-from desflow.core.holders import check_capacity, check_level, check_queue_limit
+from desflow.core.holders import check_level, check_queue_limit
 from desflow.core.registry import ParamRejected
+from desflow.core.rules import check_capacity
 from desflow.core.task import NO_RECORD
 from desflow.core.task_checks import (
     Holding,

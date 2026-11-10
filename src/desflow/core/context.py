@@ -96,11 +96,11 @@ from desflow.core.task_checks import (
     whole_flow_problems,
 )
 from desflow.core.registry import ParamChange, ParamRejected, SimulationRegistry
+from desflow.core.rules import check_capacity
 from desflow.core.holders import (
     _run_copy,
     _within_max,
     Holders,
-    check_capacity,
     check_level,
     check_queue_limit,
 )

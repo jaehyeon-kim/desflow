@@ -36,6 +36,7 @@ import simpy
 from desflow.models.distributions import TIME_LIST_PARAMETERS, TIME_PARAMETERS
 from desflow.core.environment import trigger
 from desflow.core.expressions import Expression
+from desflow.core.families import read_place, whole
 from desflow.core.replay import UNITS, Row, check_fields
 from desflow.models.flow import Entity
 from desflow.models.params import DistributionConfig
@@ -174,24 +175,6 @@ def _holds_key(state: "EntityLoop") -> Callable[[], bool]:
     return lambda: state.running
 
 
-def whole(value: Any, what: str) -> int:
-    """A count place's result: a whole number, a boolean counting as 1, as `range`
-    takes it.
-
-    Args:
-        value: The result of the place.
-        what: Where it was written, for the message.
-
-    Raises:
-        TypeError: If it is not a whole number, as `range(2.0)` raises.
-    """
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, numbers.Integral):
-        return int(value)
-    raise TypeError(f"{what} gave {value!r}, which is not a whole number")
-
-
 def defuse_stopped(event: Any) -> None:
     """Marks an arrival loop ended by `stop_arrivals` as handled, and nothing else.
 
@@ -223,23 +206,6 @@ class _Counter:
     def give_back(self) -> None:
         """Frees the number taken last."""
         self.last -= 1
-
-
-def read_place(
-    values: "ValueRuntime", place: Any, names: Optional[Dict[str, Any]] = None
-) -> Any:
-    """Reads a place over the run: a number as it is, an expression or a generator,
-    with `names` as its bare names.
-
-    Args:
-        values: The run's values, which give the run scope and evaluate a generator.
-        place: The place: a number, an expression or a generator.
-        names: The bare names the place reads; None for none.
-    """
-    scope = values.scope_of(names=names)
-    if isinstance(place, Expression):
-        return place.evaluate(scope)
-    return values.evaluate(place, scope)
 
 
 class Arrivals:

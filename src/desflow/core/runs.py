@@ -24,9 +24,9 @@ from typing import (
 import numpy as np
 import simpy
 
-from desflow.core.arrivals import ArrivalRun, whole
+from desflow.core.arrivals import ArrivalRun
 from desflow.core.expressions import Expression, Scope
-from desflow.core.families import FamilyRun
+from desflow.core.families import FamilyRun, whole
 from desflow.core.holders import HolderRun
 from desflow.core.signals import SignalRun
 from desflow.models.flow import Entity

@@ -268,11 +268,6 @@ ignore_imports = [
     # Top-package import: analysis.runner imports desflow inside a function for
     # __version__, and desflow imports loading, which is above analysis
     "desflow.analysis.runner -> desflow",
-    # Imports from the run layer of core to its model layer, which the split of core
-    # into its two layers removes: families imports arrivals at the top of the
-    # module, and registry imports holders inside a function
-    "desflow.core.families -> desflow.core.arrivals",
-    "desflow.core.registry -> desflow.core.holders",
 ]
 
 [[tool.importlinter.contracts]]
@@ -283,13 +278,6 @@ exhaustive = true
 layers = [
     "arrivals : breakdowns : context : flow : holders : runs : scenario : signals : task : task_checks : tasks",
     "environment : expressions : families : registry : replay : rules : sampler : sinks : statistics",
-]
-ignore_imports = [
-    # Imports from the run layer of core to its model layer, which the split of core
-    # into its two layers removes: families imports arrivals at the top of the
-    # module, and registry imports holders inside a function
-    "desflow.core.families -> desflow.core.arrivals",
-    "desflow.core.registry -> desflow.core.holders",
 ]
 
 [tool.pytest.ini_options]

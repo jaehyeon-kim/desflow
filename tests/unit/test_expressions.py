@@ -738,7 +738,7 @@ def test_a_member_that_does_not_exist_gives_what_a_new_member_gives():
 def test_a_key_is_an_integer_or_text_and_a_boolean_is_one_or_zero(key):
     """Y1: `true` is the member 1 and `false` the member 0, because a `dict` holds
     `True` and `1` as one key."""
-    from desflow.core.families import member_name
+    from desflow.core.expressions import member_name
 
     assert member_name("desk", key) == f"desk[{int(key)!r}]"
     assert member_name("desk", "3") == "desk['3']"
@@ -747,7 +747,7 @@ def test_a_key_is_an_integer_or_text_and_a_boolean_is_one_or_zero(key):
 
 @pytest.mark.parametrize("key", [1.5, None, (1, 2)])
 def test_a_key_that_is_not_an_integer_or_text_is_refused(key):
-    from desflow.core.families import member_name
+    from desflow.core.expressions import member_name
 
     with pytest.raises(TypeError, match=re.escape("an integer or text")):
         member_name("desk", key)
@@ -756,7 +756,7 @@ def test_a_key_that_is_not_an_integer_or_text_is_refused(key):
 def test_a_numpy_integer_is_a_key():
     import numpy as np
 
-    from desflow.core.families import member_name
+    from desflow.core.expressions import member_name
 
     assert member_name("desk", np.int64(4)) == "desk[4]"
 

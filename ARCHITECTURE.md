@@ -69,8 +69,6 @@ Each box is a layer, from the top of the package to the bottom. A layer may impo
    ✗ desflow.explain.verify ──► desflow.analysis.runner      explain --verify
    ✗ desflow.blueprint.model_check ──► desflow.cli.check     check_model
    ✗ desflow.analysis.runner ──► desflow                     the version number
-   ✗ desflow.core.families ──► desflow.core.arrivals         inside core
-   ✗ desflow.core.registry ──► desflow.core.holders          inside core
 ```
 
 Each line marked `✗` is an import against the layers that the contract allows by name:
@@ -79,9 +77,8 @@ Each line marked `✗` is an import against the layers that the contract allows 
 - `explain --verify` runs the model to check the formulas, so it needs `analysis`.
 - `check_model` in `desflow.blueprint`, the entry the Agent Skill calls, checks a file as `desflow check` does.
 - `analysis.runner` reads `desflow.__version__` for `experiment.json`, and the top package imports `loading`, which is above `analysis`.
-- The two imports inside `core` go when `core` is split into its two layers. The next section lists them again.
 
-Each of these imports but the one of `families` sits inside a function.
+Each of these imports sits inside a function.
 
 ## Inside Core
 
@@ -97,10 +94,6 @@ Each of these imports but the one of `families` sits inside a function.
  │ environment, expressions, families, registry, replay, rules,   │
  │ sampler, sinks, statistics                                     │
  └────────────────────────────────────────────────────────────────┘
-
- Against the layers:
-   ✗ desflow.core.families ──► desflow.core.arrivals         at the top of families
-   ✗ desflow.core.registry ──► desflow.core.holders          inside a function
 ```
 
 ## Rules the Contracts Hold
@@ -120,7 +113,7 @@ To draw the graph of the imports for yourself, run `uv run --all-extras import-l
 |---|---|
 | `src/desflow/config.py` | settings shared by more than one module: queue orders, statistics levels, the `labels` sink value, `MIN_DELAY` (the shortest time a draw gives) |
 | `src/desflow/internal.py` | marks the events desflow creates for its own work |
-| `src/desflow/core/` | `environment.py` (`DynamicRealtimeEnvironment`, egress buffering, record building), `context.py` (the `SimulationContext` builder), `runs.py` (`RunState`: the state of one run, and `EndSets`), `arrivals.py` (`Arrivals`: a model's arrivals, and `ArrivalRun`: their loops in one run), `holders.py` (`Holders`: a model's resources, stores, containers and breakdowns, and `HolderRun`: those of one run), `sinks.py` (`Sinks`: a model's egress and ingress providers, their batching and its statistics, with one `Sink` record per egress), `registry.py` (live parameters), `sampler.py` (one random stream per distribution), `expressions.py` (conditions and amounts), `flow.py` (`Router`, `Transfer`, `LiveScope`: what every scope of a run reads), `statistics.py` (built-in statistics), `task.py` (`TaskSpec`, `TaskRun`: the life of one task instance), `tasks.py` (`Tasks`: a model's tasks, and the start of their instances in a run), `task_checks.py` (the checks of a model's tasks, made before a run), `families.py` (`Family`, `Families`: a model's families, and `FamilyRun`: their members in one run), `signals.py` (`Signal`; `Signals`: a model's signals, and `SignalRun`: those of one run), `scenario.py` (`run_scenario`), `breakdowns.py` (`run_breakdowns`), `replay.py` (arrivals from a recorded file), `rules.py` (the checks a blueprint and the builder share) |
+| `src/desflow/core/` | `environment.py` (`DynamicRealtimeEnvironment`, egress buffering, record building), `context.py` (the `SimulationContext` builder), `runs.py` (`RunState`: the state of one run, and `EndSets`), `arrivals.py` (`Arrivals`: a model's arrivals, and `ArrivalRun`: their loops in one run), `holders.py` (`Holders`: a model's resources, stores, containers and breakdowns, and `HolderRun`: those of one run), `sinks.py` (`Sinks`: a model's egress and ingress providers, their batching and its statistics, with one `Sink` record per egress), `registry.py` (live parameters), `sampler.py` (one random stream per distribution), `expressions.py` (conditions and amounts, and the name of a family's member), `flow.py` (`Router`, `Transfer`, `LiveScope`: what every scope of a run reads), `statistics.py` (built-in statistics), `task.py` (`TaskSpec`, `TaskRun`: the life of one task instance), `tasks.py` (`Tasks`: a model's tasks, and the start of their instances in a run), `task_checks.py` (the checks of a model's tasks, made before a run), `families.py` (`Family`, `Families`: a model's families, `FamilyRun`: their members in one run, `read_place`, which reads a place of a run: a number, an expression or a generator, and `whole`, which takes a count as `range` does: an integer, or a boolean as 1 or 0, and refuses any other value, even `2.0`), `signals.py` (`Signal`; `Signals`: a model's signals, and `SignalRun`: those of one run), `scenario.py` (`run_scenario`), `breakdowns.py` (`run_breakdowns`), `replay.py` (arrivals from a recorded file), `rules.py` (the checks a blueprint and the builder share, among them `check_capacity`, which a live write of a capacity also uses) |
 | `src/desflow/models/` | `params.py` (`SimParameter`, `DistributionConfig`, `CapacityConfig`, `ContainerConfig`), `flow.py` (`Entity`, `Upstream`), `schemas.py` (`EventPayload`, `TelemetryPayload`, `LabelPayload`: the published record schema), `distributions.py` (every distribution family, `DISTRIBUTIONS`) |
 | `src/desflow/resources/` | `DynamicResource`, `DynamicContainer`, `DynamicStore`, with capacities driven by the registry |
 | `src/desflow/connectors/` | `ingress/` (parameter changes in), `egress/` (records out), `admin/`, `_schema_registry/` (the code of the Confluent and Glue serializers and deserializers: the two registry clients, the wire framing, the Avro, JSON Schema and Protobuf codecs, and the errors) |
