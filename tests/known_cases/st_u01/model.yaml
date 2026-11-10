@@ -1,0 +1,16 @@
+# Documents of SimPy tests/test_util.py.
+# case ST-U01: test_start_delayed: start_delayed(env, pem(env), delay=5): the child
+# starts at 5.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  p: {initial: 1, spawn: parent}
+
+tasks:
+  parent:
+    spawn: {task: child, after: 5}
+    payload: {event_type: parent}
+  child:
+    payload:
+      event_type: started
+      at: {gen: expr, expr: t}

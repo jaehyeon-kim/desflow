@@ -1,0 +1,25 @@
+# case ST-U04: test_subscribe_with_join: the parent starts child1 (1) and child2 (2),
+# subscribes to child1 and waits for child2: it is interrupted at 1 while child2 is
+# alive.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  p: {initial: 1, spawn: parent}
+
+tasks:
+  parent:
+    subscribe: {task: child1}
+    wait: {task: child2}
+    on_interrupt: abandon
+    on_interrupt_next: told
+    payload: {event_type: joined}
+  told:
+    payload:
+      event_type: interrupted
+      at: {gen: expr, expr: t}
+  child1:
+    service_time: 1
+    payload: {event_type: c1}
+  child2:
+    service_time: 2
+    payload: {event_type: c2}

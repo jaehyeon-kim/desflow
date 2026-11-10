@@ -1,29 +1,34 @@
 import asyncio
+import contextlib
 import logging
 import math
 import queue
 import threading
 import time
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, tzinfo
 from datetime import timezone as dt_timezone
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import numpy as np
 from pydantic import TypeAdapter
 from pydantic_core import to_jsonable_python
 
 import simpy.rt
 from simpy import Environment, Event, Process, RealtimeEnvironment, Timeout
+from simpy.events import URGENT
 from simpy.core import EmptySchedule
 
 from desflow.config import DEFAULT_STATS_INTERVAL, UNHANDLED_FAILURE_POLICIES
-from desflow.core.internal import (
+from desflow.internal import (
     InternalEvent,
     InternalProcess,
     InternalTimeout,
     is_internal,
 )
 from desflow.core.registry import SimulationRegistry
+from desflow.core.sinks import Sink
 from desflow.core.statistics import Statistics
 
 logger = logging.getLogger(__name__)
@@ -106,6 +111,7 @@ def _jsonable(value: Any) -> Any:
     value that holds anything but plain values is cleaned once more. A flat mapping of
     plain values, the usual payload, skips that pass.
     """
+    value = _numpy_to_python(value)
     result = to_jsonable_python(value, by_alias=False, inf_nan_mode="null")
     if isinstance(value, dict) and all(isinstance(v, _PLAIN) for v in value.values()):
         return result
@@ -113,6 +119,20 @@ def _jsonable(value: Any) -> Any:
 
 
 _PLAIN = (str, int, float, bool, type(None))
+
+
+def _numpy_to_python(value: Any) -> Any:
+    """A NumPy scalar as its Python value and an array as a list, at any depth of a
+    mapping, list or tuple, because `to_jsonable_python` knows no NumPy type."""
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, dict):
+        return {key: _numpy_to_python(part) for key, part in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_numpy_to_python(part) for part in value]
+    return value
 
 
 def _finite(value: Any) -> Any:
@@ -256,6 +276,31 @@ class IngressMixIn:
             loop.call_soon_threadsafe(loop.stop)
 
 
+@dataclass
+class _SinkRun:
+    """One sink of a run: its settings, with the batch size and flush interval it
+    uses, the queue of batches its thread reads, its buffer, and how many timer
+    flushes in a row came in far below its batch size.
+
+    Attributes:
+        sink: The sink's settings, with the batch size and flush interval it
+            resolved to, so neither is None here.
+        batches: The batches waiting for the sink's thread; its own lock guards it.
+        buffer: The records not flushed yet.
+        starved_flushes: Timer flushes in a row far below the batch size.
+        starved_totals: The records of those flushes.
+        starvation_warned: Whether the warning that the batch size never governs
+            has been logged.
+    """
+
+    sink: Sink
+    batches: "queue.Queue[Any]"
+    buffer: List[Dict[str, Any]] = field(default_factory=list)
+    starved_flushes: int = 0
+    starved_totals: int = 0
+    starvation_warned: bool = False
+
+
 class EgressMixIn:
     """
     Handles high-throughput data egress to external systems.
@@ -278,9 +323,17 @@ class EgressMixIn:
         flush_intervals: Optional[List[Optional[float]]] = None,
         labels: Optional[List[bool]] = None,
         warmup: Optional[float] = None,
+        envelopes: Optional[List[bool]] = None,
+        traces: Optional[List[bool]] = None,
     ):
         """
         Initializes the egress buffers and starts the background publisher threads.
+
+        It first calls each provider's `_load_libraries()` in the calling thread. In a
+        strict environment it then moves `real_start` forward by the time that takes,
+        so the load is not counted as lag, and a paced run's records trail the wall
+        clock by the load time. A run with `strict` False counts the load as lag and
+        catches up, so its records stay on the wall clock.
 
         Args:
             providers (List[BaseEgress]): A list of initialized egress connector instances.
@@ -320,6 +373,15 @@ class EgressMixIn:
                 from now, the start of the run when the egress is set up with the
                 model. No provider receives a record stamped before it ends, and the
                 built-in statistics are reset then. Defaults to None, no warm-up.
+            envelopes (List, optional): One entry per provider, aligned by position.
+                False makes it a plain-output provider: it receives no telemetry and
+                no `queued` or `started` record, and the sink writes each event's
+                value without the record around it. Defaults to None, which is every
+                provider receiving the whole record.
+            traces (List, optional): One entry per provider, aligned by position.
+                True makes it a trace sink, which receives the event trace
+                (`trace_events`) and nothing else; every other provider never
+                receives it. Defaults to None, which is no trace sink.
 
         Raises:
             ValueError: If a per-provider list has the wrong length.
@@ -328,17 +390,89 @@ class EgressMixIn:
         providers competed for batches instead of each receiving them, and a run with
         two sinks wrote part of the data to each with no error and exit code 0.
         """
-        self.egress_drain_stall_seconds = drain_stall_seconds
-        self.egress_providers = providers
-        self.egress_queues: List[queue.Queue[Any]] = [
-            queue.Queue(maxsize=max_queued_batches) for _ in providers
+        # Each provider imports its libraries here, before the run, and not in the
+        # egress thread: a first import holds the interpreter lock while it loads,
+        # which in a paced run stops the simulation and fails a strict one
+        self._load_provider_libraries(providers)
+        given, sizes, intervals, label_flags, trace_flags, envelope_flags = (
+            self._resolve_sink_settings(
+                providers,
+                batch_size,
+                flush_interval,
+                drain_stall_seconds,
+                predicates,
+                batch_sizes,
+                flush_intervals,
+                labels,
+                envelopes,
+                traces,
+            )
+        )
+        given = self._set_warmup_and_lag(warmup, lag_monitor_interval, given)
+        # One buffer and one queue per provider. The buffers were shared until
+        # batching moved behind the fan-out, which meant a single cadence for every
+        # sink and no way to give a stream sink low latency while a lake sink built
+        # large files.
+        self._egress_sinks: List[_SinkRun] = [
+            _SinkRun(
+                Sink(provider, predicate, size, interval, label, trace, envelope),
+                queue.Queue(maxsize=max_queued_batches),
+            )
+            for provider, predicate, size, interval, label, trace, envelope in zip(
+                providers,
+                given,
+                sizes,
+                intervals,
+                label_flags,
+                trace_flags,
+                envelope_flags,
+            )
         ]
-        self.egress_predicates: List[Optional[Callable[[Dict[str, Any]], bool]]] = (
+        self._egress_traced = any(trace_flags)
+        self._egress_loop: Optional[asyncio.AbstractEventLoop] = (
+            None  # Store loop reference
+        )
+
+        self._start_egress(len(providers))
+
+    def _load_provider_libraries(self, providers: List[Any]) -> None:
+        """Loads each provider's client library, before any egress attribute is set."""
+        loading_began = simpy.rt.monotonic()
+        for provider in providers:
+            load = getattr(provider, "_load_libraries", None)
+            if load is not None:
+                load()
+        # The environment has read its clock already, so a strict one moves its
+        # wall-clock anchor forward by the load time, which is then not counted as
+        # lag, whichever API calls this. This is the rule of the `sync()` that
+        # `SimulationContext` makes after the build. A run that is not strict counts
+        # the load as lag and catches up, as in 0.28.0. Both come first, so a load
+        # that raises leaves no egress attribute set
+        if getattr(self, "strict", False) and hasattr(self, "real_start"):
+            self.real_start += simpy.rt.monotonic() - loading_began
+
+    def _resolve_sink_settings(
+        self,
+        providers: List[Any],
+        batch_size: int,
+        flush_interval: float,
+        drain_stall_seconds: Any,
+        predicates: Any,
+        batch_sizes: Any,
+        flush_intervals: Any,
+        labels: Any,
+        envelopes: Any,
+        traces: Any,
+    ) -> Tuple[List[Any], List[int], List[float], List[bool], List[bool], List[bool]]:
+        """Each provider's predicate, batch size, flush interval and flags, matched by
+        position; a provider with `envelope: false` is told so."""
+        self.egress_drain_stall_seconds = drain_stall_seconds
+        given: List[Optional[Callable[[Dict[str, Any]], bool]]] = (
             list(predicates) if predicates else [None] * len(providers)
         )
-        if len(self.egress_predicates) != len(providers):
+        if len(given) != len(providers):
             raise ValueError(
-                f"predicates has {len(self.egress_predicates)} entries for "
+                f"predicates has {len(given)} entries for "
                 f"{len(providers)} providers; they are matched by position"
             )
         # The fallback a provider gets when it names no value of its own. Read
@@ -346,27 +480,54 @@ class EgressMixIn:
         # uses, since either can differ from this.
         self.egress_batch_size = batch_size
         self.egress_flush_interval = flush_interval
-        self.egress_batch_sizes: List[int] = self._resolve_per_provider(
+        sizes: List[int] = self._resolve_per_provider(
             batch_sizes, batch_size, len(providers), "batch_sizes"
         )
-        self.egress_flush_intervals: List[float] = self._resolve_per_provider(
+        intervals: List[float] = self._resolve_per_provider(
             flush_intervals, flush_interval, len(providers), "flush_intervals"
         )
-        self.egress_labels: List[bool] = [
+        label_flags = [
             bool(flag)
             for flag in self._resolve_per_provider(
                 labels, False, len(providers), "labels"
             )
         ]
+        trace_flags = [
+            bool(flag)
+            for flag in self._resolve_per_provider(
+                traces, False, len(providers), "traces"
+            )
+        ]
+        envelope_flags = [
+            bool(flag)
+            for flag in self._resolve_per_provider(
+                envelopes, True, len(providers), "envelopes"
+            )
+        ]
+        for provider, envelope in zip(providers, envelope_flags):
+            if not envelope:
+                provider.envelope = False
+                logger.info(
+                    "%s has envelope: false, so it skips telemetry and the queued "
+                    "and started records, and writes each event's value alone.",
+                    type(provider).__name__,
+                )
+        return given, sizes, intervals, label_flags, trace_flags, envelope_flags
+
+    def _set_warmup_and_lag(
+        self, warmup: Optional[float], lag_monitor_interval: Any, given: List[Any]
+    ) -> List[Any]:
+        """Sets the warm-up, which drops the records before it, and the lag
+        monitor's interval. Returns the predicates with the warm-up applied."""
         self.egress_warmup = warmup
         if warmup is not None:
             # The warm-up counts from the start of the run, as the statistics reset
             # below does, so a run with an initial_time drops the right records
-            self.egress_predicates = [
-                _after_warmup(self.now + float(warmup), predicate)  # type: ignore[attr-defined]
-                for predicate in self.egress_predicates
+            given = [
+                _after_warmup(self.now + warmup, predicate)  # type: ignore[attr-defined]
+                for predicate in given
             ]
-            self.start_internal(self._end_warmup(float(warmup)))  # type: ignore[attr-defined]
+            self.start_internal(self._end_warmup(warmup))  # type: ignore[attr-defined]
         # "auto": off while the clock is detached from the wall clock, once a second
         # otherwise; a run that goes live starts it when it does
         self._lag_on_go_live = False
@@ -382,20 +543,12 @@ class EgressMixIn:
                 lag_monitor_interval = None
                 self._lag_on_go_live = True
         self.egress_lag_monitor_interval: Optional[float] = lag_monitor_interval
-        # One buffer per provider. They shared one until batching moved behind the
-        # fan-out, which meant a single cadence for every sink and no way to give a
-        # stream sink low latency while a lake sink built large files.
-        self._event_buffers: List[List[Dict[str, Any]]] = [[] for _ in providers]
-        # Counts consecutive timer-driven flushes that came in far below batch_size,
-        # so a configuration where the size never governs is reported once per run.
-        self._starved_flushes: List[int] = [0] * len(providers)
-        self._starved_totals: List[int] = [0] * len(providers)
-        self._starvation_warned: List[bool] = [False] * len(providers)
-        self._egress_loop: Optional[asyncio.AbstractEventLoop] = (
-            None  # Store loop reference
-        )
+        return given
 
-        # Start background threads for providers
+    def _start_egress(self, count: int) -> None:
+        """Starts the egress thread, the periodic flush of each of the `count`
+        providers and the lag monitor."""
+        # Start the background thread for the providers
         self._egress_thread = threading.Thread(
             target=self._run_egress_loop, daemon=True
         )
@@ -410,7 +563,7 @@ class EgressMixIn:
         # not started. Teardown flushes whatever is left in the buffer.
         self._periodic_flush_running = bool(getattr(self, "factor", 1.0))
         if self._periodic_flush_running:
-            for index in range(len(providers)):
+            for index in range(count):
                 self.start_internal(self._periodic_flush(index))  # type: ignore[attr-defined]
         # Only start the lag monitor if an interval > 0 is provided
         if self.egress_lag_monitor_interval and self.egress_lag_monitor_interval > 0:
@@ -429,33 +582,93 @@ class EgressMixIn:
     def _event_buffer(self) -> List[Dict[str, Any]]:
         """The first provider's buffer, kept so single-sink callers and tests still read.
 
-        Each provider now buffers separately in `_event_buffers`, so that a stream
-        sink and a lake sink can flush at different sizes. Read `_event_buffers` when
-        the number of providers matters.
+        Each provider buffers separately, in its own record in `_egress_sinks`, so
+        that a stream sink and a lake sink can flush at different sizes.
         """
-        return self._event_buffers[0]
+        return self._egress_sinks[0].buffer
 
     @property
     def egress_queue(self) -> "queue.Queue[Any]":
         """The first provider's queue, kept so single-sink callers and tests still read.
 
-        Each provider now has its own queue in `egress_queues`. With one provider the
-        two are the same thing. With several, this returns only the first, so use
-        `egress_queues` when the number of providers matters.
+        Each provider has its own queue. With one provider the two are the same
+        thing. With several, this returns only the first.
         """
-        return self.egress_queues[0]
+        return self._egress_sinks[0].batches
+
+    def _sink_runs(self, name: str) -> List[_SinkRun]:
+        """The per-sink records the `egress_*` views read.
+
+        Raises:
+            AttributeError: If `setup_egress` has not run, naming the public view
+                `name`, as a plain attribute that is not set would.
+        """
+        try:
+            return self._egress_sinks
+        except AttributeError:
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            ) from None
+
+    @property
+    def egress_providers(self) -> List[Any]:
+        """The egress providers, in the order they were set up. A new list at each
+        read, from the per-sink records."""
+        return [run.sink.provider for run in self._sink_runs("egress_providers")]
+
+    @property
+    def egress_queues(self) -> "List[queue.Queue[Any]]":
+        """Each provider's queue of batches, in the order of `egress_providers`."""
+        return [run.batches for run in self._sink_runs("egress_queues")]
+
+    @property
+    def egress_predicates(self) -> List[Optional[Callable[[Dict[str, Any]], bool]]]:
+        """Each provider's predicate, with the warm-up applied; None sends every
+        record."""
+        return [run.sink.predicate for run in self._sink_runs("egress_predicates")]
+
+    @property
+    def egress_batch_sizes(self) -> List[int]:
+        """The batch size each provider uses, in the order they were set up."""
+        runs = self._sink_runs("egress_batch_sizes")
+        return [run.sink.batch_size for run in runs]  # type: ignore[misc]
+
+    @property
+    def egress_flush_intervals(self) -> List[float]:
+        """The flush interval each provider uses, in the order they were set up."""
+        runs = self._sink_runs("egress_flush_intervals")
+        return [run.sink.flush_interval for run in runs]  # type: ignore[misc]
+
+    @property
+    def egress_labels(self) -> List[bool]:
+        """Whether each provider is a labels sink."""
+        return [run.sink.label for run in self._sink_runs("egress_labels")]
+
+    @property
+    def egress_traces(self) -> List[bool]:
+        """Whether each provider is a trace sink."""
+        return [run.sink.trace for run in self._sink_runs("egress_traces")]
+
+    @property
+    def egress_envelopes(self) -> List[bool]:
+        """Whether each provider writes each record whole."""
+        return [run.sink.envelope for run in self._sink_runs("egress_envelopes")]
 
     def _lag_monitor(self, delay: float = 0.0):
         """Internal: Monitors how far the simulation time has drifted from the real-world clock."""
         if delay > 0:
             yield self.internal_timeout(delay)  # type: ignore[attr-defined]
         while True:
-            # Real seconds since the start, in UTC: the start always has a zone
-            start = self.start_datetime  # type: ignore[attr-defined]
-            real_elapsed = (
-                datetime.now(dt_timezone.utc) - start.astimezone(dt_timezone.utc)
-            ).total_seconds()
-            lag = max(0.0, real_elapsed - self.now)  # type: ignore[attr-defined]
+            # How far behind its pace the run is: the real time now, less the real
+            # time the head of the clock is due at (`step` paces the same way), so a
+            # run that keeps its pace reads about 0 whatever its factor and however
+            # far back its logical start time is
+            factor = self._factor  # type: ignore[attr-defined]
+            if factor:
+                due = self.real_start + (self.now - self.env_start) * factor  # type: ignore[attr-defined]
+                lag = max(0.0, simpy.rt.monotonic() - due)
+            else:
+                lag = 0.0  # an unpaced run has no pace to fall behind
 
             # Publish this system health metric automatically
             self.publish_telemetry("system.simulation.lag_seconds", round(lag, 3))
@@ -473,13 +686,11 @@ class EgressMixIn:
         # One queue per provider, so every provider sees every batch routed to it.
         # Sharing one queue made them competing consumers of the same batches.
         tasks = [
-            loop.create_task(provider.run(provider_queue))
-            for provider, provider_queue in zip(
-                self.egress_providers, self.egress_queues
-            )
+            loop.create_task(run.sink.provider.run(run.batches))
+            for run in self._egress_sinks
         ]
-        for provider, task in zip(self.egress_providers, tasks):
-            task.add_done_callback(_report_stopped("Egress", provider))
+        for run, task in zip(self._egress_sinks, tasks):
+            task.add_done_callback(_report_stopped("Egress", run.sink.provider))
 
         try:
             # Run the loop until teardown() calls loop.stop()
@@ -508,7 +719,7 @@ class EgressMixIn:
     def _periodic_flush(self, index: int):
         """Internal: SimPy process flushing one provider's buffer on its own interval."""
         while True:
-            yield self.internal_timeout(self.egress_flush_intervals[index])  # type: ignore[attr-defined]
+            yield self.internal_timeout(self._egress_sinks[index].sink.flush_interval)  # type: ignore[attr-defined]
             self._note_timer_flush(index)
             self._flush_buffer(index)
 
@@ -521,30 +732,32 @@ class EgressMixIn:
         can catch it because the arrival rate is unknown until the run starts.
         Consecutive rather than cumulative, so a quiet period does not trip it.
         """
-        if self._starvation_warned[index]:
+        run = self._egress_sinks[index]
+        if run.starvation_warned:
             return
-        pending = len(self._event_buffers[index])
-        target = self.egress_batch_sizes[index]
+        pending = len(run.buffer)
+        target = run.sink.batch_size
+        assert target is not None  # setup_egress resolves it
         if pending and pending < target * _STARVED_BATCH_RATIO:
-            self._starved_flushes[index] += 1
-            self._starved_totals[index] += pending
-            if self._starved_flushes[index] >= _STARVED_FLUSHES_BEFORE_WARNING:
-                average = self._starved_totals[index] / self._starved_flushes[index]
+            run.starved_flushes += 1
+            run.starved_totals += pending
+            if run.starved_flushes >= _STARVED_FLUSHES_BEFORE_WARNING:
+                average = run.starved_totals / run.starved_flushes
                 logger.warning(
                     "%s (provider %d) flushed on its timer %d times in a row "
                     "averaging %.0f records against a batch_size of %d, so batch_size "
                     "never governs for this sink. Raise flush_interval or lower "
                     "batch_size.",
-                    type(self.egress_providers[index]).__name__,
+                    type(run.sink.provider).__name__,
                     index,
-                    self._starved_flushes[index],
+                    run.starved_flushes,
                     average,
                     target,
                 )
-                self._starvation_warned[index] = True
+                run.starvation_warned = True
         else:
-            self._starved_flushes[index] = 0
-            self._starved_totals[index] = 0
+            run.starved_flushes = 0
+            run.starved_totals = 0
 
     def _flush_buffer(self, index: Optional[int] = None):
         """Internal: Pushes one provider's buffered data to its thread-safe queue.
@@ -557,11 +770,21 @@ class EgressMixIn:
         the failure is raised instead of hidden.
         """
         if index is None:
-            for position in range(len(self._event_buffers)):
-                self._flush_buffer(position)
+            # A sink that has stopped consuming must not keep the sinks after it from
+            # receiving their records, so each is tried and the first failure is
+            # raised once all have been
+            failure: Optional[RuntimeError] = None
+            for position in range(len(self._egress_sinks)):
+                try:
+                    self._flush_buffer(position)
+                except RuntimeError as error:
+                    failure = failure or error
+            if failure is not None:
+                raise failure
             return
 
-        batch = self._event_buffers[index]
+        run = self._egress_sinks[index]
+        batch = run.buffer
         if not batch:
             return
 
@@ -571,10 +794,10 @@ class EgressMixIn:
         # The predicate was applied on the way in, so the buffer already holds only
         # what this provider takes.
         try:
-            self.egress_queues[index].put(batch, timeout=stall_limit)
+            run.batches.put(batch, timeout=stall_limit)
         except queue.Full:
             logger.error(
-                "An egress queue has been full for %.0fs, so that sink has stopped "
+                "An egress queue has been full for %.1fs, so that sink has stopped "
                 "consuming. Stopping rather than discarding events.",
                 stall_limit,
             )
@@ -582,24 +805,36 @@ class EgressMixIn:
                 "Egress queue full: the sink stopped consuming events"
             ) from None
 
-        self._event_buffers[index] = []
+        run.buffer = []
 
-    def _append_record(self, record: Dict[str, Any]):
+    def _append_record(self, record: Dict[str, Any], lifecycle: bool = False):
         """Internal: routes one record into each provider's buffer.
 
         Predicates are tested here rather than at flush time, so a record is tested
         once on the way in instead of against every predicate at fan-out. A
-        ground-truth record goes only to labels sinks, and every other record only to
-        the others.
+        ground-truth record goes only to labels sinks, a trace record only to trace
+        sinks, and every other record only to the others. A provider with `envelope`
+        off takes no telemetry record and no record of `lifecycle`, a task's
+        `queued` or `started`.
         """
         is_label = record["stream_type"] == "label"
-        for index, predicate in enumerate(self.egress_predicates):
-            if self.egress_labels[index] is not is_label:
+        is_trace = record["stream_type"] == "trace"
+        for index, run in enumerate(self._egress_sinks):
+            sink = run.sink
+            if sink.label is not is_label:
                 continue
-            if predicate is not None and not predicate(record):
+            if sink.trace is not is_trace:
                 continue
-            self._event_buffers[index].append(record)
-            if len(self._event_buffers[index]) >= self.egress_batch_sizes[index]:
+            if (
+                not sink.envelope
+                and not is_label
+                and (lifecycle or record["stream_type"] == "telemetry")
+            ):
+                continue
+            if sink.predicate is not None and not sink.predicate(record):
+                continue
+            run.buffer.append(record)
+            if len(run.buffer) >= sink.batch_size:  # type: ignore[operator]
                 self._flush_buffer(index)
 
     def publish_telemetry(self, path_id: str, value: Any):
@@ -613,14 +848,14 @@ class EgressMixIn:
             path_id: The value's name, written as the record's `path_id`.
             value: The value, made a JSON value on the way out, as an event's is.
         """
-        if not hasattr(self, "egress_queues"):
+        if not hasattr(self, "_egress_sinks"):
             return  # Fail silently if no egress is configured
 
         # Built directly rather than through TelemetryPayload. See publish_event.
         self._append_record(
             {
                 "stream_type": "telemetry",
-                "sim_ts": float(round(self.now, 3)),  # type: ignore[attr-defined]
+                "sim_ts": float(self.now),  # type: ignore[attr-defined]
                 "timestamp": self._get_iso_timestamp(self.start_datetime, self.now),  # type: ignore[attr-defined]
                 "path_id": (
                     path_id
@@ -637,6 +872,8 @@ class EgressMixIn:
         value: Any,
         task: Optional[str] = None,
         instance: Any = None,
+        key: Any = None,
+        lifecycle: bool = False,
     ):
         """
         Buffers a high-volume discrete event (e.g., a task starting or finishing).
@@ -647,14 +884,20 @@ class EgressMixIn:
         Args:
             event_key (str): The record key: the entity's key, such as `orders-1`.
             value (Any): A dictionary or a Pydantic model containing the event
-                payload. It is made JSON-serializable on the way out, so a nested model
-                is flattened and a datetime becomes an ISO string, exactly as before.
+                payload, or None, which a Kafka sink with `envelope` off sends as a
+                tombstone. It is made JSON-serializable on the way out, so a nested
+                model is flattened and a datetime becomes an ISO string, exactly as
+                before.
             task (str, optional): The name of the task the event belongs to, written
                 as the record's `task` field, so the payload stays the user's own.
             instance (Any, optional): The task's instance id, written as the record's
                 `instance` field.
+            key (Any, optional): The record's key, when it is not `event_key`: a
+                task's `key_field` gives the message key this way.
+            lifecycle (bool, optional): True for a task's `queued` or `started`
+                record, which a provider with `envelope` off does not receive.
         """
-        if not hasattr(self, "_event_buffers"):
+        if not hasattr(self, "_egress_sinks"):
             return  # Fail silently if no egress is configured
 
         # Built directly rather than through EventPayload.model_dump(mode="json").
@@ -670,10 +913,12 @@ class EgressMixIn:
         # the two defaults that disagree with the model dump set back. Keys and their
         # order match what the model produced. EventPayload remains the published
         # schema and is what the Avro and documentation paths describe.
+        if key is not None:
+            event_key = key
         self._append_record(
             {
                 "stream_type": "event",
-                "sim_ts": float(round(self.now, 3)),  # type: ignore[attr-defined]
+                "sim_ts": float(self.now),  # type: ignore[attr-defined]
                 "timestamp": self._get_iso_timestamp(self.start_datetime, self.now),  # type: ignore[attr-defined]
                 "key": (
                     event_key
@@ -683,7 +928,8 @@ class EgressMixIn:
                 "task": task,
                 "instance": instance,
                 "value": _jsonable(value),
-            }
+            },
+            lifecycle,
         )
 
     def publish_label(
@@ -707,13 +953,13 @@ class EgressMixIn:
             old (Any, optional): The value before the change.
             new (Any, optional): The value after the change.
         """
-        if not hasattr(self, "_event_buffers"):
+        if not hasattr(self, "_egress_sinks"):
             return  # Fail silently if no egress is configured
 
         self._append_record(
             {
                 "stream_type": "label",
-                "sim_ts": float(round(self.now, 3)),  # type: ignore[attr-defined]
+                "sim_ts": float(self.now),  # type: ignore[attr-defined]
                 "timestamp": self._get_iso_timestamp(self.start_datetime, self.now),  # type: ignore[attr-defined]
                 "path": path,
                 "old": _jsonable(old),
@@ -755,7 +1001,7 @@ class EgressMixIn:
     def teardown_egress(self):
         """Flushes final buffer contents and safely stops the egress event loop."""
         logger.info("Tearing down egress connectors, flushing final events...")
-        if hasattr(self, "_event_buffers"):
+        if hasattr(self, "_egress_sinks"):
             try:
                 self._flush_buffer()
             except RuntimeError:
@@ -763,17 +1009,17 @@ class EgressMixIn:
                 # Shutdown still has to complete, so report the loss and carry on.
                 logger.warning(
                     "Could not flush the final %d events: a sink is not consuming.",
-                    sum(len(buffer) for buffer in self._event_buffers),
+                    sum(len(run.buffer) for run in self._egress_sinks),
                 )
 
         # Drain the queue to empty. A fixed deadline here silently discarded the
         # backlog of any sink slower than the simulation, so the wait ends only when
         # the queue stops shrinking.
-        if hasattr(self, "egress_queues"):
+        if hasattr(self, "_egress_sinks"):
             stall_limit = getattr(self, "egress_drain_stall_seconds", 30.0)
 
             def total_queued() -> int:
-                return sum(q.qsize() for q in self.egress_queues)
+                return sum(run.batches.qsize() for run in self._egress_sinks)
 
             remaining = total_queued()
             last_progress = time.time()
@@ -799,9 +1045,9 @@ class EgressMixIn:
                     "records are lost. A sink is not keeping up: %s",
                     total_queued(),
                     ", ".join(
-                        f"{type(p).__name__}={q.qsize()}"
-                        for p, q in zip(self.egress_providers, self.egress_queues)
-                        if q.qsize()
+                        f"{type(run.sink.provider).__name__}={run.batches.qsize()}"
+                        for run in self._egress_sinks
+                        if run.batches.qsize()
                     ),
                 )
             else:
@@ -815,8 +1061,8 @@ class EgressMixIn:
         last_progress = time.time()
         while True:
             active = sum(
-                getattr(provider, "active_tasks", 0)
-                for provider in getattr(self, "egress_providers", [])
+                getattr(run.sink.provider, "active_tasks", 0)
+                for run in getattr(self, "_egress_sinks", [])
             )
             if active == 0:
                 break
@@ -892,6 +1138,132 @@ class StatisticsMixIn:
             self.stats.publish()
 
 
+def _resolve_strict(
+    strict: Optional[bool], factor: float, go_live_at: Optional[datetime]
+) -> bool:
+    """Gives `strict` its value when the run leaves it unset.
+
+    Args:
+        strict: True, False, or None to decide from the pacing.
+        factor: The real-time factor.
+        go_live_at: The logical instant at which pacing switches to real time.
+
+    Returns:
+        bool: `strict` as given; when None, True for a run that is paced or goes
+            live, and False at `factor` 0 with no `go_live_at`.
+    """
+    if strict is not None:
+        return strict
+    return bool(factor) or go_live_at is not None
+
+
+# The public name of an event in a `trace` record, by the name of a class in the
+# event's class tree. SimPy's own names are kept where SimPy has one. A class of
+# desflow's own gets a public name here, so a record never carries a private or an
+# internal class name, and renaming a class does not change a record.
+TRACE_EVENT_NAMES: Dict[str, str] = {
+    "Initialize": "Initialize",
+    "Process": "Process",
+    "Timeout": "Timeout",
+    "Condition": "Condition",
+    "Interruption": "Interruption",
+    "Request": "Request",
+    "PriorityRequest": "Request",
+    "DynamicResourceRequest": "Request",
+    "Release": "Release",
+    "DynamicRelease": "Release",
+    "Get": "Get",
+    "StoreGet": "Get",
+    "FilterStoreGet": "Get",
+    "ContainerGet": "Get",
+    "DynamicStoreGet": "Get",
+    "DynamicFilterStoreGet": "Get",
+    "DynamicContainerGet": "Get",
+    "Put": "Put",
+    "StorePut": "Put",
+    "ContainerPut": "Put",
+    "DynamicStorePut": "Put",
+    "DynamicContainerPut": "Put",
+    "_Suspension": "Suspension",
+    "Event": "Event",
+}
+
+
+def trace_event_name(event: Any) -> str:
+    """The public name of an event in a `trace` record.
+
+    Args:
+        event: The event the environment is about to process.
+
+    Returns:
+        str: The name from `TRACE_EVENT_NAMES` of the nearest class in the event's class
+        tree that has one, and `Event` when none does.
+    """
+    for kind in type(event).__mro__:
+        named = TRACE_EVENT_NAMES.get(kind.__name__)
+        if named is not None:
+            return named
+    return "Event"
+
+
+def trigger(event: Event, ok: bool = True, value: Any = None) -> Event:
+    """Marks an event triggered with its outcome, without scheduling it, so the
+    caller schedules it with its own priority and delay. This and `schedule_urgent`
+    are the only places that write SimPy's private event fields.
+
+    Args:
+        event: A pending event.
+        ok: Whether the event succeeds.
+        value: The event's value, or its exception when it fails.
+
+    Returns:
+        Event: The event.
+    """
+    event._ok, event._value = ok, value
+    return event
+
+
+def schedule_urgent(
+    env: Environment,
+    event: Event,
+    delay: float = 0.0,
+    *,
+    ok: bool = True,
+    value: Any = None,
+) -> Event:
+    """Triggers an event and schedules it urgent after a delay, so it runs before the
+    normal events of its time, as SimPy schedules its own `until`.
+
+    Args:
+        env: The environment that processes the event.
+        event: A pending event: desflow's own (`internal_event()`) or a model event.
+        delay: Simulation seconds from now.
+        ok: Whether the event succeeds.
+        value: The event's value, or its exception when it fails.
+
+    Returns:
+        Event: The event.
+    """
+    trigger(event, ok, value)
+    env.schedule(event, URGENT, delay)
+    return event
+
+
+@contextlib.contextmanager
+def end_is_set(env: "DynamicRealtimeEnvironment") -> Iterator[None]:
+    """Marks a run whose end is its own event, so a run to that event does not end
+    with SimPy's `RuntimeError` when no model event is left before it.
+
+    Args:
+        env: The environment that runs.
+    """
+    previous, env._end_is_set = env._end_is_set, True
+    try:
+        yield
+    finally:
+        env._end_is_set = previous
+
+
 class DynamicRealtimeEnvironment(
     RealtimeEnvironment, RegistryMixIn, IngressMixIn, EgressMixIn, StatisticsMixIn
 ):
@@ -912,7 +1284,7 @@ class DynamicRealtimeEnvironment(
         self,
         initial_time=0,
         factor=1.0,
-        strict=True,
+        strict: Optional[bool] = None,
         logical_start_time: Optional[datetime] = None,
         go_live_at: Optional[datetime] = None,
         timezone: Optional[str] = None,
@@ -924,13 +1296,15 @@ class DynamicRealtimeEnvironment(
         Args:
             initial_time (float, optional): The initial simulation time. Defaults to 0.
             factor (float, optional): The real-time factor (e.g., 1.0 = 1 sim second per real second). Defaults to 1.0.
-            strict (bool, optional): If True, a paced step raises `RuntimeError` when the
+            strict (bool, optional): If True, a step raises `RuntimeError` when the
                 run is more than `factor` real seconds behind the wall clock, as SimPy's
-                `RealtimeEnvironment` does. It is never checked at `factor` 0, where an
-                unpaced run has no wall clock to fall behind, nor before `go_live_at`.
-                Pass False for a live run whose sinks can block. `sync()` moves only
-                the wall-clock anchor to now; `resume_pacing()` moves both anchors.
-                Defaults to True, as SimPy.
+                `RealtimeEnvironment` does. At `factor` 0 that is any step once the
+                wall clock has moved, as in SimPy; before `go_live_at` it is never
+                checked. Pass False for a live run whose sinks can block. `sync()`
+                moves only the wall-clock anchor to now; `resume_pacing()` moves both
+                anchors. By default (None) it is True for a paced run or one with
+                `go_live_at`, and False at `factor` 0 with no `go_live_at`, where an
+                unpaced run has no wall clock to fall behind.
             logical_start_time (datetime, optional): Overrides the environment's base clock.
                 Crucial for historical backfilling (e.g., generating data from last week).
             go_live_at (datetime, optional): Logical instant at which pacing switches to
@@ -970,10 +1344,27 @@ class DynamicRealtimeEnvironment(
             else datetime.now(self.zone)
         )
 
-        super().__init__(initial_time=initial_time, factor=factor, strict=strict)
+        super().__init__(
+            initial_time=initial_time,
+            factor=factor,
+            strict=_resolve_strict(strict, factor, go_live_at),
+        )
 
+        # True when `trace_events` is on: each model event processed is published as a
+        # `trace` record to the trace sinks
+        self._trace_on = False
         # True while `run()` is stepping, when `step()` processes every event
         self._in_run = False
+        # True while a run has no end of its own: `step()` then ends the run when
+        # no model event is left
+        self._until_none = False
+        # True while a run has an end of its own that `run()` does not see: set by
+        # `SimulationContext` while it runs, as it sets `_until_none` itself, and by
+        # `_run_low_level` of `analysis.models` while a model with a `stop` runs to
+        # its `until`
+        self._end_is_set = False
+        # The event `run()` is running to, so a step knows it is already triggered
+        self._until_event: Optional[Event] = None
         self._go_live_sim_time: Optional[float] = None
         if go_live_at is not None:
             self._go_live_sim_time = self._resolve_go_live_time(
@@ -1085,11 +1476,11 @@ class DynamicRealtimeEnvironment(
         # rather than as events happen, which is the whole point of going live.
         # A run that started at a non-zero factor already has its timers, and starting
         # a second set would flush each buffer twice per interval.
-        if hasattr(self, "egress_queues") and not self._periodic_flush_running:
-            for index in range(len(self.egress_queues)):
+        if hasattr(self, "_egress_sinks") and not self._periodic_flush_running:
+            for index in range(len(self._egress_sinks)):
                 self.start_internal(self._periodic_flush(index))
             self._periodic_flush_running = True
-        if hasattr(self, "egress_queues") and self._lag_on_go_live:
+        if hasattr(self, "_egress_sinks") and self._lag_on_go_live:
             self.egress_lag_monitor_interval = 1.0
             # The switch runs just before the first event at or after go-live, so
             # the first reading waits for the go-live instant itself
@@ -1174,13 +1565,20 @@ class DynamicRealtimeEnvironment(
         Raises:
             simpy.core.EmptySchedule: If no model event is left. The events of
                 desflow's own stay in the queue for a later `run()` or `finish()`.
+                Inside a run with no end of its own, `run()` ends there too.
         """
         if self._in_run:
-            if self._factor or self._go_live_sim_time is not None:
+            if self._until_none and math.isinf(self.peek()) and not self._ending():
+                # A run with no end of its own ends when no model event is left,
+                # as SimPy's does; the events of desflow's own would go on for ever
+                raise EmptySchedule
+            if self._factor or self._go_live_sim_time is not None or self.strict:
                 self._step_event()
             else:
                 # The unpaced run, which is `_step_event()` without its checks,
                 # kept here because it runs once for every event
+                if self._trace_on:
+                    self._trace_head()
                 Environment.step(self)
             return
         if math.isinf(self.peek()):
@@ -1192,16 +1590,39 @@ class DynamicRealtimeEnvironment(
         """Runs to `until`, a time or an event, as SimPy's `run()` does.
 
         Args:
-            until: A time, an event, or None to run until the queue is empty.
+            until: A time, an event, or None to run until no model event is left.
+                The events of desflow's own, such as statistics readings and flush
+                timers, do not keep the run going. A run to an event that is not
+                triggered when no model event is left, and no ingress is set up,
+                raises SimPy's `RuntimeError`. While an ingress is set up, a run to
+                an event goes on, because a change the ingress sends can trigger it.
 
         Returns:
             Any: The value of the `until` event, or None for a time.
         """
         previous, self._in_run = self._in_run, True
+        previous_open, previous_event = self._until_none, self._until_event
+        if not self._end_is_set:
+            # A run to an event ends with SimPy's RuntimeError when no model event is
+            # left, as a run of `SimulationContext` does, instead of on the timers of
+            # desflow's own for ever. An ingress is a source of model events, so
+            # while one is set up the run goes on
+            to_an_event = isinstance(until, Event) and not getattr(
+                self, "ingress_providers", None
+            )
+            self._until_none = previous_open or until is None or to_an_event
+        self._until_event = until if isinstance(until, Event) else previous_event
         try:
             return super().run(until)
         finally:
             self._in_run = previous
+            self._until_none = previous_open
+            self._until_event = previous_event
+
+    def _ending(self) -> bool:
+        """Whether the event the run is going to is triggered and waits to be processed,
+        such as the end of a `stop`, which is one of desflow's own events."""
+        return self._until_event is not None and self._until_event.triggered
 
     def _step_event(self) -> Event:
         """Processes the head of the queue, whichever kind of event it is.
@@ -1239,11 +1660,13 @@ class DynamicRealtimeEnvironment(
             head = self._queue[0][0]
         factor = self._factor
         # At factor 0 there is no wall clock to wait for, so SimPy's own step runs
-        # without the real-time arithmetic (issue #24, fix 4). `strict` means
-        # nothing without a wall clock and is not checked. After the go-live switch
-        # a timer it scheduled at `now` is before the go-live instant, so it is not
-        # a step that fell behind and is not checked either.
-        if factor:
+        # without the real-time arithmetic (issue #24, fix 4), unless `strict` was
+        # asked for: then the check of SimPy's `RealtimeEnvironment` runs, which
+        # raises once the wall clock has moved, and there is nothing to sleep for.
+        # Before `go_live_at` the check is off, as the run is unpaced until then.
+        # After the go-live switch a timer it scheduled at `now` is before the
+        # go-live instant, so it is not a step that fell behind and is not checked.
+        if factor or (self.strict and self._go_live_sim_time is None):
             real_time = self.real_start + (head - self.env_start) * factor
             if (
                 self.strict
@@ -1258,8 +1681,46 @@ class DynamicRealtimeEnvironment(
                     break
                 simpy.rt.sleep(delta)
         event = self._queue[0][3]
+        if self._trace_on:
+            self._trace_head()
         Environment.step(self)
         return event
+
+    def trace_events(self, on: bool = True) -> None:
+        """Switches the event trace on or off.
+
+        While it is on, each model event is published as a `trace` record just before
+        the environment processes it, so before its callbacks run, as the SimPy
+        monitoring guide's patched `env.step` records it. The events of desflow's own
+        (a statistics reading, a flush timer) are not traced. A trace record goes only
+        to the sinks added as trace sinks, and a run with none publishes none.
+
+        Args:
+            on: True to trace, False to stop.
+        """
+        self._trace_on = bool(on)
+
+    def _trace_head(self) -> None:
+        """Publishes the `trace` record of the event `step` is about to process, unless
+        it is one of desflow's own or no sink asks for the trace."""
+        if not self._queue or not getattr(self, "_egress_traced", False):
+            return
+        when, priority, event_id, event = self._queue[0]
+        if is_internal(event):
+            return
+        self._append_record(
+            {
+                "stream_type": "trace",
+                "sim_ts": float(when),
+                "timestamp": self._get_iso_timestamp(self.start_datetime, when),
+                "path_id": "trace",
+                "value": {
+                    "priority": priority,
+                    "event_id": event_id,
+                    "event": trace_event_name(event),
+                },
+            }
+        )
 
     def teardown(self):
         """

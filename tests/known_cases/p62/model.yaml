@@ -1,0 +1,18 @@
+# case P62: gate on state: wait until a condition on a variable holds (patterns/i_run.py
+# I4).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+variables: {open: 0}
+
+arrivals:
+  orders: {dist: constant, value: 1, spawn: t}
+
+tasks:
+  t:
+    wait: {condition: "registry['P.variables.open'] == 1"}
+    payload: {e: 1}
+
+scenario:
+  - {at: 3.5, path: P.variables.open, value: 1}
+
+run: {until: 5}

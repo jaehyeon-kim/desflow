@@ -1,0 +1,14 @@
+# case ST-R02: the same with the with form (log (a, 1), (b, 2)).
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+resources:
+  res: {current_cap: 1}
+
+arrivals:
+  users: {initial: 2, spawn: pem}
+
+tasks:
+  pem:
+    resource: res
+    service_time: 1
+    payload: {event_type: done}

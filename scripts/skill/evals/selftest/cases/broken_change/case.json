@@ -1,0 +1,12 @@
+{
+  "fault": "S1: a changed model that does not run counts as killed",
+  "task": "broken_change",
+  "counts": {
+    "K9": 0
+  },
+  "notes": {
+    "K9": [
+      "a key the resource does not take: not counted: the changed model does not run"
+    ]
+  }
+}

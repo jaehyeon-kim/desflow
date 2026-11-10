@@ -1,0 +1,29 @@
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console, config: {format: json}}
+
+resources:
+  # max_cap 3 leaves room for the boss task to raise current_cap to 3.
+  m: {current_cap: 1, max_cap: 3}
+
+services:
+  hold: {dist: constant, value: 5}
+
+arrivals:
+  # One entity at time 0, then one every 1 second, 2 in all.
+  a: {gap: 1, first_at: 0, max_events: 2, spawn: job}
+  # One entity at time 2, once.
+  boss: {gap: 1, first_at: 2, max_events: 1, spawn: grow}
+
+tasks:
+  job:
+    service: hold
+    resource: m
+    payload: {event_type: done}
+  grow:
+    payload: {event_type: grow}
+    on:
+      - {path: P.resources.m.current_cap, value: 3}
+
+run: {until: 20}

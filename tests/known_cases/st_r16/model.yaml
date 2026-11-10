@@ -1,0 +1,37 @@
+# case ST-R16: a container (init 0, capacity 2) with a putter (2 each second from 1) and
+# a getter (1, then 1 at 2); log (p, 1), (g, 1), (g, 2), (p, 2).
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+containers:
+  buf: {current_cap: 2, level: 0}
+
+arrivals:
+  putter: {initial: 1, spawn: wait_one}
+  getter: {initial: 1, spawn: get_one}
+
+tasks:
+  wait_one:
+    service_time: 1
+    payload: {event_type: begin}
+    next: put
+  put:
+    put: {container: buf, amount: 2}
+    payload: {event_type: p}
+    next: pause
+  pause:
+    service_time: 1
+    payload: {event_type: pause}
+    next: put
+  get_one:
+    get: {container: buf, amount: 1}
+    payload: {event_type: g}
+    next: pause_get
+  pause_get:
+    service_time: 1
+    payload: {event_type: pause}
+    next: get_two
+  get_two:
+    get: {container: buf, amount: 1}
+    payload: {event_type: g}
+
+run: {until: 5}

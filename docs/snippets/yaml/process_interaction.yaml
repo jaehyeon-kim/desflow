@@ -1,10 +1,7 @@
 # The Process Interaction tutorial: packed orders wait for the courier, with a limit.
 # Run it with: desflow run process_interaction.yaml
 # With a limit of 8 minutes: LIMIT="8 min" desflow run process_interaction.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 resources:
   packers: {current_cap: 1, max_cap: 4}
@@ -14,8 +11,9 @@ services:
 
 # --8<-- [start:signal]
 signals:
-  # Fired by the courier as it leaves with every order that waits for it
-  - courier_left
+  # Fired by the courier as it leaves with every order that waits for it,
+  # and again at each later courier, so it is not one-shot
+  courier_left: {once: false}
 # --8<-- [end:signal]
 
 arrivals:
@@ -41,7 +39,8 @@ tasks:
     payload: {event_type: dispatched}
     # wait.courier.done is true when the courier came before the limit
     next:
-      when: [{condition: wait.courier.done, task: by_courier}]
+      when:
+        - {condition: wait.courier.done, task: by_courier}
       default: by_post
   # --8<-- [end:dispatch]
   by_courier:
@@ -61,7 +60,6 @@ stats: {level: typical, interval: 8 h}
 # --8<-- [end:watch]
 
 egress:
-  - type: Console
+  - {type: Console}
 
-run:
-  until: 8 h
+run: {until: 8 h}

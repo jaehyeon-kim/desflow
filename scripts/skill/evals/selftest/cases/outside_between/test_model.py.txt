@@ -1,0 +1,57 @@
+"""Tests of task DS-A5: each test runs each form as its reader runs it."""
+
+import json
+import subprocess
+import sys
+from functools import lru_cache
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).parent
+FORMS = {
+    "yaml": [str(Path(sys.executable).parent / "desflow"), "run", "model.yaml", "--stdout"],
+    "builder": [sys.executable, "builder.py"],
+    "low_level": [sys.executable, "low_level.py"],
+}
+ENGINE = ("queued", "started", "resumed")
+
+
+@lru_cache(maxsize=None)
+def records(form):
+    """Returns every record a form prints, as JSON lines."""
+    done = subprocess.run(FORMS[form], cwd=HERE, capture_output=True, text=True, check=True)
+    return [json.loads(line) for line in done.stdout.splitlines() if line.startswith("{")]
+
+
+def events(form):
+    """Returns the event records of a form, without the engine's status records."""
+    return [
+        r
+        for r in records(form)
+        if r["stream_type"] == "event"
+        and not (isinstance(r["value"], dict) and r["value"].get("status") in ENGINE)
+    ]
+
+
+def times(form, task, key=None):
+    """Returns the times of the records of one task, and of one key when it is given."""
+    return [r["sim_ts"] for r in events(form) if r["task"] == task and key in (None, r["key"])]
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_src_drops_its_arrivals_while_it_is_off(form):
+    assert times(form, "t") and [r["sim_ts"] for r in events(form) if r["key"].startswith("src-")] == [
+        1, 2, 6, 7, 8, 9, 10, 11
+    ]
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_src2_starts_a_new_gap_when_it_is_on(form):
+    assert [r["sim_ts"] for r in events(form) if r["key"].startswith("src2-")] == [2, 9, 11]
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_the_switches_fire_once_each(form):
+    assert (times(form, "src_off"), times(form, "src_on")) == ([2.5], [5.5])
+    assert (times(form, "src2_off"), times(form, "src2_on")) == ([3], [7])

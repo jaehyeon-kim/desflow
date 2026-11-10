@@ -1,0 +1,13 @@
+{
+  "fault": "S4: --until from records.yaml overrides the model's end, so a change to the end shows nothing",
+  "task": "run_end",
+  "counts": {
+    "K9": 0
+  },
+  "notes": {
+    "K9": [
+      "run to 6: failed by",
+      "(run.until = 6); the reviewer judges"
+    ]
+  }
+}

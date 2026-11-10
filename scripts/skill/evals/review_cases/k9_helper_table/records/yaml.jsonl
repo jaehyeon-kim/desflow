@@ -1,0 +1,7 @@
+{"instance": 0, "key": "a-1", "sim_ts": 0.0, "stream_type": "event", "task": "job", "timestamp": "2026-11-07T11:06:44.316+00:00", "value": {"path_id": "P.service.s", "status": "queued"}}
+{"instance": 0, "key": "a-1", "sim_ts": 0.0, "stream_type": "event", "task": "job", "timestamp": "2026-11-07T11:06:44.316+00:00", "value": {"path_id": "P.service.s", "status": "started"}}
+{"instance": 1, "key": "a-2", "sim_ts": 1.0, "stream_type": "event", "task": "job", "timestamp": "2026-11-07T11:06:45.316+00:00", "value": {"path_id": "P.service.s", "status": "queued"}}
+{"instance": 0, "key": "boss-1", "sim_ts": 2.0, "stream_type": "event", "task": "grow", "timestamp": "2026-11-07T11:06:46.316+00:00", "value": {"event_type": "grow"}}
+{"instance": 1, "key": "a-2", "sim_ts": 2.0, "stream_type": "event", "task": "job", "timestamp": "2026-11-07T11:06:46.316+00:00", "value": {"path_id": "P.service.s", "status": "started"}}
+{"instance": 0, "key": "a-1", "sim_ts": 5.0, "stream_type": "event", "task": "job", "timestamp": "2026-11-07T11:06:49.316+00:00", "value": {"event_type": "done"}}
+{"instance": 1, "key": "a-2", "sim_ts": 7.0, "stream_type": "event", "task": "job", "timestamp": "2026-11-07T11:06:51.316+00:00", "value": {"event_type": "done"}}

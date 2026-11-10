@@ -125,7 +125,7 @@ def _run_container(image: str, port: int, *arguments: str):
 def profile_running():
     """Returns a function that stops a test when a profile is not ready.
 
-    The `service-examples` job starts the odctl profile itself, so its tests start
+    The `services` jobs start the odctl profiles themselves, so their tests start
     nothing. Locally the test is skipped when the profile is down, and in CI it fails.
     odctl waits for the health checks of postgres and valkey, but catalog and the
     Kafka brokers have none, so `odctl up` returns before their servers answer. For
@@ -307,9 +307,18 @@ def azurite(check_docker):
 
     Yields a `filesystem` mapping for it. The account and key are Azurite's
     well-known development account, published in Azurite's README and the same on
-    every installation, so the key is not a secret.
+    every installation, so the key is not a secret. `--skipApiVersionCheck` lets
+    Azurite take a newer API version than it knows: pyarrow 26.0.1 sends
+    2026-10-06, which Azurite 3.37.0, the newest image, refuses.
     """
-    for address in _run_container(AZURITE_IMAGE, 10000):
+    for address in _run_container(
+        AZURITE_IMAGE,
+        10000,
+        "azurite-blob",
+        "--blobHost",
+        "0.0.0.0",
+        "--skipApiVersionCheck",
+    ):
         yield {
             "type": "azure",
             "account_name": "devstoreaccount1",

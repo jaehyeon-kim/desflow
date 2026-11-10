@@ -9,6 +9,7 @@ imports a second file, so registering its dependencies and reading their version
 """
 
 import asyncio
+import io
 import json
 import queue
 import urllib.parse
@@ -387,3 +388,194 @@ def test_glue_protobuf_round_trip(floci):
         )
         == DECODED
     )
+
+
+ORDER_VALUE_AVRO = json.dumps(
+    {
+        "type": "record",
+        "name": "OrderValue",
+        "namespace": "desflow.test",
+        "fields": [
+            {"name": "order_id", "type": "int"},
+            {"name": "amount", "type": "double"},
+        ],
+    }
+)
+ORDER_VALUE_JSON = json.dumps(
+    {
+        "type": "object",
+        "properties": {"order_id": {"type": "integer"}, "amount": {"type": "number"}},
+        "required": ["order_id", "amount"],
+    }
+)
+
+
+def _serializer_blueprint(tmp_path, topic, bootstrap_servers, serializer: dict):
+    """A blueprint whose one task finishes `{order_id: 1, amount: 100.0}` and whose
+    Kafka entry writes that value alone with `serializer`."""
+    path = tmp_path / "shop.yaml"
+    path.write_text(
+        json.dumps(
+            {
+                "simulation": {"sim_id": "Fmt", "factor": 0, "random_seed": 3},
+                "arrivals": {
+                    "orders": {"dist": "constant", "value": 2, "spawn": "pack_order"}
+                },
+                "tasks": {
+                    "pack_order": {
+                        "payload": {"order_id": 1, "amount": 100.0},
+                        "key_field": "order_id",
+                    }
+                },
+                "egress": [
+                    {
+                        "type": "Kafka",
+                        "when": "events",
+                        "envelope": False,
+                        "config": {
+                            "bootstrap_servers": bootstrap_servers,
+                            "event_topic": topic,
+                            "serializer": serializer,
+                        },
+                    }
+                ],
+                "run": {"until": 5},
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+async def _run_blueprint_for_message(bootstrap_servers, topic, path):
+    """Runs the blueprint and returns the first message on `topic`, key and value."""
+    from desflow import SimulationContext
+
+    consumer = AIOKafkaConsumer(
+        topic,
+        bootstrap_servers=bootstrap_servers,
+        auto_offset_reset="earliest",
+        group_id=f"group-{topic}",
+    )
+    await consumer.start()
+    try:
+        await asyncio.to_thread(SimulationContext.from_yaml(path).run)
+        return await asyncio.wait_for(consumer.getone(), timeout=30.0)
+    finally:
+        await consumer.stop()
+
+
+@pytest.mark.services
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "kind,schema,text",
+    [
+        ("confluent_avro", ORDER_VALUE_AVRO, "AVRO"),
+        ("confluent_json_schema", ORDER_VALUE_JSON, "JSON"),
+    ],
+)
+async def test_serializer_from_yaml(
+    kafka_container, schema_registry, tmp_path, kind, schema, text
+):
+    """A Kafka entry with `serializer: {type: confluent_avro | confluent_json_schema,
+    schema_file}` and `envelope: false` registers the schema and frames the value
+    alone, keyed by `key_field`. The registry holds the schema the file holds."""
+    topic = await _create_topic(kafka_container)
+    schema_file = tmp_path / "value.schema"
+    schema_file.write_text(schema, encoding="utf-8")
+    path = _serializer_blueprint(
+        tmp_path,
+        topic,
+        kafka_container,
+        {
+            "type": kind,
+            "registry_url": schema_registry,
+            "schema_file": schema_file.as_posix(),
+        },
+    )
+
+    message = await _run_blueprint_for_message(kafka_container, topic, path)
+
+    payload = message.value
+    assert message.key == b"1"
+    assert payload[0] == 0
+    registered = _registry_get(
+        schema_registry, f"schemas/ids/{int.from_bytes(payload[1:5], 'big')}"
+    )
+    assert registered.get("schemaType", "AVRO") == text
+    assert json.loads(registered["schema"]) == json.loads(schema)
+    assert f"{topic}-value" in _registry_get(schema_registry, "subjects")
+    if kind == "confluent_avro":
+        import fastavro
+
+        record = fastavro.schemaless_reader(
+            io.BytesIO(payload[5:]), fastavro.parse_schema(json.loads(schema))
+        )
+        assert record == {"order_id": 1, "amount": 100.0}
+    else:
+        assert json.loads(payload[5:]) == {"order_id": 1, "amount": 100.0}
+
+
+@pytest.mark.floci
+def test_glue_serializer_from_yaml(floci, tmp_path):
+    """A Kafka entry with a `glue_avro` serializer, built from a blueprint, registers
+    the schema on Floci and frames a value with the Glue header (3, 0 and the 16-byte
+    version id). It needs no broker, so it runs in the `floci` group."""
+    from desflow import SimulationContext
+
+    registry, settings = _glue_registry(floci)
+    path = _serializer_blueprint(
+        tmp_path,
+        "orders",
+        "127.0.0.1:9092",
+        {
+            "type": "glue_avro",
+            "registry_name": registry,
+            "schema": ORDER_VALUE_AVRO,
+            "boto3": settings,
+        },
+    )
+    serializer = (
+        SimulationContext.from_yaml(path)._sinks.egress[0].provider.default_serializer
+    )
+
+    framed = serializer.serialize("orders", {"order_id": 1, "amount": 100.0})
+
+    assert framed[:2] == b"\x03\x00"
+    version = boto3.client("glue", **settings).get_schema_version(
+        SchemaVersionId=str(uuid.UUID(bytes=framed[2:18]))
+    )
+    assert version["DataFormat"] == "AVRO"
+    assert json.loads(version["SchemaDefinition"]) == json.loads(ORDER_VALUE_AVRO)
+
+
+@pytest.mark.services
+@pytest.mark.asyncio
+async def test_descriptor_file(kafka_container, schema_registry, tmp_path):
+    """`serializer: {type: confluent_protobuf, descriptor_file, message}` builds the
+    message class from a descriptor set, and the framed message decodes."""
+    from google.protobuf import descriptor_pb2
+
+    from desflow.connectors.egress.kafka import build_serializer
+
+    files = descriptor_pb2.FileDescriptorSet()
+    for file in (
+        ORDER_EVENT.DESCRIPTOR.file.dependencies[0],
+        ORDER_EVENT.DESCRIPTOR.file,
+    ):
+        file.CopyToProto(files.file.add())
+    descriptor_file = tmp_path / "order.desc"
+    descriptor_file.write_bytes(files.SerializeToString())
+    serializer = build_serializer(
+        {
+            "type": "confluent_protobuf",
+            "registry_url": schema_registry,
+            "descriptor_file": str(descriptor_file),
+            "message": "desflow.test.OrderEvent",
+        }
+    )
+    topic = await _create_topic(kafka_container)
+    payload = await _publish_with_egress(kafka_container, topic, serializer)
+
+    assert payload[0] == 0
+    assert ORDER_EVENT.FromString(payload[6:]).value.order_id == 1

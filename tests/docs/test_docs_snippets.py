@@ -28,9 +28,13 @@ RUN_BY_OTHER_TESTS = {
     "checking_a_model.yaml",
     "choosing_inputs.yaml",
     "cloud_storage.yaml",
+    "call_python.yaml",
+    "cloud_storage_daily.yaml",
+    "data_at_scale.yaml",
     "competing_resources.yaml",
     "complete_model.yaml",
     "complex_routing.yaml",
+    "complex_routing_router.yaml",
     "end_conditions.yaml",
     "filtered_inventory.yaml",
     "first_shop.yaml",
@@ -40,7 +44,11 @@ RUN_BY_OTHER_TESTS = {
     "iceberg_tables.yaml",
     "interruptions.yaml",
     "json_schema_and_protobuf.yaml",
+    "json_schema_and_protobuf_glue.yaml",
     "kafka_security.yaml",
+    "kafka_security_msk.yaml",
+    "kafka_security_mtls.yaml",
+    "kafka_security_registry.yaml",
     "live_changes.yaml",
     "live_changes_live.yaml",
     "local_replay.yaml",
@@ -52,9 +60,12 @@ RUN_BY_OTHER_TESTS = {
     "queues_and_capacity.yaml",
     "randomness_and_seeds.yaml",
     "reneging_tie.yaml",
+    "run_before.yaml",
     "stock.yaml",
     "streaming_out.yaml",
     "test_a_model.yaml",
+    "test_a_pipeline.yaml",
+    "test_a_model_tests.yaml",
     "trusting_results.yaml",
     "wait_all.yaml",
     "wait_first.yaml",
@@ -77,8 +88,11 @@ def test_blueprints_left_out_are_named_by_the_tests_that_run_them():
     """A blueprint drops out of the short run only while another test still names it."""
     here = Path(__file__).parent
     others = "".join(
-        (here / name).read_text(encoding="utf-8")
-        for name in ("test_docs_tutorials.py", "test_docs_guides.py")
+        path.read_text(encoding="utf-8")
+        for path in [
+            here / "test_docs_tutorials.py",
+            *here.glob("test_docs_guides*.py"),
+        ]
     )
     missing = sorted(
         name

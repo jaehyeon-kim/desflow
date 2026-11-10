@@ -1,0 +1,35 @@
+# case CV-135: a class with fields and methods: the entity holds the fields; each method
+# is a task, and the method a test picks is the task of a `next.when` (after the
+# withdraw the balance is 6, so `spend` runs and `save` does not).
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+
+arrivals:
+  a:
+    initial: 1
+    spawn: deposit
+    attributes: {balance: 0}
+
+tasks:
+  deposit:
+    set:
+      balance: {gen: expr, expr: "attr.balance + 10"}
+    payload:
+      event_type: deposit
+      balance: {gen: expr, expr: "attr.balance + 10"}
+    next: withdraw
+  withdraw:
+    set:
+      balance: {gen: expr, expr: "attr.balance - 4"}
+    payload: {event_type: withdraw}
+    next:
+      when:
+        - {condition: "attr.balance == 6", task: spend}
+      default: save
+  spend:
+    payload:
+      event_type: spend
+      balance: {gen: attr, name: balance}
+  save:
+    payload:
+      event_type: save
+      balance: {gen: attr, name: balance}

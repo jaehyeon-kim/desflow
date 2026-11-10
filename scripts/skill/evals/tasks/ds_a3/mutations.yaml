@@ -1,0 +1,18 @@
+# Three changes to the YAML an agent writes for task DS-A3: a rate, a weight or share, a
+# capacity, or the nearest time or count, or, where no number the request names changes
+# the records, one step of the flow. Each change tries the keys of `keys` that exist in
+# model.yaml, in order, and keeps the first that alters the records (grade.py).
+
+task: DS-A3
+
+mutations:
+  - name: mean 2 to 4
+    changes:
+      - {keys: [arrivals.a.group.mean], new: 4}
+  - name: gap 5 to 10
+    changes:
+      - {keys: [arrivals.a.value, arrivals.a.gap, arrivals.a.gap.value], new: 10}
+  - name: firings 40 to 20
+    changes:
+      - {keys: [arrivals.a.max_events], new: 20, optional: true}
+      - {keys: [run.until], new: 105, optional: true}

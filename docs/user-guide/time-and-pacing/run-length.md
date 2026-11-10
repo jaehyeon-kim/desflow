@@ -40,7 +40,7 @@ The warm-up drops early records. `go_live_at` drops nothing, and only decides wh
 
 ### Initial Time
 
-`initial_time` is the reading of the simulation clock when the run starts, 0 when left out, in seconds or as a duration. A model of a shift that starts at 8 in the morning can start its clock at 8 hours. Every event time, every record's `sim_ts` and `until` then read that clock. A record's `timestamp` is still `logical_start_time` plus `sim_ts`, to within 1 millisecond, because `sim_ts` is rounded and `timestamp` is truncated:
+`initial_time` is the reading of the simulation clock when the run starts, 0 when left out, in seconds or as a duration. A model of a shift that starts at 8 in the morning can start its clock at 8 hours. Every event time, every record's `sim_ts` and `until` then read that clock. A record's `timestamp` is still `logical_start_time` plus `sim_ts`, to within 1 millisecond, because `timestamp` is written to the millisecond and the rest is cut off:
 
 === "YAML"
 
@@ -101,15 +101,15 @@ The state the run starts with holds from the initial time, before the first arri
 
 The run stops at `until` before any event due at exactly that time, as SimPy's `run(until=...)` does: an order due at the horizon never arrives, and a task due to finish there stays unfinished. Statistics published at teardown read the model at `until`.
 
-Events due at the same time run by priority, and then in the order they were scheduled (SimPy 4.1.2, `core.py`: `schedule` and `run`; `URGENT` and `NORMAL` in `events.py`). `run(until=...)` schedules its stop at urgent priority, so the stop comes before the ordinary events due at that time. How a scenario step or a change from an ingress connector ranks among them is in [Live Parameters](../live-runs-and-connectors/live-parameters.md#script-an-experiment). Here two orders are packed at 5 seconds, and one is due at the horizon of 10 seconds:
+Events due at the same time run by priority, and then in the order they were scheduled (SimPy 4.1.2, `core.py`: `schedule` and `run`; `URGENT` and `NORMAL` in `events.py`). A priority of 0 is urgent and 1 is the default. `run(until=...)` schedules its stop at urgent priority, so the stop comes before the ordinary events due at that time. A `fire` action with a `priority` takes part in the same order, and its `after` gives the delay. How a scenario step or a change from an ingress connector ranks among them is in [Live Parameters](../live-runs-and-connectors/live-parameters.md#script-an-experiment). Here two orders are packed at 5 seconds, and one is due at the horizon of 10 seconds:
 
 === "YAML"
 
-    The order of events due at the same time belongs to the environment, so it is the same in every form. The Low-level tab shows it with three processes on one environment.
+    A blueprint has no way to schedule a bare event. Its `fire` action takes `priority` and `after`, as [Signals and Waiting](../tasks-and-processes/signals-and-waiting.md) describes, and the Low-level tab shows the order with three processes.
 
 === "Builder"
 
-    The order of events due at the same time belongs to the environment, so it is the same in every form. The Low-level tab shows it with three processes on one environment.
+    The builder schedules no bare event either. `Signal.fire(priority=...)` and the `fire` action of `task(on=...)` take the same priority, and the Low-level tab shows the order with three processes.
 
 === "Low-level"
 
@@ -130,13 +130,13 @@ Events due at the same time run by priority, and then in the order they were sch
     print(packed)  # ['first', 'second']: nothing due at 10 runs
     ```
 
-Without `until`, SimPy runs until no events remain, and a run with an arrival never runs out of events. Neither does any run with a sink or an ingress connector, even when its own work is done. The environment's own processes repeat for as long as the run lasts. Give such a run an `until`, a `stop` or a drain, or stop it with Ctrl+C.
+Without `until`, a run ends when no model event is left, as SimPy's does. The events of desflow's own, such as the statistics timer and the flush timers, repeat for as long as the run lasts, so they never keep it going. A run with an arrival never runs out of model events, and a run that waits for changes from an ingress connector has none of its own. Give such a run an `until`, a `stop` or a drain, or stop it with Ctrl+C.
 
 ### Stop Early
 
 `stop` ends the run before `until` when something happens. It takes these forms:
 
-- `{signal: name}` ends the run at the next firing of a signal.
+- `{signal: name}` ends the run at the next firing of a signal. `{signal: {of: family, key: expression}}` names one member of a family of signals. desflow reads the key once, as the run starts, outside every task, so a key that reads `attr.` is refused when the file loads.
 - `{condition: ...}` ends it at the first moment a condition holds. The condition is checked after every change of a level, a capacity, a registry value or a signal, and after every finished task.
 - In the builder, `run(stop=...)` also takes a signal's name, or a function of the context that returns any SimPy event, such as `lambda context: context.env.timeout(30)`. The function is called once the run is built.
 - In the low-level API, the same is SimPy's `env.run(until=event)`.
@@ -208,7 +208,9 @@ A fixed horizon cuts the run at `until` with orders still in the shop. A **drain
 
     The low-level API writes a drain as SimPy does: interrupt the source process, then run until all the admitted processes end.
 
-With statistics at `basic` or above, `flows.<arrival>.started`, `finished` and `in_system` say how many entities entered, left and are still in the model. From `minimal`, `tasks.<task>.in_progress` says how many instances of each task are queued or being served. [End Conditions](../../learn/first-model/end-conditions.md) compares a fixed horizon with a drain.
+An arrival with `max_events` stops itself after its last start. An arrival with `count` or `keys` has one loop for each entity, and `stop_arrivals()` and a drain end all of them. The run ends when the loops have stopped and the flows have drained.
+
+With statistics at `basic` or above, `flows.<arrival>.started`, `finished` and `in_system` say how many entities entered, left and are still in the model. From `minimal`, `tasks.<task>.in_progress` says how many instances of each task are queued or being served. [End Conditions](../../learn/first-model/end-conditions.md) compares a fixed horizon with a drain, and `desflow examples get end-conditions` downloads this model in all three forms.
 
 ### Step and Peek
 
@@ -217,7 +219,53 @@ With statistics at `basic` or above, `flows.<arrival>.started`, `finished` and `
 - `step()` processes the next event of the model.
 - `peek()` gives the time of the next event, or infinity when none is left.
 
-Both count only the model's events, so a script steps the model as it would in SimPy. The events desflow adds do not count: the statistics timer, the flush timers, the lag and ingress monitors, and a resource's capacity watcher. `peek()` skips them, and `step()` runs those due before the model's next event in the same call. When only desflow's events are left, `step()` raises `EmptySchedule` and `peek()` gives infinity. `finish()` and `run()` still process them.
+Both count only the model's events, so a script steps the model as it would in SimPy. The events desflow adds do not count: the statistics timer, the flush timers, the lag and ingress monitors, and a resource's capacity watcher. `peek()` skips them, and `step()` runs those due before the model's next event in the same call. When only desflow's events are left, `step()` raises `EmptySchedule` and `peek()` gives infinity. `finish()` and `run()` still process them. Once a `row` generator with `on_end: stop`, or the last entry of `run.segments`, has ended the run, `step()` raises `RuntimeError`, as `advance()` does, and `peek()` gives infinity, so a loop of `peek()` and `step()` ends.
+
+The blueprint reads the same clock after each model event: `run: {steps: true}` publishes `system.simulation.step`, with the step number, `now` and `peek`, and `run: {sync: true}` calls `env.sync()` as the run starts. The builder takes `run(steps=True, sync=True)`, and a run with `steps` takes no `segments`, `stop` or `drain`:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/run_steps.yaml:steps"
+    run:
+      until: 1 min
+      # system.simulation.step after each model event
+      steps: true
+      # env.sync() as the run starts
+      sync: true
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/pacing.py:run-steps"
+    stepper = SimulationContext(sim_id="Shop", factor=0.0)
+    stepper.add_arrival("orders", dist="constant", value=20, spawn="tick")
+
+
+    @stepper.task()
+    def tick(task_id):
+        return {"event_type": "order_packed"}
+
+
+    # system.simulation.step after each model event, and env.sync() as the run starts
+    stepper.run(until="1 min", steps=True, sync=True)
+    ```
+
+=== "Low-level"
+
+    The low-level API reads `env.now` and `env.peek()` in a loop of `env.step()`, as SimPy does.
+
+The first readings of the blueprint, with the order the model made at each step:
+
+<!-- records: run-steps -->
+```text
+[TEL] {'sim_ts': 0.0, 'timestamp': '...', 'path_id': 'system.simulation.step', 'value': {'step': 1, 'now': 0, 'peek': 20.0}}
+[TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'system.simulation.step', 'value': {'step': 2, 'now': 20.0, 'peek': 20.0}}
+[EVT] {'sim_ts': 20.0, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'event_type': 'order_packed'}}
+[TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'system.simulation.step', 'value': {'step': 3, 'now': 20.0, 'peek': 20.0}}
+[TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'system.simulation.step', 'value': {'step': 4, 'now': 20.0, 'peek': 40.0}}
+[TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'system.simulation.step', 'value': {'step': 5, 'now': 40.0, 'peek': 40.0}}
+[EVT] {'sim_ts': 40.0, 'timestamp': '...', 'key': 'orders-2', 'task': 'pack_order', 'instance': 1, 'value': {'event_type': 'order_packed'}}
+```
 
 `finish()` runs a started run on to the end that `run()` would reach (`until`, the `stop` or the end of the drain), then closes it. `run()` is `start()` followed by `finish()`. After `advance()` or `step()`, `finish()` closes the run as follows:
 
@@ -259,9 +307,89 @@ It prints `stopped before 30 at 20`. Stepping does not stop at `until`: compare 
 
 === "YAML"
 
-    A context from `SimulationContext.from_yaml("shop.yaml")` has the same `start()`, `advance()` and `finish()`, as the Builder tab shows.
+    `run.segments` lists the parts. A segment ends at an `until` or when a `stop` holds, and `{}` runs to the end. `look` names a task whose new entity reads the model where the segment stops, before any event due at that time runs. `sync: true` on a segment moves the wall-clock anchor to the start of the segment. After each segment the run publishes `system.simulation.segment` with the segment's `index`, `now` and `peek`, which is null when no model event is left:
+
+    ```yaml title="docs/snippets/yaml/run_segments.yaml:look"
+    tasks:
+      pack_order:
+        service: packing
+        resource: packers
+        payload: {event_type: order_packed}
+      # An order of this task reads the model where a segment stops, before any event due
+      # at that time runs
+      look:
+        payload:
+          event_type: queue_read
+          waiting: {gen: expr, expr: queue.packers}
+    ```
+
+    ```yaml title="docs/snippets/yaml/run_segments.yaml:segments"
+    run:
+      until: 3 min
+      segments:
+        - {until: 1 min, look: look}
+        # Ends at the first moment 4 orders wait; sync re-anchors the wall clock for the
+        # segment, which changes nothing at factor 0
+        - stop: {condition: queue.packers >= 4}
+          look: look
+          sync: true
+        # No end of its own: runs to the end of the run
+        - {}
+    ```
+
+    The readings of the first two segments:
+
+    <!-- records: run-segments -->
+    ```text
+    [EVT] {'sim_ts': 60.0, 'timestamp': '...', 'key': 'look-1', 'task': 'look', 'instance': 0, 'value': {'event_type': 'queue_read', 'waiting': 3}}
+    [TEL] {'sim_ts': 60.0, 'timestamp': '...', 'path_id': 'system.simulation.segment', 'value': {'index': 0, 'now': 60.0, 'peek': 60.0}}
+    [EVT] {'sim_ts': 61.9609547422594, 'timestamp': '...', 'key': 'look-2', 'task': 'look', 'instance': 1, 'value': {'event_type': 'queue_read', 'waiting': 4}}
+    [TEL] {'sim_ts': 61.9609547422594, 'timestamp': '...', 'path_id': 'system.simulation.segment', 'value': {'index': 1, 'now': 61.9609547422594, 'peek': 61.9609547422594}}
+    ```
+
+    `segments: {every: 30 s}` makes equal parts up to `until`. A list whose last entry has an `until` or a `stop` and a run with no `until` end there, and a last entry `{}` runs to the end:
+
+    ```yaml title="docs/snippets/yaml/run_segments_every.yaml:every"
+    run:
+      until: 2 min
+      # A segment every 30 seconds up to until
+      segments: {every: 30 s}
+    ```
 
 === "Builder"
+
+    `run(segments=[...])` takes the same entries as dictionaries. `advance()` runs a started run in parts by hand:
+
+    ```python title="docs/snippets/pages/pacing.py:run-segments"
+    shop = SimulationContext(sim_id="Shop", factor=0.0, random_seed=42)
+    shop.add_resource("packers", current_cap=1)
+    shop.add_service("packing", dist="constant", value=40)
+    shop.add_arrival("orders", dist="exponential", rate=0.05, spawn="pack_order")
+
+
+    @shop.task(service_id="packing", resource_id="packers")
+    def pack_order(task_id):
+        return {"event_type": "order_packed"}
+
+
+    @shop.task()
+    def look(task_id):
+        """An order of this task reads the model where a segment stops."""
+        return {
+            "event_type": "queue_read",
+            "waiting": len(shop.get_resource("packers").queue),
+        }
+
+
+    shop.run(
+        until="3 min",
+        segments=[
+            {"until": "1 min", "look": "look"},
+            {"stop": {"condition": "queue.packers >= 4"}, "look": "look", "sync": True},
+            {},  # no end of its own: runs to the end of the run
+        ],
+    )
+    ```
 
     ```python title="docs/snippets/pages/pacing.py:segments"
     def pulse(context):
@@ -288,6 +416,37 @@ It prints `paused at 40.0`. A run in segments gives the same records as one `run
 - `until` may be an event, such as `context.signal("gate").wait()`: the run stops where the event fires and returns its value, and the next `advance()` goes on, as SimPy's `env.run(until=event)` does.
 - The event that ends a segment stays in the queue: `peek()` gives the segment's time and `step()` processes it.
 - `advance()` does not move the wall-clock anchor. A paced run that waited between segments is behind when it goes on, so call `env.resume_pacing()` first.
+
+### Set Up Before the Run
+
+`run.before` lists functions called with no arguments, once, at the start of `run()`. Connectors already create what they write to when they can: Kafka its event and telemetry topics, Postgres the tables under `tables`, and Parquet and JSONL their folders. `run.before` is for any other setup, such as creating the topics of a router.
+
+Put such setup in a function rather than at the top of the module. The module is imported when the file is loaded, so its top-level code runs even when a blueprint is loaded and never run. This function creates the folder `events` when the run starts:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/run_before.yaml:before"
+    run: {until: 1 min, before: [!python run_before_logic.make_output_folder]}
+    ```
+
+    ```python title="docs/snippets/yaml/run_before_logic.py"
+    """Python for docs/snippets/yaml/run_before.yaml: a setup function."""
+
+    import os
+
+
+    def make_output_folder() -> None:
+        """Called once by run.before, when the run starts, not when the file is loaded."""
+        os.makedirs("events", exist_ok=True)
+    ```
+
+=== "Builder"
+
+    The Builder API has no `run.before`: call the function before `run()`, as the [YAML form](#set-up-before-the-run) calls it.
+
+=== "Low-level"
+
+    The low-level API has no `run.before`: call the function before `env.run()`, as the [YAML form](#set-up-before-the-run) calls it.
 
 ---
 

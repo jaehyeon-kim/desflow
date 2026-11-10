@@ -100,13 +100,15 @@ A fixed trace checks the logic, not the busy hour itself. Run the busy hour with
     ```yaml title="docs/snippets/yaml/checking_a_model_experiment.yaml:model"
     # The busy hour of Trusting Results, with its 2-minute warm-up
     model: trusting_results.yaml
+
     until: 1 h
+
     replications: 20
+
     seed: 42
-    measures:
-      - tasks.pack_order.wait_mean
-      - resources.packers.utilization_avg
-      - resources.packers.queue_length_avg
+
+    measures: [tasks.pack_order.wait_mean, resources.packers.utilization_avg,
+               resources.packers.queue_length_avg]
     ```
 
 === "Builder"
@@ -336,7 +338,7 @@ Not compared:
 
 The utilisation of 0.9 and the throughput of 1.8 orders a second agree with the replications. `explain` and `--verify` give the utilisation as a fraction, so 0.9034 is 90.34%, while the experiment's statistics give a percentage.
 
-The measured wait, 2.252 ± 0.2476 seconds, is the mean of the 10 replications after the blueprint's 2-minute warm-up. The replications use the seeds of Trusting Results, so the figure equals that page's figure for 10 replications, as [Busy Hour Figures](../first-model/first-simulation.md#busy-hour-figures) lists. The wait and the queue length have no analytical value, and the `Not estimated` line says why: three packers with measured packing times have no closed formula. For them the interval of the experiment is the check, as the next section shows.
+The measured wait, 2.252 ± 0.2476 seconds, is the mean of the 10 replications after the blueprint's 2-minute warm-up. The replications use the seeds of Trusting Results, so the figure equals that page's figure for 10 replications, as [Busy Hour Figures](../concepts/output-analysis.md#busy-hour-figures) lists. The wait and the queue length have no analytical value, and the `Not estimated` line says why: three packers with measured packing times have no closed formula. For them the interval of the experiment is the check, as the next section shows.
 
 Agreement shows that the program computes what the model on paper says. It says nothing about whether the model is close enough to the real shop. [Check Against Theory](../../how-to/analysis/check-against-theory.md) runs the same check on a shop the formulas describe in full.
 
@@ -574,10 +576,7 @@ The trace, the extremes, Little's law and the queueing formulas test the program
         ```yaml title="docs/snippets/yaml/checking_a_model.yaml"
         # The Checking a Model tutorial: the shop with fixed inputs, to compare with a trace
         # worked by hand. Run it with: desflow run checking_a_model.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         # Three packers; an order arrives every second and takes 4 seconds to pack
         resources:
@@ -599,10 +598,9 @@ The trace, the extremes, Little's law and the queueing formulas test the program
         stats: {level: typical, interval: 1 h}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 10
+        run: {until: 10}
         ```
 
         ```yaml title="docs/snippets/yaml/checking_a_model_experiment.yaml"
@@ -610,16 +608,21 @@ The trace, the extremes, Little's law and the queueing formulas test the program
         # Run it with: desflow experiment checking_a_model_experiment.yaml
         # It exits 1 when a check fails, after writing every file.
         experiment: checking-a-model
+
         question: Is the busy hour model adequate for choosing the number of packers?
+
         # The busy hour of Trusting Results, with its 2-minute warm-up
         model: trusting_results.yaml
+
         until: 1 h
+
         replications: 20
+
         seed: 42
-        measures:
-          - tasks.pack_order.wait_mean
-          - resources.packers.utilization_avg
-          - resources.packers.queue_length_avg
+
+        measures: [tasks.pack_order.wait_mean, resources.packers.utilization_avg,
+                   resources.packers.queue_length_avg]
+
         variants:
           # One packer cannot keep up, and ten are mostly idle
           three: {}
@@ -627,6 +630,7 @@ The trace, the extremes, Little's law and the queueing formulas test the program
           ten: {Shop.resources.packers.current_cap: 10}
           # The design chosen in Comparing Designs, at a rate 6% above the estimate
           four-busier: {Shop.resources.packers.current_cap: 4, Shop.arrival.orders.rate: 1.9}
+
         checks:
           # One packer is busy all the time: the lower end of the interval is 99.9% or more
           - {measure: resources.packers.utilization_avg, variant: one, min: 99.9}
@@ -634,9 +638,11 @@ The trace, the extremes, Little's law and the queueing formulas test the program
           - {measure: tasks.pack_order.wait_mean, variant: ten, max: 0.01}
           # Four packers keep the mean wait under half a second at the higher rate
           - {measure: tasks.pack_order.wait_mean, variant: four-busier, max: 0.5}
+
         # Illustrative values for the real shop, which has three packers;
         # a real check reads the shop's own records
         observed: {file: checking_a_model_observed.csv, variant: three}
+
         output: results/checking-a-model
         ```
 
@@ -661,9 +667,8 @@ The trace, the extremes, Little's law and the queueing formulas test the program
           # The 40 packing times measured at the bench, in seconds
           packing:
             dist: empirical
-            values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
-                     2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
-                     1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+            values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7, 2.7, 1.4, 1.9, 1.4, 1.3,
+                     1.8, 2.0, 1.4, 1.4, 1.9, 1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
                      2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
 
         tasks:
@@ -676,10 +681,9 @@ The trace, the extremes, Little's law and the queueing formulas test the program
         stats: {level: typical, interval: 10}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
         ```csv title="docs/snippets/yaml/checking_a_model_observed.csv"
@@ -1245,12 +1249,21 @@ The trace, the extremes, Little's law and the queueing formulas test the program
             def publish(value):
                 env.publish_event(key, value, task="pack_order", instance=task_id)
 
-            publish({"path_id": path_id, "status": "queued"})
+            publish(
+                {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+            )
             env.stats.flow_started("orders")  # the order enters the shop
             env.stats.task_queued("pack_order", task_id)
             with packers.request() as request:
                 yield request
-                publish({"path_id": path_id, "status": "started"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    }
+                )
                 env.stats.task_started("pack_order", task_id)
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 publish({"event_type": "order_packed"})

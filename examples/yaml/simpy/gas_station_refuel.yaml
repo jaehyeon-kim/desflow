@@ -1,0 +1,80 @@
+# Gas Station Refueling: SimPy's gas_station_refuel.py example, in YAML.
+#
+# The YAML version of gas_station_refuel_example.py, which --api builder downloads. A
+# gas station has two pumps and a tank of 200 litres. A car arrives every 30 to 300
+# seconds with 5 to 25 litres left in its 50 litre tank. It waits for a pump, takes
+# the fuel it needs from the station's tank and refuels at 2 litres a second. A control
+# task checks the tank every 10 seconds, and when it is below 25 percent it calls a
+# tank truck, which arrives 300 seconds later and fills the tank.
+#
+# Each value is drawn from desflow's random sequence for its place in the file, so the
+# numbers differ from those SimPy prints.
+#
+# Needs no containers. Runs unpaced and ends after 1000 simulation seconds.
+# Run it from its folder with: desflow run gas_station_refuel.yaml
+
+simulation: {sim_id: GasStation, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:pumps-and-tank]
+resources:
+  pumps: {current_cap: 2}
+
+containers:
+  tank: {current_cap: 200, level: 200}
+# --8<-- [end:pumps-and-tank]
+
+# --8<-- [start:cars-arrive]
+arrivals:
+  control: {initial: 1, spawn: control}
+  cars:
+    gap: {gen: integer, bounds: [30, 300]}
+    spawn: car
+    key: {gen: sequence, format: "Car {}"}
+    attributes:
+      level: {gen: integer, bounds: [5, 25]}
+# --8<-- [end:cars-arrive]
+
+tasks:
+  # --8<-- [start:car-refuels]
+  car:
+    resource: pumps
+    get: {container: tank, amount: "50 - attr.level"}
+    service_time: "(50 - attr.level) / 2"
+    payload:
+      event_type: refueled
+      litres: {gen: expr, expr: "50 - attr.level"}
+  # --8<-- [end:car-refuels]
+  # --8<-- [start:control-calls-truck]
+  control:
+    payload: {event_type: checked}
+    next:
+      when:
+        - {condition: "level.tank / 200 * 100 < 25", task: call_truck}
+      default: pause
+  call_truck:
+    payload: {event_type: truck_called}
+    next: await_truck
+  await_truck:
+    wait: {task: truck}
+    payload: {event_type: truck_returned}
+    next: pause
+  # --8<-- [end:control-calls-truck]
+  # --8<-- [start:truck-fills-tank]
+  truck:
+    service_time: 300
+    put: {container: tank, amount: "200 - level.tank"}
+    payload:
+      event_type: truck_arrived
+      litres: {gen: expr, expr: "200 - level.tank"}
+  # --8<-- [end:truck-fills-tank]
+  # --8<-- [start:pause]
+  pause:
+    service_time: 10
+    payload: {event_type: waited}
+    next: control
+  # --8<-- [end:pause]
+
+run: {until: 1000}

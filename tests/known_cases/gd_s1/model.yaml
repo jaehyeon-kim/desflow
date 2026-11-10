@@ -1,0 +1,76 @@
+# case GD-S1: the SimPy 2 verbs hold, passivate, request, release, waitevent,
+# queueevent, get, put, | and &, all_of, any_of and a wait for a process
+# (porting_from_simpy2.rst:204-232).
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+
+resources:
+  r: {current_cap: 1}
+
+containers:
+  q: {current_cap: 10, level: 0}
+
+signals:
+  ev: {once: false}
+
+arrivals:
+  a: {initial: 1, spawn: hold}
+  b: {dist: constant, value: 2, spawn: put_it, max_events: 1}
+
+tasks:
+  hold:
+    service_time: 1
+    payload: {event_type: hold}
+    next: passivate
+  passivate:
+    wait: {signal: ev}
+    payload: {event_type: reactivated}
+    next: request
+  request:
+    resource: r
+    service_time: 1
+    payload: {event_type: used}
+    next: get
+  get:
+    get: {container: q, amount: 5}
+    payload: {event_type: got}
+    next: either
+  either:
+    wait:
+      any:
+        t: {timeout: 1}
+        e: {signal: ev}
+    payload: {event_type: first_of_two}
+    next: both
+  both:
+    wait:
+      all:
+        t: {timeout: 1}
+        e: {signal: ev}
+    payload: {event_type: both}
+    next: all_of
+  all_of:
+    wait:
+      all:
+        a: {timeout: 1}
+        b: {timeout: 2}
+        c: {timeout: 3}
+    payload: {event_type: all_of_three}
+    next: any_of
+  any_of:
+    wait:
+      any:
+        a: {timeout: 3}
+        b: {timeout: 1}
+        c: {timeout: 2}
+    payload: {event_type: any_of_three}
+    next: process
+  process:
+    wait: {task: calculation}
+    payload: {event_type: process_done}
+  calculation:
+    service_time: 1
+    payload: {event_type: calculated}
+  put_it:
+    put: {container: q, amount: 5}
+    payload: {event_type: put}
+    signal: ev

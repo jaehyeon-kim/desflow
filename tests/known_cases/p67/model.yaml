@@ -1,0 +1,21 @@
+# case P67: stop_if a condition on state (tests/conformance/test_c6_end_conditions.py,
+# c6_stop_condition.yaml).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+containers:
+  stock: {current_cap: 20, max_cap: 20}
+
+arrivals:
+  restocks: {dist: constant, value: 3, spawn: restock}
+  pings: {dist: constant, value: 4, spawn: ping}
+
+tasks:
+  restock:
+    put: {container: stock, amount: 2}
+    payload: {event: restocked}
+  ping:
+    payload: {event: ping}
+
+run:
+  until: 100
+  stop: {condition: "level.stock >= 5"}

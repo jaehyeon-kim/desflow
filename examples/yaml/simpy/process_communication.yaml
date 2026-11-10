@@ -1,0 +1,65 @@
+# Process Communication: SimPy's process_communication.py example, one to one, in YAML.
+#
+# The YAML version of process_communication_example.py, which --api builder downloads.
+# A generator puts a message into a store every 6 to 10 seconds, stamped with the time
+# it was sent. A consumer takes each message and then works on it for 4 to 8 seconds,
+# so it is late for some messages: `late` is true when the message waited in the store.
+# process_communication_broadcast.yaml sends each message to two consumers.
+#
+# Each value is drawn from desflow's random sequence for its place in the file, so the
+# numbers differ from those SimPy prints.
+#
+# Needs no containers. Runs unpaced and ends after 100 simulation seconds.
+# Run it from its folder with: desflow run process_communication.yaml
+
+simulation: {sim_id: Pipes, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:pipe]
+stores:
+  pipe: {}
+# --8<-- [end:pipe]
+
+arrivals:
+  # --8<-- [start:generator-arrives]
+  generator:
+    gap: {gen: integer, bounds: [6, 10]}
+    spawn: speak
+  # --8<-- [end:generator-arrives]
+  # --8<-- [start:consumer-arrives]
+  consumer: {initial: 1, spawn: listen}
+  # --8<-- [end:consumer-arrives]
+
+tasks:
+  # --8<-- [start:generator-sends]
+  speak:
+    payload: {event_type: said}
+    # The generator does not wait for its put, as SimPy's `out_pipe.put(msg)` does not
+    put:
+      store: pipe
+      wait: false
+      item:
+        sent: {gen: expr, expr: t}
+        text:
+          gen: format
+          template: "Generator A says hello at {now:g}"
+          names:
+            now: {gen: expr, expr: t}
+  # --8<-- [end:generator-sends]
+  # --8<-- [start:consumer-gets]
+  listen:
+    get: {store: pipe}
+    payload:
+      event_type: received
+      late: {gen: expr, expr: "item.sent < t"}
+      text: {gen: expr, expr: "item.text"}
+    next: busy
+  busy:
+    service_time: {gen: integer, bounds: [4, 8]}
+    payload: {event_type: handled}
+    next: listen
+  # --8<-- [end:consumer-gets]
+
+run: {until: 100}

@@ -1,0 +1,8 @@
+{
+  "fault": "K4 compared records as text, so a payload number 1 against 1.0 counted as different",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K4": 0
+  }
+}

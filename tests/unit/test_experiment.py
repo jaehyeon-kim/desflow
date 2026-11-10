@@ -14,12 +14,13 @@ from desflow import (
     LowLevelModel,
     SimParameter,
     SimulationContext,
+    replicate,
     run_experiment,
 )
 from desflow.cli import app as cli
 from desflow.blueprint.loader import BlueprintError
 from desflow.analysis import results as found
-from desflow.analysis.models import RunResult
+from desflow.analysis.models import RunResult, run_once
 from desflow.analysis.spec import ExperimentSpec, load_experiment
 
 SHOP = """\
@@ -448,6 +449,50 @@ def test_the_experiment_file_sets_stop_and_drain(tmp_path):
     assert len(summary) == 1
 
 
+def _two_steps(env, sampler):
+    """A low-level model whose last event is at 2 s."""
+    env.registry.register_sim_parameter(
+        SimParameter(
+            sim_id="S", arrival={"a": DistributionConfig(dist="constant", value=1)}
+        )
+    )
+
+    def two():
+        yield env.timeout(1)
+        yield env.timeout(1)
+        env.stats.flow_finished("a")
+
+    env.process(two())
+
+
+def test_a_low_level_model_with_a_stop_that_never_fires_runs_to_until(tmp_path):
+    """The stop is an event, so the run has only the `until` of its own after the
+    model's last event: each entry point runs to it and not to SimPy's error."""
+    model = LowLevelModel(_two_steps, "S")
+
+    def never(env):
+        return env.event()
+
+    result = run_once(model, seed=1, until=30, stop=never)
+    assert result.readings
+    replicate(model, 2, seed=1, until=30, stop=never)
+    run_experiment(
+        _settings(
+            model=model,
+            until=30,
+            warmup=None,
+            stop=never,
+            replications=2,
+            measures=["flows.a.finished"],
+            variants={"base": {}},
+            inputs={},
+            compare=[],
+            checks=[],
+            output=str(tmp_path / "out"),
+        )
+    )
+
+
 def test_bad_settings_are_refused_with_their_line(folder):
     experiment = folder / "experiment.yaml"
     experiment.write_text(EXPERIMENT + "replication: 3\n")
@@ -527,6 +572,29 @@ def test_report_needs_an_experiment_folder(tmp_path):
     assert run.exit_code == 2 and "experiment.json" in run.output
 
 
+def test_the_output_argument_takes_the_place_of_the_experiment_s_folder(tmp_path):
+    result = run_experiment(
+        _settings(model=shop, checks=[], output=str(tmp_path / "named")),
+        output=tmp_path / "given",
+    )
+    assert result.output == tmp_path / "given"
+    assert (tmp_path / "given" / found.REPORT_FILE).is_file()
+    assert not (tmp_path / "named").exists()
+
+
+def test_a_model_with_no_distributions_is_reported_as_such(folder):
+    from desflow.analysis.report import build_report
+
+    run_experiment(folder / "experiment.yaml")
+    out = folder / "results" / "packers"
+    experiment = found.read_json(out / found.EXPERIMENT_FILE)
+    found.write_json(out / found.EXPERIMENT_FILE, experiment | {"parameters": {}})
+    assert (
+        "## Inputs and Provenance\n\nThe model registers no distributions.\n"
+        in build_report(out)
+    )
+
+
 def test_a_missing_model_or_observed_file_is_an_invalid_experiment(folder):
     """Both exit 2, the status of an invalid experiment, naming the line of the key."""
     experiment = folder / "experiment.yaml"
@@ -583,3 +651,10 @@ def test_the_report_shows_each_end_setting_in_words():
     assert _end_setting(False, "no") == "no"
     assert _end_setting("closing", "none") == "`closing`"
     assert _end_setting(None, "none") == "none unless the model's own run sets one"
+
+
+def test_a_mean_is_read_as_a_wait_or_a_service_by_its_statistic():
+    """The statistic is the last part of the name, so a task whose name holds `.wait_`
+    has its service mean measured on finished instances."""
+    assert found._population_of("tasks.a.wait_b.service_mean") == "finished instances"
+    assert found._population_of("tasks.a.service_b.wait_mean") == "started instances"

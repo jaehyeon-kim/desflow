@@ -15,7 +15,7 @@ from typer.testing import CliRunner
 
 from desflow import SimulationContext
 from desflow.cli import app as cli
-from desflow.core.distributions import clamped_normal_moments
+from desflow.models.distributions import clamped_normal_moments
 from desflow.explain.capacity import _requests
 from desflow.explain.models import Explanation
 
@@ -174,6 +174,15 @@ def test_when_rules_make_the_split_unknown():
         ({"subscribe": {"signal": "done"}}, "subscribe"),
         ({"interrupt": {"task": "pack"}}, "interrupt"),
         ({"on": [{"path": "Shop.variables.x", "value": 1}]}, "on actions"),
+        (
+            {
+                "listen": {
+                    "signal": "done",
+                    "on": [{"path": "Shop.variables.x", "value": 1}],
+                }
+            },
+            "listen",
+        ),
     ],
 )
 def test_a_task_feature_makes_the_wait_unsupported(task, feature):
@@ -353,6 +362,26 @@ def test_a_replayed_arrival_is_unknown():
     assert explanation.tasks[0].rate is None
 
 
+def test_an_arrival_with_initial_alone_is_unknown(tmp_path):
+    """An arrival with `initial` and no gap starts its entities when the run is built
+    and draws no gaps: it is a node of the graph, with no rate, and the task it starts
+    has none either."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: C, factor: 0}\n"
+        "arrivals:\n  workers: {initial: 2, spawn: t}\n"
+        "tasks:\n  t: {payload: {}}\n",
+        encoding="utf-8",
+    )
+    explanation = SimulationContext.from_yaml(path).analyze()
+    features = {node.id: node.features for node in explanation.graph.nodes}
+    assert features["arrival:workers"] == ["entities at the start only"]
+    assert explanation.arrivals[0].reason == (
+        "it starts only its initial entities, at the start of the run; run --verify to measure it"
+    )
+    assert explanation.tasks[0].rate is None
+
+
 def test_a_hand_written_arrival_loop_and_a_process_are_opaque():
     app = SimulationContext(sim_id="Shop", factor=0)
     app.add_arrival("orders", dist="exponential", rate=1.0)
@@ -412,7 +441,9 @@ def test_a_spawn_after_a_task_that_can_fail_is_unknown():
     assert pack.rate is None and "fail" in pack.reason
     ship = _by_name(explanation.tasks, "ship")
     assert ship.rate is None
-    assert "the share that fails is not known before a run" in ship.reason
+    assert ship.reason == (
+        "how often pack starts it is not known before a run; run --verify to measure it"
+    )
 
 
 def test_keep_makes_the_wait_unsupported_for_both_tasks():
@@ -561,6 +592,15 @@ def test_a_clamped_normal_uses_its_effective_mean():
     assert packers.utilization == pytest.approx(0.8 * mean)
 
 
+def test_a_gap_of_zero_has_no_rate():
+    """A constant gap of 0 stays 0, so the arrival has no rate to divide by, and what
+    depends on it is unknown rather than a division by zero."""
+    explanation = _shop(arrival={"dist": "constant", "value": 0}).analyze()
+    arrival = explanation.arrivals[0]
+    assert arrival.rate is None and arrival.reason == "a gap of 0 has no rate"
+    assert _by_name(explanation.resources, "packers").utilization is None
+
+
 def test_capacity_rows():
     small = _by_name(_shop(packers=1, most=4).analyze().resources, "packers")
     assert [(r.capacity, r.status) for r in small.capacities] == [
@@ -641,6 +681,31 @@ def test_verify_refuses_a_context_built_in_code():
         _shop().analyze(verify=True, until=100)
 
 
+def test_verify_of_a_low_level_model_says_it_cannot_be_built_again(tmp_path):
+    from desflow import LowLevelModel
+    from desflow.explain import verify
+
+    path = tmp_path / "mm1.yaml"
+    path.write_text(MM1, encoding="utf-8")
+    explanation = SimulationContext.from_yaml(path).analyze()
+    model = LowLevelModel(lambda env, sampler: [], "S")
+    with pytest.raises(ValueError, match="a LowLevelModel cannot be verified"):
+        verify(model, explanation, until=10)
+
+
+@pytest.mark.parametrize("replications", [2.5, 0, 1, True, float("nan")])
+def test_verify_refuses_replications_that_are_not_a_whole_number_of_2_or_more(
+    tmp_path, replications
+):
+    from desflow.explain import verify
+
+    path = tmp_path / "mm1.yaml"
+    path.write_text(MM1, encoding="utf-8")
+    explanation = SimulationContext.from_yaml(path).analyze()
+    with pytest.raises(ValueError, match="replications is a whole number of 2"):
+        verify(str(path), explanation, until=100, replications=replications)
+
+
 def test_verify_agrees_on_the_mm1_shop(tmp_path):
     path = tmp_path / "mm1.yaml"
     path.write_text(MM1, encoding="utf-8")
@@ -685,6 +750,22 @@ def test_not_estimated_drops_the_advice_to_run_verify_while_verify_runs(tmp_path
     assert line + "; run --verify to measure it" in alone
     verified = render_terminal(context.analyze(verify=True, until=500), width=200)
     assert line in verified.splitlines() and "run --verify" not in verified
+
+
+def test_verify_reads_a_flow_with_no_finished_entity_as_0(tmp_path):
+    """One arrival every 10 s on average over 5 s: some replications finish no
+    entity and publish no `flows.orders.finished`, which is 0 in them, not missing."""
+    path = tmp_path / "rare.yaml"
+    path.write_text(
+        MM1.replace("rate: 0.8", "rate: 0.1").replace("rate: 1}", "rate: 2}"),
+        encoding="utf-8",
+    )
+    context = SimulationContext.from_yaml(path)
+    explanation = context.analyze(verify=True, until=5, replications=10)
+    found = {(c.node, c.measure): c for c in explanation.verification.comparisons}
+    throughput = found[("orders", "throughput")]
+    assert throughput.measured is not None, throughput
+    assert "no reading" not in (throughput.reason or "")
 
 
 def test_verify_does_not_compare_after_an_unstable_resource(tmp_path):
@@ -808,3 +889,161 @@ def test_the_command_exits_2(tmp_path, file, arguments, message):
     result = CliRunner().invoke(cli, ["explain", source, *arguments])
     assert result.exit_code == 2
     assert message in result.stderr
+
+
+def test_on_renege_and_on_balk_edges_have_no_probability():
+    """A task with `on_renege` or `on_balk` can leave its route, so its edges carry
+    no share, and the target of each is a next edge."""
+    app = _shop(patience=5, balk="t > 5", on_renege="gave_up", on_balk="turned_away")
+    for name in ("gave_up", "turned_away"):
+        app.task(name=name)(lambda task_id: {})
+    explanation = app.analyze()
+    edges = [
+        e
+        for e in explanation.graph.edges
+        if e.source == "task:pack" and e.kind == "next"
+    ]
+    assert {e.target for e in edges} >= {"task:gave_up", "task:turned_away"}
+    assert all(e.probability is None for e in edges)
+    assert _by_name(explanation.tasks, "gave_up").rate is None
+
+
+@pytest.mark.parametrize("ship", [1, "attr.w"])
+def test_weights_on_a_task_that_can_divert_end_no_flow(ship):
+    """Fixed weights, like weights read when the task finishes, name every route, so
+    a task with `on_renege` and weights has no edge to the exit."""
+    app = _shop(
+        patience=5, on_renege="lost", next={"weights": {"ship": ship, "hold": 1}}
+    )
+    for name in ("ship", "hold", "lost"):
+        app.task(name=name)(lambda task_id: {})
+    targets = {e.target for e in app.analyze().graph.edges if e.source == "task:pack"}
+    assert "exit" not in targets
+    assert {"task:ship", "task:hold", "task:lost"} <= targets
+
+
+STARTS = """\
+simulation: {{sim_id: S, factor: 0}}
+signals: {{done: {{on: [{{spawn: {{task: side}}}}]}}, ping: {{}}}}
+arrivals: {{a: {{dist: exponential, rate: 0.5, spawn: work}}}}
+tasks:
+  work: {{service_time: 1, payload: {{}}, {keys}}}
+  side: {{payload: {{}}}}
+"""
+
+
+@pytest.mark.parametrize(
+    "keys, kind",
+    [
+        ("on_interrupt: abandon, on_interrupt_next: side", "next"),
+        ("on_interrupt: resume, on_interrupt_run: side", "next"),
+        ("on: [{spawn: {task: side}}]", "spawn"),
+        ("listen: {signal: ping, on: [{spawn: {task: side}}]}", "spawn"),
+        ("wait: {task: side}", "spawn"),
+        ("subscribe: {task: side}", "spawn"),
+        ("open: {child: {task: side}}", "spawn"),
+        ("signal: done", "spawn"),
+    ],
+)
+def test_every_way_a_task_starts_another_is_an_edge_with_no_share(tmp_path, keys, kind):
+    """Each way `work` starts `side`, other than `spawn:` and its routes, is an edge
+    with no share, so the rate of `side` is unknown because of `work`, not because
+    nothing starts it."""
+    path = tmp_path / "model.yaml"
+    path.write_text(STARTS.format(keys=keys))
+    explanation = SimulationContext.from_yaml(path).analyze()
+    edges = [e for e in explanation.graph.edges if e.target == "task:side"]
+    assert [(e.source, e.kind, e.probability) for e in edges] == [
+        ("task:work", kind, None)
+    ]
+    side = _by_name(explanation.tasks, "side")
+    assert side.rate is None and "work" in side.reason
+
+
+INTERRUPTED = """\
+simulation: {{sim_id: S, factor: 0}}
+signals: {{stop: {{on: [{{interrupt: {{task: work}}}}]}}}}
+arrivals:
+  a: {{dist: exponential, rate: 0.5, spawn: work}}
+  b: {{dist: exponential, rate: 0.1, spawn: boss}}
+tasks:
+  work: {{service_time: 1, payload: {{}}, on_interrupt: abandon}}
+  boss: {{payload: {{}}, {keys}}}
+{scenario}"""
+
+
+@pytest.mark.parametrize(
+    "keys, scenario",
+    [
+        ("interrupt: {task: work}", ""),
+        ("on: [{interrupt: {task: work}}]", ""),
+        ("signal: stop", ""),
+        ("service_time: 1", "scenario: [{at: 5, interrupt: {task: work}}]\n"),
+    ],
+)
+def test_a_task_an_interrupt_names_has_a_feature(tmp_path, keys, scenario):
+    """A task that an `interrupt` of a task, an `on:` entry of a task or a signal, or
+    a scenario step names ends some services early, so it has a feature."""
+    path = tmp_path / "model.yaml"
+    path.write_text(INTERRUPTED.format(keys=keys, scenario=scenario))
+    explanation = SimulationContext.from_yaml(path).analyze()
+    nodes = {node.id: node for node in explanation.graph.nodes}
+    assert "interruptions (an interrupt names it)" in nodes["task:work"].features
+    assert "interruptions (an interrupt names it)" not in nodes["task:boss"].features
+
+
+COMPUTED = """\
+simulation: {sim_id: C, factor: 0}
+resources: {m: {current_cap: 1}}
+arrivals:
+  gapped: {gap: 2, spawn: t}
+  limited: {dist: exponential, rate: 1, max_events: 3, spawn: t}
+tasks:
+  t:
+    resource: m
+    service_time: 1
+    payload: {}
+    next: {weights: {u: "attr.p", v: 1}}
+  u: {payload: {}}
+  v: {payload: {}}
+"""
+
+
+def test_an_arrival_key_that_can_repeat_leaves_the_rate_out(tmp_path):
+    """A start whose key a running entity holds is skipped, so the arrival's rate is
+    not the distribution's. A key that never repeats keeps the rate."""
+    text = (
+        "simulation: {sim_id: C, factor: 0}\n"
+        "arrivals:\n"
+        "  fixed: {dist: exponential, rate: 1, key: k, spawn: t}\n"
+        "  numbered: {dist: exponential, rate: 1, key: {gen: sequence}, spawn: t}\n"
+        "tasks:\n  t: {payload: {}}\n"
+    )
+    path = tmp_path / "model.yaml"
+    path.write_text(text, encoding="utf-8")
+    result = SimulationContext.from_yaml(path).analyze()
+    by_name = {a.name: a for a in result.arrivals}
+    assert by_name["fixed"].reason.startswith("count, keys, key or max_events")
+    assert by_name["fixed"].rate is None
+    assert by_name["numbered"].rate == 1.0
+
+
+def test_computed_times_and_arrivals_leave_the_formulas_out(tmp_path):
+    """A `gap`, a `max_events`, a `service_time` and expression weights are read when
+    the run needs them, so the formulas give no rate or wait for them, and a router
+    with expression weights does not end the flow."""
+    path = tmp_path / "model.yaml"
+    path.write_text(COMPUTED, encoding="utf-8")
+    graph = SimulationContext.from_yaml(path).analyze().graph
+    features = {node.id: node.features for node in graph.nodes}
+
+    assert features["arrival:gapped"] == ["computed gaps"]
+    assert features["arrival:limited"] == ["limited or repeated arrivals"]
+    assert features["task:t"] == ["computed service time"]
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("task:t", "exit") not in edges
+    assert ("task:u", "exit") in edges
+    result = SimulationContext.from_yaml(path).analyze()
+    reasons = {a.name: a.reason for a in result.arrivals}
+    assert reasons["gapped"].startswith("computed gaps")
+    assert reasons["limited"].startswith("count, keys, key or max_events")

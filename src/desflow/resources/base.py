@@ -1,11 +1,15 @@
+import bisect
 import functools
-from typing import Any, Callable, Optional
+import itertools
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 import simpy
 
-from desflow.core.internal import internal_process
-from desflow.core.registry import DynamicValue
+from desflow.internal import internal_process
 from desflow.models.params import CapacityConfig
+
+if TYPE_CHECKING:
+    from desflow.core.registry import DynamicValue
 
 # The kinds that register themselves, and the registry method that does it
 _SELF_REGISTERING = {
@@ -13,6 +17,99 @@ _SELF_REGISTERING = {
     "stores": "register_store",
     "containers": "register_container",
 }
+
+
+class RankedQueue(list):
+    """The waiting requests, gets or puts of a holder, in service order.
+
+    It is a list, so `len(queue)` is how many wait and `queue[0]` is the next to be
+    served. `append` inserts an event by its rank and raises `RuntimeError` when
+    `maxlen` events wait already, as SimPy's `SortedQueue` does. An event is ranked by
+    its `_rank` when it has one, which a resource gives its requests. An event with no
+    `_rank` is ranked by its `rank` attribute (0 when it has none) and then by the
+    order it arrived in, `ties="fifo"`, or the reverse, `ties="lifo"`.
+
+    Args:
+        maxlen: The most events that can wait, or None for no limit.
+        ties: `fifo` serves equal ranks in the order they arrived, `lifo` the latest
+            first.
+    """
+
+    def __init__(self, maxlen: Optional[int] = None, ties: str = "fifo") -> None:
+        super().__init__()
+        self.maxlen = maxlen
+        self.ties = ties
+        self._sequence = itertools.count()
+
+    def append(self, item: Any) -> None:
+        """Inserts an event by its rank.
+
+        Args:
+            item: The request, get or put event.
+
+        Raises:
+            RuntimeError: If `maxlen` events wait already.
+        """
+        if self.maxlen is not None and len(self) >= self.maxlen:
+            raise RuntimeError("Cannot append event. Queue is full.")
+        if getattr(item, "_rank", None) is None:
+            order = next(self._sequence)
+            item._rank = (
+                getattr(item, "rank", 0),
+                order if self.ties == "fifo" else -order,
+            )
+        bisect.insort(self, item, key=lambda waiting: waiting._rank)
+
+    def remove(self, item: Any) -> bool:  # type: ignore[override]
+        """Takes an event out.
+
+        Args:
+            item: The event to take out.
+
+        Returns:
+            bool: True if it was taken out, False, with nothing changed, if it is
+                not in the queue.
+        """
+        for index, waiting in enumerate(self):
+            if waiting is item:
+                del self[index]
+                return True
+        return False
+
+
+def check_ties(
+    get_ties: Optional[str], put_ties: Optional[str], holder_type: Optional[Any]
+) -> None:
+    """Checks the `get_ties` and `put_ties` of a store or container.
+
+    Args:
+        get_ties: None, `fifo` or `lifo`.
+        put_ties: None, `fifo` or `lifo`.
+        holder_type: The `type` the holder is built from, or None for the default.
+
+    Raises:
+        ValueError: If a value is not None, `fifo` or `lifo`, or one is given with a
+            `type`, whose events and queues are its own.
+    """
+    for name, value in (("get_ties", get_ties), ("put_ties", put_ties)):
+        if value is not None and value not in ("fifo", "lifo"):
+            raise ValueError(f"{name} must be 'fifo' or 'lifo', got {value!r}")
+        if value is not None and holder_type is not None:
+            raise ValueError(
+                f"{name} ranks the waiting events of the default queue, so it cannot "
+                f"be given with a type, which sets its own queues"
+            )
+
+
+class _Ranked:
+    """Mixed into a put or get event class: a `rank` keyword ranks the event in the
+    queue of a holder that has a `RankedQueue`, lowest first. With no rank, an event
+    entering a ranked queue has rank 0."""
+
+    def __init__(self, resource: Any, *args: Any, rank: Any = None, **kwargs: Any):
+        if rank is not None:
+            self.rank = rank
+        super().__init__(resource, *args, **kwargs)  # type: ignore[call-arg]
 
 
 def _notifying(method: Callable[..., Any]) -> Callable[..., Any]:
@@ -162,3 +259,64 @@ class BaseDynamicResource:
 
     def _handle_capacity_change(self, new_target: float):
         pass  # To be implemented by subclasses
+
+
+class _WrappedHolder(BaseDynamicResource):
+    """A store or container: a SimPy holder, `_holder`, whose capacity follows the
+    registry and whose waiting puts and gets this object shows.
+
+    `DynamicStore` and `DynamicContainer` build on it. `DynamicResource` does not,
+    because it is the SimPy resource itself and assigns its own `put_queue`.
+    """
+
+    _holder: Any
+
+    def _build_holder(
+        self,
+        build: Callable[[Any], Any],
+        capacity: Any,
+        smallest: Any,
+        on_change: Callable[[], None],
+        get_ties: Optional[str],
+        put_ties: Optional[str],
+    ) -> None:
+        """Builds the SimPy holder and ranks its queues as `get_ties` and `put_ties`
+        say.
+
+        Args:
+            build: Builds the holder from the capacity it is given.
+            capacity: The capacity the run starts with, which may be 0.
+            smallest: The capacity to build with when `capacity` is 0, 1 in the
+                holder's own number type.
+            on_change: Called once each time a put or get changes the holder.
+            get_ties: None, `fifo` or `lifo`, as `check_ties` allows.
+            put_ties: None, `fifo` or `lifo`, as `check_ties` allows.
+        """
+        # SimPy refuses a capacity of 0, which desflow accepts because a capacity
+        # changes during a run; the holder is built with 1 and held at 0, as a
+        # capacity change sets it
+        self._holder = build(capacity or smallest)
+        self._holder._on_change = on_change
+        self._holder._capacity = capacity
+        if get_ties is not None:
+            self._holder.get_queue = RankedQueue(ties=get_ties)
+        if put_ties is not None:
+            self._holder.put_queue = RankedQueue(ties=put_ties)
+        self.PutQueue = self._holder.put_queue.__class__
+        self.GetQueue = self._holder.get_queue.__class__
+
+    @property
+    def put_queue(self) -> list:
+        """list: The waiting puts, SimPy's `put_queue`."""
+        return self._holder.put_queue
+
+    @property
+    def get_queue(self) -> list:
+        """list: The waiting gets, SimPy's `get_queue`."""
+        return self._holder.get_queue
+
+    @staticmethod
+    def _waiting(events: list) -> int:
+        """The events of a queue that still wait. A put or get granted at once is
+        not counted, although SimPy removes it from its queue only after the grant."""
+        return sum(1 for event in events if not event.triggered)

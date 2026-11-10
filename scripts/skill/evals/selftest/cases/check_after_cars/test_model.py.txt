@@ -1,0 +1,66 @@
+"""Tests of task DS-M4: each test runs each form as its reader runs it."""
+
+import json
+import subprocess
+import sys
+from functools import lru_cache
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).parent
+FORMS = {
+    "yaml": [str(Path(sys.executable).parent / "desflow"), "run", "model.yaml", "--stdout"],
+    "builder": [sys.executable, "builder.py"],
+    "low_level": [sys.executable, "low_level.py"],
+}
+ENGINE = ("queued", "started", "resumed")
+
+
+@lru_cache(maxsize=None)
+def records(form):
+    """Returns every record a form prints, as JSON lines."""
+    done = subprocess.run(FORMS[form], cwd=HERE, capture_output=True, text=True, check=True)
+    return [json.loads(line) for line in done.stdout.splitlines() if line.startswith("{")]
+
+
+def events(form):
+    """Returns the event records of a form, without the engine's status records."""
+    return [
+        r
+        for r in records(form)
+        if r["stream_type"] == "event"
+        and not (isinstance(r["value"], dict) and r["value"].get("status") in ENGINE)
+    ]
+
+
+def times(form, task, key=None):
+    """Returns the times of the records of one task, and of one key when it is given."""
+    return [r["sim_ts"] for r in events(form) if r["task"] == task and key in (None, r["key"])]
+
+
+def order(form, at):
+    return [(r["task"], r["key"]) for r in events(form) if r["sim_ts"] == at]
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_check_comes_first_then_the_four_cars_in_order(form):
+    first = [row for row in order(form, 0) if row[0] in ("check", "car")]
+    assert first == [("check", "control-1")] + [("car", f"cars-{n}") for n in range(1, 5)]
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_a_new_car_comes_every_5_seconds(form):
+    assert (times(form, "car", "cars-5"), times(form, "car", "cars-6")) == ([5], [10])
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_each_car_steps_for_5_seconds(form):
+    assert times(form, "car_on", "cars-1") == [5]
+    assert times(form, "car_on", "cars-5") == [10]
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_the_new_car_comes_before_the_steps_that_end_with_it(form):
+    rows = order(form, 5)
+    assert rows.index(("car", "cars-5")) < rows.index(("car_on", "cars-1"))

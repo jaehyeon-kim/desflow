@@ -1,0 +1,16 @@
+{"instance": 0, "key": "a-1", "sim_ts": 0.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:45.487+00:00", "value": {"status": "started"}}
+{"instance": 1, "key": "a-2", "sim_ts": 0.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:45.487+00:00", "value": {"status": "started"}}
+{"instance": 0, "key": "a-1", "sim_ts": 1.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:46.487+00:00", "value": {"event_type": "tick"}}
+{"instance": 2, "key": "a-1", "sim_ts": 1.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:46.487+00:00", "value": {"status": "started"}}
+{"instance": 1, "key": "a-2", "sim_ts": 1.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:46.487+00:00", "value": {"event_type": "tick"}}
+{"instance": 3, "key": "a-2", "sim_ts": 1.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:46.487+00:00", "value": {"status": "started"}}
+{"path_id": "system.simulation.segment", "sim_ts": 2.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:07:47.487+00:00", "value": {"index": 0, "now": 2, "peek": 2}}
+{"instance": 2, "key": "a-1", "sim_ts": 2.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:47.487+00:00", "value": {"event_type": "tick"}}
+{"instance": 4, "key": "a-1", "sim_ts": 2.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:47.487+00:00", "value": {"status": "started"}}
+{"instance": 3, "key": "a-2", "sim_ts": 2.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:47.487+00:00", "value": {"event_type": "tick"}}
+{"instance": 5, "key": "a-2", "sim_ts": 2.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:47.487+00:00", "value": {"status": "started"}}
+{"instance": 4, "key": "a-1", "sim_ts": 3.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:48.487+00:00", "value": {"event_type": "tick"}}
+{"instance": 6, "key": "a-1", "sim_ts": 3.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:48.487+00:00", "value": {"status": "started"}}
+{"instance": 5, "key": "a-2", "sim_ts": 3.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:48.487+00:00", "value": {"event_type": "tick"}}
+{"instance": 7, "key": "a-2", "sim_ts": 3.0, "stream_type": "event", "task": "pem", "timestamp": "2026-11-07T11:07:48.487+00:00", "value": {"status": "started"}}
+{"path_id": "system.simulation.segment", "sim_ts": 4.0, "stream_type": "telemetry", "timestamp": "2026-11-07T11:07:49.487+00:00", "value": {"index": 1, "now": 4, "peek": 4}}

@@ -1,0 +1,50 @@
+# case P78: simmer untrap: stop listening to a signal. Y11 `when` makes the entry do
+# nothing once the flow has stopped listening; no new key. The prototype wrote `door:
+# {}`, which is a one-shot signal and fires only once, so this document writes `once:
+# false`. Two watchers listen, and only the one that sets `listening` to 0 stops. A
+# report task reads the count at 7.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+signals:
+  door: {once: false}
+
+variables: {heard: 0}
+
+arrivals:
+  w2:
+    initial: 1
+    spawn: keep_listening
+    attributes: {listening: 1}
+  w:
+    initial: 1
+    spawn: watch
+    attributes: {listening: 1}
+  d: {dist: constant, value: 2, spawn: ring, max_events: 3}
+  r: {dist: constant, value: 7, spawn: report, max_events: 1}
+
+tasks:
+  watch:
+    listen:
+      signal: door
+      on:
+        - when: "attr.listening == 1"
+          path: P.variables.heard
+          value: {gen: expr, expr: "registry['P.variables.heard'] + 1"}
+    set: {listening: 0}
+    payload: {event_type: watch}
+  keep_listening:
+    listen:
+      signal: door
+      on:
+        - when: "attr.listening == 1"
+          path: P.variables.heard
+          value: {gen: expr, expr: "registry['P.variables.heard'] + 1"}
+    payload: {event_type: keep_listening}
+  ring:
+    payload: {event_type: ring}
+    on:
+      - fire: {signal: door}
+  report:
+    payload:
+      event_type: report
+      heard: {gen: expr, expr: "registry['P.variables.heard']"}

@@ -1,0 +1,24 @@
+# case GD-I4: four cars, driving_time = i * 2, a charging station of two spots, charge 5
+# (shared_resources.rst:25-87).
+simulation: {sim_id: Car, factor: 0, random_seed: 42}
+
+resources:
+  bcs: {current_cap: 2}
+
+arrivals:
+  cars:
+    initial: 4
+    spawn: drive
+    key: {gen: sequence, format: "Car {}"}
+    attributes:
+      driving_time: {gen: sequence, start: 0, step: 2}
+
+tasks:
+  drive:
+    service_time: "attr.driving_time"
+    payload: {event_type: arrived}
+    next: charge
+  charge:
+    resource: bcs
+    service_time: 5
+    payload: {event_type: charged}

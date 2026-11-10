@@ -1,0 +1,13 @@
+# V10: routing weights from an expression. The program is programs/v10_weights.py.
+# See test_yaml_only.py.
+simulation: {sim_id: V10, factor: 0, random_seed: 42}
+arrivals:
+  jobs: {replay: {path: jobs.csv}, spawn: route}
+tasks:
+  route:
+    service_time: 2
+    payload: {event_type: routed}
+    next: {weights: {fast: attr.fast, slow: attr.slow}}
+  fast: {payload: {event_type: fast}}
+  slow: {payload: {event_type: slow}}
+run: {until: 10}

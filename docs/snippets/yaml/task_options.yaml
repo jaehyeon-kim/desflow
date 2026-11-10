@@ -1,0 +1,82 @@
+# The Tasks page: how an order leaves the line, and what a task does when it is
+# interrupted. Orders wait for one packer, rush orders take it, and a scenario step
+# interrupts the labelling.
+# Run it with: desflow run task_options.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console}
+
+resources:
+  packers: {current_cap: 1, max_cap: 3, queue: priority, preempt: true}
+
+services:
+  packing: {dist: constant, value: 3 s}
+  labelling: {dist: constant, value: 4 s}
+  repairing: {dist: constant, value: 1 s}
+
+arrivals:
+  # An order every 2 s, a rush order every 20 s and a label every 8 s
+  orders: {dist: constant, value: 2 s, spawn: pack_order}
+  rush: {dist: constant, value: 20 s, spawn: rush_pack}
+  gifts: {dist: constant, value: 25 s, spawn: pack_gift}
+  labels: {dist: constant, value: 8 s, spawn: print_label}
+
+tasks:
+  # --8<-- [start:leave]
+  pack_order:
+    service: packing
+    resource: packers
+    priority: 1
+    # The order leaves the line when it has waited 8 seconds
+    patience: 8 s
+    # The order does not join the line from 150 seconds on
+    balk: t >= 150
+    # Where an order goes after it leaves the line; it reads upstream.status
+    on_renege: follow_up
+    on_balk: follow_up
+    payload: {event_type: order_packed}
+  follow_up:
+    payload:
+      event_type: order_left
+      how: {gen: expr, expr: upstream.status}
+  # --8<-- [end:leave]
+  rush_pack:
+    service: packing
+    resource: packers
+    priority: 0
+    payload: {event_type: rush_packed}
+  # --8<-- [start:abandon]
+  pack_gift:
+    service: packing
+    resource: packers
+    priority: 1
+    # A gift that loses its packer gives it up and is packed by hand instead
+    on_interrupt: abandon
+    on_interrupt_next: pack_by_hand
+    payload: {event_type: gift_packed}
+  pack_by_hand:
+    service: packing
+    payload: {event_type: packed_by_hand}
+  # --8<-- [end:abandon]
+  # --8<-- [start:run]
+  print_label:
+    service: labelling
+    # After an interrupt, retool runs as a child flow of the same entity, and then
+    # the label goes on with the time it had left
+    on_interrupt: resume
+    on_interrupt_run: retool
+    payload: {event_type: label_printed}
+  retool:
+    service: repairing
+    payload:
+      event_type: retooled
+      left: {gen: expr, expr: cause.left}
+  # --8<-- [end:run]
+
+scenario:
+  # Interrupts every label being printed at 10 seconds
+  - at: 10 s
+    interrupt: {task: print_label, cause: jam}
+
+run: {until: 3 min}

@@ -1,0 +1,20 @@
+"""Builder API form of model M: one entity uses `res` for 1 s; res stats on every change."""
+from desflow import ConsoleEgress, SimulationContext
+
+app = (
+    SimulationContext(sim_id="M", factor=0, random_seed=42)
+    .add_egress(ConsoleEgress(format="json"))
+    .add_resource("res", current_cap=1, max_cap=1)
+    .add_service("hold", dist="constant", value=1)
+    .add_arrival("a", dist=None, gap=1000, first_at=0, max_events=1, spawn="use")
+    .with_stats("minimal", interval=100, on_change=True)
+)
+
+
+@app.task(service_id="hold", resource_id="res", name="use")
+def use(context):
+    return {"event_type": "used"}
+
+
+if __name__ == "__main__":
+    app.run(until=5)

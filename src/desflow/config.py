@@ -10,9 +10,10 @@ changes only with an Upgrading line in the Changelog.
 QUEUE_ORDERS = ("fifo", "lifo", "priority")
 DEFAULT_QUEUE_ORDER = "fifo"
 
-# What a task does when it is interrupted or preempted: `resume` queues again and
-# serves the remaining time, `restart` queues again with a new service time, and
-# `abandon` ends the task.
+# What a task does when it is interrupted or preempted: `resume` asks again for a
+# unit it lost and serves the remaining time, `restart` does the same with a new
+# service time, and `abandon` gives back every unit and ends the task. A plain
+# interrupt leaves a granted unit with the task; a preemption takes it.
 INTERRUPT_POLICIES = ("resume", "restart", "abandon")
 UNHANDLED_FAILURE_POLICIES = ("stop", "continue")
 
@@ -26,7 +27,9 @@ DEFAULT_STATS_INTERVAL = 10.0
 # The egress `when` value that makes a sink receive ground-truth records, and only
 # those.
 LABELS = "labels"
+# The egress `when` value that makes a sink receive the event trace, and only that.
+TRACE = "trace"
 
 # The shortest time a draw gives: the sampler raises a draw below it to it, so a
-# time is never 0 or negative.
-MIN_DELAY = 0.00001
+# time is never negative. A draw of 0 stays 0, as SimPy's `timeout(0)` does.
+MIN_DELAY = 0

@@ -7,6 +7,8 @@ loops over its rows itself.
 """
 
 import csv
+import math
+import re
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -20,10 +22,29 @@ UNITS: Dict[str, float] = {"ms": 0.001, "s": 1.0, "min": 60.0, "h": 3600.0}
 TIMESTAMP = "timestamp"
 
 
+def check_fields(fields: Any) -> None:
+    """
+    Refuses `fields` given as one string other than `all`, as a blueprint's
+    `replay.fields` is refused, because a string would be read one letter at a time.
+
+    Args:
+        fields: The columns each arrival carries, or `all`.
+
+    Raises:
+        ValueError: If `fields` is a string other than `all`.
+    """
+    if isinstance(fields, str) and fields != "all":
+        raise ValueError(
+            f"fields: Input should be 'all'; Input should be a valid list, "
+            f"got {fields!r}"
+        )
+
+
 @dataclass
 class Row:
     """
-    One arrival of a trace.
+    One arrival of a trace, as `read_trace` gives it (the `row` generator is
+    `desflow.values.Row`).
 
     Attributes:
         time (float): Its simulation time.
@@ -69,10 +90,10 @@ def read_trace(
         List[Row]: The rows, each with its simulation time.
 
     Raises:
-        ValueError: If the unit or `on_invalid` is unknown; a row is out of time
-            order, naming the first one; a row's time is before the start; a
-            field is missing; or a row's time is invalid and `on_invalid` is
-            `error`.
+        ValueError: If the unit or `on_invalid` is unknown; `fields` is a string
+            other than `all`; a row is out of time order, naming the first one; a
+            row's time is before the start; a field is missing; or a row's time is
+            invalid and `on_invalid` is `error`.
         ImportError: If a Parquet file is read without pyarrow.
     """
     if unit not in UNITS and unit != TIMESTAMP:
@@ -83,9 +104,10 @@ def read_trace(
         raise ValueError(f"on_invalid must be error or skip, got '{on_invalid}'")
     if unit == TIMESTAMP and start is None:
         raise ValueError("a timestamp column needs the run's logical_start_time")
+    check_fields(fields)
     rows: List[Row] = []
     last: Optional[float] = None
-    for number, record in enumerate(_records(source), start=1):
+    for number, record in enumerate(read_records(source), start=1):
         when = _time(record.get(time), unit, start, initial_time)
         if when is None:
             message = f"row {number} has no valid {time}: {record.get(time)!r}"
@@ -107,7 +129,7 @@ def read_trace(
             )
         last = when
         if fields == "all":
-            kept = {key: _value(value) for key, value in record.items()}
+            kept = {key: plain_value(value) for key, value in record.items()}
         else:
             missing = [name for name in fields if name not in record]
             if missing:
@@ -115,13 +137,17 @@ def read_trace(
                     f"row {number} has no field {', '.join(missing)}; add it to the "
                     f"row, or leave it out of fields"
                 )
-            kept = {name: _value(record[name]) for name in fields}
+            kept = {name: plain_value(record[name]) for name in fields}
         rows.append(Row(when, number, kept))
     return rows
 
 
-def _records(source: Any) -> Iterable[Mapping[str, Any]]:
-    """The rows of a source, as mappings."""
+def read_records(source: Any) -> Iterable[Mapping[str, Any]]:
+    """The rows of a source, as mappings.
+
+    Args:
+        source: A CSV or Parquet file, or an iterable of mappings.
+    """
     if isinstance(source, (str, Path)):
         path = Path(source)
         if path.suffix.lower() == ".parquet":
@@ -133,10 +159,25 @@ def _records(source: Any) -> Iterable[Mapping[str, Any]]:
     return list(source)
 
 
+# A CSV number: a sign, digits, a point and an exponent, and nothing else, so `1_0`,
+# `nan`, `Infinity` and `0x1` stay text
+_NUMBER = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
+
+
 def _time(
     value: Any, unit: str, start: Optional[datetime], initial_time: float
 ) -> Optional[float]:
-    """A row's simulation time, or None when the value is not a time."""
+    """A row's simulation time, or None when the value is not a time (NaN and
+    infinity are not times)."""
+    when = _time_of(value, unit, start, initial_time)
+    if when is not None and not math.isfinite(when):
+        return None
+    return when
+
+
+def _time_of(
+    value: Any, unit: str, start: Optional[datetime], initial_time: float
+) -> Optional[float]:
     if value is None or value == "":
         return None
     if unit == TIMESTAMP:
@@ -163,15 +204,21 @@ def _time(
         # As records do: logical_start_time is simulation time 0, whatever the
         # initial time, so a row's timestamp is the timestamp its arrival gets
         return (value - start).total_seconds()
+    if isinstance(value, str) and not _NUMBER.fullmatch(value.strip()):
+        return None  # such as `1_0`, `nan` or `0x1`: not a CSV number
     try:
         return initial_time + float(value) * UNITS[unit]
     except (TypeError, ValueError):
         return None
 
 
-def _value(value: Any) -> Any:
-    """A CSV field as a number when it reads as one; other values as they are."""
-    if not isinstance(value, str):
+def plain_value(value: Any) -> Any:
+    """A CSV field as a number when it reads as one; other values as they are.
+
+    Args:
+        value: The field's value.
+    """
+    if not isinstance(value, str) or not _NUMBER.fullmatch(value.strip()):
         return value
     for kind in (int, float):
         try:

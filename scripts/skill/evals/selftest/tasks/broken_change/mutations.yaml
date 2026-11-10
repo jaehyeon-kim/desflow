@@ -1,0 +1,8 @@
+# A change desflow refuses: `nonsense` is not a key of a resource.
+
+task: P33
+
+mutations:
+  - name: a key the resource does not take
+    changes:
+      - {keys: [resources.m.nonsense], new: 1, add: true}

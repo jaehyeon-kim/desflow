@@ -22,7 +22,7 @@ from desflow import (
 )
 from desflow.blueprint.loader import BlueprintError
 from desflow.core.context import SimulationContext
-from desflow.core.internal import is_internal
+from desflow.internal import is_internal
 from tests.conformance.batch5_scripts import TracingEnvironment, start_go
 from tests.conformance.harness import (
     BLUEPRINTS,
@@ -190,7 +190,7 @@ def _builder_firing():
     app.add_process(start_go)
     trace = []
     for func in _observers(
-        trace, lambda c: {n: c.signal(n).wait() for n in c._signals}
+        trace, lambda c: {n: c.signal(n).wait() for n in c._run.signals.made}
     ):
         app.add_process(func)
     app.run(until=20)
@@ -202,7 +202,7 @@ def _yaml_firing():
 
     def prepare(app):
         for func in _observers(
-            trace, lambda c: {n: c.signal(n).wait() for n in c._signals}
+            trace, lambda c: {n: c.signal(n).wait() for n in c._run.signals.made}
         ):
             app.add_process(func)
 
@@ -297,11 +297,11 @@ def test_c6_fire_urgent_and_after_need_a_one_shot_signal(tmp_path):
     when the run is built, in the builder and in YAML, and a bad `after` is refused."""
     app = SimulationContext("C6", factor=0.0)
     app.add_signal("go", once=True, on=[{"fire": {"signal": "again", "urgent": True}}])
-    app.add_signal("again")
+    app.add_signal("again", once=False)
     with pytest.raises(ValueError, match=_REARMING_BUILDER):
         app.start(until=10)
     rearming = SimulationContext("C6", factor=0.0)
-    rearming.add_signal("again")
+    rearming.add_signal("again", once=False)
     rearming.start(until=10)
     for timing in ({"urgent": True}, {"after": 2}):
         with pytest.raises(ValueError, match=_REARMING_BUILDER):

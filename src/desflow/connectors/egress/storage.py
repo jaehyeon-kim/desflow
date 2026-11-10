@@ -3,6 +3,7 @@ import logging
 import posixpath
 import queue
 import uuid
+from collections import Counter
 from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -14,6 +15,10 @@ from desflow.connectors.egress.base import (
     BaseEgress,
     drop_reserved_keys,
     group_rows,
+    load_arrow,
+    require_packages,
+    warn_skipped,
+    write_error,
     rows_table,
     to_schema,
     widen_schema,
@@ -33,11 +38,13 @@ def _generate_chunk_filename(base_path: str) -> str:
         base_path (str): The target file path (e.g., 'data/events.parquet').
 
     Returns:
-        str: The chunked file path (e.g., 'data/events_a1b2c3d4.parquet').
+        str: The chunked file path (e.g., 'data/events_a1b2c3d4.parquet'), always
+            with forward slashes, which PyArrow filesystems and `_ensure_folder` expect.
     """
     path_obj = Path(base_path)
     chunk_id = uuid.uuid4().hex[:8]
-    return f"{path_obj.parent / path_obj.stem}_{chunk_id}{path_obj.suffix}"
+    stem_path = (path_obj.parent / path_obj.stem).as_posix()
+    return f"{stem_path}_{chunk_id}{path_obj.suffix}"
 
 
 # The `type` values a filesystem mapping can name, and the PyArrow class each builds.
@@ -177,6 +184,13 @@ class JsonlStorageEgress(BaseEgress):
     errors) or dynamically dropping specific records by returning `None`. Records
     are then written as the router leaves them.
 
+    An event whose `value` holds `__path__`, a file path such as `packed/orders.jsonl`,
+    is written to that path, and the key is removed from the row. This replaces a
+    `path_router` for the common case. A `path_router` wins over `__path__`, and a
+    record with no `__path__` goes to `default_path`. The folder of each path is
+    created. With `envelope=False` on the entry, the row is the event's `value`
+    alone.
+
     Attributes:
         default_path (Optional[str]): The fallback destination path if no router is provided.
         filesystem (Optional[Any]): A PyArrow `FileSystem` instance, or the mapping it
@@ -222,12 +236,25 @@ class JsonlStorageEgress(BaseEgress):
                 first write to it.
             path_router: A function taking a dict payload and returning a string path,
                 or None to drop the record.
+
+        Raises:
+            ImportError: If pyarrow is not installed (the `parquet` extra).
         """
+        require_packages("JsonlStorageEgress", "parquet", "pyarrow")
         _check_filesystem(filesystem)
         self.default_path = default_path
         self.filesystem = filesystem
         self.path_router = path_router
         self._folders: set = set()
+
+    def _load_libraries(self) -> None:
+        """Imports `pyarrow.fs`, which `run` reads the file system from."""
+        load_arrow("pyarrow.fs", tables=False)
+
+    def _start_run(self) -> None:
+        """Forgets the folders the last run made, so a folder removed since is made
+        again at the first write to it."""
+        self._folders = set()
 
     async def run(self, egress_queue: queue.Queue) -> None:
         """
@@ -254,19 +281,25 @@ class JsonlStorageEgress(BaseEgress):
             raise ImportError("pyarrow is required. pip install desflow[parquet]")
 
         self.filesystem = _build_filesystem(self.filesystem, fs)
+        self._start_run()
         batches_processed = 0
 
         try:
             while True:
                 try:
                     batch = egress_queue.get_nowait()
-                    self.active_tasks = getattr(self, "active_tasks", 0) + 1
-                    try:
-                        await asyncio.to_thread(self._write_batch, batch)
-                    finally:
-                        self.active_tasks -= 1
-                    # Log a progress heartbeat every 10 batches
-                    batches_processed += 1
+                    written = 0
+                    with self._writing():
+                        try:
+                            written = await asyncio.to_thread(self._write_batch, batch)
+                        except Exception as exc:
+                            # A batch that fails is logged, and the sink goes on
+                            logger.error(f"JSONL Writer: batch not written: {exc}")
+                            continue
+                    if not written:
+                        continue
+                    # Only what was written counts; log a heartbeat every 10
+                    batches_processed += written
                     if batches_processed % 10 == 0:
                         q_size = egress_queue.qsize()
                         logger.info(
@@ -282,29 +315,50 @@ class JsonlStorageEgress(BaseEgress):
                 f"Successfully wrote {batches_processed} total chunks to storage."
             )
 
-    def _write_batch(self, batch: list):
+    def _write_batch(self, batch: list) -> int:
         """
         Groups a batch of records by destination path and writes them to chunked files.
 
         Args:
             batch (list): A list of dictionaries or Pydantic models to be written.
+
+        Returns:
+            int: The files written.
         """
         if self.filesystem is None:
             logger.error("Filesystem not initialized. Batch dropped.")
-            return
+            return 0
 
-        # A file routes by no reserved key, so it writes none
-        batch = drop_reserved_keys(batch, self)
-        grouped_batches = group_rows(batch, self.path_router, self.default_path)
+        # A file routes by __path__, and writes no other reserved key
+        batch = drop_reserved_keys(batch, self, keep=("__path__",))
+        skipped: Counter = Counter()
+        grouped_batches = group_rows(
+            batch,
+            self.path_router,
+            self.default_path,
+            self.envelope,
+            route_key="__path__",
+            require_route=self.default_path is None and self.path_router is None,
+            skipped=skipped,
+        )
+        warn_skipped(self, skipped, "__path__")
 
-        for target_path, records in grouped_batches.items():
+        # Every line is encoded before a file is opened, so a record that cannot be
+        # encoded leaves no empty or partial file
+        encoded = {
+            target_path: [
+                orjson.dumps(payload, option=orjson.OPT_APPEND_NEWLINE)
+                for payload in records
+            ]
+            for target_path, records in grouped_batches.items()
+        }
+        for target_path, lines in encoded.items():
             chunk_path = _generate_chunk_filename(target_path)
             _ensure_folder(self.filesystem, chunk_path, self._folders)
             with self.filesystem.open_output_stream(chunk_path) as stream:
-                for payload in records:
-                    stream.write(
-                        orjson.dumps(payload, option=orjson.OPT_APPEND_NEWLINE)
-                    )
+                for line in lines:
+                    stream.write(line)
+        return len(encoded)
 
 
 class ParquetStorageEgress(BaseEgress):
@@ -325,6 +379,13 @@ class ParquetStorageEgress(BaseEgress):
     Without a `path_router`, events are written to `default_path` as flat rows:
     each event's `value` mapping becomes columns, and telemetry is left out. With a
     router, records are written as the router leaves them.
+
+    An event whose `value` holds `__path__`, a file path such as `orders/orders.parquet`,
+    is written to that path, and the key is removed from the row. This replaces a
+    `path_router` for the common case. A `path_router` wins over `__path__`, and a
+    record with no `__path__` goes to `default_path`. The folder of each path is
+    created. With `envelope=False` on the entry, the row is the event's `value`
+    alone.
 
     Attributes:
         default_path (Optional[str]): The fallback destination path.
@@ -374,13 +435,28 @@ class ParquetStorageEgress(BaseEgress):
                 first write to it.
             path_router: A function taking a dict payload and returning a string path,
                 or None to drop the record.
+
+        Raises:
+            ImportError: If pyarrow is not installed (the `parquet` extra).
         """
+        require_packages("ParquetStorageEgress", "parquet", "pyarrow")
         _check_filesystem(filesystem)
         self.default_path = default_path
         self.filesystem = filesystem
         self.path_router = path_router
         self._folders: set = set()
         self.schemas: Dict[str, Any] = {}
+
+    def _load_libraries(self) -> None:
+        """Imports `pyarrow`, `pyarrow.parquet` and `pyarrow.fs`, and what `pyarrow`
+        loads on its first table."""
+        load_arrow("pyarrow.parquet", "pyarrow.fs")
+
+    def _start_run(self) -> None:
+        """Forgets the folders and the schemas of the last run, so a folder removed
+        since is made again and the files of a run have the types its own batches give."""
+        self._folders = set()
+        self.schemas = {}
 
     async def run(self, egress_queue: queue.Queue) -> None:
         """
@@ -409,23 +485,22 @@ class ParquetStorageEgress(BaseEgress):
             raise ImportError("pyarrow is required. pip install desflow[parquet]")
 
         self.filesystem = _build_filesystem(self.filesystem, fs)
+        self._start_run()
         batches_processed = 0
 
         try:
             while True:
                 try:
                     batch = egress_queue.get_nowait()
-                    self.active_tasks = getattr(self, "active_tasks", 0) + 1
                     written = 0
-                    try:
-                        written = await asyncio.to_thread(
-                            self._write_batch, batch, pa, pq
-                        )
-                    except Exception as exc:
-                        # A batch that fails is logged, and the sink goes on
-                        logger.error(f"Parquet Writer: batch not written: {exc}")
-                    finally:
-                        self.active_tasks -= 1
+                    with self._writing():
+                        try:
+                            written = await asyncio.to_thread(
+                                self._write_batch, batch, pa, pq
+                            )
+                        except Exception as exc:
+                            # A batch that fails is logged, and the sink goes on
+                            logger.error(f"Parquet Writer: batch not written: {exc}")
                     if not written:
                         continue
                     # Only what was written counts; log a heartbeat every 10
@@ -463,9 +538,19 @@ class ParquetStorageEgress(BaseEgress):
         Returns:
             int: The files written.
         """
-        # A file routes by no reserved key, so it writes none
-        batch = drop_reserved_keys(batch, self)
-        grouped_batches = group_rows(batch, self.path_router, self.default_path)
+        # A file routes by __path__, and writes no other reserved key
+        batch = drop_reserved_keys(batch, self, keep=("__path__",))
+        skipped: Counter = Counter()
+        grouped_batches = group_rows(
+            batch,
+            self.path_router,
+            self.default_path,
+            self.envelope,
+            route_key="__path__",
+            require_route=self.default_path is None and self.path_router is None,
+            skipped=skipped,
+        )
+        warn_skipped(self, skipped, "__path__")
 
         written = 0
         for target_path, records in grouped_batches.items():
@@ -484,7 +569,7 @@ class ParquetStorageEgress(BaseEgress):
                 # One batch that cannot be written does not stop the sink
                 logger.error(
                     f"Parquet Writer: could not write {len(records)} rows to "
-                    f"{target_path}: {exc}"
+                    f"{target_path}: {write_error(exc, records, self.schemas.get(target_path))}"
                 )
                 continue
             self.schemas[target_path] = schema

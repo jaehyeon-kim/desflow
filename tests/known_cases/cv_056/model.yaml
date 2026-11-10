@@ -1,0 +1,30 @@
+# case CV-056: decide on the cause, then choose to resume: abandon, save the time left,
+# route on the cause, then a task with the time left.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+
+arrivals:
+  w: {initial: 1, spawn: work}
+  i: {dist: constant, value: 3, spawn: hit, max_events: 1}
+
+tasks:
+  work:
+    service_time: 10
+    on_interrupt: abandon
+    on_interrupt_next: decide
+    payload: {event_type: done}
+  decide:
+    set:
+      left: {gen: expr, expr: "cause.left"}
+    payload: {event_type: decide}
+    next:
+      when:
+        - {condition: "cause.value == 'resume'", task: finish}
+      default: stop
+  finish:
+    service_time: "attr.left"
+    payload: {event_type: finished}
+  stop:
+    payload: {event_type: stopped}
+  hit:
+    payload: {event_type: hit}
+    interrupt: {task: work, cause: resume}

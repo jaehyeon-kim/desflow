@@ -1,433 +1,449 @@
 # Call Python from YAML
 
-A blueprint holds configuration as plain YAML. When a simulation needs logic that YAML cannot express, the file can reference a Python object with `!python module.attribute` in place of a value. This guide covers when to use it, how a reference is found, what each field receives, the setup step, and the errors a reference can give. It then works through the OML hot rolling digital twin, a steel mill model, and ends with a note on security.
+Read outside data during a run, or use a class of your own, from a blueprint. A reference of the form `!python module.attribute` takes the place of a value, and the blueprint uses the Python object it names. Most logic that once needed Python is a key of the blueprint now, so this page covers the two uses that stay.
 
 ---
 
 ## Before You Start
 
 - [YAML Blueprints](../../user-guide/writing-a-model/blueprints.md) describes the blueprint file.
-- The [Related Records](../examples/advanced-postgres-orders.md) example is a complete blueprint with one Python process.
+- Install the Redis extra for the example: `pip install "desflow[redis]"`. Start the Valkey of odctl with `odctl up valkey`. See [Installation](../../installation.md) for the one-time odctl install.
 - Every file on this page is in the repository under [`docs/snippets/`](https://github.com/jaehyeon-kim/desflow/tree/main/docs/snippets).
 
 ### When to Use It
 
-Use `!python` when a blueprint needs one of these:
+Use `!python` for one of these two things:
 
-- **Field values with logic.** Random or weighted choices, fields derived from other fields and state carried from one event to the next are written as a payload function or a process.
-- **More than a task can describe.** Collecting several entities into one, such as a batch, is written as a process. Routing (`next`), priorities (`priority` and `queue: priority`), stores and containers, several resources per task (`resource: [...]` and `keep`), preemption (`preempt: true`) and breakdowns (`breakdown:`) are written in plain YAML.
-- **Readings other than the built-in statistics.** `stats: minimal` publishes resource, store and container readings, a container's `level` among them. Use a telemetry function to publish variables and derived metrics.
-- **Routing over several destinations, and serializers.** A router or an Avro serializer is a Python object.
-- **Setup a connector does not do itself**, such as topics that only a router knows about.
-- **A connector from another package.**
+- **Data that only an outside system holds during a run**, such as a model that another program keeps in a store. No key of the blueprint reads a store while the model runs.
+- **A class of your own**, such as a connector, a resource, a store or a container, which the blueprint builds from a `type`.
 
-A setting that is a value needs no Python. Environment variables, relative times, `when: history` and `when: live`, filesystem and catalog mappings, Iceberg schemas and Postgres `tables` are all plain YAML, as [YAML Keys](../../reference/yaml-keys.md) and [Egress](../../user-guide/live-runs-and-connectors/egress.md#how-to-use-it) list. A value can still come from a module when another program already defines it, as the hot rolling twin below reads its broker address from `src/config.py`.
+Everything else is a key. Look there first:
 
-### Security
+- Field values with logic, such as random or weighted choices, fields that depend on other fields and values that change from one event to the next, are the [generators](../../generators/index.md) and the expressions of [Task Flow](../../user-guide/model-parts/task-flow.md).
+- **Keys of a task** that SimPy programs wrote as functions and processes, which [YAML Keys](../../reference/yaml-keys.md) lists:
+    - `service_time`, a time computed for each entity, such as `"attr.litres / 2"`, and `next: {weights: {fast: "attr.w", slow: "1 - attr.w"}}`, routing weights from an expression.
+    - `seize` and `release`, a unit held across several steps.
+    - `wait: {task: child, args: {...}}` and `set_args`, a sub-process with arguments.
+    - `wait: {timeout: "attr.limit"}`, a timeout computed for each entity, `wait: {when: ..., of: {...}}`, a wait with its own rule, and `running: {task, whole_flow: true}`, a wait for a whole flow.
+    - `open` with `{handle}`, a wait that goes on after an interrupt.
+- **Keys of an arrival**: `max_events`, a fixed number of arrivals, `gap: "1 + t / 4"`, a gap that depends on the time, `group`, `active`, `activate` and `off_mode`, `count` and `copy_attributes` of a spawn, and `initial`.
+- [Processes](../../user-guide/tasks-and-processes/processes.md) and [Signals and Waiting](../../user-guide/tasks-and-processes/signals-and-waiting.md) explain the flow these keys sit in.
+- Routing, priorities, preemption, breakdowns, several resources, stores and containers are keys too, as [Resources](../../user-guide/resources/index.md) and [Stores and Containers](../../user-guide/model-parts/stores-and-containers.md) show.
+- Readings other than the built-in statistics are described in [Built-in Statistics](../../user-guide/results/statistics.md).
+- Kafka topics, serializers, file and catalog settings and the setup of a connector are keys of the sink, as [Route Records to Topics](../records-and-kafka/complex-routing.md), [Use Schema Serializers](../records-and-kafka/json-schema-and-protobuf.md) and [Egress](../../user-guide/live-runs-and-connectors/egress.md) show.
 
-**Loading a blueprint runs the imports it names.** `!python` imports modules, and importing a module runs its top-level code. A blueprint is therefore as trusted as a Python script: load only files you would run as code, in a local or trusted CI workflow.
+### How a Reference Is Resolved
 
-Every other node is constructed by `yaml.SafeLoader`. The tag is registered on a subclass of it, so `yaml.safe_load` elsewhere in the process is unaffected. Only `!python` and `!include` are added to YAML. Every other tag, such as `!!python/object`, is rejected as `yaml.safe_load` rejects it.
+[YAML Blueprints](../../user-guide/writing-a-model/blueprints.md#how-it-works) describes how `!python module.attribute` is resolved, and [its Security section](../../user-guide/writing-a-model/blueprints.md#security) says why a blueprint with a reference needs the trust of a Python script.
 
 ---
 
 ## Steps
 
-### How a Reference Is Resolved
+### Call Outside Code During a Run
 
-`!python module.attribute` imports `module` and returns its `attribute`. The reference can name anything: a function, a class, a dictionary or a constant.
+A `{gen: call}` field calls a function each time the record is made. The function is called as `function(context, **kwargs)`, and the values in `kwargs` are worked out first. Its result becomes the value of the field.
 
-![A !python value such as shop_logic.choose_delivery imports the longest prefix that is a module and returns the rest, which the blueprint uses as a payload, process, router, serializer or connector class; a missing module or attribute raises BlueprintError](../../assets/diagrams/python-reference.png)
+The example is a product recommender. Each visit has three features, and the function ranks five products with the model of each, which another program keeps in Valkey under the key `linucb:<product>`. It reads all five in one `MGET`, scores a product as the expected reaction plus a bonus for how uncertain the model is, and gives the three best. A product with no model yet gets the untrained one, so it can still be shown:
 
-The longest prefix that is a module is imported, and the rest is read as attributes, so `pkg.module.func` and `module.Class.attribute` both work. Before anything is resolved, the folder of the YAML file is added to the front of `sys.path`, unless it is already on it. A module beside the blueprint is therefore found from any working directory. Other modules are found on the normal `sys.path`, which includes installed packages. `${VAR}` is replaced inside a reference too, so `!python ${LOGIC}.ticker` picks the module from the environment.
+```python title="docs/snippets/guides/call_python_ranking.py:rank"
+def top_products(context, x):
+    """The three products with the highest LinUCB score for the features x."""
+    scores = {}
+    for pid, stored in zip(PRODUCTS, CLIENT.mget([f"linucb:{p}" for p in PRODUCTS])):
+        if stored:
+            model = json.loads(stored)
+        else:  # A product with no model yet gets the identity matrix and a zero vector
+            identity = [
+                [float(i == j) for j in range(FEATURES)] for i in range(FEATURES)
+            ]
+            model = {"A_inv": identity, "b": [0.0] * FEATURES}
+        ax = [sum(a * v for a, v in zip(row, x)) for row in model["A_inv"]]
+        expected = sum(a * b for a, b in zip(ax, model["b"]))
+        uncertainty = math.sqrt(sum(a * v for a, v in zip(ax, x)))
+        scores[pid] = expected + ALPHA * uncertainty
+    return sorted(scores, key=scores.get, reverse=True)[:3]
+```
 
-Every reference is resolved and checked when the file is loaded, so a wrong reference fails before the run starts, with the file and line.
+The shop makes a visit every 0.1 seconds. The features are a var, so the record shows them and the function reads the same values:
 
-| Field | Must be | Called as |
-|---|---|---|
-| `processes[].function` | a generator function | `function(context, **kwargs)` when the run starts |
-| `tasks.<name>.payload` | a callable, or a mapping | `payload(task_id, context)` once per finished task |
-| `telemetry[].function` | a callable | `function(context)` every `interval` |
-| `egress[].when` | a callable, or `history` or `live` | `when(record)`, True to send the record to that sink |
-| `ingress[].type`, `egress[].type` | a class, or a short name | `type(**config)` while the blueprint is built |
-| `run.before[]` | a callable | `before()` once, at the start of `run()` |
-| any value under `config`, `simulation` or `run.until` | whatever that argument takes | not called |
+In YAML, the `gen: call` field of the task payload names the function:
 
-### Processes, Payloads and `kwargs`
+```yaml title="docs/snippets/yaml/call_python.yaml:task"
+tasks:
+  recommend:
+    vars:
+      # The visitor's three features, each between 0 and 1
+      x:
+        gen: repeat
+        times: 3
+        value: {gen: uniform, low: 0, high: 1, decimals: 3}
+    payload:
+      features: {gen: var, name: x}
+      # call_python_ranking.top_products(context, x=...) gives the three products
+      shown:
+        gen: call
+        function: !python call_python_ranking.top_products
+        kwargs:
+          x: {gen: var, name: x}
+```
 
-This blueprint keeps the shop in YAML and moves three pieces of logic into Python: a payload that picks each order's delivery, a breaks process with arguments, and a predicate that keeps telemetry off the terminal:
+In the Builder, the field takes the function itself:
 
-```yaml title="docs/snippets/yaml/hybrid.yaml"
-# The shop with its logic in Python. YAML keeps the blueprint and the
-# experiment; shop_logic.py beside this file holds what YAML cannot express.
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 1
+```python title="docs/snippets/guides/call_python.py:shop"
+def build_shop() -> SimulationContext:
+    """The shop: each visit calls the ranking function with the visitor's features."""
+    app = SimulationContext(sim_id="Recommender", factor=0, random_seed=42)
+    app.add_egress(ConsoleEgress(format="json"))
+    app.add_arrival("visits", dist="constant", value=0.1, spawn="recommend")
+    x = {"gen": "var", "name": "x"}
+    visit = Template(
+        {
+            "features": x,
+            # top_products(context, x=...) gives the three products
+            "shown": {"gen": "call", "function": top_products, "kwargs": {"x": x}},
+        },
+        name="tasks.recommend",
+        # The visitor's three features, each between 0 and 1
+        vars={
+            "x": {
+                "gen": "repeat",
+                "times": 3,
+                "value": {"gen": "uniform", "low": 0, "high": 1, "decimals": 3},
+            }
+        },
+    )
+
+    @app.task(name="recommend")
+    def recommend(task_id):
+        """Gives one visit record."""
+        return visit
+
+    return app
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    build_shop().run(until=1)
+```
+
+In the low-level API, which has no `gen`, the process draws the features with a `Sampler` and calls the function itself:
+
+```python title="docs/snippets/guides/call_python_low_level.py:shop"
+def visits(env, sampler):
+    """A visit every 0.1 seconds, shown the products the ranking function picks."""
+    features = sampler.generator("tasks.recommend.vars.x.value")
+    for number in itertools.count(1):
+        yield env.timeout(0.1)
+        # The visitor's three features, each between 0 and 1
+        x = [round(float(features.uniform(0, 1)), 3) for _ in range(3)]
+        # top_products(context, x) gives the three products
+        record = {"features": x, "shown": top_products(env, x)}
+        env.publish_event(f"visits-{number}", record, "recommend", number - 1)
+
+
+def shop() -> DynamicRealtimeEnvironment:
+    """The shop, with its visits started."""
+    env = DynamicRealtimeEnvironment(factor=0)
+    env.setup_egress([ConsoleEgress(format="json")])
+    env.process(visits(env, Sampler(seed=42)))
+    return env
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    env = shop()
+    try:
+        env.run(until=1)
+    finally:
+        env.teardown()
+```
+
+The function runs inside the simulation, so a slow call holds the run. This one asks for five keys in one call. A function that waits for a network call at each visit sets the pace of the run.
+
+### Use Your Own Class
+
+A `type: !python module.Class` entry builds your class from the `config` mapping. It works for `ingress`, `egress`, resources, stores and containers. The blueprint passes the keys of `config` to the class as keyword arguments:
+
+```yaml title="docs/snippets/yaml/write_a_connector.yaml:connectors"
+ingress:
+  - type: !python write_a_connector_logic.JsonlIngress
+    config: {path: changes.jsonl}
 
 egress:
-  - type: Console
-    # Only events reach the terminal; telemetry is dropped.
-    when: !python shop_logic.events_only
-
-resources:
-  packers: {current_cap: 1, max_cap: 3}
-
-services:
-  packing: {dist: normal, mean: 4.0, std: 1.0}
-
-arrivals:
-  # An order every 5 s on average (rate 0.2)
-  orders: {dist: exponential, rate: 0.2, spawn: pack_order}
-
-tasks:
-  pack_order:
-    service: packing
-    resource: packers
-    # Called as choose_delivery(task_id, context) for every packed order.
-    payload: !python shop_logic.choose_delivery
-
-processes:
-  # Called as breaks(context, resource="packers", every=50, duration=5).
-  - function: !python shop_logic.breaks
-    kwargs: {resource: packers, every: 50, duration: 5}
-
-scenario:
-  - {at: 1 min, path: Shop.arrival.orders.rate, value: 0.4}
-
-run:
-  until: 3 min
+  - type: !python write_a_connector_logic.CsvEgress
+    when: events  # events only; the readings of telemetry stay out of the file
+    config: {path: events.csv, columns: [status, event_type]}
 ```
 
-```python title="docs/snippets/yaml/shop_logic.py"
-"""Python for the blueprints beside it: a payload, a process with arguments, a
-predicate, a custom reading, a resource type and a container type."""
-
-from desflow import ContainerBase, ResourceBase
-
-
-def choose_delivery(task_id: int, context):
-    """Picks each order's delivery from the shared generator, so a seed repeats it."""
-    delivery = "standard" if context.sampler.rng.random() < 0.9 else "express"
-    return {"status": "finished", "order_id": task_id, "delivery": delivery}
-
-
-def breaks(context, resource: str, every: float, duration: float):
-    """Waits `every` seconds, then takes every packer off for a break of `duration`."""
-    path = f"{context.sim_id}.resources.{resource}.current_cap"
-    registry = context.env.registry
-    while True:
-        yield context.env.timeout(every)
-        normal = registry.get(path).value
-        registry.update(path, 0)
-        context.env.publish_event(f"{resource}-break", {"status": "down"})
-        yield context.env.timeout(duration)
-        registry.update(path, normal)
-        context.env.publish_event(f"{resource}-break", {"status": "up"})
-
-
-def events_only(record: dict) -> bool:
-    """Egress predicate: keeps events and drops telemetry."""
-    return record["stream_type"] == "event"
-
-
-def packers_report(context):
-    """A custom reading: orders waiting per packer, and the live arrival rate."""
-    packers = context.get_resource("packers")
-    waiting = len(packers.queue)
-    context.publish("waiting_per_packer", waiting / max(packers.capacity, 1))
-    rate = context.env.registry.get(f"{context.sim_id}.arrival.orders.rate").value
-    context.publish("arrival_rate", rate)  # as Shop.arrival_rate
-
-
-class LoggedPackers(ResourceBase):
-    """A resource that keeps how long each request waited before it was granted."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.waits = []
-
-    def _do_put(self, request):
-        super()._do_put(request)
-        if request.triggered:  # the request was granted just now
-            self.waits.append(self.env.now - request.time)
-
-
-class CountedBin(ContainerBase):
-    """A container that counts the puts it grants."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.restocks = 0
-
-    def _do_put(self, event):
-        granted = super()._do_put(event)
-        if event.triggered:
-            self.restocks += 1
-        return granted
-
-
-```
-
-What each reference receives:
-
-- `payload` is called as `choose_delivery(task_id, context)` for every packed order. It draws from `context.sampler`, the generator seeded by `random_seed`, so the deliveries repeat with the seed.
-- `processes` entries are called as `function(context, **kwargs)` when the run starts. `kwargs` is how one function serves several resources.
-- `when` is called with every record and returns True to send it to that sink.
-
-The run shows the delivery that the payload picked and the events of the breaks process:
-
-<!-- records: hybrid-events -->
-```text
-[EVT] {'sim_ts': 5.369, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'status': 'finished', 'order_id': 0, 'delivery': 'standard'}}
-[EVT] {'sim_ts': 50.0, 'timestamp': '...', 'key': 'packers-break', 'task': None, 'instance': None, 'value': {'status': 'down'}}
-[EVT] {'sim_ts': 55.0, 'timestamp': '...', 'key': 'packers-break', 'task': None, 'instance': None, 'value': {'status': 'up'}}
-```
-
-A process is written in one of two ways. A bare reference, `- !python module.func`, is called as `func(context)`. A mapping with `function` and `kwargs` is called as `func(context, **kwargs)`. `kwargs` is what lets a blueprint start a process whose signature is not `(context)`. When the signature differs more, write a small adapter: a generator function that takes the context, picks out what the process needs, and hands over with `yield from`.
-
-```python title="docs/snippets/hot_rolling/hot_rolling_adapter.py:arrivals"
-def arrivals(context, product):
-    yield from arrival_process(
-        context.env,
-        product,
-        VARIABLE_PASSES,
-        MAX_PASSES,
-        context.sampler,
-        context.get_resource(f"mill_{product}"),
-    )
-```
-
-**A process must be a generator function**, one that contains `yield`. The check runs when the file is loaded and looks only at the function, so an adapter that returns a generator instead of yielding from one is rejected. Write adapters with `yield from`.
-
-### Routers, Serializers and Connector Classes
-
-A router replaces the default destination of every record. Each router is a function that receives a record:
-
-- `path_router` on Parquet and JSONL, and `table_router` on Iceberg, return the record's destination, or None to drop it.
-- `topic_router` on Kafka must always return a topic. To drop records before Kafka, give the sink a `when` predicate.
-
-With a router, records are written as the router leaves them, so flattening events and dropping telemetry become the router's job. Kafka also leaves topic creation to the caller, because only the router knows which topics it uses. The hot rolling twin below sends every record to one of four topics with `topic_router: !python routing.custom_topic_router`.
-
-A serializer is an object, so it is built in a module and referenced. `KafkaEgress` takes `default_serializer` and `topic_serializers`, for example `default_serializer: !python serializers.AVRO`, where `serializers.py` builds a `ConfluentAvroSerializer` with the registry URL and the schema.
-
-A connector from another package is referenced by class: `type: !python my_package.MyEgress`. Its `config` is passed to the constructor, as for a built-in one.
-
-### Setup with `run.before`
-
-`run.before` lists functions called with no arguments, once, at the start of `run()`. Connectors already create what they write to when they can: Kafka its event and telemetry topics, Postgres the tables under `tables`, and Parquet and JSONL their folders. `run.before` is for anything else, such as the five topics the hot rolling twin below creates for its router.
-
-Put such setup in a function rather than at the top of the module. The module is imported when the file is loaded, so its top-level code runs even when the blueprint is loaded and never run.
-
-```yaml title="docs/snippets/yaml_build/connectors.yaml:before"
-run:
-  until: 1 hour
-  before:
-    - !python routing_logic.make_output_folder
-```
-
-The module beside the blueprint holds the setup function, and the `path_router` its `Jsonl` sink uses:
-
-```python title="docs/snippets/yaml_build/routing_logic.py"
-"""Python for docs/snippets/yaml_build/connectors.yaml: a router and a setup step."""
-
-import os
-
-
-def daily_path(record: dict):
-    """Writes each event under its day; drops telemetry by returning None."""
-    if record["stream_type"] != "event":
-        return None
-    return f"events/day={record['timestamp'][:10]}/events.jsonl"
-
-
-def make_output_folder() -> None:
-    """Called once by run.before, when the run starts, not when the file is loaded."""
-    os.makedirs("events", exist_ok=True)
-```
+[Write a Connector](../records-and-kafka/write-a-connector.md) writes these two classes. [Custom Resource Types](../../user-guide/resources/custom-resource-types.md) and [Stores and Containers](../../user-guide/model-parts/stores-and-containers.md) show a resource, a store and a container. In the Builder and Low-level forms, pass the object itself, such as `app.add_egress(CsvEgress(path="events.csv"))`.
 
 ---
 
 ## Check the Result
 
+Store the models, then run the shop from one folder that holds `call_python_ranking.py`, `call_python_seed.py` and the files of your form:
+
+```bash
+python call_python_seed.py
+```
+
+Three products get a model and two do not. Then run your form. In YAML:
+
+```bash
+desflow run call_python.yaml
+```
+
+In the Builder:
+
+```bash
+python call_python.py
+```
+
+In the low-level API:
+
+```bash
+python call_python_low_level.py
+```
+
+Each prints one JSON record for each visit, ten in all, and the three forms print the same `features` and `shown`. The first three are:
+
+```text
+{"stream_type":"event","sim_ts":0.1,"timestamp":"2026-11-08T22:36:15.282+00:00","key":"visits-1","task":"recommend","instance":0,"value":{"features":[0.301,0.572,0.827],"shown":["p2","p3","p4"]}}
+{"stream_type":"event","sim_ts":0.2,"timestamp":"2026-11-08T22:36:15.382+00:00","key":"visits-2","task":"recommend","instance":1,"value":{"features":[0.919,0.624,0.385],"shown":["p1","p2","p4"]}}
+{"stream_type":"event","sim_ts":0.30000000000000004,"timestamp":"2026-11-08T22:36:15.482+00:00","key":"visits-3","task":"recommend","instance":2,"value":{"features":[0.787,0.673,0.882],"shown":["p1","p2","p4"]}}
+```
+
+The `timestamp` of a record is the clock time of the run, so it differs from run to run. In the first visit, `p4` ranks third although it has no model: its score is only the bonus for not being known. When the models change in Valkey, the next visit ranks with the new models.
+
 A reference that cannot be resolved stops the load with its line. [`python_error.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/python_error.yaml) names `shop_logic.missing` as the payload of its task, and `desflow run python_error.yaml` prints:
 
 <!-- records: python-error -->
 ```text
-Error: python_error.yaml:14: !python shop_logic.missing: 'shop_logic' has no attribute 'missing'
+Error: python_error.yaml:15: !python shop_logic.missing: 'shop_logic' has no attribute 'missing'
 ```
 
 A module that exists but fails on one of its own imports is reported with that error, rather than as a missing module.
 
 ---
 
-## Example
+## Full Files
 
-**Lift the OML hot rolling twin.** The [OML hot rolling digital twin](https://github.com/jaehyeon-kim/oml-digital-twin-hotrolling) is a steel mill written with the low-level API. Its `generator.py` builds a `SimParameter` with three arrivals, three services, three resources, three containers and three variables. It connects Kafka in both directions with a topic router, and starts the processes in `sim_logic.py`. Those processes take `(env, sampler, resource, ...)`, not a context, and `sim_logic.py` runs to 262 lines of multi-stage routing, wear and physics.
+??? example "Full files"
 
-The configuration moves to YAML. The processes keep their logic, and a small adapter changes only how they are called.
+    ```python title="docs/snippets/guides/call_python_ranking.py"
+    """The ranking function of the Call Python from YAML page.
 
-```yaml title="docs/snippets/hot_rolling/hot_rolling.yaml"
-# The OML hot rolling digital twin as a blueprint. The parameters and the Kafka
-# connectors that generator.py builds in Python are declared here. The processes stay
-# in sim_logic.py, and hot_rolling_adapter.py beside this file adapts them.
-#
-# Place this file and the adapter in sim_control/, then run from there:
-#   desflow run hot_rolling.yaml
-simulation:
-  sim_id: HotRolling
-  factor: 1.0
-  random_seed: 42
+    It reads the LinUCB model of each product from Valkey, scores the products for one
+    visitor and returns the best three. Every form of the shop calls it. It needs the redis
+    package (`pip install "desflow[redis]"`) and the Valkey of `odctl up valkey`.
+    """
 
-ingress:
-  # Control commands from the dashboard.
-  - type: Kafka
-    config:
-      bootstrap_servers: !python src.config.KAFKA_BROKER
-      topic: !python src.config.TOPIC_CONTROL_INGRESS
+    import json
+    import math
+    import os
 
-egress:
-  # One producer; the router picks one of four topics for every record.
-  - type: Kafka
-    config:
-      bootstrap_servers: !python src.config.KAFKA_BROKER
-      topic_router: !python routing.custom_topic_router
+    import redis
 
-arrivals:
-  structural: {dist: exponential, rate: 0.2}
-  microalloyed: {dist: exponential, rate: 0.15}
-  high_alloy: {dist: exponential, rate: 0.1}
+    PRODUCTS = ["p1", "p2", "p3", "p4", "p5"]
+    FEATURES = 3
+    ALPHA = 1.0
 
-services:
-  pass_roughing: {dist: normal, mean: 2.0, std: 0.2}
-  pass_intermediate: {dist: normal, mean: 4.5, std: 0.5}
-  pass_finishing: {dist: normal, mean: 8.0, std: 1.2}
-
-resources:
-  mill_structural: {current_cap: 4, max_cap: 10}
-  mill_microalloyed: {current_cap: 4, max_cap: 10}
-  mill_high_alloy: {current_cap: 4, max_cap: 10}
-
-containers:
-  # The wear is the level; current_cap is the most wear a roll can have
-  wear_structural: {current_cap: 100.0, max_cap: 100.0, level: 0.001}
-  wear_microalloyed: {current_cap: 100.0, max_cap: 100.0, level: 0.001}
-  wear_high_alloy: {current_cap: 100.0, max_cap: 100.0, level: 0.001}
-
-variables:
-  velocity_structural: {type: abrupt, value: 0.0}
-  velocity_microalloyed: {type: abrupt, value: 0.0}
-  velocity_high_alloy: {type: abrupt, value: 0.0}
-
-processes:
-  # Started in the order generator.py starts them.
-  - function: !python hot_rolling_adapter.drift
-    kwargs: {product_lines: [structural, microalloyed, high_alloy]}
-  - function: !python hot_rolling_adapter.monitor
-    kwargs: {product_lines: [structural, microalloyed, high_alloy]}
-  - function: !python hot_rolling_adapter.primer
-    kwargs: {product: structural}
-  - function: !python hot_rolling_adapter.arrivals
-    kwargs: {product: structural}
-  - function: !python hot_rolling_adapter.primer
-    kwargs: {product: microalloyed}
-  - function: !python hot_rolling_adapter.arrivals
-    kwargs: {product: microalloyed}
-  - function: !python hot_rolling_adapter.primer
-    kwargs: {product: high_alloy}
-  - function: !python hot_rolling_adapter.arrivals
-    kwargs: {product: high_alloy}
-
-# A reproducible drift experiment, which the dashboard otherwise drives by hand:
-# gradual wear on the structural line from 10 minutes.
-scenario:
-  - at: 10 min
-    path: HotRolling.variables.velocity_structural
-    value: {type: gradual, value: 0.5, freq: 1}
-
-run:
-  before:
-    - !python hot_rolling_adapter.create_topics
-```
-
-```python title="docs/snippets/hot_rolling/hot_rolling_adapter.py"
-"""Adapts the hot rolling processes to the calls a blueprint makes.
-
-A blueprint calls every process as `function(context, **kwargs)`. The processes in
-sim_logic.py take `(env, sampler, resource, ...)` instead, so each function here
-takes the context, picks out what the process needs, and hands over with
-`yield from`. Only the wear paths in sim_logic.py change, from `current_cap` to
-`level`.
-"""
-
-import time
-import uuid
-
-from desflow import KafkaAdminConnector
-from generator import telemetry_monitor
-from sim_logic import arrival_process, drift_engine, roll_slab
-from src.config import (
-    KAFKA_BROKER,
-    TOPIC_CONTROL_INGRESS,
-    TOPIC_GROUND_TRUTH,
-    TOPIC_LIFECYCLE,
-    TOPIC_PREDICTION_REQUESTS,
-    TOPIC_TELEMETRY,
-)
-
-# The command-line options of generator.py, fixed here.
-VARIABLE_PASSES = False
-MAX_PASSES = 5
-
-
-def drift(context, product_lines):
-    yield from drift_engine(context.env, product_lines)
-
-
-def monitor(context, product_lines):
-    yield from telemetry_monitor(context.env, product_lines)
-
-
-def primer(context, product):
-    """Rolls a first slab, so the mill does not start dry."""
-    yield from roll_slab(
-        context.env,
-        uuid.uuid4().hex[:8].upper(),
-        product,
-        VARIABLE_PASSES,
-        MAX_PASSES,
-        context.sampler,
-        context.get_resource(f"mill_{product}"),
+    # The Valkey of `odctl up valkey`; VALKEY_URL points the function at another one
+    CLIENT = redis.Redis.from_url(
+        os.getenv("VALKEY_URL", "redis://user:password@127.0.0.1:6379/0"),
+        decode_responses=True,
     )
 
 
-def arrivals(context, product):
-    yield from arrival_process(
-        context.env,
-        product,
-        VARIABLE_PASSES,
-        MAX_PASSES,
-        context.sampler,
-        context.get_resource(f"mill_{product}"),
-    )
+    def top_products(context, x):
+        """The three products with the highest LinUCB score for the features x."""
+        scores = {}
+        for pid, stored in zip(PRODUCTS, CLIENT.mget([f"linucb:{p}" for p in PRODUCTS])):
+            if stored:
+                model = json.loads(stored)
+            else:  # A product with no model yet gets the identity matrix and a zero vector
+                identity = [
+                    [float(i == j) for j in range(FEATURES)] for i in range(FEATURES)
+                ]
+                model = {"A_inv": identity, "b": [0.0] * FEATURES}
+            ax = [sum(a * v for a, v in zip(row, x)) for row in model["A_inv"]]
+            expected = sum(a * b for a, b in zip(ax, model["b"]))
+            uncertainty = math.sqrt(sum(a * v for a, v in zip(ax, x)))
+            scores[pid] = expected + ALPHA * uncertainty
+        return sorted(scores, key=scores.get, reverse=True)[:3]
 
 
-def create_topics():
-    """Creates the five topics generator.py creates before it starts."""
-    KafkaAdminConnector(bootstrap_servers=KAFKA_BROKER).create_topics(
-        topics_config=[
-            {"name": TOPIC_CONTROL_INGRESS, "partitions": 1},
-            {"name": TOPIC_TELEMETRY, "partitions": 1},
-            {"name": TOPIC_LIFECYCLE, "partitions": 1},
-            {"name": TOPIC_PREDICTION_REQUESTS, "partitions": 3},
-            {"name": TOPIC_GROUND_TRUTH, "partitions": 3},
-        ]
-    )
-    time.sleep(2)
-```
+    ```
 
-**What moved.** The whole `SimParameter` moved to the blueprint, with both Kafka connectors and the custom topic router, the seed, the factor and the topic creation. The broker address and the topic names stay in `src/config.py`, and the blueprint references them. `containers` and `variables` carry the wear levels and drift velocities the processes read and write.
+    ```python title="docs/snippets/guides/call_python_seed.py"
+    """Writes the models the Call Python from YAML page ranks with into Valkey.
 
-**What stayed.** `drift_engine`, `arrival_process`, `roll_slab` and `telemetry_monitor` stay in Python, with one change. They read and write the wear at `HotRolling.containers.wear_<grade>.current_cap`, but a container's `current_cap` is now its capacity, not its level. Those paths in `sim_logic.py` and `dashboard.py` therefore become `.level`. The adapter is one generator function per process. Each takes the context, picks out the environment, the sampler and the mill resource, and hands over with `yield from`. The primer slab and the arrival loop are separate entries, so they start in the order `generator.py` starts them.
+    Three products have a model and two have none yet. Run it once before the shop with
+    `python call_python_seed.py`, beside call_python_ranking.py.
+    """
 
-**What is new.** The scenario turns on gradual wear on the structural line at ten minutes. The twin's dashboard does this by hand over Kafka. As a scenario it repeats exactly, and it can still be combined with the dashboard, because both write to the same registry.
+    import json
+
+    from call_python_ranking import CLIENT
+
+    MODELS = {
+        "p1": {"A_inv": [[0.5, 0, 0], [0, 0.5, 0], [0, 0, 0.5]], "b": [2.0, 0.0, 0.0]},
+        "p2": {"A_inv": [[0.5, 0, 0], [0, 0.5, 0], [0, 0, 0.5]], "b": [0.0, 2.0, 0.0]},
+        "p3": {"A_inv": [[0.25, 0, 0], [0, 0.25, 0], [0, 0, 0.25]], "b": [0.0, 0.0, 3.0]},
+    }
+
+
+    def seed(client) -> None:
+        """Stores the models of p1, p2 and p3; p4 and p5 keep none."""
+        for pid, model in MODELS.items():
+            client.set(f"linucb:{pid}", json.dumps(model))
+
+
+    if __name__ == "__main__":
+        seed(CLIENT)
+    ```
+
+    In YAML:
+
+    ```yaml title="docs/snippets/yaml/call_python.yaml"
+    # The Call Python from YAML guide: a visit every 0.1 seconds, each shown the three
+    # products with the highest score from the models in Valkey. Needs
+    # call_python_ranking.py beside it. Run it with: desflow run call_python.yaml
+    simulation: {sim_id: Recommender, factor: 0, random_seed: 42}
+
+    arrivals:
+      visits: {dist: constant, value: 0.1, spawn: recommend}
+
+    tasks:
+      recommend:
+        vars:
+          # The visitor's three features, each between 0 and 1
+          x:
+            gen: repeat
+            times: 3
+            value: {gen: uniform, low: 0, high: 1, decimals: 3}
+        payload:
+          features: {gen: var, name: x}
+          # call_python_ranking.top_products(context, x=...) gives the three products
+          shown:
+            gen: call
+            function: !python call_python_ranking.top_products
+            kwargs:
+              x: {gen: var, name: x}
+
+    egress:
+      - type: Console
+        config: {format: json}
+
+    run: {until: 1 s}
+    ```
+
+    In the Builder:
+
+    ```python title="docs/snippets/guides/call_python.py"
+    """The Call Python from YAML guide, built with the builder API.
+
+    A visit every 0.1 seconds, each shown the three products with the highest score from the
+    models in Valkey. call_python.yaml and call_python_low_level.py are the same shop in YAML
+    and the low-level API. Needs call_python_ranking.py beside it. Run it with:
+    python call_python.py
+    """
+
+    import logging
+
+    from call_python_ranking import top_products
+
+    from desflow import ConsoleEgress, SimulationContext
+    from desflow.values import Template
+
+
+    def build_shop() -> SimulationContext:
+        """The shop: each visit calls the ranking function with the visitor's features."""
+        app = SimulationContext(sim_id="Recommender", factor=0, random_seed=42)
+        app.add_egress(ConsoleEgress(format="json"))
+        app.add_arrival("visits", dist="constant", value=0.1, spawn="recommend")
+        x = {"gen": "var", "name": "x"}
+        visit = Template(
+            {
+                "features": x,
+                # top_products(context, x=...) gives the three products
+                "shown": {"gen": "call", "function": top_products, "kwargs": {"x": x}},
+            },
+            name="tasks.recommend",
+            # The visitor's three features, each between 0 and 1
+            vars={
+                "x": {
+                    "gen": "repeat",
+                    "times": 3,
+                    "value": {"gen": "uniform", "low": 0, "high": 1, "decimals": 3},
+                }
+            },
+        )
+
+        @app.task(name="recommend")
+        def recommend(task_id):
+            """Gives one visit record."""
+            return visit
+
+        return app
+
+
+    if __name__ == "__main__":
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+        build_shop().run(until=1)
+    ```
+
+    In the low-level API:
+
+    ```python title="docs/snippets/guides/call_python_low_level.py"
+    """The Call Python from YAML guide, low-level API.
+
+    A visit every 0.1 seconds, each shown the three products with the highest score from the
+    models in Valkey. The features come from `Sampler`, from the random sequence the
+    blueprint's generator at that place uses, so the draws are the blueprint's. Needs
+    call_python_ranking.py beside it. Run it with: python call_python_low_level.py
+    """
+
+    import itertools
+    import logging
+
+    from call_python_ranking import top_products
+
+    from desflow import ConsoleEgress, DynamicRealtimeEnvironment, Sampler
+
+
+    def visits(env, sampler):
+        """A visit every 0.1 seconds, shown the products the ranking function picks."""
+        features = sampler.generator("tasks.recommend.vars.x.value")
+        for number in itertools.count(1):
+            yield env.timeout(0.1)
+            # The visitor's three features, each between 0 and 1
+            x = [round(float(features.uniform(0, 1)), 3) for _ in range(3)]
+            # top_products(context, x) gives the three products
+            record = {"features": x, "shown": top_products(env, x)}
+            env.publish_event(f"visits-{number}", record, "recommend", number - 1)
+
+
+    def shop() -> DynamicRealtimeEnvironment:
+        """The shop, with its visits started."""
+        env = DynamicRealtimeEnvironment(factor=0)
+        env.setup_egress([ConsoleEgress(format="json")])
+        env.process(visits(env, Sampler(seed=42)))
+        return env
+
+
+    if __name__ == "__main__":
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+        env = shop()
+        try:
+            env.run(until=1)
+        finally:
+            env.teardown()
+    ```
+
+---
+
+## Sources
+
+The recommender is cut down from [product-recommender](https://github.com/jaehyeon-kim/benchtop/tree/main/product-recommender), which keeps 200 products with about 15 features each. The 1.0 language has no key that reads a store during a run, which is why this call is written in Python.

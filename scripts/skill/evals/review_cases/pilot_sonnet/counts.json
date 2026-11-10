@@ -1,0 +1,14 @@
+{
+  "known": true,
+  "counts": {
+    "K3": 0,
+    "K5": 0,
+    "K8": 0,
+    "K9": 0,
+    "K10": 0,
+    "K14": 0,
+    "K15": 1,
+    "K17": 0
+  },
+  "reason": "The pilot of 7 Nov 2026 read twice: K3 0 (each sentence about the records holds, and the capacity's raise shows in a-2's start at 2), K14 0, K15 1 (reply.md:11 'Without the change it would have started at 5', no run without it), K17 0; K5 0, K8 0, K10 0; K9 0, because a [yaml] test of the behaviour fails under each change."
+}

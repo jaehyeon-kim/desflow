@@ -131,5 +131,11 @@ def _examples_get(
         typer.echo(f"Start its service: odctl up {example.profile}")
     for each in apis:
         typer.echo(f"Run the {each} version: {run_hint(example, each, dest)}")
+    if example.watch:
+        folder = shlex.quote((dest / example.name).as_posix())
+        typer.echo(
+            f"Watch and steer a run: cd {folder} && python {example.watch} "
+            f"(needs {example.watch_needs}; serves http://localhost:8080)"
+        )
     for note in example.notes:
         typer.echo(note)

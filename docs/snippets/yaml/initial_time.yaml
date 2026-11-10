@@ -9,7 +9,7 @@ simulation:
 # --8<-- [end:initial-time]
 
 egress:
-  - type: Console
+  - {type: Console}
 
 arrivals:
   orders: {dist: constant, value: 10 min, spawn: take_order}

@@ -1,0 +1,13 @@
+{
+  "fault": "S6: K7 counts a bare number for a time the request gives in seconds",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K7": 0
+  },
+  "notes": {
+    "K7": [
+      "model.yaml:8: value 5 is a bare number of seconds"
+    ]
+  }
+}

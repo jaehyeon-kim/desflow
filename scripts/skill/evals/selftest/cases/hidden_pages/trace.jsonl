@@ -1,0 +1,2 @@
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "read <skill>/SKILL.md and testing.md"}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t9", "content": "ls /private/tmp/claude-501/-Users-x/0f1e/scratchpad/p12e3/before20/desflow/references/api.md; pwd: /private/tmp/e-AbC123/home/cwd"}]}}

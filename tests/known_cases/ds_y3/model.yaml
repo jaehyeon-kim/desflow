@@ -1,0 +1,48 @@
+# Design Y3 (prototype blueprints/Y3.yaml): a wait on a computed number of events, three
+# forms. The arrival starts its entity with `initial` in place of `first_at: 0` with
+# `max_events: 1`, which gives the same records and lets the sized tests change the
+# size.
+simulation: {sim_id: Y3, factor: 0, random_seed: 42}
+
+stores:
+  pipe: {family: true, members: 3}
+
+arrivals:
+  a:
+    initial: 1
+    spawn: fan
+    attributes: {n: 3, delays: [4, 1, 2]}
+
+tasks:
+  fan:
+    wait:
+      each: "attr.n"
+      group: all
+      branch:
+        task: worker
+        args:
+          i: {gen: expr, expr: "each.index"}
+    payload:
+      event_type: all_done
+      values: {gen: expr, expr: "wait.each.values"}
+    next: first
+  first:
+    wait:
+      each: "attr.delays"
+      group: any
+      branch: {timeout: "each.value"}
+    payload: {event_type: first_done}
+    next: broadcast
+  broadcast:
+    wait:
+      each: "members(pipe)"
+      branch:
+        put:
+          store: {of: pipe, key: "each.value"}
+          item: 5
+    payload: {event_type: sent}
+  worker:
+    service_time: "arg.i + 1"
+    payload:
+      event_type: worker
+      v: {gen: expr, expr: "arg.i * 10"}

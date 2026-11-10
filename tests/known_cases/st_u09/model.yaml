@@ -1,0 +1,29 @@
+# case ST-U09: test_wait_for_all_with_errors: all_of of timeout(1), a process that fails
+# at 2 with 'crashing' and timeout(3). The condition fails at 2 and the parent catches
+# the error.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
+tasks:
+  pem:
+    wait:
+      all:
+        a:
+          timeout: {after: 1, value: 1}
+        x: {task: child_with_error}
+        c:
+          timeout: {after: 3, value: 3}
+    on_fail: caught
+    payload: {event_type: unreachable}
+  caught:
+    payload:
+      event_type: caught
+      reason: {gen: expr, expr: "upstream.reason"}
+      at: {gen: expr, expr: t}
+  child_with_error:
+    service_time: 2
+    fail: "True"
+    fail_reason: crashing
+    payload: {event_type: child}

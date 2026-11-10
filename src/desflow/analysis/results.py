@@ -14,13 +14,13 @@ import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Sequence, Set
 
 import numpy as np
 
 from desflow.analysis.intervals import interval
-from desflow.analysis.models import RunResult
-from desflow.analysis.runner import spawn_seeds, values_of
+from desflow.analysis.models import RunResult, spawn_seeds, values_of
+from desflow.core.statistics import LEFT_OUT_AT_ZERO, published_value
 from desflow.analysis.spec import ExperimentSpec
 from desflow.utils import time_to_seconds
 
@@ -38,6 +38,8 @@ REPORT_FILE = "report.md"
 _DURATION = re.compile(r"\.(wait|service)_(mean|max|p\d+)$")
 _AVERAGE = re.compile(r"_avg$")
 _PERCENT = re.compile(r"\.utilization(_avg)?$")
+# The seconds a resource was down, summed over the measured horizon
+_DOWNTIME = re.compile(r"^resources\..*\.downtime$")
 _AMOUNT = re.compile(r"^containers\..*\.(capacity|level|level_avg)$")
 _UNITS = {
     "s": "s",
@@ -54,7 +56,7 @@ _UNITS = {
 
 def _unit_of(measure: str) -> str:
     """The unit of a statistic: `s`, `percent`, `amount` or `count`."""
-    if _DURATION.search(measure):
+    if _DURATION.search(measure) or _DOWNTIME.search(measure):
         return "s"
     if _PERCENT.search(measure):
         return "percent"
@@ -66,13 +68,22 @@ def _unit_of(measure: str) -> str:
 def _population_of(measure: str) -> str:
     """What a statistic is measured on: `started instances` for a wait, which is
     recorded when an instance starts work; `finished instances` for a service,
-    recorded when it finishes; `time average`; `count over the horizon`; or
-    `end of run`, which includes `in_system` and `in_progress`, the entities and
-    instances still in the model when the run ends."""
+    recorded when it finishes; `time average`; `sum over the horizon` for a
+    resource's downtime; `count over the horizon`; or `end of run`, which includes
+    `in_system` and `in_progress`, the entities and instances still in the model when
+    the run ends."""
     if _DURATION.search(measure):
-        return "started instances" if ".wait_" in measure else "finished instances"
+        # The statistic is the last part, so a task whose name holds `.wait_` reads
+        # as any other
+        return (
+            "started instances"
+            if measure.rpartition(".")[2].startswith("wait_")
+            else "finished instances"
+        )
     if _AVERAGE.search(measure):
         return "time average"
+    if _DOWNTIME.search(measure):
+        return "sum over the horizon"
     # Entities and instances still in the model are read when the run ends
     if measure.endswith((".in_system", ".in_progress")):
         return "end of run"
@@ -145,7 +156,8 @@ def designs(spec: ExperimentSpec) -> List[Design]:
 
 
 def count_names(runs: Sequence[RunResult]) -> List[str]:
-    """Returns every count the runs published: whole-number task and flow statistics.
+    """Returns every count the runs published: the task and flow statistics of
+    `LEFT_OUT_AT_ZERO`.
 
     Args:
         runs: The runs of every design.
@@ -158,14 +170,23 @@ def count_names(runs: Sequence[RunResult]) -> List[str]:
         prefix = f"{run.sim_id}.stats."
         for name, value in run.readings.items():
             short = name.removeprefix(prefix)
-            if short.split(".")[0] in ("tasks", "flows") and type(value) is int:
+            parts = short.split(".")
+            if parts[-1] in LEFT_OUT_AT_ZERO.get(parts[0], ()):
                 names.setdefault(short, None)
     return list(names)
 
 
-def _count(run: RunResult, name: str) -> int:
-    """A count in one run; one published only once above 0 is 0 when absent."""
-    return int(run.readings.get(f"{run.sim_id}.stats.{name}", 0))
+def _count(run: RunResult, name: str, seen: Set[str]) -> int:
+    """A count of `count_names` in one run; one the run left out while it was 0 is
+    0, because `seen`, the names every run published, names its task or flow."""
+    return int(
+        published_value(
+            run.readings,
+            f"{run.sim_id}.stats.{name}",
+            seen,
+            prefix=f"{run.sim_id}.stats.",
+        )
+    )
 
 
 def result_rows(
@@ -182,9 +203,10 @@ def result_rows(
         List[Dict[str, Any]]: The rows of `results.csv`.
     """
     rows = []
+    seen = {name for design in all_designs for r in design.runs for name in r.readings}
     for design in all_designs:
-        values = {m: values_of(design.runs, m) for m in measures}
-        values.update({c: [_count(r, c) for r in design.runs] for c in counts})
+        values = {m: values_of(design.runs, m, seen) for m in measures}
+        values.update({c: [_count(r, c, seen) for r in design.runs] for c in counts})
         for name, series in values.items():
             for i, (seed, value) in enumerate(zip(design.seeds, series), start=1):
                 rows.append(

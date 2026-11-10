@@ -1,0 +1,39 @@
+# Resource res of capacity 1, one entity that holds it for 1 second.
+# Telemetry of res (in_use, queue_length) is published on every request and release.
+simulation:
+  sim_id: M
+  factor: 0
+  random_seed: 42
+
+resources:
+  res:
+    current_cap: 1
+
+arrivals:
+  a:
+    first_at: 0
+    gap: 1
+    max_events: 1
+    spawn: use
+
+tasks:
+  use:
+    resource: res
+    service_time: 1
+    payload:
+      event_type: used
+
+stats:
+  level: minimal
+  # Longer than the run, so no timer publishes; the readings come from on_change only.
+  interval: 1000
+  on_change: true
+
+egress:
+  - type: Console
+    config:
+      format: json
+    when: telemetry
+
+run:
+  until: 5

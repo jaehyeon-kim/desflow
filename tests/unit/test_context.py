@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from desflow import Entity, SimulationContext
+from tests.conformance.harness import run_yaml_text
 
 
 def test_builder_state_management():
@@ -21,12 +22,12 @@ def test_builder_state_management():
     )
 
     # Check discrete resources
-    assert "packers" in app._resources_config
-    assert app._resources_config["packers"].max_cap == 5
+    assert "packers" in app._holders.resources_config
+    assert app._holders.resources_config["packers"].max_cap == 5
 
     # Check continuous containers (NEW)
-    assert "wear_structural" in app._containers_config
-    assert app._containers_config["wear_structural"].max_cap == 100.0
+    assert "wear_structural" in app._holders.containers_config
+    assert app._holders.containers_config["wear_structural"].max_cap == 100.0
 
     # Check dynamic variables (NEW)
     assert "velocity" in app._variables_config
@@ -35,12 +36,12 @@ def test_builder_state_management():
     # Check statistical distributions
     assert "packing" in app._services_config
     assert app._services_config["packing"].mean == 5.0
-    assert "standard" in app._arrivals_config
-    assert app._arrivals_config["standard"].rate == 2.0
+    assert "standard" in app._arrivals.configs
+    assert app._arrivals.configs["standard"].rate == 2.0
 
     # Check batching state
-    assert app._batch_size == 100
-    assert app._flush_interval == 0.5
+    assert app._sinks.batch_size == 100
+    assert app._sinks.flush_interval == 0.5
 
 
 def test_runtime_errors_before_build():
@@ -82,6 +83,8 @@ def test_simulation_execution_wiring(MockEnv):
     """
     mock_env_instance = MockEnv.return_value
     mock_env_instance.now = 0  # finish() compares the clock with `until`
+    # A container reads its capacities from the registry, and compares them
+    mock_env_instance.registry.get.return_value.value = 100
     mock_ingress = MagicMock()
     mock_egress = MagicMock()
 
@@ -97,7 +100,7 @@ def test_simulation_execution_wiring(MockEnv):
 
     # Validate that Engine was created and run
     MockEnv.assert_called_once_with(
-        factor=0.0, strict=False, on_unhandled_failure="continue"
+        factor=0.0, strict=None, on_unhandled_failure="stop"
     )
     mock_env_instance.run.assert_called_once_with(until=10)
     mock_env_instance.teardown.assert_called_once()
@@ -191,8 +194,8 @@ def test_with_batching_defaults_the_egress_bounds():
         batch_size=100, flush_interval=0.5
     )
 
-    assert app._max_queued_batches == 2000
-    assert app._drain_stall_seconds == 30.0
+    assert app._sinks.max_queued_batches == 2000
+    assert app._sinks.drain_stall_seconds == 30.0
 
 
 @patch("desflow.core.context.DynamicRealtimeEnvironment")
@@ -378,7 +381,7 @@ def test_filters_and_patience_are_checked_before_the_run():
 
     with pytest.raises(ValueError, match="both ranks and filters"):
         app.run(until=1)
-    with pytest.raises(ValueError, match="needs a wait, a resource or a get"):
+    with pytest.raises(ValueError, match="needs a wait, a seize, a resource or a get"):
         app.task(name="idle", patience=5)
     with pytest.raises(ValueError, match="a put takes no filter"):
         app.task(name="drop", put={"store": "express", "filter": "item.size == 1"})
@@ -447,8 +450,8 @@ def test_waits_signals_and_failures_are_checked_before_the_run():
     ):
         with pytest.raises(ValueError, match=fragment):
             run(**task)
-    with pytest.raises(ValueError, match="need a fail condition"):
-        SimulationContext("TestSim").task(on_fail="t")
+    with pytest.raises(ValueError, match="fail_reason needs a fail condition"):
+        SimulationContext("TestSim").task(fail_reason="late")
 
 
 def test_a_raising_function_fails_the_task_and_ends_the_flow():
@@ -464,7 +467,7 @@ def test_a_raising_function_fails_the_task_and_ends_the_flow():
         yield context.env.timeout(1)
 
     app.add_process(script)
-    app.run(until=2)
+    app.run(until=2, on_unhandled_failure="continue")
     readings = app.env.stats.readings()
     assert readings["TestSim.stats.tasks.t.failed"] == 1
     assert readings["TestSim.stats.flows.t.failed"] == 1
@@ -479,9 +482,10 @@ def _two_resources():
     )
 
 
-def test_resources_acquired_in_opposite_orders_are_refused():
+def test_resources_acquired_in_opposite_orders_are_warned_about(caplog):
     """Two tasks that each hold one resource while waiting for the other could wait
-    for ever, so the model is refused, also through a keep handoff."""
+    for ever, so the model gets a warning, also through a keep handoff, and runs as
+    SimPy runs it."""
     app = _two_resources()
 
     @app.task(service_id="s", resource_id=["picker", "bench"], name="a")
@@ -492,8 +496,11 @@ def test_resources_acquired_in_opposite_orders_are_refused():
     def b(task_id):
         return {}
 
-    with pytest.raises(ValueError, match="in one order everywhere"):
+    with caplog.at_level("WARNING"):
         app.run(until=1)
+    assert caplog.text.count("in one order everywhere") == 1
+    assert "task 'a' acquires 'picker' before 'bench'" in caplog.text
+    caplog.clear()
 
     handoff = _two_resources()
 
@@ -511,8 +518,9 @@ def test_resources_acquired_in_opposite_orders_are_refused():
     def e(task_id):
         return {}
 
-    with pytest.raises(ValueError, match="keeping it for 'c'"):
+    with caplog.at_level("WARNING"):
         handoff.run(until=1)
+    assert "task 'd' keeping it for 'c' acquires 'bench' before 'picker'" in caplog.text
 
 
 def test_a_kept_unit_is_released_once_the_next_task_starts():
@@ -598,8 +606,6 @@ def test_a_task_interrupting_its_own_name_skips_itself():
 
 
 def test_preemption_settings_are_checked():
-    with pytest.raises(ValueError, match="needs queue='priority'"):
-        SimulationContext("TestSim").add_resource("m", 1, 1, preempt=True)
     with pytest.raises(ValueError, match="on_interrupt must be one of"):
         SimulationContext("TestSim").task(on_interrupt="pause")
     with pytest.raises(ValueError, match="list only resources in its resource_id"):
@@ -667,13 +673,48 @@ def test_a_failed_start_tears_the_connectors_down():
     app = SimulationContext("Shop", factor=0).add_egress(_Sink())
     app.add_resource("packers", current_cap=1, max_cap=1)
     with patch(
-        "desflow.core.context.DynamicResource", side_effect=RuntimeError("broken")
+        "desflow.core.holders.DynamicResource", side_effect=RuntimeError("broken")
     ):
         with pytest.raises(RuntimeError, match="broken"):
             app.run(until=10)
     thread = app._env._egress_thread
     thread.join(timeout=5)
     assert not thread.is_alive()
+
+
+@pytest.mark.parametrize(
+    "start, error, message",
+    [
+        ({"seed": "x"}, ValueError, "seed is a whole number of 0 or more"),
+        (
+            {"until": 1, "overrides": {"Shop.resources.packers.current_cap": -1}},
+            ValueError,
+            "cannot be set to -1",
+        ),
+    ],
+)
+def test_a_start_that_fails_before_it_makes_the_holders_leaves_none_to_get(
+    start, error, message
+):
+    """After a good run, a start that fails before it makes the run's holders
+    leaves none, and each getter raises KeyError with the name, as for a name the
+    model does not have."""
+    app = SimulationContext("Shop", factor=0)
+    app.add_resource("packers", current_cap=1, max_cap=1)
+    app.add_store("shelf", current_cap=2)
+    app.add_container("tank", current_cap=5)
+    app.run(until=1)
+    assert app.get_resource("packers") is not None
+    with pytest.raises(error, match=message):
+        app.start(**start)
+    for get, name in [
+        (app.get_resource, "packers"),
+        (app.get_store, "shelf"),
+        (app.get_container, "tank"),
+    ]:
+        with pytest.raises(KeyError) as raised:
+            get(name)
+        assert raised.value.args == (name,)
 
 
 def test_a_context_runs_twice_with_a_drain():
@@ -701,11 +742,130 @@ def test_a_context_runs_twice_with_a_drain():
     assert app.env.now > 10
 
 
-def test_a_live_run_with_an_ingress_keeps_going_after_the_last_model_event():
-    """Approved difference E11: with an ingress or a sink and no `until`, the run does
-    not stop at the model's last event. At factor 0 the ingress monitor keeps
-    scheduling events, so the run continues past the model event at 5; a wrapped step
-    stops it at 100, and teardown still writes the records."""
+def test_a_second_run_keeps_no_flow_or_held_request_of_the_first(tmp_path):
+    """A second run of one context starts with none of the first run's instances of
+    a flow another entity waits for whole, and none of the requests a `release:
+    {task}` reaches, so it gives the records of the first run."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: Twice, factor: 0, random_seed: 42}\n"
+        "resources: {m: {current_cap: 1}}\n"
+        "arrivals:\n"
+        "  a: {initial: 1, spawn: relay}\n"
+        "  w: {initial: 1, spawn: watch}\n"
+        "  holder: {initial: 1, spawn: hold}\n"
+        "  third: {initial: 1, spawn: free_it}\n"
+        "tasks:\n"
+        "  relay: {service_time: 3, payload: {event_type: relay}, next: more}\n"
+        "  more: {service_time: 3, payload: {event_type: more}}\n"
+        "  watch: {wait: {running: {task: relay, whole_flow: true}},"
+        " payload: {event_type: flow_done, at: {gen: expr, expr: t}}}\n"
+        "  hold: {seize: m, service_time: 5, payload: {event_type: held},"
+        " release: m}\n"
+        "  free_it: {service_time: 1, payload: {event_type: freed},"
+        " release: {resource: m, task: hold}}\n"
+    )
+    app = SimulationContext.from_yaml(path)
+    sink = _Records()
+    app.add_egress(sink)
+    runs = []
+    for _ in range(2):
+        sink.records.clear()
+        app.run(until=20)
+        runs.append(
+            [(row["sim_ts"], row["value"]) for row in sink.records if "value" in row]
+        )
+        stale = [
+            request
+            for listed in app._run.held_by_task.values()
+            for request in listed
+            if request.resource.env is not app.env
+        ]
+        assert stale == []
+    assert runs[0] == runs[1]
+    assert any(value.get("event_type") == "flow_done" for _, value in runs[1])
+
+
+def test_the_requests_a_release_task_reaches_drop_those_that_reneged(tmp_path):
+    """The requests a `release: {task}` reaches are listed by task, and the list drops
+    those that no longer hold or wait once it reaches 64: of 100 requests that
+    reneged, the 36 made after the drop are left, and the drop length stays 64."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: Prune, factor: 0, random_seed: 1}\n"
+        "resources: {m: {current_cap: 1}}\n"
+        "arrivals:\n"
+        "  b: {initial: 1, spawn: block}\n"
+        "  h: {gap: 1, max_events: 100, spawn: hold}\n"
+        "  f: {first_at: 500, max_events: 1, gap: 1000, spawn: free_it}\n"
+        "tasks:\n"
+        "  block: {seize: m, service_time: 1000, payload: {event_type: blocked},"
+        " release: m}\n"
+        "  hold: {resource: m, patience: 0.5, service_time: 1,"
+        " payload: {event_type: held}}\n"
+        "  free_it: {payload: {event_type: freed},"
+        " release: {resource: m, task: hold}}\n"
+    )
+    app = SimulationContext.from_yaml(path)
+    app.run(until=200)
+    assert len(app._run.held_by_task["hold"]) == 36
+    assert app._run.held_prune == {"hold": 64}
+
+
+def test_a_variable_that_cannot_be_copied_runs_twice():
+    """A run, and the start check of a model with a scenario, copy the config objects
+    they write into, not a variable's value, so a builder variable that holds a lock
+    runs, twice, and holds the user's own object."""
+    import threading
+
+    lock = threading.Lock()
+    app = (
+        SimulationContext(sim_id="Shop", factor=0, random_seed=1)
+        .add_resource("p", current_cap=1)
+        .add_service("s", dist="constant", value=1)
+        .add_arrival("a", dist="constant", value=2)
+        .add_variable("guard", lock)
+        .add_scenario([{"at": 1, "path": "Shop.resources.p.current_cap", "value": 2}])
+    )
+    for _ in range(2):
+        app.run(until=5)
+        assert app.env.registry.get("Shop.variables.guard").value is lock
+
+
+def test_a_sim_id_with_a_dot_draws_what_a_plain_one_draws(tmp_path):
+    """A distribution's random sequence is named by its path with the sim id taken off
+    the front, so `Shop.v2` and `Shop` draw the same times with the same seed."""
+
+    def times(sim_id):
+        path = tmp_path / f"{sim_id}.yaml"
+        path.write_text(
+            f"simulation: {{sim_id: {sim_id}, factor: 0, random_seed: 7}}\n"
+            "resources: {desk: {current_cap: 1}}\n"
+            "services: {s: {dist: exponential, rate: 1}}\n"
+            "arrivals: {a: {dist: exponential, rate: 0.5, spawn: work}}\n"
+            "tasks: {work: {resource: desk, service: s, payload: {e: work}}}\n"
+            "run: {until: 20}\n"
+        )
+        app = SimulationContext.from_yaml(path)
+        sink = _Records()
+        app.add_egress(sink)
+        app.run()
+        assert app.env.registry.get_config(f"{sim_id}.service.s").stream == "service.s"
+        return [
+            (row["sim_ts"], row["key"], row["value"].get("status"))
+            for row in sink.records
+            if row["stream_type"] == "event"
+        ]
+
+    plain = times("Shop")
+    assert plain and times("Shop.v2") == plain
+
+
+def test_a_run_with_an_ingress_and_a_sink_ends_at_the_last_model_event():
+    """With an ingress or a sink and no `until`, the run ends when no model event is
+    left, as SimPy's `run()` does. At factor 0 the ingress monitor keeps scheduling
+    events of desflow's own, which do not hold the run open. Teardown still writes the
+    records."""
     from desflow import LocalIngress
 
     class _Keep:
@@ -729,23 +889,9 @@ def test_a_live_run_with_an_ingress_keeps_going_after_the_last_model_event():
         context.env.publish_event("job-1", {"status": "done"})
 
     app.add_process(model)
-    env = app.start()  # no until
-    original_step = env.step
+    app.run()  # no until
 
-    def step():
-        if env.now >= 100:
-            raise KeyboardInterrupt
-        return original_step()
-
-    env.step = step  # type: ignore[method-assign]
-    try:
-        app.finish()
-    except KeyboardInterrupt:
-        pass
-
-    # The run went past the model's last event at 5 to 100, so a no-until run does not
-    # stop at the last model event; teardown wrote the record.
-    assert env.now >= 100
+    assert app.env.now == 5
     assert any(r.get("key") == "job-1" for r in kept.records)
 
 
@@ -846,6 +992,57 @@ def test_a_stop_condition_is_checked_after_a_finished_task():
     app.add_process(script)
     app.run(until=100, stop={"condition": "t >= 5"})
     assert app.env.now == 5
+
+
+@pytest.mark.parametrize("condition", ["running(work) == 0 and t > 0", "peek() > 4"])
+def test_a_stop_condition_reads_running_and_peek(tmp_path, condition):
+    """A stop condition reads `running()` and `peek()` as a task's expressions do.
+    The three orders finish at 5, when no `work` runs and the next event is due at
+    5, so either condition ends the run at 5, before the order at 50."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: Stop, factor: 0, random_seed: 1}\n"
+        "arrivals:\n"
+        "  a: {initial: 3, spawn: work}\n"
+        "  later: {dist: constant, value: 50, spawn: work}\n"
+        "tasks:\n"
+        "  work: {service_time: 5, payload: {event_type: done}}\n"
+        f'run: {{until: 100, stop: {{condition: "{condition}"}}}}\n'
+    )
+    app = SimulationContext.from_yaml(path)
+    app.run()
+    assert app.env.now == 5
+
+
+def test_a_preempt_rule_reads_running(tmp_path):
+    """A preempt rule reads `running()`: with two `job` instances running or
+    waiting, the order of rank 1 takes the unit from the one of rank 5."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: Rule, factor: 0, random_seed: 1}\n"
+        "resources:\n"
+        "  m: {current_cap: 1, queue: {rank: attr.rank},"
+        ' preempt: {when: "running(job) > 1"}}\n'
+        "arrivals:\n"
+        "  a: {dist: constant, value: 1, spawn: job, max_events: 1, first_at: 0,"
+        " attributes: {rank: 5}}\n"
+        "  b: {dist: constant, value: 1, spawn: job, max_events: 1, first_at: 1,"
+        " attributes: {rank: 1}}\n"
+        "tasks:\n"
+        "  job: {resource: m, preempt: true, service_time: 5, on_interrupt: abandon,"
+        " payload: {event_type: done}}\n"
+        "run: {until: 30}\n"
+    )
+    app = SimulationContext.from_yaml(path)
+    sink = _Records()
+    app.add_egress(sink)
+    app.run()
+    preempted = [
+        row["key"]
+        for row in sink.records
+        if row.get("value", {}).get("status") == "preempted"
+    ]
+    assert preempted == ["a-1"]
 
 
 def test_an_error_in_an_arrival_loop_stops_the_run():
@@ -1073,7 +1270,9 @@ def test_add_resource_checks_its_capacity_and_type():
     app.add_resource("bench")
     app.add_resource("tank", max_cap=3)
     app.add_resource("open", float("inf"))
-    with pytest.raises(ValueError, match="needs a whole number for current_cap"):
+    with pytest.raises(
+        ValueError, match="needs a whole number of 0 or more for current_cap"
+    ):
         app.add_resource("odd", 1.5)
     with pytest.raises(ValueError, match="max_cap 0 and no current_cap"):
         app.add_resource("none", max_cap=0)
@@ -1098,9 +1297,10 @@ def test_a_resource_in_the_wait_and_in_resource_is_refused():
         app.run(until=1)
 
 
-def test_a_wait_request_counts_in_the_acquisition_order():
-    """A wait request is acquired before the task's resources, so it is refused when
-    another task acquires the two in the opposite order, as two resource lists are."""
+def test_a_wait_request_counts_in_the_acquisition_order(caplog):
+    """A wait request is acquired before the task's resources, so it gets a warning
+    when another task acquires the two in the opposite order, as two resource lists
+    do."""
     app = _two_resources()
 
     @app.task(wait={"request": "picker"}, service_id="s", resource_id="bench", name="a")
@@ -1111,8 +1311,10 @@ def test_a_wait_request_counts_in_the_acquisition_order():
     def b(task_id):
         return {}
 
-    with pytest.raises(ValueError, match="in one order everywhere"):
+    with caplog.at_level("WARNING"):
         app.run(until=1)
+    assert "in one order everywhere" in caplog.text
+    caplog.clear()
 
     same = _two_resources()
 
@@ -1126,13 +1328,15 @@ def test_a_wait_request_counts_in_the_acquisition_order():
     def b_same(task_id):
         return {}
 
-    same.run(until=1)
+    with caplog.at_level("WARNING"):
+        same.run(until=1)
+    assert "in one order everywhere" not in caplog.text
 
 
-def test_requests_under_one_all_are_acquired_together():
+def test_requests_under_one_all_are_acquired_together(caplog):
     """Two requests under an `all` are made together, and either can be held while
-    the other is waited for, so a task that acquires the two in either order is
-    refused. A group branch of an `any` can hold a unit while the `any` waits for
+    the other is waited for, so a task that acquires the two in either order gets a
+    warning. A group branch of an `any` can hold a unit while the `any` waits for
     its other branches, so it pairs with them too. Single request branches of an
     `any` end it when one is granted and set no order."""
     waits = (
@@ -1156,8 +1360,10 @@ def test_requests_under_one_all_are_acquired_together():
             def b(task_id):
                 return {}
 
-            with pytest.raises(ValueError, match="together in its wait"):
+            caplog.clear()
+            with caplog.at_level("WARNING"):
                 app.run(until=1)
+            assert " together in its wait" in caplog.text
 
     either = _two_resources()
 
@@ -1177,7 +1383,10 @@ def test_requests_under_one_all_are_acquired_together():
     def b_any(task_id):
         return {}
 
-    either.run(until=1)
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        either.run(until=1)
+    assert "in one order everywhere" not in caplog.text
 
 
 def test_a_kept_resource_requested_in_the_next_wait_is_refused():
@@ -1225,7 +1434,9 @@ def test_a_priority_needs_a_resource_or_a_wait_request_on_a_priority_queue():
     with pytest.raises(ValueError, match="does not queue by priority"):
         fifo.run(until=1)
 
-    with pytest.raises(ValueError, match="needs a resource or a request in its wait"):
+    with pytest.raises(
+        ValueError, match="needs a resource, a seize or a request in its wait or open"
+    ):
         SimulationContext("TestSim").task(
             "s", wait={"timeout": 1}, priority=2, name="b"
         )
@@ -1243,6 +1454,13 @@ class _Records:
                 self.records.extend(egress_queue.get_nowait())
             except queue.Empty:
                 await asyncio.sleep(0.01)
+
+    def events(self, name):
+        return [
+            row
+            for row in self.records
+            if row.get("value", {}).get("event_type") == name
+        ]
 
 
 def _busy_hour(spawn: bool) -> list:
@@ -1370,6 +1588,18 @@ def test_builder_file_ingress_change_carries_its_source(tmp_path):
     assert [(c.path, c.new, c.source, c.actor) for c in changes] == [
         ("Shop.variables.speed", 4, "ingress", "FileIngress")
     ]
+
+
+def test_a_context_run_leaves_the_end_flag_it_found_on_the_environment():
+    """`_run_low_level` and a context's run both set `_end_is_set`; a context's run
+    restores the value it found, as `_run_low_level` does, so it does not clear the
+    flag an outer run set."""
+    app, _ = _app_with_speed()
+    env = app.start(until=5)
+    env._end_is_set = True
+    app.advance(env.timeout(2))
+    assert env._end_is_set is True
+    app.finish()
 
 
 def test_builder_scenario_step_has_the_scenario_source():
@@ -1595,7 +1825,7 @@ def test_registry_paths_of_a_refused_model_raise_an_ordinary_exception():
     import threading
 
     app = _shop_with_ingress()
-    config = app._resources_config["packers"]
+    config = app._holders.resources_config["packers"]
     config.current_cap, config.max_cap = None, 0.5
     threads = threading.active_count()
 
@@ -1605,3 +1835,949 @@ def test_registry_paths_of_a_refused_model_raise_an_ordinary_exception():
     assert isinstance(raised.value, ValueError)
     assert not isinstance(raised.value, SystemExit)
     assert threading.active_count() == threads
+
+
+def _entry_times(app, until, **run):
+    capture = _Records()
+    app.add_egress(capture)
+    app.run(until=until, **run)
+    return capture
+
+
+def _noting(app):
+    @app.task(name="note")
+    def note(task_id):
+        return {"event_type": "arrived"}
+
+    return app
+
+
+def test_add_arrival_takes_a_gap_expression_in_place_of_a_distribution():
+    """A `gap` of `"1 + t / 4"` gives the gaps 1, 1.25, ... as a blueprint's `gap` does."""
+    app = SimulationContext("G", factor=0)
+    app.add_arrival("a", gap="1 + t / 4", spawn="note")
+    capture = _entry_times(_noting(app), 4)
+    assert [row["sim_ts"] for row in capture.events("arrived")] == [1.0, 2.25, 3.8125]
+
+
+def test_add_arrival_takes_a_gap_that_is_a_number():
+    app = SimulationContext("G", factor=0).add_arrival("a", gap=2, spawn="note")
+    capture = _entry_times(_noting(app), 7)
+    assert [row["sim_ts"] for row in capture.events("arrived")] == [2, 4, 6]
+
+
+def test_add_arrival_takes_a_gap_that_is_a_duration():
+    """A text gap that is a duration, as `"2s"` or `"1 min"`, is read as seconds, as
+    a blueprint's `gap` and a task's `service_time` read it."""
+    for gap, seconds in (("2s", 2), ("1 min", 60)):
+        app = SimulationContext("G", factor=0).add_arrival("a", gap=gap, spawn="note")
+        capture = _entry_times(_noting(app), 3 * seconds + 1)
+        assert [row["sim_ts"] for row in capture.events("arrived")] == [
+            seconds,
+            2 * seconds,
+            3 * seconds,
+        ]
+
+
+@pytest.mark.parametrize(
+    "arguments, message",
+    [
+        ({}, "neither is given"),
+        ({"dist": "constant", "value": 1, "gap": 1}, "not both"),
+        ({"gap": 1, "rate": 2}, "takes no distribution parameter: rate"),
+        ({"gap": -1}, "arrival 'a': gap is 0 or more"),
+        ({"gap": float("nan")}, "arrival 'a': gap is 0 or more"),
+        ({"gap": "-5"}, "arrival 'a': gap is 0 or more"),
+        ({"gap": "-5 min"}, "arrival 'a': gap"),
+        ({"gap": True}, "arrival 'a': gap is a number of seconds"),
+        ({"gap": [1]}, "arrival 'a': gap is a number of seconds"),
+    ],
+)
+def test_add_arrival_refuses_a_gap_that_does_not_fit(arguments, message):
+    with pytest.raises(ValueError, match=message):
+        SimulationContext("G").add_arrival("a", **arguments)
+
+
+def test_add_initial_arrival_takes_a_key():
+    app = SimulationContext("K", factor=0)
+    app.add_initial_arrival("m", 3, spawn="note", key=lambda n: f"Machine {n - 1}")
+    capture = _entry_times(_noting(app), 1)
+    keys = [row["key"] for row in capture.events("arrived")]
+    assert keys == ["Machine 0", "Machine 1", "Machine 2"]
+
+
+def test_add_initial_arrival_with_a_gap_goes_on_arriving():
+    app = SimulationContext("K", factor=0)
+    app.add_initial_arrival("m", 2, spawn="note", gap=5)
+    capture = _entry_times(_noting(app), 11)
+    assert [row["sim_ts"] for row in capture.events("arrived")] == [0, 0, 5, 10]
+
+
+def _ticking(app):
+    @app.task(name="tick", service_time=1)
+    def tick(task_id):
+        return {"event_type": "ticked"}
+
+    app.add_arrival("a", "constant", value=2, spawn="tick")
+    return app
+
+
+def _readings(capture, path):
+    return [
+        row["value"] for row in capture.records if row.get("stream_path") == path
+    ] or [
+        row["value"]
+        for row in capture.records
+        if row.get("path") == path or row.get("telemetry_path") == path
+    ]
+
+
+def test_run_segments_publish_a_reading_after_each_segment():
+    app = _ticking(SimulationContext("S", factor=0))
+    capture = _entry_times(
+        app, 10, segments=[{"until": 3}, {"until": 6}, {}], sync=False
+    )
+    readings = [
+        row for row in capture.records if "system.simulation.segment" in str(row)
+    ]
+    assert len(readings) == 3
+    assert [row["value"]["index"] for row in readings] == [0, 1, 2]
+    assert [row["value"]["now"] for row in readings] == [3, 6, 10]
+
+
+def test_run_segments_every_divides_until():
+    app = _ticking(SimulationContext("S", factor=0))
+    capture = _entry_times(app, 10, segments={"every": 4})
+    readings = [r for r in capture.records if "system.simulation.segment" in str(r)]
+    assert [row["value"]["now"] for row in readings] == [4, 8, 10]
+
+
+def test_run_steps_publish_a_reading_after_each_event():
+    app = _ticking(SimulationContext("S", factor=0))
+    capture = _entry_times(app, 5, steps=True)
+    readings = [r for r in capture.records if "system.simulation.step" in str(r)]
+    assert readings
+    assert [row["value"]["step"] for row in readings] == list(
+        range(1, len(readings) + 1)
+    )
+
+
+def test_run_without_segments_or_steps_publishes_no_reading():
+    app = _ticking(SimulationContext("S", factor=0))
+    capture = _entry_times(app, 5)
+    assert not [r for r in capture.records if "system.simulation.s" in str(r)]
+
+
+def test_run_sync_calls_the_environment_sync(monkeypatch):
+    from desflow.core.environment import DynamicRealtimeEnvironment
+
+    calls = []
+    original = DynamicRealtimeEnvironment.sync
+    monkeypatch.setattr(
+        DynamicRealtimeEnvironment,
+        "sync",
+        lambda self: (calls.append(self.now), original(self))[1],
+    )
+    app = _ticking(SimulationContext("S", factor=0))
+    app.run(until=3, sync=True)
+    assert calls == [0]
+    calls.clear()
+    _ticking(SimulationContext("S", factor=0)).run(until=3)
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "arguments, message",
+    [
+        ({"segments": 3}, "segments is a list of segment mappings"),
+        ({"segments": [{"until": 1, "stop": {"signal": "x"}}]}, "not both"),
+        ({"segments": [{"until": 1}, {"untill": 1}]}, r"(?s)segments\[1\].*untill"),
+        ({"segments": {"every": 0}}, "(?s)segments: .*every must be above 0"),
+        ({"segments": [{"until": 1, "look": "nowhere"}]}, "look names task 'nowhere'"),
+        ({"steps": True, "segments": [{"until": 1}]}, "run.steps cannot be used"),
+        ({"steps": "yes"}, "steps is True or False"),
+        ({"sync": 1}, "sync is True or False"),
+    ],
+)
+def test_run_refuses_segments_steps_and_sync_that_do_not_fit(arguments, message):
+    app = _ticking(SimulationContext("S", factor=0))
+    with pytest.raises(ValueError, match=message):
+        app.run(until=5, **arguments)
+
+
+def test_run_segments_every_needs_until():
+    app = _ticking(SimulationContext("S", factor=0))
+    with pytest.raises(ValueError, match="needs an until"):
+        app.run(segments={"every": 2})
+
+
+def test_a_task_that_returns_no_record_finishes_with_no_finished_event():
+    """`desflow.NO_RECORD` is the Builder form of `payload: null`: the task still runs
+    its service and starts its `next`, and publishes no finished event."""
+    from desflow import NO_RECORD
+
+    app = SimulationContext("N", factor=0)
+    app.add_initial_arrival("a", 1, spawn="quiet")
+
+    @app.task(name="quiet", service_time=2, next="after")
+    def quiet(task_id):
+        return NO_RECORD
+
+    @app.task(name="after")
+    def after(task_id):
+        return {"event_type": "after"}
+
+    capture = _entry_times(app, 10)
+    assert [row["sim_ts"] for row in capture.events("after")] == [2.0]
+    assert not [
+        row
+        for row in capture.records
+        if row.get("task") == "quiet" and "event_type" in row.get("value", {})
+    ]
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        {"dist": "normal", "mean": "4 min", "std": "1 min"},
+        {"dist": "constant", "value": "1 day"},
+        {"dist": "uniform", "low": "1 min", "high": 120},
+        {"dist": "triangular", "low": "1 min", "mode": "2 min", "high": "3 min"},
+        {"dist": "gamma", "shape": 2, "scale": "30 s"},
+        {"dist": "empirical", "values": ["1 min", 120], "weights": [1, 1]},
+        {"dist": "empirical", "edges": ["1 min", "2 min", 180], "counts": [1, 2]},
+    ],
+)
+def test_builder_reads_a_duration_in_a_distribution_as_the_blueprint_does(spec):
+    """A time-valued parameter of `add_service`, `add_arrival` and a breakdown takes a
+    duration, and gives the config the blueprint's `Distribution` gives."""
+    from desflow.blueprint.models import Distribution
+
+    expected = Distribution(**spec).config()
+    given = {key: value for key, value in spec.items() if key != "dist"}
+    app = SimulationContext("D", factor=0)
+    app.add_service("s", spec["dist"], **given)
+    app.add_arrival("a", spec["dist"], **given)
+    assert app._services_config["s"] == expected
+    assert app._arrivals.configs["a"] == expected
+    app.add_breakdown(
+        "r", time_to_failure=spec, repair={"dist": "constant", "value": 1}
+    )
+    assert app._holders.breakdowns_config["r"].time_to_failure == expected
+
+
+def test_builder_takes_a_real_number_other_than_a_bool_as_a_time():
+    """A NumPy number and a `Decimal` were taken as seconds before the Builder read
+    durations, and still are, as the number it was given (a `Decimal` as a float)."""
+    from decimal import Decimal
+
+    import numpy
+
+    app = SimulationContext("D", factor=0, initial_time=numpy.int64(5))
+    assert app.initial_time == 5
+    app = SimulationContext("D", factor=0, warmup=Decimal(7))
+    assert app.warmup == 7.0
+    app = SimulationContext("D", factor=0)
+    app.add_service("s", "constant", value=numpy.int64(5))
+    app.add_service("d", "constant", value=Decimal("2.5"))
+    assert app._services_config["s"].value == 5
+    assert app._services_config["d"].value == 2.5
+
+
+def test_builder_refuses_a_value_that_is_not_a_duration_in_a_distribution():
+    with pytest.raises(ValueError, match="soon"):
+        SimulationContext("D").add_service("s", "constant", value="soon")
+    with pytest.raises(ValueError, match="expected seconds or a duration"):
+        SimulationContext("D").add_service("s", "constant", value=True)
+    with pytest.raises(ValueError, match="expected seconds or a duration"):
+        SimulationContext("D").add_breakdown(
+            "r",
+            time_to_failure={"dist": "constant", "value": True},
+            repair={"dist": "constant", "value": 1},
+        )
+
+
+@pytest.mark.parametrize(
+    "declare, message",
+    [
+        (
+            lambda app: app.add_arrival(
+                "a", "constant", value=1, spawn="t", max_events=2.0
+            ),
+            "arrival 'a': max_events is a whole number of 0 or more, an expression "
+            "or a generator, got 2.0",
+        ),
+        (
+            lambda app: app.add_arrival("a", "constant", value=1, spawn="t", group=[1]),
+            "arrival 'a': group is a whole number, an expression or a generator, "
+            "got [1]",
+        ),
+        (
+            lambda app: app.add_arrival_replay("r", [], unit="weeks"),
+            "unit must be one of ms, s, min, h, timestamp, got 'weeks'",
+        ),
+        (
+            lambda app: app.add_arrival_replay("r", [], on_invalid="drop"),
+            "on_invalid must be error or skip, got 'drop'",
+        ),
+        (
+            lambda app: app.add_breakdown(
+                "r", time_to_failure="x", repair={"dist": "constant", "value": 1}
+            ),
+            "a distribution is a mapping with a dist, got 'x'",
+        ),
+        (
+            lambda app: app.start(until=1, stats="bogus"),
+            "stats must be one of none, minimal, basic, typical, all, got 'bogus'",
+        ),
+        (
+            lambda app: app.add_egress(MagicMock(), when="later"),
+            "when takes a function, 'labels' or 'trace', got 'later'",
+        ),
+        (
+            lambda app: app.with_stats("most"),
+            "stats level must be one of none, minimal, basic, typical, all, got 'most'",
+        ),
+        (
+            lambda app: app.with_stats("basic", interval=0),
+            "stats interval must be greater than 0, got 0",
+        ),
+    ],
+    ids=[
+        "max_events a whole float",
+        "group a list",
+        "replay unit",
+        "replay on_invalid",
+        "breakdown without dist",
+        "stats level",
+        "egress when",
+        "with_stats level",
+        "with_stats interval",
+    ],
+)
+def test_a_builder_value_its_check_refuses(declare, message):
+    """Each refusal of a builder value that the earlier checks let through, with its
+    exact text."""
+    with pytest.raises(ValueError) as refused:
+        declare(SimulationContext("S", factor=0))
+    assert str(refused.value) == message
+
+
+def test_stores_and_containers_are_read_only_from_a_run():
+    """A store or a container is made by the run, so reading one before it is
+    refused; stopping the arrivals before a run does nothing."""
+    app = SimulationContext("S", factor=0)
+    with pytest.raises(RuntimeError, match="Stores are not instantiated"):
+        app.get_store("s")
+    with pytest.raises(RuntimeError, match="Containers are not instantiated"):
+        app.get_container("c")
+    app.stop_arrivals()
+
+
+def test_a_start_whose_environment_fails_raises_its_error():
+    """A start that fails before it has an environment has no connector to stop, so
+    the error of the environment is the one raised."""
+    app = SimulationContext("S", factor=0)
+
+    def broken(**settings):
+        raise OSError("no environment")
+
+    app.environment = broken
+    with pytest.raises(OSError, match="no environment"):
+        app.run(until=1)
+
+
+def test_a_replay_with_no_row_left_logs_its_end_once(caplog):
+    """A replay with no row left gives a wait that never ends, and logs that it
+    stopped once, however often it is asked."""
+    app = SimulationContext("S", factor=0)
+    app.add_arrival_replay("r", [])
+
+    def ask_twice(context):
+        context.wait_for_arrival("r")
+        context.wait_for_arrival("r")
+        yield context.env.timeout(1)
+
+    app.add_process(ask_twice)
+    with caplog.at_level("INFO", logger="desflow.core.context"):
+        app.run(until=2)
+    ended = [r for r in caplog.records if "replayed its last row" in r.getMessage()]
+    assert len(ended) == 1
+
+
+def _yaml_records(tmp_path, text, until):
+    """The values of a blueprint's run that have an `n`, with their times."""
+    path = tmp_path / "model.yaml"
+    path.write_text(text)
+    app = SimulationContext.from_yaml(path)
+    sink = _Records()
+    app.add_egress(sink)
+    app.run(until=until)
+    return app, [
+        (row["sim_ts"], row["value"])
+        for row in sink.records
+        if isinstance(row.get("value"), dict) and "n" in row["value"]
+    ]
+
+
+@pytest.mark.parametrize(
+    "model, message",
+    [
+        (
+            "stores: {s: {priority: true, items: [{gen: expr, expr: '5'}]}}\n"
+            "arrivals: {a: {initial: 1, spawn: t}}\n"
+            "tasks: {t: {payload: {}}}\n",
+            "priority store 's' starts with (priority, item) pairs; a generator in "
+            "its items gave [5]",
+        ),
+        (
+            "resources: {m: {current_cap: 1, queue: priority,"
+            " preempt: {when: 't / 0 > 1'}}}\n"
+            "arrivals: {a: {gap: 1, max_events: 2, spawn: t}}\n"
+            "tasks: {t: {seize: m, service_time: 5, payload: {}, release: m}}\n",
+            "the preempt rule of resource 'm': cannot evaluate 't / 0 > 1': "
+            "division by zero",
+        ),
+        (
+            "arrivals: {a: {gap: 't >= 0', spawn: t}}\ntasks: {t: {payload: {n: 1}}}\n",
+            "arrival 'a' gap gave True, which is not a number of seconds",
+        ),
+    ],
+    ids=["priority store items", "preempt rule", "gap not a number"],
+)
+def test_a_place_read_in_the_run_that_gives_a_wrong_value_stops_it(
+    tmp_path, model, message
+):
+    """A place the run reads, a store's generated items, a preempt rule or a gap,
+    that gives a value it cannot take stops the run with a message naming it."""
+    with pytest.raises(Exception) as stopped:
+        _yaml_records(
+            tmp_path,
+            "simulation: {sim_id: S, factor: 0, random_seed: 1}\n" + model,
+            20,
+        )
+    assert message in str(stopped.value)
+
+
+def test_an_arrival_with_keys_forgets_the_keys_of_entities_that_left(tmp_path):
+    """An arrival with a `key` remembers which keys are in use, and once 2,048 keys
+    are listed it forgets those whose entities have left, so 2,100 one-off keys
+    leave 53 listed."""
+    app, _ = _yaml_records(
+        tmp_path,
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "arrivals: {a: {gap: 1, max_events: 2100, spawn: t,"
+        " key: {gen: expr, expr: t}}}\n"
+        "tasks: {t: {payload: {}}}\n",
+        3000,
+    )
+    assert len(app._run.arrivals.live_keys["a"]) == 53
+
+
+@pytest.mark.parametrize(
+    "off_mode, on_at, times",
+    [
+        ("drop", 5.2, [1.0, 2.0, 6.0, 7.0, 8.0]),
+        ("restart", 5.2, [1.0, 2.0, 6.2, 7.2, 8.2]),
+        # Turned on again before the dropped arrival is due at 3
+        ("restart", 2.8, [1.0, 2.0, 3.8, 4.8, 5.8, 6.8, 7.8, 8.8]),
+    ],
+)
+def test_an_arrival_that_falls_while_its_source_is_off_draws_no_attribute(
+    tmp_path, off_mode, on_at, times
+):
+    """An arrival due while its source is off, or dropped by a restarting source,
+    starts nobody and draws no attribute, so the sequence goes on with the next
+    entity that starts. A dropped arrival draws none even when the source is on
+    again by the time it is due."""
+    _, records = _yaml_records(
+        tmp_path,
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "arrivals:\n"
+        f"  a: {{gap: 1, spawn: t, off_mode: {off_mode},"
+        " attributes: {n: {gen: sequence, start: 1}}}\n"
+        "  stopper: {first_at: 2.5, max_events: 1, gap: 100, spawn: stop_a}\n"
+        f"  starter: {{first_at: {on_at}, max_events: 1, gap: 100, spawn: start_a}}\n"
+        "tasks:\n"
+        "  t: {payload: {n: {gen: expr, expr: attr.n}}}\n"
+        "  stop_a: {deactivate: [a], payload: {}}\n"
+        "  start_a: {activate: [a], payload: {}}\n",
+        9,
+    )
+    assert records == [(at, {"n": n}) for n, at in enumerate(times, start=1)]
+
+
+def test_a_task_that_balks_gives_back_the_unit_kept_for_it(tmp_path):
+    """A task that balks at a full line gives back the unit its flow's earlier task
+    kept for it, so the next entity's `first` is served at 5 and done at 6."""
+    _, records = _yaml_records(
+        tmp_path,
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "resources:\n"
+        "  r: {current_cap: 1}\n"
+        "  s: {current_cap: 1, queue_limit: 0}\n"
+        "arrivals:\n"
+        "  a: {first_at: 0, max_events: 1, gap: 100, spawn: hold_s}\n"
+        "  b: {first_at: 1, max_events: 2, gap: 4, spawn: first}\n"
+        "tasks:\n"
+        "  hold_s: {resource: s, service_time: 100, payload: {}}\n"
+        "  first: {resource: r, service_time: 1, keep: [r], next: second,"
+        " payload: {n: {gen: expr, expr: t}}}\n"
+        "  second: {resource: [s, r], service_time: 1, payload: {}}\n",
+        20,
+    )
+    assert records == [(2.0, {"n": 2}), (6.0, {"n": 6})]
+
+
+def test_a_signal_resume_reads_its_limit_in_the_run_scope(tmp_path):
+    """A signal's `resume` whose `limit` is an expression and that has no scope of
+    its own reads the limit in the run's scope: `1 + 0` wakes one of two."""
+    _, records = _yaml_records(
+        tmp_path,
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "signals: {go: {on: [{resume: {task: w, limit: '1 + 0'}}]}}\n"
+        "arrivals:\n"
+        "  a: {initial: 2, spawn: w}\n"
+        "  b: {first_at: 3, max_events: 1, gap: 100, spawn: g}\n"
+        "tasks:\n"
+        "  w: {wait: {suspend: true}, payload: {n: {gen: expr, expr: t}}}\n"
+        "  g: {signal: go, payload: {}}\n",
+        20,
+    )
+    assert records == [(3.0, {"n": 3})]
+
+
+def test_a_preemption_made_outside_any_process_names_no_entity(tmp_path):
+    """A request that preempts a task from an event callback, outside any process,
+    has no entity, so the preempted record's `preempted_by` is None."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "resources: {m: {current_cap: 1, queue: priority, preempt: true}}\n"
+        "arrivals: {a: {initial: 1, spawn: t}}\n"
+        "tasks: {t: {seize: m, service_time: 10, payload: {e: done}, release: m}}\n"
+    )
+    app = SimulationContext.from_yaml(path)
+
+    def preempt_from_a_callback(context):
+        timer = context.env.timeout(2)
+        timer.callbacks.append(
+            lambda _event: context.get_resource("m").request(priority=-1, preempt=True)
+        )
+        yield timer
+
+    app.add_process(preempt_from_a_callback)
+    sink = _Records()
+    app.add_egress(sink)
+    app.run(until=20)
+    preempted = [
+        row["value"]
+        for row in sink.records
+        if isinstance(row.get("value"), dict)
+        and row["value"].get("status") == "preempted"
+    ]
+    assert preempted == [
+        {"status": "preempted", "resource": "m", "preempted_by": None, "usage_since": 0}
+    ]
+
+
+def _start_refusal(declare):
+    """The refusal of `start()` for a model with one arrival, `a`, that spawns `t`,
+    a signal `s`, and what `declare` adds."""
+    app = SimulationContext("S", factor=0)
+    app.add_arrival("a", "constant", value=1, spawn="t")
+    app.add_signal("s")
+    declare(app)
+    with pytest.raises(ValueError) as refused:
+        app.start(until=1)
+    return str(refused.value)
+
+
+def _builder_task(app, name, **settings):
+    app.task(name=name, service_time=0, **settings)(lambda task_id: {})
+
+
+@pytest.mark.parametrize(
+    "declare, message",
+    [
+        (
+            lambda app: _builder_task(app, "t", spawn={"task": "nosuch"}),
+            "task 't' spawns task 'nosuch', which is not added; add it with "
+            "@app.task()",
+        ),
+        (
+            lambda app: (
+                _builder_task(app, "t", spawn={"task": "a"}),
+                _builder_task(app, "a"),
+            ),
+            "task 'a', which task 't' spawns, has the name of arrival 'a'; rename the "
+            "task or the arrival, because their flow statistics and entity numbers "
+            "would merge",
+        ),
+        (
+            lambda app: (
+                _builder_task(app, "t", on=[{"fire": {"signal": "s", "from": "x"}}]),
+                app.add_signal("x"),
+                _builder_task(app, "x"),
+            ),
+            "the on: action of task 't' fires from 'x', which is both a signal and a "
+            "task; rename one",
+        ),
+        (
+            lambda app: _builder_task(
+                app, "t", on=[{"fire": {"signal": "s", "from": "nowhere"}}]
+            ),
+            "the on: action of task 't' fires from 'nowhere', which is neither a "
+            "signal nor a task",
+        ),
+    ],
+    ids=["spawn unknown", "spawn an arrival's name", "from both", "from neither"],
+)
+def test_a_builder_name_the_start_refuses(declare, message):
+    """Each refusal of a `spawn` or `fire from` name at the start of a builder run,
+    which a blueprint refuses at load."""
+    assert _start_refusal(declare) == message
+
+
+def test_an_on_action_deactivates_and_activates_an_arrival(tmp_path):
+    """`deactivate` stops an arrival's events and `activate` starts them again."""
+    outcome = run_yaml_text(
+        tmp_path,
+        """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+arrivals:
+  a: {dist: constant, value: 1, first_at: 0, spawn: t}
+  s: {initial: 1, spawn: stop}
+tasks:
+  t: {payload: {e: a}}
+  stop: {wait: {timeout: 2.5}, payload: {e: s}, on: [{deactivate: a}], next: go}
+  go: {wait: {timeout: 2}, payload: {e: g}, on: [{activate: a}]}
+run: {until: 6}
+""",
+        {},
+    )
+    assert outcome.error is None
+    assert [
+        (round(r["sim_ts"], 2), r["value"]["e"])
+        for r in outcome.records
+        if r["stream_type"] == "event" and "status" not in r["value"]
+    ] == [(0.0, "a"), (1.0, "a"), (2.0, "a"), (2.5, "s"), (4.5, "g"), (5.0, "a")]
+
+
+# A-U3: each unknown name an expression reads is refused with its own message, and in
+# one expression the first refused follows the order each check reads the kinds in
+_UNKNOWN_REFERENCES = [
+    (
+        "task",
+        "users.nope > 0",
+        "task 't' reads users.nope, but no resource is called 'nope'; add it with add_resource()",
+    ),
+    (
+        "task",
+        "queue.nope > 0",
+        "task 't' reads queue.nope, but no resource is called 'nope'; add it with add_resource()",
+    ),
+    (
+        "task",
+        "held(nope) > 0",
+        "task 't' reads held.nope, but no resource is called 'nope'; add it with add_resource()",
+    ),
+    (
+        "task",
+        "waiting(nope) > 0",
+        "task 't' reads waiting.nope, but no resource is called 'nope'; add it with add_resource()",
+    ),
+    (
+        "task",
+        "level.nope > 0",
+        "task 't' reads level.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "task",
+        "putters.nope > 0",
+        "task 't' reads putters.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "task",
+        "getters.nope > 0",
+        "task 't' reads getters.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "task",
+        "putting(nope) > 0",
+        "task 't' reads putting(nope), but no store or container is called 'nope'",
+    ),
+    (
+        "task",
+        "getting(nope) > 0",
+        "task 't' reads getting(nope), but no store or container is called 'nope'",
+    ),
+    (
+        "task",
+        "count(nope) > 0",
+        "task 't' reads count(nope), but no store is called 'nope'",
+    ),
+    (
+        "task",
+        "len(items(nope)) > 0",
+        "task 't' reads items(nope), but no store is called 'nope'",
+    ),
+    (
+        "task",
+        "running(nope) > 0",
+        "task 't' reads running(nope), but no task is called 'nope'",
+    ),
+    (
+        "task",
+        'registry["S.nope"].value > 0',
+        "task 't' reads registry[\"S.nope\"], which is not a registry path",
+    ),
+    (
+        "task",
+        'registry["S.nope"] > 0',
+        "task 't' reads registry[\"S.nope\"], which is not a registry path",
+    ),
+    (
+        "task",
+        "users.nope > 0 and level.nope2 > 0",
+        "task 't' reads level.nope2, but no store or container is called 'nope2'",
+    ),
+    (
+        "task",
+        "level.nope2 > 0 and users.nope > 0",
+        "task 't' reads level.nope2, but no store or container is called 'nope2'",
+    ),
+    (
+        "task",
+        "running(nope) > 0 and count(nope2) > 0",
+        "task 't' reads running(nope), but no task is called 'nope'",
+    ),
+    (
+        "task",
+        "count(nope2) > 0 and running(nope) > 0",
+        "task 't' reads running(nope), but no task is called 'nope'",
+    ),
+    (
+        "task",
+        'registry["S.nope"] > 0 and users.nope > 0',
+        "task 't' reads users.nope, but no resource is called 'nope'; add it with add_resource()",
+    ),
+    (
+        "task",
+        "users.packer > 0",
+        "task 't' reads users.packer, but no resource is called 'packer'; did you mean 'packers'?",
+    ),
+    (
+        "task",
+        "level.shel > 0",
+        "task 't' reads level.shel, but no store or container is called 'shel'",
+    ),
+    (
+        "rule",
+        "users.nope > 0",
+        "signal 's' on entry 0 when reads users.nope, but no resource is called 'nope'",
+    ),
+    (
+        "rule",
+        "queue.nope > 0",
+        "signal 's' on entry 0 when reads queue.nope, but no resource is called 'nope'",
+    ),
+    (
+        "rule",
+        "held(nope) > 0",
+        "signal 's' on entry 0 when reads held.nope, but no resource is called 'nope'",
+    ),
+    (
+        "rule",
+        "waiting(nope) > 0",
+        "signal 's' on entry 0 when reads waiting.nope, but no resource is called 'nope'",
+    ),
+    (
+        "rule",
+        "level.nope > 0",
+        "signal 's' on entry 0 when reads level.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "rule",
+        "putters.nope > 0",
+        "signal 's' on entry 0 when reads putters.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "rule",
+        "getters.nope > 0",
+        "signal 's' on entry 0 when reads getters.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "rule",
+        "putting(nope) > 0",
+        "signal 's' on entry 0 when reads putting.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "rule",
+        "getting(nope) > 0",
+        "signal 's' on entry 0 when reads getting.nope, but no store or container is called 'nope'",
+    ),
+    (
+        "rule",
+        "count(nope) > 0",
+        "signal 's' on entry 0 when reads count or items of 'nope', but no store is called 'nope'",
+    ),
+    (
+        "rule",
+        "len(items(nope)) > 0",
+        "signal 's' on entry 0 when reads count or items of 'nope', but no store is called 'nope'",
+    ),
+    (
+        "rule",
+        "signal.nope.count > 0",
+        "signal 's' on entry 0 when reads signal.nope, but no signal is called 'nope'",
+    ),
+    (
+        "rule",
+        "running(nope) > 0",
+        "signal 's' on entry 0 when reads running(nope), but no task is called 'nope'",
+    ),
+    (
+        "rule",
+        'registry["S.nope"].value > 0',
+        "signal 's' on entry 0 when reads registry[\"S.nope\"], which is not a registry path",
+    ),
+    (
+        "rule",
+        'registry["S.nope"] > 0',
+        "signal 's' on entry 0 when reads registry[\"S.nope\"], which is not a registry path",
+    ),
+    (
+        "rule",
+        "users.nope > 0 and level.nope2 > 0",
+        "signal 's' on entry 0 when reads users.nope, but no resource is called 'nope'",
+    ),
+    (
+        "rule",
+        "level.nope2 > 0 and users.nope > 0",
+        "signal 's' on entry 0 when reads users.nope, but no resource is called 'nope'",
+    ),
+    (
+        "rule",
+        "running(nope) > 0 and count(nope2) > 0",
+        "signal 's' on entry 0 when reads count or items of 'nope2', but no store is called 'nope2'",
+    ),
+    (
+        "rule",
+        "count(nope2) > 0 and running(nope) > 0",
+        "signal 's' on entry 0 when reads count or items of 'nope2', but no store is called 'nope2'",
+    ),
+    (
+        "rule",
+        'registry["S.nope"] > 0 and users.nope > 0',
+        "signal 's' on entry 0 when reads users.nope, but no resource is called 'nope'",
+    ),
+    (
+        "rule",
+        "users.packer > 0",
+        "signal 's' on entry 0 when reads users.packer, but no resource is called 'packer'; did you mean 'packers'?",
+    ),
+    (
+        "rule",
+        "level.shel > 0",
+        "signal 's' on entry 0 when reads level.shel, but no store or container is called 'shel'; did you mean 'shelf'?",
+    ),
+]
+
+
+def _reading_model(kind, form):
+    """A model whose task balk, or whose signal on entry, reads `form`."""
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_resource("packers", current_cap=1, max_cap=1)
+    app.add_store("shelf", current_cap=5, max_cap=5)
+    app.add_arrival_replay("a", [{"time": 0}], spawn="t")
+    if kind == "task":
+        app.add_service("s", "constant", value=1.0)
+        app.task(service_id="s", resource_id="packers", name="t", balk=form)(
+            lambda task_id: {}
+        )
+    else:
+        app.add_signal("s", on=[{"when": form, "fire": {"signal": "s"}}])
+        app.task(name="t", wait={"timeout": 1})(lambda task_id: {"e": "t"})
+    return app
+
+
+@pytest.mark.parametrize("kind,form,message", _UNKNOWN_REFERENCES)
+def test_an_unknown_name_an_expression_reads_is_refused_with_its_message(
+    kind, form, message
+):
+    with pytest.raises(ValueError) as refused:
+        _reading_model(kind, form).run(until=1)
+    assert str(refused.value).startswith(message)
+
+
+@pytest.mark.parametrize(
+    "steps,message",
+    [
+        (
+            [{"at": 1, "interrupt": {"task": "nope"}}],
+            "scenario step at 1 s interrupts task 'nope', which is not added; "
+            "add it with @app.task()",
+        ),
+        (
+            [
+                {"at": 2, "interrupt": {"task": "nope"}},
+                {"at": 1, "path": "S.nope", "value": 1},
+            ],
+            "scenario step at 1 s sets 'S.nope', which is not a registry path",
+        ),
+        (
+            [
+                {"at": 1, "interrupt": {"task": "nope"}},
+                {"at": 2, "path": "S.nope", "value": 1},
+            ],
+            "scenario step at 1 s interrupts task 'nope', which is not added; "
+            "add it with @app.task()",
+        ),
+        (
+            [
+                {"at": 1, "path": "S.resources.packers.max_cap", "value": 3},
+                {"at": 1, "path": "S.nope", "value": 1},
+            ],
+            "scenario step at 1 s sets 'S.nope', which is not a registry path",
+        ),
+    ],
+)
+def test_the_scenario_check_refuses_the_first_step_in_time_order(steps, message):
+    """A-U4: the steps are checked in the order the run applies them, and steps at
+    one time in the order they are written."""
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_resource("packers", current_cap=1, max_cap=1)
+    app.add_service("s", "constant", value=1.0)
+    app.add_arrival_replay("a", [{"time": 0}], spawn="t")
+    app.task(service_id="s", resource_id="packers", name="t")(lambda task_id: {})
+    app.add_scenario(steps)
+    with pytest.raises(ValueError) as refused:
+        app.run(until=1)
+    assert str(refused.value) == message
+
+
+def test_the_scenario_walk_yields_each_step_with_its_problem():
+    """A-U4: the walk the scenario checks share takes the steps in time order, skips a
+    step with no path, a member's path or a generated value, and ends at the first
+    problem the registry's own check finds."""
+    from desflow.core.context import scratch_registry
+    from desflow.core.scenario import walk_steps
+    from desflow.values.models import Expr
+
+    app = SimulationContext("S", factor=0)
+    app.add_resource("m", current_cap=1, max_cap=2, queue_limit=3)
+
+    def walk(steps):
+        member = lambda path: path.startswith("S.resources.desk[")  # noqa: E731
+        return list(walk_steps(steps, scratch_registry(app), member))
+
+    cap = "S.resources.m.current_cap"
+    refusal = "resource 'm' needs a whole number of 0 or more for current_cap, got 'x'"
+    assert walk([(1, cap, "x")]) == [(0, "value", refusal)]
+    assert walk(
+        [(2, "S.nope", 1), (1, None, None), (1, "S.resources.desk[3].current_cap", 1)]
+    ) == [(1, None, None), (2, None, None), (0, "path", None)]
+    assert walk([(1, cap, Expr(gen="expr", expr="1"))]) == [(0, None, None)]
+    assert walk([(1, cap, 2.0), (1, cap, 2)]) == [(0, None, None), (1, None, None)]
+    assert walk([(1, "S.resources.m.queue_limit", "x")])[0][:2] == (0, "value")

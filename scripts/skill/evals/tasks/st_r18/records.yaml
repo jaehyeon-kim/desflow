@@ -1,0 +1,16 @@
+# Records of task ST-R18, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: ST-R18
+
+until: 10
+
+run_end: null
+
+records:
+  - name: capacity null at 0
+    match: {task: read, key: a-1, value.event_type: capacity, value.capacity: null}
+    at: 0
+  - name: one record
+    match: {task: read, value.event_type: capacity}
+    count: 1

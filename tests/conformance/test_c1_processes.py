@@ -467,7 +467,7 @@ def test_c1_wait_for_a_process_two_instances():
         return {"event": "drove"}
 
     def script(context):
-        entity = context._new_entity("car", None)
+        entity = context._run.arrivals.new_entity("car", None)
         context.spawn(charge_task(context.next_instance("charge"), entity=entity))
         context.spawn(charge_task(context.next_instance("charge"), entity=entity))
         context.spawn(driver_task(context.next_instance("driver"), entity=entity))
@@ -484,8 +484,11 @@ def test_c1_wait_for_a_process_two_instances():
 
 def test_c1_wait_for_a_process_that_hands_on():
     """A running wait on a task that hands on to the next task resumes when that task
-    finishes, at 4, not when its flow ends at 7, as SimPy's `yield proc` on a process
-    that returns before its successor runs."""
+    finishes, at 4. It matches a SimPy `yield proc` on a process that starts the next
+    task as another process, which is not how desflow runs a flow: the flow is one
+    process and ends at 7, and a SimPy `yield proc` on that one process resumes at 7.
+    The difference is gap M7 of SimPy Compatibility, and the program with the whole
+    flow in one process is what the `!python` form gives."""
     env = simpy.Environment()
     out = []
 
@@ -510,8 +513,26 @@ def test_c1_wait_for_a_process_that_hands_on():
     env.run(until=10)
     assert out == [(4, {"event": "relayed"})]
 
+    # The whole flow as one process, which is how desflow runs it: the wait ends at 7
+    env = simpy.Environment()
+    out = []
+
+    def flow():
+        yield env.timeout(3)
+        yield env.timeout(3)
+        return {"event": "more_done"}
+
+    def whole_car():
+        yield env.timeout(1)
+        flow_proc = env.process(flow())
+        env.process(driver(flow_proc))
+
+    env.process(whole_car())
+    env.run(until=10)
+    assert out == [(7, {"event": "more_done"})]
+
     records = run_yaml("c1_running_hands_on.yaml")[0]
-    assert times(records, "driver") == [4.0]
+    assert times(records, "driver") == [4.0]  # the instance ends at 4, not the flow
     assert times(records, "more") == [7.0]  # the flow goes on past the resume
 
 
@@ -618,7 +639,7 @@ def test_c1_wait_for_a_process_abandoned_in_a_child_flow():
             return {"event": "drove"}
 
         def script(context):
-            entity = context._new_entity("car", None)
+            entity = context._run.arrivals.new_entity("car", None)
             context.call("charge", entity=entity)  # a child flow
             context.spawn(driver_task(context.next_instance("driver"), entity=entity))
             yield context.env.timeout(2)
@@ -631,7 +652,7 @@ def test_c1_wait_for_a_process_abandoned_in_a_child_flow():
     # No on_interrupt_next: the child flow's end event fails, so the wait fails at 2
     failed = [
         r["sim_ts"]
-        for r in run_builder(build(None), 10)
+        for r in run_builder(build(None), 10, on_unhandled_failure="continue")
         if r["task"] == "driver"
         and isinstance(r["value"], dict)
         and r["value"].get("status") == "failed"

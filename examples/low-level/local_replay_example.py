@@ -8,6 +8,7 @@ row is at 73 seconds; after it the arrival stops, and the run ends at 120.
 Needs no containers. Runs unpaced and ends after 120 simulation seconds.
 """
 
+import itertools
 import logging
 from pathlib import Path
 
@@ -40,10 +41,19 @@ def pack(env, sampler, packers, key, task_id, fields):
     def publish(value):
         env.publish_event(key, value, task="pack", instance=task_id)
 
-    publish({"path_id": path_id, "status": "queued"})
+    publish(
+        {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+    )
     with packers.request() as request:
         yield request
-        publish({"path_id": path_id, "status": "started"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            }
+        )
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         publish({"event_type": "order_packed", **fields})
 
@@ -52,10 +62,14 @@ def pack(env, sampler, packers, key, task_id, fields):
 def replay(env, sampler, packers):
     """Starts one order at each row's time, carrying the row's fields."""
     rows = read_trace(TRACE, time="time", unit="s", fields=["order_id", "items"])
-    for number, row in enumerate(rows, start=1):
-        yield env.timeout(row.time - env.now)
-        key = f"orders-{number}"
-        env.process(pack(env, sampler, packers, key, number - 1, row.fields))
+    number = 0
+    # Rows with one time start in one step, as the blueprint starts them
+    for time, same_time in itertools.groupby(rows, key=lambda row: row.time):
+        yield env.timeout(time - env.now)
+        for row in same_time:
+            number += 1
+            key = f"orders-{number}"
+            env.process(pack(env, sampler, packers, key, number - 1, row.fields))
 
 
 # --8<-- [end:replay]

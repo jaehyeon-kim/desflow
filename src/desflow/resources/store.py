@@ -1,5 +1,4 @@
 import heapq
-import itertools
 import math
 from typing import Any, Iterable, Optional, Type, Union
 
@@ -7,7 +6,13 @@ from simpy import Environment, Event, FilterStore, PriorityItem, PriorityStore, 
 from simpy.resources.base import BoundClass
 from simpy.resources.store import FilterStoreGet, StoreGet, StorePut
 
-from desflow.resources.base import BaseDynamicResource, _CancelReports, _Notifier
+from desflow.resources.base import (
+    _CancelReports,
+    check_ties,
+    _Notifier,
+    _Ranked,
+    _WrappedHolder,
+)
 
 
 def _whole(value: float) -> Union[int, float]:
@@ -15,19 +20,22 @@ def _whole(value: float) -> Union[int, float]:
     return value if math.isinf(value) else int(value)
 
 
-class DynamicStorePut(_CancelReports, StorePut):
+class DynamicStorePut(_Ranked, _CancelReports, StorePut):
     """The put event of `StoreBase`: SimPy's `StorePut`, whose `cancel()` also reports
-    the change of the queue length. Subclass it and set `put = BoundClass(MyPut)`."""
+    the change of the queue length. Its `rank` keyword ranks it in a queue that
+    `DynamicStore` was built to rank. Subclass it and set `put = BoundClass(MyPut)`."""
 
 
-class DynamicStoreGet(_CancelReports, StoreGet):
+class DynamicStoreGet(_Ranked, _CancelReports, StoreGet):
     """The get event of `StoreBase`: SimPy's `StoreGet`, whose `cancel()` also reports
-    the change of the queue length. Subclass it and set `get = BoundClass(MyGet)`."""
+    the change of the queue length. Its `rank` keyword ranks it in a queue that
+    `DynamicStore` was built to rank. Subclass it and set `get = BoundClass(MyGet)`."""
 
 
-class DynamicFilterStoreGet(_CancelReports, FilterStoreGet):
+class DynamicFilterStoreGet(_Ranked, _CancelReports, FilterStoreGet):
     """The get event of a filtered store: SimPy's `FilterStoreGet`, whose `cancel()`
-    also reports the change of the queue length."""
+    also reports the change of the queue length. It takes a `rank` keyword, as
+    `DynamicStoreGet` does."""
 
 
 class StoreBase(_Notifier, Store):
@@ -122,9 +130,13 @@ def check_store_type(store_type: Optional[Any], priority: bool = False) -> None:
         )
 
 
-class DynamicStore(BaseDynamicResource):
+class DynamicStore(_WrappedHolder, Store):
     """
     A wrapper for SimPy FilterStore and PriorityStore with dynamic capacity updates.
+
+    It is also a SimPy `Store`, so `isinstance` holds. It runs none of SimPy's
+    constructor: `put_queue`, `get_queue`, `items` and `capacity` read the wrapped
+    store, and `put` and `get` call it.
 
     Useful for modeling buffers, queues, or staging areas that hold discrete,
     heterogeneous items. By setting `priority=True`, the store will automatically
@@ -142,6 +154,10 @@ class DynamicStore(BaseDynamicResource):
         env (Environment): The active SimPy simulation environment.
         sim_id (str): The parent simulation ID prefix.
         obj_id (str): The specific store name/identifier.
+        put_queue: The waiting puts, SimPy's queue.
+        get_queue: The waiting gets, SimPy's queue.
+        PutQueue: The type of `put_queue`, that of the wrapped store.
+        GetQueue: The type of `get_queue`, that of the wrapped store.
     """
 
     def __init__(
@@ -152,6 +168,8 @@ class DynamicStore(BaseDynamicResource):
         priority: bool = False,
         items: Optional[Iterable[Any]] = None,
         type: Optional[Type[StoreBase]] = None,
+        get_ties: Optional[str] = None,
+        put_ties: Optional[str] = None,
     ):
         """
         Initializes the DynamicStore and binds its capacity to the registry.
@@ -166,17 +184,25 @@ class DynamicStore(BaseDynamicResource):
             items (Iterable, optional): The items it holds when the run starts, in
                 the order a get returns them. A priority store takes `(priority,
                 item)` pairs and holds each as a `PriorityItem`, lowest priority
-                first and in the order given among equal priorities.
+                first. Equal priorities leave in the order SimPy's heap gives them.
             type (Type[StoreBase], optional): A subclass of `StoreBase` to build the
                 store from, in place of the default; it is built as
                 `type(env, capacity=...)`. Defaults to None, the default store.
+            get_ties (str, optional): None, the default, keeps SimPy's queue of
+                waiting gets, first in, first out. `fifo` or `lifo` ranks them by the
+                `rank` each `get(rank=...)` is made with, lowest first, and serves
+                equal ranks oldest first or latest first. A get with no `rank` has
+                rank 0. Not allowed with `type`.
+            put_ties (str, optional): As `get_ties`, for the waiting puts.
 
         Raises:
             ValueError: If there are more items than the capacity, a priority
                 store's item is not a `(priority, item)` pair, `type` is not a
-                subclass of `StoreBase`, or `type` is given with `priority`.
+                subclass of `StoreBase`, `type` is given with `priority`, or `get_ties`
+                or `put_ties` is not `fifo` or `lifo` or is given with `type`.
         """
         check_store_type(type, priority)
+        check_ties(get_ties, put_ties, type)
         super().__init__(env, sim_id, store_id, "stores")
 
         max_cap = _whole(self._max_cap_val.value)
@@ -185,16 +211,15 @@ class DynamicStore(BaseDynamicResource):
 
         # Dynamically select the underlying SimPy storage engine
         self.priority = priority
-        # A rising number for every priority item, so equal priorities keep the
-        # order they were added in and their items are never compared
-        self._order = itertools.count()
         kind = type or (_PriorityStore if priority else _Store)
-        # SimPy refuses a capacity of 0, which desflow accepts because a capacity
-        # changes during a run; the store is built with 1 and held at 0, as a
-        # capacity change sets it
-        self._store = kind(env, capacity=initial_capacity or 1)
-        self._store._on_change = self._changed
-        self._store._capacity = initial_capacity
+        self._build_holder(
+            lambda capacity: kind(env, capacity=capacity),
+            initial_capacity,
+            smallest=1,
+            on_change=self._changed,
+            get_ties=get_ties,
+            put_ties=put_ties,
+        )
         start = list(items or [])
         if len(start) > initial_capacity:
             raise ValueError(
@@ -208,26 +233,27 @@ class DynamicStore(BaseDynamicResource):
                         f"a priority store starts with (priority, item) pairs, got "
                         f"{item!r}"
                     )
-                heapq.heappush(self._store.items, self.wrap(item[1], item[0]))
+                heapq.heappush(self._holder.items, self.wrap(item[1], item[0]))
             else:
-                self._store.items.append(item)
+                self._holder.items.append(item)
         self._register()
 
     def wrap(self, item: Any, priority: float) -> PriorityItem:
         """
-        Wraps an item for a priority store, ranked by `priority` and then by order.
+        Wraps an item for a priority store, ranked by `priority`.
 
-        The builder and YAML put every item through this, so equal priorities come
-        out first in, first out, which a plain `PriorityItem` does not promise.
+        The builder and YAML put every item through this. Items of equal priority
+        leave in the order SimPy's heap gives them, as a `PriorityItem` put into a
+        `simpy.PriorityStore` does.
 
         Args:
             item: The item.
             priority: Its priority, lowest returned first.
 
         Returns:
-            PriorityItem: The item, ranked by `(priority, order)`; `.item` is the item.
+            PriorityItem: The item, ranked by `priority`; `.item` is the item.
         """
-        return PriorityItem((priority, next(self._order)), item)
+        return PriorityItem(priority, item)
 
     @property
     def capacity(self) -> int:
@@ -235,32 +261,49 @@ class DynamicStore(BaseDynamicResource):
         int: The current active maximum slot capacity of the store.
         This value reflects the live state from the Registry.
         """
-        return self._store.capacity
+        return self._holder.capacity
 
     @property
     def items(self) -> list:
         """
         list: The actual list of distinct item objects currently residing
-        in the store.
+        in the store. Assigning a list replaces the items, which `FilterStore` code does
+        with `store.items = [...]`. As in SimPy, a get that is waiting is served at the
+        next put or get, not at the assignment, and the store keeps the list given.
+        A priority store takes a list that is already a heap.
         """
-        return self._store.items
+        return self._holder.items
+
+    @items.setter
+    def items(self, items: Iterable[Any]) -> None:
+        """
+        Replaces the items. A waiting get is served at the next put or get, as in
+        SimPy.
+
+        Args:
+            items: The new items. A priority store takes a list that is a heap.
+        """
+        # SimPy keeps the list it is given, and serves a waiting get at the next
+        # put or get, not at the assignment
+        self._holder.items = items if isinstance(items, list) else list(items)
+        self._changed()
 
     @property
     def level(self) -> int:
         """int: The number of items held."""
-        return len(self._store.items)
+        return len(self._holder.items)
 
     @property
     def getters_waiting(self) -> int:
         """int: Gets waiting for an item. A get granted at once is not counted,
         although SimPy removes it from `get_queue` only after the grant."""
-        return sum(1 for event in self._store.get_queue if not event.triggered)
+        return self._waiting(self._holder.get_queue)
 
     @property
     def putters_waiting(self) -> int:
         """int: Puts waiting for room. A put granted at once is not counted,
         although SimPy removes it from `put_queue` only after the grant."""
-        return sum(1 for event in self._store.put_queue if not event.triggered)
+        return self._waiting(self._holder.put_queue)
 
     def put(self, *args: Any, **kwargs: Any) -> Event:
         """
@@ -274,7 +317,7 @@ class DynamicStore(BaseDynamicResource):
         Returns:
             simpy.events.Event: A SimPy event that triggers when a slot is available.
         """
-        return self._store.put(*args, **kwargs)
+        return self._holder.put(*args, **kwargs)
 
     def get(self, *args: Any, **kwargs: Any) -> StoreGet:
         """
@@ -309,7 +352,7 @@ class DynamicStore(BaseDynamicResource):
                 "a priority store takes no filter: SimPy has no store that both "
                 "ranks and filters its items"
             )
-        return self._store.get(*args, **kwargs)
+        return self._holder.get(*args, **kwargs)
 
     def _handle_capacity_change(self, new_target: float):
         """
@@ -323,13 +366,13 @@ class DynamicStore(BaseDynamicResource):
         max_cap = _whole(self._max_cap_val.value)
         new_target = max(0, min(_whole(new_target), max_cap))
 
-        self._store._capacity = new_target
+        self._holder._capacity = new_target
 
         # If capacity grew, pending put requests might now have open slots to succeed.
         # This exact same trigger works for both Store and PriorityStore.
         # A pass grants one waiting put, so it repeats while the queue gets shorter.
-        while self._store.put_queue:
-            waiting = len(self._store.put_queue)
-            self._store._trigger_put(None)
-            if len(self._store.put_queue) >= waiting:
+        while self._holder.put_queue:
+            waiting = len(self._holder.put_queue)
+            self._holder._trigger_put(None)
+            if len(self._holder.put_queue) >= waiting:
                 break

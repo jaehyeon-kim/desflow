@@ -21,6 +21,10 @@ from feature_lists import LABELLED, PAGES
 
 Pair = Tuple[str, str]
 ROOT_MODEL = "Blueprint"
+# Every generator kind takes these keys from one base model, so they count once, as
+# (`Generator`, key), and not once for each of the kinds
+GENERATOR_MODEL = "Generator"
+GENERATOR_KEYS = {"gen", "null_rate", "unique", "omit_rate", "omit_when"}
 
 
 def _schema() -> Dict[str, Any]:
@@ -33,11 +37,17 @@ SCHEMA = _schema()
 DEFS: Dict[str, Any] = SCHEMA["$defs"]
 
 
+def _canonical(model: str, key: str) -> Pair:
+    """The pair a key counts as: a key every generator kind takes counts once."""
+    kind = key in GENERATOR_KEYS and "gen" in DEFS.get(model, {}).get("properties", {})
+    return (GENERATOR_MODEL if kind else model, key)
+
+
 def pairs() -> List[Pair]:
     """Every (model, key) pair the blueprint JSON Schema declares."""
     found = {(ROOT_MODEL, key) for key in SCHEMA["properties"]}
     for model, node in DEFS.items():
-        found |= {(model, key) for key in node.get("properties", {})}
+        found |= {_canonical(model, key) for key in node.get("properties", {})}
     return sorted(found)
 
 
@@ -94,11 +104,23 @@ def _walk(value: Any, node: Any, model: str, used: Set[Pair]) -> None:
             _walk(value, alternative, model, used)
     for part in node.get("allOf", []):
         _walk(value, part, model, used)
+    # A value is a generator when it is a mapping with a `gen` key, else a mapping or
+    # a list of values: the schema says so with if, then and else
+    if "if" in node:
+        test = node["if"]
+        kind = {"object": dict, "array": list}.get(test.get("type"), object)
+        holds = isinstance(value, kind) and all(
+            key in value for key in test.get("required", [])
+        )
+        if holds and "then" in node:
+            _walk(value, node["then"], model, used)
+        elif not holds and "else" in node:
+            _walk(value, node["else"], model, used)
     if isinstance(value, dict):
         props = node.get("properties", {})
         for key, inner in value.items():
             if key in props:
-                used.add((model, key))
+                used.add(_canonical(model, key))
                 _walk(inner, props[key], model, used)
         extra = node.get("additionalProperties")
         if isinstance(extra, dict) and not props:

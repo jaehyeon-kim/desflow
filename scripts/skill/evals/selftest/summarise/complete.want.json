@@ -1,0 +1,13 @@
+{
+  "rc": 0,
+  "contains": [
+    "### sonnet, before (2 tasks)",
+    "| K9 | 1.00 | 0.00 |",
+    "| K3 | 0.17 | 0.50 |",
+    "| Total | 1.17 | 0.50 |",
+    "### sonnet, none (2 tasks)",
+    "| Total | 0.17 | 0.50 |",
+    "Kinds that did not fall: none",
+    "The change is kept."
+  ]
+}

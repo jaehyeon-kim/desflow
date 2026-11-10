@@ -1,5 +1,6 @@
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -385,6 +386,10 @@ async def test_run_builds_the_mapping_and_creates_the_folder(tmp_path: Path):
     )
     q: queue.Queue = queue.Queue()
     q.put([EVENT])
+    # The first table imports pandas, which takes seconds in a new environment;
+    # `setup_egress` loads it before the run, and so does the test,
+    # so the wait below times the write alone
+    egress._load_libraries()
 
     task = asyncio.create_task(egress.run(q))
     for _ in range(50):
@@ -411,7 +416,7 @@ def test_jsonl_creates_the_folder_once(tmp_path: Path):
     egress._write_batch([EVENT])
     egress._write_batch([EVENT])
 
-    spy.create_dir.assert_called_once_with(str(tmp_path / "a"), recursive=True)
+    spy.create_dir.assert_called_once_with((tmp_path / "a").as_posix(), recursive=True)
     assert len(list((tmp_path / "a").glob("events_*.jsonl"))) == 2
 
 
@@ -528,6 +533,35 @@ def test_the_shut_down_message_counts_only_batches_written(tmp_path: Path, caplo
     assert "Successfully wrote 2 total chunks" in caplog.text
 
 
+def test_jsonl_logs_a_batch_it_cannot_write_and_goes_on(tmp_path: Path, caplog):
+    """A batch with a value JSON cannot hold, a set, is logged at ERROR and leaves
+    no file; the next batch is written and is the only chunk counted."""
+    import asyncio
+    import queue
+
+    egress = JsonlStorageEgress(default_path=str(tmp_path / "events.jsonl"))
+    egress.filesystem = fs.LocalFileSystem()
+    q: queue.Queue = queue.Queue()
+    q.put([{"stream_type": "event", "key": "a", "value": {"x": {1, 2}}}])
+    q.put([{"stream_type": "event", "key": "b", "value": {"x": 1}}])
+
+    async def drain():
+        task = asyncio.create_task(egress.run(q))
+        while not task.done() and (not q.empty() or getattr(egress, "active_tasks", 0)):
+            await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    with caplog.at_level("INFO"):
+        asyncio.run(drain())
+    files = list(tmp_path.glob("events_*.jsonl"))
+    assert [f.read_text() for f in files] == [
+        '{"stream_type":"event","key":"b","x":1}\n'
+    ]
+    assert "JSONL Writer: batch not written" in caplog.text
+    assert "Successfully wrote 1 total chunks" in caplog.text
+
+
 def test_the_jsonl_heartbeat_names_the_jsonl_writer(tmp_path: Path, caplog):
     """Every 10 batches the JSONL sink logs its progress under its own name."""
     import asyncio
@@ -569,21 +603,329 @@ def test_an_integer_column_widens_to_float(tmp_path: Path):
     assert sorted(values) == [1.0, 1.5]
 
 
-def test_a_file_sink_without_pyarrow_says_so_at_error(tmp_path: Path, caplog):
-    """Without pyarrow, JsonlStorageEgress stops at once; the run logs why at ERROR,
-    with the install hint, rather than only that the queues stopped draining."""
+@pytest.mark.parametrize(
+    "batches",
+    [[[15], [15.5], [16.25]], [[15, 16, 17], [15.5, 16.25]]],
+    ids=["batches of one row", "batches of several rows"],
+)
+def test_parquet_telemetry_value_is_a_double_in_every_file(tmp_path: Path, batches):
+    """An integer statistic first does not write an int64 file: the folder reads as
+    one table whatever the order of its files, and keeps a later fraction."""
+    egress = ParquetStorageEgress(path_router=lambda data: str(tmp_path / "t.parquet"))
+    egress.filesystem = fs.LocalFileSystem()
+    record = {"stream_type": "telemetry", "path_id": "tank.level"}
+
+    for batch in batches:
+        rows = [dict(record, value=v) for v in batch]
+        assert egress._write_batch(rows, pa, pq) == 1
+
+    files = list(tmp_path.glob("t_*.parquet"))
+    assert len(files) == len(batches)
+    assert {pq.read_schema(f).field("value").type for f in files} == {pa.float64()}
+    values = pq.read_table(tmp_path).column("value").to_pylist()
+    assert sorted(values) == sorted(float(v) for b in batches for v in b)
+
+
+def test_parquet_usage_since_is_a_double_in_every_file(tmp_path: Path):
+    """The time a preempted unit was granted is an integer when the clock is: the
+    first file is a double too, so the folder reads as one table."""
+    egress = ParquetStorageEgress(default_path=str(tmp_path / "e.parquet"))
+    egress.filesystem = fs.LocalFileSystem()
+    row = {"stream_type": "event", "key": "a-1", "task": "t", "value": {}}
+    status = {"status": "preempted", "resource": "m"}
+
+    for since in (3, 3.5):
+        record = dict(row, value=dict(status, usage_since=since))
+        assert egress._write_batch([record], pa, pq) == 1
+
+    files = list(tmp_path.glob("e_*.parquet"))
+    assert {pq.read_schema(f).field("usage_since").type for f in files} == {
+        pa.float64()
+    }
+    assert sorted(pq.read_table(tmp_path).column("usage_since").to_pylist()) == [
+        3.0,
+        3.5,
+    ]
+
+
+@pytest.mark.parametrize(
+    "name, settings, hidden, extra",
+    [
+        ("JsonlStorageEgress", {"default_path": "e.jsonl"}, "pyarrow", "parquet"),
+        ("ParquetStorageEgress", {"default_path": "e.parquet"}, "pyarrow", "parquet"),
+        (
+            "IcebergStorageEgress",
+            {"catalog": None, "default_table": "t"},
+            "pyarrow",
+            "iceberg",
+        ),
+        (
+            "IcebergStorageEgress",
+            {"catalog": None, "default_table": "t"},
+            "pyiceberg",
+            "iceberg",
+        ),
+    ],
+)
+def test_a_storage_sink_without_its_extra_is_refused_when_built(
+    monkeypatch, name, settings, hidden, extra
+):
+    """The storage connectors import their packages only when they write, so each
+    refuses to be built without them, naming the extra, rather than starting a run
+    that writes nothing."""
+    import desflow
+
+    monkeypatch.setitem(sys.modules, hidden, None)
+    with pytest.raises(ImportError) as raised:
+        getattr(desflow, name)(**settings)
+    assert f"{name} needs {hidden}, which is not installed" in str(raised.value)
+    assert f'pip install "desflow[{extra}]"' in str(raised.value)
+
+
+def _event(value, key="orders-1", stream_type="event"):
+    return {
+        "stream_type": stream_type,
+        "sim_ts": 1.0,
+        "timestamp": "2026-01-01T00:00:01.000+00:00",
+        "key": key,
+        "value": value,
+    }
+
+
+def test_path_field_selects_the_file_and_is_removed(tmp_path: Path):
+    """`__path__` in an event's value is the file it is written to, in a folder that
+    is created for it, and the column is not written. A record without it goes to
+    `default_path`."""
+    batch = [
+        _event({"__path__": f"{tmp_path}/packed/a.jsonl", "n": 1}),
+        _event({"n": 2}),
+    ]
+    jsonl = JsonlStorageEgress(default_path=str(tmp_path / "rest.jsonl"))
+    jsonl.filesystem = fs.LocalFileSystem()
+    jsonl._write_batch(batch)
+    parquet = ParquetStorageEgress(default_path=str(tmp_path / "rest.parquet"))
+    parquet.filesystem = fs.LocalFileSystem()
+    parquet._write_batch(
+        [
+            _event({"__path__": f"{tmp_path}/deep/er/a.parquet", "n": 1}),
+            _event({"n": 2}),
+        ],
+        pa,
+        pq,
+    )
+
+    [routed] = (tmp_path / "packed").glob("a_*.jsonl")
+    assert json.loads(routed.read_text())["n"] == 1
+    assert "__path__" not in routed.read_text()
+    [rest] = tmp_path.glob("rest_*.jsonl")
+    assert json.loads(rest.read_text())["n"] == 2
+    [table] = (tmp_path / "deep" / "er").glob("a_*.parquet")
+    assert pq.read_table(table).column_names == [
+        "stream_type",
+        "sim_ts",
+        "timestamp",
+        "key",
+        "n",
+    ]
+    [rest_table] = tmp_path.glob("rest_*.parquet")
+    assert pq.read_table(rest_table).to_pylist()[0]["n"] == 2
+
+
+def test_path_router_wins_over_the_path_field(tmp_path: Path):
+    """A `path_router` is the user's explicit function. The key is still removed."""
+    egress = JsonlStorageEgress(path_router=lambda d: str(tmp_path / "routed.jsonl"))
+    egress.filesystem = fs.LocalFileSystem()
+
+    egress._write_batch([_event({"__path__": "elsewhere.jsonl", "n": 1})])
+
+    [written] = tmp_path.glob("routed_*.jsonl")
+    assert "__path__" not in written.read_text()
+    assert not list(tmp_path.glob("elsewhere*"))
+
+
+def test_envelope_false_writes_the_value_as_the_row(tmp_path: Path, caplog):
+    """With `envelope` off a row is the event's value. A value that is not a mapping,
+    null included, is skipped, and one warning per sink says so, however many
+    flushes meet one."""
+    batch = [
+        _event({"n": 1}),
+        _event("text"),
+        _event(None),
+        _event({"__path__": f"{tmp_path}/by_path.jsonl", "n": 2}),
+    ]
+    jsonl = JsonlStorageEgress(default_path=str(tmp_path / "plain.jsonl"))
+    jsonl.filesystem = fs.LocalFileSystem()
+    jsonl.envelope = False
+
+    jsonl._write_batch(batch)
+    jsonl._write_batch(batch)
+
+    plain = [
+        json.loads(line)
+        for path in tmp_path.glob("plain_*.jsonl")
+        for line in path.read_text().splitlines()
+    ]
+    assert plain == [{"n": 1}, {"n": 1}]
+    written = [
+        json.loads(line)
+        for path in tmp_path.glob("by_path_*.jsonl")
+        for line in path.read_text().splitlines()
+    ]
+    assert written == [{"n": 2}, {"n": 2}]
+    warnings = [r for r in caplog.records if "skipped records" in r.getMessage()]
+    assert len(warnings) == 1
+    assert "2 had a value that is not a mapping" in warnings[0].getMessage()
+
+    parquet = ParquetStorageEgress(default_path=str(tmp_path / "plain.parquet"))
+    parquet.filesystem = fs.LocalFileSystem()
+    parquet.envelope = False
+    parquet._write_batch([_event({"n": 1, "m": "x"})], pa, pq)
+    [table] = tmp_path.glob("plain_*.parquet")
+    assert pq.read_table(table).to_pylist() == [{"n": 1, "m": "x"}]
+
+
+def test_envelope_on_writes_a_null_value_in_a_value_column(tmp_path: Path):
+    """With `envelope` on, a null value is not a mapping to flatten, so Parquet
+    writes it in a `value` column, which every row of that file then has, and JSONL
+    writes `"value": null` in that record's line only."""
+    batch = [_event({"id": 7}), _event(None, key="orders-2")]
+    parquet = ParquetStorageEgress(default_path=str(tmp_path / "rows.parquet"))
+    parquet.filesystem = fs.LocalFileSystem()
+    jsonl = JsonlStorageEgress(default_path=str(tmp_path / "rows.jsonl"))
+    jsonl.filesystem = fs.LocalFileSystem()
+
+    parquet._write_batch(batch, pa, pq)
+    jsonl._write_batch(batch)
+
+    [table] = tmp_path.glob("rows_*.parquet")
+    rows = pq.read_table(table).to_pylist()
+    assert [(row["key"], row["id"], row["value"]) for row in rows] == [
+        ("orders-1", 7, None),
+        ("orders-2", None, None),
+    ]
+    [chunk] = tmp_path.glob("rows_*.jsonl")
+    lines = [json.loads(line) for line in chunk.read_text().splitlines()]
+    assert [(line["key"], line.get("id"), "value" in line) for line in lines] == [
+        ("orders-1", 7, False),
+        ("orders-2", None, True),
+    ]
+    assert lines[1]["value"] is None
+
+
+def _label():
+    return {
+        "stream_type": "label",
+        "key": "k",
+        "sim_ts": 1.0,
+        "value": {"fault": "slow_packing"},
+    }
+
+
+def test_envelope_false_leaves_a_label_record_whole(tmp_path: Path):
+    """A label record is not an event of the model, so `envelope: false` keeps its
+    envelope on the file sinks, as on Kafka, Redis, Console and Postgres."""
+    jsonl = JsonlStorageEgress(default_path=str(tmp_path / "labels.jsonl"))
+    jsonl.filesystem = fs.LocalFileSystem()
+    jsonl.envelope = False
+    jsonl._write_batch([_label()])
+    [written] = tmp_path.glob("labels_*.jsonl")
+    row = json.loads(written.read_text().splitlines()[0])
+    assert row["stream_type"] == "label" and row["fault"] == "slow_packing"
+    assert row["key"] == "k"
+
+    parquet = ParquetStorageEgress(default_path=str(tmp_path / "labels.parquet"))
+    parquet.filesystem = fs.LocalFileSystem()
+    parquet.envelope = False
+    parquet._write_batch([_label()], pa, pq)
+    [table] = tmp_path.glob("labels_*.parquet")
+    [stored] = pq.read_table(table).to_pylist()
+    assert stored["stream_type"] == "label" and stored["fault"] == "slow_packing"
+
+    routed = JsonlStorageEgress(path_router=lambda d: str(tmp_path / "routed.jsonl"))
+    routed.filesystem = fs.LocalFileSystem()
+    routed.envelope = False
+    routed._write_batch([_label()])
+    [again] = tmp_path.glob("routed_*.jsonl")
+    assert json.loads(again.read_text().splitlines()[0])["stream_type"] == "label"
+
+
+@pytest.mark.parametrize(
+    "sink, loaded, not_loaded",
+    [
+        (
+            "ParquetStorageEgress(default_path='x.parquet')",
+            ["pyarrow.parquet", "pyarrow.fs", "pandas"],
+            [],
+        ),
+        ("JsonlStorageEgress(default_path='x.jsonl')", ["pyarrow.fs"], ["pandas"]),
+        (
+            "IcebergStorageEgress(catalog={'type': 'sql'}, default_table='a.b')",
+            ["pyarrow", "pyiceberg.io.pyarrow", "pyiceberg.catalog.sql", "pandas"],
+            [],
+        ),
+        (
+            "IcebergStorageEgress(catalog={'uri': 'sqlite:///x.db'}, "
+            "default_table='a.b')",
+            ["pyiceberg.io.pyarrow", "pyiceberg.catalog.sql"],
+            ["pyiceberg.catalog.rest"],
+        ),
+    ],
+)
+def test_a_storage_sink_loads_its_libraries_before_the_run(sink, loaded, not_loaded):
+    """In a new interpreter, `_load_libraries` imports what the sink's thread would
+    import on its first write: `pyarrow`'s modules, and pandas, which `pyarrow` loads
+    on its first table when it is installed. The JSONL sink builds no table, so it
+    does not load pandas. The Iceberg sink also loads `pyiceberg.io.pyarrow` and the
+    module of its catalog's type, given as `type` or read from the `uri` as PyIceberg
+    reads it."""
+    import importlib.util
+    import subprocess
     import sys
-    from unittest import mock
 
-    from desflow import DynamicRealtimeEnvironment
+    if importlib.util.find_spec("pandas") is None:
+        loaded = [module for module in loaded if module != "pandas"]
 
-    env = DynamicRealtimeEnvironment(factor=0)
-    with mock.patch.dict(sys.modules, {"pyarrow": None}):
-        env.setup_egress(
-            [JsonlStorageEgress(default_path=str(tmp_path / "events.jsonl"))]
-        )
-        with caplog.at_level("ERROR"):
-            env.run(until=1)
-            env.teardown()
-    errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
-    assert any("pip install desflow[parquet]" in m for m in errors), errors
+    code = (
+        "import sys\n"
+        "from desflow.connectors.egress.storage import ParquetStorageEgress, "
+        "JsonlStorageEgress\n"
+        "from desflow.connectors.egress.iceberg import IcebergStorageEgress\n"
+        f"sink = {sink}\n"
+        f"before = [m for m in {loaded + not_loaded!r} if m in sys.modules]\n"
+        "sink._load_libraries()\n"
+        "print(before, sorted(m for m in "
+        f"{loaded + not_loaded!r} if m in sys.modules))\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    ).stdout
+    assert out.strip() == f"[] {sorted(loaded)!r}"
+
+
+@pytest.mark.asyncio
+async def test_parquet_run_logs_a_batch_it_cannot_write_and_goes_on(
+    tmp_path: Path, run_until, caplog, monkeypatch
+):
+    """A batch whose write raises in the run is logged at ERROR, the next batch is
+    written, and no write is left counted as in progress."""
+    import queue
+
+    egress = ParquetStorageEgress(default_path=str(tmp_path / "events.parquet"))
+    results = [RuntimeError("disk full"), 1]
+    written = []
+
+    def write(batch, *modules):
+        result = results.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        written.append(batch)
+        return result
+
+    monkeypatch.setattr(egress, "_write_batch", write)
+    q: queue.Queue = queue.Queue()
+    q.put([{"a": 1}])
+    q.put([{"a": 2}])
+    await run_until(egress.run(q), lambda: bool(written))
+    assert written == [[{"a": 2}]]
+    assert "Parquet Writer: batch not written: disk full" in caplog.text
+    assert egress.active_tasks == 0

@@ -1,0 +1,23 @@
+# case ST-P04: two child calls in turn, each returning env.now (1, then 2).
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  p: {initial: 1, spawn: parent}
+
+tasks:
+  parent:
+    wait: {task: child}
+    set:
+      r1: {gen: expr, expr: "wait.child.value.now"}
+    payload: {event_type: first}
+    next: second
+  second:
+    wait: {task: child}
+    payload:
+      event_type: second
+      r1: {gen: expr, expr: "attr.r1"}
+      r2: {gen: expr, expr: "wait.child.value.now"}
+  child:
+    service_time: 1
+    payload:
+      now: {gen: expr, expr: t}

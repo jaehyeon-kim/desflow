@@ -37,7 +37,12 @@ def pack_order(env, sampler, packers, key, task_id, patience):
     path_id = "Shop.service.packing"
 
     def publish(status):
-        value = {"path_id": path_id, "status": status}
+        value = {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": status,
+        }
         env.publish_event(key, value, task="pack_order", instance=task_id)
 
     # --8<-- [start:balk]
@@ -52,8 +57,8 @@ def pack_order(env, sampler, packers, key, task_id, patience):
     with packers.request() as request:
         # --8<-- [start:patience]
         # A customer cancels an order not started within 30 seconds
-        yield request | env.timeout(patience)
-        if not request.triggered:
+        result = yield request | env.timeout(patience)
+        if request not in result:
             # Leaving the with block takes the request out of the queue
             publish("reneged")
             env.stats.task_reneged("pack_order", task_id)

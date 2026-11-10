@@ -38,7 +38,7 @@ Each formula on this page holds for some models and not others. The notation say
 
 ### How to Use It
 
-Write the letters for the model before you use a formula: what the gaps are, what the packing times are, and how many units the resource has. `desflow explain` does the same for each resource. It names the formula it used, or says why none applies. For the busy hour of Queues and Capacity, an M/D/3 shop, it reports "no closed formula for c > 1 with non-exponential times", as the output under [Utilisation](#utilisation) shows.
+Write the letters for the model before you use a formula: what the gaps are, what the packing times are, and how many units the resource has. `desflow explain` does the same for each resource. It names the formula it used, or says why none applies. For the busy hour of Queues and Capacity, an M/D/3 shop, its `Wq` column is `-` because there is no closed formula for c > 1 with non-exponential times, as the output under [Utilisation](#utilisation) shows.
 
 ### What the Result Means
 
@@ -336,7 +336,7 @@ A model whose inputs are replaced by their averages has no variation, so it show
 
 ### In the Tutorial
 
-[Queues and Capacity](../first-model/queues-and-capacity.md#networks-and-bottlenecks) adds a checker to the shop. Orders arrive at 1.6 a second, every packed order is checked, and a tenth of the checked orders go back to packing. Four packers take 1.5 seconds an order, and one checker takes 0.4 seconds on average.
+[A Flow of Tasks](../shop-logic/flow-of-tasks.md#networks-and-bottlenecks) adds a checker to the shop. Orders arrive at 1.6 a second, every packed order is checked, and a tenth of the checked orders go back to packing. Four packers take 1.5 seconds an order, and one checker takes 0.4 seconds on average.
 
 ### Why It Matters
 
@@ -358,28 +358,7 @@ print(f"rate into packing and into checking: {flow_rate:.3f} orders a second")
 print(f"utilisation: packers {packers:.3f}, checker {checker:.3f}")
 ```
 
-`desflow explain` does the same from the model and names the bottleneck:
-
-=== "YAML"
-
-    ```bash
-    desflow explain queues_network.yaml
-    ```
-
-    It ends its resource tables with `Bottleneck: checkers`.
-
-=== "Builder"
-
-    ```python title="docs/snippets/pages/queueing_basics.py:flow-explain"
-    from queues_and_capacity import network
-
-    explanation = network().analyze()
-    print(f"desflow explain names the bottleneck: {explanation.bottleneck}")
-    ```
-
-=== "Low-level"
-
-    `desflow explain` does not support low-level models. Explain the [YAML or builder form](../first-model/queues-and-capacity.md#networks-and-bottlenecks) of the network.
+`desflow explain` does the same from the model and names the bottleneck, as [A Flow of Tasks](../shop-logic/flow-of-tasks.md#networks-and-bottlenecks) shows. The last line below is what the Builder's `analyze()` reports for the same shop:
 
 <!-- records: queueing-flow -->
 ```text
@@ -390,7 +369,7 @@ desflow explain names the bottleneck: checkers
 
 ### What the Result Means
 
-Add capacity at the bottleneck first. Here a second checker lowers the checker's utilisation to 0.356, while a fifth packer leaves the checker at 0.711 and the shop no faster. Rework raises the load on every task it passes through, so a model without it underestimates every utilisation.
+Add capacity at the bottleneck first. Here a second checker lowers the checker's utilisation to 0.356, while a fifth packer lowers the packers' utilisation but leaves the checker at 0.711, so it does not raise the most the shop can handle. Rework raises the load on every task it passes through, so a model without it underestimates every utilisation.
 
 ---
 
@@ -408,24 +387,7 @@ A formula and a run that agree check each other. The formula shows that the mode
 
 === "YAML"
 
-    `desflow explain --verify` runs the model and compares each measure with the analysis:
-
-    ```bash
-    PACKING=exponential desflow explain choosing_inputs.yaml --verify --replications 10
-    ```
-
-    <!-- records: queueing-verify -->
-    ```text
-    Verify: 10 runs to 3600 s, seed 42
-    +---------------------------------------------------------------------+
-    | node       | measure      | analysis | measured |        ± | result |
-    |------------+--------------+----------+----------+----------+--------|
-    | packers    | utilization  |      0.9 |   0.9066 | 0.008966 | agrees |
-    | packers    | queue_length |    7.349 |    8.659 |    2.396 | agrees |
-    | pack_order | wait         |    4.083 |    4.784 |    1.301 | agrees |
-    | orders     | throughput   |      1.8 |    1.805 |  0.01634 | agrees |
-    +---------------------------------------------------------------------+
-    ```
+    `desflow explain --verify` runs the model and compares each measure with the analysis. [Check Against Theory](../../how-to/analysis/check-against-theory.md) runs it step by step on this shop with exponential packing times, where the Erlang C wait is 4.083 seconds and ten one-hour runs measure 4.784 ± 1.301 seconds.
 
 === "Builder"
 
@@ -537,7 +499,7 @@ check(
 M/D/3 at utilisation 0.9, half the M/M/3 wait: formula 2.04 s, mean of 10 runs 2.05 ± 0.13 s
 ```
 
-These are [10 runs of 20,000 seconds](../first-model/first-simulation.md#busy-hour-figures), each without its first 2,000 seconds, not one-hour runs.
+These are [10 runs of 20,000 seconds](output-analysis.md#busy-hour-figures), each without its first 2,000 seconds, not one-hour runs.
 
 Kingman's formula is an approximation, and this check shows where it is not exact. Constant gaps of 2 seconds with exponential service (D/M/1) at utilisation 0.75:
 

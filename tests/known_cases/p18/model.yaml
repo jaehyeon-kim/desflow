@@ -1,0 +1,13 @@
+# case P18: read a global variable.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+variables: {limit: 5}
+
+arrivals:
+  a: {dist: constant, value: 1, spawn: t, max_events: 3}
+
+tasks:
+  t:
+    payload:
+      event_type: read
+      limit: {gen: param, path: P.variables.limit}

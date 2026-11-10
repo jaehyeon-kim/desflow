@@ -152,7 +152,8 @@ def interval(values: Sequence[float], level: float = 0.95) -> Interval:
         level: The confidence level, between 0 and 1. Defaults to 0.95.
 
     Returns:
-        Interval: The mean and its half-width.
+        Interval: The mean and its half-width. If a value is infinite or NaN, the mean
+            is infinite or NaN and the half-width is NaN.
 
     Raises:
         ValueError: If there are fewer than 2 values or the level is not between 0
@@ -163,6 +164,12 @@ def interval(values: Sequence[float], level: float = 0.95) -> Interval:
     n = len(values)
     if n < 2:
         raise ValueError(f"an interval needs at least 2 values, got {n}")
+    if not all(math.isfinite(value) for value in values):
+        # An infinite measure, such as the capacity of an unbounded store, has no
+        # spread: its mean is infinite (or NaN) and its half-width is NaN
+        return Interval(
+            n=n, mean=fmean(values), std=math.nan, half_width=math.nan, level=level
+        )
     spread = stdev(values)
     quantile = t_quantile((1.0 + level) / 2.0, n - 1)
     return Interval(

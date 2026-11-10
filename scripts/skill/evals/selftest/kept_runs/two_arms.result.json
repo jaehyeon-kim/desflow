@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "name": "p33",
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "error": null,
+            "tracePath": "/tmp/e-aaaaaa/out/trace.jsonl"
+          },
+          {
+            "score": 1,
+            "error": null,
+            "tracePath": "/tmp/e-bbbbbb/out/trace.jsonl"
+          },
+          {
+            "score": 0,
+            "error": "exit 1: usage limit",
+            "tracePath": "/tmp/e-dddddd/out/trace.jsonl"
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "error": "scaffold failed (exit 1)",
+            "tracePath": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "ds-a3",
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "error": null,
+            "tracePath": "/tmp/e-cccccc/out/trace.jsonl"
+          }
+        ]
+      }
+    }
+  ]
+}

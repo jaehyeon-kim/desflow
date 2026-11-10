@@ -10,20 +10,16 @@
 # Needs no containers. The run goes in real time and ends after 60 seconds.
 # Run it from its folder with: desflow run file.yaml
 
-simulation:
-  sim_id: Shop
-  factor: 1.0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 1.0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 # --8<-- [start:file-ingress]
 ingress:
   # A relative path is relative to the folder the command runs in
   - type: File
-    config:
-      path: ../params.yaml
+    config: {path: ../params.yaml}
 # --8<-- [end:file-ingress]
 
 resources:
@@ -44,5 +40,4 @@ tasks:
 
 stats: {level: minimal, interval: 2}
 
-run:
-  until: 60
+run: {until: 60}

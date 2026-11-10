@@ -1,0 +1,21 @@
+# case GD-S3: victim_proc.interrupt('Spam') and interrupt.cause
+# (porting_from_simpy2.rst:302-312).
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+
+arrivals:
+  v: {initial: 1, spawn: victim}
+  i: {dist: constant, value: 1, spawn: hit, max_events: 1}
+
+tasks:
+  victim:
+    service_time: 10
+    on_interrupt: abandon
+    on_interrupt_next: caught
+    payload: {event_type: done}
+  caught:
+    payload:
+      event_type: interrupted
+      cause: {gen: expr, expr: "cause.value"}
+  hit:
+    payload: {event_type: hit}
+    interrupt: {task: victim, cause: Spam}

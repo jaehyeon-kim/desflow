@@ -1,0 +1,68 @@
+# Each request becomes a trace of nested spans, and each child span names its parent.
+#
+# The gateway span covers an auth check and a database call that run inside it, so each
+# child starts and ends within its parent's time. Every span has the trace id of its
+# request, an id of its own, its parent's id (null for the gateway span), its start in
+# seconds from the start of the run and its duration in milliseconds.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/requests_become_traces_of_nested_spans.yaml
+
+simulation:
+  sim_id: Api
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  requests:
+    dist: exponential
+    rate: 0.5
+    attributes:
+      trace_id: {gen: uuid}
+      gateway_span: {gen: uuid}
+      began: {gen: expr, expr: t}
+    spawn: auth
+
+# A span's record is published when it ends, so the children come before the gateway
+tasks:
+  auth:
+    vars:
+      duration: {gen: integer, bounds: [5, 15]}
+    service_time: duration / 1000
+    payload:
+      trace_id: {gen: attr, name: trace_id}
+      span_id: {gen: uuid}
+      parent_span_id: {gen: attr, name: gateway_span}
+      name: check token
+      start: {gen: expr, expr: "t - duration / 1000"}
+      duration_ms: {gen: var, name: duration}
+    next: orders_db
+  orders_db:
+    vars:
+      duration: {gen: integer, bounds: [10, 120]}
+    service_time: duration / 1000
+    payload:
+      trace_id: {gen: attr, name: trace_id}
+      span_id: {gen: uuid}
+      parent_span_id: {gen: attr, name: gateway_span}
+      name: SELECT orders
+      start: {gen: expr, expr: "t - duration / 1000"}
+      duration_ms: {gen: var, name: duration}
+    next: gateway
+  gateway:
+    vars:
+      duration: {gen: integer, bounds: [20, 60]}
+    service_time: duration / 1000
+    payload:
+      trace_id: {gen: attr, name: trace_id}
+      span_id: {gen: attr, name: gateway_span}
+      parent_span_id: null
+      name: GET /orders
+      start: {gen: attr, name: began}
+      duration_ms: {gen: expr, expr: "round((t - attr.began) * 1000, 3)"}
+
+run: {until: 120}

@@ -1,3 +1,4 @@
+from desflow.core.sinks import Sink
 import asyncio
 import json
 import queue
@@ -12,6 +13,8 @@ from aiokafka.errors import (
 )
 
 from desflow.connectors.admin.kafka import KafkaAdminConnector
+from desflow.connectors.egress.base import BaseEgress
+from desflow.core.context import SimulationContext
 from desflow.connectors.ingress.kafka import KafkaIngress
 
 
@@ -35,7 +38,12 @@ def test_admin_process_events_and_pruning():
     for i in range(3):
         data = {
             "key": f"task-{i}",
-            "value": {"path_id": "Shop.service.packing", "status": "started"},
+            "value": {
+                "path_id": "Shop.service.packing",
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            },
             "timestamp": f"2023-01-01T00:00:0{i}",
         }
         admin._process_message(data)
@@ -48,6 +56,133 @@ def test_admin_process_events_and_pruning():
     assert "task-0" not in service_tasks
     assert "task-1" in service_tasks
     assert "task-2" in service_tasks
+
+
+def test_a_status_record_with_only_a_path_id_is_filed_by_its_path_id():
+    """A record written before status records named their sim id and service is
+    filed under the two sides of the last `.service.` in its path_id."""
+    admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+    admin._process_message(
+        {
+            "key": "o-1",
+            "timestamp": "t1",
+            "value": {"status": "queued", "path_id": "S.a.service.pack"},
+        }
+    )
+    admin._process_message({"key": "o-1", "timestamp": "t2", "value": {"n": 1}})
+    assert admin.get_state()["S.a"]["pack"]["o-1"] == {
+        "queued": "t1",
+        "finished": "t2",
+    }
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.admin.kafka.AIOKafkaConsumer")
+async def test_collect_data_passes_over_a_value_it_cannot_read(MockConsumer):
+    """A null value (a tombstone `KafkaEgress` writes), JSON `null` and a value that is
+    not JSON change nothing, and the loop reads the events after them."""
+
+    def event(key):
+        body = {
+            "key": key,
+            "value": {
+                "status": "started",
+                "path_id": "S.service.pack",
+                "sim_id": "S",
+                "service": "pack",
+            },
+        }
+        return types.SimpleNamespace(value=json.dumps(body).encode())
+
+    messages = [
+        event("a"),
+        *(types.SimpleNamespace(value=v) for v in (None, b"null", b"\x00avro")),
+        event("c"),
+    ]
+
+    async def read():
+        for message in messages:
+            yield message
+
+    consumer = MockConsumer.return_value
+    consumer.start = AsyncMock()
+    consumer.stop = AsyncMock()
+    consumer.__aiter__ = lambda self: read()
+    admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+    await admin.collect_data(["events"])
+    assert sorted(admin.get_state()["S"]["pack"]) == ["a", "c"]
+    assert admin.get_vitals() == {}
+
+
+class _Capture(BaseEgress):
+    """Keeps every record a run sends to its sinks."""
+
+    def __init__(self):
+        self.records = []
+
+    async def run(self, egress_queue):
+        while True:
+            try:
+                self.records.extend(egress_queue.get_nowait())
+            except queue.Empty:
+                await asyncio.sleep(0.01)
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.admin.kafka.AIOKafkaConsumer")
+async def test_collect_data_files_events_under_names_that_hold_a_dot(
+    MockConsumer, tmp_path
+):
+    """The events a run with the sim id `Shop.v2` and the services `packing` and
+    `pack.big` writes, as `KafkaEgress` sends them, are filed under the whole names,
+    beside those of a sim id `Shop`."""
+
+    def events(sim_id):
+        path = tmp_path / f"{sim_id}.yaml"
+        path.write_text(
+            f"simulation: {{sim_id: {sim_id}, factor: 0, random_seed: 1}}\n"
+            "services:\n"
+            "  packing: {dist: constant, value: 1}\n"
+            "  pack.big: {dist: constant, value: 2}\n"
+            "arrivals: {a: {initial: 1, spawn: pack}}\n"
+            "tasks:\n"
+            "  pack: {service: packing, next: big, payload: {e: 1}}\n"
+            "  big: {service: pack.big, payload: {e: 2}}\n"
+            "run: {until: 10}\n"
+        )
+        app = SimulationContext.from_yaml(path)
+        capture = _Capture()
+        app._sinks.ingress = []
+        app._sinks.egress = [Sink(capture)]
+        app.run()
+        return [
+            types.SimpleNamespace(
+                value=json.dumps(
+                    {k: v for k, v in record.items() if k != "stream_type"},
+                    default=str,
+                ).encode()
+            )
+            for record in capture.records
+            if record.get("stream_type") == "event"
+        ]
+
+    messages = [*events("Shop.v2"), *events("Shop")]
+
+    async def read():
+        for message in messages:
+            yield message
+
+    consumer = MockConsumer.return_value
+    consumer.start = AsyncMock()
+    consumer.stop = AsyncMock()
+    consumer.__aiter__ = lambda self: read()
+    admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+    await admin.collect_data(["events"])
+    state = admin.get_state()
+    assert {sim: sorted(services) for sim, services in state.items()} == {
+        "Shop.v2": ["pack.big", "packing"],
+        "Shop": ["pack.big", "packing"],
+    }
 
 
 @pytest.mark.asyncio
@@ -82,7 +217,10 @@ async def test_send_config_message_is_read_by_kafka_ingress(MockProducer, MockCo
     MockConsumer.return_value = FakeConsumer()
     ingress_queue = queue.Queue()
     task = asyncio.create_task(
-        KafkaIngress(topic, bootstrap_servers="localhost:9092").run(ingress_queue)
+        # `manual`: no broker here, and a refused connection is slow on Windows
+        KafkaIngress(
+            topic, bootstrap_servers="localhost:9092", topic_policy="manual"
+        ).run(ingress_queue)
     )
     await asyncio.sleep(0.1)
     task.cancel()

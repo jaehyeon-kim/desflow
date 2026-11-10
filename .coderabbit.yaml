@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit review settings, as https://docs.coderabbit.ai/reference/configuration
+# describes them. CodeRabbit also reads CLAUDE.md as code guidelines by default.
+
+language: en-AU
+
+reviews:
+  profile: chill
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: true
+    ignore_title_keywords:
+      - revert
+    base_branches:
+      - main
+      - release-.*
+  # Generated files, which their own tests keep in step with the code.
+  path_filters:
+    - "!uv.lock"
+    - "!skills/desflow/**"
+    - "!src/desflow/blueprint/blueprint.schema.json"
+    - "!src/desflow/explain/explain.schema.json"
+    - "!tests/unit/public_api.txt"
+  path_instructions:
+    - path: "docs/**/*.md"
+      instructions: >-
+        Plain English, one idea per sentence, no metaphors, no em or en dashes, and one
+        paragraph per line. Check each default, limit or refusal a page states against
+        src/desflow, and flag a fact that two pages state differently.
+    - path: "src/desflow/**/*.py"
+      instructions: >-
+        A change of behaviour needs a test and a Changelog line. A removed or renamed
+        YAML key, record field, command option or public name breaks the 1.x
+        Compatibility Policy (docs/about/compatibility.md).
+  tools:
+    ruff:
+      enabled: true
+    yamllint:
+      enabled: true
+    actionlint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    gitleaks:
+      enabled: true
+    osvScanner:
+      enabled: true
+    # ruff already covers these, and the docs keep one paragraph per line.
+    flake8:
+      enabled: false
+    pylint:
+      enabled: false
+    markdownlint:
+      enabled: false
+    languagetool:
+      enabled: false
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - CONTRIBUTING.md
+      - docs/about/compatibility.md

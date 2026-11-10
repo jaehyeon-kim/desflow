@@ -1,0 +1,52 @@
+"""The model of model.yaml, written with the Low-level API (DynamicRealtimeEnvironment)."""
+
+from desflow import (
+    CapacityConfig,
+    ConsoleEgress,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    Sampler,
+)
+
+SIM_ID = "M"
+
+# The seed of the run. The model draws no random numbers, so it changes nothing here.
+sampler = Sampler(seed=42)
+
+# factor 0: simulation time runs as fast as possible, not paced against the wall clock.
+env = DynamicRealtimeEnvironment(initial_time=0, factor=0)
+
+# One JSON line per telemetry record on standard output.
+env.setup_egress(
+    [ConsoleEgress(format="json")],
+    predicates=[lambda record: record["stream_type"] == "telemetry"],
+)
+
+# Built-in statistics: res is published on every request and release, not on a timer.
+# The interval is longer than the run, so no timer publication happens.
+env.setup_stats(SIM_ID, level="minimal", interval=1000)
+env.stats.on_change = True
+
+# One unit of res: at most one entity holds it at a time.
+env.registry.register_resource(SIM_ID, "res", CapacityConfig(current_cap=1))
+res = DynamicResource(env, SIM_ID, "res")
+
+
+def use(entity_key):
+    """Task use: takes res, holds it for 1 second, then publishes {event_type: used}."""
+    request = res.request()
+    yield request  # the request call publishes res's readings
+    yield env.timeout(1)
+    res.release(request)  # the release call publishes res's readings
+    env.publish_event(entity_key, {"event_type": "used"}, task="use", instance=0)
+
+
+def arrival_a():
+    """Arrival a starts one entity at time 0, which runs task use."""
+    yield env.timeout(0)
+    env.process(use("a-1"))
+
+
+env.process(arrival_a())
+env.run(until=5)
+env.teardown()

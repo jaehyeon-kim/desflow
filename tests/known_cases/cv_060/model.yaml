@@ -1,0 +1,14 @@
+# case CV-060: an exception raised out of env.run(): the run stops on an unhandled
+# failure.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+
+run: {on_unhandled_failure: stop}
+
+arrivals:
+  a: {initial: 1, spawn: boom}
+
+tasks:
+  boom:
+    fail: "True"
+    fail_reason: Onoes!
+    payload: {event_type: boom}

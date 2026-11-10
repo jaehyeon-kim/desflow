@@ -1,0 +1,23 @@
+# Records of task DS-A3, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: DS-A3
+
+until: 205
+
+run_end: 205
+
+records:
+  - name: about 80 members in 40 groups
+    match: {task: member, value.event_type: member}
+    count: {min: 50, max: 120}
+    every_multiple_of: 5
+  - name: the first member is at 5 or later
+    match: {task: member}
+    between: [0, 5]
+    count: 0
+
+varies:
+  - name: group sizes change with the seed
+    match: {task: member}
+    project: [sim_ts]

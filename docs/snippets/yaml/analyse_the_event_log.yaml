@@ -3,10 +3,7 @@
 # run_yaml() in analyse_the_event_log.py sets. Run it with:
 # desflow run analyse_the_event_log.yaml
 # --8<-- [start:run]
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 resources:
   packers: {current_cap: 1, max_cap: 1}
@@ -30,6 +27,5 @@ egress:
     config:
       default_path: ${OUT:-analyse_output}/events.parquet
 
-run:
-  until: 120
+run: {until: 120}
 # --8<-- [end:run]

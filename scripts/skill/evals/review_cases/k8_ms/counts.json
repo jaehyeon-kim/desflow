@@ -1,0 +1,7 @@
+{
+  "known": true,
+  "counts": {
+    "K8": 0
+  },
+  "reason": "elapsed_ms is the reading times 1000, so elapsed_ms >= 380 is 0.38 s, 0.02 s under the paced 0.4 s."
+}

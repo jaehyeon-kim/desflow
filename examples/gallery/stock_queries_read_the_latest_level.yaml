@@ -1,0 +1,48 @@
+# Stock queries read the latest level of each product.
+#
+# Five products change their stock level by a few units every 5 seconds, each from its
+# own last level, and the first change is at the start. Queries ask for the level of
+# one product and get the level its latest update gave.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/stock_queries_read_the_latest_level.yaml
+
+simulation:
+  sim_id: Warehouse
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  updates:
+    count: 5
+    key: {gen: sequence, start: 1, format: "sku-{}"}
+    dist: constant
+    value: 5
+    first_at: 0
+    spawn: update_stock
+  queries: {dist: exponential, rate: 0.5, spawn: read_stock}
+
+tasks:
+  update_stock:
+    payload:
+      sku: {gen: entity}
+      level:
+        gen: max
+        args:
+          - 0
+          - gen: add
+            args:
+              - {gen: previous, path: level, default: 100}
+              - {gen: integer, bounds: [-12, 10]}
+  read_stock:
+    vars:
+      row: {gen: lookup, task: update_stock, latest_by: sku}
+    payload:
+      sku: {gen: var, name: row, path: sku}
+      level: {gen: var, name: row, path: level}
+
+run: {until: 200}

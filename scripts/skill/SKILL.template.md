@@ -1,6 +1,6 @@
 ---
 name: desflow
-description: Write, check and run desflow discrete-event simulation models in YAML, the builder API or the low-level API. Use when a task mentions desflow, a blueprint, or a SimPy model that streams records.
+description: Write, check, test and run desflow discrete-event simulation models in YAML, the builder API or the low-level API, and port SimPy programs to them. Use when a task mentions desflow, a blueprint, a test of a simulation model, or a SimPy model that streams records.
 license: MIT
 compatibility: desflow {{version}} or later, Python 3.11 or later, the `desflow` command installed
 metadata:
@@ -44,11 +44,45 @@ Use these steps when the user describes a process in words and has no model yet.
 
 ## Check a model before a long run
 
-1. See the first records with `desflow run <file> --sample 10`. It prints the first 10 events as JSON lines, unpaced, with no ingress and no real sinks, so a model that writes to Kafka or a database needs no service.
+1. See the first records with `desflow run <file> --sample 10`. It prints the first 10 events as JSON lines, unpaced, with no ingress and no real sinks, so a model that writes to Kafka or a database needs no service. `<file>` is a blueprint or a builder Python file, and `desflow check <file>` takes both too.
 2. Check the model against queueing theory with `desflow explain <file>`. It takes a blueprint or a builder Python file with a module-level `SimulationContext`, and shows the model as a graph with each resource's utilisation, status, waits and tuning hints where the queueing formulas apply, and why where they do not. A resource at utilisation 1 or above is `UNSTABLE`: its queue grows for as long as the run lasts.
 3. Add `--verify` to also run the model unpaced and compare its statistics with the analysis, within 10 percent for one run, or with each measure's 95% interval with `--replications N`.
 
 To give a service a measured mean and standard deviation, `desflow dist <family> --mean <mean> --std <std>` converts them to the family's parameters, such as `desflow dist gamma --mean 1.5 --std 0.4832`, and prints them in YAML and Python. `desflow dist` alone lists the families.
+
+## Check a model against the request
+
+Copy this checklist into your reply and tick each line as it is done:
+
+```text
+- [ ] List every behaviour the request names, one line each.
+- [ ] For each, name the key or the code that makes it, and the record that shows it.
+- [ ] Run python <skill folder>/scripts/check_model.py <files>; fix every line it prints; run it again.
+- [ ] Find each listed record in the output of desflow run <file> --sample 50.
+- [ ] Read each header, docstring and comment against that output.
+```
+
+`scripts/check_model.py` is in this skill's folder. Run it, do not read it: `python <skill folder>/scripts/check_model.py model.yaml builder.py low_level.py [--until T]`, with one, two or three forms in any order. It runs each Python file as `python FILE`, unpaced, with its sinks replaced by a JSON console, and sets and reads each form's seed through desflow. It sees only the process `python FILE` starts, so each Python file builds and runs its model in that process, not a child process. It reports:
+
+- a file that `desflow check` refuses;
+- an import from desflow that the references do not document;
+- a draw with no seed, such as Python's `random`, which makes two runs at one seed differ;
+- a random generator the model seeds itself, other than one it gives to a `Sampler`;
+- the first record that differs between the forms at the model's seed and the two after it, against the YAML form, or against the Builder form when there is no YAML (one form alone runs at two seeds and is compared with nothing);
+- a failure of `desflow test` on the YAML, and on a Builder file that has a `tests.yaml` beside it.
+
+A seed is found where it is given to `random.Random`, `random.seed`, `numpy.random.seed`, `RandomState`, `default_rng`, `SeedSequence` or a NumPy bit generator. A state set another way (`setstate`, the `state` setter, unpickling), a `SeedSequence` with a spawn key, a seeding function called through `functools.partial` or another callable with no Python code of the model's, a generator the model writes itself and one a C extension seeds are not found, and the rule to draw only through desflow still applies to them. Each line it prints names the file and line and what to write instead. It does not look for private attributes such as `app._sinks`: check those yourself against the rule below.
+
+- A header says only what a run shows. Wrong: "Adding two agents ends the hang-ups." when every caller in the run still hangs up. Right: "With three agents, about one caller in five hangs up; `scenario` adds two agents at 1 hour.", checked against `--sample`.
+- A field that has the same value in every record shows the reader nothing. Wrong: `count` over `last: 10` with no `where`, which is 10 in every report. Right: a `where` that counts the large orders.
+- Every constant that is not the request's has a comment with its reason: a run end, a `history`, a tolerance. Wrong: `until: 1001`. Right: `until: 1001  # one second past the last report at 1000, so it is published`.
+- Before writing that desflow lacks a form, search [references/api.md](skill:references/api.md) and [references/blueprint-keys.md](skill:references/blueprint-keys.md) for it. Give the cause of a difference only after a run shows it. Wrong: "the Low-level environment has no trace". Right: "`env.trace_events()` gives the trace".
+
+## Test a model
+
+- Test the statistics with `desflow test` and the records with pytest.
+- Run every test unpaced, except a test of pacing, which runs alone. Give every test a fixed seed and a fixed `logical_start_time`.
+- Read [references/testing.md](skill:references/testing.md) before writing a test: it has a wrong and a right example of each mistake, and a template.
 
 ## Sections of a blueprint
 
@@ -56,7 +90,11 @@ To give a service a measured mean and standard deviation, `desflow dist <family>
 
 ## Rules assistants get wrong
 
-- A time is a number of seconds or a duration such as `90 s`, `10 min` or `2 hours`. `rate` is the exception: it is a number per second.
+- A time in YAML and in the Builder takes a unit: write `mean: 4 min`, not `mean: 240`. The Low-level `DistributionConfig` takes seconds only, so give the unit in a comment: `DistributionConfig(dist="normal", mean=240, std=60)  # 4 min, 1 min`. `rate` is a number per second. A SimPy program that counts minutes is ported with each time converted, or says once that one SimPy minute is one second here. [references/simpy.md](skill:references/simpy.md) lists the other differences from SimPy.
+- Builder and Low-level code use only the names `from desflow import ...` and `from desflow.values import ...` give ([references/api.md](skill:references/api.md)) and the documented serializer classes. Wrong: `resource._capacity = 3` or `from desflow.core.task import NO_RECORD`. Right: `env.registry.update("Shop.resources.packers.current_cap", 3)` and `from desflow import NO_RECORD`.
+- A Low-level form gives the YAML's records when it draws as the YAML does: each distribution with `sampler.sample(env.registry.get_config("<sim_id>.<path>"))`, which draws from the path's own sequence, and each generated value from `sampler.generator("<place>")`, such as `sampler.generator("tasks.audit.payload.merchant")`, with the same seed. Use the generator's methods: `rng.uniform(-1, 1)`, not `-1 + 2 * rng.random()`. A `DistributionConfig` built by hand and never registered draws from the main generator and gives other numbers.
+- A Builder or Low-level file runs with `python <file>`: use `ConsoleEgress(format="json")`, or call `logging.basicConfig(level=logging.INFO)` before the run, because the default `log` format writes at INFO. Import a connector that needs an extra only in a file whose header names that extra.
+- Both forms keep 1,000,000 rows of a task that a `lookup` or `aggregate` reads; give the same `history` in both or none. A Builder task read only from a `Template` keeps none: give it `history=`.
 - `logical_start_time` and `go_live_at` are instants: `now`, a signed duration such as `-1d`, or an ISO datetime.
 - `!python module.attribute` imports the module and returns the attribute. The module is found on `sys.path`, which includes the folder of the YAML file, so a Python file beside the blueprint works from any directory.
 - `!include path` puts a mapping from another YAML file in place, with the path relative to the file that names it.
@@ -88,7 +126,10 @@ To give a service measured times, `desflow fit <file.csv> --column <name> --lowe
 - [references/connectors.md](skill:references/connectors.md): every ingress and egress short name, its class and the extra it needs.
 - [references/apis.md](skill:references/apis.md): one shop model in YAML, the builder API and the low-level API.
 - [references/cli.md](skill:references/cli.md): the help of every `desflow` command, with every option.
-- [references/api.md](skill:references/api.md): every name `desflow` exports, with what it is.
+- [references/api.md](skill:references/api.md): every name `desflow` exports, with what it is and the extra it needs.
+- [references/testing.md](skill:references/testing.md): how to test a model, each rule with a wrong and a right example, and a test template.
+- [references/simpy.md](skill:references/simpy.md): where desflow differs from SimPy, and the form to write in a port.
+- [scripts/check_model.py](skill:scripts/check_model.py): checks the files of a model and compares the records of its forms; run it, do not read it.
 - [assets/blueprint.schema.json](skill:assets/blueprint.schema.json): the blueprint JSON Schema.
 
 The documentation is at https://jaehyeon.me/desflow/latest/. Its pages are also available as plain text at https://jaehyeon.me/desflow/latest/llms.txt and https://jaehyeon.me/desflow/latest/llms-full.txt.

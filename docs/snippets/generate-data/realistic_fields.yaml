@@ -1,0 +1,40 @@
+# Realistic fields: names, emails and places from Faker, and products from a CSV file.
+#
+# A customer signs up about every 2 seconds. Their name, email, city and job come
+# from Faker, one `fake` generator for each field, and `german_city` is a city drawn
+# in the German locale (`de_DE`). A Faker method that reads today's date would change
+# the records from day to day, so this file uses none. The product is one row of
+# realistic_fields_products.csv, chosen by the popularity column, so the sku, title and
+# price stay together.
+#
+# Needs: the fake extra.
+# Run it with: desflow run docs/snippets/generate-data/realistic_fields.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:arrivals]
+arrivals:
+  signups: {dist: exponential, rate: 0.5, spawn: signup}
+# --8<-- [end:arrivals]
+
+# --8<-- [start:tasks]
+tasks:
+  signup:
+    payload:
+      customer_id: {gen: sequence, start: 1}
+      name: {gen: fake, method: name}
+      email: {gen: fake, method: email}
+      city: {gen: fake, method: city}
+      german_city: {gen: fake, method: city, locale: de_DE}
+      job: {gen: fake, method: job}
+      favourite: {gen: row, file: realistic_fields_products.csv, weight: popularity}
+# --8<-- [end:tasks]
+
+run: {until: 20}

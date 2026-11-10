@@ -1,7 +1,8 @@
 """The stores, sinks and reader of the Write to Cloud Storage page.
 
-Every form of the shop imports the store and the sinks from this file: cloud_storage.py
-(builder), cloud_storage.yaml and cloud_storage_low_level.py. It builds no simulation.
+The builder and low-level forms of the shop import the store and the sinks from this file:
+cloud_storage.py and cloud_storage_low_level.py, and the daily shops. cloud_storage.yaml
+reads the same mappings from the folder cloud_storage_stores. It builds no simulation.
 STORAGE picks the store: local (the default), s3, gcs or azure. STORAGE_BUCKET names the
 bucket or container, or the folder on the local disk, with the credentials of that cloud
 set up as the page describes.

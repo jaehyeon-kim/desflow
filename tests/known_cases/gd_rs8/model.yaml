@@ -1,0 +1,42 @@
+# case GD-RS8: a producer puts f'spam {i}' 100 times into a store of 2, two consumers
+# (resources.rst:424-452).
+simulation: {sim_id: R, factor: 0, random_seed: 42}
+
+stores:
+  buf: {current_cap: 2}
+
+arrivals:
+  producer:
+    initial: 1
+    spawn: produce
+    attributes: {i: 0}
+  consumers: {initial: 2, spawn: consume}
+
+tasks:
+  produce:
+    service_time: 2
+    put:
+      store: buf
+      item:
+        gen: format
+        template: "spam {i}"
+        names:
+          i: {gen: attr, name: i}
+    set:
+      i: {gen: expr, expr: "attr.i + 1"}
+    payload: {event_type: produced}
+    next:
+      when:
+        - {condition: "attr.i < 100", task: produce}
+  consume:
+    service_time: 1
+    payload: {event_type: requesting}
+    next: take
+  take:
+    get: {store: buf}
+    payload:
+      event_type: got
+      item: {gen: expr, expr: item}
+    next: consume
+
+run: {until: 5}

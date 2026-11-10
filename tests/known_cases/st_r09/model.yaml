@@ -1,0 +1,35 @@
+# case ST-R09: PriorityResource with delays 0, 2, 2, 4 and priorities 2, 3, 3, 1;
+# granted at 0, 10, 15, 5.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+resources:
+  res: {current_cap: 1, queue: priority}
+
+arrivals:
+  p0:
+    initial: 1
+    spawn: pem
+    attributes: {delay: 0, prio: 2}
+  p1:
+    initial: 1
+    spawn: pem
+    attributes: {delay: 2, prio: 3}
+  p2:
+    initial: 1
+    spawn: pem
+    attributes: {delay: 2, prio: 3}
+  p3:
+    initial: 1
+    spawn: pem
+    attributes: {delay: 4, prio: 1}
+
+tasks:
+  pem:
+    service_time: "attr.delay"
+    payload: {event_type: arrived}
+    next: use
+  use:
+    resource: res
+    priority: "attr.prio"
+    service_time: 5
+    payload: {event_type: granted_and_done}

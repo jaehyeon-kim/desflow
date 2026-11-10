@@ -1,0 +1,92 @@
+{
+  "changes": [
+    {
+      "applied": "arrivals.a.initial = 3",
+      "name": "three entities",
+      "reason": ""
+    },
+    {
+      "applied": "tasks.pem.service_time = 2",
+      "name": "tick every 2 seconds",
+      "reason": ""
+    },
+    {
+      "applied": "run.until = 5",
+      "name": "end 4 to 5",
+      "reason": ""
+    }
+  ],
+  "tests": {
+    "test_model.py::test_each_entity_ticks_every_second_until_4[builder]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_each_entity_ticks_every_second_until_4[low_level]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "low_level"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_each_entity_ticks_every_second_until_4[yaml]": {
+      "changes": {
+        "end 4 to 5": "FAILED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "FAILED"
+      },
+      "forms": [
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_the_paced_run_takes_its_wall_time": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_two_entities_tick[builder]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_two_entities_tick[low_level]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_two_entities_tick[yaml]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "FAILED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [],
+      "unchanged": "PASSED"
+    }
+  }
+}

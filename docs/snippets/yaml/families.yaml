@@ -1,0 +1,53 @@
+# The Resources and Signals and Waiting pages: a family of three desks, an order that
+# picks the desk with the shortest line, and a reply signal for each customer.
+# Run it with: desflow run families.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:desks]
+resources:
+  # Three desks, desk[0] to desk[2], each an ordinary resource of one unit
+  desk: {family: true, members: 3, current_cap: 1}
+# --8<-- [end:desks]
+
+# --8<-- [start:reply]
+signals:
+  # One signal for each customer, reply[1], reply[2], ...; the member is made at its
+  # first use
+  reply: {family: true, once: true}
+# --8<-- [end:reply]
+
+services:
+  serving: {dist: constant, value: 4 s}
+
+arrivals:
+  # A customer every 2 s, numbered from 1 by the sequence
+  customers:
+    dist: constant
+    value: 2 s
+    spawn: serve
+    attributes:
+      number: {gen: sequence, start: 1}
+
+tasks:
+  # --8<-- [start:lowest]
+  serve:
+    # The member of the family with the fewest users and waiting requests
+    resource: {of: desk, lowest: "member.users + member.queue"}
+    service: serving
+    payload: {event_type: served}
+    next: thank
+  # --8<-- [end:lowest]
+  # --8<-- [start:key]
+  thank:
+    # Fires this customer's own signal, and no other customer's
+    on:
+      - fire:
+          signal: {of: reply, key: attr.number}
+          value: thanks
+    payload: {event_type: thanked}
+  # --8<-- [end:key]
+
+run: {until: 30 s}

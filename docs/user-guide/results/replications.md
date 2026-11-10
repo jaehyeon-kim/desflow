@@ -60,7 +60,7 @@ Give the model, the number of replications, the seed they are spawned from and t
 | Option | What it sets | Default |
 |---|---|---|
 | `n` | how many replications, 2 or more | |
-| `seed` | the seed the replications' seeds are spawned from; None draws one and logs it | |
+| `seed` | the seed the replications' seeds are spawned from, a whole number of 0 or more and not `true`; None draws one and logs it | |
 | `until` | where each replication's arrivals stop, in seconds or a duration such as `"1 h"`; the replication ends there unless `stop` ends it earlier or `drain` runs on | a blueprint's `run.until` |
 | `stop` | ends each replication when it happens, as for `run()`: `{"signal": name}`, a signal's name, or `{"condition": "..."}`; for a `LowLevelModel`, a function of the environment that returns the event | a blueprint's `run.stop` |
 | `drain` | at `until`, stop the arrivals and run each replication on until no entity is left: `True`, or `{"limit": "1 h"}`; a `LowLevelModel` is drained when its function returns its arrival processes and reports its entities with `env.stats.flow_started` and `flow_finished` | a blueprint's `run.drain` |
@@ -74,7 +74,7 @@ Give the model, the number of replications, the seed they are spawned from and t
 
 A measure is a statistic's published name without the sim id and `stats`, such as `tasks.pack.wait_mean` for `Shop.stats.tasks.pack.wait_mean`. [Reference, Statistics](../../reference/statistics.md) lists them. Each replication keeps the statistics level its measures need, whatever level the model sets: `basic` for counts and time averages, `typical` for means and maxima of waits and services, and `all` for percentiles. A higher level the model sets stays.
 
-A name that no replication publishes is refused, with the names the model does publish. A count that is published only once it is above 0, such as `reneged`, is 0 in a replication without one. A mean with no observation in a replication, such as the wait of a task that never started, is refused with the replication's number rather than left out.
+A name that no replication publishes is refused, with the names the model does publish. The exception is a count that the statistics leave out while it is 0: a task's `in_progress`, `finished`, `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed`, and a flow's `finished`, `started`, `in_system` and `failed`. Such a count is 0 in a replication that did not publish it, also when no replication published it, once a replication published another statistic of the same task or flow. A name of a task or flow that no replication published anything of is still refused. `desflow test`, an experiment's counts and `desflow explain --verify` read these counts the same way. A mean with no observation in a replication, such as the wait of a task that never started, is refused with the replication's number rather than left out.
 
 ### Read the Result
 

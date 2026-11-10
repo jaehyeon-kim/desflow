@@ -1,12 +1,243 @@
 import asyncio
+import inspect
 import json
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, DefaultDict, Dict, List
+from typing import Any, DefaultDict, Dict, List, Mapping, Optional, Tuple
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 from aiokafka.errors import NotControllerError, TopicAlreadyExistsError, for_code
+
+from desflow.connectors._checks import checked_whole
+
+
+TOPIC_MODES = ("create", "drop_and_create", "manual")
+_POLICY_KEYS = ("mode", "partitions", "replication_factor", "topic_configs")
+
+
+def topic_policy(spec: Any, where: str = "topic_policy") -> Dict[str, Any]:
+    """
+    Reads a `topic_policy` into its four settings.
+
+    Args:
+        spec: None for the defaults, a mode word such as `manual`, or a mapping of
+            `mode`, `partitions`, `replication_factor` and `topic_configs`.
+        where: The key the spec was read from, named in errors.
+
+    Returns:
+        Dict[str, Any]: `mode` (default `create`), `partitions` (1),
+            `replication_factor` (1) and `topic_configs` (empty, with text values).
+
+    Raises:
+        ValueError: If the mode is not one of `create`, `drop_and_create` and
+            `manual`, a key is unknown, or a number is not a positive whole number.
+    """
+    if spec is None:
+        spec = {}
+    elif isinstance(spec, str):
+        spec = {"mode": spec}
+    if not isinstance(spec, Mapping):
+        raise ValueError(f"{where} must be a mode word or a mapping, got {spec!r}")
+    unknown = sorted(set(spec) - set(_POLICY_KEYS))
+    if unknown:
+        raise ValueError(
+            f"{where} has unknown key(s) {unknown}; the keys are {', '.join(_POLICY_KEYS)}"
+        )
+    mode = spec.get("mode", "create")
+    if mode not in TOPIC_MODES:
+        raise ValueError(
+            f"{where} mode '{mode}' is not one of {', '.join(TOPIC_MODES)}"
+        )
+    numbers = {}
+    for key in ("partitions", "replication_factor"):
+        value = spec.get(key, 1)
+        if type(value) is not int or value < 1:
+            raise ValueError(f"{where} {key} must be a whole number of 1 or more")
+        numbers[key] = value
+    configs = spec.get("topic_configs") or {}
+    if not isinstance(configs, Mapping):
+        raise ValueError(f"{where} topic_configs must be a mapping of setting to value")
+    return {
+        "mode": mode,
+        **numbers,
+        "topic_configs": {str(k): str(v) for k, v in configs.items()},
+    }
+
+
+def build_ssl_context(spec: Any) -> Any:
+    """
+    Returns the SSL context of an `ssl` setting.
+
+    Args:
+        spec: A mapping of `cafile`, `certfile`, `keyfile` and `password`, the
+            arguments of `aiokafka.helpers.create_ssl_context`, or an `SSLContext`,
+            which is returned as it is.
+
+    Returns:
+        Any: The `ssl.SSLContext`.
+
+    Raises:
+        ValueError: If a key is not one of those four.
+    """
+    if not isinstance(spec, Mapping):
+        return spec
+    from aiokafka.helpers import create_ssl_context
+
+    unknown = sorted(set(spec) - {"cafile", "certfile", "keyfile", "password"})
+    if unknown:
+        raise ValueError(
+            f"ssl has unknown key(s) {unknown}; the keys are cafile, certfile, "
+            "keyfile and password"
+        )
+    return create_ssl_context(**spec)
+
+
+def build_token_provider(spec: Any) -> Any:
+    """
+    Returns the token provider of a `sasl_oauth_token_provider` setting.
+
+    Args:
+        spec: A mapping `{type: aws_msk_iam, region: <region>}`, or a token
+            provider object, which is returned as it is.
+
+    Returns:
+        Any: An `AbstractTokenProvider` that signs a token for Amazon MSK IAM with
+            the AWS credentials of the environment.
+
+    Raises:
+        ValueError: If the type is not `aws_msk_iam`, or `region` is missing.
+        ImportError: If `aws-msk-iam-sasl-signer-python` is not installed.
+    """
+    if not isinstance(spec, Mapping):
+        return spec
+    unknown = sorted(set(spec) - {"type", "region"})
+    if unknown or spec.get("type") != "aws_msk_iam" or not spec.get("region"):
+        raise ValueError(
+            "sasl_oauth_token_provider takes {type: aws_msk_iam, region: <region>}, "
+            f"got {dict(spec)!r}"
+        )
+    try:
+        from aws_msk_iam_sasl_signer import MSKAuthTokenProvider
+    except ImportError:
+        raise ImportError(
+            "sasl_oauth_token_provider type aws_msk_iam needs the package "
+            "aws-msk-iam-sasl-signer-python. Install it with "
+            "pip install aws-msk-iam-sasl-signer-python"
+        ) from None
+    from aiokafka.abc import AbstractTokenProvider
+
+    region = str(spec["region"])
+
+    class MSKTokenProvider(AbstractTokenProvider):
+        async def token(self) -> str:
+            # Uses the AWS credentials of the environment, or the EC2 or EKS role
+            token, _ = MSKAuthTokenProvider.generate_auth_token(region)
+            return token
+
+    return MSKTokenProvider()
+
+
+def with_security(
+    settings: Dict[str, Any], ssl: Any, sasl_oauth_token_provider: Any
+) -> Dict[str, Any]:
+    """
+    Returns a producer's or consumer's settings with its security settings built.
+
+    Args:
+        settings: The client settings.
+        ssl: An `ssl` setting, as `build_ssl_context` takes, or None.
+        sasl_oauth_token_provider: A `sasl_oauth_token_provider` setting, as
+            `build_token_provider` takes, or None.
+
+    Returns:
+        Dict[str, Any]: The settings, with `ssl_context` and
+            `sasl_oauth_token_provider` added for those that are not None.
+
+    Raises:
+        ValueError: If `ssl` or the token provider is malformed.
+        ImportError: If the token provider asks for `aws_msk_iam` and
+            `aws-msk-iam-sasl-signer-python` is not installed.
+    """
+    settings = dict(settings)
+    if ssl is not None:
+        settings["ssl_context"] = build_ssl_context(ssl)
+    if sasl_oauth_token_provider is not None:
+        settings["sasl_oauth_token_provider"] = build_token_provider(
+            sasl_oauth_token_provider
+        )
+    return settings
+
+
+def admin_settings(settings: Mapping[str, Any]) -> Dict[str, Any]:
+    """
+    Returns the client settings that `AIOKafkaAdminClient` also takes, such as the
+    security settings.
+
+    `bootstrap_servers` and `client_id` are left out, because `KafkaAdminConnector`
+    sets them itself.
+
+    Args:
+        settings: A producer's or consumer's settings.
+
+    Returns:
+        Dict[str, Any]: The settings the admin client takes, in their order.
+    """
+    accepted = inspect.signature(AIOKafkaAdminClient.__init__).parameters
+    return {
+        key: value
+        for key, value in settings.items()
+        if key in accepted and key not in ("bootstrap_servers", "client_id")
+    }
+
+
+def apply_topic_policies(
+    admin: "KafkaAdminConnector", policies: Dict[str, Dict[str, Any]]
+) -> None:
+    """
+    Creates, recreates or leaves alone each topic, as its policy says.
+
+    `drop_and_create` topics are deleted first, once the broker no longer lists them.
+    Then every topic that is not `manual` is created in one request, and one that
+    exists is left as it is. A topic with the default settings is asked for by name
+    alone.
+
+    Args:
+        admin: The connector that talks to the broker.
+        policies: Topic name to a policy as `topic_policy` returns it.
+
+    Raises:
+        KafkaError: If the broker reports an error for a topic.
+        TimeoutError: If a deleted topic is still listed after 30 seconds.
+    """
+    dropped = [n for n, p in policies.items() if p["mode"] == "drop_and_create"]
+    if dropped:
+        admin.drop_topics(dropped)
+    configs = []
+    for name, policy in policies.items():
+        if policy["mode"] == "manual":
+            continue
+        config: Dict[str, Any] = {"name": name}
+        if policy["partitions"] != 1:
+            config["partitions"] = policy["partitions"]
+        if policy["replication_factor"] != 1:
+            config["replication"] = policy["replication_factor"]
+        if policy["topic_configs"]:
+            config["topic_configs"] = policy["topic_configs"]
+        configs.append(config)
+    if configs:
+        admin.create_topics(topics_config=configs)
+
+
+def _body(value: Any) -> Any:
+    """A message's value read as JSON, or None for a null value (a tombstone) or a
+    value that is not JSON text, such as one a topic's serializer wrote."""
+    if value is None:
+        return None
+    try:
+        return json.loads(value.decode("utf-8"))
+    except ValueError:
+        return None
 
 
 class KafkaAdminConnector:
@@ -36,15 +267,21 @@ class KafkaAdminConnector:
             max_tasks: The maximum number of task records to keep per service
                 in memory (rolling window).
             **kwargs: Additional arguments passed to Kafka clients (e.g., security settings).
+
+        Raises:
+            ValueError: If `max_tasks` is not a whole number of 1 or more.
         """
         self.bootstrap_servers = bootstrap_servers
-        self.max_tasks = max_tasks
+        self.max_tasks = checked_whole(max_tasks, "max_tasks", 1)
         self.kwargs = kwargs
 
         # Event State: sim_id -> service -> task_id -> {status: timestamp}
         self._state: DefaultDict[str, DefaultDict[str, Dict[str, Any]]] = defaultdict(
             lambda: defaultdict(dict)
         )
+        # Where each task key was last seen: key -> (sim_id, service), the oldest
+        # forgotten first, so a finish record can be filed with its task's records
+        self._homes: Dict[str, Any] = {}
         # Telemetry State: path_id -> latest_value
         self._vitals: Dict[str, Any] = {}
 
@@ -62,8 +299,9 @@ class KafkaAdminConnector:
 
         Args:
             topics_config: A list of topic configurations.
-                Each dict should contain 'name', and optionally 'partitions'
-                and 'replication'.
+                Each dict should contain 'name', and optionally 'partitions',
+                'replication' and 'topic_configs', a mapping of topic setting to
+                value such as `{"retention.ms": "60000"}`.
 
         Raises:
             TypeError: If a setting passed to the connector is not one of
@@ -78,16 +316,59 @@ class KafkaAdminConnector:
                 name=cfg["name"],
                 num_partitions=cfg.get("partitions", 1),
                 replication_factor=cfg.get("replication", 1),
+                topic_configs=cfg.get("topic_configs") or None,
             )
             for cfg in topics_config
         ]
+        self._run_to_completion(self._create_topics(new_topics))
+
+    def drop_topics(self, names: List[str]) -> None:
+        """
+        Deletes the topics that exist, and waits until the broker lists none of them.
+
+        Args:
+            names: The topic names. A name that does not exist is ignored.
+
+        Raises:
+            TimeoutError: If a deleted topic is still listed after 30 seconds.
+            KafkaError: If the broker refuses the request.
+        """
+        self._run_to_completion(self._drop_topics(names))
+
+    def _run_to_completion(self, coroutine: Any) -> None:
+        """Runs a coroutine to its end, in a worker thread when a loop is running."""
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            asyncio.run(self._create_topics(new_topics))
+            asyncio.run(coroutine)
             return
         with ThreadPoolExecutor(max_workers=1) as executor:
-            executor.submit(asyncio.run, self._create_topics(new_topics)).result()
+            executor.submit(asyncio.run, coroutine).result()
+
+    async def _drop_topics(self, names: List[str]) -> None:
+        """Deletes the topics that exist, and waits until the broker lists none."""
+        admin_client = AIOKafkaAdminClient(
+            bootstrap_servers=self.bootstrap_servers,
+            client_id="sim_admin",
+            **self.kwargs,
+        )
+        try:
+            await admin_client.start()
+            existing = [
+                name for name in names if name in await admin_client.list_topics()
+            ]
+            if not existing:
+                return
+            await admin_client.delete_topics(existing)
+            for _ in range(60):
+                if not set(existing) & set(await admin_client.list_topics()):
+                    return
+                await asyncio.sleep(0.5)
+            raise TimeoutError(
+                f"The topics {existing} are still listed after 30 seconds"
+            )
+        finally:
+            await admin_client.close()
 
     async def _create_topics(self, new_topics: List[NewTopic]):
         """Creates the topics, once more with a new client after a NOT_CONTROLLER error."""
@@ -151,7 +432,9 @@ class KafkaAdminConnector:
         Async loop to consume from telemetry and event topics.
 
         This loop continuously listens to the simulation's egress and updates
-        the connector's internal `_vitals` and `_state` attributes.
+        the connector's internal `_vitals` and `_state` attributes. A message whose
+        value is null, JSON `null` or not JSON changes neither and is passed over,
+        because `KafkaEgress` writes a null value for compacted topics.
 
         Args:
             topics: List of topics to consume from (telemetry and events).
@@ -166,21 +449,23 @@ class KafkaAdminConnector:
         try:
             await consumer.start()  # inside the try, so a failed start closes it
             async for msg in consumer:
-                data = json.loads(msg.value.decode("utf-8"))
-                self._process_message(data)
+                self._process_message(_body(msg.value))
         finally:
             await consumer.stop()
 
-    def _process_message(self, data: Dict[str, Any]):
+    def _process_message(self, data: Any):
         """
         Routes incoming messages based on their JSON structure.
 
         Distinguishes between 'telemetry' (vitals like utilization) and
-        'events' (task lifecycle steps like 'started' or 'finished').
+        'events' (task lifecycle steps like 'started' or 'finished'). A body that
+        is not a mapping, such as None for a null value, changes nothing.
 
         Args:
             data: The decoded JSON payload from Kafka.
         """
+        if not isinstance(data, Mapping):
+            return
 
         # 1. Telemetry: 'path_id' is at the root level
         if "path_id" in data and not isinstance(data.get("value"), dict):
@@ -195,12 +480,39 @@ class KafkaAdminConnector:
             # Using 'timestamp' based on your actual JSON payload
             ts = data.get("timestamp")
 
-            path_id = payload.get("path_id", "unknown.unknown.unknown")
-            parts = path_id.split(".")
-            sim_id = parts[0]
-            service = parts[2] if len(parts) > 2 else "default"
+            # A status record names its sim_id and service in fields of their own. A
+            # finish record holds the task's own payload, with no names: it is filed
+            # where the same key was last seen, as finished unless the payload has a
+            # status of its own
+            sim_id, service = payload.get("sim_id"), payload.get("service")
+            if (
+                (sim_id is None or service is None)
+                and status is not None
+                and task_id not in self._homes
+            ):
+                # A status record of an earlier release names them only in its
+                # path_id, as <sim_id>.service.<service_id>. A finish record comes
+                # after a status record of its key, so a key already seen is filed
+                # there, whatever path_id its payload holds
+                before, found, after = str(payload.get("path_id", "")).rpartition(
+                    ".service."
+                )
+                if found:
+                    sim_id, service = before, after
+            if sim_id is not None and service is not None:
+                home: Optional[Tuple[Any, Any]] = (sim_id, service)
+                self._homes.pop(task_id, None)
+                self._homes[task_id] = (sim_id, service)
+                if len(self._homes) > self.max_tasks * 10:
+                    self._homes.pop(next(iter(self._homes)))
+            else:
+                home = self._homes.get(task_id)
+            if status is None:
+                status = "finished"
+            if home is None:
+                return
 
-            service_data = self._state[sim_id][service]
+            service_data = self._state[home[0]][home[1]]
 
             # Prune oldest if at max capacity
             if task_id not in service_data:

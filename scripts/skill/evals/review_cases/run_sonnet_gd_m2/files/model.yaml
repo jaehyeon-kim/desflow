@@ -1,0 +1,16 @@
+simulation: {sim_id: M, factor: 0, random_seed: 42}
+egress:
+  - {type: Console, config: {format: json}}
+resources:
+  res: {current_cap: 1, max_cap: 1}
+services:
+  hold: {dist: constant, value: 1}
+arrivals:
+  a: {gap: 1000, first_at: 0, max_events: 1, spawn: use}
+tasks:
+  use:
+    service: hold
+    resource: res
+    payload: {event_type: used}
+stats: {level: minimal, interval: 100, on_change: true}
+run: {until: 5}

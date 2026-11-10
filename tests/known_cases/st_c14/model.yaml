@@ -1,0 +1,30 @@
+# case ST-C14: test_immutable_results: t0 | (t1 & t2); the result read at 0 does not
+# change when t1 and t2 trigger later.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
+tasks:
+  pem:
+    wait:
+      any:
+        t0:
+          timeout: {after: 0, value: 0}
+        both:
+          all:
+            t1:
+              timeout: {after: 1, value: 1}
+            t2:
+              timeout: {after: 2, value: 2}
+    set:
+      seen: {gen: expr, expr: "[wait.t0.done, wait.t1.done, wait.t2.done]"}
+    payload:
+      event_type: first_done
+      in_result: {gen: expr, expr: "[wait.t0.done, wait.t1.done, wait.t2.done]"}
+    next: later
+  later:
+    service_time: 2
+    payload:
+      event_type: later
+      in_result: {gen: expr, expr: "attr.seen"}

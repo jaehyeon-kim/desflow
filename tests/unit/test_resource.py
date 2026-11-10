@@ -435,8 +435,6 @@ def test_priority_counts_only_under_the_priority_order(env, registry, sample_par
     env.process(user("urgent", 0))
     env.run()
     assert served == ["first", "later", "urgent"]
-    with pytest.raises(ValueError, match="queue must be one of"):
-        DynamicResource(env, "Shop", "operator", queue="random")
 
 
 def test_cancel_leaves_the_queue_at_once_and_does_nothing_after_a_grant(
@@ -669,6 +667,48 @@ def test_a_resource_type_and_queue_limit_are_checked(env, registry, sample_param
         check_resource_type(simpy.Resource)
     check_resource_type(Own)
     check_resource_type(None)
+
+
+_QUEUE_ORDERS = "queue must be one of fifo, lifo, priority, got 'random'"
+_PREEMPT = "preempt ranks users by priority, so it needs queue='priority'"
+
+
+@pytest.mark.parametrize(
+    "settings, message, builder",
+    [
+        ({"queue": "random"}, _QUEUE_ORDERS, True),
+        ({"preempt": True}, _PREEMPT, True),
+        ({"queue": "random", "preempt": True}, _QUEUE_ORDERS, True),
+        ({"queue": "random", "ties": "random"}, _QUEUE_ORDERS, False),
+        ({"preempt": True, "queue_limit": -1}, _PREEMPT, True),
+        ({"ties": "random"}, "ties must be 'fifo' or 'lifo', got 'random'", False),
+        (
+            {"ties": "lifo"},
+            "ties orders requests of one priority, so it needs queue='priority'",
+            False,
+        ),
+        (
+            {"ties": "random", "queue_limit": -1},
+            "ties must be 'fifo' or 'lifo', got 'random'",
+            False,
+        ),
+    ],
+)
+def test_a_queue_refusal_reads_the_same_in_the_builder_and_the_low_level_api(
+    env, registry, sample_params, settings, message, builder
+):
+    """Each refusal has one text, and the queue order is checked before `preempt`,
+    `ties` and `queue_limit`."""
+    from desflow import SimulationContext
+
+    registry.register_sim_parameter(sample_params)
+    with pytest.raises(ValueError) as raised:
+        DynamicResource(env, "Shop", "packers", **settings)
+    assert str(raised.value) == message
+    if builder:
+        with pytest.raises(ValueError) as raised:
+            SimulationContext("Shop").add_resource("packers", 1, 1, **settings)
+        assert str(raised.value) == message
 
 
 def test_a_subclass_changes_the_grant_with_do_put(env, registry, sample_params):

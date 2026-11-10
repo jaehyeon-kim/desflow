@@ -89,8 +89,31 @@ def builder_first() -> List[str]:
     return event_lines(lines)[:8]
 
 
+def run_segments() -> List[str]:
+    """Run Length: what the first two segments of the shop read and publish."""
+    lines = yaml_records("docs/snippets/yaml/run_segments.yaml")
+    return [
+        line
+        for line in lines
+        if "queue_read" in line or "system.simulation.segment" in line
+    ][:4]
+
+
+def run_steps() -> List[str]:
+    """Run Length: the first readings that `run.steps` publishes."""
+    return yaml_records("docs/snippets/yaml/run_steps.yaml")[:7]
+
+
+def generated_values() -> List[str]:
+    """Blueprints: the first records of the generated-values blueprint."""
+    return yaml_records("docs/snippets/yaml/generated_values.yaml")[:2]
+
+
 BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "builder-first": builder_first,
+    "generated-values": generated_values,
+    "run-segments": run_segments,
+    "run-steps": run_steps,
     "ingress-old-keys": ingress_old_keys,
     "label-records": label_records,
     "change-lands": change_lands,

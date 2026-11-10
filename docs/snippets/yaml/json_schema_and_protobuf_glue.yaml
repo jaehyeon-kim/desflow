@@ -1,0 +1,53 @@
+# The Use Schema Serializers guide: the shop of json_schema_and_protobuf.yaml with the
+# AWS Glue Schema Registry in place of the Confluent one. Needs
+# order_record.schema.json, shop_record.desc and shop_record.proto beside it, and the
+# package desflow[glue]. Set KAFKA_BOOTSTRAP_SERVERS and give AWS credentials, then run
+# it with: desflow run json_schema_and_protobuf_glue.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+# --8<-- [start:egress]
+egress:
+  - type: Kafka
+    config:
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS}
+      topics:
+        orders-json:
+          serializer:
+            type: glue_json_schema
+            registry_name: shop
+            schema_file: order_record.schema.json
+            boto3: {region_name: us-east-1}  # passed to boto3.client
+        orders-protobuf:
+          serializer:
+            type: glue_protobuf
+            registry_name: shop
+            descriptor_file: shop_record.desc
+            message: com.desflow.shop.ShopRecord
+            schema_file: shop_record.proto  # the text of the .proto file
+            boto3: {region_name: us-east-1}
+# --8<-- [end:egress]
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload:
+      # Orders alternate between the two formats, so one run shows both
+      __topic__:
+        gen: when
+        condition: "process.instance % 2 == 1"
+        then: orders-protobuf
+        else: orders-json
+      order_id: {gen: expr, expr: process.instance}
+      amount: 19.99
+
+run: {until: 1 min}

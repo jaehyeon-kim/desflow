@@ -1,13 +1,16 @@
 import copy
 import logging
 import math
+import numbers
+import re
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 from simpy import Environment
+from simpy.resources.store import StoreGet
 
-from desflow.core.distributions import get_distribution
-from desflow.core.internal import InternalStore
+from desflow.models.distributions import get_distribution
+from desflow.internal import InternalStore
 from desflow.utils import suggestion
 from desflow.models.params import (
     CapacityConfig,
@@ -19,9 +22,96 @@ from desflow.models.params import (
 logger = logging.getLogger(__name__)
 
 
-def _infinite_capacity(path: str, value: Any) -> bool:
+_AS_GIVEN_KINDS = ("service", "arrival", "containers")
+_CAPACITY_KINDS = ("resources", "containers", "stores")
+_CAPACITY_ATTRS = ("current_cap", "max_cap")
+
+
+def _is_number(value: Any) -> bool:
+    """Whether `value` is an int or a float, and not a bool."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+@dataclass(frozen=True)
+class _PathKind:
+    """What a registry path is, recorded when the path is registered.
+
+    Attributes:
+        kind (str): The section it belongs to: `arrival`, `service`, `resources`,
+            `containers`, `stores`, `breakdown` or `variables`.
+        config (str): The path of its config object, as `Shop.resources.desk`.
+        attr (str): The attribute or key of that config it sets, as `current_cap`.
+    """
+
+    kind: str
+    config: str
+    attr: str
+
+
+def _stored_as_given(kind: str, current: Any, new: Any) -> bool:
+    """Whether a live update is stored as written, with no cast to the current type.
+
+    That holds for a distribution parameter or a container value that gets a number or
+    a bool, and for a variable that gets a finite number, when the current value is a
+    number. Infinity and NaN are not finite, so they go to the cast to the current
+    type, which refuses them over an integer variable.
+    """
+    if not _is_number(current):
+        return False
+    if kind in _AS_GIVEN_KINDS:
+        return _is_number(new) or isinstance(new, bool)
+    if kind == "variables" and isinstance(new, bool):
+        return True
+    if kind == "variables" and _is_number(new):
+        return math.isfinite(new)
+    return False
+
+
+def queue_limit_value(path: str, value: Any) -> Optional[int]:
+    """The waiting-line limit a write to a `queue_limit` path means.
+
+    Args:
+        path: The path, for the message.
+        value: None for no limit, a whole number of 0 or more (a NumPy integer or a
+            whole float too), or text that is one.
+
+    Returns:
+        Optional[int]: The limit, or None for no limit.
+
+    Raises:
+        ParamRejected: If `value` is anything else, such as a negative number, a
+            fraction, `true` or text that is not a whole number.
+    """
+    number = value
+    if isinstance(value, str):
+        text = value.strip()
+        number = int(text) if _WHOLE_TEXT.fullmatch(text) else value
+    if value is None:
+        return None
+    if (
+        isinstance(number, bool)
+        or not isinstance(number, numbers.Real)
+        or not math.isfinite(number)
+        or number != int(number)  # type: ignore[call-overload]
+        or number < 0
+    ):
+        raise ParamRejected(
+            path,
+            value,
+            f"'{path}' is a whole number of 0 or more, or null for no limit, got "
+            f"{value!r}",
+        )
+    return int(number)
+
+
+def _is_capacity(registered: _PathKind) -> bool:
+    """Whether a path is a `current_cap` or `max_cap` of a resource, container or store."""
+    return registered.kind in _CAPACITY_KINDS and registered.attr in _CAPACITY_ATTRS
+
+
+def _infinite_capacity(registered: _PathKind, value: Any) -> bool:
     """Whether `value` is infinity, or the text "inf", written to a capacity path."""
-    if not path.endswith((".current_cap", ".max_cap")):
+    if not _is_capacity(registered):
         return False
     if isinstance(value, str):
         try:
@@ -29,6 +119,100 @@ def _infinite_capacity(path: str, value: Any) -> bool:
         except ValueError:
             return False
     return isinstance(value, float) and math.isinf(value) and value > 0
+
+
+_WHOLE_TEXT = re.compile(r"[+-]?[0-9]+")
+_HOLDER_WORDS = {"resources": "resource", "containers": "container", "stores": "store"}
+
+
+def _refusal(path: str, value: Any, reason: str) -> "ParamRejected":
+    """A refusal of a live value, which `update` logs as the others, ending with
+    "Update ignored."."""
+    refused = ParamRejected(path, value, reason)
+    refused._log = f"{reason}. Update ignored."
+    return refused
+
+
+def _read_number(value: Any) -> Any:
+    """The number a text means, when the whole text is one; any other value as given."""
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if _WHOLE_TEXT.fullmatch(text):
+        return int(text)
+    try:
+        return float(text)
+    except ValueError:
+        return value
+
+
+def _capacity_value(path: str, registered: _PathKind, value: Any) -> Any:
+    """The `current_cap` or `max_cap` a write to a capacity path means.
+
+    Raises:
+        ParamRejected: With the declaration's text, if it is not a whole number of
+            0 or more or infinity (a container's: a number of 0 or more). A negative
+            `current_cap` passes, because the registry clamps it to 0.
+    """
+    from desflow.core.holders import check_capacity  # a circular import at module level
+
+    whole = registered.kind != "containers"
+    number = _read_number(value)
+    holder = registered.config.rsplit(".", 1)[-1]
+    word = _HOLDER_WORDS[registered.kind]
+    try:
+        if isinstance(number, str):
+            raise ValueError(
+                f"{word} '{holder}' needs a {'whole ' if whole else ''}number of 0 "
+                f"or more for {registered.attr}, got {value!r}"
+            )
+        # A live `current_cap` below 0 is clamped to 0, as the docs say; only its
+        # kind (whole, not NaN, not a bool, not -inf) is checked here
+        negative_ok = (
+            registered.attr == "current_cap"
+            and isinstance(number, numbers.Real)
+            and not isinstance(number, bool)
+            and float(number) > -math.inf
+        )
+        check_capacity(
+            word, holder, registered.attr, abs(number) if negative_ok else number, whole
+        )
+    except ValueError as exc:
+        raise _refusal(path, value, str(exc)) from None
+    if math.isinf(number):
+        return math.inf
+    return int(number) if whole else number
+
+
+def _level_value(path: str, value: Any) -> Any:
+    """The container level a write means: a finite number, read from text."""
+    number = _read_number(value)
+    if (
+        isinstance(number, bool)
+        or not isinstance(number, numbers.Real)
+        or not math.isfinite(number)
+    ):
+        holder = path.rsplit(".", 2)[-2]
+        raise _refusal(
+            path,
+            value,
+            f"container '{holder}' needs a level that is a finite number, got "
+            f"{value!r}",
+        )
+    # A level written as text is a float, "4" as 4.0
+    return float(number) if isinstance(value, str) else number
+
+
+def _flag_value(path: str, value: Any) -> bool:
+    """The bool a write to a true-or-false path means: `true`, `false`, that text, or
+    the whole number 1 or 0."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, numbers.Integral) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str) and value.strip().lower() in ("true", "false"):
+        return value.strip().lower() == "true"
+    raise _refusal(path, value, f"'{path}' is true or false, got {value!r}")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -146,7 +330,7 @@ class DynamicValue:
         """
         self._value = new_value
 
-    def wait_for_change(self):
+    def wait_for_change(self) -> StoreGet:
         """
         Returns a SimPy event that will be triggered when the value updates.
 
@@ -174,6 +358,9 @@ class SimulationRegistry:
         self.env = env
         self._values: Dict[str, DynamicValue] = {}
         self._configs: Dict[str, Any] = {}
+        # What each path is, recorded when it is registered, so no reader works it
+        # out from the text of the path
+        self._kinds: Dict[str, _PathKind] = {}
         # Called with a `ParamChange` for every accepted change, in the order added
         self.on_change: List[Callable[[ParamChange], None]] = []
 
@@ -210,6 +397,23 @@ class SimulationRegistry:
         if path not in self._configs:
             raise KeyError(f"Config path '{path}' not found in Simulation Registry.")
         return self._configs[path]
+
+    def is_queue_limit(self, path: str) -> bool:
+        """
+        Whether `path` is a resource's `queue_limit`, as registered.
+
+        Args:
+            path (str): A registry path.
+
+        Returns:
+            bool: True for a registered `queue_limit` path.
+        """
+        registered = self._kinds.get(path)
+        return (
+            registered is not None
+            and registered.kind == "resources"
+            and registered.attr == "queue_limit"
+        )
 
     def paths(self) -> List[str]:
         """
@@ -281,7 +485,9 @@ class SimulationRegistry:
 
         Includes dynamic type casting to protect the simulation from crashing if
         external systems send improperly typed data (e.g., sending the string "5"
-        instead of the integer 5).
+        instead of the integer 5). A number written over a number is stored as given
+        on a distribution parameter, a container value and a variable, so 0.5 over 2
+        stays 0.5 and 9.5 over a variable of 10 stays 9.5.
 
         A capacity path (`current_cap` or `max_cap`) takes `inf` and the text `"inf"`
         as no limit, whatever type it held.
@@ -321,6 +527,28 @@ class SimulationRegistry:
             ParamRejected: For the three refusals, carrying the level and the text
                 that `update` logs.
         """
+        validated_value = self.check_value(path, new_value)
+        return self._store(path, new_value, validated_value, source, actor, reason)
+
+    def check_value(self, path: str, new_value: Any) -> Any:
+        """The value a path accepts for `new_value`, cast to the path's type.
+
+        The one check a change, a scenario step and an `on:` action share, so each
+        refuses the same values with the same text. A capacity, `max_cap` or queue
+        limit is a whole number of 0 or more (a container's capacity any number of 0
+        or more), read from text only when the text is such a number; a container
+        level is a finite number; a true-or-false path takes `true`, `false` or the
+        text "true" or "false"; a variable takes `true` as 1, and a
+        distribution parameter refuses it.
+
+        Args:
+            path: The registered path.
+            new_value: The value to write.
+
+        Raises:
+            ParamRejected: For an unknown path, a value the path refuses, or a
+                distribution parameter the distribution refuses.
+        """
         if path not in self._values:
             rejected = ParamRejected(
                 path,
@@ -333,14 +561,38 @@ class SimulationRegistry:
 
         current_val = self._values[path].value
         validated_value = new_value
-        changes: List[ParamChange] = []
+        registered = self._kinds[path]
+        kind, parent_path, attr = registered.kind, registered.config, registered.attr
 
         # Type Validation & Casting
-        if current_val is not None and _infinite_capacity(path, new_value):
+        if self.is_queue_limit(path):
+            # A whole number or null, whether the limit is set now or not
+            validated_value = queue_limit_value(path, new_value)
+        elif _is_capacity(registered):
+            validated_value = _capacity_value(path, registered, new_value)
+        elif kind == "containers" and attr == "level":
+            validated_value = _level_value(path, new_value)
+        elif isinstance(current_val, bool):
+            validated_value = _flag_value(path, new_value)
+        elif current_val is not None and _infinite_capacity(registered, new_value):
             # No limit: inf, or the text "inf", on a capacity path of any type
             validated_value = math.inf
+        elif current_val is not None and _stored_as_given(kind, current_val, new_value):
+            # A number written over a number keeps its type, as SimPy's keeps it:
+            # 0.5 over 2 is 0.5, 3 over 2.5 is 3, and true over a variable is 1
+            # `true` over a distribution parameter stays a bool, which the
+            # distribution's own check refuses; over any other number it is 1
+            validated_value = (
+                int(new_value)
+                if isinstance(new_value, bool) and kind not in ("service", "arrival")
+                else new_value
+            )
         elif current_val is not None:
             expected_type = type(current_val)
+            if _is_number(current_val) and kind in _AS_GIVEN_KINDS:
+                # Text, such as "0.5" from a connector, is read as a float, as it was
+                # when these values were always floats
+                expected_type = float
             # If types don't match, attempt a safe cast (e.g., "5" -> 5)
             if not isinstance(new_value, expected_type):
                 try:
@@ -361,18 +613,6 @@ class SimulationRegistry:
                     )
                     raise rejected
 
-        # A store holds a whole number of items, so a fraction is rounded down
-        # here too, and the registry and the store hold the same number
-        if (
-            ".stores." in path
-            and path.endswith((".current_cap", ".max_cap"))
-            and isinstance(validated_value, (int, float))
-            and not isinstance(validated_value, bool)
-            and math.isfinite(validated_value)
-        ):
-            validated_value = int(validated_value)
-
-        parent_path, attr = path.rsplit(".", 1) if "." in path else (path, "")
         parent_obj = self._configs.get(parent_path)
 
         # Check a distribution parameter with the same rules as at load
@@ -387,6 +627,24 @@ class SimulationRegistry:
                 )
                 rejected._log = f"Invalid value for '{path}': {exc}. Update ignored."
                 raise rejected from exc
+        return validated_value
+
+    def _store(
+        self,
+        path: str,
+        new_value: Any,
+        validated_value: Any,
+        source: Optional[str],
+        actor: Optional[str],
+        reason: Optional[str],
+    ) -> ParamChange:
+        """The second phase of `_apply`: clamps the value to its range, stores it,
+        keeps the config in step, and calls the callbacks."""
+        current_val = self._values[path].value
+        changes: List[ParamChange] = []
+        registered = self._kinds[path]
+        parent_path, attr = registered.config, registered.attr
+        parent_obj = self._configs.get(parent_path)
 
         # Keep a container level within [0, current_cap], what the container holds
         if (
@@ -506,28 +764,36 @@ class SimulationRegistry:
             reason (Optional[str]): Why the change was made.
 
         Raises:
-            ValueError: If the path does not exist, or the registry refuses, casts to
-                another value or clamps the value, or a `max_cap` would clamp the
-                `current_cap` beside it.
+            ParamRejected: A `ValueError` that carries the refused `path`, if the path
+                does not exist, or the registry refuses, casts to another value or
+                clamps the value, or a `max_cap` would clamp the `current_cap` beside
+                it.
         """
         if path not in self._values:
-            raise ValueError(
-                f"'{path}' is not a registry path" + suggestion(path, self._values)
+            raise ParamRejected(
+                path,
+                value,
+                f"'{path}' is not a registry path" + suggestion(path, self._values),
             )
-        sibling = f"{path.rsplit('.', 1)[0]}.current_cap"
-        if path.endswith(".max_cap") and sibling in self._values:
+        registered = self._kinds[path]
+        sibling = f"{registered.config}.current_cap"
+        if _is_capacity(registered) and registered.attr == "max_cap":
             current = self._values[sibling].value
             if value is not None and current is not None and current > value:
                 # update would lower current_cap to it without a word
-                raise ValueError(
+                raise ParamRejected(
+                    path,
+                    value,
                     f"'{path}' cannot be set to {value!r}: '{sibling}' is "
-                    f"{current!r}; set current_cap first, to {value!r} or less"
+                    f"{current!r}; set current_cap first, to {value!r} or less",
                 )
         self.update(path, value, source=source, actor=actor, reason=reason)
         kept = self._values[path].value
         if kept != value:
-            raise ValueError(
-                f"'{path}' cannot be set to {value!r}; the registry kept {kept!r}"
+            raise ParamRejected(
+                path,
+                value,
+                f"'{path}' cannot be set to {value!r}; the registry kept {kept!r}",
             )
 
     def _clamp_current_cap(
@@ -564,13 +830,13 @@ class SimulationRegistry:
         for name, dist_config in param.arrival.items():
             path = f"{prefix}.arrival.{name}"
             self._configs[path] = dist_config
-            self._register_dist(path, dist_config)
+            self._register_dist(path, dist_config, "arrival", prefix)
 
         # Register Service Steps
         for name, dist_config in param.service.items():
             path = f"{prefix}.service.{name}"
             self._configs[path] = dist_config
-            self._register_dist(path, dist_config)
+            self._register_dist(path, dist_config, "service", prefix)
 
         # Register Resources, Containers and Stores
         for name, cap_config in param.resources.items():
@@ -582,17 +848,30 @@ class SimulationRegistry:
 
         # Register Breakdowns: each resource's time to failure and repair time
         for name, breakdown in param.breakdowns.items():
-            for part in ("time_to_failure", "repair"):
-                path = f"{prefix}.breakdown.{name}.{part}"
-                dist_config = getattr(breakdown, part)
-                self._configs[path] = dist_config
-                self._register_dist(path, dist_config)
+            self.register_breakdown(prefix, name, breakdown)
 
         # Register Custom Variables
         self._configs[f"{prefix}.variables"] = param.variables
         for name, value in param.variables.items():
             path = f"{prefix}.variables.{name}"
             self._values[path] = DynamicValue(self.env, path, value)
+            self._kinds[path] = _PathKind("variables", f"{prefix}.variables", name)
+
+    def register_breakdown(self, sim_id: str, name: str, breakdown: Any):
+        """
+        Registers a resource's time to failure and repair time.
+
+        Args:
+            sim_id (str): The simulation ID.
+            name (str): The resource's name, which for a member of a family is its
+                bracketed name such as `desk[3]`.
+            breakdown (Any): The breakdown, with `time_to_failure` and `repair`.
+        """
+        for part in ("time_to_failure", "repair"):
+            path = f"{sim_id}.breakdown.{name}.{part}"
+            dist_config = getattr(breakdown, part)
+            self._configs[path] = dist_config
+            self._register_dist(path, dist_config, "breakdown", sim_id)
 
     def register_resource(self, sim_id: str, name: str, cap_config: CapacityConfig):
         """
@@ -622,7 +901,25 @@ class SimulationRegistry:
             cap_config.max_cap = cap_config.current_cap
         path = f"{sim_id}.resources.{name}"
         self._configs[path] = cap_config
-        self._register_cap(path, cap_config)
+        self._register_cap(path, cap_config, "resources")
+        if getattr(cap_config, "limit_path", True):
+            limit = getattr(cap_config, "queue_limit", None)
+            self._values[f"{path}.queue_limit"] = DynamicValue(
+                self.env, f"{path}.queue_limit", limit
+            )
+            self._kinds[f"{path}.queue_limit"] = _PathKind(
+                "resources", path, "queue_limit"
+            )
+
+    def _forget(self, path: str) -> None:
+        """
+        Removes a path, if the registry has it.
+
+        Args:
+            path (str): The dot-notation path.
+        """
+        self._values.pop(path, None)
+        self._kinds.pop(path, None)
 
     def register_container(self, sim_id: str, name: str, cap_config: CapacityConfig):
         """
@@ -640,11 +937,10 @@ class SimulationRegistry:
         self._fill_unbounded(cap_config)
         path = f"{sim_id}.containers.{name}"
         self._configs[path] = cap_config
-        # A container level is continuous, so an integer starting value must not
-        # make later updates integers through the type cast in update()
-        self._register_cap(path, cap_config, cast=float)
-        level = float(getattr(cap_config, "level", 0.0))
+        self._register_cap(path, cap_config, "containers")
+        level = getattr(cap_config, "level", 0)
         self._values[f"{path}.level"] = DynamicValue(self.env, f"{path}.level", level)
+        self._kinds[f"{path}.level"] = _PathKind("containers", path, "level")
 
     def register_store(self, sim_id: str, name: str, cap_config: CapacityConfig):
         """
@@ -662,7 +958,7 @@ class SimulationRegistry:
         self._fill_unbounded(cap_config)
         path = f"{sim_id}.stores.{name}"
         self._configs[path] = cap_config
-        self._register_cap(path, cap_config)
+        self._register_cap(path, cap_config, "stores")
 
     @staticmethod
     def _fill_unbounded(cap_config: CapacityConfig) -> None:
@@ -679,24 +975,25 @@ class SimulationRegistry:
         if cap_config.max_cap is None:
             cap_config.max_cap = cap_config.current_cap
 
-    def _register_dist(self, path_prefix: str, dist_config: Any):
+    def _register_dist(
+        self, path_prefix: str, dist_config: Any, kind: str, sim_id: str
+    ):
         """Internal: registers one path per parameter its family declares.
 
         It also names the config's random sequence: its path without the sim id.
         The values of an `empirical` distribution are lists, taken at load, so they
         get no path.
         """
-        dist_config.stream = path_prefix.split(".", 1)[1]
+        dist_config.stream = path_prefix[len(sim_id) + 1 :]
         for name in get_distribution(dist_config.dist).live:
             value = getattr(dist_config, name)
             if value is not None:
                 path = f"{path_prefix}.{name}"
                 self._values[path] = DynamicValue(self.env, path, value)
+                self._kinds[path] = _PathKind(kind, path_prefix, name)
 
-    def _register_cap(
-        self, path_prefix: str, cap_config: Any, cast: Optional[Callable] = None
-    ):
-        """Internal: Flattens a CapacityConfig, converting both values with `cast` if given.
+    def _register_cap(self, path_prefix: str, cap_config: Any, kind: str):
+        """Internal: Flattens a CapacityConfig into its two paths.
 
         A `current_cap` outside `[0, max_cap]` is clamped to that range with a warning,
         as a live update is, and the config is updated, so `explain` reads the
@@ -710,11 +1007,11 @@ class SimulationRegistry:
                 f"outside [0, max_cap {max_cap}]. Stored as {clamped}."
             )
             current_cap = cap_config.current_cap = clamped
-        if cast is not None:
-            current_cap, max_cap = cast(current_cap), cast(max_cap)
         self._values[f"{path_prefix}.current_cap"] = DynamicValue(
             self.env, f"{path_prefix}.current_cap", current_cap
         )
         self._values[f"{path_prefix}.max_cap"] = DynamicValue(
             self.env, f"{path_prefix}.max_cap", max_cap
         )
+        for attr in _CAPACITY_ATTRS:
+            self._kinds[f"{path_prefix}.{attr}"] = _PathKind(kind, path_prefix, attr)

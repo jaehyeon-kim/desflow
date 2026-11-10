@@ -1,0 +1,10 @@
+{
+  "asserts": [
+    {
+      "file": "test_model.py",
+      "line": 58,
+      "text": "assert wall >= 0.4 - 0.016"
+    }
+  ],
+  "paced_wall": 0.4
+}

@@ -159,3 +159,23 @@ def mkdocs_nav():
         encoding="utf-8"
     )
     return yaml.load(text, Loader=_MkDocsLoader)["nav"]
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config, items):
+    """
+    Keeps one share of the tests when `TEST_SHARD` is set, for parallel CI jobs.
+
+    `TEST_SHARD=2/6` keeps the second of six shares, dealt by the times in
+    `tests/durations.json` (tests/sharding.py). It runs last, after `-m` has
+    deselected its tests, so the shares are even for the tests a job runs.
+    `python scripts/test_durations.py <folder of JUnit files>` records the times
+    again from a CI run.
+    """
+    import os
+
+    from tests.sharding import keep_share
+
+    shard = os.environ.get("TEST_SHARD")
+    if shard:
+        keep_share(config, items, shard, Path(__file__).parent / "durations.json")

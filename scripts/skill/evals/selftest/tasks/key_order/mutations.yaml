@@ -1,0 +1,8 @@
+# `max_events` is 1 already, so only `value` alters the records.
+
+task: P33
+
+mutations:
+  - name: grow at 1
+    changes:
+      - {keys: [arrivals.boss.max_events, arrivals.boss.value], new: 1}

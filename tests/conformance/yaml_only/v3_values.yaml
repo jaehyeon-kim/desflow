@@ -1,0 +1,25 @@
+# V3: a computed value in an `on:` write, an interrupt cause and a timeout value. The
+# program is programs/v3_values.py. See test_yaml_only.py.
+simulation: {sim_id: V3, factor: 0, random_seed: 42}
+variables: {total: 10, reason: r1}
+arrivals:
+  writing: {replay: {path: writing.csv}, spawn: writer}
+  working: {replay: {path: working.csv}, spawn: worker}
+  cutting: {replay: {path: cutting.csv}, spawn: cutter}
+  timing: {replay: {path: timing.csv}, spawn: timed}
+  reading: {replay: {path: reading.csv}, spawn: report}
+tasks:
+  writer:
+    payload: {event_type: written}
+    on: [{path: V3.variables.total, value: {gen: expr, expr: "registry['V3.variables.total'] - 3"}}]
+  worker: {wait: {timeout: 9}, on_interrupt: abandon, payload: {event_type: finished}}
+  cutter:
+    wait: {timeout: 1}
+    payload: {event_type: cut}
+    interrupt: {task: worker, cause: {gen: expr, expr: "registry['V3.variables.reason']"}}
+    on: [{path: V3.variables.reason, value: changed in the same step}]
+  timed:
+    wait: {timeout: {after: 2, value: {gen: expr, expr: "t * 2"}}}
+    payload: {event_type: timed, value: {gen: expr, expr: "wait.timeout.value"}}
+  report: {payload: {event_type: report, total: {gen: expr, expr: "registry['V3.variables.total']"}}}
+run: {until: 10}

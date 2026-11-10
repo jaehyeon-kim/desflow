@@ -1,10 +1,11 @@
 # Replications in YAML: one hour of the shop, run 20 times with seeds spawned from 42.
 #
-# The YAML version of replications_example.py, which --api builder downloads. Two packers, orders every 2.5
-# seconds on average and a packing time of 4 seconds on average. Each replication
-# runs unpaced with no sinks, after a 3-minute warm-up, and reads every statistic up
-# to the typical level at its end. The command prints the mean and the 95% half-width
-# of each statistic, and the Console sink receives them once, as telemetry.
+# The YAML version of replications_example.py, which --api builder downloads. Two
+# packers, orders every 2.5 seconds on average and a packing time of 4 seconds on
+# average. Each replication runs unpaced with no sinks, after a 3-minute warm-up, and
+# reads every statistic up to the typical level at its end. The command prints the mean
+# and the 95% half-width of each statistic, and the Console sink receives them once, as
+# telemetry.
 #
 # Needs no containers.
 # Run it with: desflow run replications.yaml --replications 20
@@ -20,7 +21,7 @@ simulation:
 
 egress:
   # Receives each replication's value and the mean, half-width and count.
-  - type: Console
+  - {type: Console}
 
 resources:
   packers: {current_cap: 2, max_cap: 4}
@@ -41,5 +42,4 @@ tasks:
 # Wait and service means need the typical level.
 stats: {level: typical, interval: 10 min}
 
-run:
-  until: 1 h
+run: {until: 1 h}

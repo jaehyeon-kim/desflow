@@ -9,10 +9,7 @@
 # KAFKA_BOOTSTRAP_SERVERS overrides the broker address.
 # Run it from its folder with: desflow run kafka.yaml
 
-simulation:
-  sim_id: Shop
-  factor: 1.0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 1.0, random_seed: 42}
 
 ingress:
   - type: Kafka
@@ -40,7 +37,11 @@ tasks:
   pack_order:
     service: packing
     resource: packers
-    payload: {path_id: Shop.service.packing, status: finished}
+    payload:
+      path_id: Shop.service.packing
+      sim_id: Shop
+      service: packing
+      status: finished
 
 # The packers' readings every 2 seconds, which kafka_dashboard.py shows.
 stats: {level: minimal, interval: 2}

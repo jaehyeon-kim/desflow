@@ -1,0 +1,59 @@
+# A customer table's changes are written to Kafka, and each delete is a tombstone.
+#
+# Ten customers exist at the start, then inserts, updates and deletes arrive in the
+# shares 40, 45 and 15 percent, each keyed by its customer id. A delete has no value,
+# which is how Kafka marks a deleted key (a tombstone), and the oldest customer is
+# deleted first.
+#
+# Needs: odctl up kafka-lite and the kafka extra
+# Run it with: desflow run
+# examples/gallery/customer_deletes_become_kafka_tombstones.yaml
+
+simulation:
+  sim_id: Customers
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - type: Kafka
+    envelope: false
+    config:
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
+      event_topic: customers-cdc
+
+arrivals:
+  existing: {initial: 10, spawn: insert_customer}
+  changes: {dist: exponential, rate: 1, spawn: change}
+
+tasks:
+  change:
+    payload: null
+    next:
+      weights: {insert_customer: 40, update_customer: 45, delete_customer: 15}
+  insert_customer:
+    key_field: customer_id
+    payload:
+      op: insert
+      customer_id: {gen: sequence}
+      plan:
+        gen: weighted
+        options: {free: 60, pro: 40}
+  # An update changes the newest customer, so no record names a customer that is gone
+  update_customer:
+    key_field: customer_id
+    payload:
+      op: update
+      customer_id:
+        gen: lookup
+        task: insert_customer
+        path: customer_id
+        strategy: last
+      plan:
+        gen: weighted
+        options: {free: 40, pro: 60}
+  delete_customer:
+    key: {gen: sequence}
+    payload: {gen: literal, value: null}
+
+run: {until: 120}

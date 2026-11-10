@@ -1,0 +1,21 @@
+# case ST-V05: an event succeeded before the process starts to wait; the process gets
+# its value at once.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+signals:
+  ev: {once: true}
+
+arrivals:
+  m: {initial: 1, spawn: maker}
+  w: {initial: 1, spawn: pem}
+
+tasks:
+  maker:
+    payload: {event_type: made}
+    on:
+      - fire: {signal: ev, value: i was already done}
+  pem:
+    wait: {signal: ev}
+    payload:
+      event_type: got
+      value: {gen: expr, expr: "wait.ev.value"}

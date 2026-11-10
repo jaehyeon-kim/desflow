@@ -1,0 +1,22 @@
+# Documents of SimPy tests/test_resources.py. Each starts with a '# case' line. Cases
+# that share a program say so there. case ST-R01: two users, one unit, explicit request
+# and release; log (a, 1), (b, 2).
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+resources:
+  res: {current_cap: 1}
+
+arrivals:
+  users: {initial: 2, spawn: pem}
+
+tasks:
+  pem:
+    seize: res
+    payload:
+      event_type: got
+      count: {gen: expr, expr: "users.res"}
+    next: use
+  use:
+    service_time: 1
+    payload: {event_type: done}
+    release: res

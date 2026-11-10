@@ -1,0 +1,127 @@
+# Design Y7: names for another process, an event state and a queue's entries. Source:
+# research/yaml-only/programs/Y7.py alive() (is_alive only), states() (triggered and
+# processed of an event), peek() (run at 100 so that no other event is pending) and
+# queues(). The process's own triggered and processed, and me(), have no form and are
+# not in this row.
+simulation: {sim_id: Y7, factor: 0, random_seed: 42}
+
+resources:
+  r: {current_cap: 1, queue: priority}
+
+containers:
+  s: {current_cap: 5, level: 0}
+
+signals:
+  ev: {once: true}
+
+arrivals:
+  c: {dist: constant, value: 1, spawn: w, max_events: 1, first_at: 0}
+  p: {dist: constant, value: 1, spawn: watch, max_events: 1, first_at: 0}
+  a: {dist: constant, value: 1, spawn: states, max_events: 1, first_at: 0}
+  j1:
+    dist: constant
+    value: 1
+    spawn: j
+    max_events: 1
+    first_at: 0
+    attributes: {prio: 1, at: 0}
+  j2:
+    dist: constant
+    value: 1
+    spawn: j
+    max_events: 1
+    first_at: 0
+    attributes: {prio: 3, at: 0.5}
+  j3:
+    dist: constant
+    value: 1
+    spawn: j
+    max_events: 1
+    first_at: 0
+    attributes: {prio: 2, at: 1}
+  g1:
+    dist: constant
+    value: 1
+    spawn: g
+    max_events: 1
+    first_at: 0
+    attributes: {amount: 2}
+  g2:
+    dist: constant
+    value: 1
+    spawn: g
+    max_events: 1
+    first_at: 0
+    attributes: {amount: 3}
+  lk: {dist: constant, value: 1, spawn: look, max_events: 1, first_at: 2}
+  pk: {dist: constant, value: 1, spawn: peeker, max_events: 1, first_at: 100}
+
+tasks:
+  w:
+    wait: {timeout: 2}
+    payload: null
+  watch:
+    payload:
+      event_type: alive
+      alive: {gen: expr, expr: "running(w) > 0"}
+    next: watch2
+  watch2:
+    wait: {timeout: 1}
+    payload:
+      event_type: alive
+      alive: {gen: expr, expr: "running(w) > 0"}
+    next: watch3
+  watch3:
+    wait: {timeout: 1}
+    payload:
+      event_type: alive
+      alive: {gen: expr, expr: "running(w) > 0"}
+  states:
+    payload:
+      event_type: before
+      triggered: {gen: expr, expr: "signal.ev.count > 0"}
+      processed: {gen: expr, expr: "signal.ev.processed"}
+    on:
+      - fire: {signal: ev, value: 1}
+    next: states_fired
+  states_fired:
+    payload:
+      event_type: fired
+      triggered: {gen: expr, expr: "signal.ev.count > 0"}
+      processed: {gen: expr, expr: "signal.ev.processed"}
+    next: states_after
+  states_after:
+    wait: {timeout: 0}
+    payload:
+      event_type: after
+      triggered: {gen: expr, expr: "signal.ev.count > 0"}
+      processed: {gen: expr, expr: "signal.ev.processed"}
+  j:
+    wait: {timeout: "attr.at"}
+    payload: null
+    next: j_hold
+  j_hold: {resource: r, priority: "attr.prio", service_time: 5, payload: null}
+  g:
+    get: {container: s, amount: "attr.amount"}
+    payload: null
+  look:
+    payload:
+      event_type: look
+      users: {gen: expr, expr: "[[h.rank, h.since] for h in held(r)]"}
+      queue: {gen: expr, expr: "[[w.rank, w.time] for w in waiting(r)]"}
+      get_queue: {gen: expr, expr: "[g.amount for g in getting(s)]"}
+  peeker:
+    open:
+      t3:
+        timeout: {after: 3}
+    payload:
+      event_type: peek
+      next_event: {gen: expr, expr: "peek()"}
+      at: {gen: expr, expr: t}
+    next: peeker2
+  peeker2:
+    wait: {timeout: 1}
+    payload:
+      event_type: peek
+      next_event: {gen: expr, expr: "peek()"}
+      at: {gen: expr, expr: t}

@@ -1,0 +1,13 @@
+# case ST-V03: a Timeout(0, 'I am the value') has its value after the run.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
+tasks:
+  pem:
+    wait:
+      timeout: {after: 0, value: I am the value}
+    payload:
+      event_type: got
+      value: {gen: expr, expr: "wait.timeout.value"}

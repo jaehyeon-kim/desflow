@@ -1,0 +1,40 @@
+# Every relationship generator of Batch 7, once, in the places a model writes them: `lookup`
+# with each of its arguments, `previous`, `upstream` and `aggregate`. The unit tests in
+# tests/unit/test_values.py load this file and check what each gives. `make` writes a row a
+# second from time 1. `read` starts at 0.5, before any row exists, so that start is dropped,
+# and then every 3 seconds from 3.5, when three rows exist.
+simulation: {sim_id: R, factor: 0, random_seed: 7, logical_start_time: "2026-01-01T00:00:00+00:00", timezone: UTC}
+arrivals:
+  makers: {dist: constant, value: 1, spawn: make}
+  readers: {dist: constant, value: 3, first_at: 0.5, spawn: read}
+tasks:
+  make:
+    vars: {n: {gen: sequence}}
+    payload:
+      id: {gen: var, name: n}
+      group: {gen: expr, expr: "n % 3"}
+      amount: {gen: expr, expr: "n * 10"}
+  read:
+    vars: {step: {gen: sequence}}
+    payload:
+      step: {gen: var, name: step}
+      any: {gen: lookup, task: make, path: id}
+      oldest: {gen: lookup, task: make, path: id, strategy: first}
+      newest: {gen: lookup, task: make, path: id, strategy: last}
+      whole: {gen: lookup, task: make, strategy: last}
+      early: {gen: lookup, task: make, path: id, histogram: [{bin: 0.5, frequency: 1}, {bin: 0.5, frequency: 0}]}
+      by_group: {gen: repeat, times: 3, value: {gen: lookup, task: make, path: id, latest_by: group}}
+      different: {gen: repeat, times: 3, value: {gen: lookup, task: make, path: id, distinct: true}}
+      mean: {gen: aggregate, task: make, path: amount, last: 3, function: mean}
+      total: {gen: aggregate, task: make, path: amount, last: 2, function: sum}
+      lowest: {gen: aggregate, task: make, path: amount, last: 3, function: min}
+      highest: {gen: aggregate, task: make, path: amount, last: 3, function: max}
+      rows: {gen: aggregate, task: make, last: 100, function: count}
+      group_zero: {gen: aggregate, task: make, path: amount, last: 2, function: sum, where: "group == 0"}
+      before: {gen: previous, path: step, default: -1}
+    next: follow
+  follow:
+    payload:
+      from_read: {gen: upstream, path: step}
+      whole: {gen: upstream}
+run: {until: 11}

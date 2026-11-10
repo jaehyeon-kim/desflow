@@ -63,13 +63,22 @@ def pack(env, sampler, shop, key, priority, task_id):
     def publish(value):
         env.publish_event(key, value, task="pack", instance=task_id)
 
-    publish({"path_id": path_id, "status": "queued"})
+    publish(
+        {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+    )
     env.stats.task_queued("pack", task_id)  # counted as in progress
     with shop["packers"].request(priority=priority) as req:
         yield req
         # Waits while the stock is empty
         yield shop["stock"].get(1)
-        publish({"path_id": path_id, "status": "started"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            }
+        )
         env.stats.task_started("pack", task_id)
         payload = {"event_type": "order_packed", "priority": priority}
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
@@ -87,11 +96,25 @@ def collect(env, sampler, shop, key, task_id):
     def publish(value):
         env.publish_event(key, value, task="collect", instance=task_id)
 
-    publish({"path_id": path_id, "status": "queued"})
+    publish(
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "collecting",
+            "status": "queued",
+        }
+    )
     env.stats.task_queued("collect", task_id)
     # A PriorityItem; .item is the parcel
     parcel = yield shop["parcels"].get()
-    publish({"path_id": path_id, "status": "started"})
+    publish(
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "collecting",
+            "status": "started",
+        }
+    )
     env.stats.task_started("collect", task_id)
     yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
     publish({"event_type": "parcel_collected", "parcel": parcel.item})

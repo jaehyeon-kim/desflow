@@ -1,0 +1,19 @@
+# Records of task ST-U02, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: ST-U02
+
+until: 20
+
+run_end: null
+
+records:
+  - name: other done at 3 with ohai
+    match: {task: other, value.event_type: other_done, value.value: ohai}
+    at: 3
+  - name: subscriber interrupted at 3
+    match: {task: subscriber, value.status: interrupted}
+    at: 3
+  - name: told at 3 with the string ohai
+    match: {task: told, value.event_type: interrupted, value.value: ohai}
+    at: 3

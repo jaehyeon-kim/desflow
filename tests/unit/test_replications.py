@@ -2,6 +2,7 @@
 
 import asyncio
 import queue
+import shlex
 from pathlib import Path
 
 import pytest
@@ -20,7 +21,8 @@ from desflow.cli import app as cli
 from desflow.connectors.egress.base import BaseEgress
 from desflow.connectors.ingress.base import BaseIngress
 from desflow.analysis.intervals import interval, t_quantile
-from desflow.analysis.runner import level_for, spawn_seeds
+from desflow.analysis.models import spawn_seeds
+from desflow.analysis.runner import level_for
 
 BLUEPRINT = """\
 simulation: {sim_id: Shop, factor: 0}
@@ -212,13 +214,37 @@ def test_an_unknown_measure_is_refused():
         replicate(shop, 2, seed=1, until=100, measures=["tasks.packing.wait_mean"])
 
 
-def test_a_count_not_yet_published_is_zero_and_a_missing_mean_is_refused():
+def test_a_count_not_yet_published_is_zero_and_a_missing_mean_is_refused(tmp_path):
     def patient() -> SimulationContext:
         return shop(patience=0.5)
 
     # Over 5 seconds some runs renege and some do not
     result = replicate(patient, 6, seed=2, until=5, measures=["tasks.pack.reneged"])
     assert 0 in result.values["tasks.pack.reneged"]
+    # Half the runs fail their one task; a run with no failure reads 0, not missing
+    model = tmp_path / "model.yaml"
+    model.write_text(
+        "simulation: {sim_id: S, factor: 0}\n"
+        "arrivals:\n"
+        "  a: {initial: 1, spawn: t, attributes: {bad: {gen: boolean, p: 0.5}}}\n"
+        "tasks:\n"
+        "  t: {service_time: 1, fail: attr.bad, on_fail: handle, payload: {}}\n"
+        "  handle: {payload: {}}\n"
+    )
+    result = replicate(str(model), 8, seed=3, until=5, measures=["tasks.t.failed"])
+    assert sorted(set(result.values["tasks.t.failed"])) == [0, 1]
+    # One arrival every 10 s on average over 5 s: a run in which no entity arrived
+    # publishes no flow or task count at all, and each reads 0
+    rare = tmp_path / "rare.yaml"
+    rare.write_text(
+        "simulation: {sim_id: S, factor: 0}\n"
+        "arrivals: {a: {dist: exponential, rate: 0.1, spawn: t}}\n"
+        "tasks: {t: {service_time: 1, payload: {}}}\n"
+    )
+    counts = ["flows.a.started", "flows.a.in_system", "tasks.t.in_progress"]
+    result = replicate(str(rare), 10, seed=3, until=5, measures=counts)
+    assert 0 in result.values["flows.a.started"]
+    assert set(result.values["flows.a.started"]) != {0}
     with pytest.raises(ValueError, match="no value in run"):
         replicate(shop, 6, seed=2, until=2, measures=["tasks.pack.wait_mean"])
 
@@ -352,7 +378,7 @@ def test_run_before_runs_once_more_only_with_sinks():
 
     def model(sinks) -> SimulationContext:
         app = shop()
-        app._before_run = [lambda: calls.append(1)]
+        app._defaults.before_run = [lambda: calls.append(1)]
         return app.add_egress(_Capture()) if sinks else app
 
     replicate(
@@ -570,7 +596,8 @@ def test_cli_repeat_command_keeps_until_and_drain(blueprint):
     )
     assert result.exit_code == 0, result.output
     assert (
-        f"Repeat one replication with: desflow run {blueprint} --seed <its seed> "
+        f"Repeat one replication with: desflow run {shlex.quote(str(blueprint))} "
+        "--seed <its seed> "
         "--until 100 --drain"
     ) in result.output
 
@@ -581,3 +608,148 @@ def test_a_low_level_stop_that_is_not_a_function_is_refused():
     for stop in ({"signal": "closing"}, "closing"):
         with pytest.raises(ValueError, match="a function of the environment"):
             replicate(LowLevelModel(low_level, "Shop"), 2, seed=1, until=50, stop=stop)
+
+
+def test_an_infinite_measure_has_an_infinite_mean_and_no_half_width():
+    """The capacity of an unbounded store is infinite, so its replications have no
+    spread; `statistics.stdev` raised an AttributeError on them."""
+    import math
+
+    result = interval([math.inf, math.inf, math.inf])
+    assert result.n == 3 and math.isinf(result.mean)
+    assert math.isnan(result.half_width) and math.isnan(result.std)
+    assert math.isnan(interval([1.0, math.nan]).half_width)
+
+
+def test_run_replications_summarises_an_unbounded_store(tmp_path):
+    path = tmp_path / "unbounded.yaml"
+    path.write_text(
+        "simulation: {sim_id: U, factor: 0, random_seed: 1}\n"
+        "stores: {shelf: {}}\n"
+        "arrivals: {a: {dist: constant, value: 1, spawn: t}}\n"
+        "tasks:\n  t: {payload: {e: 1}, put: {store: shelf}}\n"
+        "run: {until: 5}\n"
+    )
+    result = CliRunner().invoke(cli, ["run", str(path), "--replications", "3"])
+    assert result.exit_code == 0, result.output
+    assert "stores.shelf.level_avg" in result.output
+
+
+def test_run_replications_of_a_blueprint_with_no_statistics_rows(tmp_path):
+    """Issue 106: a blueprint with no arrival has no measure, and the summary table
+    raised a TypeError on its empty rows."""
+    path = tmp_path / "bare.yaml"
+    path.write_text(
+        "simulation: {sim_id: N, factor: 0, random_seed: 1}\n"
+        "tasks:\n  t: {payload: {e: 1}}\nrun: {until: 5}\n"
+    )
+    result = CliRunner().invoke(cli, ["run", str(path), "--replications", "2"])
+    assert result.exit_code == 0, result.output
+    assert "measure" in result.output and "Seed 1" in result.output
+
+
+BATCH_6 = """\
+simulation: {sim_id: R, factor: 0, random_seed: 3}
+resources: {m: {current_cap: 1}}
+arrivals:
+  boot: {initial: 2, spawn: work}
+  g: {dist: exponential, rate: 1, spawn: work, group: {gen: sample, dist: poisson, mean: 2}, active: false}
+  src: {dist: constant, value: 1, spawn: work, off_mode: restart}
+  ctl: {gap: 5, max_events: 1, spawn: turn}
+tasks:
+  work: {resource: m, service_time: 0.5, payload: {e: w}, spawn: {task: kid, count: 1, copy_attributes: true}}
+  kid: {payload: {e: kid}}
+  turn: {payload: {e: turn}, activate: g, deactivate: src}
+run: {until: 20}
+"""
+
+
+def test_sources_that_turn_on_and_off_repeat_with_one_seed(tmp_path):
+    """Initial entities, a group source, `activate`, `deactivate` and a spawn count
+    draw from the replication's seed only: one seed gives the same values twice."""
+    path = tmp_path / "batch6.yaml"
+    path.write_text(BATCH_6, encoding="utf-8")
+    measures = ["flows.g.started", "flows.kid.started", "flows.src.started"]
+    first = replicate(path, 3, seed=5, until=20, measures=measures)
+    again = replicate(path, 3, seed=5, until=20, measures=measures)
+    assert first.values == again.values
+    assert any(v for row in first.values.values() for v in row)
+
+
+def test_a_sample_run_prints_the_events_of_the_new_sources(tmp_path):
+    """`desflow run --sample` runs a model with initial entities and a spawn count,
+    unpaced, and prints the first events."""
+    path = tmp_path / "batch6.yaml"
+    path.write_text(BATCH_6.replace("factor: 0", "factor: 1"), encoding="utf-8")
+    result = CliRunner().invoke(cli, ["run", str(path), "--sample", "4"])
+    assert result.exit_code == 0, result.output
+    assert '"key":"boot-1"' in result.output and '"key":"boot-2"' in result.output
+
+
+def _documented_counts(task="t", arrival="a"):
+    """The task and flow names the Statistic Names page lists for `minimal` and
+    `basic`, the counts, as `tasks.<task>.<count>` and `flows.<arrival>.<count>`."""
+    import importlib.util
+
+    script = Path(__file__).parents[2] / "scripts" / "gen_pages.py"
+    spec = importlib.util.spec_from_file_location("gen_pages", script)
+    assert spec is not None and spec.loader is not None
+    gen_pages = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gen_pages)
+    names = gen_pages.statistic_names()
+    found = []
+    for name in [*names["minimal"], *names["basic"]]:
+        _sim, _stats, kind, _owner, stat = name.split(".")
+        if kind in ("tasks", "flows"):
+            found.append(f"{kind}.{task if kind == 'tasks' else arrival}.{stat}")
+    return list(dict.fromkeys(found))
+
+
+# Its one entity finishes before the warm-up, which starts every count again from 0,
+# so at the end each count is 0: published as 0, or left out while it is 0
+ALL_ZERO = """\
+simulation: {sim_id: S, factor: 0, random_seed: 1, warmup: 10}
+arrivals: {ARRIVAL: {initial: 1, spawn: TASK}}
+tasks: {TASK: {service_time: 1, payload: {}}}
+run: {until: 20}
+tests:
+  - name: every_count_is_0
+    expect: {EXPECT}
+"""
+
+
+@pytest.mark.parametrize("task,arrival", [("t", "a"), ("t.u", "a.b")])
+def test_every_documented_count_reads_0_in_every_reader(tmp_path, task, arrival):
+    """Every reader of the published statistics reads each count the docs list as 0
+    in a run where it is 0, also for a task and an arrival whose names hold a dot; a
+    name published neither as a value nor in `LEFT_OUT_AT_ZERO` fails here."""
+    from desflow.analysis.results import Design, count_names, result_rows
+    from desflow.analysis.runner import run_replications
+
+    counts = _documented_counts(task, arrival)
+    assert f"flows.{arrival}.started" in counts and f"tasks.{task}.resumed" in counts
+    model = tmp_path / "zero.yaml"
+    expect = ", ".join(f"{name}: 0" for name in counts)
+    model.write_text(
+        ALL_ZERO.replace("{EXPECT}", "{" + expect + "}")
+        .replace("ARRIVAL", arrival)
+        .replace("TASK", task)
+    )
+    # replicate and experiments
+    result = replicate(str(model), 2, seed=1, measures=counts)
+    assert result.values == {name: [0, 0] for name in counts}
+    runs = run_replications(str(model), [1], until=20, stats="basic")
+    design = Design(name="d", variant="d", point={}, overrides={}, seeds=[1], runs=runs)
+    rows = result_rows([design], [], counts)
+    assert {row["statistic"]: row["value"] for row in rows} == dict.fromkeys(counts, 0)
+    assert set(count_names(runs)) <= set(counts)
+    # desflow test
+    outcome = CliRunner().invoke(cli, ["test", str(model)])
+    assert outcome.exit_code == 0, outcome.output
+    assert "ok" in outcome.output
+    # A name of a task or flow nothing published stays refused, also when a
+    # published task's name starts with it and a dot
+    if "." in task:
+        bare = [f"tasks.{task.split('.')[0]}.failed"]
+        with pytest.raises(ValueError, match=f"no statistic called {bare[0]};"):
+            replicate(str(model), 2, seed=1, measures=bare)

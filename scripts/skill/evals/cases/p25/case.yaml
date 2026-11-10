@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: p25
+expected_outcome: >
+  The folder holds model.yaml, builder.py, low_level.py, test_model.py and
+  reply.md for task p25, and the three forms give the same records.
+context:
+  scaffold_script: setup.sh

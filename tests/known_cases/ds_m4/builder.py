@@ -1,0 +1,35 @@
+"""DS-M4: Several entities start at one instant, then a source goes on.
+
+Builder form of `model.yaml`.
+"""
+
+from desflow import SimulationContext
+
+
+def build(size: int = 1) -> SimulationContext:
+    app = SimulationContext(sim_id="M4", factor=0, random_seed=42)
+    app.add_initial_arrival("control", size, spawn="check")
+    app.add_arrival("cars", dist="exponential", rate=1, spawn="car", initial=4)
+
+    @app.task(name="check", next="check_on")
+    def check(task_id):
+        return {"event_type": "first_step"}
+
+    @app.task(name="check_on", service_time=0)
+    def check_on(task_id):
+        return {"event_type": "goes_on"}
+
+    @app.task(name="car", next="car_on")
+    def car(task_id):
+        return {"event_type": "first_step"}
+
+    @app.task(name="car_on", service_time=5)
+    def car_on(task_id):
+        return {"event_type": "goes_on"}
+
+    return app
+
+
+def run(app: SimulationContext):
+    """Runs the model to the end its `run` section sets."""
+    return app.run(until=12)

@@ -1,0 +1,44 @@
+# Urgent support tickets are served before older tickets of lower priority.
+#
+# One agent solves a ticket in about 50 seconds, and a ticket arrives about every 55
+# seconds, so tickets wait. The agent's queue is ordered by priority, so a ticket of
+# priority 1 (10 percent of them) waits less than one of priority 3 (60 percent).
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/urgent_tickets_are_served_first.yaml
+
+simulation:
+  sim_id: Support
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+resources:
+  agents: {current_cap: 1, max_cap: 1, queue: priority}
+
+services:
+  solve: {dist: normal, mean: 50, std: 10}
+
+arrivals:
+  tickets:
+    dist: exponential
+    rate: 0.018
+    attributes:
+      priority:
+        gen: weighted
+        options: {1: 10, 2: 30, 3: 60}
+    spawn: solve_ticket
+
+tasks:
+  solve_ticket:
+    service: solve
+    resource: agents
+    priority: attr.priority
+    payload:
+      event_type: solved
+      priority: {gen: attr, name: priority}
+
+run: {until: 4 hours}

@@ -1,10 +1,16 @@
 """`desflow run`: runs a blueprint, or replications of it."""
 
+import functools
 import logging
+import multiprocessing
+import os
 import secrets
 import shlex
+import signal
+import sys
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Annotated, Any, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 import typer
 
@@ -13,6 +19,8 @@ from desflow.cli._common import (
     LOG_FORMAT,
     fail,
     parse_until,
+    parse_variables,
+    quiet_builds,
     refuse,
     setup_logging,
 )
@@ -30,7 +38,9 @@ _EPILOG = """
   [dim]# Print every record as a JSON line instead of sending it[/dim]\n
   $ [bold cyan]desflow run shop.yaml --stdout[/bold cyan]\n\n
   [dim]# Run 20 replications and print the mean and interval of each statistic[/dim]\n
-  $ [bold cyan]desflow run shop.yaml --replications 20 --seed 7[/bold cyan]
+  $ [bold cyan]desflow run shop.yaml --replications 20 --seed 7[/bold cyan]\n\n
+  [dim]# Print the first five events again whenever the file changes[/dim]\n
+  $ [bold cyan]desflow run shop.yaml --sample 5 --watch[/bold cyan]
 """
 
 
@@ -67,10 +77,30 @@ class _RecordFormatter(logging.Formatter):
         return super().format(record)
 
 
-def _run_options(until: Optional[str], drain: bool) -> str:
+@dataclass(frozen=True)
+class _RunOptions:
+    """What `desflow run` was given besides the file. A `--watch` child process gets
+    it, so it is a plain dataclass that can be sent to another process."""
+
+    until: Optional[str] = None
+    seed: Optional[int] = None
+    drain: bool = False
+    replications: Optional[int] = None
+    level: float = 0.95
+    measure: Optional[List[str]] = None
+    workers: int = 1
+    sample: Optional[int] = None
+    stdout: bool = False
+    variables: Dict[str, str] = field(default_factory=dict)
+
+
+def _run_options(options: _RunOptions) -> str:
     """The options given that change the run, as a repeat command needs them."""
-    options = f" --until {shlex.quote(until)}" if until is not None else ""
-    return options + (" --drain" if drain else "")
+    text = f" --until {shlex.quote(options.until)}" if options.until is not None else ""
+    text += " --drain" if options.drain else ""
+    for name, value in options.variables.items():
+        text += f" --var {shlex.quote(f'{name}={value}')}"
+    return text
 
 
 # Each command is private: typer shows its docstring as the help text, so it
@@ -79,7 +109,7 @@ def _run(
     file: Annotated[
         Path,
         typer.Argument(
-            help="The blueprint file.",
+            help="The blueprint file, or a builder file with --sample.",
             metavar="FILE",
             exists=True,
             dir_okay=False,
@@ -160,18 +190,76 @@ def _run(
             "lag readings describe the wall clock, not the model.",
         ),
     ] = False,
+    var: Annotated[
+        Optional[List[str]],
+        typer.Option(
+            "--var",
+            metavar="NAME=VALUE",
+            help="Fill ${NAME} in the file and in the files it includes, before the "
+            "environment does. Repeat it for more.",
+        ),
+    ] = None,
+    watch: Annotated[
+        bool,
+        typer.Option(
+            "--watch",
+            help="Run in a child process, and run again whenever the file or a .py "
+            "file beside it changes. Needs the watch extra.",
+        ),
+    ] = False,
 ) -> None:
-    """Build the simulation in FILE and run it, or run replications of it."""
+    """Build the simulation in FILE and run it, or run replications of it.
+
+    FILE is a YAML blueprint. With --sample it may also be a builder file, a `.py`
+    file with a module-level `SimulationContext`, which is imported as `desflow
+    test` imports it, so its `if __name__ == "__main__":` block does not run.
+    """
+    parse_until(until, ends=replications is not None)
+    options = _RunOptions(
+        until,
+        seed,
+        drain,
+        replications,
+        level,
+        measure,
+        workers,
+        sample,
+        stdout,
+        parse_variables(var),
+    )
+    if (sample is not None or stdout) and replications is not None:
+        refuse("--sample and --stdout print one run; leave out --replications")
+    if file.suffix == ".py" and (sample is None or stdout or watch or var):
+        refuse(
+            "desflow run takes a builder Python file only with --sample, and "
+            "without --stdout, --var or --watch; run a Python file with python FILE"
+        )
+    if watch:
+        _watch(file, options)
+    else:
+        _run_once(str(file), options)
+
+
+def _run_once(path: str, options: _RunOptions) -> None:
+    """Builds the blueprint and runs it once, or runs its replications.
+
+    A `--watch` child runs this for each pass. A failure exits with `fail` or
+    `refuse`, which raise `typer.Exit`.
+
+    Args:
+        path: The blueprint file.
+        options: What `desflow run` was given besides the file.
+    """
     from desflow.blueprint.build import Preview
     from desflow.blueprint.loader import BlueprintError
+    from desflow.core.context import parts_of
     from desflow.loading import load_context
 
-    stop_at = parse_until(until)
-    preview = Preview(sample) if sample is not None or stdout else None
-    if preview is not None and replications is not None:
-        refuse("--sample and --stdout print one run; leave out --replications")
-    if file.suffix == ".py":
-        refuse("desflow run takes a YAML blueprint; run a Python file with python FILE")
+    file = Path(path)
+    until, seed, drain = options.until, options.seed, options.drain
+    replications, sample = options.replications, options.sample
+    stop_at = parse_until(until, ends=replications is not None)
+    preview = Preview(sample) if sample is not None or options.stdout else None
 
     root = logging.getLogger()
     before = list(root.handlers)
@@ -185,28 +273,20 @@ def _run(
         logging.getLogger("desflow.core").setLevel(logging.WARNING)
 
     try:
-        context = load_context(file.parent, file.name, preview)
+        context = load_context(file.parent, file.name, preview, options.variables)
     except BlueprintError as exc:
         fail(str(exc))
 
     if seed is not None:
         context.random_seed = seed
-    if context._repeat_hint is not None:
+    defaults = parts_of(context).defaults
+    if defaults.repeat_hint is not None:
         # The run's seed is filled in later, so braces in the until are doubled
-        options = _run_options(until, drain)
-        context._repeat_hint += options.replace("{", "{{").replace("}", "}}")
+        repeat = _run_options(options)
+        defaults.repeat_hint += repeat.replace("{", "{{").replace("}", "}}")
     if replications is not None:
-        _replicate(
-            file,
-            replications,
-            context.random_seed,
-            stop_at,
-            level,
-            measure,
-            workers,
-            drain,
-            _run_options(until, drain),
-        )
+        with quiet_builds():
+            _replicate(file, replications, context, stop_at, options)
         return
     try:
         context.start(until=stop_at, drain=True if drain else None)
@@ -215,53 +295,199 @@ def _run(
         # until, is reported as a blueprint error is; an error inside the run keeps
         # its traceback
         fail(str(exc))
+    no_events = False
     try:
         context.finish()
     except KeyboardInterrupt:
         logger.info("Simulation stopped by user.")
-    if sample is not None and context._sample_seen < sample:
-        _report_short_sample(context, sample)
+    except RuntimeError as exc:
+        # SimPy's message when the schedule empties before the run's end event; a
+        # sample of a model that runs out of events ends there, as at `until`
+        if sample is None or not str(exc).startswith(_EMPTY_SCHEDULE):
+            raise
+        no_events = True
+    if sample is not None and parts_of(context).run.sample_seen < sample:
+        _report_short_sample(context, sample, no_events)
 
 
-def _report_short_sample(context: Any, sample: int) -> None:
+# The start of the RuntimeError SimPy raises when no event is left before `until`
+_EMPTY_SCHEDULE = "No scheduled events left"
+
+
+def _report_short_sample(context: Any, sample: int, no_events: bool = False) -> None:
     """Says on stderr that the run ended before it printed `sample` events."""
-    seen = context._sample_seen
-    ended = context._until is not None and context.env.now >= context._until
+    from desflow.core.context import parts_of
+
+    run = parts_of(context).run
+    seen = run.sample_seen
+    ended = run.until is not None and context.env.now >= run.until
     where = " at until" if ended else ""
+    if no_events:
+        where = " with no events left,"
     typer.echo(f"sample ended{where} with {seen} of {sample} events", err=True)
 
 
 def _replicate(
     file: Path,
     n: int,
-    seed: Optional[int],
+    context: Any,
     until: Optional[float],
-    level: float,
-    measures: Optional[List[str]],
-    workers: int,
-    drain: bool,
-    options: str,
+    options: _RunOptions,
 ) -> None:
-    """Runs the replications and prints their summary; `--drain` drains each."""
-    from desflow.analysis.runner import replicate
+    """Runs the replications and prints their summary; `--drain` drains each.
 
+    Args:
+        file: The blueprint file.
+        n: How many replications.
+        context: The context built from the file, which gives the seed and the
+            `run.until` the replications take when none is given.
+        until: The end time, or None for the file's `run.until`.
+        options: What `desflow run` was given besides the file.
+    """
+    from desflow.analysis.runner import replicate
+    from desflow.core.context import SimulationContext, parts_of
+
+    seed = context.random_seed
     if seed is None:
         seed = secrets.randbelow(2**32)
+    model: Any = file
+    if options.variables:
+        # Each replication builds the file again, with the same variables
+        model = functools.partial(
+            SimulationContext.from_yaml, file, variables=options.variables
+        )
+        if until is None:
+            until = parts_of(context).defaults.until
     try:
         result = replicate(
-            file,
+            model,
             n,
             seed=seed,
             until=until,
-            measures=measures,
-            level=level,
-            workers=workers,
-            drain=True if drain else None,
+            measures=options.measure,
+            level=options.level,
+            workers=options.workers,
+            drain=True if options.drain else None,
         )
     except ValueError as exc:
         fail(str(exc))
     typer.echo(result.summary_text())
     typer.echo(f"\nSeed {seed}; replication seeds: {', '.join(map(str, result.seeds))}")
     typer.echo(
-        f"Repeat one replication with: desflow run {file} --seed <its seed>{options}"
+        f"Repeat one replication with: desflow run {shlex.quote(str(file))} "
+        "--seed <its seed>"
+        f"{_run_options(options)}"
     )
+
+
+# How long a stopped run is given to flush its sinks: the default drain_stall_seconds
+# of 30 plus 5
+_STOP_WAIT = 35
+_KILL_WAIT = 5
+
+
+class _BlueprintFilter:
+    """Which changes under the blueprint's folder start a new run: the file itself,
+    and a `.py` file below its folder. Output a run writes beside the file, such as
+    `data/events.parquet`, and the folders `watchfiles` ignores, such as `.venv` and
+    `__pycache__`, start nothing.
+
+    It is a `watchfiles` filter: called with a change and a path, it returns whether
+    the change counts.
+
+    Args:
+        file: The blueprint file.
+    """
+
+    def __init__(self, file: Path):
+        from watchfiles import DefaultFilter
+
+        self._default = DefaultFilter()
+        self._file = file.resolve()
+        self._folder = self._file.parent
+
+    def __call__(self, change: Any, path: str) -> bool:
+        if not self._default(change, path):
+            return False
+        changed = Path(path).resolve()
+        return changed == self._file or (
+            changed.suffix == ".py" and self._folder in changed.parents
+        )
+
+
+def _child(path: str, options: _RunOptions) -> None:
+    """The process target of a `--watch` pass: `_run_once`, whose errors it has
+    already printed, and a Ctrl+C before the run starts as a quiet stop."""
+    try:
+        _run_once(path, options)
+    except (typer.Exit, KeyboardInterrupt):
+        pass
+
+
+def _start(context: Any, file: Path, options: _RunOptions) -> Any:
+    """Starts one pass of the file in a new process and returns the process."""
+    child = context.Process(target=_child, args=(str(file), options))
+    child.start()
+    return child
+
+
+def _stop(child: Any, interrupt: bool) -> None:
+    """Waits for a pass to end, stopping it first when `interrupt` is true.
+
+    A stop is SIGINT, which the run handles as Ctrl+C: it tears down and flushes its
+    sinks. Native Windows has no such signal for another process, so the process is
+    terminated there. A pass that has not ended after `_STOP_WAIT` seconds is killed,
+    and stderr says its unwritten records are lost.
+
+    Args:
+        child: The process of the pass.
+        interrupt: True to send the stop; False when Ctrl+C has already reached it.
+    """
+    if child.is_alive() and interrupt:
+        if sys.platform == "win32":
+            child.terminate()
+        else:
+            os.kill(child.pid, signal.SIGINT)
+    child.join(_STOP_WAIT)
+    if child.is_alive():
+        typer.echo(
+            f"The run did not stop in {_STOP_WAIT} seconds, so it was killed. Records "
+            f"it had not written are lost.",
+            err=True,
+        )
+        child.kill()
+        child.join(_KILL_WAIT)
+
+
+def _watch(file: Path, options: _RunOptions) -> None:
+    """Runs the file in a child process, and again each time `_BlueprintFilter`
+    accepts a change. Ctrl+C ends the watch with exit code 0 once the run has stopped.
+
+    A new process for each pass starts from a fresh interpreter, so an edited `!python`
+    module is imported again and a sink that is stuck cannot keep the next run alive.
+
+    Args:
+        file: The blueprint file.
+        options: What `desflow run` was given besides the file.
+    """
+    try:
+        from watchfiles import watch
+    except ImportError:
+        fail('--watch needs watchfiles. Install it with pip install "desflow[watch]"')
+
+    spawn = multiprocessing.get_context("spawn")
+    child = _start(spawn, file, options)
+    try:
+        for changes in watch(
+            file.parent, watch_filter=_BlueprintFilter(file), raise_interrupt=False
+        ):
+            names = ", ".join(sorted({Path(path).name for _, path in changes}))
+            typer.echo(f"Changed: {names}. Running again.", err=True)
+            _stop(child, interrupt=True)
+            child = _start(spawn, file, options)
+    except KeyboardInterrupt:
+        # Ctrl+C while a pass is being stopped or started: the watch ends with 0
+        pass
+    finally:
+        # Ctrl+C has already reached the child
+        _stop(child, interrupt=False)

@@ -49,18 +49,30 @@ def pack(env, sampler, shop, arrival, key, task_id, policy):
     def publish(value):
         env.publish_event(key, value, task=task, instance=task_id)
 
-    publish({"path_id": path_id, "status": "queued"})
+    publish(
+        {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+    )
     env.stats.task_queued(task, task_id)
     shop["running"].setdefault(task, []).append(env.active_process)
     shop["keys"][env.active_process] = key
     remaining, started = None, False
+    request = None
     while True:
-        request = shop["packers"].request(priority=priority)
+        if request is None:
+            request = shop["packers"].request(priority=priority)
         since = None
         try:
-            yield request
+            if not request.processed:
+                yield request
             status = "resumed" if started else "started"
-            publish({"path_id": path_id, "status": status})
+            publish(
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": status,
+                }
+            )
             if started:
                 env.stats.task_resumed(task, task_id)
             else:
@@ -75,8 +87,11 @@ def pack(env, sampler, shop, arrival, key, task_id, policy):
             shop["packers"].release(request)
             break
         except simpy.Interrupt as interrupt:
-            request.cancel()
-            shop["packers"].release(request)
+            if policy == "abandon" or request not in shop["packers"].users:
+                # Ask again if queued or preempted; abandon gives a held unit back
+                request.cancel()
+                shop["packers"].release(request)
+                request = None
             if since is not None:
                 # resume serves what is left; restart draws a new packing time
                 remaining = (
@@ -92,7 +107,9 @@ def pack(env, sampler, shop, arrival, key, task_id, policy):
                 }
             else:
                 value = {"status": "interrupted", "cause": interrupt.cause}
-            publish({"path_id": path_id, **value})
+            publish(
+                {"path_id": path_id, "sim_id": "Shop", "service": "packing", **value}
+            )
             env.stats.task_interrupted(task, task_id, preempted=preempted)
             if policy == "abandon":
                 env.stats.task_dropped(task, task_id)

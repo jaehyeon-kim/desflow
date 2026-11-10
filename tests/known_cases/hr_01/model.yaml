@@ -1,0 +1,669 @@
+# case HR (rows HR1 to HR26): hot rolling twin, structural line written out;
+# microalloyed and high alloy differ in names, rate and hardness. HR2: the section is
+# written out per line, which keeps the registry paths. HR18 is a periodic task with
+# `on:` writes.
+# HR26. The start time makes {gen: now} (HR15) the same in every run
+simulation:
+  sim_id: HotRolling
+  factor: "${FACTOR:-1.0}"
+  random_seed: "${SEED:-42}"
+  logical_start_time: "2026-01-01T00:00:00+00:00"
+  timezone: UTC
+
+run: {until: 600}
+
+# HR19. The control topic is created by the ingress's default topic_policy (create, one
+# partition), HR23
+ingress:
+  - type: Kafka
+    config: {bootstrap_servers: "${KAFKA_BROKER:-localhost:9092}", topic: sim-controls}
+
+egress:
+  - type: Kafka
+    config:
+      bootstrap_servers: "${KAFKA_BROKER:-localhost:9092}"
+      event_topic: sim-lifecycle
+      # HR23: the topics with their partitions
+      topics:
+        sim-telemetry: {partitions: 1}
+        sim-lifecycle: {partitions: 1}
+        mill-predictions: {partitions: 3}
+        mill-groundtruth: {partitions: 3}
+
+services:
+  pass_roughing: {dist: normal, mean: 2.0, std: 0.2}
+  pass_intermediate: {dist: normal, mean: 4.5, std: 0.5}
+  pass_finishing: {dist: normal, mean: 8.0, std: 1.2}
+
+resources:
+  mill_structural: {current_cap: 4, max_cap: 10}
+  mill_microalloyed: {current_cap: 4, max_cap: 10}
+  mill_high_alloy: {current_cap: 4, max_cap: 10}
+
+# the twin's wear containers (generator.py:73-75), so the dashboard's path
+# HotRolling.containers.wear_<grade>.current_cap exists
+containers:
+  wear_structural: {current_cap: 0.001, max_cap: 100.0}
+  wear_microalloyed: {current_cap: 0.001, max_cap: 100.0}
+  wear_high_alloy: {current_cap: 0.001, max_cap: 100.0}
+
+variables:
+  max_passes: ${MAX_PASSES:-5}
+  variable_passes: ${VARIABLE_PASSES:-0}
+  wear_penalty_rate: 0.40
+  velocity_structural: {type: abrupt, value: 0.0}
+  # 0 follows the sign of velocity.value; -1 and 1 are set at the limits 60 and 0.001
+  drift_sign_structural: 0
+  velocity_microalloyed: {type: abrupt, value: 0.0}
+  drift_sign_microalloyed: 0
+  velocity_high_alloy: {type: abrupt, value: 0.0}
+  drift_sign_high_alloy: 0
+
+arrivals:
+  drift_clock: {initial: 1, spawn: drift}
+  wear_clock: {initial: 1, spawn: wear_reading}
+  wear_clock_microalloyed: {initial: 1, spawn: wear_reading_microalloyed}
+  wear_clock_high_alloy: {initial: 1, spawn: wear_reading_high_alloy}
+  structural:
+    dist: exponential
+    rate: 0.2
+    spawn: roughing_structural
+    first_at: 0                                              # HR3
+    attributes:                                              # HR5
+      slab_id: {gen: sequence, format: "SLAB-STRUCTURAL-{:08X}"}   # HR4
+      # HR6
+      total_passes:
+        gen: expr
+        expr: "drawn if vp else mp"
+        names:
+          drawn:
+            gen: integer
+            bounds: [3, {gen: param, path: HotRolling.variables.max_passes}]
+          vp: {gen: param, path: HotRolling.variables.variable_passes}
+          mp: {gen: param, path: HotRolling.variables.max_passes}
+      pass_number: 0
+      temperature_c: {gen: uniform, low: 1180.0, high: 1220.0, decimals: 3}
+      thickness_mm: {gen: uniform, low: 200.0, high: 250.0, decimals: 3}
+      width_mm: {gen: uniform, low: 1800.0, high: 3000.0, decimals: 3}
+      # slab.py __init__
+      speed_m_s: {gen: uniform, low: 1.5, high: 2.0, decimals: 3}
+      roll_diameter_mm: {gen: uniform, low: 1050.0, high: 1100.0, decimals: 3}
+      reheating_time_min: {gen: uniform, low: 150.0, high: 300.0, decimals: 3}
+      roll_crown_mm: {gen: uniform, low: 30.0, high: 150.0, decimals: 3}
+      length_mm: {gen: uniform, low: 2000.0, high: 3000.0, decimals: 3}
+  microalloyed:
+    dist: exponential
+    rate: 0.15
+    spawn: roughing_microalloyed
+    first_at: 0
+    attributes:
+      slab_id: {gen: sequence, format: "SLAB-MICROALLOYED-{:08X}"}
+      # HR6
+      total_passes:
+        gen: expr
+        expr: "drawn if vp else mp"
+        names:
+          drawn:
+            gen: integer
+            bounds: [3, {gen: param, path: HotRolling.variables.max_passes}]
+          vp: {gen: param, path: HotRolling.variables.variable_passes}
+          mp: {gen: param, path: HotRolling.variables.max_passes}
+      pass_number: 0
+      temperature_c: {gen: uniform, low: 1180.0, high: 1220.0, decimals: 3}
+      thickness_mm: {gen: uniform, low: 200.0, high: 250.0, decimals: 3}
+      width_mm: {gen: uniform, low: 1800.0, high: 3000.0, decimals: 3}
+      # slab.py __init__
+      speed_m_s: {gen: uniform, low: 1.5, high: 2.0, decimals: 3}
+      roll_diameter_mm: {gen: uniform, low: 1050.0, high: 1100.0, decimals: 3}
+      reheating_time_min: {gen: uniform, low: 150.0, high: 300.0, decimals: 3}
+      roll_crown_mm: {gen: uniform, low: 30.0, high: 150.0, decimals: 3}
+      length_mm: {gen: uniform, low: 2000.0, high: 3000.0, decimals: 3}
+  high_alloy:
+    dist: exponential
+    rate: 0.1
+    spawn: roughing_high_alloy
+    first_at: 0
+    attributes:
+      slab_id: {gen: sequence, format: "SLAB-HIGH_ALLOY-{:08X}"}
+      # HR6
+      total_passes:
+        gen: expr
+        expr: "drawn if vp else mp"
+        names:
+          drawn:
+            gen: integer
+            bounds: [3, {gen: param, path: HotRolling.variables.max_passes}]
+          vp: {gen: param, path: HotRolling.variables.variable_passes}
+          mp: {gen: param, path: HotRolling.variables.max_passes}
+      pass_number: 0
+      temperature_c: {gen: uniform, low: 1180.0, high: 1220.0, decimals: 3}
+      thickness_mm: {gen: uniform, low: 200.0, high: 250.0, decimals: 3}
+      width_mm: {gen: uniform, low: 1800.0, high: 3000.0, decimals: 3}
+      # slab.py __init__
+      speed_m_s: {gen: uniform, low: 1.5, high: 2.0, decimals: 3}
+      roll_diameter_mm: {gen: uniform, low: 1050.0, high: 1100.0, decimals: 3}
+      reheating_time_min: {gen: uniform, low: 150.0, high: 300.0, decimals: 3}
+      roll_crown_mm: {gen: uniform, low: 30.0, high: 150.0, decimals: 3}
+      length_mm: {gen: uniform, low: 2000.0, high: 3000.0, decimals: 3}
+
+tasks:
+  roughing_structural: &pass
+    service: pass_roughing                                   # HR8
+    resource: mill_structural                                # HR7
+    # HR15
+    key:
+      gen: format
+      template: "{s}-P{n}"
+      names:
+        s: {gen: attr, name: slab_id}
+        n: {gen: expr, expr: "attr.pass_number + 1"}
+    vars:
+      n: {gen: expr, expr: "attr.pass_number + 1"}
+      ratio: {gen: expr, expr: "n / attr.total_passes"}
+      # HR11
+      reduction:
+        gen: uniform
+        low: {gen: expr, expr: "0.20 if ratio < 0.4 else 0.10 if ratio < 0.8 else 0.02"}
+        high:
+          gen: expr
+          expr: "0.35 if ratio < 0.4 else 0.20 if ratio < 0.8 else 0.10"
+      exit_h: {gen: expr, expr: "attr.thickness_mm * (1 - reduction)"}
+      strain: {gen: expr, expr: "log(attr.thickness_mm / exit_h)"}   # HR10
+      # slab.py next_pass: wait time 10 to 40 s
+      wait_s: {gen: uniform, low: 10.0, high: 40.0}
+      # HR12
+      temp:
+        gen: expr
+        expr: "max(889.0, attr.temperature_c - (wait_s * 0.5 + reduction * 30.0 + e))"
+        names:
+          e: {gen: normal, mean: 0, std: 2}
+      spd: {gen: expr, expr: "min(5.6, attr.speed_m_s + reduction * 2.0)"}
+      # volume is conserved
+      exit_len: {gen: expr, expr: "attr.length_mm * (attr.thickness_mm / exit_h)"}
+      contact:
+        gen: expr
+        expr: "sqrt(attr.roll_diameter_mm / 2.0 * (attr.thickness_mm - exit_h))"
+      srate: {gen: expr, expr: "max(0.5, min(16.2, spd * 1000.0 / contact * strain))"}
+      flow:
+        gen: expr
+        expr: "max(5.0, min(178.0, 20.0 * (1200.0 / temp) ** 4.0 * strain ** 0.2 * srate
+          ** 0.1))"
+      h0: {gen: expr, expr: "attr.thickness_mm"}
+      baseline:
+        gen: expr
+        expr: "18000.0 * attr.width_mm * attr.thickness_mm * reduction / max(temp, 1.0)"
+        decimals: 2
+    on_start:                                                # HR13
+      __topic__: mill-predictions                            # HR22
+      event_type: prediction_request
+      timestamp: {gen: now}                                  # HR15
+      identifiers:
+        slab_id: {gen: attr, name: slab_id}
+        pass_number: {gen: var, name: n}
+        steel_grade: structural
+        routing_key: structural_mill
+      # HR5, HR9, HR10: the 13 features of schemas.py
+      features:
+        reheating_time_min: {gen: attr, name: reheating_time_min}
+        roll_diameter_mm: {gen: attr, name: roll_diameter_mm}
+        roll_crown_mm: {gen: attr, name: roll_crown_mm}
+        entry_thickness_mm: {gen: var, name: h0}
+        width_mm: {gen: attr, name: width_mm}
+        length_mm: {gen: attr, name: length_mm}
+        temperature_c: {gen: var, name: temp}
+        speed_m_s: {gen: var, name: spd}
+        wait_time_sec: {gen: var, name: wait_s}
+        reduction_pct: {gen: var, name: reduction}
+        strain: {gen: var, name: strain}
+        strain_rate: {gen: var, name: srate}
+        flow_stress_mpa: {gen: var, name: flow}
+      baseline_prediction:
+        baseline_roll_force_kn: {gen: var, name: baseline}
+    finish_vars:
+      # HR14
+      wear:
+        gen: expr
+        expr: "min(100.0, (0.0 if raw <= 0.001 else raw) * spread)"
+        names:
+          raw: {gen: param, path: HotRolling.containers.wear_structural.current_cap}
+          spread: {gen: uniform, low: 0.98, high: 1.02}
+    payload:
+      __topic__: mill-groundtruth
+      event_type: ground_truth
+      timestamp: {gen: now}
+      identifiers:
+        slab_id: {gen: attr, name: slab_id}
+        pass_number: {gen: var, name: n}
+      ground_truth:
+        actual_roll_force_kn:
+          gen: expr
+          decimals: 2
+          expr: "max(0.0, baseline * (1 + (wear / 100) ** 1.5 * k * max(0.1, (1250.0 -
+            temp) / 200.0) * (100.0 / max(h0, 10.0)) * (1 + reduction)) + e)"
+          names:
+            k: {gen: param, path: HotRolling.variables.wear_penalty_rate}
+            e: {gen: normal, mean: 0, std: 500}
+        wear_level: {gen: var, name: wear}
+    # HR9
+    set:
+      pass_number: {gen: var, name: n}
+      temperature_c: {gen: var, name: temp}
+      thickness_mm: {gen: var, name: exit_h}
+      speed_m_s: {gen: var, name: spd}
+      length_mm: {gen: var, name: exit_len}
+    next: pass_done_structural
+  roughing_microalloyed: &pass_microalloyed
+    service: pass_roughing                                   # HR8
+    resource: mill_microalloyed                                # HR7
+    # HR15
+    key:
+      gen: format
+      template: "{s}-P{n}"
+      names:
+        s: {gen: attr, name: slab_id}
+        n: {gen: expr, expr: "attr.pass_number + 1"}
+    vars:
+      n: {gen: expr, expr: "attr.pass_number + 1"}
+      ratio: {gen: expr, expr: "n / attr.total_passes"}
+      # HR11
+      reduction:
+        gen: uniform
+        low: {gen: expr, expr: "0.20 if ratio < 0.4 else 0.10 if ratio < 0.8 else 0.02"}
+        high:
+          gen: expr
+          expr: "0.35 if ratio < 0.4 else 0.20 if ratio < 0.8 else 0.10"
+      exit_h: {gen: expr, expr: "attr.thickness_mm * (1 - reduction)"}
+      strain: {gen: expr, expr: "log(attr.thickness_mm / exit_h)"}   # HR10
+      # slab.py next_pass: wait time 10 to 40 s
+      wait_s: {gen: uniform, low: 10.0, high: 40.0}
+      # HR12
+      temp:
+        gen: expr
+        expr: "max(889.0, attr.temperature_c - (wait_s * 0.5 + reduction * 30.0 + e))"
+        names:
+          e: {gen: normal, mean: 0, std: 2}
+      spd: {gen: expr, expr: "min(5.6, attr.speed_m_s + reduction * 2.0)"}
+      # volume is conserved
+      exit_len: {gen: expr, expr: "attr.length_mm * (attr.thickness_mm / exit_h)"}
+      contact:
+        gen: expr
+        expr: "sqrt(attr.roll_diameter_mm / 2.0 * (attr.thickness_mm - exit_h))"
+      srate: {gen: expr, expr: "max(0.5, min(16.2, spd * 1000.0 / contact * strain))"}
+      flow:
+        gen: expr
+        expr: "max(5.0, min(178.0, 20.0 * (1200.0 / temp) ** 4.0 * strain ** 0.2 * srate
+          ** 0.1))"
+      h0: {gen: expr, expr: "attr.thickness_mm"}
+      baseline:
+        gen: expr
+        expr: "28000.0 * attr.width_mm * attr.thickness_mm * reduction / max(temp, 1.0)"
+        decimals: 2
+    on_start:                                                # HR13
+      __topic__: mill-predictions                            # HR22
+      event_type: prediction_request
+      timestamp: {gen: now}                                  # HR15
+      identifiers:
+        slab_id: {gen: attr, name: slab_id}
+        pass_number: {gen: var, name: n}
+        steel_grade: microalloyed
+        routing_key: microalloyed_mill
+      # HR5, HR9, HR10: the 13 features of schemas.py
+      features:
+        reheating_time_min: {gen: attr, name: reheating_time_min}
+        roll_diameter_mm: {gen: attr, name: roll_diameter_mm}
+        roll_crown_mm: {gen: attr, name: roll_crown_mm}
+        entry_thickness_mm: {gen: var, name: h0}
+        width_mm: {gen: attr, name: width_mm}
+        length_mm: {gen: attr, name: length_mm}
+        temperature_c: {gen: var, name: temp}
+        speed_m_s: {gen: var, name: spd}
+        wait_time_sec: {gen: var, name: wait_s}
+        reduction_pct: {gen: var, name: reduction}
+        strain: {gen: var, name: strain}
+        strain_rate: {gen: var, name: srate}
+        flow_stress_mpa: {gen: var, name: flow}
+      baseline_prediction:
+        baseline_roll_force_kn: {gen: var, name: baseline}
+    finish_vars:
+      # HR14
+      wear:
+        gen: expr
+        expr: "min(100.0, (0.0 if raw <= 0.001 else raw) * spread)"
+        names:
+          raw: {gen: param, path: HotRolling.containers.wear_microalloyed.current_cap}
+          spread: {gen: uniform, low: 0.98, high: 1.02}
+    payload:
+      __topic__: mill-groundtruth
+      event_type: ground_truth
+      timestamp: {gen: now}
+      identifiers:
+        slab_id: {gen: attr, name: slab_id}
+        pass_number: {gen: var, name: n}
+      ground_truth:
+        actual_roll_force_kn:
+          gen: expr
+          decimals: 2
+          expr: "max(0.0, baseline * (1 + (wear / 100) ** 1.5 * k * max(0.1, (1250.0 -
+            temp) / 200.0) * (100.0 / max(h0, 10.0)) * (1 + reduction)) + e)"
+          names:
+            k: {gen: param, path: HotRolling.variables.wear_penalty_rate}
+            e: {gen: normal, mean: 0, std: 500}
+        wear_level: {gen: var, name: wear}
+    # HR9
+    set:
+      pass_number: {gen: var, name: n}
+      temperature_c: {gen: var, name: temp}
+      thickness_mm: {gen: var, name: exit_h}
+      speed_m_s: {gen: var, name: spd}
+      length_mm: {gen: var, name: exit_len}
+    next: pass_done_microalloyed
+  roughing_high_alloy: &pass_high_alloy
+    service: pass_roughing                                   # HR8
+    resource: mill_high_alloy                                # HR7
+    # HR15
+    key:
+      gen: format
+      template: "{s}-P{n}"
+      names:
+        s: {gen: attr, name: slab_id}
+        n: {gen: expr, expr: "attr.pass_number + 1"}
+    vars:
+      n: {gen: expr, expr: "attr.pass_number + 1"}
+      ratio: {gen: expr, expr: "n / attr.total_passes"}
+      # HR11
+      reduction:
+        gen: uniform
+        low: {gen: expr, expr: "0.20 if ratio < 0.4 else 0.10 if ratio < 0.8 else 0.02"}
+        high:
+          gen: expr
+          expr: "0.35 if ratio < 0.4 else 0.20 if ratio < 0.8 else 0.10"
+      exit_h: {gen: expr, expr: "attr.thickness_mm * (1 - reduction)"}
+      strain: {gen: expr, expr: "log(attr.thickness_mm / exit_h)"}   # HR10
+      # slab.py next_pass: wait time 10 to 40 s
+      wait_s: {gen: uniform, low: 10.0, high: 40.0}
+      # HR12
+      temp:
+        gen: expr
+        expr: "max(889.0, attr.temperature_c - (wait_s * 0.5 + reduction * 30.0 + e))"
+        names:
+          e: {gen: normal, mean: 0, std: 2}
+      spd: {gen: expr, expr: "min(5.6, attr.speed_m_s + reduction * 2.0)"}
+      # volume is conserved
+      exit_len: {gen: expr, expr: "attr.length_mm * (attr.thickness_mm / exit_h)"}
+      contact:
+        gen: expr
+        expr: "sqrt(attr.roll_diameter_mm / 2.0 * (attr.thickness_mm - exit_h))"
+      srate: {gen: expr, expr: "max(0.5, min(16.2, spd * 1000.0 / contact * strain))"}
+      flow:
+        gen: expr
+        expr: "max(5.0, min(178.0, 20.0 * (1200.0 / temp) ** 4.0 * strain ** 0.2 * srate
+          ** 0.1))"
+      h0: {gen: expr, expr: "attr.thickness_mm"}
+      baseline:
+        gen: expr
+        expr: "45000.0 * attr.width_mm * attr.thickness_mm * reduction / max(temp, 1.0)"
+        decimals: 2
+    on_start:                                                # HR13
+      __topic__: mill-predictions                            # HR22
+      event_type: prediction_request
+      timestamp: {gen: now}                                  # HR15
+      identifiers:
+        slab_id: {gen: attr, name: slab_id}
+        pass_number: {gen: var, name: n}
+        steel_grade: high_alloy
+        routing_key: high_alloy_mill
+      # HR5, HR9, HR10: the 13 features of schemas.py
+      features:
+        reheating_time_min: {gen: attr, name: reheating_time_min}
+        roll_diameter_mm: {gen: attr, name: roll_diameter_mm}
+        roll_crown_mm: {gen: attr, name: roll_crown_mm}
+        entry_thickness_mm: {gen: var, name: h0}
+        width_mm: {gen: attr, name: width_mm}
+        length_mm: {gen: attr, name: length_mm}
+        temperature_c: {gen: var, name: temp}
+        speed_m_s: {gen: var, name: spd}
+        wait_time_sec: {gen: var, name: wait_s}
+        reduction_pct: {gen: var, name: reduction}
+        strain: {gen: var, name: strain}
+        strain_rate: {gen: var, name: srate}
+        flow_stress_mpa: {gen: var, name: flow}
+      baseline_prediction:
+        baseline_roll_force_kn: {gen: var, name: baseline}
+    finish_vars:
+      # HR14
+      wear:
+        gen: expr
+        expr: "min(100.0, (0.0 if raw <= 0.001 else raw) * spread)"
+        names:
+          raw: {gen: param, path: HotRolling.containers.wear_high_alloy.current_cap}
+          spread: {gen: uniform, low: 0.98, high: 1.02}
+    payload:
+      __topic__: mill-groundtruth
+      event_type: ground_truth
+      timestamp: {gen: now}
+      identifiers:
+        slab_id: {gen: attr, name: slab_id}
+        pass_number: {gen: var, name: n}
+      ground_truth:
+        actual_roll_force_kn:
+          gen: expr
+          decimals: 2
+          expr: "max(0.0, baseline * (1 + (wear / 100) ** 1.5 * k * max(0.1, (1250.0 -
+            temp) / 200.0) * (100.0 / max(h0, 10.0)) * (1 + reduction)) + e)"
+          names:
+            k: {gen: param, path: HotRolling.variables.wear_penalty_rate}
+            e: {gen: normal, mean: 0, std: 500}
+        wear_level: {gen: var, name: wear}
+    # HR9
+    set:
+      pass_number: {gen: var, name: n}
+      temperature_c: {gen: var, name: temp}
+      thickness_mm: {gen: var, name: exit_h}
+      speed_m_s: {gen: var, name: spd}
+      length_mm: {gen: var, name: exit_len}
+    next: pass_done_high_alloy
+  pass_done_structural:   # HR16: the finished status event after the ground truth
+    # HR15: the key of the pass that has just finished (the pass sets pass_number at its
+    # end)
+    key:
+      gen: format
+      template: "{s}-P{n}"
+      names:
+        s: {gen: attr, name: slab_id}
+        n: {gen: expr, expr: "attr.pass_number"}
+    payload:
+      path_id:
+        gen: expr
+        expr: "['HotRolling.service.pass_roughing',
+          'HotRolling.service.pass_intermediate', 'HotRolling.service.pass_finishing'][0
+          if attr.pass_number <= 2 else 1 if attr.pass_number <= 4 else 2]"
+      status: finished
+    next:
+      when:
+        - {condition: "attr.pass_number < 2", task: roughing_structural}
+        - condition: "attr.pass_number < 4 and attr.pass_number < attr.total_passes"
+          task: intermediate_structural
+        - condition: "attr.pass_number < attr.total_passes"
+          task: finishing_structural
+  pass_done_microalloyed:   # HR16: the finished status event after the ground truth
+    # HR15: the key of the pass that has just finished (the pass sets pass_number at its
+    # end)
+    key:
+      gen: format
+      template: "{s}-P{n}"
+      names:
+        s: {gen: attr, name: slab_id}
+        n: {gen: expr, expr: "attr.pass_number"}
+    payload:
+      path_id:
+        gen: expr
+        expr: "['HotRolling.service.pass_roughing',
+          'HotRolling.service.pass_intermediate', 'HotRolling.service.pass_finishing'][0
+          if attr.pass_number <= 2 else 1 if attr.pass_number <= 4 else 2]"
+      status: finished
+    next:
+      when:
+        - {condition: "attr.pass_number < 2", task: roughing_microalloyed}
+        - condition: "attr.pass_number < 4 and attr.pass_number < attr.total_passes"
+          task: intermediate_microalloyed
+        - condition: "attr.pass_number < attr.total_passes"
+          task: finishing_microalloyed
+  pass_done_high_alloy:   # HR16: the finished status event after the ground truth
+    # HR15: the key of the pass that has just finished (the pass sets pass_number at its
+    # end)
+    key:
+      gen: format
+      template: "{s}-P{n}"
+      names:
+        s: {gen: attr, name: slab_id}
+        n: {gen: expr, expr: "attr.pass_number"}
+    payload:
+      path_id:
+        gen: expr
+        expr: "['HotRolling.service.pass_roughing',
+          'HotRolling.service.pass_intermediate', 'HotRolling.service.pass_finishing'][0
+          if attr.pass_number <= 2 else 1 if attr.pass_number <= 4 else 2]"
+      status: finished
+    next:
+      when:
+        - {condition: "attr.pass_number < 2", task: roughing_high_alloy}
+        - condition: "attr.pass_number < 4 and attr.pass_number < attr.total_passes"
+          task: intermediate_high_alloy
+        - condition: "attr.pass_number < attr.total_passes"
+          task: finishing_high_alloy
+  # HR18: a periodic task; each pass publishes one record, which the comparison leaves
+  # out
+  drift:
+    wait: {timeout: 1}
+    payload: {event_type: drift_tick}
+    # drift_engine: a gradual velocity adds its step on a second divisible by its `freq`
+    # (1 when the message has none), clamped to 60 and 0.001, and at a limit the step
+    # turns around (the twin rewrites the sign of velocity.value; the blueprint keeps
+    # the direction in drift_sign_<grade>, because an `on` write cannot build a
+    # mapping). An abrupt velocity changes nothing, so a wear the dashboard sets stays
+    # as set, above 60 too. An `on` entry reads the registry through `names`, and the
+    # wear is written before the sign, which reads the new wear
+    on:
+      - path: HotRolling.containers.wear_structural.current_cap
+        value:
+          gen: expr
+          expr: "w if d == 0 else min(60.0, max(0.001, w + d))"
+          names:
+            w: {gen: param, path: HotRolling.containers.wear_structural.current_cap}
+            d:
+              gen: expr
+              expr: "0 if v['type'] != 'gradual' or t < 1 or floor(t) % get_key(v,
+                'freq', 1) != 0 else v['value'] if sg == 0 else abs(v['value']) * sg"
+              names:
+                v: {gen: param, path: HotRolling.variables.velocity_structural}
+                sg: {gen: param, path: HotRolling.variables.drift_sign_structural}
+      - path: HotRolling.variables.drift_sign_structural
+        value:
+          gen: expr
+          expr: "-1 if d != 0 and w >= 60.0 else 1 if d != 0 and w <= 0.001 else sg"
+          names:
+            w: {gen: param, path: HotRolling.containers.wear_structural.current_cap}
+            sg: {gen: param, path: HotRolling.variables.drift_sign_structural}
+            d:
+              gen: expr
+              expr: "0 if v['type'] != 'gradual' or t < 1 or floor(t) % get_key(v,
+                'freq', 1) != 0 else v['value'] if sg == 0 else abs(v['value']) * sg"
+              names:
+                v: {gen: param, path: HotRolling.variables.velocity_structural}
+                sg: {gen: param, path: HotRolling.variables.drift_sign_structural}
+      - path: HotRolling.containers.wear_microalloyed.current_cap
+        value:
+          gen: expr
+          expr: "w if d == 0 else min(60.0, max(0.001, w + d))"
+          names:
+            w: {gen: param, path: HotRolling.containers.wear_microalloyed.current_cap}
+            d:
+              gen: expr
+              expr: "0 if v['type'] != 'gradual' or t < 1 or floor(t) % get_key(v,
+                'freq', 1) != 0 else v['value'] if sg == 0 else abs(v['value']) * sg"
+              names:
+                v: {gen: param, path: HotRolling.variables.velocity_microalloyed}
+                sg: {gen: param, path: HotRolling.variables.drift_sign_microalloyed}
+      - path: HotRolling.variables.drift_sign_microalloyed
+        value:
+          gen: expr
+          expr: "-1 if d != 0 and w >= 60.0 else 1 if d != 0 and w <= 0.001 else sg"
+          names:
+            w: {gen: param, path: HotRolling.containers.wear_microalloyed.current_cap}
+            sg: {gen: param, path: HotRolling.variables.drift_sign_microalloyed}
+            d:
+              gen: expr
+              expr: "0 if v['type'] != 'gradual' or t < 1 or floor(t) % get_key(v,
+                'freq', 1) != 0 else v['value'] if sg == 0 else abs(v['value']) * sg"
+              names:
+                v: {gen: param, path: HotRolling.variables.velocity_microalloyed}
+                sg: {gen: param, path: HotRolling.variables.drift_sign_microalloyed}
+      - path: HotRolling.containers.wear_high_alloy.current_cap
+        value:
+          gen: expr
+          expr: "w if d == 0 else min(60.0, max(0.001, w + d))"
+          names:
+            w: {gen: param, path: HotRolling.containers.wear_high_alloy.current_cap}
+            d:
+              gen: expr
+              expr: "0 if v['type'] != 'gradual' or t < 1 or floor(t) % get_key(v,
+                'freq', 1) != 0 else v['value'] if sg == 0 else abs(v['value']) * sg"
+              names:
+                v: {gen: param, path: HotRolling.variables.velocity_high_alloy}
+                sg: {gen: param, path: HotRolling.variables.drift_sign_high_alloy}
+      - path: HotRolling.variables.drift_sign_high_alloy
+        value:
+          gen: expr
+          expr: "-1 if d != 0 and w >= 60.0 else 1 if d != 0 and w <= 0.001 else sg"
+          names:
+            w: {gen: param, path: HotRolling.containers.wear_high_alloy.current_cap}
+            sg: {gen: param, path: HotRolling.variables.drift_sign_high_alloy}
+            d:
+              gen: expr
+              expr: "0 if v['type'] != 'gradual' or t < 1 or floor(t) % get_key(v,
+                'freq', 1) != 0 else v['value'] if sg == 0 else abs(v['value']) * sg"
+              names:
+                v: {gen: param, path: HotRolling.variables.velocity_high_alloy}
+                sg: {gen: param, path: HotRolling.variables.drift_sign_high_alloy}
+    next: drift
+  wear_reading:
+    service_time: 2.0
+    payload: {event_type: wear_reading_done}
+    on_start:
+      __topic__: sim-telemetry
+      path_id: HotRolling.containers.wear_structural.current_cap
+      value: {gen: param, path: HotRolling.containers.wear_structural.current_cap}
+    next: wear_reading
+  wear_reading_microalloyed:
+    service_time: 2.0
+    payload: {event_type: wear_reading_done}
+    on_start:
+      __topic__: sim-telemetry
+      path_id: HotRolling.containers.wear_microalloyed.current_cap
+      value: {gen: param, path: HotRolling.containers.wear_microalloyed.current_cap}
+    next: wear_reading_microalloyed
+  wear_reading_high_alloy:
+    service_time: 2.0
+    payload: {event_type: wear_reading_done}
+    on_start:
+      __topic__: sim-telemetry
+      path_id: HotRolling.containers.wear_high_alloy.current_cap
+      value: {gen: param, path: HotRolling.containers.wear_high_alloy.current_cap}
+    next: wear_reading_high_alloy
+  intermediate_structural: {<<: *pass, service: pass_intermediate}
+  finishing_structural: {<<: *pass, service: pass_finishing}
+  intermediate_microalloyed: {<<: *pass_microalloyed, service: pass_intermediate}
+  finishing_microalloyed: {<<: *pass_microalloyed, service: pass_finishing}
+  intermediate_high_alloy: {<<: *pass_high_alloy, service: pass_intermediate}
+  finishing_high_alloy: {<<: *pass_high_alloy, service: pass_finishing}
+
+# HR20: a gradual step every 3 seconds; HR19: the abrupt step as the dashboard sends it,
+# the velocity with no `freq`, then a wear of 0 to 100
+scenario:
+  - at: 300
+    path: HotRolling.variables.velocity_structural
+    value: {type: gradual, value: 1.5, freq: 3}
+  - at: 450
+    path: HotRolling.variables.velocity_microalloyed
+    value: {type: abrupt, value: 0.0}
+  - {at: 450, path: HotRolling.containers.wear_microalloyed.current_cap, value: 80.0}

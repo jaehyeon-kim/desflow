@@ -1,22 +1,19 @@
 # Patience: orders that leave the queue, and orders that refuse to join, in YAML.
 #
-# The YAML version of patience_example.py, which --api builder downloads. More orders arrive than one
-# packer can pack. An online order waits at most 20 seconds for the packer, and a
-# walk-in order at most 10, each from its own `patience` attribute. An order that
-# waits longer leaves the queue and publishes reneged. From 100 seconds the courier
-# has made its last collection, so new orders balk: they publish balked and never
-# join the queue.
+# The YAML version of patience_example.py, which --api builder downloads. More orders
+# arrive than one packer can pack. An online order waits at most 20 seconds for the
+# packer, and a walk-in order at most 10, each from its own `patience` attribute. An
+# order that waits longer leaves the queue and publishes reneged. From 100 seconds the
+# courier has made its last collection, so new orders balk: they publish balked and
+# never join the queue.
 #
 # Needs no containers. Runs unpaced and ends after 120 simulation seconds.
 # Run it from its folder with: desflow run patience.yaml
 
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   packers: {current_cap: 1, max_cap: 4}
@@ -27,8 +24,16 @@ services:
 
 # --8<-- [start:pack]
 arrivals:
-  orders: {dist: exponential, rate: 0.5, spawn: pack, attributes: {patience: 20}}
-  walk_ins: {dist: exponential, rate: 0.1, spawn: pack, attributes: {patience: 10}}
+  orders:
+    dist: exponential
+    rate: 0.5
+    spawn: pack
+    attributes: {patience: 20}
+  walk_ins:
+    dist: exponential
+    rate: 0.1
+    spawn: pack
+    attributes: {patience: 10}
 
 tasks:
   pack:
@@ -45,5 +50,4 @@ tasks:
 # Shop.stats.tasks.pack.reneged.
 stats: {level: basic, interval: 30}
 
-run:
-  until: 120
+run: {until: 120}

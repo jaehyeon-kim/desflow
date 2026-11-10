@@ -1,9 +1,6 @@
 # The Priorities tutorial: express orders go before regular ones.
 # Run it with: desflow run priorities.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 # --8<-- [start:queue]
 resources:
@@ -38,7 +35,6 @@ tasks:
 stats: {level: typical, interval: 1 h}
 
 egress:
-  - type: Console
+  - {type: Console}
 
-run:
-  until: 1 h
+run: {until: 1 h}

@@ -1,0 +1,17 @@
+# Documents for patterns P38 to P45.
+# case P38: balking (register audit2/patterns/mine/g_d2.py P38: balk when 2 or more
+# wait, service 1.5, entities at one instant).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+resources:
+  m: {current_cap: 1}
+
+arrivals:
+  a: {initial: 3, spawn: job}
+
+tasks:
+  job:
+    balk: "queue.m >= 2"
+    resource: m
+    service_time: 1.5
+    payload: {event_type: served}

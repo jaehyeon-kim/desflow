@@ -1,0 +1,13 @@
+{
+  "fault": "S14: K8 misses a clock read through an alias or a helper; K8 is the reviewer's now, so the case checks that clocks.json lists the assert",
+  "task": "st-rt2",
+  "tasks": "main",
+  "counts": {},
+  "facts": {
+    "clocks.json": [
+      "\"line\": 14",
+      "assert elapsed < 0.6",
+      "\"paced_wall\": 0.4"
+    ]
+  }
+}

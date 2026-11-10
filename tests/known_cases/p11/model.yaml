@@ -1,0 +1,14 @@
+# Documents for patterns P11 to P19, P70 and P71.
+# case P11: a timeout from a named distribution.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+services:
+  s: {dist: lognormal, mean: 2, std: 0.5}
+
+arrivals:
+  a: {dist: constant, value: 1, spawn: t, max_events: 5}
+
+tasks:
+  t:
+    service: s
+    payload: {event_type: done}

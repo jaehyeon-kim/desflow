@@ -1,0 +1,35 @@
+# Does a second packer cut the mean wait of the drafted shop, and by how much?
+# Run it with: desflow experiment drafted_shop_experiment.yaml
+experiment: second-packer
+
+question: Does a second packer cut the mean wait of an order, and by how much?
+
+# --8<-- [start:study]
+model: drafted_shop.yaml
+
+until: 1 h
+
+replications: 20
+
+seed: 42
+
+# Every design runs with the same 20 seeds, so they are compared seed by seed
+pairing: common
+
+measures: [tasks.pack_order.wait_mean, resources.packers.utilization_avg]
+
+variants:
+  one: {}
+  two: {Shop.resources.packers.max_cap: 2, Shop.resources.packers.current_cap: 2}
+
+compare:
+  - {baseline: one, variant: two}
+# --8<-- [end:study]
+
+assumptions:
+  - Orders arrive at random, at a steady one every 2 seconds.
+  - Every order takes 1.5 seconds to pack.
+
+limits: [Each run starts with an empty shop and has no warm-up.]
+
+output: results/second-packer

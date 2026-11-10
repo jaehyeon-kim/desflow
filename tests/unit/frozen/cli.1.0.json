@@ -1,0 +1,4791 @@
+{
+ "commands": {
+  "desflow": [
+   {
+    "args": [],
+    "result": {
+     "error": "NoArgsIsHelpError"
+    }
+   },
+   {
+    "args": [
+     "--help"
+    ],
+    "result": {
+     "exit": 0
+    }
+   },
+   {
+    "args": [
+     "--version"
+    ],
+    "result": {
+     "exit": 0
+    }
+   }
+  ],
+  "desflow run": [
+   {
+    "args": [],
+    "result": {
+     "error": "MissingParameter"
+    }
+   },
+   {
+    "args": [
+     "--help"
+    ],
+    "result": {
+     "exit": 0
+    }
+   },
+   {
+    "args": [
+     "file_1.txt"
+    ],
+    "result": {
+     "values": {
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "missing_1"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "folder_1"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--until",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "until": "text",
+      "file": "file_1.txt",
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--seed",
+     "3"
+    ],
+    "result": {
+     "values": {
+      "seed": 3,
+      "file": "file_1.txt",
+      "until": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--seed",
+     "-3"
+    ],
+    "result": {
+     "values": {
+      "seed": -3,
+      "file": "file_1.txt",
+      "until": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--drain"
+    ],
+    "result": {
+     "values": {
+      "drain": true,
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--replications",
+     "12"
+    ],
+    "result": {
+     "values": {
+      "replications": 12,
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--replications",
+     "1"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--replications",
+     "2"
+    ],
+    "result": {
+     "values": {
+      "replications": 2,
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--replications",
+     "3"
+    ],
+    "result": {
+     "values": {
+      "replications": 3,
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--level",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "level": 0.5,
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "measure": [],
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--level",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "level": -0.5,
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "measure": [],
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--measure",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "measure": [
+       "text"
+      ],
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--measure",
+     "text",
+     "--measure",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "measure": [
+       "text",
+       "text"
+      ],
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--workers",
+     "11"
+    ],
+    "result": {
+     "values": {
+      "workers": 11,
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--workers",
+     "0"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--workers",
+     "1"
+    ],
+    "result": {
+     "values": {
+      "workers": 1,
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--workers",
+     "2"
+    ],
+    "result": {
+     "values": {
+      "workers": 2,
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "sample": null,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--sample",
+     "11"
+    ],
+    "result": {
+     "values": {
+      "sample": 11,
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--sample",
+     "0"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--sample",
+     "1"
+    ],
+    "result": {
+     "values": {
+      "sample": 1,
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--sample",
+     "2"
+    ],
+    "result": {
+     "values": {
+      "sample": 2,
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "stdout": false,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--stdout"
+    ],
+    "result": {
+     "values": {
+      "stdout": true,
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "sample": null,
+      "var": [],
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--var",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "var": [
+       "text"
+      ],
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--var",
+     "text",
+     "--var",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "var": [
+       "text",
+       "text"
+      ],
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "watch": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--watch"
+    ],
+    "result": {
+     "values": {
+      "watch": true,
+      "file": "file_1.txt",
+      "until": null,
+      "seed": null,
+      "drain": false,
+      "replications": null,
+      "level": 0.95,
+      "measure": [],
+      "workers": 1,
+      "sample": null,
+      "stdout": false,
+      "var": []
+     }
+    }
+   }
+  ],
+  "desflow check": [
+   {
+    "args": [],
+    "result": {
+     "error": "MissingParameter"
+    }
+   },
+   {
+    "args": [
+     "--help"
+    ],
+    "result": {
+     "exit": 0
+    }
+   },
+   {
+    "args": [
+     "file_1.txt"
+    ],
+    "result": {
+     "values": {
+      "files": [
+       "file_1.txt"
+      ],
+      "var": []
+     }
+    }
+   },
+   {
+    "args": [
+     "missing_1"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "folder_1"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "file_2.txt",
+     "file_3.txt"
+    ],
+    "result": {
+     "values": {
+      "files": [
+       "file_1.txt",
+       "file_2.txt",
+       "file_3.txt"
+      ],
+      "var": []
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--var",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "var": [
+       "text"
+      ],
+      "files": [
+       "file_1.txt"
+      ]
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--var",
+     "text",
+     "--var",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "var": [
+       "text",
+       "text"
+      ],
+      "files": [
+       "file_1.txt"
+      ]
+     }
+    }
+   }
+  ],
+  "desflow test": [
+   {
+    "args": [],
+    "result": {
+     "error": "MissingParameter"
+    }
+   },
+   {
+    "args": [
+     "--help"
+    ],
+    "result": {
+     "exit": 0
+    }
+   },
+   {
+    "args": [
+     "file_1.txt"
+    ],
+    "result": {
+     "values": {
+      "files": [
+       "file_1.txt"
+      ],
+      "fix": false,
+      "var": []
+     }
+    }
+   },
+   {
+    "args": [
+     "missing_1"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "folder_1"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "file_2.txt",
+     "file_3.txt"
+    ],
+    "result": {
+     "values": {
+      "files": [
+       "file_1.txt",
+       "file_2.txt",
+       "file_3.txt"
+      ],
+      "fix": false,
+      "var": []
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--fix"
+    ],
+    "result": {
+     "values": {
+      "fix": true,
+      "files": [
+       "file_1.txt"
+      ],
+      "var": []
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--var",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "var": [
+       "text"
+      ],
+      "files": [
+       "file_1.txt"
+      ],
+      "fix": false
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--var",
+     "text",
+     "--var",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "var": [
+       "text",
+       "text"
+      ],
+      "files": [
+       "file_1.txt"
+      ],
+      "fix": false
+     }
+    }
+   }
+  ],
+  "desflow explain": [
+   {
+    "args": [],
+    "result": {
+     "error": "MissingParameter"
+    }
+   },
+   {
+    "args": [
+     "--help"
+    ],
+    "result": {
+     "exit": 0
+    }
+   },
+   {
+    "args": [
+     "text"
+    ],
+    "result": {
+     "values": {
+      "source": "text",
+      "as_json": false,
+      "verify": false,
+      "until": null,
+      "seed": null,
+      "replications": null,
+      "target": 0.85
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--json"
+    ],
+    "result": {
+     "values": {
+      "as_json": true,
+      "source": "text",
+      "verify": false,
+      "until": null,
+      "seed": null,
+      "replications": null,
+      "target": 0.85
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--verify"
+    ],
+    "result": {
+     "values": {
+      "verify": true,
+      "source": "text",
+      "as_json": false,
+      "until": null,
+      "seed": null,
+      "replications": null,
+      "target": 0.85
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--until",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "until": "text",
+      "source": "text",
+      "as_json": false,
+      "verify": false,
+      "seed": null,
+      "replications": null,
+      "target": 0.85
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--seed",
+     "3"
+    ],
+    "result": {
+     "values": {
+      "seed": 3,
+      "source": "text",
+      "as_json": false,
+      "verify": false,
+      "until": null,
+      "replications": null,
+      "target": 0.85
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--seed",
+     "-3"
+    ],
+    "result": {
+     "values": {
+      "seed": -3,
+      "source": "text",
+      "as_json": false,
+      "verify": false,
+      "until": null,
+      "replications": null,
+      "target": 0.85
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--replications",
+     "12"
+    ],
+    "result": {
+     "values": {
+      "replications": 12,
+      "source": "text",
+      "as_json": false,
+      "verify": false,
+      "until": null,
+      "seed": null,
+      "target": 0.85
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--replications",
+     "1"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--replications",
+     "2"
+    ],
+    "result": {
+     "values": {
+      "replications": 2,
+      "source": "text",
+      "as_json": false,
+      "verify": false,
+      "until": null,
+      "seed": null,
+      "target": 0.85
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--replications",
+     "3"
+    ],
+    "result": {
+     "values": {
+      "replications": 3,
+      "source": "text",
+      "as_json": false,
+      "verify": false,
+      "until": null,
+      "seed": null,
+      "target": 0.85
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--target",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "target": 0.5,
+      "source": "text",
+      "as_json": false,
+      "verify": false,
+      "until": null,
+      "seed": null,
+      "replications": null
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--target",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "target": -0.5,
+      "source": "text",
+      "as_json": false,
+      "verify": false,
+      "until": null,
+      "seed": null,
+      "replications": null
+     }
+    }
+   }
+  ],
+  "desflow experiment": [
+   {
+    "args": [],
+    "result": {
+     "error": "MissingParameter"
+    }
+   },
+   {
+    "args": [
+     "--help"
+    ],
+    "result": {
+     "exit": 0
+    }
+   },
+   {
+    "args": [
+     "file_1.txt"
+    ],
+    "result": {
+     "values": {
+      "file": "file_1.txt",
+      "output": null
+     }
+    }
+   },
+   {
+    "args": [
+     "missing_1"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "folder_1"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--output",
+     "missing_1"
+    ],
+    "result": {
+     "values": {
+      "output": "missing_1",
+      "file": "file_1.txt"
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--output",
+     "file_1.txt"
+    ],
+    "result": {
+     "values": {
+      "output": "file_1.txt",
+      "file": "file_1.txt"
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--output",
+     "folder_1"
+    ],
+    "result": {
+     "values": {
+      "output": "folder_1",
+      "file": "file_1.txt"
+     }
+    }
+   }
+  ],
+  "desflow report": [
+   {
+    "args": [],
+    "result": {
+     "error": "MissingParameter"
+    }
+   },
+   {
+    "args": [
+     "--help"
+    ],
+    "result": {
+     "exit": 0
+    }
+   },
+   {
+    "args": [
+     "folder_1"
+    ],
+    "result": {
+     "values": {
+      "folder": "folder_1"
+     }
+    }
+   },
+   {
+    "args": [
+     "missing_1"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "file_1.txt"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   }
+  ],
+  "desflow fit": [
+   {
+    "args": [],
+    "result": {
+     "error": "MissingParameter"
+    }
+   },
+   {
+    "args": [
+     "--help"
+    ],
+    "result": {
+     "exit": 0
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt"
+    ],
+    "result": {
+     "error": "MissingParameter"
+    }
+   },
+   {
+    "args": [
+     "missing_1",
+     "--column",
+     "text"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "folder_1",
+     "--column",
+     "text"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--unit",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "unit": "text",
+      "file": "file_1.txt",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--candidates",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "candidates": "text",
+      "file": "file_1.txt",
+      "unit": "s",
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--lower",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "lower": 0.5,
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--lower",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "lower": -0.5,
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--upper",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "upper": 0.5,
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--upper",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "upper": -0.5,
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--bins",
+     "11"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "bins": 11,
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--bins",
+     "0"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--bins",
+     "1"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "bins": 1,
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--bins",
+     "2"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "bins": 2,
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--min-count",
+     "11"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "min_count": 11,
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--min-count",
+     "0"
+    ],
+    "result": {
+     "error": "BadParameter"
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--min-count",
+     "1"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "min_count": 1,
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--min-count",
+     "2"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "min_count": 2,
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--tolerance",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "tolerance": 0.5,
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--tolerance",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "tolerance": -0.5,
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "drop_invalid": false,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--drop-invalid"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "drop_invalid": true,
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--no-drop-invalid"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "drop_invalid": false,
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "out": null,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--out",
+     "missing_1"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "out": "missing_1",
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--out",
+     "file_1.txt"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "out": "file_1.txt",
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--out",
+     "folder_1"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "out": "folder_1",
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "plot": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--plot",
+     "missing_1"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "plot": "missing_1",
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--plot",
+     "file_1.txt"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "plot": "file_1.txt",
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null
+     }
+    }
+   },
+   {
+    "args": [
+     "file_1.txt",
+     "--column",
+     "text",
+     "--plot",
+     "folder_1"
+    ],
+    "result": {
+     "values": {
+      "column": "text",
+      "plot": "folder_1",
+      "file": "file_1.txt",
+      "unit": "s",
+      "candidates": null,
+      "lower": null,
+      "upper": null,
+      "bins": null,
+      "min_count": 20,
+      "tolerance": 0.25,
+      "drop_invalid": false,
+      "out": null
+     }
+    }
+   }
+  ],
+  "desflow dist": [
+   {
+    "args": [],
+    "result": {
+     "values": {
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--help"
+    ],
+    "result": {
+     "exit": 0
+    }
+   },
+   {
+    "args": [
+     "text"
+    ],
+    "result": {
+     "values": {
+      "family": "text",
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--rate",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "rate": 0.5,
+      "family": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--rate",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "rate": -0.5,
+      "family": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--mean",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "mean": 0.5,
+      "family": null,
+      "rate": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--mean",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "mean": -0.5,
+      "family": null,
+      "rate": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--std",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "std": 0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--std",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "std": -0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--low",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "low": 0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--low",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "low": -0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--value",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "value": 0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--value",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "value": -0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--high",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "high": 0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "mode": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--high",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "high": -0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "mode": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--mode",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "mode": 0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--mode",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "mode": -0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "shape": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--shape",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "shape": 0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--shape",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "shape": -0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "scale": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--scale",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "scale": 0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--scale",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "scale": -0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "p": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--p",
+     "0.5"
+    ],
+    "result": {
+     "values": {
+      "p": 0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "scale": null
+     }
+    }
+   },
+   {
+    "args": [
+     "--p",
+     "-0.5"
+    ],
+    "result": {
+     "values": {
+      "p": -0.5,
+      "family": null,
+      "rate": null,
+      "mean": null,
+      "std": null,
+      "low": null,
+      "value": null,
+      "high": null,
+      "mode": null,
+      "shape": null,
+      "scale": null
+     }
+    }
+   }
+  ],
+  "desflow schema": [
+   {
+    "args": [],
+    "result": {
+     "values": {}
+    }
+   },
+   {
+    "args": [
+     "--help"
+    ],
+    "result": {
+     "exit": 0
+    }
+   }
+  ],
+  "desflow examples": [
+   {
+    "args": [],
+    "result": {
+     "values": {}
+    }
+   },
+   {
+    "args": [
+     "--help"
+    ],
+    "result": {
+     "exit": 0
+    }
+   }
+  ],
+  "desflow examples list": [
+   {
+    "args": [],
+    "result": {
+     "values": {}
+    }
+   },
+   {
+    "args": [
+     "--help"
+    ],
+    "result": {
+     "exit": 0
+    }
+   }
+  ],
+  "desflow examples get": [
+   {
+    "args": [],
+    "result": {
+     "error": "MissingParameter"
+    }
+   },
+   {
+    "args": [
+     "--help"
+    ],
+    "result": {
+     "exit": 0
+    }
+   },
+   {
+    "args": [
+     "text"
+    ],
+    "result": {
+     "values": {
+      "name": "text",
+      "api": null,
+      "dest": ".",
+      "ref": null,
+      "force": false
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--api",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "api": "text",
+      "name": "text",
+      "dest": ".",
+      "ref": null,
+      "force": false
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--dest",
+     "missing_1"
+    ],
+    "result": {
+     "values": {
+      "dest": "missing_1",
+      "name": "text",
+      "api": null,
+      "ref": null,
+      "force": false
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--dest",
+     "file_1.txt"
+    ],
+    "result": {
+     "values": {
+      "dest": "file_1.txt",
+      "name": "text",
+      "api": null,
+      "ref": null,
+      "force": false
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--dest",
+     "folder_1"
+    ],
+    "result": {
+     "values": {
+      "dest": "folder_1",
+      "name": "text",
+      "api": null,
+      "ref": null,
+      "force": false
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--ref",
+     "text"
+    ],
+    "result": {
+     "values": {
+      "ref": "text",
+      "name": "text",
+      "api": null,
+      "dest": ".",
+      "force": false
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--force"
+    ],
+    "result": {
+     "values": {
+      "force": true,
+      "name": "text",
+      "api": null,
+      "dest": ".",
+      "ref": null
+     }
+    }
+   },
+   {
+    "args": [
+     "text",
+     "--no-force"
+    ],
+    "result": {
+     "values": {
+      "force": false,
+      "name": "text",
+      "api": null,
+      "dest": ".",
+      "ref": null
+     }
+    }
+   }
+  ]
+ },
+ "description": {
+  "class": "typer.core.TyperGroup",
+  "attrs": {
+   "name": "",
+   "context_settings": {},
+   "callback": {
+    "object": "_main"
+   },
+   "help": "Run, explain and analyse desflow simulations, fit their inputs, and download the examples.",
+   "epilog": "\n[bold underline]Examples:[/bold underline]\n\n  [dim]# Run a blueprint, sending its records to its sinks[/dim]\n\n  $ [bold cyan]desflow run shop.yaml[/bold cyan]\n\n\n  [dim]# Print the first five events, with no services[/dim]\n\n  $ [bold cyan]desflow run shop.yaml --sample 5[/bold cyan]\n\n\n  [dim]# Find the bottleneck before running[/dim]\n\n  $ [bold cyan]desflow explain shop.yaml[/bold cyan]\n\n\n  [dim]# List the examples, then download one[/dim]\n\n  $ [bold cyan]desflow examples list[/bold cyan]\n\n  $ [bold cyan]desflow examples get local[/bold cyan]\n",
+   "short_help": null,
+   "options_metavar": "[OPTIONS]",
+   "add_help_option": true,
+   "no_args_is_help": true,
+   "hidden": false,
+   "deprecated": false,
+   "invoke_without_command": false,
+   "subcommand_metavar": "COMMAND [ARGS]...",
+   "_result_callback": null
+  },
+  "params": {
+   "version": {
+    "class": "typer.core.TyperOption",
+    "attrs": {
+     "name": "version",
+     "opts": [
+      "--version"
+     ],
+     "secondary_opts": [],
+     "required": false,
+     "default": false,
+     "callback": {
+      "object": "_show_version"
+     },
+     "nargs": 1,
+     "multiple": false,
+     "metavar": null,
+     "expose_value": true,
+     "is_eager": true,
+     "envvar": null,
+     "_custom_shell_complete": null,
+     "show_default": true,
+     "prompt": null,
+     "confirmation_prompt": false,
+     "prompt_required": true,
+     "hide_input": false,
+     "is_flag": true,
+     "count": false,
+     "allow_from_autoenv": true,
+     "help": "Print the installed version and exit.",
+     "hidden": false,
+     "show_choices": true,
+     "show_envvar": true
+    },
+    "type": {
+     "class": "typer._click.types.BoolParamType",
+     "attrs": {}
+    }
+   }
+  },
+  "commands": {
+   "run": {
+    "class": "typer.core.TyperCommand",
+    "attrs": {
+     "name": "run",
+     "context_settings": {},
+     "callback": {
+      "object": "_run"
+     },
+     "help": "Build the simulation in FILE and run it, or run replications of it.",
+     "epilog": "\n[bold underline]Examples:[/bold underline]\n\n  [dim]# Run a blueprint, sending its records to its sinks[/dim]\n\n  $ [bold cyan]desflow run shop.yaml[/bold cyan]\n\n\n  [dim]# Print the first five events, with no services[/dim]\n\n  $ [bold cyan]desflow run shop.yaml --sample 5[/bold cyan]\n\n\n  [dim]# Print every record as a JSON line instead of sending it[/dim]\n\n  $ [bold cyan]desflow run shop.yaml --stdout[/bold cyan]\n\n\n  [dim]# Run 20 replications and print the mean and interval of each statistic[/dim]\n\n  $ [bold cyan]desflow run shop.yaml --replications 20 --seed 7[/bold cyan]\n\n\n  [dim]# Fill ${PACKERS} in the file, and run again whenever the file changes[/dim]\n\n  $ [bold cyan]desflow run shop.yaml --var PACKERS=3 --sample 5 --watch[/bold cyan]\n",
+     "short_help": null,
+     "options_metavar": "[OPTIONS]",
+     "add_help_option": true,
+     "no_args_is_help": false,
+     "hidden": false,
+     "deprecated": false
+    },
+    "params": {
+     "file": {
+      "class": "typer.core.TyperArgument",
+      "attrs": {
+       "name": "file",
+       "opts": [
+        "file"
+       ],
+       "secondary_opts": [],
+       "required": true,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "FILE",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null
+      },
+      "type": {
+       "class": "typer.models.TyperPath",
+       "attrs": {
+        "name": "file",
+        "exists": true,
+        "file_okay": true,
+        "dir_okay": false,
+        "writable": false,
+        "readable": true,
+        "resolve_path": false,
+        "allow_dash": false,
+        "type": null
+       }
+      }
+     },
+     "until": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "until",
+       "opts": [
+        "--until"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "TIME",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Simulation time to stop at, in seconds or as a duration such as '10 min'. Overrides run.until in the file.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.StringParamType",
+       "attrs": {}
+      }
+     },
+     "seed": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "seed",
+       "opts": [
+        "--seed"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "N",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The random seed. Overrides simulation.random_seed in the file. A run without one logs the seed it drew, with the command that repeats it.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.IntParamType",
+       "attrs": {}
+      }
+     },
+     "drain": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "drain",
+       "opts": [
+        "--drain"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": false,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": null,
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": true,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "At the end time, stop the arrivals and keep running until every entity in the model has left. Sets run.drain in the file to true.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.BoolParamType",
+       "attrs": {}
+      }
+     },
+     "replications": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "replications",
+       "opts": [
+        "--replications"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "N",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Run N replications unpaced, with seeds spawned from the seed, and print the mean and confidence interval of each statistic.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.IntRange",
+       "attrs": {
+        "min": 2,
+        "max": null,
+        "min_open": false,
+        "max_open": false,
+        "clamp": false
+       }
+      }
+     },
+     "level": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "level",
+       "opts": [
+        "--level"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": 0.95,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": null,
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The confidence level of the replications' intervals, between 0 and 1.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     },
+     "measure": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "measure",
+       "opts": [
+        "--measure"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": true,
+       "metavar": "NAME",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "A statistic to summarise, such as tasks.pack.wait_mean; repeat it for more. Defaults to every statistic the run publishes, at least up to typical.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.StringParamType",
+       "attrs": {}
+      }
+     },
+     "workers": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "workers",
+       "opts": [
+        "--workers"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": 1,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "N",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Replications run at once, each in its own process.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.IntRange",
+       "attrs": {
+        "min": 1,
+        "max": null,
+        "min_open": false,
+        "max_open": false,
+        "clamp": false
+       }
+      }
+     },
+     "sample": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "sample",
+       "opts": [
+        "--sample"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "N",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Print the first N events as JSON lines, unpaced, with no ingress and no real sinks.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.IntRange",
+       "attrs": {
+        "min": 1,
+        "max": null,
+        "min_open": false,
+        "max_open": false,
+        "clamp": false
+       }
+      }
+     },
+     "stdout": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "stdout",
+       "opts": [
+        "--stdout"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": false,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": null,
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": true,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Print every record except the system.simulation.lag_seconds readings as a JSON line, instead of writing to the file's sinks. The lag readings describe the wall clock, not the model.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.BoolParamType",
+       "attrs": {}
+      }
+     },
+     "var": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "var",
+       "opts": [
+        "--var"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": true,
+       "metavar": "NAME=VALUE",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Fill ${NAME} in the file and in the files it includes, before the environment does. Repeat it for more.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.StringParamType",
+       "attrs": {}
+      }
+     },
+     "watch": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "watch",
+       "opts": [
+        "--watch"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": false,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": null,
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": true,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Run in a child process, and run again whenever the file or a .py file beside it changes. Needs the watch extra.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.BoolParamType",
+       "attrs": {}
+      }
+     }
+    },
+    "commands": {}
+   },
+   "check": {
+    "class": "typer.core.TyperCommand",
+    "attrs": {
+     "name": "check",
+     "context_settings": {},
+     "callback": {
+      "object": "_check"
+     },
+     "help": "Check that each blueprint in FILE... builds, without running it.\n\nIt reports what `desflow run` reports before the clock starts: YAML errors,\nunknown keys, missing names, unset variables, `!python` references that cannot be\nimported, and connectors whose extra is missing or whose settings are refused. It\nalso reports a Parquet or Jsonl entry when PyArrow is not installed. It does not\ncall `run.before`, contact a broker, a database or a catalog, or run a `!python`\nfunction. Importing a `!python` module runs its top-level code, as `desflow run`\ndoes. Prints `ok FILE (sim_id ID)` for each valid file and every error of an\ninvalid one, and exits 1 if any file is invalid.",
+     "epilog": "\n[bold underline]Examples:[/bold underline]\n\n  [dim]# Check one blueprint without running it[/dim]\n\n  $ [bold cyan]desflow check shop.yaml[/bold cyan]\n\n\n  [dim]# Check every blueprint in a folder, as a pre-commit hook does[/dim]\n\n  $ [bold cyan]desflow check examples/*.yaml[/bold cyan]\n",
+     "short_help": null,
+     "options_metavar": "[OPTIONS]",
+     "add_help_option": true,
+     "no_args_is_help": false,
+     "hidden": false,
+     "deprecated": false
+    },
+    "params": {
+     "files": {
+      "class": "typer.core.TyperArgument",
+      "attrs": {
+       "name": "files",
+       "opts": [
+        "files"
+       ],
+       "secondary_opts": [],
+       "required": true,
+       "default": null,
+       "callback": null,
+       "nargs": -1,
+       "multiple": false,
+       "metavar": "FILE...",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null
+      },
+      "type": {
+       "class": "typer.models.TyperPath",
+       "attrs": {
+        "name": "file",
+        "exists": true,
+        "file_okay": true,
+        "dir_okay": false,
+        "writable": false,
+        "readable": true,
+        "resolve_path": false,
+        "allow_dash": false,
+        "type": null
+       }
+      }
+     },
+     "var": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "var",
+       "opts": [
+        "--var"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": true,
+       "metavar": "NAME=VALUE",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Fill ${NAME} in the files and in the files they include, before the environment does. Repeat it for more.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.StringParamType",
+       "attrs": {}
+      }
+     }
+    },
+    "commands": {}
+   },
+   "test": {
+    "class": "typer.core.TyperCommand",
+    "attrs": {
+     "name": "test",
+     "context_settings": {},
+     "callback": {
+      "object": "_test"
+     },
+     "help": "Run the tests of each file in FILE... and report the statistics that differ.\n\nA test names a seed, an end time and the statistics its run must give, such as\ntasks.pack_order.finished. It runs the model once, unpaced, with no ingress and no\negress, so a test contacts no service. A test states its measures at one seed in\none version of desflow: a new release may draw its random numbers differently, so\nexact seeded values are not promised across versions. Run it with --fix after an\nupgrade or a deliberate change and read the changes. A builder file reads its\ntests from a tests.yaml in its folder.\n\nPrints ok for each passing test, and each difference of a failing one. Exits 1 if\nany test fails.",
+     "epilog": "\n[bold underline]Examples:[/bold underline]\n\n  [dim]# Check the tests in a blueprint[/dim]\n\n  $ [bold cyan]desflow test shop.yaml[/bold cyan]\n\n\n  [dim]# Write the statistics the runs gave into the expect values, then read them[/dim]\n\n  $ [bold cyan]desflow test shop.yaml --fix[/bold cyan]\n",
+     "short_help": null,
+     "options_metavar": "[OPTIONS]",
+     "add_help_option": true,
+     "no_args_is_help": false,
+     "hidden": false,
+     "deprecated": false
+    },
+    "params": {
+     "files": {
+      "class": "typer.core.TyperArgument",
+      "attrs": {
+       "name": "files",
+       "opts": [
+        "files"
+       ],
+       "secondary_opts": [],
+       "required": true,
+       "default": null,
+       "callback": null,
+       "nargs": -1,
+       "multiple": false,
+       "metavar": "FILE...",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null
+      },
+      "type": {
+       "class": "typer.models.TyperPath",
+       "attrs": {
+        "name": "file",
+        "exists": true,
+        "file_okay": true,
+        "dir_okay": false,
+        "writable": false,
+        "readable": true,
+        "resolve_path": false,
+        "allow_dash": false,
+        "type": null
+       }
+      }
+     },
+     "fix": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "fix",
+       "opts": [
+        "--fix"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": false,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": null,
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": true,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Write the statistics the runs gave into the expect values that differ, and into a test with none, instead of reporting differences. Read the changes before you keep them.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.BoolParamType",
+       "attrs": {}
+      }
+     },
+     "var": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "var",
+       "opts": [
+        "--var"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": true,
+       "metavar": "NAME=VALUE",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Fill ${NAME} in a blueprint and in the files it includes, before the environment does. Repeat it for more.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.StringParamType",
+       "attrs": {}
+      }
+     }
+    },
+    "commands": {}
+   },
+   "explain": {
+    "class": "typer.core.TyperCommand",
+    "attrs": {
+     "name": "explain",
+     "context_settings": {},
+     "callback": {
+      "object": "_explain"
+     },
+     "help": "Show the model in SOURCE as a graph, with its utilisation, status, waits and tuning hints where the queueing formulas apply, and why where they do not.",
+     "epilog": "\n[bold underline]Examples:[/bold underline]\n\n  [dim]# Show the graph, the utilisation and the bottleneck[/dim]\n\n  $ [bold cyan]desflow explain shop.yaml[/bold cyan]\n\n\n  [dim]# Size each resource for a utilisation of 0.7[/dim]\n\n  $ [bold cyan]desflow explain shop.yaml --target 0.7[/bold cyan]\n\n\n  [dim]# Compare the formulas with 10 replications of the model[/dim]\n\n  $ [bold cyan]desflow explain shop.yaml --verify --replications 10[/bold cyan]\n\n\n  [dim]# Print the result as JSON[/dim]\n\n  $ [bold cyan]desflow explain shop.yaml --json[/bold cyan]\n",
+     "short_help": null,
+     "options_metavar": "[OPTIONS]",
+     "add_help_option": true,
+     "no_args_is_help": false,
+     "hidden": false,
+     "deprecated": false
+    },
+    "params": {
+     "source": {
+      "class": "typer.core.TyperArgument",
+      "attrs": {
+       "name": "source",
+       "opts": [
+        "source"
+       ],
+       "secondary_opts": [],
+       "required": true,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "SOURCE",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null
+      },
+      "type": {
+       "class": "typer._click.types.StringParamType",
+       "attrs": {}
+      }
+     },
+     "as_json": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "as_json",
+       "opts": [
+        "--json"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": false,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": null,
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": true,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Print the explanation as JSON (schema_version 0, experimental).",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.BoolParamType",
+       "attrs": {}
+      }
+     },
+     "verify": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "verify",
+       "opts": [
+        "--verify"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": false,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": null,
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": true,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Also run the model unpaced and compare its statistics with the analysis.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.BoolParamType",
+       "attrs": {}
+      }
+     },
+     "until": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "until",
+       "opts": [
+        "--until"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "TIME",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "With --verify: the end of the run, in seconds or as a duration such as '10 min'. Overrides run.until in the file.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.StringParamType",
+       "attrs": {}
+      }
+     },
+     "seed": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "seed",
+       "opts": [
+        "--seed"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "N",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "With --verify: the run's seed. Overrides the model's own.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.IntParamType",
+       "attrs": {}
+      }
+     },
+     "replications": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "replications",
+       "opts": [
+        "--replications"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "N",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "With --verify: run N times and compare with each measure's 95% interval, instead of one run within 10 percent.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.IntRange",
+       "attrs": {
+        "min": 2,
+        "max": null,
+        "min_open": false,
+        "max_open": false,
+        "clamp": false
+       }
+      }
+     },
+     "target": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "target",
+       "opts": [
+        "--target"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": 0.85,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "T",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The utilisation the hints aim for, above 0 and at most 10; at 1 or above the hints are for deliberate overload.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     }
+    },
+    "commands": {}
+   },
+   "experiment": {
+    "class": "typer.core.TyperCommand",
+    "attrs": {
+     "name": "experiment",
+     "context_settings": {},
+     "callback": {
+      "object": "_experiment"
+     },
+     "help": "Run the experiment in FILE and write its artifacts and report.\n\nExits 1 if a check fails.",
+     "epilog": "\n[bold underline]Examples:[/bold underline]\n\n  [dim]# Run an experiment and write its results to a folder[/dim]\n\n  $ [bold cyan]desflow experiment experiment.yaml --output results[/bold cyan]\n",
+     "short_help": null,
+     "options_metavar": "[OPTIONS]",
+     "add_help_option": true,
+     "no_args_is_help": false,
+     "hidden": false,
+     "deprecated": false
+    },
+    "params": {
+     "file": {
+      "class": "typer.core.TyperArgument",
+      "attrs": {
+       "name": "file",
+       "opts": [
+        "file"
+       ],
+       "secondary_opts": [],
+       "required": true,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "FILE",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null
+      },
+      "type": {
+       "class": "typer.models.TyperPath",
+       "attrs": {
+        "name": "file",
+        "exists": true,
+        "file_okay": true,
+        "dir_okay": false,
+        "writable": false,
+        "readable": true,
+        "resolve_path": false,
+        "allow_dash": false,
+        "type": null
+       }
+      }
+     },
+     "output": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "output",
+       "opts": [
+        "--output"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "FOLDER",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Where to write the artifacts. Overrides output in the file.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer.models.TyperPath",
+       "attrs": {
+        "name": "path",
+        "exists": false,
+        "file_okay": true,
+        "dir_okay": true,
+        "writable": false,
+        "readable": true,
+        "resolve_path": false,
+        "allow_dash": false,
+        "type": null
+       }
+      }
+     }
+    },
+    "commands": {}
+   },
+   "report": {
+    "class": "typer.core.TyperCommand",
+    "attrs": {
+     "name": "report",
+     "context_settings": {},
+     "callback": {
+      "object": "_report"
+     },
+     "help": "Build the report of an experiment again from the artifacts in FOLDER.",
+     "epilog": "\n[bold underline]Examples:[/bold underline]\n\n  [dim]# Build the report again from an experiment's results[/dim]\n\n  $ [bold cyan]desflow report results[/bold cyan]\n",
+     "short_help": null,
+     "options_metavar": "[OPTIONS]",
+     "add_help_option": true,
+     "no_args_is_help": false,
+     "hidden": false,
+     "deprecated": false
+    },
+    "params": {
+     "folder": {
+      "class": "typer.core.TyperArgument",
+      "attrs": {
+       "name": "folder",
+       "opts": [
+        "folder"
+       ],
+       "secondary_opts": [],
+       "required": true,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "FOLDER",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null
+      },
+      "type": {
+       "class": "typer.models.TyperPath",
+       "attrs": {
+        "name": "directory",
+        "exists": true,
+        "file_okay": false,
+        "dir_okay": true,
+        "writable": false,
+        "readable": true,
+        "resolve_path": false,
+        "allow_dash": false,
+        "type": null
+       }
+      }
+     }
+    },
+    "commands": {}
+   },
+   "fit": {
+    "class": "typer.core.TyperCommand",
+    "attrs": {
+     "name": "fit",
+     "context_settings": {},
+     "callback": {
+      "object": "_fit"
+     },
+     "help": "Fit a column of FILE to the distribution families, and exit 1 if none is usable.",
+     "epilog": "\n[bold underline]Examples:[/bold underline]\n\n  [dim]# Fit measured packing times, in seconds[/dim]\n\n  $ [bold cyan]desflow fit times.csv --column packing_seconds[/bold cyan]\n\n\n  [dim]# Write the best fit's settings for a blueprint to load[/dim]\n\n  $ [bold cyan]desflow fit times.csv --column packing_seconds --lower 0 --out packing.yaml[/bold cyan]\n",
+     "short_help": null,
+     "options_metavar": "[OPTIONS]",
+     "add_help_option": true,
+     "no_args_is_help": false,
+     "hidden": false,
+     "deprecated": false
+    },
+    "params": {
+     "file": {
+      "class": "typer.core.TyperArgument",
+      "attrs": {
+       "name": "file",
+       "opts": [
+        "file"
+       ],
+       "secondary_opts": [],
+       "required": true,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "FILE",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null
+      },
+      "type": {
+       "class": "typer.models.TyperPath",
+       "attrs": {
+        "name": "file",
+        "exists": true,
+        "file_okay": true,
+        "dir_okay": false,
+        "writable": false,
+        "readable": true,
+        "resolve_path": false,
+        "allow_dash": false,
+        "type": null
+       }
+      }
+     },
+     "column": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "column",
+       "opts": [
+        "--column"
+       ],
+       "secondary_opts": [],
+       "required": true,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "NAME",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The column to fit.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.StringParamType",
+       "attrs": {}
+      }
+     },
+     "unit": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "unit",
+       "opts": [
+        "--unit"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": "s",
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": null,
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The data's unit: ms, s, min or h. Settings are in seconds.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.StringParamType",
+       "attrs": {}
+      }
+     },
+     "candidates": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "candidates",
+       "opts": [
+        "--candidates"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "NAMES",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The families to try, separated by commas. Defaults to every family.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.StringParamType",
+       "attrs": {}
+      }
+     },
+     "lower": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "lower",
+       "opts": [
+        "--lower"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": null,
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The lowest plausible value, in the data's unit.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     },
+     "upper": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "upper",
+       "opts": [
+        "--upper"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": null,
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The highest plausible value, in the data's unit.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     },
+     "bins": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "bins",
+       "opts": [
+        "--bins"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": null,
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Offer the empirical distribution as a histogram with this many bins.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.IntRange",
+       "attrs": {
+        "min": 1,
+        "max": null,
+        "min_open": false,
+        "max_open": false,
+        "clamp": false
+       }
+      }
+     },
+     "min_count": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "min_count",
+       "opts": [
+        "--min-count"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": 20,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": null,
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The fewest values a family is fitted to.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.IntRange",
+       "attrs": {
+        "min": 1,
+        "max": null,
+        "min_open": false,
+        "max_open": false,
+        "clamp": false
+       }
+      }
+     },
+     "tolerance": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "tolerance",
+       "opts": [
+        "--tolerance"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": 0.25,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": null,
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "How far a fitted mean and standard deviation may be from the data's, as a share of the data's.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     },
+     "drop_invalid": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "drop_invalid",
+       "opts": [
+        "--drop-invalid"
+       ],
+       "secondary_opts": [
+        "--no-drop-invalid"
+       ],
+       "required": false,
+       "default": false,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": null,
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": true,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Leave out invalid values rather than stopping.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.BoolParamType",
+       "attrs": {}
+      }
+     },
+     "out": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "out",
+       "opts": [
+        "--out"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "FILE",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Write the best candidate's settings here, for !include in a blueprint.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer.models.TyperPath",
+       "attrs": {
+        "name": "path",
+        "exists": false,
+        "file_okay": true,
+        "dir_okay": true,
+        "writable": false,
+        "readable": true,
+        "resolve_path": false,
+        "allow_dash": false,
+        "type": null
+       }
+      }
+     },
+     "plot": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "plot",
+       "opts": [
+        "--plot"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "FILE",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Draw the data against the best candidate, as a PNG.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer.models.TyperPath",
+       "attrs": {
+        "name": "path",
+        "exists": false,
+        "file_okay": true,
+        "dir_okay": true,
+        "writable": false,
+        "readable": true,
+        "resolve_path": false,
+        "allow_dash": false,
+        "type": null
+       }
+      }
+     }
+    },
+    "commands": {}
+   },
+   "dist": {
+    "class": "typer.core.TyperCommand",
+    "attrs": {
+     "name": "dist",
+     "context_settings": {},
+     "callback": {
+      "object": "_dist"
+     },
+     "help": "List the distribution families, or convert parameters to a mean and std and back.\n\nExits 1 for a family with no formula from a mean and std.",
+     "epilog": "\n[bold underline]Examples:[/bold underline]\n\n  [dim]# List the distribution families[/dim]\n\n  $ [bold cyan]desflow dist[/bold cyan]\n\n\n  [dim]# Show the parameters and rules of one family[/dim]\n\n  $ [bold cyan]desflow dist gamma[/bold cyan]\n\n\n  [dim]# Convert a mean and standard deviation to gamma parameters[/dim]\n\n  $ [bold cyan]desflow dist gamma --mean 1.5 --std 0.4832[/bold cyan]\n",
+     "short_help": null,
+     "options_metavar": "[OPTIONS]",
+     "add_help_option": true,
+     "no_args_is_help": false,
+     "hidden": false,
+     "deprecated": false
+    },
+    "params": {
+     "family": {
+      "class": "typer.core.TyperArgument",
+      "attrs": {
+       "name": "family",
+       "opts": [
+        "family"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "FAMILY",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null
+      },
+      "type": {
+       "class": "typer._click.types.StringParamType",
+       "attrs": {}
+      }
+     },
+     "rate": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "rate",
+       "opts": [
+        "--rate"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "X",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "Events per second.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     },
+     "mean": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "mean",
+       "opts": [
+        "--mean"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "X",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The mean, a parameter or, with --std, the mean to convert from.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     },
+     "std": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "std",
+       "opts": [
+        "--std"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "X",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The std, a parameter or, with --mean, the std to convert from.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     },
+     "low": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "low",
+       "opts": [
+        "--low"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "X",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The lowest value.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     },
+     "value": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "value",
+       "opts": [
+        "--value"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "X",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "A constant's time.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     },
+     "high": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "high",
+       "opts": [
+        "--high"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "X",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The highest value.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     },
+     "mode": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "mode",
+       "opts": [
+        "--mode"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "X",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The most likely value.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     },
+     "shape": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "shape",
+       "opts": [
+        "--shape"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "X",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The shape.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     },
+     "scale": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "scale",
+       "opts": [
+        "--scale"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "X",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The scale.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     },
+     "p": {
+      "class": "typer.core.TyperOption",
+      "attrs": {
+       "name": "p",
+       "opts": [
+        "--p"
+       ],
+       "secondary_opts": [],
+       "required": false,
+       "default": null,
+       "callback": null,
+       "nargs": 1,
+       "multiple": false,
+       "metavar": "X",
+       "expose_value": true,
+       "is_eager": false,
+       "envvar": null,
+       "_custom_shell_complete": null,
+       "show_default": true,
+       "prompt": null,
+       "confirmation_prompt": false,
+       "prompt_required": true,
+       "hide_input": false,
+       "is_flag": false,
+       "count": false,
+       "allow_from_autoenv": true,
+       "help": "The chance of success on each try.",
+       "hidden": false,
+       "show_choices": true,
+       "show_envvar": true
+      },
+      "type": {
+       "class": "typer._click.types.FloatParamType",
+       "attrs": {}
+      }
+     }
+    },
+    "commands": {}
+   },
+   "schema": {
+    "class": "typer.core.TyperCommand",
+    "attrs": {
+     "name": "schema",
+     "context_settings": {},
+     "callback": {
+      "object": "_schema"
+     },
+     "help": "Print the blueprint JSON Schema.",
+     "epilog": "\n[bold underline]Examples:[/bold underline]\n\n  [dim]# Save the blueprint schema for an editor[/dim]\n\n  $ [bold cyan]desflow schema > blueprint.schema.json[/bold cyan]\n",
+     "short_help": null,
+     "options_metavar": "[OPTIONS]",
+     "add_help_option": true,
+     "no_args_is_help": false,
+     "hidden": false,
+     "deprecated": false
+    },
+    "params": {},
+    "commands": {}
+   },
+   "examples": {
+    "class": "typer.core.TyperGroup",
+    "attrs": {
+     "name": "examples",
+     "context_settings": {},
+     "callback": {
+      "object": "_examples"
+     },
+     "help": "List the examples, or download one at the version you have installed.",
+     "epilog": "\n[bold underline]Examples:[/bold underline]\n\n  [dim]# List the examples[/dim]\n\n  $ [bold cyan]desflow examples list[/bold cyan]\n\n\n  [dim]# Download the YAML version of one[/dim]\n\n  $ [bold cyan]desflow examples get local --api yaml[/bold cyan]\n",
+     "short_help": null,
+     "options_metavar": "[OPTIONS]",
+     "add_help_option": true,
+     "no_args_is_help": false,
+     "hidden": false,
+     "deprecated": false,
+     "invoke_without_command": true,
+     "subcommand_metavar": "COMMAND [ARGS]...",
+     "_result_callback": null
+    },
+    "params": {},
+    "commands": {
+     "list": {
+      "class": "typer.core.TyperCommand",
+      "attrs": {
+       "name": "list",
+       "context_settings": {},
+       "callback": {
+        "object": "_examples_list"
+       },
+       "help": "List the examples, with what each shows and what it needs.",
+       "epilog": "\n[bold underline]Examples:[/bold underline]\n\n  [dim]# List the examples, with what each shows and the service it needs[/dim]\n\n  $ [bold cyan]desflow examples list[/bold cyan]\n",
+       "short_help": null,
+       "options_metavar": "[OPTIONS]",
+       "add_help_option": true,
+       "no_args_is_help": false,
+       "hidden": false,
+       "deprecated": false
+      },
+      "params": {},
+      "commands": {}
+     },
+     "get": {
+      "class": "typer.core.TyperCommand",
+      "attrs": {
+       "name": "get",
+       "context_settings": {},
+       "callback": {
+        "object": "_examples_get"
+       },
+       "help": "Download an example into <dest>/<name>/<api>/, at the installed release.",
+       "epilog": "\n[bold underline]Examples:[/bold underline]\n\n  [dim]# Download the three versions of an example into ./local/[/dim]\n\n  $ [bold cyan]desflow examples get local[/bold cyan]\n\n\n  [dim]# Download only the YAML version into another folder[/dim]\n\n  $ [bold cyan]desflow examples get local --api yaml --dest work[/bold cyan]\n\n\n  [dim]# Download it from the main branch[/dim]\n\n  $ [bold cyan]desflow examples get local --ref main[/bold cyan]\n",
+       "short_help": null,
+       "options_metavar": "[OPTIONS]",
+       "add_help_option": true,
+       "no_args_is_help": false,
+       "hidden": false,
+       "deprecated": false
+      },
+      "params": {
+       "name": {
+        "class": "typer.core.TyperArgument",
+        "attrs": {
+         "name": "name",
+         "opts": [
+          "name"
+         ],
+         "secondary_opts": [],
+         "required": true,
+         "default": null,
+         "callback": null,
+         "nargs": 1,
+         "multiple": false,
+         "metavar": null,
+         "expose_value": true,
+         "is_eager": false,
+         "envvar": null,
+         "_custom_shell_complete": null
+        },
+        "type": {
+         "class": "typer._click.types.StringParamType",
+         "attrs": {}
+        }
+       },
+       "api": {
+        "class": "typer.core.TyperOption",
+        "attrs": {
+         "name": "api",
+         "opts": [
+          "--api"
+         ],
+         "secondary_opts": [],
+         "required": false,
+         "default": null,
+         "callback": null,
+         "nargs": 1,
+         "multiple": false,
+         "metavar": null,
+         "expose_value": true,
+         "is_eager": false,
+         "envvar": null,
+         "_custom_shell_complete": null,
+         "show_default": true,
+         "prompt": null,
+         "confirmation_prompt": false,
+         "prompt_required": true,
+         "hide_input": false,
+         "is_flag": false,
+         "count": false,
+         "allow_from_autoenv": true,
+         "help": "Only this version: yaml, builder or low-level.",
+         "hidden": false,
+         "show_choices": true,
+         "show_envvar": true
+        },
+        "type": {
+         "class": "typer._click.types.StringParamType",
+         "attrs": {}
+        }
+       },
+       "dest": {
+        "class": "typer.core.TyperOption",
+        "attrs": {
+         "name": "dest",
+         "opts": [
+          "--dest"
+         ],
+         "secondary_opts": [],
+         "required": false,
+         "default": {
+          "path": "."
+         },
+         "callback": null,
+         "nargs": 1,
+         "multiple": false,
+         "metavar": null,
+         "expose_value": true,
+         "is_eager": false,
+         "envvar": null,
+         "_custom_shell_complete": null,
+         "show_default": true,
+         "prompt": null,
+         "confirmation_prompt": false,
+         "prompt_required": true,
+         "hide_input": false,
+         "is_flag": false,
+         "count": false,
+         "allow_from_autoenv": true,
+         "help": "The folder to download into.",
+         "hidden": false,
+         "show_choices": true,
+         "show_envvar": true
+        },
+        "type": {
+         "class": "typer.models.TyperPath",
+         "attrs": {
+          "name": "path",
+          "exists": false,
+          "file_okay": true,
+          "dir_okay": true,
+          "writable": false,
+          "readable": true,
+          "resolve_path": false,
+          "allow_dash": false,
+          "type": null
+         }
+        }
+       },
+       "ref": {
+        "class": "typer.core.TyperOption",
+        "attrs": {
+         "name": "ref",
+         "opts": [
+          "--ref"
+         ],
+         "secondary_opts": [],
+         "required": false,
+         "default": null,
+         "callback": null,
+         "nargs": 1,
+         "multiple": false,
+         "metavar": null,
+         "expose_value": true,
+         "is_eager": false,
+         "envvar": null,
+         "_custom_shell_complete": null,
+         "show_default": true,
+         "prompt": null,
+         "confirmation_prompt": false,
+         "prompt_required": true,
+         "hide_input": false,
+         "is_flag": false,
+         "count": false,
+         "allow_from_autoenv": true,
+         "help": "A git tag or branch. Defaults to the installed release's tag.",
+         "hidden": false,
+         "show_choices": true,
+         "show_envvar": true
+        },
+        "type": {
+         "class": "typer._click.types.StringParamType",
+         "attrs": {}
+        }
+       },
+       "force": {
+        "class": "typer.core.TyperOption",
+        "attrs": {
+         "name": "force",
+         "opts": [
+          "--force"
+         ],
+         "secondary_opts": [
+          "--no-force"
+         ],
+         "required": false,
+         "default": false,
+         "callback": null,
+         "nargs": 1,
+         "multiple": false,
+         "metavar": null,
+         "expose_value": true,
+         "is_eager": false,
+         "envvar": null,
+         "_custom_shell_complete": null,
+         "show_default": true,
+         "prompt": null,
+         "confirmation_prompt": false,
+         "prompt_required": true,
+         "hide_input": false,
+         "is_flag": true,
+         "count": false,
+         "allow_from_autoenv": true,
+         "help": "Replace files that are already there.",
+         "hidden": false,
+         "show_choices": true,
+         "show_envvar": true
+        },
+        "type": {
+         "class": "typer._click.types.BoolParamType",
+         "attrs": {}
+        }
+       }
+      },
+      "commands": {}
+     }
+    }
+   }
+  }
+ }
+}

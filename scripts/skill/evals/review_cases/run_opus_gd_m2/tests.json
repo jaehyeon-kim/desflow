@@ -1,0 +1,149 @@
+{
+  "changes": [
+    {
+      "applied": "services.{tasks.use.service}.value = 2",
+      "name": "use takes 2",
+      "reason": ""
+    },
+    {
+      "applied": "arrivals.a.max_events = 2",
+      "name": "two users",
+      "reason": ""
+    },
+    {
+      "applied": "resources.res.current_cap = 0",
+      "name": "capacity 0",
+      "reason": ""
+    }
+  ],
+  "tests": {
+    "test_model.py::test_capacity_and_utilization": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "two users": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_in_use_after_request_and_release": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "two users": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_queue_length_after_request_and_release": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "two users": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_readings_follow_the_request_and_release": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "two users": "FAILED",
+        "use takes 2": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_readings_only_at_calls_and_end": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "two users": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_records_end_at_five_seconds": {
+      "changes": {
+        "capacity 0": "PASSED",
+        "two users": "PASSED",
+        "use takes 2": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_seed_is_literal_42": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "two users": "PASSED",
+        "use takes 2": "PASSED"
+      },
+      "forms": [
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_task_lifecycle": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "two users": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_three_forms_give_the_same_records": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "two users": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_used_event_at_one_second": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "two users": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    }
+  }
+}

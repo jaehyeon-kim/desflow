@@ -1,6 +1,6 @@
 # Several Resources
 
-A task can hold more than one [resource](index.md) at once. This page shows how, with an example in which two resources compete.
+A task can hold more than one [resource](units-and-queues.md) at once. This page shows how.
 
 ---
 
@@ -12,9 +12,9 @@ Some work needs more than one resource at a time: an order needs a picker and a 
 
 ## How to Use It
 
-A task can hold several resources at once: `resource: [picker, bench]` asks for a picker, then, while it holds the picker, for the bench. The task is served once it holds all of them, and it releases all of them when it finishes. While it waits for the bench, it holds the picker. The units are granted one at a time, never together, so a task can hold some of its resources while it waits for the rest. `patience` covers the whole acquisition, and an interrupt gives back every unit held.
+A task can hold several resources at once: `resource: [picker, bench]` asks for a picker, then, while it holds the picker, for the bench. The task is served once it holds all of them, and it releases all of them when it finishes. While it waits for the bench, it holds the picker. The units are granted one at a time, never together, so a task can hold some of its resources while it waits for the rest. `patience` covers the whole acquisition. A plain interrupt keeps the units already held and asks again only for the one it waits for, and `on_interrupt: abandon` gives every unit back.
 
-A task can also hand a unit to the next task of its flow with `keep`: the next task holds it from the start and gives it back once it publishes `started`. An order can therefore keep the picker until it is on the packing bench, as [Hand Off to a Resource](../../how-to/modelling/multi-resource-handoffs.md) shows step by step. The `competing-resources` example does both:
+A task can also hand a unit to the next task of its flow with `keep`: the next task holds it from the start and gives it back once it publishes `started`. An order can therefore keep the picker until it is on the packing bench, as [Hand Off to a Resource](../../how-to/modelling/multi-resource-handoffs.md) shows step by step. A task that reneges, whose wait fails with no `on_fail`, or that has no next task gives it back when it ends. If the unit is preempted while the next task holds it, that task is interrupted and follows its `on_interrupt`. The unit a task keeps stays with the entity until that next task starts. A child flow started by `wait: {task: ...}` gives back only the units its own tasks asked for. The `competing-resources` example does both:
 
 === "YAML"
 
@@ -75,7 +75,7 @@ A task can also hand a unit to the next task of its flow with `keep`: the next t
         yield env.timeout(duration())
         publish({"event_type": "order_picked"})
         stats.task_finished("pick", task_id)
-        env.process(pack(shop, key, picker))
+        yield from pack(shop, key, picker)
 
 
     def pack(shop, key, picker):
@@ -115,17 +115,46 @@ A task can also hand a unit to the next task of its flow with `keep`: the next t
 
     In the low-level API several resources are nested requests, and a handoff is a request released by the next process.
 
+### Hold a Unit Between Steps
+
+`seize` asks for a unit at the start of a task and keeps it until a `release`, in this task or a later one of the flow, so the unit is held across steps that name no `resource`. `seize` is a resource name, or `{resource, priority, preempt, patience}`. `release` frees the oldest unit of a resource that the flow holds from a `seize` or an `open`, and does nothing when it holds none. A unit still held when the flow ends stays held, as in SimPy, so a flow writes `release` before it ends. A unit lost to a preemption is asked for again under `resume` and `restart`, and is gone under `abandon`. `release` also takes `{handle: name}` for one opened request and `{resource, task, where}` for the units that other flows of a task hold. A `priority` on a `seize` needs the resource to set `queue: priority`, as `picker` does here. The `clear` task below frees the picker from every rush order that holds it.
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/seize_release.yaml:seize"
+    tasks:
+      pick:
+        service: picking
+        # Asks for the picker now, with priority 1 and without taking the unit from
+        # another order, and keeps it across the next task
+        seize: {resource: picker, priority: 1, preempt: false}
+        payload: {event_type: order_picked}
+        next: pack
+      pack:
+        service: packing
+        resource: bench
+        # Gives the picker back once the order is on the bench
+        release: picker
+        payload: {event_type: order_packed}
+      # Frees the picker from every rush order that still holds it
+      clear:
+        release: {resource: picker, task: pick, where: attr.rush}
+        payload: {event_type: picker_cleared}
+    ```
+
+=== "Builder"
+
+    `@app.task(seize="picker")` and `@app.task(release="picker")` take the same values.
+
+=== "Low-level"
+
+    The process holds the request itself: `picker = shop.picker.request()` and `yield picker`, then `shop.picker.release(picker)` when the order is on the bench.
+
 ---
 
 ## How It Works
 
-**One order of acquisition.** Two tasks that acquire the same two resources in opposite orders can each hold one and wait for ever for the other. desflow refuses such a model when it is built, and names both tasks. Every task must acquire shared resources in one order. The rule also covers `keep` handoffs and the `request` branches of a wait ([Wait for a Unit, an Item or Room](../../how-to/modelling/wait-for-one-or-all.md#wait-for-a-unit-an-item-or-room)). [Competing Resources](../../learn/shop-logic/competing-resources.md) shows what a partial holding costs.
-
----
-
-## Stability and Limits
-
-The limits of this page are listed with those of the whole section, in [Stability and Limits](index.md#stability-and-limits) on the Resources page.
+**One order of acquisition.** Two tasks that acquire the same two resources in opposite orders can each hold one and wait for ever for the other. desflow loads such a model and logs one WARNING, from the logger `desflow.core.context`, that names both tasks. A unit held with `seize` counts as held. Every task should acquire shared resources in one order. The rule also covers `keep` handoffs and the `request` branches of a wait, and a `keep` for a request branch of a wait is still refused when the model is built ([Wait for a Unit, an Item or Room](../../how-to/modelling/wait-for-one-or-all.md#wait-for-a-unit-an-item-or-room)). [Competing Resources](../../learn/shop-logic/competing-resources.md) shows what a partial holding costs.
 
 ---
 

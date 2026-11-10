@@ -44,9 +44,10 @@ except TaskFailed as failure:
 # --8<-- [end:task-failed]
 
 # --8<-- [start:signal-failed]
-# A run that stops on a signal raises the reason the signal failed with
+# A run that stops on a signal raises the reason the signal failed with. The packing
+# failures are left to continue, so only the signal ends the run
 try:
-    shop().run(until=60, stop={"signal": "closing"})
+    shop().run(until=60, on_unhandled_failure="continue", stop={"signal": "closing"})
 except SignalFailed as failure:
     print(f"{failure.signal} failed: {failure.reason}")
 # --8<-- [end:signal-failed]

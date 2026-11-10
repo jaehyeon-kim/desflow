@@ -1,11 +1,36 @@
+import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
-from desflow.core.distributions import (
+from desflow.models.distributions import (
     LIST_PARAMETERS,
     PARAMETERS,
     get_distribution,
 )
+
+
+def _number(value: Any) -> Union[int, float]:
+    """A number as given, so an integer stays an integer; anything else as a float."""
+    if isinstance(value, bool):
+        raise ValueError(f"{value!r} is not a number")
+    if isinstance(value, (int, float)):
+        return value
+    return float(value)
+
+
+def finite_number(name: str, value: Any) -> None:
+    """Refuses a parameter that is a bool, NaN or infinite, naming it.
+
+    The one check of a distribution parameter, run at load and on a live update.
+
+    Args:
+        name: The parameter's name.
+        value: The value given.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be a number, got {value!r}")
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be a finite number, got {value!r}")
 
 
 @dataclass
@@ -18,16 +43,20 @@ class DistributionConfig:
     use the new rate for the next event. The family (`dist`) is fixed at load, and
     only its parameters change live.
 
-    Numbers are stored as floats, so a live update to 0.5 is not cast to an integer.
+    Numbers are stored as given: an integer stays an integer, as in SimPy, and a live
+    update to 0.5 is not cast to an integer.
     The family and its parameters are checked when the config is built, against the
-    registry of distributions in `desflow.core.distributions`.
+    registry of distributions in `desflow.models.distributions`.
 
     Attributes:
         dist (str): The family: exponential, normal, lognormal, truncated_normal,
-            constant, uniform, triangular, gamma, weibull or empirical.
+            poisson, geometric, constant, uniform, triangular, gamma, weibull or
+            empirical.
         rate (Optional[float]): Events per second, for exponential. Greater than 0.
-        mean (Optional[float]): The mean, for normal, lognormal and truncated_normal.
-            Greater than 0 for lognormal.
+        mean (Optional[float]): The mean, for normal, lognormal, truncated_normal and
+            poisson. Greater than 0 for lognormal; 0 or more for poisson.
+        p (Optional[float]): The chance of success on each try, for geometric. Above 0
+            and at most 1.
         std (Optional[float]): The standard deviation, 0 or more; 0 (or no value)
             gives the mean every time.
         low (Optional[float]): The lowest value: of a truncated normal (0 by
@@ -65,6 +94,7 @@ class DistributionConfig:
     weights: Optional[List[float]] = None
     edges: Optional[List[float]] = None
     counts: Optional[List[float]] = None
+    p: Optional[float] = None
     stream: Optional[str] = field(default=None, init=False, repr=False, compare=False)
 
     def __post_init__(self):
@@ -75,9 +105,9 @@ class DistributionConfig:
                 continue
             try:
                 if name in LIST_PARAMETERS:
-                    setattr(self, name, [float(item) for item in value])
+                    setattr(self, name, [_number(item) for item in value])
                 else:
-                    setattr(self, name, float(value))
+                    setattr(self, name, _number(value))
             except (TypeError, ValueError):
                 kind = "a list of numbers" if name in LIST_PARAMETERS else "a number"
                 raise ValueError(
@@ -114,6 +144,12 @@ def check_distribution(config: DistributionConfig) -> None:
             f"{config.dist} does not take {', '.join(extra)}; it takes "
             f"{', '.join(family.parameters)}"
         )
+    for name in family.parameters:
+        value = getattr(config, name)
+        if value is None:
+            continue
+        for item in value if name in LIST_PARAMETERS else [value]:
+            finite_number(f"{config.dist} {name}", item)
     family.check(config)
 
 
@@ -134,6 +170,25 @@ class CapacityConfig:
 
     current_cap: Optional[Union[int, float]] = None
     max_cap: Optional[Union[int, float]] = None
+
+
+@dataclass
+class ResourceConfig(CapacityConfig):
+    """
+    Configuration for a resource: its capacity and its waiting-line limit.
+
+    Attributes:
+        current_cap (Optional[Union[int, float]]): The currently active capacity.
+        max_cap (Optional[Union[int, float]]): The absolute physical maximum capacity.
+        queue_limit (Optional[int]): The most requests that may wait, or None for no
+            limit. It is the registry path `<sim_id>.resources.<name>.queue_limit`,
+            and a change to the path applies from the next request.
+        limit_path (bool): Whether the resource has that path. A resource built from
+            a class with its own `PutQueue` sets its own limit and has none.
+    """
+
+    queue_limit: Optional[int] = None
+    limit_path: bool = True
 
 
 @dataclass
@@ -161,8 +216,9 @@ class BreakdownConfig:
     How a resource breaks down: the time to each failure, the repair time, and what
     happens to the work in progress.
 
-    The failure clock runs on calendar time: the next failure is drawn when a repair
-    ends, busy or idle. While down, the resource's capacity is 0; its `current_cap`
+    The next failure is drawn when a repair ends, or at the start. With the `calendar`
+    clock it counts that time busy or idle, and with the `busy` clock only while the
+    resource holds a unit. While down, the resource's capacity is 0; its `current_cap`
     keeps the planned value, which a change during the repair sets for its return.
 
     Attributes:
@@ -172,15 +228,20 @@ class BreakdownConfig:
         work (str): `interrupt` (the default) interrupts the tasks being served,
             which follow their `on_interrupt`; `finish` lets them finish, and no new
             task starts until the repair ends.
+        clock (str): `calendar` (the default) or `busy`, the time the time to failure
+            counts.
     """
 
     time_to_failure: DistributionConfig
     repair: DistributionConfig
     work: str = "interrupt"
+    clock: str = "calendar"
 
     def __post_init__(self) -> None:
         if self.work not in ("interrupt", "finish"):
             raise ValueError(f"work must be interrupt or finish, got '{self.work}'")
+        if self.clock not in ("calendar", "busy"):
+            raise ValueError(f"clock must be calendar or busy, got '{self.clock}'")
 
 
 @dataclass

@@ -1,0 +1,162 @@
+{
+  "changes": [
+    {
+      "applied": "arrivals.a.initial = 3",
+      "name": "three entities",
+      "reason": ""
+    },
+    {
+      "applied": "tasks.pem.service_time = 2",
+      "name": "tick every 2 seconds",
+      "reason": ""
+    },
+    {
+      "applied": "run.until = 5",
+      "name": "end 4 to 5",
+      "reason": ""
+    }
+  ],
+  "tests": {
+    "test_model.py::test_paced_at_factor_0_1[builder]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_paced_at_factor_0_1[low_level]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_paced_at_factor_0_1[yaml]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_paced_run_in_process": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_run_called_twice[builder]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_run_called_twice[low_level]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_run_called_twice[yaml]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_three_forms_give_the_same_records": {
+      "changes": {
+        "end 4 to 5": "FAILED",
+        "three entities": "FAILED",
+        "tick every 2 seconds": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_ticks_at_1_2_3_for_each_entity[builder]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_ticks_at_1_2_3_for_each_entity[low_level]": {
+      "changes": {
+        "end 4 to 5": "PASSED",
+        "three entities": "PASSED",
+        "tick every 2 seconds": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_ticks_at_1_2_3_for_each_entity[yaml]": {
+      "changes": {
+        "end 4 to 5": "FAILED",
+        "three entities": "FAILED",
+        "tick every 2 seconds": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    }
+  }
+}

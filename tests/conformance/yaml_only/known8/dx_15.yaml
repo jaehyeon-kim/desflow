@@ -1,0 +1,10 @@
+# case DX-15: simpy_forms.py watch_flow (simpy_whole_flow.yaml): a wait for the whole flow of a process. Same form as DS-M7.
+simulation: {sim_id: Relay, factor: 0}
+arrivals:
+  a: {initial: 1, spawn: relay}
+  w: {initial: 1, spawn: watch}
+tasks:
+  relay: {service_time: 3, payload: {step: relay}, next: more}
+  more: {service_time: 3, payload: {step: more}}
+  watch: {wait: {running: {task: relay, where: "process.instance == 0", whole_flow: true}}, payload: {step: done}}
+run: {until: 20}

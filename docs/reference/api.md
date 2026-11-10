@@ -3,7 +3,7 @@
 ## Simulation Context
 
 <!-- prettier-ignore -->
-::: desflow.core.context.SimulationContext
+::: desflow.SimulationContext
     options:
       heading_level: 3
       show_root_heading: true
@@ -13,53 +13,71 @@
 A task's flow is built from the classes below. The signals and failures here are shared between tasks.
 
 <!-- prettier-ignore -->
-::: desflow.core.signals.Signal
+::: desflow.Signal
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.core.signals.SignalFailed
+::: desflow.SignalFailed
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.core.task.TaskFailed
+::: desflow.TaskFailed
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.models.flow.Entity
+::: desflow.NO_RECORD
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.models.flow.Upstream
+::: desflow.Entity
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.core.flow.Router
+::: desflow.Upstream
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.core.flow.Transfer
+::: desflow.Router
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.Transfer
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.Expression
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.Scope
     options:
       heading_level: 3
       show_root_heading: true
 
 ## Loading a Model
 
-`SimulationContext.from_yaml` is the usual entry point for a blueprint. `from_yaml` calls `build`, which returns the context and the `run` section. `load_context` loads a blueprint or a builder Python file from a folder, local or in object storage, in the way `desflow run` loads a blueprint. `desflow run --sample` and `--stdout` pass a `Preview` to these functions.
+`SimulationContext.from_yaml` is the usual entry point for a blueprint. `from_yaml` calls `build`, which returns the context and the `run` section. `load_context` loads a blueprint or a builder Python file from a folder, local or in object storage, in the way `desflow run` loads a blueprint. `desflow run --sample` and `--stdout` pass a `Preview` to these functions. `preview_builder` changes a context that a builder file defines, so that it runs as such a preview. `check_model` checks a blueprint or a builder file as `desflow check` does and returns a `ModelCheck`.
 
 <!-- prettier-ignore -->
-::: desflow.loading.load_context
+::: desflow.load_context
     options:
       heading_level: 3
       show_root_heading: true
@@ -68,16 +86,60 @@ A task's flow is built from the classes below. The signals and failures here are
 ::: desflow.blueprint.build.build
     options:
       heading_level: 3
+      heading: desflow.blueprint.build
+      separate_signature: true
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.blueprint.build.Preview
+::: desflow.blueprint.Preview
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.blueprint.loader.BlueprintError
+::: desflow.blueprint.preview_builder
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.blueprint.check_model
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.blueprint.ModelCheck
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.blueprint.Run
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.blueprint.RunSegment
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.blueprint.SegmentEvery
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.blueprint.Drain
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.blueprint.BlueprintError
     options:
       heading_level: 3
       show_root_heading: true
@@ -85,37 +147,37 @@ A task's flow is built from the classes below. The signals and failures here are
 ## Replications
 
 <!-- prettier-ignore -->
-::: desflow.analysis.runner.replicate
+::: desflow.replicate
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.analysis.runner.Replications
+::: desflow.Replications
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.analysis.models.LowLevelModel
+::: desflow.LowLevelModel
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.analysis.intervals.interval
+::: desflow.analysis.interval
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.analysis.intervals.Interval
+::: desflow.analysis.Interval
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.analysis.intervals.t_quantile
+::: desflow.analysis.t_quantile
     options:
       heading_level: 3
       show_root_heading: true
@@ -123,31 +185,67 @@ A task's flow is built from the classes below. The signals and failures here are
 ## Experiments
 
 <!-- prettier-ignore -->
-::: desflow.analysis.runner.run_experiment
+::: desflow.run_experiment
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.analysis.spec.ExperimentSpec
+::: desflow.ExperimentSpec
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.analysis.spec.load_experiment
+::: desflow.analysis.Check
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.analysis.results.ExperimentResult
+::: desflow.analysis.Compare
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.analysis.results.CheckFailed
+::: desflow.analysis.Observed
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.analysis.load_experiment
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.analysis.SourceMap
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.ExperimentResult
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.analysis.Design
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.analysis.RunResult
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.CheckFailed
     options:
       heading_level: 3
       show_root_heading: true
@@ -155,19 +253,25 @@ A task's flow is built from the classes below. The signals and failures here are
 ## Input Fitting
 
 <!-- prettier-ignore -->
-::: desflow.analysis.fit.fit_column
+::: desflow.fit_column
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.analysis.fit.FitResult
+::: desflow.FitResult
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.analysis.fit.Candidate
+::: desflow.analysis.Candidate
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.analysis.read_column
     options:
       heading_level: 3
       show_root_heading: true
@@ -177,19 +281,85 @@ A task's flow is built from the classes below. The signals and failures here are
 `SimulationContext.analyze` is the usual entry point, and `desflow explain` prints the same `Explanation`. `build_graph`, `analyze` and `verify` are the steps it takes, and `render_terminal` and `to_json` print the result. The JSON form is experimental through 1.x.
 
 <!-- prettier-ignore -->
-::: desflow.explain.models.Explanation
+::: desflow.explain.Explanation
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.explain.graph.build_graph
+::: desflow.explain.build_graph
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.explain.analysis.analyze
+::: desflow.explain.Graph
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.Node
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.Edge
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.ArrivalResult
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.CapacityRow
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.Comparison
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.Hint
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.HolderResult
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.ResourceResult
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.TaskResult
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.Verification
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.analyze
     options:
       heading_level: 3
       show_root_heading: true
@@ -198,16 +368,18 @@ A task's flow is built from the classes below. The signals and failures here are
 ::: desflow.explain.verify.verify
     options:
       heading_level: 3
+      heading: desflow.explain.verify
+      separate_signature: true
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.explain.render.render_terminal
+::: desflow.explain.render_terminal
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.explain.render.to_json
+::: desflow.explain.to_json
     options:
       heading_level: 3
       show_root_heading: true
@@ -215,7 +387,7 @@ A task's flow is built from the classes below. The signals and failures here are
 ## Environment
 
 <!-- prettier-ignore -->
-::: desflow.core.environment.DynamicRealtimeEnvironment
+::: desflow.DynamicRealtimeEnvironment
     options:
       heading_level: 3
       show_root_heading: true
@@ -236,78 +408,84 @@ A task's flow is built from the classes below. The signals and failures here are
 ## Registry and Parameters
 
 <!-- prettier-ignore -->
-::: desflow.core.registry.SimulationRegistry
+::: desflow.SimulationRegistry
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: desflow.core.registry.ParamChange
+::: desflow.DynamicValue
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.ParamChange
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: desflow.core.registry.ParamRejected
+::: desflow.ParamRejected
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: desflow.models.params.SimParameter
+::: desflow.SimParameter
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: desflow.models.params.CapacityConfig
+::: desflow.CapacityConfig
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: desflow.models.params.DistributionConfig
+::: desflow.DistributionConfig
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: desflow.models.params.ContainerConfig
+::: desflow.ContainerConfig
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: desflow.models.params.BreakdownConfig
+::: desflow.BreakdownConfig
     options:
       heading_level: 3
 
 ## Data Payloads
 
 <!-- prettier-ignore -->
-::: desflow.models.schemas.TelemetryPayload
+::: desflow.TelemetryPayload
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: desflow.models.schemas.EventPayload
+::: desflow.EventPayload
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: desflow.models.schemas.LabelPayload
+::: desflow.LabelPayload
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: desflow.models.schemas.BaseStreamPayload
+::: desflow.models.BaseStreamPayload
     options:
       heading_level: 3
 
 ## Utilities
 
 <!-- prettier-ignore -->
-::: desflow.core.sampler.Sampler
+::: desflow.Sampler
     options:
       heading_level: 3
       members:
         - sample
 
 <!-- prettier-ignore -->
-::: desflow.utils.time_to_seconds
+::: desflow.time_to_seconds
     options:
       heading_level: 3
       show_root_heading: true
@@ -315,7 +493,7 @@ A task's flow is built from the classes below. The signals and failures here are
 ## Resources
 
 <!-- prettier-ignore -->
-::: desflow.resources.resource.ResourceBase
+::: desflow.ResourceBase
     options:
       heading_level: 3
       members:
@@ -326,13 +504,13 @@ A task's flow is built from the classes below. The signals and failures here are
         - capacity
 
 <!-- prettier-ignore -->
-::: desflow.resources.resource.DynamicResource
+::: desflow.DynamicResource
     options:
       heading_level: 3
       members: false
 
 <!-- prettier-ignore -->
-::: desflow.resources.container.ContainerBase
+::: desflow.ContainerBase
     options:
       heading_level: 3
       members:
@@ -340,7 +518,7 @@ A task's flow is built from the classes below. The signals and failures here are
         - get
 
 <!-- prettier-ignore -->
-::: desflow.resources.container.DynamicContainer
+::: desflow.DynamicContainer
     options:
       heading_level: 3
       members:
@@ -352,7 +530,7 @@ A task's flow is built from the classes below. The signals and failures here are
         - getters_waiting
 
 <!-- prettier-ignore -->
-::: desflow.resources.store.StoreBase
+::: desflow.StoreBase
     options:
       heading_level: 3
       members:
@@ -360,7 +538,7 @@ A task's flow is built from the classes below. The signals and failures here are
         - get
 
 <!-- prettier-ignore -->
-::: desflow.resources.store.DynamicStore
+::: desflow.DynamicStore
     options:
       heading_level: 3
       members:
@@ -371,24 +549,75 @@ A task's flow is built from the classes below. The signals and failures here are
         - putters_waiting
         - getters_waiting
 
+<!-- prettier-ignore -->
+::: desflow.resources.DynamicResourceRequest
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.resources.DynamicRelease
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.resources.PreemptRule
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.resources.QueueFull
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.resources.DynamicContainerPut
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.resources.DynamicContainerGet
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.resources.DynamicStorePut
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.resources.DynamicStoreGet
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.resources.DynamicFilterStoreGet
+    options:
+      heading_level: 3
+
 ## Breakdowns, Schedules and Replay
 
 The builder and YAML start these SimPy processes and readers for you. Low-level code starts them itself.
 
 <!-- prettier-ignore -->
-::: desflow.core.breakdowns.run_breakdowns
+::: desflow.run_breakdowns
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.core.scenario.run_scenario
+::: desflow.run_scenario
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.core.replay.read_trace
+::: desflow.read_trace
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.Row
     options:
       heading_level: 3
       show_root_heading: true
@@ -575,5 +804,62 @@ The builder and YAML start these SimPy processes and readers for you. Low-level 
 
 <!-- prettier-ignore -->
 ::: desflow.connectors.egress.kafka.SerializationError
+    options:
+      heading_level: 3
+
+## Generated Values
+
+<!-- prettier-ignore -->
+::: desflow.values.Template
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.values.BoundPayload
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.values.generator
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.values.ValueGenerationError
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.values.ValueRuntime
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.values.Aggregate
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.values.Fake
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.values.HistogramBin
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.values.Lookup
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.values.Previous
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.values.Row
     options:
       heading_level: 3

@@ -46,19 +46,6 @@ def queueing_explain() -> List[str]:
     return lines[start : start + 6]
 
 
-def queueing_verify() -> List[str]:
-    """Queueing Basics: `desflow explain --verify` on the busy hour with exponential packing."""
-    lines = explain(
-        "docs/snippets/yaml/choosing_inputs.yaml",
-        "--verify",
-        "--replications",
-        "10",
-        PACKING="exponential",
-    )
-    start = next(i for i, line in enumerate(lines) if line.startswith("Verify:"))
-    return lines[start : start + 9]
-
-
 def queues_network() -> List[str]:
     """Queues and Capacity: the network of packing and checking, with why neither
     wait is estimated, up to its hints."""
@@ -143,7 +130,6 @@ BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "queueing-dm1": _queueing_lines(16, 17),
     "queueing-flow": _queueing_lines(17, 20),
     "queueing-explain": queueing_explain,
-    "queueing-verify": queueing_verify,
     "first-trace": first_trace,
     "first-sample": first_sample,
     "queues-table": queues_table,

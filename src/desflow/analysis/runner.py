@@ -16,12 +16,20 @@ import secrets
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Union
-
-import numpy as np
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Union,
+)
 
 from desflow.config import STATS_LEVELS
 from desflow.analysis.intervals import interval
+from desflow.analysis import results as found
 from desflow.analysis.models import (
     LowLevelModel,
     Model,
@@ -33,8 +41,15 @@ from desflow.analysis.models import (
     inspect_model,
     run_once,
     seconds,
+    spawn_seeds,
+    values_of,
 )
-from desflow.utils import suggestion
+from desflow.analysis.report import build_report
+from desflow.analysis.spec import ExperimentSpec, load_experiment
+from desflow.core.context import parts_of
+from desflow.core.registry import ParamRejected
+from desflow.core.statistics import published_value
+from desflow.utils import checked_whole, suggestion
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +58,6 @@ logger = logging.getLogger(__name__)
 # below. Names that no level publishes are refused after the first replication.
 _TYPICAL_NAME = re.compile(r"\.(wait|service)_(mean|max)$")
 _ALL_NAME = re.compile(r"\.(wait|service)_p\d+$")
-# Counts published once they are above 0, so a run without one has none to read.
-_COUNTED_ONCE_SEEN = ("finished", "balked", "reneged")
 
 
 def level_for(measures: Optional[Iterable[str]]) -> str:
@@ -72,27 +85,6 @@ def level_for(measures: Optional[Iterable[str]]) -> str:
         if STATS_LEVELS.index(needed) > STATS_LEVELS.index(level):
             level = needed
     return level
-
-
-def spawn_seeds(seed: int, n: int) -> List[int]:
-    """
-    Returns `n` plain integer seeds spawned from `seed`.
-
-    Each is a child of `numpy.random.SeedSequence(seed)`, turned into one integer
-    that `desflow run --seed` or `random_seed` takes, so any replication repeats on
-    its own.
-
-    Args:
-        seed: The seed of the whole set.
-        n: How many seeds.
-
-    Returns:
-        List[int]: The seeds, the same list for the same `seed` every time.
-    """
-    return [
-        int(child.generate_state(1)[0])
-        for child in np.random.SeedSequence(seed).spawn(n)
-    ]
 
 
 @dataclass
@@ -150,7 +142,7 @@ class Replications:
     def summary_text(self) -> str:
         """The summary as a table: each measure's n, mean and half-width."""
         rows = self.summary
-        width = max(len("measure"), *(len(row["measure"]) for row in rows))
+        width = max([len("measure"), *(len(row["measure"]) for row in rows)])
         heading = f"half-width ({self.level * 100:g}%)"
         lines = [f"{'measure':<{width}}  {'n':>4}  {'mean':>12}  {heading:>18}"]
         for row in rows:
@@ -241,7 +233,9 @@ def replicate(
         raise ValueError(f"replications need n of 2 or more, got {n}")
     if not 0.0 < level < 1.0:
         raise ValueError(f"level must be between 0 and 1, got {level}")
-    if seed is None:
+    if seed is not None:
+        checked_whole(seed, "seed", 0)
+    else:
         seed = secrets.randbelow(2**32)
         logger.info(f"No seed was given, so the replications use {seed}.")
     seeds = spawn_seeds(seed, n)
@@ -305,7 +299,7 @@ def run_replications(
     """
     end = seconds(until)
     if end is None:
-        end = default_until(model)
+        end = seconds(default_until(model), "run.until")
     if end is None:
         raise ValueError(
             "replications need an end time: pass until, or set run.until in the "
@@ -313,7 +307,7 @@ def run_replications(
         )
     options = dict(
         until=end,
-        warmup=seconds(warmup),
+        warmup=seconds(warmup, "warmup"),
         stats=stats,
         overrides=dict(overrides or {}),
         stop=stop,
@@ -336,6 +330,10 @@ def select_measures(
     """
     Returns the measures to summarise, refusing one no run published.
 
+    A count the statistics leave out while it is 0, such as `reneged`, is published
+    for this purpose when a run published another statistic of its task or flow
+    (`published_value`).
+
     Args:
         results: The runs.
         measures: The requested names, or None for every statistic the runs
@@ -355,44 +353,18 @@ def select_measures(
                 published.setdefault(name.removeprefix(prefix), None)
     if measures is None:
         return list(published)
-    unknown = [m for m in measures if m not in published]
+    # A count left out while it is 0 in every run is still a statistic of the model
+    unknown = [
+        m
+        for m in measures
+        if m not in published and published_value({}, m, published) is None
+    ]
     if unknown:
         raise ValueError(
             f"no statistic called {', '.join(unknown)}; this model publishes "
             f"{', '.join(published)}"
         )
     return list(dict.fromkeys(measures))
-
-
-def values_of(results: Sequence[RunResult], measure: str) -> List[float]:
-    """Returns one measure's value in each run.
-
-    A count that is published once it is above 0, such as `reneged`, is 0 in a run
-    that did not publish it.
-
-    Args:
-        results: The runs.
-        measure: The statistic's name without the sim id.
-
-    Returns:
-        List[float]: The values, in run order.
-
-    Raises:
-        ValueError: If another statistic is missing from a run, such as a mean wait
-            in a run where no task started.
-    """
-    values = []
-    for i, result in enumerate(results, start=1):
-        value = result.readings.get(f"{result.sim_id}.stats.{measure}")
-        if value is None and measure.rsplit(".", 1)[-1] in _COUNTED_ONCE_SEEN:
-            value = 0
-        if value is None:
-            raise ValueError(
-                f"{measure} has no value in run {i}: nothing it measures happened "
-                f"in that run. Run longer, or choose another measure"
-            )
-        values.append(value)
-    return values
 
 
 def _publish(model: Model, replications: Replications, until: Any) -> None:
@@ -405,13 +377,14 @@ def _publish(model: Model, replications: Replications, until: Any) -> None:
         return
     context = context_of(model)
     assert context is not None
-    if not context._egress_providers:
+    if not parts_of(context).sinks.egress:
         return
     stop = seconds(until)
     if stop is None:
         stop = default_until(model)
     context.factor = 0.0
     context.go_live_at = None
+    context.strict = None
     context.warmup = None
     context.initial_time = float(stop or 0.0)
     # The clock never moves, so the run is started with no end of its own: its
@@ -426,6 +399,21 @@ def _publish(model: Model, replications: Replications, until: Any) -> None:
             context.env.publish_telemetry(path_id, value)
     finally:
         context.close()
+
+
+@dataclass(frozen=True)
+class _Checked:
+    """An experiment's settings once checked: what its runs and artifacts read.
+
+    The record is frozen, but `run_experiment` gives each of its designs its runs.
+    """
+
+    settings: ExperimentSpec
+    folder: Path
+    model: Model
+    parameters: Dict[str, Any]
+    designs: List[found.Design]
+    observed: List[Dict[str, Any]]
 
 
 def run_experiment(
@@ -462,10 +450,30 @@ def run_experiment(
             settings given as a mapping, also a missing model or observed file.
         CheckFailed: If a check failed and `raise_on_failure` is True.
     """
-    from desflow.analysis import results as found
-    from desflow.analysis.report import build_report
-    from desflow.analysis.spec import ExperimentSpec, load_experiment
+    checked = _checked_settings(spec)
+    settings, model, all_designs = checked.settings, checked.model, checked.designs
+    stats = level_for(settings.measures)
+    for design in all_designs:
+        design.runs = run_replications(
+            model,
+            design.seeds,
+            until=settings.until,
+            warmup=settings.warmup,
+            stats=stats,
+            workers=settings.workers,
+            overrides=design.overrides,
+            stop=settings.stop,
+            drain=settings.drain,
+        )
+    result = _write_artifacts(checked, output)
+    if result.failed and raise_on_failure:
+        raise found.CheckFailed(result)
+    return result
 
+
+def _checked_settings(spec: Union[str, Path, Mapping[str, Any], Any]) -> _Checked:
+    """Reads an experiment's settings and checks them against its model and files,
+    before any run."""
     source = None
     if isinstance(spec, (str, Path)):
         path = Path(spec)
@@ -516,7 +524,9 @@ def run_experiment(
         try:
             inspect_model(model, design.overrides)
         except ValueError as exc:
-            bad = next((p for p in design.overrides if f"'{p}'" in str(exc)), None)
+            # The registry's refusal carries the path it refused; its text may quote
+            # a nearby valid path as well
+            bad = exc.path if isinstance(exc, ParamRejected) else None
             where = (
                 ("sweep", bad)
                 if bad in settings.sweep
@@ -530,20 +540,22 @@ def run_experiment(
             update={"warmup": context.warmup if context is not None else None}
         )
     observed = found.read_observed(settings, folder)
+    return _Checked(
+        settings=settings,
+        folder=folder,
+        model=model,
+        parameters=parameters,
+        designs=all_designs,
+        observed=observed,
+    )
 
-    stats = level_for(settings.measures)
-    for design in all_designs:
-        design.runs = run_replications(
-            model,
-            design.seeds,
-            until=settings.until,
-            warmup=settings.warmup,
-            stats=stats,
-            workers=settings.workers,
-            overrides=design.overrides,
-            stop=settings.stop,
-            drain=settings.drain,
-        )
+
+def _write_artifacts(
+    checked: _Checked, output: Union[str, Path, None]
+) -> found.ExperimentResult:
+    """Summarises the runs of every design, writes the experiment's artifacts and
+    gives its `ExperimentResult`."""
+    settings, model, all_designs = checked.settings, checked.model, checked.designs
     runs = [run for design in all_designs for run in design.runs]
     select_measures(runs, settings.measures)
     # A count that is also a measure is summarised once, as a measure
@@ -554,15 +566,15 @@ def run_experiment(
     )
     comparisons = found.comparison_rows(settings, all_designs, rows)
     checks = found.check_rows(settings, summary)
-    observed_rows = found.observed_rows(settings, observed, summary)
+    observed_rows = found.observed_rows(settings, checked.observed, summary)
 
     if output is None:
-        output = folder / (settings.output or f"results/{settings.experiment}")
+        output = checked.folder / (settings.output or f"results/{settings.experiment}")
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     found.write_json(
         output / found.EXPERIMENT_FILE,
-        _evidence(settings, model, runs[0].sim_id, parameters, all_designs)
+        _evidence(settings, model, runs[0].sim_id, checked.parameters, all_designs)
         | {"counts": counts, "observed": observed_rows},
     )
     sweep = list(settings.sweep)
@@ -576,7 +588,7 @@ def run_experiment(
     report = build_report(output)
     (output / found.REPORT_FILE).write_text(report, encoding="utf-8")
 
-    result = found.ExperimentResult(
+    return found.ExperimentResult(
         spec=settings,
         output=output,
         designs=all_designs,
@@ -587,9 +599,6 @@ def run_experiment(
         observed=observed_rows,
         report=report,
     )
-    if result.failed and raise_on_failure:
-        raise found.CheckFailed(result)
-    return result
 
 
 def _evidence(

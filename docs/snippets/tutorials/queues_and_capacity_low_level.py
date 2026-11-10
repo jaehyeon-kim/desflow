@@ -119,7 +119,7 @@ def step(env, sampler, shop, name, entity, counters):
     if following is None:
         env.stats.flow_finished("orders")
     else:
-        env.process(step(env, sampler, shop, following, entity, counters))
+        yield from step(env, sampler, shop, following, entity, counters)
 
 
 # --8<-- [end:network]

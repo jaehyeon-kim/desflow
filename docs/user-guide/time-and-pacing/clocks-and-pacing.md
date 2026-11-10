@@ -104,7 +104,7 @@ The wall-clock duration of a stretch of the run is its simulation duration times
     ```
 
 - `factor: 1.0` follows the wall clock: a process that waits 5 simulation seconds waits 5 real seconds. It suits a live twin feeding a dashboard.
-- `factor: 0` does not wait at all: the run goes as fast as the machine allows. It suits history, tests and experiments. At `factor: 0` each event is processed by SimPy's own `Environment.step`, without the real-time arithmetic. `strict` is not checked, because there is no wall clock to fall behind. A pending `go_live_at` is still checked before each event, and pacing starts at it.
+- `factor: 0` does not wait at all: the run goes as fast as the machine allows. It suits history, tests and experiments. At `factor: 0` each event is processed by SimPy's own `Environment.step`, without the real-time arithmetic. `strict` left unset is false here, because there is no wall clock to fall behind. A pending `go_live_at` is still checked before each event, and pacing starts at it.
 
 ### Go Live
 
@@ -163,11 +163,11 @@ They are independent. `go_live_at` changes pacing only. It never routes a record
 
 On a `DynamicRealtimeEnvironment`, `env.factor` reports the run's `factor`, such as `0.0`, until the logical clock reaches `go_live_at`, and `1.0` afterwards.
 
-[Parquet History, Kafka Live](../../how-to/examples/backfill-live.md) builds such a run.
+[Parquet History, Kafka Live](../../gallery/simulation-models/backfill-live.md) builds such a run.
 
 ### Lag
 
-At a `factor` above 0 the run follows the wall clock, and `system.simulation.lag_seconds` says how many seconds it is behind, as telemetry. `lag_interval` sets how often it is published, in simulation seconds or a duration. By default, it is published every simulation second at a `factor` above 0. At `factor: 0` it is off, because such a run is meant to be ahead of the wall clock. A run at `factor: 0` that goes live starts publishing it at the go-live instant. A `lag_interval` of 0 turns it off:
+At a `factor` above 0 the run follows the wall clock, and `system.simulation.lag_seconds` says how many seconds it is behind its pace, as telemetry. A run that keeps its pace reads about 0 at any `factor`, and the reading grows when the run falls behind. `lag_interval` sets how often it is published, in simulation seconds or a duration. By default, it is published every simulation second at a `factor` above 0. At `factor: 0` it is off by default, because such a run has no pace to fall behind, and a `lag_interval` that turns it on reads 0. A run at `factor: 0` that goes live starts publishing it at the go-live instant. A `lag_interval` of 0 turns it off:
 
 === "YAML"
 
@@ -193,37 +193,40 @@ At a `factor` above 0 the run follows the wall clock, and `system.simulation.lag
 
 ### Strict Pacing
 
-A paced step that starts more than `factor` real seconds late has fallen behind the wall clock. By default the run goes on and `system.simulation.lag_seconds` reports the delay. With `strict` on, the run raises `RuntimeError` (`Simulation too slow for real time (1.500s).`) instead, as SimPy's `RealtimeEnvironment` does. The setting has a different default in each API:
+A paced step that starts more than `factor` real seconds late has fallen behind the wall clock. With `strict` on, the run raises `RuntimeError` (`Simulation too slow for real time (1.500s).`), as SimPy's `RealtimeEnvironment` does. With `strict` off, the run goes on and `system.simulation.lag_seconds` reports the delay. A run that leaves `strict` unset gets the same default in every API:
 
-- **Low-level API:** `strict=True`, SimPy's default. A live script with a sink that can block passes `strict=False`.
-- **Builder:** `SimulationContext(strict=False)`, the default, so that a live run with a sink goes on when the sink is slow.
-- **YAML:** `simulation.strict`, default `false`.
+- **Paced run:** `strict` is true at a `factor` above 0, and when the run has a `go_live_at`.
+- **Unpaced run:** `strict` is false at `factor: 0` with no `go_live_at`, because an unpaced run has no wall clock to fall behind.
+
+`SimulationContext(strict=None)` and `DynamicRealtimeEnvironment(strict=None)` are the defaults, and `simulation.strict` left out of a blueprint means the same. Write `strict: false` for a live run with a sink that can block, so the run goes on when the sink is slow. An explicit `strict: true` is checked at `factor: 0` with no `go_live_at` too, and raises at the first step after the wall clock has moved, as SimPy's check does.
 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/environment.yaml:strict"
-    # Under simulation: raise RuntimeError when a paced step is more than factor
-    # seconds behind the wall clock; false by default, and never checked at factor 0
-    strict: true
+    # Under simulation: true by default for a paced run and false at factor 0; false
+    # lets a live run go on when a slow sink makes it fall behind the wall clock
+    strict: false
     ```
 
 === "Builder"
 
     ```python title="docs/snippets/pages/pacing.py:strict"
-    # A paced step more than factor seconds behind the wall clock raises RuntimeError;
-    # the builder's default is False
-    checked = SimulationContext(sim_id="Shop", factor=1.0, strict=True)
+    # A paced run is strict unless it says otherwise; false lets a live run go on when a
+    # slow sink makes it fall behind the wall clock
+    tolerant = SimulationContext(sim_id="Shop", factor=1.0, strict=False)
     ```
 
 === "Low-level"
 
     ```python title="docs/snippets/pages/pacing.py:low-level-strict"
-    # The low-level API is strict unless you pass strict=False, as SimPy's is
+    # Left unset, strict is true at a factor above 0 and false at factor 0, as SimPy's
+    # RealtimeEnvironment would raise at the first step of an unpaced script
     raising = DynamicRealtimeEnvironment(factor=1.0)
-    tolerant = DynamicRealtimeEnvironment(factor=1.0, strict=False)
+    unpaced_strict = DynamicRealtimeEnvironment(factor=0.0)
+    low_level_tolerant = DynamicRealtimeEnvironment(factor=1.0, strict=False)
     ```
 
-`strict` is never checked at `factor: 0`, including before `go_live_at`: an unpaced run has no wall clock to fall behind, and SimPy's check would raise on the first step of every unpaced script. After a pause, SimPy's `env.sync()` moves only the wall-clock anchor to now. The next event would then wait `factor` seconds for each simulation second since `env_start`. `env_start` is the start of the run, the go-live instant once the run has gone live, or the last `resume_pacing()`. `env.resume_pacing()` moves both anchors, so the next event waits `factor` seconds for each simulation second after `now`:
+Before `go_live_at`, `strict` is never checked, whatever its value. After a pause, SimPy's `env.sync()` moves only the wall-clock anchor to now. The next event would then wait `factor` seconds for each simulation second since `env_start`. `env_start` is the start of the run, the go-live instant once the run has gone live, or the last `resume_pacing()`. `env.resume_pacing()` moves both anchors, so the next event waits `factor` seconds for each simulation second after `now`:
 
 === "YAML"
 

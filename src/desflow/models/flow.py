@@ -21,7 +21,9 @@ class Entity:
             `attributes` and by each task's `set`, and read in conditions as
             `attr.<name>`. A payload includes them only when it asks for them.
         held (Dict[str, Any]): Resource units a task kept for the next task with
-            `keep`, by resource name; the next task gives them back once it starts.
+            `keep`, by resource name; the next task gives them back once it starts, or the
+            flow does when it ends without one, as after a renege or a failure with
+            no `on_fail`.
     """
 
     key: str
@@ -45,11 +47,14 @@ class Entity:
     last_ended: Optional[Dict[str, Any]] = field(
         default=None, repr=False, compare=False
     )
+    # The loop of an entity that runs more than once (an arrival with `count`), which
+    # keeps the values for its key until the loop and its runs have ended
+    loop: Optional[Any] = field(default=None, repr=False, compare=False)
 
     @property
     def left(self) -> bool:
-        """True once `_entity_left` has run: the flow has ended and nothing is
-        pending."""
+        """True once `RunState.entity_left` has run: the flow has ended and nothing
+        is pending."""
         return self.ending and self.ends_pending == 0
 
 

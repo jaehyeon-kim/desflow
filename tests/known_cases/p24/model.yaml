@@ -1,0 +1,23 @@
+# case P24: a loop with a counter (rollback).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+arrivals:
+  a:
+    initial: 1
+    spawn: work
+    attributes: {tries: 0}
+
+tasks:
+  work:
+    service_time: 1
+    set:
+      tries: {gen: expr, expr: "attr.tries + 1"}
+    payload: {event_type: tried}
+    next:
+      when:
+        - {condition: "attr.tries < 3", task: work}
+      default: done
+  done:
+    payload:
+      event_type: done
+      tries: {gen: attr, name: tries}

@@ -11,10 +11,7 @@
 # Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
 # Run it from its folder with: desflow run postgres_orders.yaml
 
-simulation:
-  sim_id: Shop
-  factor: 1.0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 1.0, random_seed: 42}
 
 ingress:
   - type: Postgres

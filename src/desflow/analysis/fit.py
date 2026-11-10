@@ -11,13 +11,15 @@ which is imported only here, when a fit runs.
 
 import csv
 import math
+import numbers
+import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
-from desflow.core.distributions import DISTRIBUTIONS, get_distribution
+from desflow.models.distributions import DISTRIBUTIONS, get_distribution
 from desflow.core.sampler import Sampler
 from desflow.models.params import DistributionConfig
 
@@ -224,21 +226,35 @@ class FitResult:
             source: Where the data came from, for the comment at the top.
 
         Returns:
-            str: A comment line, then `dist` and each parameter, one per line, with
-                the numbers `settings` returns.
+            str: A comment, then `dist` and each parameter with the numbers
+                `settings` returns, in the layout of the repository's blueprint
+                files (`CONTRIBUTING.md`, Blueprint Layout): no line over 88
+                characters where its words allow, and a blank line between keys.
         """
         settings = self.settings(kind)
-        lines = [
-            f"# Fitted by desflow fit{' from ' + source if source else ''}: "
+        header = (
+            f"Fitted by desflow fit{' from ' + source if source else ''}: "
             f"{settings['dist']}, from {len(self.values)} values in {self.unit}, "
             "written in seconds."
+        )
+        lines = [
+            f"# {part}"
+            for part in textwrap.wrap(
+                header,
+                width=_WIDTH - 2,
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
         ]
-        for key, value in settings.items():
+        for index, (key, value) in enumerate(settings.items()):
+            if index:
+                lines.append("")
             if isinstance(value, list):
-                value = "[" + ", ".join(repr(v) for v in value) + "]"
-            elif isinstance(value, float):
-                value = repr(value)
-            lines.append(f"{key}: {value}")
+                lines.extend(_flow_list(key, [repr(v) for v in value]))
+            else:
+                lines.append(
+                    f"{key}: {repr(value) if isinstance(value, float) else value}"
+                )
         return "\n".join(lines) + "\n"
 
     def plot(self, path: Union[str, Path], kind: Optional[str] = None) -> Path:
@@ -377,6 +393,36 @@ def _clean(
     return kept, missing, len(invalid)
 
 
+_WIDTH = 88
+
+
+def _flow_list(key: str, items: List[str]) -> List[str]:
+    """
+    A key and its list of numbers as a flow sequence, wrapped after a comma so no
+    line passes `_WIDTH`, each further line starting under the first item.
+
+    Args:
+        key: The key.
+        items: The numbers, as text.
+
+    Returns:
+        List[str]: The lines.
+    """
+    lines = [f"{key}: ["]
+    indent = " " * len(lines[0])
+    for position, item in enumerate(items):
+        text = item + ("]" if position == len(items) - 1 else ",")
+        if position == 0:
+            lines[-1] += text
+        elif len(lines[-1]) + 1 + len(text) <= _WIDTH:
+            lines[-1] += " " + text
+        else:
+            lines.append(indent + text)
+    if not items:
+        lines[-1] += "]"
+    return lines
+
+
 def fit_column(
     values: Sequence[Any],
     *,
@@ -395,7 +441,8 @@ def fit_column(
     Args:
         values: The data, as numbers or text; an empty cell or None is missing.
         unit: The data's unit: `ms`, `s`, `min` or `h`. Settings are in seconds.
-        candidates: The families to try; None tries every family. `empirical` is
+        candidates: The families to try; None tries every family of times (not `poisson`
+            or `geometric`, which count). `empirical` is
             always offered unless the list leaves it out.
         lower: The lowest plausible value, in the data's unit; a value below it is
             invalid, and a family that can draw below it is flagged.
@@ -417,11 +464,16 @@ def fit_column(
     """
     if unit not in _UNITS:
         raise ValueError(f"unit must be one of {', '.join(_UNITS)}, got {unit!r}")
-    names = list(candidates) if candidates is not None else list(DISTRIBUTIONS)
+    _check_settings(tolerance, lower, upper)
+    names = (
+        list(candidates)
+        if candidates is not None
+        else [n for n in DISTRIBUTIONS if n in _FITS or n == "empirical"]
+    )
     unknown = [n for n in names if n not in DISTRIBUTIONS]
     if unknown:
         raise ValueError(
-            f"no family called {', '.join(unknown)}; choose from "
+            f"no family called {', '.join(repr(n) for n in unknown)}; choose from "
             f"{', '.join(DISTRIBUTIONS)}"
         )
     scale = _UNITS[unit]
@@ -458,10 +510,38 @@ def fit_column(
     )
 
 
+def _is_number(value: Any) -> bool:
+    """Whether `value` is a real number other than a bool, NaN included."""
+    return isinstance(value, numbers.Real) and not isinstance(value, bool)
+
+
+def _check_settings(
+    tolerance: float, lower: Optional[float], upper: Optional[float]
+) -> None:
+    """Refuses a tolerance, a bound or a pair of bounds that no fit can use.
+
+    Raises:
+        ValueError: If `tolerance` is not a finite number of 0 or more, a bound is
+            not a number or is NaN, or `lower` is not below `upper`. The message
+            names the argument.
+    """
+    if not _is_number(tolerance) or not 0 <= tolerance < math.inf:
+        raise ValueError(f"tolerance is a finite number of 0 or more, got {tolerance}")
+    for name, bound in (("lower", lower), ("upper", upper)):
+        if bound is not None and (not _is_number(bound) or math.isnan(bound)):
+            raise ValueError(f"{name} is a number, got {bound}")
+    if lower is not None and upper is not None and lower >= upper:
+        raise ValueError(
+            f"lower must be below upper, got lower {lower} and upper {upper}"
+        )
+
+
 def _skip(name: str, x: np.ndarray, min_count: int, low: Optional[float]) -> str:
     """Why a family is not fitted to this data, or empty when it is."""
     if len(x) == 0:
         return "no values"
+    if name not in _FITS:
+        return f"{name} counts whole numbers, and fit tries families of times only"
     constant = bool(np.all(x == x[0]))
     if name == "constant":
         return "" if constant else "the values are not all equal"

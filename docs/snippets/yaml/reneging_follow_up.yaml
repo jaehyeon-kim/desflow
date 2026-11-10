@@ -1,0 +1,35 @@
+# The Add Reneging and Balking guide: an order that leaves the line goes on to a
+# follow-up task. One packer packs for 3 seconds, an order arrives every second and
+# waits at most 4 seconds, and no order joins from 8 seconds on.
+# Run it with: desflow run reneging_follow_up.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console}
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 3}
+
+arrivals:
+  orders: {dist: constant, value: 1, spawn: pack, max_events: 12}
+
+tasks:
+  # --8<-- [start:tasks]
+  pack:
+    service: packing
+    resource: packers
+    patience: 4
+    balk: t >= 8
+    # Where an order goes after it leaves the line, by reneging or by balking
+    on_renege: follow_up
+    on_balk: follow_up
+    payload: {event_type: order_packed}
+  follow_up:
+    payload:
+      event_type: order_left
+      # reneged or balked: the status of the task the order came from
+      how: {gen: expr, expr: upstream.status}
+  # --8<-- [end:tasks]

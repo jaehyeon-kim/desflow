@@ -1,0 +1,20 @@
+# case ST-U15: test_any_of_chaining: any_of(timeout 2 'a') |= any_of(timeout 1 'b') is
+# one any_of of both; the result is ['b'] at 1.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
+tasks:
+  pem:
+    wait:
+      any:
+        a:
+          timeout: {after: 2, value: a}
+        b:
+          timeout: {after: 1, value: b}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      values:
+        - {gen: expr, expr: "wait.b.value"}

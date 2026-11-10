@@ -85,7 +85,7 @@ def payload(name, entity):
 
 
 def task(env, sampler, shop, name, entity, task_id, counters):
-    """Runs one task for an entity, then starts the task its router chooses."""
+    """Runs one task for an entity, then the task its router chooses, in the same process."""
     service, resource = TASKS[name]
     path_id = f"Shop.service.{service}"
 
@@ -93,12 +93,26 @@ def task(env, sampler, shop, name, entity, task_id, counters):
         env.publish_event(entity.key, value, task=name, instance=task_id)
 
     if resource is not None:
-        publish({"path_id": path_id, "status": "queued"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": service,
+                "status": "queued",
+            }
+        )
     unit = shop[resource].request() if resource else contextlib.nullcontext()
     with unit as req:
         if req is not None:
             yield req
-        publish({"path_id": path_id, "status": "started"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": service,
+                "status": "started",
+            }
+        )
         finished = payload(name, entity)
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         publish(finished)
@@ -108,7 +122,7 @@ def task(env, sampler, shop, name, entity, task_id, counters):
     following = ROUTES[name].choose(upstream, env)
     if following is not None:
         instance = next(counters[following])
-        env.process(task(env, sampler, shop, following, entity, instance, counters))
+        yield from task(env, sampler, shop, following, entity, instance, counters)
 
 
 def order_generator(env, sampler, shop, arrival, counters):

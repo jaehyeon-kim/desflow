@@ -1,0 +1,18 @@
+# case P59: split into N entities, N from an attribute (patterns/g_flow.py G2; design A7
+# count).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+arrivals:
+  orders:
+    initial: 1
+    spawn: split
+    attributes: {n: 3}
+
+tasks:
+  split:
+    payload: {e: 1}
+    spawn: {task: item, count: "attr.n"}
+  item:
+    payload: {i: 1}
+
+run: {until: 10}

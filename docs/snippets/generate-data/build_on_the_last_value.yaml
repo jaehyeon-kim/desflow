@@ -1,0 +1,56 @@
+# Build on the last value: prices that drift from the previous price.
+#
+# Five products are priced once a second. Each price is the product's last price plus a
+# draw between -1 and 1, starting from 20. Each stock level adds a normal step to the
+# last one and stays between 0 and 500 units. `previous` reads the last value of the
+# same field of the same product, because with `count` each product keeps its own last
+# payload.
+#
+# Needs: nothing.
+# Run it with: desflow run docs/snippets/generate-data/build_on_the_last_value.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:arrivals]
+arrivals:
+  prices:
+    dist: constant
+    value: 1
+    spawn: price
+    count: 5
+    key: {gen: sequence, format: "product-{}"}
+# --8<-- [end:arrivals]
+
+# --8<-- [start:tasks]
+tasks:
+  price:
+    payload:
+      product: {gen: entity}
+      price:
+        gen: add
+        args:
+          - {gen: previous, path: price, default: 20}
+          - {gen: uniform, low: -1, high: 1}
+        decimals: 2
+      stock:
+        gen: max
+        args:
+          - 0
+          - gen: min
+            args:
+              - 500
+              - gen: add
+                args:
+                  - {gen: previous, path: stock, default: 250}
+                  - {gen: normal, mean: 0, std: 40}
+        decimals: 0
+# --8<-- [end:tasks]
+
+run: {until: 30}

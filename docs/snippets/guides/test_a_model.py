@@ -62,6 +62,12 @@ def results(**inputs) -> dict:
 # --8<-- [end:shop]
 
 
+# --8<-- [start:app]
+# `desflow test test_a_model.py` builds this context and runs the tests of tests.yaml
+app = shop()
+# --8<-- [end:app]
+
+
 # --8<-- [start:functional]
 def test_more_packers_shorten_the_wait():
     """A functional test: change one input and check the output moves the right way."""

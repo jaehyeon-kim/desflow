@@ -1,0 +1,40 @@
+"""The resource-monitoring model with the builder API (SimulationContext).
+
+The same model as model.yaml: one entity of arrival `a` at time 0 takes `res`
+(capacity 1), holds it for 1 second and publishes {event_type: used}. The
+statistics publish the readings of `res` after every request and release
+(`on_change=True`). Each record is printed to standard output as one JSON line.
+
+Run it with: python builder.py
+"""
+
+from datetime import datetime, timezone
+
+from desflow import ConsoleEgress, SimulationContext
+
+app = (
+    SimulationContext(
+        sim_id="M",
+        factor=0,  # unpaced
+        random_seed=42,
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    .add_egress(ConsoleEgress(format="json"))
+    .add_resource("res", current_cap=1)
+    .add_service("hold", dist="constant", value=1)
+    # One entity at time 0; max_events=1 stops the arrival, so the gap is never drawn
+    .add_arrival("a", gap=1, first_at=0, max_events=1, spawn="use")
+    # Readings of res after each request and release; the 60 s timer never fires
+    # in a 5 s run, but the run still publishes them once at its end
+    .with_stats("minimal", interval=60, on_change=True)
+)
+
+
+@app.task(service_id="hold", resource_id="res")
+def use(task_id, entity):
+    """Holds res for the service time and returns the finished event's payload."""
+    return {"event_type": "used"}
+
+
+if __name__ == "__main__":
+    app.run(until=5)

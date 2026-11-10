@@ -1,0 +1,8 @@
+# A1: a fixed number of arrivals, from a gap and max_events. The program is
+# programs/a1_count.py. See test_yaml_only.py.
+simulation: {sim_id: A1, factor: 0, random_seed: 42}
+arrivals:
+  s1: {gap: 2, max_events: 3, spawn: t}
+tasks:
+  t: {payload: {event_type: ran}}
+run: {until: 100}

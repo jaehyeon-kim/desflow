@@ -1,0 +1,34 @@
+# case ST-R10: test_sorted_queue_maxlen: a priority queue with a maximum length of 1;
+# one process makes three requests and the third fails. The test catches the
+# RuntimeError and never releases a unit. In the blueprint the third open request balks
+# at its own step (README:191), so the task ends with a balked record where the program
+# goes on; the existing form `len(waiting(res)) >= 1` sets the variable queue_full
+# before it. An expected difference in the class where SimPy raises and desflow goes on.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+resources:
+  res: {current_cap: 1, queue: priority, queue_limit: 1}
+
+variables: {queue_full: false}
+
+arrivals:
+  users: {initial: 1, spawn: pem}
+
+tasks:
+  pem:
+    open:
+      a:
+        request: {resource: res, priority: 1}
+      b:
+        request: {resource: res, priority: 1}
+    on:
+      - path: T.variables.queue_full
+        value: {gen: expr, expr: "len(waiting(res)) >= 1"}
+    payload: {event_type: opened}
+    next: third
+  third:
+    open:
+      c:
+        request: {resource: res, priority: 1}
+    wait: {timeout: 0}
+    payload: {event_type: done}

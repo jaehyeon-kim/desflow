@@ -1,0 +1,50 @@
+# Records of task DS-A5, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: DS-A5
+
+until: 12
+
+run_end: 12
+
+records:
+  - name: src arrival 1 at 1
+    match: {task: t, key: src-1}
+    at: 1
+  - name: src arrival 2 at 2
+    match: {task: t, key: src-2}
+    at: 2
+  - name: src arrival 3 at 6, after it is on again
+    match: {task: t, key: src-3}
+    at: 6
+  - name: src arrival 4 at 7
+    match: {task: t, key: src-4}
+    at: 7
+  - name: no src arrival while src is off
+    match: {task: t, key: re:^src-}
+    between: [2.5, 5.5]
+    count: 0
+  - name: src is switched off at 2.5
+    match: {task: src_off}
+    at: 2.5
+  - name: src is switched on at 5.5
+    match: {task: src_on}
+    at: 5.5
+  - name: src2 arrival 1 at 2
+    match: {task: t, key: src2-1}
+    at: 2
+  - name: src2 arrival 2 at 9, a new gap from 7
+    match: {task: t, key: src2-2}
+    at: 9
+  - name: src2 arrival 3 at 11
+    match: {task: t, key: src2-3}
+    at: 11
+  - name: src2 has three arrivals
+    match: {task: t, key: re:^src2-}
+    count: 3
+  - name: src2 is switched off at 3
+    match: {task: src2_off}
+    at: 3
+  - name: src2 is switched on at 7
+    match: {task: src2_on}
+    at: 7

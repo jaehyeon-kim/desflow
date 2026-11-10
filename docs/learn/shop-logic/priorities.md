@@ -73,7 +73,7 @@ Each task gives its requests a priority. Express orders get 0, so they are serve
         payload: {event_type: express_packed}
     ```
 
-    Here each task has a fixed number. A priority can also be an expression that reads the entity's attributes, such as `priority: attr.priority`, so each order gets its own. [Task Flow](../../user-guide/model-parts/task-flow.md#attributes) describes attributes. A `priority` on a task whose resource does not have `queue: priority` is refused when the file loads. So to run the shop under `fifo`, remove `queue: priority` and both `priority` lines.
+    Here each task has a fixed number. A priority can also be an expression that reads the entity's attributes, such as `priority: attr.priority`, so each order gets its own. [Task Flow](../../user-guide/model-parts/task-flow.md#attributes) describes attributes. A `priority` on a task whose resource does not have `queue: priority` is refused when the file loads. So to run the shop under `fifo`, remove `queue: priority` and both `priority` lines. A resource can also rank its line by a rule of its own: `queue: {rank: attr.priority, ties: fifo}` serves the lowest rank first, and `ties` orders equal ranks as `fifo` or `lifo`. A `priority` on a task is refused on a resource that has a `rank`. A rank or priority that is NaN, or text for a ranked queue, is refused with the resource and the task named. A priority is not an expression of the order's payload, because the payload exists only when the task finishes.
 
 === "Builder"
 
@@ -178,7 +178,25 @@ Can express orders jump the queue? **Yes**, and the regular orders pay for it. E
 
 === "YAML"
 
-    The `fifo` run is the blueprint without `queue: priority` and without the two `priority:` lines, saved as `priorities_fifo.yaml`, because a priority on a `fifo` resource is refused when the run starts.
+    The `fifo` run needs its own file, because a priority on a `fifo` resource is refused when the file loads. `priorities_fifo.yaml` is `priorities.yaml` without `queue: priority` and without the two `priority:` lines:
+
+    ```yaml title="docs/snippets/yaml/priorities_fifo.yaml:queue"
+    resources:
+      # The packer serves the oldest request first
+      packers: {current_cap: 1, max_cap: 4}
+    ```
+
+    ```yaml title="docs/snippets/yaml/priorities_fifo.yaml:tasks"
+    tasks:
+      pack_order:
+        service: packing
+        resource: packers
+        payload: {event_type: order_packed}
+      pack_express:
+        service: packing
+        resource: packers
+        payload: {event_type: express_packed}
+    ```
 
     ```bash
     # First come, first served: the mean wait of each kind of order
@@ -248,10 +266,7 @@ Items can be ranked too: a priority store returns the parcel with the lowest pri
         ```yaml title="docs/snippets/yaml/priorities.yaml"
         # The Priorities tutorial: express orders go before regular ones.
         # Run it with: desflow run priorities.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           # The packer serves the lowest priority first, the oldest first among equals
@@ -282,10 +297,9 @@ Items can be ranked too: a priority store returns the parcel with the lowest pri
         stats: {level: typical, interval: 1 h}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"
@@ -430,12 +444,21 @@ Items can be ranked too: a priority store returns the parcel with the lowest pri
             def publish(value):
                 env.publish_event(key, value, task=task, instance=task_id)
 
-            publish({"path_id": path_id, "status": "queued"})
+            publish(
+                {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+            )
             env.stats.task_queued(task, task_id)
             # Under fifo and lifo the priority is ignored
             with packers.request(priority=priority) as request:
                 yield request
-                publish({"path_id": path_id, "status": "started"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    }
+                )
                 env.stats.task_started(task, task_id)
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 event = "express_packed" if arrival == "express" else "order_packed"

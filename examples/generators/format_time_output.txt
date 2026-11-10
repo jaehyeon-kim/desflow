@@ -1,0 +1,3 @@
+[EVT] {'sim_ts': 60.0, 'timestamp': '...', 'key': 'orders-1', 'task': 'order', 'instance': 0, 'value': {'day': '2026-01-01 00:01', 'epoch_s': 1767225660}}
+[EVT] {'sim_ts': 120.0, 'timestamp': '...', 'key': 'orders-2', 'task': 'order', 'instance': 1, 'value': {'day': '2026-01-01 00:02', 'epoch_s': 1767225720}}
+[EVT] {'sim_ts': 180.0, 'timestamp': '...', 'key': 'orders-3', 'task': 'order', 'instance': 2, 'value': {'day': '2026-01-01 00:03', 'epoch_s': 1767225780}}

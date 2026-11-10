@@ -6,7 +6,7 @@ An egress connector, or sink, writes the records a run publishes: to the console
 
 ## What It Is
 
-A run publishes three kinds of record: **events**, such as a task's `queued`, `started` and finished; **telemetry**, single values such as the statistics; and **labels**, the ground-truth records of what a scenario changed. Every sink receives every event and every telemetry record, unless its `when` says otherwise. Labels go only to sinks that ask for them. [Records and Telemetry](../../reference/records-and-telemetry.md) shows each record's shape and what each sink writes.
+A run publishes three kinds of record in the ordinary case: **events**, such as a task's `queued`, `started` and finished; **telemetry**, single values such as the statistics; and **labels**, the ground-truth records of what a scenario changed. Every sink receives every event and every telemetry record, unless its `when` says otherwise. Labels go only to sinks that ask for them. A run can publish a fourth kind, **trace**, one record for each event the environment processes, only when `stats.trace` is set, and only to a sink with `when: trace`. [Records and Telemetry](../../reference/records-and-telemetry.md) shows each record's shape and what each sink writes.
 
 ![Parameter changes from outside reach the registry through LocalIngress, FileIngress, KafkaIngress, RedisIngress or PostgresIngress; records from tasks and processes leave through ConsoleEgress, KafkaEgress, ParquetStorageEgress, JsonlStorageEgress, RedisEgress, PostgresEgress or IcebergStorageEgress](../../assets/diagrams/connectors-overview.png)
 
@@ -36,7 +36,7 @@ In a blueprint, `type` is one of the short names below, or a `!python` class fro
 
 `ConsoleEgress` has two formats. The default, `log`, logs each batch at INFO level with one call, one line per record:
 
-- Each line starts with `[EVT]` for an event, `[TEL]` for telemetry or `[LBL]` for a label.
+- Each line starts with `[EVT]` for an event, `[TEL]` for telemetry or `[LBL]` for a label. A trace record, which only a `when: trace` sink receives, starts with `[EVT]` too.
 - `desflow run` prints these lines as they are. Its other log lines start with the time, level and logger name.
 - In a script, the logging format the script sets, such as the time and level, starts only the first line of each batch.
 
@@ -45,7 +45,7 @@ One call per batch is much faster than one call per record. In the measurements 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml_build/connectors.yaml:console-egress"
-    - type: Console
+    - {type: Console}
     ```
 
 === "Builder"
@@ -89,9 +89,11 @@ for line in printed.getvalue().splitlines():
     SCHEMAS[record["stream_type"]].model_validate(record)
 ```
 
+The `trace` record has no model in `SCHEMAS`. A consumer reads it as a record whose `value` is a mapping with the keys `priority`, `event_id` and `event`.
+
 ### Kafka
 
-`KafkaEgress` sends events to `event_topic` and telemetry to `telemetry_topic`, keyed by the record's `key` or `path_id`. Kafka sends all records with one key to one partition, so all events of one entity stay in order. `KafkaEgress` creates both topics when the run starts, with one partition each, if they do not exist. With a `topic_router`, it creates none. [Route Records to Topics](../../how-to/records-and-kafka/complex-routing.md) sends records to other topics, and [Connect to Secure Kafka](../../how-to/records-and-kafka/kafka-security.md) connects to a cluster that uses SASL, mTLS, OAuth or AWS IAM.
+`KafkaEgress` sends events to `event_topic` and telemetry to `telemetry_topic`, keyed by the record's `key` or `path_id`. Kafka sends all records with one key to one partition, so all events of one entity stay in order. `KafkaEgress` creates both topics when the run starts, with one partition each, if they do not exist. With a `topic_router`, it creates neither of them, and only the topics named in `topics`. [Route Records to Topics](../../how-to/records-and-kafka/complex-routing.md) sends records to other topics, and [Connect to Secure Kafka](../../how-to/records-and-kafka/kafka-security.md) connects to a cluster that uses SASL, mTLS, OAuth or AWS IAM.
 
 === "YAML"
 
@@ -119,6 +121,42 @@ for line in printed.getvalue().splitlines():
 
     The low-level API passes the same `KafkaEgress` to `env.setup_egress`, in its list of sinks, as [Low-level API](../writing-a-model/low-level-api.md#attach-the-connectors) shows.
 
+**Topics.** `topic_policy` says what the sink does with its topics when the run starts. It is a word, or a mapping of `mode`, `partitions`, `replication_factor` and `topic_configs`:
+
+- `create`, the default, creates a missing topic and leaves an existing one as it is, with one partition, a replication factor of 1 and no settings of its own.
+- `drop_and_create` deletes the topic and creates it again, so each run starts with an empty topic.
+- `manual` creates nothing.
+
+The policy covers the event topic and the telemetry topic. `topics` gives settings to other topics by name, each with the keys of `topic_policy` on top of the policy. A topic named there is created by the sink, also when a record chooses it with `__topic__` or a `topic_router`. A `topics` value must be a mapping, and a key that is not a policy key is refused when the blueprint loads.
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml_build/connectors.yaml:kafka-topics"
+    # The policy covers the event and telemetry topics: three partitions each, with a
+    # retention setting. sim-audit is created too, with one partition of its own
+    - type: Kafka
+      config:
+        bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
+        event_topic: sim-events
+        telemetry_topic: sim-telemetry
+        topic_policy:
+          mode: create
+          partitions: 3
+          topic_configs: {retention.ms: 3600000}
+        topics:
+          sim-audit: {partitions: 1}
+    ```
+
+=== "Builder"
+
+    `KafkaEgress` takes the same `topic_policy` and `topics` as arguments.
+
+=== "Low-level"
+
+    The low-level API passes the same `KafkaEgress(topic_policy=..., topics=...)` to `env.setup_egress`.
+
+An event whose `value` has a `__topic__` key goes to the topic it names, and the key is removed from the message. A `topic_router` wins over `__topic__`, and telemetry always goes to `telemetry_topic`. The sink also takes a `serializer` (a mapping with a `type` of `confluent_avro`, `confluent_json_schema`, `confluent_protobuf`, `glue_avro`, `glue_json_schema` or `glue_protobuf`, with the options of that type, such as `schema`, `schema_file`, `descriptor_file` and `message`), `ssl` and `sasl_oauth_token_provider` (`{type: aws_msk_iam, region: ...}`), and `serializer` can also be set for one topic under `topics`. In a blueprint, a `schema_file`, a `descriptor_file`, the `verify` and `cert` files of a serializer and the files of `ssl` are read from the blueprint's folder, as an `!include` is, so `desflow run sub/shop.yaml` and `cd sub && desflow run shop.yaml` read the same files. The Builder reads them from the working directory. [Use Schema Serializers](../../how-to/records-and-kafka/json-schema-and-protobuf.md) and [Connect to Secure Kafka](../../how-to/records-and-kafka/kafka-security.md) use these options. The registry options of the Avro serializers (`auth`, `verify`, `cert`, `headers`, `proxy`, `timeout` and `max_retries`) are in the step [Connect to a Secured Schema Registry](../../how-to/records-and-kafka/kafka-security.md#connect-to-a-secured-schema-registry).
+
 ### Parquet and JSON Lines
 
 `ParquetStorageEgress` and `JsonlStorageEgress` write each batch as a file of its own, on a local disk, S3-compatible storage, Google Cloud Storage or Azure Blob Storage, through PyArrow. Without a `path_router`, each event is one flat row in `default_path`, with its `value` mapping unpacked into columns, and telemetry is left out.
@@ -129,19 +167,22 @@ A Parquet file has a column for every key of any row in its batch, and a mapping
 - An integer column that a later batch gives a float becomes a double in the later files.
 - A nested key that first appears later is dropped, because the first batch with a mapping value fixes the keys of its struct column.
 
+The first batch sets the type of each column. A number in the first batch is read as a double for the `value` of a telemetry record, for the `now` and `peek` of a `run.steps` or `run.segments` reading, and for `usage_since`, so a later fraction is kept. A statistic (a number) and an event or a reading (a mapping) cannot share a file, because the `value` column has one type. Send them to different files with a `path_router`, because the default route writes no telemetry.
+
 A batch that cannot be written is logged at ERROR, and the sink goes on with the next one.
 
-**File names.** `default_path`, and any path a `path_router` returns, is a file name prefix, not a folder. Each batch is written as a file of its own, `<stem>_<8 hex digits><extension>`, in the path's folder, so `output/events.parquet` gives files such as `output/events_1a2b3c4d.parquet`. Give the extension in the path: `output/events` gives files with none. The folder is created on the first write.
+**Routing by `__path__`.** An event whose `value` has a `__path__` key is written to the file path it names, and the key is removed from the row. A `path_router` wins over `__path__`, and a record with no `__path__` goes to `default_path`. `__path__` is relative to the working directory or to the sink's `filesystem`, and it is not placed under the folder of `default_path`. A path built with `{gen: format_time, format: "folder/%Y-%m-%d.jsonl"}` gives each simulated day its own files, `folder/2026-01-01_<id>.jsonl`, with one file for each flush. [Write to Cloud Storage](../../how-to/storage-and-tables/cloud-storage.md) runs it.
 
-**Columns of a finished event.** A task's `queued` and `started` events carry `path_id` and `status`. Its finished event's value is the task's payload only. So in a finished event's row, `path_id` and `status` are null unless the payload has them. The [Parquet example](../../how-to/examples/parquet.md) adds them to its payload for that reason.
+**File names.** `default_path`, and any path a `path_router` returns or `__path__` names, is a file name prefix, not a folder. Each batch is written as a file of its own, `<stem>_<8 hex digits><extension>`, in the path's folder, so `output/events.parquet` gives files such as `output/events_1a2b3c4d.parquet`. Give the extension in the path: `output/events` gives files with none. The folder is created on the first write.
+
+**Columns of a finished event.** A task's `queued` and `started` events carry `path_id` and `status`. Its finished event's value is the task's payload only. So in a finished event's row, `path_id` and `status` are null unless the payload has them. The [Parquet example](../../gallery/simulation-models/parquet.md) adds them to its payload for that reason.
 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml_build/connectors.yaml:storage-egress"
     # Parquet files on the local disk, output/events_<8 hex digits>.parquet
     - type: Parquet
-      config:
-        default_path: output/events.parquet
+      config: {default_path: output/events.parquet}
     # JSON Lines files on S3-compatible storage, here SeaweedFS from odctl; a mapping
     # becomes PyArrow's S3FileSystem
     - type: Jsonl
@@ -210,17 +251,16 @@ The same two sinks write to Google Cloud Storage and Azure Blob Storage when `fi
     - type: Parquet
       config:
         default_path: my-bucket/events.parquet
-        # type: gcs makes PyArrow's GcsFileSystem; without credentials it uses Google's default ones
-        filesystem:
-          type: gcs
+        # type: gcs makes PyArrow's GcsFileSystem; without credentials it uses Google's
+        # default ones
+        filesystem: {type: gcs}
     # JSON Lines files on Azure Blob Storage, with Azure's default credentials
     - type: Jsonl
       config:
         default_path: my-container/events.jsonl
-        # type: azure makes PyArrow's AzureFileSystem; without a key it uses Azure's default credentials
-        filesystem:
-          type: azure
-          account_name: myaccount
+        # type: azure makes PyArrow's AzureFileSystem; without a key it uses Azure's
+        # default credentials
+        filesystem: {type: azure, account_name: myaccount}
     ```
 
 === "Builder"
@@ -255,9 +295,7 @@ The same two sinks write to Google Cloud Storage and Azure Blob Storage when `fi
     ```yaml title="docs/snippets/yaml_build/connectors.yaml:redis-egress"
     # XADD to the events stream, unless a record's value names another in __stream__
     - type: Redis
-      config:
-        url: redis://user:password@127.0.0.1:6379/0
-        stream_name: events
+      config: {url: redis://user:password@127.0.0.1:6379/0, stream_name: events}
     ```
 
 === "Builder"
@@ -282,6 +320,8 @@ The same two sinks write to Google Cloud Storage and Azure Blob Storage when `fi
 - Keys with no matching column are dropped.
 - A `__table__` key sends the record only to the sink whose `table_name` matches.
 
+The columns are those of the one table that the name resolves to, as PostgreSQL reads it in the `CREATE TABLE` and `INSERT` statements. A name with capitals reads the table with the lower-case name, and a name with no schema reads the first table of that name on the `search_path`. `table_policy` says what the sink does about the tables in `tables` when the run starts: `create`, the default, creates the schema of a qualified name and the table when they do not exist, `drop_and_create` also drops the table first, and `manual` creates nothing.
+
 The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
 
 === "YAML"
@@ -304,7 +344,7 @@ The connection string names `odctl`, the database that the odctl `postgres` prof
 
     The low-level API passes the same `PostgresEgress` to `env.setup_egress`, in its list of sinks, as [Low-level API](../writing-a-model/low-level-api.md#attach-the-connectors) shows.
 
-By default a record whose key already exists is skipped. `upsert_keys` updates that row instead, for a model that changes rows it wrote earlier, such as an order moving from packed to shipped. The key columns need a unique index. An update sets only the columns the record carries, and within one flush the last record for a key wins.
+By default a record whose key already exists is skipped. `upsert_keys` updates that row instead, for a model that changes rows it wrote earlier, such as an order moving from packed to shipped. The key columns need a unique index. An update sets only the columns the record carries, and within one flush the last record for a key wins. A record that has no value for a key column, or a null there, is skipped, and one warning at the end of each flush says how many were skipped and why.
 
 === "YAML"
 
@@ -336,7 +376,35 @@ A table the sink creates takes its columns from the records:
 - A key that is null in every row waits for a batch that gives it a value, because Iceberg has no null type. An example is `task` in a low-level event published without one.
 - A key that first appears in a later batch is added as an optional column, unless the table is named in `schemas`, which keeps the columns it gives.
 
-A batch the table refuses is logged at ERROR.
+The first batch sets the type of each column. A whole number in the first batch gives an integer column, except that a telemetry `value`, the `now` and `peek` of a `run.steps` or `run.segments` reading and `usage_since` are read as doubles. A batch with a fraction for an integer column is logged at ERROR and its rows are not written. No value is truncated. To keep every row, give the columns in `schemas`, such as `schemas: {shop.events: {key: string, v: double}}`: a table named there is created with exactly the columns listed, and every batch is cast to them. A statistic (a number) and an event or a reading (a mapping) need different tables, because the `value` column has one type. Send them apart with a `table_router`, because the default route writes no telemetry. [Write to Iceberg Tables](../../how-to/storage-and-tables/iceberg-tables.md) runs a batch that is lost and the fix.
+
+An event whose `value` has a `__table__` key, a `namespace.table` name, is written to that table, and the key is removed. A `table_router` wins over `__table__`, and a record with no `__table__` goes to `default_table`. An event that Postgres and Iceberg both receive and that has a `__table__` without a namespace is refused by Iceberg, with "names no namespace": the error is logged and that batch is lost, where Iceberg used to drop the key and write to `default_table`. Give Iceberg a `table_router`, or write `namespace.table` in the key.
+
+`table_policy` says what the sink does about a table at its first write, and every run of a context applies it again: `create`, the default, creates the namespace and the table when they do not exist, `drop_and_create` drops the table and creates it again once for each run, and `manual` creates nothing and fails the write if the table is missing. Each run also makes its own connection pool or client, in its own event loop, and makes the sink's folders again.
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml_build/connectors.yaml:table-policy"
+    # Each run starts with an empty table: dropped and created again at the first write
+    - type: Iceberg
+      config:
+        default_table: sim.events
+        table_policy: drop_and_create
+        catalog:
+          name: odctl
+          type: rest
+          uri: http://127.0.0.1:8181
+          warehouse: s3://warehouse/
+      batch_size: 200000
+    ```
+
+=== "Builder"
+
+    `IcebergStorageEgress` takes the same `table_policy` as an argument.
+
+=== "Low-level"
+
+    The low-level API passes the same `IcebergStorageEgress(table_policy=...)` to `env.setup_egress`.
 
 **Catalogs.** `catalog` is a PyIceberg `Catalog` object, or a mapping of PyIceberg catalog properties that desflow passes to `load_catalog` on the first write. The mapping's optional `name` key names the catalog. Each catalog below has a test that writes through it:
 
@@ -430,7 +498,7 @@ A SQL catalog on SQLite needs no service, so it suits a first run. Its database 
 
     The low-level API passes the same `IcebergStorageEgress` to `env.setup_egress`, in its list of sinks, as [Low-level API](../writing-a-model/low-level-api.md#attach-the-connectors) shows.
 
-`upsert_keys` upserts on key columns instead of appending. A seeded model rerun over the same window writes rows with the same keys, so the upsert replaces those rows instead of duplicating them. An upsert reads the matching rows first, replaces whole rows, never deletes, and needs pyiceberg 0.9.0 or later.
+`upsert_keys` upserts on key columns instead of appending. A seeded model rerun over the same window writes rows with the same keys, so the upsert replaces those rows instead of duplicating them. An upsert reads the matching rows first, replaces whole rows, never deletes, and needs pyiceberg 0.9.0 or later. A record that lacks a key column, or holds null in it, is skipped, and one warning at the end of each flush says how many were skipped and why. Before, `IcebergStorageEgress` raised `ValueError` for such a record. An entry that names its tables in `schemas`, `locations` or `upsert_keys` needs no `default_table` and no router.
 
 === "YAML"
 
@@ -469,7 +537,10 @@ A SQL catalog on SQLite needs no service, so it suits a first run. Its database 
 Every sink receives every event and telemetry record. `when` narrows that down:
 
 - **A function** taking one record and returning True to send it to this sink, in the builder or as `!python` in a blueprint.
+- **`events` and `telemetry`**, in a blueprint: only the event records, or only the telemetry records.
+- **`{expr: ...}`**, in a blueprint: an expression over the record, written with `record.stream_type` (`event` or `telemetry`), `record.key`, `record.task` and `record.value.<field>`. The sink receives the record when the expression is true. A name the record lacks reads as null, so an equality with it is false. An ordering comparison such as `record.value.amount > 100` fails the run on the first record that has no `amount`, so write `record.stream_type == 'event' and ...` first. `t` is refused in a `when` expression.
 - **`history` and `live`**, in a blueprint: the records stamped before `simulation.go_live_at`, and the rest, as [Clocks and Pacing](../time-and-pacing/clocks-and-pacing.md#go-live) describes.
+- **`trace`**: the event trace of `stats.trace`, and nothing else. [Built-in Statistics](../results/statistics.md#trace-the-events) sets it up. A run with a `trace` sink and no `stats.trace` is refused when it loads.
 - **`labels`**: the ground-truth labels, and nothing else. No other sink receives a label, so data and labels always reach different sinks. [Live Parameters](live-parameters.md#record-what-a-change-was-for) describes them.
 
 === "YAML"
@@ -477,12 +548,9 @@ Every sink receives every event and telemetry record. `when` narrows that down:
     ```yaml title="docs/snippets/yaml/batching.yaml:egress"
     egress:
       # Small and often for this sink; the other uses the defaults
-      - type: Console
-        batch_size: 50
-        flush_interval: 0.5
+      - {type: Console, batch_size: 50, flush_interval: 0.5}
       # Only the records stamped before go_live_at
-      - type: Console
-        when: history
+      - {type: Console, when: history}
     ```
 
 === "Builder"
@@ -509,6 +577,28 @@ Every sink receives every event and telemetry record. `when` narrows that down:
 
     `setup_egress` takes the functions in `predicates`, one for each sink by position, as [Batch Size and Flush Interval](#batch-size-and-flush-interval) shows.
 
+The `events`, `telemetry` and `{expr}` forms are YAML forms:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml_build/connectors.yaml:when-forms"
+    # Only the event records
+    - {type: Console, when: events}
+    # Only the telemetry records
+    - {type: Console, when: telemetry}
+    # Only the events that carry an amount over 100
+    - type: Console
+      when: {expr: "record.stream_type == 'event' and record.value.amount > 100"}
+    ```
+
+=== "Builder"
+
+    `add_egress(sink, when=...)` takes a function, as above. A function can test `record["stream_type"]` and `record["value"]` for the same result.
+
+=== "Low-level"
+
+    `predicates` in `setup_egress` takes the same functions.
+
 A labels sink gets the ground-truth labels and nothing else:
 
 === "YAML"
@@ -516,7 +606,7 @@ A labels sink gets the ground-truth labels and nothing else:
     ```yaml title="docs/snippets/yaml/ground_truth.yaml:sinks"
     egress:
       # The data under test: events and telemetry, and no label
-      - type: Console
+      - {type: Console}
       # The labels only, for a scorer that checks what a detector found
       - type: Jsonl
         config: {default_path: labels/labels.jsonl}
@@ -536,6 +626,44 @@ A labels sink gets the ground-truth labels and nothing else:
 
 A file sink such as this one writes one file per batch under `labels/`, such as `labels/labels_1a2b3c4d.jsonl`. A run's `warmup` applies to every sink: none receives a record or telemetry stamped before it. [Run Length](../time-and-pacing/run-length.md#warm-up) describes it.
 
+### Write the Value Alone
+
+A sink normally writes each record with its envelope: `stream_type`, `sim_ts`, `timestamp`, `key`, `task` and `instance` around the event's `value`. With `envelope: false` on the entry, the sink writes each event's `value` alone and receives no telemetry record and no `queued` or `started` record of a task. A label record of a `when: labels` entry is not changed. The Console `json` format writes the value alone too.
+
+- A Kafka sink sends the value as the message, with the record's key as the message key. A null value is sent as a tombstone, a message with the key and a null value, which a compacted topic reads as a delete of that key. A `topic_router` still receives the whole record.
+- A Redis sink sends a value that is not a mapping as JSON, a null included.
+- A storage, Iceberg or PostgreSQL sink skips a value that is not a mapping, with one warning.
+
+A task's `key_field` names the payload field whose value becomes the key of its finished event, and so the Kafka message key. The `queued` and `started` records keep the entity's key, and a payload without the field fails the run. [Task Flow](../model-parts/task-flow.md#record-key-and-fields) describes the key.
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/egress_envelope.yaml:envelope"
+    egress:
+      # Each event's value alone is written: no telemetry, and no queued or started record
+      - {type: Console, envelope: false}
+    ```
+
+    A Kafka sink takes the key in the same way. The value alone is the message, and a null value is sent as a tombstone:
+
+    ```yaml title="docs/snippets/yaml_build/connectors.yaml:envelope-false"
+    # The value of each event alone is the message: no telemetry, no queued or started
+    # record, and a null value is sent as a tombstone
+    - type: Kafka
+      config:
+        bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
+        event_topic: sim-orders
+      envelope: false
+    ```
+
+=== "Builder"
+
+    `app.add_egress(sink, envelope=False)` does the same.
+
+=== "Low-level"
+
+    `setup_egress` takes `envelopes`, a list with True or False for each sink, by position.
+
 ### Batch Size and Flush Interval
 
 A sink receives records in batches. A batch is handed over when it holds `batch_size` records, or when `flush_interval` simulation seconds have passed, whichever comes first. At `factor: 0`, the timer does not start until a `go_live_at` switches the run to real time, because simulation time is not tied to the wall clock before then.
@@ -547,7 +675,7 @@ A sink receives records in batches. A batch is handed over when it holds `batch_
 | `max_queued_batches` | 2000 | `with_batching` |
 | `drain_stall_seconds` | 30.0 seconds | `with_batching` |
 
-`with_batching` sets the defaults, and each sink can have its own size and interval. A stream sink needs small, frequent batches to keep latency down. A file or lake sink needs large ones, because each batch becomes one file, and for Iceberg one commit.
+A size is a whole number of 1 or more and an interval is above 0. The Builder refuses `true`, 0, a negative number and NaN, as YAML does, and YAML refuses `true`. `with_batching` sets the defaults, and each sink can have its own size and interval. A stream sink needs small, frequent batches to keep latency down. A file or lake sink needs large ones, because each batch becomes one file, and for Iceberg one commit.
 
 === "YAML"
 
@@ -571,18 +699,14 @@ A sink receives records in batches. A batch is handed over when it holds `batch_
 
     egress:
       # Small and often for this sink; the other uses the defaults
-      - type: Console
-        batch_size: 50
-        flush_interval: 0.5
+      - {type: Console, batch_size: 50, flush_interval: 0.5}
       # Only the records stamped before go_live_at
-      - type: Console
-        when: history
+      - {type: Console, when: history}
 
     resources:
       packers: {current_cap: 1, max_cap: 1}
 
-    run:
-      until: 60
+    run: {until: 60}
     ```
 
 === "Builder"

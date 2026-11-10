@@ -1,0 +1,41 @@
+# case ST-E05: test_run_all_until_callbacks: a periodic process fires an event three
+# times; five consumers each count it; run until the event three times and then to the
+# end. Keys settled for T8.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+variables: {counter: 0}
+
+signals:
+  periodic: {once: false}
+
+arrivals:
+  period:
+    initial: 1
+    spawn: tick
+    attributes: {n: 0}
+  consumers: {initial: 5, spawn: consume}
+
+tasks:
+  tick:
+    service_time: 1
+    payload: {event_type: tick}
+    signal: periodic
+    set:
+      n: {gen: expr, expr: "attr.n + 1"}
+    next:
+      when:
+        - {condition: "attr.n < 3", task: tick}
+  consume:
+    wait: {signal: periodic}
+    payload: {event_type: seen}
+    on:
+      - path: T.variables.counter
+        value: {gen: expr, expr: "registry['T.variables.counter'] + 1"}
+    next: consume
+
+run:
+  segments:
+    - stop: {signal: periodic}
+    - stop: {signal: periodic}
+    - stop: {signal: periodic}
+    - {}

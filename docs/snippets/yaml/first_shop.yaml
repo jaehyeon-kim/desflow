@@ -29,10 +29,16 @@ tasks:
 
 # --8<-- [start:records]
 egress:
-  - type: Console
+  - {type: Console}
 # --8<-- [end:records]
 
 # --8<-- [start:run]
-run:
-  until: 20
+run: {until: 20}
 # --8<-- [end:run]
+
+# --8<-- [start:tests]
+tests:
+  # Run with: desflow test first_shop.yaml
+  - name: nine_orders_in_20_seconds
+    expect: {tasks.pack_order.finished: 9}
+# --8<-- [end:tests]

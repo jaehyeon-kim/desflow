@@ -568,120 +568,6 @@ def test_tls_options_build_a_context(tmp_path):
         build_ssl_context(True, str(tmp_path / "missing.pem"))
 
 
-@pytest.mark.parametrize(
-    ("key", "value", "expected"),
-    [
-        ("basic.auth.user.info", "user:pa:ss", {"auth": ("user", "pa:ss")}),
-        ("ssl.ca.location", False, {"verify": False}),
-        ("max.retries", 5, {"max_retries": 5}),
-        ("cache.capacity", 10, {}),
-    ],
-)
-def test_old_keys_warn_and_act_like_their_argument(key, value, expected):
-    with pytest.warns(FutureWarning, match=rf"'{key}'.*0\.30\.0"):
-        options = confluent_client.resolve_legacy_options({key: value})
-
-    assert {k: options[k] for k in expected} == expected
-
-
-def test_old_certificate_and_bearer_keys():
-    with pytest.warns(FutureWarning):
-        cert = confluent_client.resolve_legacy_options(
-            {
-                "ssl.certificate.location": "c.pem",
-                "ssl.key.location": "k.pem",
-                "ssl.key.password": "s3cr3t-pass",
-            }
-        )["cert"]
-    with pytest.warns(FutureWarning) as caught:
-        headers = confluent_client.resolve_legacy_options(
-            {
-                "bearer.auth.credentials.source": "STATIC_TOKEN",
-                "bearer.auth.token": "s3cr3t-value",
-                "bearer.auth.logical.cluster": "lsrc-1",
-                "bearer.auth.identity.pool.id": "pool-1",
-            }
-        )["headers"]
-
-    assert cert == ("c.pem", "k.pem", "s3cr3t-pass")
-    assert headers == {
-        "Authorization": "Bearer s3cr3t-value",
-        "target-sr-cluster": "lsrc-1",
-        "Confluent-Identity-Pool-Id": "pool-1",
-    }
-    assert all("s3cr3t" not in str(w.message) for w in caught)
-
-
-def test_old_basic_auth_key_authenticates(registry_transport):
-    seen = []
-
-    def handler(request):
-        seen.append(request.headers["Authorization"])
-        return httpx.Response(200, json={"id": 1})
-
-    registry_transport(handler)
-    with pytest.warns(FutureWarning):
-        serializer = ConfluentAvroSerializer(
-            "http://registry:8081",
-            json.dumps(PROBE),
-            **{"basic.auth.user.info": "user:pass"},
-        )
-
-    serializer.serialize("t", F1[1])
-
-    assert seen == ["Basic dXNlcjpwYXNz"]
-
-
-@pytest.mark.parametrize(
-    "options",
-    [
-        {"url": "http://x"},
-        {"retries.wait.ms": 10},
-        {"basic.auth.user.info": "no-colon"},
-        {"ssl.key.location": "k.pem"},
-        {
-            "bearer.auth.credentials.source": "OAUTHBEARER",
-            "bearer.auth.client.secret": "s3cr3t-value",
-        },
-        {
-            "bearer.auth.credentials.source": "STATIC_TOKEN",
-            "bearer.auth.token": "s3cr3t-value",
-        },
-        {"surprise": 1},
-    ],
-    ids=[
-        "url",
-        "retry wait",
-        "no colon",
-        "key without certificate",
-        "OAuth",
-        "token without cluster",
-        "unknown",
-    ],
-)
-def test_old_keys_without_a_replacement_are_refused(options):
-    with pytest.raises(ValueError) as error:
-        confluent_client.resolve_legacy_options(options)
-
-    assert "s3cr3t" not in str(error.value)
-
-
-@pytest.mark.parametrize(
-    ("options", "argument"),
-    [
-        ({"basic.auth.user.info": "u:p"}, {"auth": ("u", "p")}),
-        ({"max.retries": 7}, {"max_retries": 3}),
-        ({"ssl.ca.location": "/x.pem"}, {"verify": True}),
-    ],
-    ids=["auth", "max_retries", "verify"],
-)
-def test_old_key_and_its_argument_are_exclusive(options, argument):
-    name = next(iter(argument))
-
-    with pytest.raises(ValueError, match=name):
-        confluent_client.resolve_legacy_options(options, **argument)
-
-
 def test_constructors_make_no_request(registry_transport):
     def handler(request):
         pytest.fail(f"Unexpected request {request.url}")
@@ -986,11 +872,29 @@ def test_glue_client_stops_at_once_on_a_status_other_than_pending(
     assert glue.names().count("get_schema_version") == 1
 
 
-def test_glue_client_refuses_a_found_version_that_is_not_available(glue_for):
-    glue = FakeGlue(get_schema_by_definition=[version_answer("PENDING")])
+@pytest.mark.parametrize("status", ["FAILURE", "DELETING"])
+def test_glue_client_refuses_a_found_version_that_is_not_available(glue_for, status):
+    glue = FakeGlue(get_schema_by_definition=[version_answer(status)])
 
-    with pytest.raises(SchemaRegistryError, match="status is PENDING"):
+    with pytest.raises(SchemaRegistryError, match=f"is in {status} status"):
         glue_for(glue).version_for("t-value", "{}", "AVRO")
+
+
+def test_glue_client_waits_for_a_found_version_that_is_pending(glue_for, glue_sleeps):
+    """Another producer registered the version a moment before, and it is PENDING."""
+    glue = FakeGlue(
+        get_schema_by_definition=[version_answer("PENDING")],
+        get_schema_version=[version_answer("PENDING"), version_answer()],
+    )
+
+    assert glue_for(glue).version_for("t-value", "{}", "AVRO") == GLUE_VERSION
+
+    assert glue.names() == [
+        "get_schema_by_definition",
+        "get_schema_version",
+        "get_schema_version",
+    ]
+    assert glue_sleeps == [3, 3]
 
 
 def test_glue_client_caches_versions_and_schemas_and_not_failures(glue_for):

@@ -49,6 +49,8 @@ class TaskEvent(BaseModel):
     """
 
     path_id: str
+    sim_id: str
+    service: str
     status: str
 
 
@@ -71,7 +73,7 @@ def pack_order(env, sampler, packers, key, task_id):
     path_id = "Shop.service.packing"
     env.publish_event(
         key,
-        TaskEvent(path_id=path_id, status="queued"),
+        TaskEvent(path_id=path_id, sim_id="Shop", service="packing", status="queued"),
         task="pack_order",
         instance=task_id,
     )
@@ -83,7 +85,9 @@ def pack_order(env, sampler, packers, key, task_id):
         logger.info(f"Task {task_id} started at sim time: {env.now:.2f}s")
         env.publish_event(
             key,
-            TaskEvent(path_id=path_id, status="started"),
+            TaskEvent(
+                path_id=path_id, sim_id="Shop", service="packing", status="started"
+            ),
             task="pack_order",
             instance=task_id,
         )
@@ -94,7 +98,9 @@ def pack_order(env, sampler, packers, key, task_id):
 
         env.publish_event(
             key,
-            TaskEvent(path_id=path_id, status="finished"),
+            TaskEvent(
+                path_id=path_id, sim_id="Shop", service="packing", status="finished"
+            ),
             task="pack_order",
             instance=task_id,
         )

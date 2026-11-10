@@ -1,0 +1,52 @@
+# A stolen card makes three large payments seconds after a normal one.
+#
+# Payments arrive from twenty cards, and 3 percent of them come from a card that has
+# just been stolen. Two seconds later the same card makes three large payments, and
+# every record is keyed by its card.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/stolen_card_makes_three_large_payments.yaml
+
+simulation:
+  sim_id: Bank
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  payments:
+    dist: exponential
+    rate: 1
+    vars:
+      card: {gen: integer, bounds: [1, 20]}
+    key: {gen: format, template: "card-{card}"}
+    spawn: payment
+
+tasks:
+  payment:
+    payload:
+      card: {gen: expr, expr: process.key}
+      amount: {gen: uniform, low: 5, high: 120, decimals: 2}
+      stolen: {gen: boolean, p: 0.03}
+    next:
+      when:
+        - {condition: payload.stolen, task: burst}
+  burst:
+    payload: null
+    spawn:
+      task: large_payment
+      count: 3
+      after: 2
+      args:
+        card: {gen: upstream, path: card}
+  large_payment:
+    key: {gen: expr, expr: arg.card}
+    payload:
+      card: {gen: expr, expr: arg.card}
+      amount: {gen: uniform, low: 500, high: 2000, decimals: 2}
+      fraud: true
+
+run: {until: 600}

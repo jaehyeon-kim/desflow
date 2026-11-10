@@ -39,6 +39,8 @@ class TaskEvent(BaseModel):
     """
 
     path_id: str
+    sim_id: str
+    service: str
     status: str
 
 
@@ -81,9 +83,12 @@ def pack_order(task_id: int, context):
     logger.info(f"Task {task_id} started at sim time: {context.env.now:.2f}s")
 
     # The payload of the finished event, from the Pydantic model
-    return TaskEvent(path_id="Shop.service.packing", status="finished").model_dump(
-        mode="json"
-    )
+    return TaskEvent(
+        path_id="Shop.service.packing",
+        sim_id="Shop",
+        service="packing",
+        status="finished",
+    ).model_dump(mode="json")
 
 
 @app.arrival_loop("orders")

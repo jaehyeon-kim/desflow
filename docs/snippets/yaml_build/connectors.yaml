@@ -1,24 +1,18 @@
 # Connectors in a blueprint, as the Ingress and Egress pages show them in their YAML
 # tabs, beside connectors.py. The services are the odctl profiles the examples use;
 # tests/docs only loads this file.
-simulation:
-  sim_id: Shop
-  factor: 1
+simulation: {sim_id: Shop, factor: 1}
 
 ingress:
   # --8<-- [start:local-ingress]
   # 10 wall-clock seconds after the start, set the packers capacity to 3
   - type: Local
-    config:
-      schedule:
-        - [10.0, Shop.resources.packers.current_cap, 3]
+    config: {schedule: [[10.0, Shop.resources.packers.current_cap, 3]]}
   # --8<-- [end:local-ingress]
   # --8<-- [start:file-ingress]
   # Applies an entry of params.yaml when it first appears or its value changes
   - type: File
-    config:
-      path: params.yaml
-      poll: 1.0
+    config: {path: params.yaml, poll: 1.0}
   # --8<-- [end:file-ingress]
   # --8<-- [start:kafka-ingress]
   # Reads {"path": ..., "value": ...} messages from the sim-config topic
@@ -45,7 +39,7 @@ ingress:
 
 egress:
   # --8<-- [start:console-egress]
-  - type: Console
+  - {type: Console}
   # --8<-- [end:console-egress]
   # --8<-- [start:console-json]
   # One JSON line per record on stdout, stream_type included
@@ -59,11 +53,34 @@ egress:
       event_topic: sim-events
       telemetry_topic: sim-telemetry
   # --8<-- [end:kafka-egress]
+  # --8<-- [start:kafka-topics]
+  # The policy covers the event and telemetry topics: three partitions each, with a
+  # retention setting. sim-audit is created too, with one partition of its own
+  - type: Kafka
+    config:
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
+      event_topic: sim-events
+      telemetry_topic: sim-telemetry
+      topic_policy:
+        mode: create
+        partitions: 3
+        topic_configs: {retention.ms: 3600000}
+      topics:
+        sim-audit: {partitions: 1}
+  # --8<-- [end:kafka-topics]
+  # --8<-- [start:envelope-false]
+  # The value of each event alone is the message: no telemetry, no queued or started
+  # record, and a null value is sent as a tombstone
+  - type: Kafka
+    config:
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
+      event_topic: sim-orders
+    envelope: false
+  # --8<-- [end:envelope-false]
   # --8<-- [start:storage-egress]
   # Parquet files on the local disk, output/events_<8 hex digits>.parquet
   - type: Parquet
-    config:
-      default_path: output/events.parquet
+    config: {default_path: output/events.parquet}
   # JSON Lines files on S3-compatible storage, here SeaweedFS from odctl; a mapping
   # becomes PyArrow's S3FileSystem
   - type: Jsonl
@@ -78,14 +95,11 @@ egress:
   # --8<-- [end:storage-egress]
   # Writes each event under its day, with the router in routing_logic.py
   - type: Jsonl
-    config:
-      path_router: !python routing_logic.daily_path
+    config: {path_router: !python routing_logic.daily_path}
   # --8<-- [start:redis-egress]
   # XADD to the events stream, unless a record's value names another in __stream__
   - type: Redis
-    config:
-      url: redis://user:password@127.0.0.1:6379/0
-      stream_name: events
+    config: {url: redis://user:password@127.0.0.1:6379/0, stream_name: events}
   # --8<-- [end:redis-egress]
   # --8<-- [start:postgres-egress]
   - type: Postgres
@@ -129,13 +143,32 @@ egress:
         warehouse: s3://warehouse/
     batch_size: 200000
   # --8<-- [end:iceberg-upsert]
+  # --8<-- [start:table-policy]
+  # Each run starts with an empty table: dropped and created again at the first write
+  - type: Iceberg
+    config:
+      default_table: sim.events
+      table_policy: drop_and_create
+      catalog:
+        name: odctl
+        type: rest
+        uri: http://127.0.0.1:8181
+        warehouse: s3://warehouse/
+    batch_size: 200000
+  # --8<-- [end:table-policy]
+  # --8<-- [start:when-forms]
+  # Only the event records
+  - {type: Console, when: events}
+  # Only the telemetry records
+  - {type: Console, when: telemetry}
+  # Only the events that carry an amount over 100
+  - type: Console
+    when: {expr: "record.stream_type == 'event' and record.value.amount > 100"}
+  # --8<-- [end:when-forms]
 
 resources:
   packers: {current_cap: 1, max_cap: 5}
 
 # --8<-- [start:before]
-run:
-  until: 1 hour
-  before:
-    - !python routing_logic.make_output_folder
+run: {until: 1 hour, before: [!python routing_logic.make_output_folder]}
 # --8<-- [end:before]

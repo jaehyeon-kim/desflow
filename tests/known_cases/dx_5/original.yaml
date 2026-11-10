@@ -1,0 +1,15 @@
+# DX-5: the same model with the snippet's own Python: `branches` of docs/snippets/yaml/wait_for_one_or_all_logic.py.
+simulation: {sim_id: Shop, factor: 0}
+signals: {restocked: {once: false}}
+arrivals:
+  orders: {replay: {path: orders.csv}, spawn: order}
+  restocks: {replay: {path: restocks.csv}, spawn: restock}
+tasks:
+  order:
+    wait:
+      any:
+        stock: {signal: restocked}
+        limit: {timeout: 30}
+    payload: !python wait_for_one_or_all_logic.branches
+  restock: {signal: restocked, payload: {boxes: 6}}
+run: {until: 60}

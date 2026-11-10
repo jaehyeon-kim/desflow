@@ -1,0 +1,78 @@
+# The Arrivals and Services page: when and how many entities an arrival starts.
+# A run of orders every 10 s from 5 s, parties of a few orders, three scanners that
+# start two seconds apart, and a rush that a bell turns on at 60 s.
+# Run it with: desflow run arrival_options.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console}
+
+resources:
+  packers: {current_cap: 3, max_cap: 3}
+
+# --8<-- [start:services]
+services:
+  packing: {dist: constant, value: 1.5 s}
+  # Whole seconds with a fixed chance of 0.5 of ending at each: 2 s on average
+  checking: {dist: geometric, p: 0.5}
+# --8<-- [end:services]
+
+# --8<-- [start:options]
+arrivals:
+  # A fixed gap, a first order at 5 s, and a number of orders drawn once: 4 on average
+  orders:
+    gap: 10 s
+    first_at: 5
+    max_events: {gen: sample, dist: geometric, p: 0.25}
+    # A var is drawn once for each order, and the attributes and the key read it
+    vars:
+      lane: {gen: integer, bounds: [1, 3]}
+    attributes:
+      lane: {gen: expr, expr: lane}
+    spawn: pack
+  # A party of orders at a time: its size is drawn at each arrival, and 0 starts nobody
+  parties:
+    dist: exponential
+    rate: 0.05
+    group: {gen: sample, dist: poisson, mean: 2}
+    spawn: pack
+  # Three scanners, each a loop of its own, starting 2 s apart, with their own keys
+  scanners:
+    dist: constant
+    value: 20 s
+    count: 3
+    stagger: 2 s
+    key: {gen: sequence, format: "scanner-{}"}
+    spawn: scan
+  # A source that starts off, and starts a whole new gap when it is turned on
+  rush: {dist: exponential, rate: 0.5, active: false, off_mode: restart, spawn: pack}
+  # One start at 60 s
+  bell: {gap: 1 s, first_at: 60, max_events: 1, spawn: open_rush}
+  # One start at 80 s
+  lull: {gap: 1 s, first_at: 80, max_events: 1, spawn: close_rush}
+  # Two orders that exist when the run starts
+  regulars: {initial: 2, spawn: pack}
+  # A gap of whole seconds, 4 on average
+  walkins: {dist: geometric, p: 0.25, spawn: pack}
+# --8<-- [end:options]
+
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+  scan:
+    service: checking
+    payload: {event_type: scanned}
+  # --8<-- [start:switch]
+  open_rush:
+    payload: {event_type: rush_opened}
+    # Turns the source of rush on as the task finishes
+    activate: rush
+  close_rush:
+    payload: {event_type: rush_closed}
+    # Turns the source of rush off again
+    deactivate: rush
+  # --8<-- [end:switch]
+
+run: {until: 100 s}

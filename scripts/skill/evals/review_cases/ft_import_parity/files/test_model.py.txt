@@ -1,0 +1,25 @@
+"""Tests of task P33."""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).parent
+
+
+def _records(command):
+    done = subprocess.run(command, cwd=HERE, capture_output=True, text=True, check=True)
+    return [json.loads(line) for line in done.stdout.splitlines() if line.startswith("{")]
+
+
+def _key(rows):
+    return sorted((r["sim_ts"], r["task"], r["key"], json.dumps(r["value"], sort_keys=True)) for r in rows if r["stream_type"] == "event")
+
+
+BUILDER = _key(_records([sys.executable, "builder.py"]))
+
+
+def test_yaml_and_builder_give_the_same_records():
+    yaml_rows = _records([str(Path(sys.executable).parent / "desflow"), "run", "model.yaml", "--stdout"])
+    assert _key(yaml_rows) == BUILDER

@@ -1,0 +1,19 @@
+# Guides M2: a reading after each request and release of a resource
+# (monitoring.rst:125-183).
+simulation: {sim_id: M, factor: 0, random_seed: 42}
+
+stats: {level: basic, on_change: true}
+
+resources:
+  res: {max_cap: 1}
+
+arrivals:
+  a: {initial: 1, spawn: use}
+
+tasks:
+  use:
+    resource: res
+    service_time: 1
+    payload: {event_type: used}
+
+run: {until: 5}

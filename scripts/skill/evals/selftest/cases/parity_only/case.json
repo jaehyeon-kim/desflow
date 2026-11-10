@@ -1,0 +1,19 @@
+{
+  "fault": "S9: a test that compares the forms fails every change of the YAML; the script leaves such a change to the reviewer and names the test",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K9": 0
+  },
+  "notes": {
+    "K9": [
+      "failed by test_model.py::test_builder_gives_the_records_of_the_yaml"
+    ]
+  },
+  "forms": {
+    "test_model.py::test_builder_gives_the_records_of_the_yaml": [
+      "builder",
+      "yaml"
+    ]
+  }
+}

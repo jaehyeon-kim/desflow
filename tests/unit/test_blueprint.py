@@ -1,6 +1,8 @@
 """YAML blueprints: validation, error lines and the builder calls they make."""
 
+from dataclasses import replace
 import json
+import re
 import textwrap
 import time
 from datetime import datetime
@@ -62,7 +64,7 @@ def test_blueprint_builds_through_the_builder(tmp_path):
     app = SimulationContext.from_yaml(write(tmp_path, MINIMAL))
 
     assert (app.sim_id, app.factor, app.random_seed) == ("Shop", 0, 7)
-    assert app._resources_config["packers"].current_cap == 2
+    assert app._holders.resources_config["packers"].current_cap == 2
     packing = app._services_config["packing"]
     # Only the parameters the family takes are set
     assert (packing.dist, packing.mean, packing.std, packing.rate) == (
@@ -71,8 +73,8 @@ def test_blueprint_builds_through_the_builder(tmp_path):
         0.5,
         None,
     )
-    assert app._arrivals_config["standard"].rate == 1.0
-    assert app._default_until == 30.0
+    assert app._arrivals.configs["standard"].rate == 1.0
+    assert app._defaults.until == 30.0
 
 
 def test_tasks_spawned_from_an_arrival_publish_the_payload(tmp_path):
@@ -112,7 +114,7 @@ def test_yaml_spawn_goes_through_add_arrival(tmp_path, monkeypatch):
     [
         ("  factor: 0\n", "  factor: 0\n  speed: 2\n", 4, "simulation.speed"),
         ("mean: 3.0, std: 0.5", "mean: 3.0, std: 0.5, shape: 2", 8, "shape"),
-        ("dist: exponential", "dist: poisson", 10, "Unsupported distribution"),
+        ("dist: exponential", "dist: beta", 10, "Unsupported distribution"),
         (
             "  packers: {current_cap: 2, max_cap: 5}",
             "  packers: {max_cap: 0.5}",
@@ -169,6 +171,186 @@ def test_schema_errors_name_the_line(tmp_path, old, new, line, fragment):
     message = str(error.value)
     assert message.startswith(f"{path}:{line}:"), message
     assert fragment in message
+
+
+_VALUE_HEAD = (
+    "simulation: {sim_id: Shop, factor: 0}\n"
+    "variables: {total: 1}\n"
+    "signals: {s: {}}\n"
+    "services: {work: {dist: constant, value: 1}}\n"
+)
+_ARRIVAL = "arrivals: {a: {dist: constant, value: 1, spawn: t%s}}\n"
+# Each of the ten places a value is written, with @@ where the value goes
+_VALUE_PLACES = {
+    "attributes": _ARRIVAL % ", attributes: {n: @@}"
+    + "tasks: {t: {payload: {e: 1}}}\n",
+    "items": "stores: {shelf: {items: [@@]}}\n",
+    "cause": _ARRIVAL % ""
+    + "tasks:\n  t: {payload: {e: 1}, interrupt: {task: t, cause: @@}}\n",
+    "fire": _ARRIVAL % ""
+    + "tasks:\n  t: {payload: {e: 1}, on: [{fire: {signal: s, value: @@}}]}\n",
+    "on": _ARRIVAL % ""
+    + "tasks:\n  t: {payload: {e: 1}, on: [{path: Shop.variables.total, value: @@}]}\n",
+    "timeout": _ARRIVAL % ""
+    + "tasks:\n  t: {wait: {timeout: {after: 1, value: @@}}, payload: {e: 1}}\n",
+    "nested wait": _ARRIVAL
+    % ""
+    + "tasks:\n  t:\n    payload: {e: 1}\n    wait:\n      any:\n"
+    "        late: {timeout: {after: 1, value: @@}}\n"
+    "        never: {timeout: 50}\n",
+    "payload": _ARRIVAL % "" + "tasks: {t: {payload: {e: @@}}}\n",
+    "set": _ARRIVAL % "" + "tasks: {t: {payload: {e: 1}, set: {n: @@}}}\n",
+    "scenario value": _ARRIVAL % "" + "tasks: {t: {payload: {e: 1}}}\n"
+    "scenario:\n  - {at: 1, path: Shop.variables.total, value: @@}\n",
+    "scenario record": _ARRIVAL % "" + "tasks: {t: {payload: {e: 1}}}\n"
+    "scenario:\n  - {at: 1, record: {k: @@}}\n",
+}
+
+
+def _with_value(place, value):
+    text = _VALUE_HEAD + _VALUE_PLACES[place]
+    line = next(i for i, row in enumerate(text.splitlines(), 1) if "@@" in row)
+    return text.replace("@@", value), line
+
+
+@pytest.mark.parametrize("place", sorted(_VALUE_PLACES))
+def test_a_mapping_with_gen_is_a_generator_in_every_place_a_value_is_written(
+    tmp_path, place
+):
+    """MF1: in each of the ten places a mapping with a `gen` key is a generator, so a
+    kind that does not exist is a load error with the line of the value, and
+    `{gen: literal, value: {gen: 5}}` keeps the mapping as data."""
+    text, line = _with_value(place, "{gen: nope}")
+    path = write(tmp_path, text)
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    # A wait lists what each of its branch kinds found, so one line is the value's
+    assert any(
+        row.startswith(f"{path}:{line}:") and "nope" in row
+        for row in str(error.value).splitlines()
+    ), str(error.value)
+
+    text, _ = _with_value(place, "{gen: literal, value: {gen: 5}}")
+    SimulationContext.from_yaml(write(tmp_path, text, "kept.yaml"))
+
+
+# A scenario value and an `on:` path value set a number, so a mapping there is refused
+# by the type of the path
+@pytest.mark.parametrize("place", sorted(set(_VALUE_PLACES) - {"scenario value", "on"}))
+def test_a_nested_mapping_with_a_key_that_is_not_text_still_loads_in_every_place(
+    tmp_path, place
+):
+    """YAML reads a bare `on` as true and `1` as a number, so a nested mapping in a
+    value place may have a key that is not text, as it could before generators."""
+    for value in ("{1: x}", "{a: {on: 1, 2026-01-01: 2}}"):
+        text, _ = _with_value(place, value)
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
+@pytest.mark.parametrize("place", ["set", "attributes", "scenario record"])
+def test_a_gen_key_directly_under_set_attributes_or_record_is_a_field_name(
+    tmp_path, place
+):
+    """These places are mappings of field names to values, so a `gen` key at their top
+    names a field and stays data; a value one level down is the mapping that is a
+    generator."""
+    top = {
+        "set": "tasks: {t: {payload: {e: 1}, set: {gen: 5}}}\n",
+        "attributes": "tasks: {t: {payload: {e: 1}}}\n",
+        "scenario record": "tasks: {t: {payload: {e: 1}}}\n"
+        "scenario:\n  - {at: 1, record: {gen: 5}}\n",
+    }[place]
+    text = _VALUE_HEAD + (
+        _ARRIVAL % (", attributes: {gen: 5}" if place == "attributes" else "")
+    )
+    SimulationContext.from_yaml(write(tmp_path, text + top))
+
+
+def test_a_mapping_with_gen_runs_as_a_generator_and_literal_keeps_it_as_data(tmp_path):
+    """The old meaning of a `gen` mapping, as data, is kept by `literal` in the payload,
+    a `set` value and a nested wait's timeout value, and a generator elsewhere gives
+    its drawn value."""
+    text, _ = _with_value("payload", "{gen: literal, value: {gen: 5}}")
+    assert _events_of(tmp_path, text, until=1.5) == [(1.0, {"e": {"gen": 5}})]
+    text, _ = _with_value("payload", "{gen: integer, bounds: [4, 4]}")
+    assert _events_of(tmp_path, text, until=1.5) == [(1.0, {"e": 4})]
+    text, _ = _with_value("nested wait", "{gen: literal, value: {gen: 5}}")
+    events = _events_of(tmp_path, text, until=3)
+    assert (2.0, {"e": 1}) in events
+
+
+def test_generator_errors_name_the_line(tmp_path):
+    """A generator that is wrong names the file and the line of the value, and the
+    location is the path of keys without the tags of the schema union."""
+    cases = [
+        ("{gen: uniform, low: 1}", "high"),
+        ("{gen: integer, bounds: [1, 2], zzz: 3}", "zzz"),
+        ("{gen: expr, expr: 'attr.n +'}", "expr"),
+        ("{gen: var, name: missing}", "missing"),
+        ("{gen: sample, service: nowhere}", "nowhere"),
+        ("{gen: param, path: Shop.nothing}", "registry path"),
+        ("{gen: row, file: absent.csv}", "absent.csv"),
+    ]
+    for value, fragment in cases:
+        text, line = _with_value("payload", value)
+        path = write(tmp_path, text)
+        with pytest.raises(BlueprintError) as error:
+            SimulationContext.from_yaml(path)
+        message = str(error.value)
+        assert message.startswith(f"{path}:{line}:"), message
+        assert fragment in message, message
+        assert "<gen>" not in message and "<map>" not in message, message
+
+
+def _events_of(tmp_path, text, until):
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    capture = _Capture()
+    app.add_egress(capture)
+    app.run(until=until)
+    return [
+        (r["sim_ts"], r["value"])
+        for r in capture.records
+        if r["stream_type"] == "event"
+    ]
+
+
+def test_text_in_a_value_place_stays_text_and_a_time_place_reads_it(tmp_path):
+    """Text in a value place stays text: a payload value `attr.n + 1` is that text.
+    A time place reads a number as seconds and text `time_to_seconds` accepts as a
+    duration, so `timeout: 2 h` waits 7200 seconds."""
+    header = (
+        "simulation: {sim_id: Shop, factor: 0}\n"
+        "arrivals: {a: {dist: constant, value: 1, spawn: t}}\n"
+    )
+    events = _events_of(
+        tmp_path,
+        header + "tasks: {t: {payload: {e: 'attr.n + 1'}}}\n",
+        until=1.5,
+    )
+    assert events == [(1.0, {"e": "attr.n + 1"})]
+
+    for timeout, seconds in ((5, 5.0), ("'2 h'", 7200.0)):
+        events = _events_of(
+            tmp_path,
+            header
+            + f"tasks: {{t: {{wait: {{timeout: {timeout}}}, payload: {{e: 1}}}}}}\n",
+            until=seconds + 1.5,
+        )
+        assert [e for e in events if e[1] == {"e": 1}][0] == (1.0 + seconds, {"e": 1})
+
+    # In a place that reads an expression, text is one: a patience of `attr.n` is the
+    # attribute's value: the second order, asking at 2, gives up at 6
+    events = _events_of(
+        tmp_path,
+        "simulation: {sim_id: Shop, factor: 0}\n"
+        "resources: {m: {current_cap: 1, max_cap: 1}}\n"
+        "services: {long: {dist: constant, value: 9}}\n"
+        "arrivals: {a: {dist: constant, value: 1, spawn: t, attributes: {n: 4}}}\n"
+        "tasks: {t: {resource: m, service: long, patience: 'attr.n', "
+        "payload: {e: 1}}}\n",
+        until=8,
+    )
+    assert any(v.get("status") == "reneged" and t == 6.0 for t, v in events)
 
 
 @pytest.mark.parametrize(
@@ -256,20 +438,24 @@ def test_cross_reference_errors_name_the_line(tmp_path, old, new, line, fragment
 def test_unknown_connector_type_names_the_line(tmp_path):
     text = MINIMAL + "egress:\n  - type: Carrier\n"
     path = write(tmp_path, text)
-    with pytest.raises(BlueprintError, match=rf"{path}:20: unknown connector type"):
+    with pytest.raises(
+        BlueprintError, match=rf"{re.escape(str(path))}:20: unknown connector type"
+    ):
         SimulationContext.from_yaml(path)
 
 
 def test_bad_connector_config_names_the_line(tmp_path):
     text = MINIMAL + "egress:\n  - type: Console\n    config: {colour: red}\n"
     path = write(tmp_path, text)
-    with pytest.raises(BlueprintError, match=rf"{path}:21: ConsoleEgress rejected"):
+    with pytest.raises(
+        BlueprintError, match=rf"{re.escape(str(path))}:21: ConsoleEgress rejected"
+    ):
         SimulationContext.from_yaml(path)
 
 
 def test_yaml_syntax_error_names_the_line(tmp_path):
     path = write(tmp_path, "simulation:\n  sim_id: [Shop\n")
-    with pytest.raises(BlueprintError, match=rf"{path}:\d+:"):
+    with pytest.raises(BlueprintError, match=rf"{re.escape(str(path))}:\d+:"):
         SimulationContext.from_yaml(path)
 
 
@@ -408,6 +594,73 @@ def test_python_payload_is_called_with_the_task_id_and_context(tmp_path, logic):
     assert finished and finished[0]["at"] > 0
 
 
+@pytest.mark.parametrize("first,second", [("a", "b"), ("b", "a")])
+def test_arrivals_start_in_file_order(tmp_path, first, second):
+    """File order is creation order: arrivals due at one time start their entities in
+    the order they are written."""
+    arrivals = (
+        f"arrivals: {{{first}: {{dist: constant, value: 3, spawn: t}}, "
+        f"{second}: {{dist: constant, value: 3, spawn: t}}}}\n"
+    )
+    text = (
+        "simulation: {sim_id: R, factor: 0}\n"
+        + arrivals
+        + "tasks: {t: {payload: {e: 1}}}\n"
+    )
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    capture = _Capture()
+    app.add_egress(capture)
+    app.run(until=4)
+    keys = [r["key"] for r in capture.records if r["stream_type"] == "event"]
+    assert keys[0].startswith(first) and keys[1].startswith(second), keys
+
+
+def test_file_order_decides_only_ties_between_first_due_times(tmp_path):
+    """Events due at one time run in the order they were scheduled. Arrival `a` (gap 1)
+    comes first in the file, but at 3 arrival `b` (gap 3) runs first, because its
+    timeout was scheduled at 0 and the one of `a` at 2."""
+    text = (
+        "simulation: {sim_id: R, factor: 0}\n"
+        "arrivals: {a: {dist: constant, value: 1, spawn: t}, "
+        "b: {dist: constant, value: 3, spawn: t}}\n"
+        "tasks: {t: {payload: {e: 1}}}\n"
+    )
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    capture = _Capture()
+    app.add_egress(capture)
+    app.run(until=3.5)
+    keys = [
+        (r["sim_ts"], r["key"]) for r in capture.records if r["stream_type"] == "event"
+    ]
+    assert keys == [(1.0, "a-1"), (2.0, "a-2"), (3.0, "b-1"), (3.0, "a-3")]
+
+
+def test_arrivals_start_before_a_process_due_at_the_same_time(tmp_path):
+    """Arrivals are created before `processes`, so an entity an arrival starts runs
+    before a `processes` entry due at the same time."""
+    (tmp_path / "order_logic_mf6.py").write_text(
+        "ORDER = []\n"
+        "def task_ran(task_id, context):\n"
+        "    ORDER.append('task')\n"
+        "    return {'e': 1}\n"
+        "def process(context):\n"
+        "    yield context.env.timeout(3)\n"
+        "    ORDER.append('process')\n",
+        encoding="utf-8",
+    )
+    text = (
+        "simulation: {sim_id: R, factor: 0}\n"
+        "arrivals: {a: {dist: constant, value: 3, spawn: t}}\n"
+        "tasks: {t: {payload: !python order_logic_mf6.task_ran}}\n"
+        "processes:\n  - !python order_logic_mf6.process\n"
+    )
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    app.run(until=4)
+    import order_logic_mf6
+
+    assert order_logic_mf6.ORDER == ["task", "process"]
+
+
 def test_processes_take_kwargs(tmp_path, logic):
     text = MINIMAL + textwrap.dedent(f"""\
         processes:
@@ -451,9 +704,9 @@ def test_egress_type_and_when_take_python_objects(tmp_path, logic):
             when: !python {logic}.keep_events
         """)
     app = SimulationContext.from_yaml(write(tmp_path, text))
-    provider = app._egress_providers[0]
+    provider = app._sinks.egress[0].provider
     assert type(provider).__name__ == "Sink" and provider.label == "one"
-    assert app._egress_predicates[0]({"stream_type": "event"}) is True
+    assert app._sinks.egress[0].predicate({"stream_type": "event"}) is True
 
 
 def test_run_before_is_called_before_the_run(tmp_path, logic):
@@ -518,14 +771,18 @@ def test_python_reference_reports_an_import_failure_inside_the_module(tmp_path):
 
 def test_python_tag_on_a_mapping_is_rejected(tmp_path):
     path = write(tmp_path, MINIMAL + "processes:\n  - !python {a: b}\n")
-    with pytest.raises(BlueprintError, match=rf"{path}:20: !python takes a dotted"):
+    with pytest.raises(
+        BlueprintError, match=rf"{re.escape(str(path))}:20: !python takes a dotted"
+    ):
         SimulationContext.from_yaml(path)
 
 
 def test_a_process_must_be_a_generator_function(tmp_path, logic):
     text = MINIMAL + f"processes:\n  - !python {logic}.not_a_generator\n"
     path = write(tmp_path, text)
-    with pytest.raises(BlueprintError, match=rf"{path}:20: .*generator function"):
+    with pytest.raises(
+        BlueprintError, match=rf"{re.escape(str(path))}:20: .*generator function"
+    ):
         SimulationContext.from_yaml(path)
 
 
@@ -634,7 +891,7 @@ def test_scenario_applies_on_simulation_time_at_factor_0(tmp_path):
         ),
         (
             "{at: 5, path: Shop.resources.packers.current_cap, value: many}",
-            "holds a int",
+            "needs a whole number of 0 or more for current_cap",
         ),
         (
             "{at: 5, path: Shop.arrival.standard.rate, value: 0}",
@@ -698,20 +955,25 @@ def test_scenario_at_must_be_a_time(tmp_path):
         tmp_path,
         MINIMAL + "scenario:\n  - {at: later, path: Shop.variables.x, value: 1}\n",
     )
-    with pytest.raises(BlueprintError, match=rf"{path}:20: scenario.0.at"):
+    with pytest.raises(
+        BlueprintError, match=rf"{re.escape(str(path))}:20: scenario.0.at"
+    ):
         SimulationContext.from_yaml(path)
 
 
 def test_compile_parameters_matches_what_run_registers(tmp_path):
+    """A run registers a copy of the parameters, so a live change leaves the
+    declarations as written."""
     app = SimulationContext.from_yaml(write(tmp_path, MINIMAL))
     params = app.compile_parameters()
     app.run(until=1)
 
     assert params.sim_id == "Shop"
-    assert (
-        app.env.registry.get_config("Shop.resources.packers")
-        is (params.resources["packers"])
-    )
+    registered = app.env.registry.get_config("Shop.resources.packers")
+    assert registered == params.resources["packers"]
+    assert registered is not params.resources["packers"]
+    app.env.registry.update("Shop.resources.packers.current_cap", 3)
+    assert app.compile_parameters().resources["packers"].current_cap == 2
 
 
 # ---------------------------------------------------------------------------
@@ -742,7 +1004,7 @@ def test_environment_variables_are_substituted(tmp_path, monkeypatch):
     monkeypatch.delenv("NOT_A_VARIABLE", raising=False)
     app = SimulationContext.from_yaml(write(tmp_path, ENV_BLUEPRINT))
 
-    assert (app.sim_id, app.factor, app._default_until) == ("Warehouse", 0, 60.0)
+    assert (app.sim_id, app.factor, app._defaults.until) == ("Warehouse", 0, 60.0)
     variables = app._variables_config
     assert variables["host"] == "db.internal"
     assert variables["url"] == "postgres://db.internal:5432/sim"
@@ -763,7 +1025,8 @@ def test_an_unset_variable_without_a_default_names_the_line(tmp_path, monkeypatc
     monkeypatch.delenv("SIM_ID", raising=False)
     path = write(tmp_path, ENV_BLUEPRINT)
     with pytest.raises(
-        BlueprintError, match=rf"{path}:2: environment variable SIM_ID is not set"
+        BlueprintError,
+        match=rf"{re.escape(str(path))}:2: environment variable SIM_ID is not set",
     ):
         SimulationContext.from_yaml(path)
 
@@ -838,7 +1101,8 @@ def test_times_take_python_objects(tmp_path, logic):
 def test_a_bad_time_names_the_line(tmp_path, value, fragment):
     path = write(tmp_path, _with_times(value, "now"))
     with pytest.raises(
-        BlueprintError, match=rf"{path}:5: simulation.logical_start_time: .*{fragment}"
+        BlueprintError,
+        match=rf"{re.escape(str(path))}:5: simulation.logical_start_time: .*{fragment}",
     ):
         SimulationContext.from_yaml(path)
 
@@ -861,7 +1125,10 @@ def test_history_and_live_split_records_at_go_live(tmp_path):
     app = SimulationContext.from_yaml(write(tmp_path, text))
     history, live = _Capture(), _Capture()
     # The YAML providers are swapped for captures; the predicates stay as built.
-    app._egress_providers[:] = [history, live]
+    app._sinks.egress[:] = [
+        replace(sink, provider=provider)
+        for sink, provider in zip(app._sinks.egress, [history, live])
+    ]
     # Ten simulation seconds of history, then a short live tail in real time.
     app.run(until=10.3)
 
@@ -875,7 +1142,7 @@ def test_history_and_live_split_records_at_go_live(tmp_path):
 def test_live_is_compared_in_the_zone_of_the_start_time(tmp_path):
     text = _with_times("2026-01-01T00:00:00+00:00", "2026-01-01T10:00:10+10:00") + SPLIT
     app = SimulationContext.from_yaml(write(tmp_path, text))
-    history, live = app._egress_predicates
+    history, live = [sink.predicate for sink in app._sinks.egress]
     record = {"timestamp": "2026-01-01T00:00:10.000+00:00"}
     assert live(record) and not history(record)
     record = {"timestamp": "2026-01-01T00:00:09.999+00:00"}
@@ -885,7 +1152,8 @@ def test_live_is_compared_in_the_zone_of_the_start_time(tmp_path):
 def test_history_needs_go_live_at(tmp_path):
     path = write(tmp_path, MINIMAL + "egress:\n  - type: Console\n    when: history\n")
     with pytest.raises(
-        BlueprintError, match=rf"{path}:21: when: history needs simulation.go_live_at"
+        BlueprintError,
+        match=rf"{re.escape(str(path))}:21: when: history needs simulation.go_live_at",
     ):
         SimulationContext.from_yaml(path)
 
@@ -894,7 +1162,7 @@ def test_an_unknown_when_names_the_line(tmp_path):
     path = write(tmp_path, MINIMAL + "egress:\n  - type: Console\n    when: later\n")
     with pytest.raises(
         BlueprintError,
-        match=rf"{path}:21: egress.0.when: .*'later' is not a when. Use history, live",
+        match=rf"{re.escape(str(path))}:21: egress.0.when: .*'later' is not a when. Use history, live",
     ):
         SimulationContext.from_yaml(path)
 
@@ -919,7 +1187,8 @@ def test_a_task_without_service_or_resource_emits_at_once(tmp_path):
 def test_a_resource_needs_a_service(tmp_path):
     path = write(tmp_path, MINIMAL.replace("    service: packing\n", ""))
     with pytest.raises(
-        BlueprintError, match=rf"{path}:12: tasks.part: .*a resource needs a service"
+        BlueprintError,
+        match=rf"{re.escape(str(path))}:12: tasks.part: .*a resource needs a service",
     ):
         SimulationContext.from_yaml(path)
 
@@ -985,8 +1254,245 @@ def test_zero_intervals_and_sizes_are_rejected(tmp_path, extra, line, fragment):
 
 def test_zero_until_is_rejected(tmp_path):
     path = write(tmp_path, MINIMAL.replace("until: 30", "until: 0"))
-    with pytest.raises(BlueprintError, match=rf"{path}:18: .*run.until"):
+    with pytest.raises(
+        BlueprintError, match=rf"{re.escape(str(path))}:18: .*run.until"
+    ):
         SimulationContext.from_yaml(path)
+
+
+SEGMENTED = """\
+simulation: {sim_id: S, factor: 0, random_seed: 1}
+services: {one: {dist: constant, value: 1}}
+arrivals: {a: {replay: {path: a.csv}, spawn: ticking}}
+tasks:
+  ticking: {service: one, payload: {event_type: tick}}
+  looking: {payload: {event_type: look}}
+run:
+  until: 6
+"""
+
+
+SEEN = """\
+def seen(task_id, context):
+    return {"at": context.env.now, "next_event": context.env.peek()}
+"""
+
+
+def _segmented(tmp_path, run, tasks=None, until=True):
+    text = SEGMENTED.split("run:")[0] + "run:\n" + textwrap.indent(run, "  ")
+    if until:
+        text = text.replace("run:\n", "run:\n  until: 6\n", 1)
+    if tasks:
+        text = text.replace("  looking:", tasks + "\n  looking:")
+    (tmp_path / "a.csv").write_text("time\n1\n1\n3\n")
+    return write(tmp_path, text)
+
+
+def _readings(records, path_id):
+    return [r["value"] for r in records if r.get("path_id") == path_id]
+
+
+def test_segments_run_through_desflow_run(tmp_path):
+    path = _segmented(
+        tmp_path, "segments:\n  - {until: 2, look: looking}\n  - {until: 6}\n"
+    )
+    result = CliRunner().invoke(cli, ["run", str(path), "--stdout"])
+    assert result.exit_code == 0, result.output
+    assert result.output.count("system.simulation.segment") == 2
+
+
+def test_segments_run_in_every_replication(tmp_path, monkeypatch):
+    path = _segmented(
+        tmp_path, "segments:\n  - {until: 2, look: looking}\n  - {until: 6}\n"
+    )
+    calls = []
+    original = SimulationContext._run_segments
+
+    def spy(self, segments):
+        calls.append(len(segments))
+        return original(self, segments)
+
+    monkeypatch.setattr(SimulationContext, "_run_segments", spy)
+    result = CliRunner().invoke(cli, ["run", str(path), "--replications", "2"])
+    assert result.exit_code == 0, result.output
+    assert len(calls) >= 2
+
+
+@pytest.mark.parametrize(
+    ("run", "last_event"),
+    [
+        ("segments: [{until: 3}, {until: 6}]\n", 5.0),
+        ("segments: [{until: 3}, {}]\n", 51.0),
+        ("until: 20\nsegments: [{until: 3}, {until: 6}]\n", 19.0),
+    ],
+    ids=[
+        "ends at the last until",
+        "an empty entry runs to the end",
+        "run.until ends it",
+    ],
+)
+def test_segments_with_no_run_until_end_at_the_last_stop(tmp_path, run, last_event):
+    """A list of segments is a SimPy program that stops calling `env.run`: with an
+    arrival of 50 events and no `run.until`, the run ends at the last `until` (the last
+    event is at 5 for an `until` of 6). A last entry `{}` runs to the end, and a
+    `run.until` ends the run there."""
+    text = SEGMENTED.split("run:")[0].replace(
+        "arrivals: {a: {replay: {path: a.csv}, spawn: ticking}}",
+        "arrivals: {a: {gap: 1, max_events: 50, spawn: ticking}}",
+    )
+    path = write(tmp_path, text + "run:\n" + textwrap.indent(run, "  "))
+    capture = _Capture()
+    app = SimulationContext.from_yaml(path)
+    app.add_egress(capture)
+    app.run()
+    events = [r["sim_ts"] for r in capture.records if r["stream_type"] == "event"]
+    assert max(events) == last_event
+
+
+@pytest.mark.parametrize(
+    "segments,stop",
+    [
+        ("  - {until: 2}\n  - {until: 4, look: looking}\n  - {until: 6}\n", 4),
+        ("  - {until: 2}\n  - {until: 6, look: looking}\n", 6),
+    ],
+    ids=["middle", "last"],
+)
+def test_look_reads_before_the_events_at_the_stop(tmp_path, segments, stop):
+    """The look's `!python` payload reads the context at the stop time, before the
+    events due at that time run: the clock is the stop and the next event is due
+    at it. A task that ends at 4 is recorded after the look."""
+    (tmp_path / "seen_logic.py").write_text(SEEN, encoding="utf-8")
+    path = _segmented(tmp_path, "segments:\n" + segments)
+    path.write_text(
+        path.read_text().replace(
+            "looking: {payload: {event_type: look}}",
+            "looking: {payload: !python seen_logic.seen}",
+        )
+    )
+    capture = _Capture()
+    app = SimulationContext.from_yaml(path)
+    app.add_egress(capture)
+    app.run()
+    events = [r for r in capture.records if r["stream_type"] == "event"]
+    look = next(r for r in events if r["task"] == "looking")
+    assert look["value"]["at"] == stop
+    if stop == 4:
+        assert look["value"]["next_event"] == 4
+        after = [r for r in events if r["task"] == "ticking" and r["sim_ts"] == 4]
+        assert after and events.index(look) < events.index(after[0])
+    assert [r["now"] for r in _readings(capture.records, "system.simulation.segment")][
+        -1
+    ] == 6
+
+
+def test_look_task_refuses_a_timed_step(tmp_path):
+    path = _segmented(
+        tmp_path,
+        "segments:\n  - {until: 2, look: looking}\n",
+        tasks="  looking: {service: one, payload: {event_type: look}}",
+    )
+    text = path.read_text().replace("  looking: {payload: {event_type: look}}\n", "")
+    path.write_text(text)
+    with pytest.raises(BlueprintError, match="a look"):
+        SimulationContext.from_yaml(path)
+
+
+@pytest.mark.parametrize(
+    "other,message",
+    [
+        ("segments:\n  - {until: 2}\n", "run.steps cannot be used with run.segments"),
+        ("drain: true\n", "run.steps cannot be used with run.stop or run.drain"),
+        (
+            "stop: {signal: gate}\n",
+            "run.steps cannot be used with run.stop or run.drain",
+        ),
+    ],
+    ids=["segments", "drain", "stop"],
+)
+def test_run_steps_refuses_segments_stop_and_drain(tmp_path, other, message):
+    path = _segmented(tmp_path, "steps: true\n" + other)
+    path.write_text(
+        path.read_text().replace("services:", "signals: {gate: {}}\nservices:")
+    )
+    with pytest.raises(BlueprintError, match=message):
+        SimulationContext.from_yaml(path)
+
+
+@pytest.mark.parametrize(
+    "other", ["drain: true\n", "stop: {signal: gate}\n"], ids=["drain", "stop"]
+)
+def test_segments_refuse_stop_and_drain(tmp_path, other):
+    path = _segmented(tmp_path, other + "segments:\n  - {until: 2}\n")
+    path.write_text(
+        path.read_text().replace("services:", "signals: {gate: {}}\nservices:")
+    )
+    with pytest.raises(BlueprintError, match="run.segments cannot be used"):
+        SimulationContext.from_yaml(path)
+
+
+def test_the_cli_drain_flag_cannot_be_used_with_segments_or_steps(tmp_path):
+    for run in ("segments:\n  - {until: 2}\n", "steps: true\n"):
+        path = _segmented(tmp_path, run)
+        result = CliRunner().invoke(cli, ["run", str(path), "--drain"])
+        assert result.exit_code != 0
+        assert "cannot be used with run.stop or run.drain" in result.output
+
+
+def test_run_with_a_stop_or_drain_refuses_steps_and_segments(tmp_path):
+    steps = SimulationContext.from_yaml(_segmented(tmp_path, "steps: true\n"))
+    with pytest.raises(ValueError, match="run.steps cannot be used"):
+        steps.run(drain=True)
+    segments = SimulationContext.from_yaml(
+        _segmented(tmp_path, "segments:\n  - {until: 2}\n")
+    )
+    with pytest.raises(ValueError, match="run.segments cannot be used"):
+        segments.run(drain=True)
+
+
+def test_segment_untils_must_increase(tmp_path):
+    path = _segmented(tmp_path, "segments:\n  - {until: 4}\n  - {until: 2}\n")
+    with pytest.raises(BlueprintError, match="segment untils increase"):
+        SimulationContext.from_yaml(path)
+
+
+def test_an_entry_after_an_open_segment_is_refused(tmp_path):
+    path = _segmented(tmp_path, "segments:\n  - {}\n  - {until: 3}\n")
+    with pytest.raises(BlueprintError, match="this segment never runs"):
+        SimulationContext.from_yaml(path)
+
+
+def test_every_needs_until(tmp_path):
+    path = _segmented(tmp_path, "segments: {every: 2}\n", until=False)
+    with pytest.raises(BlueprintError, match="every needs run.until"):
+        SimulationContext.from_yaml(path)
+
+
+def test_every_counts_from_the_initial_time(tmp_path):
+    path = _segmented(tmp_path, "segments: {every: 10}\n")
+    text = (
+        path.read_text()
+        .replace("until: 6", "until: 130")
+        .replace("factor: 0,", "factor: 0, initial_time: 100,")
+    )
+    path.write_text(text)
+    (tmp_path / "a.csv").write_text("time\n101\n")
+    capture = _Capture()
+    app = SimulationContext.from_yaml(path)
+    app.add_egress(capture)
+    app.run()
+    nows = [r["now"] for r in _readings(capture.records, "system.simulation.segment")]
+    assert nows == [110, 120, 130]
+
+
+def test_run_steps_publishes_one_record_per_model_event(tmp_path):
+    path = _segmented(tmp_path, "steps: true\n", until=False)
+    capture = _Capture()
+    app = SimulationContext.from_yaml(path)
+    app.add_egress(capture)
+    app.run()
+    steps = _readings(capture.records, "system.simulation.step")
+    assert [s["step"] for s in steps] == list(range(1, len(steps) + 1))
+    assert len(steps) >= 4
 
 
 def test_a_connector_value_error_names_the_line(tmp_path):
@@ -1069,7 +1575,7 @@ def test_timezone_in_a_blueprint_and_the_builder(tmp_path):
         SimulationContext("Shop", timezone="Mars/Base")
 
 
-def test_resources_in_opposite_orders_name_the_tasks_line(tmp_path):
+def test_resources_in_opposite_orders_warn_and_run(tmp_path, caplog):
     text = (
         MINIMAL.replace(
             "  packers: {current_cap: 2, max_cap: 5}",
@@ -1085,9 +1591,10 @@ def test_resources_in_opposite_orders_name_the_tasks_line(tmp_path):
             "    payload: {status: done}\nrun:",
         )
     )
-    with pytest.raises(BlueprintError, match="in one order everywhere") as error:
-        SimulationContext.from_yaml(write(tmp_path, text))
-    assert ":12:" in str(error.value)  # the tasks section
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    with caplog.at_level("WARNING"):
+        app.run(until=1)
+    assert "in one order everywhere" in caplog.text
 
 
 def test_cli_drain_runs_until_the_model_is_empty(tmp_path):
@@ -1134,7 +1641,7 @@ def test_lag_interval_in_a_blueprint_and_the_builder(tmp_path):
     )
     assert lags(SimulationContext.from_yaml(write(tmp_path, text))) == [0.0, 2.0, 4.0]
     assert lags(SimulationContext("Shop", factor=0, lag_interval=2)) == [0.0, 2.0, 4.0]
-    with pytest.raises(ValueError, match="lag_interval must be 0 or more"):
+    with pytest.raises(ValueError, match="lag_interval gave -1, which is below 0"):
         SimulationContext("Shop", lag_interval=-1)
 
 
@@ -1276,13 +1783,16 @@ def test_a_resource_in_the_wait_and_in_resource_is_refused_in_yaml(tmp_path):
         SimulationContext.from_yaml(write(tmp_path, text))
 
 
-def test_a_wait_request_counts_in_the_acquisition_order_in_yaml(tmp_path):
+def test_a_wait_request_counts_in_the_acquisition_order_in_yaml(tmp_path, caplog):
     text = _wait_request(pack="resource: bench", tidy="resource: [bench, picker]")
-    with pytest.raises(BlueprintError, match="in one order everywhere") as error:
-        SimulationContext.from_yaml(write(tmp_path, text))
-    assert ":10:" in str(error.value)  # the tasks section
+    with caplog.at_level("WARNING"):
+        SimulationContext.from_yaml(write(tmp_path, text)).run(until=1)
+    assert "in one order everywhere" in caplog.text
+    caplog.clear()
     same = _wait_request(pack="resource: bench", tidy="resource: [picker, bench]")
-    SimulationContext.from_yaml(write(tmp_path, same, "same.yaml"))
+    with caplog.at_level("WARNING"):
+        SimulationContext.from_yaml(write(tmp_path, same, "same.yaml")).run(until=1)
+    assert "in one order everywhere" not in caplog.text
 
 
 WAIT_ALL = """\
@@ -1308,15 +1818,20 @@ run: {until: 10}
 """
 
 
-def test_requests_under_one_all_are_acquired_together_in_yaml(tmp_path):
+def test_requests_under_one_all_are_acquired_together_in_yaml(tmp_path, caplog):
     for listed in ("[picker, bench]", "[bench, picker]"):
         text = WAIT_ALL.replace("MODE", "all").replace("TIDY", f"resource: {listed}")
-        with pytest.raises(BlueprintError, match="together in its wait"):
-            SimulationContext.from_yaml(write(tmp_path, text))
+        caplog.clear()
+        with caplog.at_level("WARNING"):
+            SimulationContext.from_yaml(write(tmp_path, text)).run(until=1)
+        assert "together in its wait" in caplog.text
     either = WAIT_ALL.replace("MODE", "any").replace(
         "TIDY", "wait: {any: {b: {request: bench}, p: {request: picker}}}"
     )
-    SimulationContext.from_yaml(write(tmp_path, either, "either.yaml"))
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        SimulationContext.from_yaml(write(tmp_path, either, "either.yaml")).run(until=1)
+    assert "in one order everywhere" not in caplog.text
 
 
 def test_a_kept_resource_requested_in_the_next_wait_is_refused_in_yaml(tmp_path):
@@ -1337,7 +1852,10 @@ def test_a_priority_with_a_wait_request_needs_a_priority_queue_in_yaml(tmp_path)
     bare = _wait_request(pack="priority: 2", tidy="priority: 1").replace(
         "wait: {request: picker}", "wait: {timeout: 1}"
     )
-    with pytest.raises(BlueprintError, match="needs a resource or a request"):
+    with pytest.raises(
+        BlueprintError,
+        match="needs a resource, a seize or a request in its wait or open",
+    ):
         SimulationContext.from_yaml(write(tmp_path, bare, "bare.yaml"))
 
 
@@ -1474,3 +1992,1265 @@ def test_load_context_of_a_builder_file_gives_the_paths_of_its_yaml_twin(tmp_pat
 
     assert from_builder == from_yaml
     assert from_builder
+
+
+# ---------------------------------------------------------------------------
+# Sink options of Batch 3: when names and expressions, envelope, key_field
+# ---------------------------------------------------------------------------
+TWO_TASKS = """\
+simulation: {sim_id: Shop, factor: 0, random_seed: 7}
+services:
+  packing: {dist: constant, value: 1.0}
+resources:
+  packers: {current_cap: 2, max_cap: 5}
+arrivals:
+  standard: {dist: constant, value: 2.0, spawn: pack}
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed, sku: A1}
+    id_field: order_id
+    next: ship
+  ship:
+    payload: {event_type: order_shipped, sku: A1}
+run:
+  until: 10
+stats: {level: minimal, interval: 1}
+"""
+
+
+def _run_with_sinks(tmp_path, sinks, text=TWO_TASKS):
+    """Builds the blueprint with Console sinks carrying `sinks`, swapped for captures."""
+    egress = "".join(f"  - type: Console\n    {entry}\n" for entry in sinks)
+    app = SimulationContext.from_yaml(write(tmp_path, text + "egress:\n" + egress))
+    captures = [_Capture() for _ in sinks]
+    app._sinks.egress[:] = [
+        replace(sink, provider=provider)
+        for sink, provider in zip(app._sinks.egress, captures)
+    ]
+    app.run()
+    return captures
+
+
+def test_when_expr_filters_records(tmp_path):
+    """`when: {expr: ...}` over `record.value.<field>` keeps the records it is true
+    for, as the `!python` function of the Streaming Out page did, and a telemetry
+    record or an event without the field is false, not an error."""
+    packed, events, telemetry, key = _run_with_sinks(
+        tmp_path,
+        [
+            "when: {expr: \"record.value.event_type == 'order_packed'\"}",
+            "when: events",
+            "when: telemetry",
+            "when: {expr: \"record.stream_type == 'event' and record.task == 'ship'\"}",
+        ],
+    )
+
+    assert packed.records
+    assert {r["value"]["event_type"] for r in packed.records} == {"order_packed"}
+    assert {r["stream_type"] for r in events.records} == {"event"}
+    assert {r["stream_type"] for r in telemetry.records} == {"telemetry"}
+    assert {r["task"] for r in key.records} == {"ship"}
+    assert len(events.records) > len(packed.records)
+
+
+def test_when_expr_refuses_an_unknown_name(tmp_path):
+    """A name outside `record.stream_type`, `.key`, `.task` and `.value.<field>`
+    is refused at load, at the line of the `when`."""
+    for expr, fragment in (
+        ("record.sim_ts > 1", "'record.sim_ts'"),
+        ("t > 3", "the name 't'"),
+        ("attr.x > 1", "a name that is not record.stream_type"),
+        ("record > 1", "the name 'record' alone"),
+        ("record.value.a.b == 1", "'record.value.a.b'"),
+    ):
+        path = write(
+            tmp_path,
+            MINIMAL + f'egress:\n  - type: Console\n    when: {{expr: "{expr}"}}\n',
+        )
+        with pytest.raises(BlueprintError, match=re.escape(fragment)):
+            SimulationContext.from_yaml(path)
+    # `record` is a name only an egress `when` reads
+    from desflow.core.expressions import Expression
+
+    with pytest.raises(ValueError, match="only an egress when reads"):
+        Expression("record.key == 'a'")
+
+
+def test_when_expr_failure_is_a_run_failure(tmp_path):
+    """An expression that fails on a record stops the run, with the expression in
+    the message: comparing a missing field with a number is a TypeError."""
+    text = TWO_TASKS.replace(
+        "run:\n  until: 10", "run:\n  until: 10\n  on_unhandled_failure: stop"
+    )
+    app = SimulationContext.from_yaml(
+        write(
+            tmp_path,
+            text
+            + 'egress:\n  - type: Console\n    when: {expr: "record.value.total > 1"}\n',
+        )
+    )
+    app._sinks.egress[:] = [
+        replace(sink, provider=provider)
+        for sink, provider in zip(app._sinks.egress, [_Capture()])
+    ]
+
+    with pytest.raises(
+        ValueError, match="egress when: cannot evaluate 'record.value.total > 1'"
+    ):
+        app.run()
+
+
+def test_envelope_false_reaches_the_provider_and_filters_records(tmp_path):
+    """`envelope: false` on an entry is `add_egress(envelope=False)`: the provider
+    gets only the events a task finishes, and no queued or started record."""
+    plain, full = _run_with_sinks(tmp_path, ["envelope: false", "envelope: true"])
+
+    assert plain.envelope is False and full.envelope is True
+    assert plain.records
+    assert {r["stream_type"] for r in plain.records} == {"event"}
+    assert all("status" not in r["value"] for r in plain.records)
+    assert any(
+        isinstance(r["value"], dict) and r["value"].get("status") == "queued"
+        for r in full.records
+    )
+    assert {r["stream_type"] for r in full.records} == {"event", "telemetry"}
+
+
+def test_key_field_is_the_key_of_the_finished_event(tmp_path):
+    """`key_field` names the payload field that becomes the record key of the
+    finished event. The queued and started records keep the entity's key."""
+    text = TWO_TASKS.replace(
+        "    id_field: order_id\n    next: ship",
+        "    id_field: order_id\n    key_field: sku\n    next: ship",
+    )
+    (capture,) = _run_with_sinks(tmp_path, ["when: events"], text)
+
+    packed = [r for r in capture.records if r["task"] == "pack"]
+    finished = [r for r in packed if "event_type" in r["value"]]
+    lifecycle = [r for r in packed if "status" in r["value"]]
+    assert finished and {r["key"] for r in finished} == {"A1"}
+    assert lifecycle and all(r["key"].startswith("standard-") for r in lifecycle)
+    ship = [r for r in capture.records if r["task"] == "ship"]
+    assert all(r["key"].startswith("standard-") for r in ship)
+
+
+@pytest.mark.parametrize("number,text", [(7, "7"), (0, "0"), (1.5, "1.5")])
+def test_key_field_takes_a_number_as_text(tmp_path, number, text):
+    """A numeric id, such as `order_id: 7`, becomes the key `7`, as the Kafka sink
+    already writes a key."""
+    replaced = TWO_TASKS.replace(
+        "    id_field: order_id\n    next: ship",
+        "    id_field: order_id\n    key_field: qty\n    next: ship",
+    ).replace("sku: A1}", f"sku: A1, qty: {number}}}", 1)
+    (capture,) = _run_with_sinks(tmp_path, ["when: events"], replaced)
+
+    finished = [
+        r for r in capture.records if r["task"] == "pack" and "event_type" in r["value"]
+    ]
+    assert finished and {r["key"] for r in finished} == {text}
+
+
+def test_key_field_missing_is_a_run_failure(tmp_path):
+    text = TWO_TASKS.replace(
+        "    id_field: order_id\n    next: ship",
+        "    id_field: order_id\n    key_field: nope\n    next: ship",
+    )
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    app._sinks.egress[:] = []
+
+    with pytest.raises(
+        ValueError,
+        match="task 'pack' has key_field 'nope', and its payload has no value for it",
+    ):
+        app.run()
+
+
+def test_sink_options_pass_through_config(tmp_path):
+    """`topic_policy`, `topics`, `serializer` and `ssl` are keys of a Kafka entry's
+    `config`, read by `KafkaEgress` itself."""
+    pytest.importorskip("aiokafka")
+    path = write(
+        tmp_path,
+        MINIMAL
+        + """\
+egress:
+  - type: Kafka
+    envelope: false
+    config:
+      bootstrap_servers: broker:9092
+      topic_policy: {mode: drop_and_create, partitions: 3}
+      topics:
+        orders: {partitions: 6, serializer: {type: glue_json_schema, registry_name: r, schema: {type: object}, boto3: {region_name: us-east-1}}}
+""",
+    )
+    app = SimulationContext.from_yaml(path)
+    kafka = app._sinks.egress[0].provider
+
+    assert kafka.topic_policy["mode"] == "drop_and_create"
+    assert kafka.topics["orders"]["partitions"] == 6
+    assert "orders" in kafka.topic_serializers
+    assert [sink.envelope for sink in app._sinks.egress] == [False]
+
+
+def test_a_bad_sink_option_names_the_line(tmp_path):
+    pytest.importorskip("aiokafka")
+    path = write(
+        tmp_path,
+        MINIMAL
+        + "egress:\n  - type: Kafka\n    config:\n      bootstrap_servers: b:9092\n      topic_policy: sometimes\n",
+    )
+    with pytest.raises(
+        BlueprintError,
+        match=rf"{re.escape(str(path))}:21: KafkaEgress rejected its config: .*mode 'sometimes' is not one of",
+    ):
+        SimulationContext.from_yaml(path)
+
+
+def test_an_on_entry_with_a_wrong_path_warns_and_a_wrong_value_is_refused(
+    tmp_path, caplog
+):
+    """`on:` entries load as before; one whose path is not in the registry logs a
+    warning with the entry's line, and one whose value the path cannot hold is
+    refused at the entry's line."""
+    text = MINIMAL.replace(
+        "    resource: packers\n",
+        "    resource: packers\n"
+        "    on:\n"
+        "      - {path: Shop.resources.lath.current_cap, value: 3}\n",
+        1,
+    )
+    path = write(tmp_path, text)
+    with caplog.at_level("WARNING", logger="desflow.blueprint.build"):
+        SimulationContext.from_yaml(path)
+    assert "'Shop.resources.lath.current_cap' is not a registry path" in caplog.text
+    assert f"{path}:" in caplog.text
+    refused = MINIMAL.replace(
+        "    resource: packers\n",
+        "    resource: packers\n"
+        "    on:\n"
+        "      - {path: Shop.resources.packers.current_cap, value: many}\n",
+        1,
+    )
+    with pytest.raises(Exception, match="whole number of 0 or more.*'many'"):
+        SimulationContext.from_yaml(write(tmp_path, refused, "refused.yaml"))
+    caplog.clear()
+    ok = MINIMAL.replace(
+        "    resource: packers\n",
+        "    resource: packers\n"
+        "    on:\n      - {path: Shop.resources.packers.current_cap, value: 3}\n",
+        1,
+    )
+    with caplog.at_level("WARNING", logger="desflow.blueprint.build"):
+        SimulationContext.from_yaml(write(tmp_path, ok, "ok.yaml"))
+    assert "registry path" not in caplog.text
+
+
+_COMPUTED = """\
+simulation: {sim_id: C, factor: 0, random_seed: 1}
+"""
+
+
+def _computed_records(tmp_path, body):
+    """Runs a blueprint into a capture sink and returns its event records."""
+    app = SimulationContext.from_yaml(write(tmp_path, _COMPUTED + body))
+    sink = _Capture()
+    app.add_egress(sink)
+    app.run()
+    return [r for r in sink.records if r["stream_type"] == "event"]
+
+
+def test_payload_null_publishes_no_record(tmp_path):
+    """`payload: null` publishes no finished record, and the task runs its other
+    steps: here its `set` reaches the next task."""
+    records = _computed_records(
+        tmp_path,
+        "arrivals: {a: {gap: 1, max_events: 1, spawn: t}}\n"
+        "tasks:\n"
+        "  t: {payload: null, set: {seen: 1}, next: u}\n"
+        "  u: {payload: {seen: {gen: attr, name: seen}}}\n"
+        "run: {until: 5}\n",
+    )
+
+    assert {r["task"] for r in records} == {"u"}
+    assert records[0]["value"] == {"seen": 1}
+
+
+def test_payload_null_refuses_a_default_put(tmp_path):
+    """A store `put` carries the task's payload, so it is refused on a task that has
+    none, at the line of the task."""
+    path = write(
+        tmp_path,
+        _COMPUTED + "stores: {q: {}}\n"
+        "arrivals: {a: {gap: 1, spawn: t}}\n"
+        "tasks:\n  t: {payload: null, put: {store: q}}\n",
+    )
+
+    with pytest.raises(BlueprintError, match="payload: null publishes no record"):
+        SimulationContext.from_yaml(path)
+
+
+def test_first_at_with_count(tmp_path):
+    """With `count`, `first_at` is the time of each entity's first start, and the
+    gaps follow."""
+    records = _computed_records(
+        tmp_path,
+        "arrivals: {a: {gap: 4, count: 2, first_at: 3, max_events: 2, spawn: t}}\n"
+        "tasks:\n  t: {payload: {ran: true}}\n"
+        "run: {until: 20}\n",
+    )
+
+    assert [(r["sim_ts"], r["key"]) for r in records] == [
+        (3, "a-1"),
+        (3, "a-2"),
+        (7, "a-1"),
+        (7, "a-2"),
+    ]
+
+
+def test_keys_and_key_are_exclusive(tmp_path):
+    path = write(
+        tmp_path,
+        _COMPUTED + "arrivals: {a: {gap: 1, keys: [x, y], key: z, spawn: t}}\n"
+        "tasks:\n  t: {payload: {}}\n",
+    )
+
+    with pytest.raises(BlueprintError, match="takes key or keys, not both"):
+        SimulationContext.from_yaml(path)
+
+
+def test_gap_refuses_attr(tmp_path):
+    """A gap is read for the arrival, before any entity has attributes."""
+    for gap in ("attr.x", "has(attr.x)"):
+        path = write(
+            tmp_path,
+            _COMPUTED + f'arrivals: {{a: {{gap: "{gap}", spawn: t}}}}\n'
+            "tasks:\n  t: {payload: {}}\n",
+        )
+
+        with pytest.raises(BlueprintError, match="gap .* reads attr"):
+            SimulationContext.from_yaml(path)
+
+
+def test_count_place_refuses_a_float_literal(tmp_path):
+    """A count place takes a whole number: 2.0, 2.5 and true are refused where they
+    are written. A computed 2.0 fails the run, which the A1 conformance test covers."""
+    for literal in ("2.0", "2.5", "true"):
+        path = write(
+            tmp_path,
+            _COMPUTED
+            + f"arrivals: {{a: {{gap: 1, max_events: {literal}, spawn: t}}}}\n"
+            "tasks:\n  t: {payload: {}}\n",
+        )
+
+        with pytest.raises(BlueprintError, match="max_events"):
+            SimulationContext.from_yaml(path)
+
+
+def test_cause_refused_where_no_edge_reaches(tmp_path):
+    """`cause.*` is read only by a task that an `on_interrupt_next` edge reaches; a task
+    that a plain `next` reaches is refused where it is written, with the task named."""
+    body = (
+        "resources: {m: {current_cap: 1}}\n"
+        "arrivals: {a: {gap: 1, spawn: use}}\n"
+        "tasks:\n"
+        "  use: {resource: m, service_time: 1, payload: {}, on_interrupt: abandon, "
+        "on_interrupt_next: lost, next: plain}\n"
+        "  lost: {payload: {by: {gen: expr, expr: cause.by}}}\n"
+        "  plain: {payload: {by: {gen: expr, expr: cause.by}}}\n"
+    )
+
+    with pytest.raises(BlueprintError, match="task .plain."):
+        SimulationContext.from_yaml(write(tmp_path, _COMPUTED + body))
+
+    fixed = body.replace(", next: plain", "").replace(
+        "  plain: {payload: {by: {gen: expr, expr: cause.by}}}\n", ""
+    )
+    SimulationContext.from_yaml(write(tmp_path, _COMPUTED + fixed, "ok.yaml"))
+
+
+def test_initial_alone_needs_no_dist(tmp_path):
+    """An arrival with `initial` and nothing else that makes entities needs no `dist`,
+    `replay` or `gap`; it starts that many entities before the run."""
+    records = _computed_records(
+        tmp_path,
+        "arrivals: {a: {initial: 2, spawn: t}}\n"
+        "tasks:\n  t: {payload: {e: ran}}\n"
+        "run: {until: 1}\n",
+    )
+
+    assert [r["key"] for r in records] == ["a-1", "a-2"]
+
+    with pytest.raises(BlueprintError, match="arrivals.a"):
+        SimulationContext.from_yaml(
+            write(
+                tmp_path,
+                _COMPUTED + "arrivals: {a: {spawn: t}}\ntasks:\n  t: {payload: {}}\n",
+                "bare.yaml",
+            )
+        )
+
+
+@pytest.mark.parametrize("initial", ["1.0", "'1'", "true", "-1"])
+def test_initial_takes_a_whole_number_of_0_or_more(tmp_path, initial):
+    """`initial` is a count, so a float, text, a boolean or a negative number is
+    refused at load, as `group` and `count` refuse them."""
+    text = (
+        _COMPUTED
+        + f"arrivals: {{a: {{initial: {initial}, spawn: t}}}}\n"
+        + "tasks:\n  t: {payload: {}}\n"
+    )
+    with pytest.raises(BlueprintError, match="arrivals.a.initial"):
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
+def test_source_that_starts_off(tmp_path):
+    """`active: false` starts a source off; `activate` from a task turns it on, and a
+    name in `activate` that is no arrival is refused."""
+    records = _computed_records(
+        tmp_path,
+        "arrivals:\n"
+        "  src: {gap: 1, spawn: t, active: false}\n"
+        "  ctl: {gap: 2.5, spawn: go, max_events: 1}\n"
+        "tasks:\n"
+        "  t: {payload: {e: t}}\n"
+        "  go: {payload: {e: go}, activate: src}\n"
+        "run: {until: 5}\n",
+    )
+
+    assert [r["sim_ts"] for r in records if r["task"] == "t"][:2] == [3.0, 4.0]
+    assert [r["sim_ts"] for r in records if r["task"] == "go"] == [2.5]
+
+    with pytest.raises(BlueprintError, match="nothing"):
+        SimulationContext.from_yaml(
+            write(
+                tmp_path,
+                _COMPUTED + "arrivals: {src: {gap: 1, spawn: t}}\n"
+                "tasks:\n  t: {payload: {}, activate: nothing}\n",
+                "bad.yaml",
+            )
+        )
+
+
+_PLACES = {
+    # place -> a task body that reads EXPR there
+    "payload": "payload: {e: {gen: expr, expr: '%s'}}",
+    "set": "payload: {}, set: {k: {gen: expr, expr: '%s'}}",
+    "set_args": "payload: {}, set_args: {k: {gen: expr, expr: '%s'}}",
+    "on_start": "payload: {}, on_start: {k: {gen: expr, expr: '%s'}}",
+    "put.item": "payload: {}, put: {store: s, item: {gen: expr, expr: '%s'}}",
+    "on value": "payload: {}, on: [{path: S.variables.v, value: {gen: expr, expr: '%s'}}]",
+    "spawn args": "payload: {}, spawn: {task: u, args: {k: {gen: expr, expr: '%s'}}}",
+    "wait args": "payload: {}, wait: {task: u, args: {k: {gen: expr, expr: '%s'}}}",
+    "vars_once": "payload: {}, vars_once: {k: {gen: expr, expr: '%s'}}",
+    "vars": "payload: {}, vars: {k: {gen: expr, expr: '%s'}}",
+    "finish_vars": "payload: {}, finish_vars: {k: {gen: expr, expr: '%s'}}",
+    "interrupt": "payload: {}, interrupt: {task: u, cause: {gen: expr, expr: '%s'}}",
+    "key": "payload: {}, key: {gen: expr, expr: '%s'}",
+}
+
+
+def _places_blueprint(place, expression):
+    return (
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "resources: {m: {current_cap: 1}}\n"
+        "stores: {s: {}}\n"
+        "variables: {v: 0}\n"
+        "signals: {z: {}}\n"
+        "arrivals: {a: {gap: 1, spawn: t}}\n"
+        "tasks:\n"
+        f"  t: {{{_PLACES[place] % expression}}}\n"
+        "  u: {payload: {}}\n"
+    )
+
+
+_REFUSED_NAMES = [
+    ("cause.by", "on_interrupt_next edge"),
+    ("item", "the item a store get took"),
+    ("item_priority", "the item a store get took"),
+    ("item.n", "item.<field> reads the item"),
+    ("done_count", "done_count is read in the when"),
+    ("running(nosuch)", "running\\(nosuch\\) names no task"),
+    ("len(held(nosuch))", "held\\(nosuch\\) names no resource"),
+    ("len(waiting(nosuch))", "waiting\\(nosuch\\) names no resource"),
+    ("len(putting(nosuch))", "putting\\(nosuch\\) names no store or container"),
+    ("len(getting(nosuch))", "getting\\(nosuch\\) names no store or container"),
+    ("users.nosuch", "users.nosuch names no resource"),
+    ("queue.nosuch", "queue.nosuch names no resource"),
+    ("level.nosuch", "level.nosuch names no store or container"),
+    ("signal.nosuch.count", "signal.nosuch names no signal"),
+    ("signal.nosuch.processed", "signal.nosuch names no signal"),
+    ("count(nosuch)", "count\\(nosuch\\) names no store"),
+    ('registry["S.variables.nosuch"]', "is not a registry path"),
+    ("wait.nosuch.done", "wait.nosuch is not a branch"),
+]
+# The names of the run are handled by one check, so the whole list runs in one place.
+# `users` tests that walk and `registry` tests the walk of `_check_registry_reads`, in
+# every place
+_REFUSED_CASES = (
+    [("payload", e, m) for e, m in _REFUSED_NAMES]
+    + [
+        (place, "users.nosuch", "users.nosuch names no resource")
+        for place in sorted(_PLACES)
+        if place != "payload"
+    ]
+    + [
+        (place, 'registry["S.variables.nosuch"]', "is not a registry path")
+        for place in sorted(_PLACES)
+        if place != "payload"
+    ]
+)
+
+
+@pytest.mark.parametrize(
+    "place, expression, message",
+    _REFUSED_CASES,
+    ids=[f"{place}-{expression}" for place, expression, _ in _REFUSED_CASES],
+)
+def test_names_are_refused_in_every_generator_place(
+    tmp_path, place, expression, message
+):
+    """A generator reads `cause`, `item`, `item_priority`, `done_count`, the names in
+    `held`, `waiting`, `putting`, `getting` and `running`, and a resource, store,
+    container, signal or registry name under the rules of a plain expression place, in
+    `payload`, `set`, `set_args`, `on_start`, `put.item`, an `on:` value, a `spawn`
+    `args`, a wait `args`, the vars, an `interrupt` cause and a `key`."""
+    path = write(tmp_path, _places_blueprint(place, expression))
+
+    with pytest.raises(BlueprintError, match=message):
+        SimulationContext.from_yaml(path)
+
+
+_EXISTING_NAMES = (
+    "len(held(m))",
+    "running(u)",
+    "len(putting(s))",
+    "users.m + queue.m + level.s",
+    "signal.z.count + signal.z.processed + count(s)",
+    'registry["S.variables.v"]',
+)
+
+
+@pytest.mark.parametrize(
+    "place, expressions",
+    [("payload", _EXISTING_NAMES)]
+    + [(p, _EXISTING_NAMES[:1]) for p in sorted(_PLACES) if p != "payload"],
+)
+def test_names_that_exist_load_in_every_generator_place(tmp_path, place, expressions):
+    for expression in expressions:
+        SimulationContext.from_yaml(
+            write(tmp_path, _places_blueprint(place, expression))
+        )
+
+
+_OUTSIDE_CASES = [
+    ("attributes", "users.nosuch", "users.nosuch names no resource"),
+    ("attributes", "signal.nosuch.processed", "signal.nosuch names no signal"),
+    ("attributes", 'registry["S.variables.nosuch"]', "is not a registry path"),
+    ("scenario record", "users.nosuch", "users.nosuch names no resource"),
+    ("store items", "users.nosuch", "users.nosuch names no resource"),
+]
+
+
+@pytest.mark.parametrize(
+    "place, expression, message",
+    _OUTSIDE_CASES,
+    ids=[f"{place}-{expression}" for place, expression, _ in _OUTSIDE_CASES],
+)
+def test_names_are_refused_in_a_generator_outside_a_task(
+    tmp_path, place, expression, message
+):
+    """An arrival's `attributes`, a scenario `record` and a store's `items` refuse an
+    unknown name at load, as `next.when` does, not when the run reaches them."""
+    generator = "{gen: expr, expr: '%s'}" % expression
+    top = {
+        "attributes": f"arrivals: {{a: {{gap: 1, spawn: t, attributes: {{k: {generator}}}}}}}\n",
+        "scenario record": "arrivals: {a: {gap: 1, spawn: t}}\n"
+        f"scenario: [{{at: 1, record: {{k: {generator}}}}}]\n",
+        "store items": "arrivals: {a: {gap: 1, spawn: t}}\n"
+        f"stores: {{s: {{items: [{generator}]}}}}\n",
+    }[place]
+    text = (
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "resources: {m: {current_cap: 1}}\nvariables: {v: 0}\n"
+        + top
+        + "tasks:\n  t: {payload: {}}\n"
+    )
+    with pytest.raises(BlueprintError, match=message):
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
+@pytest.mark.parametrize(
+    "where",
+    [
+        "tasks:\n  t: {payload: {}, on: [{activate: nosuch}]}\n",
+        "tasks:\n  t: {payload: {}, on: [{deactivate: nosuch}]}\n",
+        "tasks:\n  t: {payload: {}}\nsignals: {z: {on: [{activate: nosuch}]}}\n",
+        "tasks:\n  t: {payload: {}}\nsignals: {z: {on: [{deactivate: [a, nosuch]}]}}\n",
+        "tasks:\n  t: {payload: {}, activate: nosuch}\n",
+    ],
+)
+def test_activate_and_deactivate_name_an_arrival_wherever_they_are_written(
+    tmp_path, where
+):
+    path = write(
+        tmp_path,
+        _COMPUTED + "arrivals: {a: {gap: 1, spawn: t}}\n" + where,
+    )
+
+    with pytest.raises(BlueprintError, match="nosuch"):
+        SimulationContext.from_yaml(path)
+
+
+def test_activate_refuses_an_arrival_with_no_spawn(tmp_path):
+    path = write(
+        tmp_path,
+        _COMPUTED + "arrivals: {a: {gap: 1}}\n"
+        "tasks:\n  t: {payload: {}, activate: a}\n",
+    )
+
+    with pytest.raises(BlueprintError, match="has no spawn"):
+        SimulationContext.from_yaml(path)
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["group: 3", "max_events: 3", "off_mode: restart", "active: false", "first_at: 3"],
+)
+def test_initial_alone_refuses_keys_it_would_ignore(tmp_path, key):
+    path = write(
+        tmp_path,
+        _COMPUTED + f"arrivals: {{a: {{initial: 1, spawn: t, {key}}}}}\n"
+        "tasks:\n  t: {payload: {}}\n",
+    )
+
+    with pytest.raises(BlueprintError, match="no source"):
+        SimulationContext.from_yaml(path)
+
+
+def test_a_loop_name_may_not_be_a_var(tmp_path):
+    """Y5: the loop name of a comprehension is not a var of the task, in a plain place
+    and in a generator."""
+    for place in (
+        "vars: {x: 1}, payload: {}, next: {when: [{condition: '[x for x in [1, 2]] == 1', task: u}]}",
+        "vars: {x: 1}, payload: {y: {gen: expr, expr: '[x for x in [1, 2]]'}}",
+    ):
+        path = write(
+            tmp_path,
+            _COMPUTED + "arrivals: {a: {gap: 1, spawn: t}}\n"
+            f"tasks:\n  t: {{{place}}}\n  u: {{payload: {{}}}}\n",
+        )
+        with pytest.raises(BlueprintError, match="loop name 'x'"):
+            SimulationContext.from_yaml(path)
+
+
+READINGS = """\
+telemetry:
+  - interval: 10
+    readings:
+      waiting: queue.packers
+      busy_share: "users.packers / registry['Shop.resources.packers.current_cap']"
+"""
+
+
+def _telemetry(records):
+    return [
+        (r["sim_ts"], r["path_id"], r["value"])
+        for r in records
+        if r["stream_type"] == "telemetry" and r["path_id"] in READ_PATHS
+    ]
+
+
+READ_PATHS = ("Shop.waiting", "Shop.busy_share")
+
+
+def test_readings_publish_per_interval(tmp_path):
+    """Each reading of `telemetry.readings` is one telemetry record every interval (and
+    at the start, as a `function` is called), under `<sim_id>.<reading>`, in the order
+    written, with the expression's value."""
+    app = SimulationContext.from_yaml(write(tmp_path, MINIMAL + READINGS))
+    capture = _Capture()
+    app.add_egress(capture)
+    app.run(until=30)
+    found = _telemetry(capture.records)
+    assert [(t, p) for t, p, _ in found] == [
+        (t, p) for t in (0.0, 10.0, 20.0) for p in READ_PATHS
+    ]
+    assert all(isinstance(v, (int, float)) for _, _, v in found)
+
+
+def test_readings_refuse_function_too(tmp_path, logic):
+    """A telemetry entry gives `function` or `readings`, not both and not neither."""
+    both = MINIMAL + READINGS.replace(
+        "    readings:", f"    function: !python {logic}.sample\n    readings:"
+    )
+    with pytest.raises(
+        BlueprintError, match=re.escape("exactly one of function and readings")
+    ):
+        SimulationContext.from_yaml(write(tmp_path, both))
+    neither = MINIMAL + "telemetry:\n  - interval: 10\n"
+    with pytest.raises(
+        BlueprintError, match=re.escape("exactly one of function and readings")
+    ):
+        SimulationContext.from_yaml(write(tmp_path, neither, "neither.yaml"))
+
+
+@pytest.mark.parametrize(
+    "reading,fragment,line",
+    [
+        ("queue.nobody", "nobody", 22),
+        ("1 +", "not a valid expression", 20),
+        ("attr.x", "reads attr", 20),
+        ("registry['Shop.resources.nobody.current_cap']", "nobody", 22),
+    ],
+)
+def test_readings_parse_at_load(tmp_path, reading, fragment, line):
+    """A reading is parsed and checked when the file loads, in the scope of the run:
+    a bad expression, an entity read and a name or registry path that does not exist
+    are refused with the line."""
+    text = (
+        MINIMAL + f'telemetry:\n  - interval: 10\n    readings:\n      r: "{reading}"\n'
+    )
+    with pytest.raises(BlueprintError, match=re.escape(fragment)) as error:
+        SimulationContext.from_yaml(write(tmp_path, text))
+    assert f"blueprint.yaml:{line}:" in str(error.value), error.value
+
+
+def test_a_reading_that_fails_to_evaluate_is_a_run_failure(tmp_path):
+    text = (
+        MINIMAL
+        + 'telemetry:\n  - interval: 10\n    readings:\n      r: "1 / (t - 10)"\n'
+    )
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    with pytest.raises(ValueError, match=re.escape("telemetry reading 'r'")):
+        app.run(until=30)
+
+
+def test_readings_match_the_docs_packers_report(tmp_path):
+    """DX-7: the readings that replace the docs snippet's `packers_report` function
+    give the same records, as a whole stream, as the function."""
+    import shutil
+    from pathlib import Path
+
+    docs = Path(__file__).parents[2] / "docs" / "snippets" / "yaml"
+    streams = []
+    for form in ("function", "readings"):
+        folder = tmp_path / form
+        folder.mkdir()
+        shutil.copy(docs / "shop_logic.py", folder / "shop_logic.py")
+        text = (docs / "statistics.yaml").read_text(encoding="utf-8")
+        old = "  - {interval: 30, function: !python shop_logic.packers_report}\n"
+        assert old in text
+        if form == "readings":
+            text = text.replace(
+                old,
+                "  - interval: 30\n"
+                "    readings:\n"
+                '      waiting_per_packer: "queue.packers / max(registry['
+                "'Shop.resources.packers.current_cap'], 1)\"\n"
+                "      arrival_rate: \"registry['Shop.arrival.orders.rate']\"\n",
+            )
+        text = text.replace("egress:\n  - {type: Console}\n\n", "")
+        path = folder / "statistics.yaml"
+        path.write_text(text, encoding="utf-8")
+        app = SimulationContext.from_yaml(path)
+        capture = _Capture()
+        app.add_egress(capture)
+        app.run()
+        streams.append(
+            [{k: v for k, v in r.items() if k != "timestamp"} for r in capture.records]
+        )
+    assert streams[0] == streams[1]
+    assert any(r.get("path_id") == "Shop.waiting_per_packer" for r in streams[0])
+
+
+FAMILIES = """\
+simulation: {sim_id: S, factor: 0, random_seed: 1}
+resources:
+  desk: {family: true, members: 2}
+  plain: {current_cap: 1}
+stores: {q: {family: true}}
+signals: {reply: {family: true}}
+arrivals:
+  a: {dist: constant, value: 1, spawn: t, max_events: 1}
+tasks:
+  t:
+    resource: {of: desk, key: "1"}
+    service_time: 1
+    payload: {e: x}
+run: {until: 10}
+"""
+
+
+@pytest.mark.parametrize(
+    "old,new,fragment",
+    [
+        (
+            'resource: {of: desk, key: "1"}',
+            "resource: desk",
+            "names the family 'desk'",
+        ),
+        (
+            'resource: {of: desk, key: "1"}',
+            'resource: {of: plain, key: "1"}',
+            "'plain', which is not a family",
+        ),
+        (
+            'resource: {of: desk, key: "1"}',
+            'resource: {of: nope, key: "1"}',
+            "uses resource 'nope'",
+        ),
+        (
+            'resource: {of: desk, key: "1"}',
+            "resource: {of: desk}",
+            "key or lowest",
+        ),
+        (
+            'resource: {of: desk, key: "1"}',
+            'resource: {of: desk, key: "1", lowest: "member.users"}',
+            "key or lowest",
+        ),
+        (
+            'resource: {of: desk, key: "1"}',
+            "resource: {of: [plain, desk], key: \"['plain', 'x'][0]\"}",
+            "lists 'desk', which is a family",
+        ),
+        (
+            'resource: {of: desk, key: "1"}',
+            "resource: {of: [plain, nope], key: \"['plain', 'x'][0]\"}",
+            "lists 'nope', which is not a declared resource",
+        ),
+        (
+            'resource: {of: desk, key: "1"}',
+            'resource: {of: desk, key: "1"}\n    keep: [desk]',
+            "keep",
+        ),
+        (
+            "plain: {current_cap: 1}",
+            "plain: {current_cap: 1, members: 2}",
+            "members needs family: true",
+        ),
+        (
+            "plain: {current_cap: 1}",
+            'plain: {current_cap: "attr.i"}',
+            "text in a family",
+        ),
+        (
+            "desk: {family: true, members: 2}",
+            'desk: {family: true, members: 2, current_cap: "attr.i"}',
+            "family with members reads the run",
+        ),
+        (
+            "desk: {family: true, members: 2}",
+            'desk: {family: true, members: 2}\n  "desk[3]": {}',
+            "starts with the name of the family 'desk' and a bracket",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x, x: {gen: expr, expr: "users.desk"}}',
+            "reads users.desk of a family",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x, x: {gen: expr, expr: "users.plain[0]"}}',
+            "'plain' is not a family",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    put: {store: q, item: 1}",
+            "names the family 'q'",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    signal: reply",
+            "names the family 'reply'",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    wait: {each: {gen: lookup, task: nosuch, path: n}, branch: {timeout: 1}}",
+            "tasks.t.wait.each.task: lookup names task 'nosuch'",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    open: {p: {each: {gen: lookup, task: nosuch, path: n}, branch: {timeout: 1}}}",
+            "tasks.t.open.p.each.task: lookup names task 'nosuch'",
+        ),
+        (
+            "desk: {family: true, members: 2}",
+            "desk: {family: true, members: {gen: lookup, task: nosuch, path: n}}",
+            "resources.desk.members.task: lookup names task 'nosuch'",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x}\n    release: {of: nope, key: "1"}',
+            "nope",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    wait: {each: 2, group: {at_least: 0}, branch: {timeout: 1}}",
+            "at_least",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    wait: {each: 2, branch: {any: {a: {timeout: 1}}}}",
+            "an each branch makes one event for each element, so it is one of signal, task, timeout, request, get, put, handle, got an any branch",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    open: {p: {request: plain}}\n    cancel: {handle: p, index: 0}",
+            "an index needs an each group",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    open: {p: {each: 2, branch: {timeout: 1}}}\n    cancel: p",
+            "'p' is opened as an each timeout in task 't', and cancel needs",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    wait: {each: 2.0, branch: {timeout: 1}}",
+            "each is a whole number of 0 or more, got 2.0",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    subscribe: {each: 2, branch: {timeout: 1}}",
+            "subscribe does not take an each branch",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x}\n    wait: {each: 2, group: {when: "wait.each.flags[1]"}, branch: {timeout: 1}}',
+            "the when of an each group reads done_count",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    seize: {resource: {of: desk, key: each.index}}",
+            "are read in the branch of a wait or an open with each",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x}\n    wait: {each: 2, branch: {timeout: 1}}\n    on: [{when: "each.index == 0", path: S.variables.v, value: 1}]',
+            "each.index is read only in the branch of an each",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x}\n    wait: {each: 2, branch: {timeout: 1}}\n    fail: "1 > 5"\n    fail_reason: {gen: expr, expr: "each.index"}',
+            "each.index is read only in the branch of an each",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x}\n    wait: {each: 2, group: {when: "done_count >= 1 and each.index == 0"}, branch: {timeout: 1}}',
+            "each.index is read only in the branch of an each",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x}\n    wait: {each: 2, group: {at_least: "each.index + 1"}, branch: {timeout: 1}}',
+            "each.index is read only in the branch of an each",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    wait: {each: 2, branch: {timeout: 1}}\n    listen: {signal: {of: reply, key: each.index}, on: []}",
+            "each.index is read only in the branch of an each",
+        ),
+    ],
+)
+def test_family_refusals_name_the_place(tmp_path, old, new, fragment):
+    """Each wrong use of a family, a reference or `each` is refused when the file loads,
+    and the message names the task and the key."""
+    text = FAMILIES.replace(old, new)
+    path = write(tmp_path, text)
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    assert fragment in str(error.value), str(error.value)
+
+
+@pytest.mark.parametrize(
+    "old,new,row,message",
+    [
+        (
+            "signals: {reply: {family: true}}",
+            "signals: {reply: {family: true}, go: {on: [{fire: {signal: reply}}]}}",
+            "signals:",
+            "signal 'go': on names the family 'reply', which is named by a reference: "
+            "{of: reply, key: <expression>}",
+        ),
+        (
+            "payload: {e: x}",
+            'payload: {e: x}\n    set: {x: {gen: expr, expr: "len(users.desk)"}}',
+            "    set:",
+            "task 't': set reads users.desk of a family; read one member with "
+            "users.desk[<key>], or list the keys with members(desk)",
+        ),
+        # Two errors: the task's generators are checked before the rules, so the
+        # `set` is named and not the queue rank of `plain`
+        (
+            FAMILIES[FAMILIES.index("  plain:") : FAMILIES.index("run:")],
+            '  plain: {current_cap: 1, queue: {rank: "len(users.desk)"}}\n'
+            + FAMILIES[FAMILIES.index("stores:") : FAMILIES.index("run:")]
+            + "    set:\n      x:\n        gen: expr\n"
+            + '        expr: "len(users.desk)"\n',
+            "    set:",
+            "task 't': set reads users.desk of a family; read one member with "
+            "users.desk[<key>], or list the keys with members(desk)",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    release: {resource: nope, task: t}",
+            "    release:",
+            "task 't' uses resource 'nope', which is not defined under resources; add "
+            "it under resources",
+        ),
+        (
+            "stores: {q: {family: true}}",
+            "stores: {q: {family: true}, pq: {priority: true}}",
+            None,
+            "store 'pq' serves by priority, and SimPy has no store that both ranks and "
+            "filters its items; remove the filter, or the store's priority",
+        ),
+        (
+            "run: {until: 10}",
+            "run: {until: 10}\nscenario:\n  - {at: 1, interrupt: {task: nosuch}}",
+            "  - {at: 1",
+            "the step interrupts task 'nosuch', which is not defined under tasks; add it "
+            "under tasks",
+        ),
+        (
+            "payload: {e: x}",
+            "payload: {e: x}\n    on: [{interrupt: {task: nosuch}}]",
+            "    on:",
+            "the on: action of task 't' interrupts task 'nosuch', which is not defined "
+            "under tasks; add it under tasks",
+        ),
+        (
+            "signals: {reply: {family: true}}",
+            "signals: {reply: {family: true}, go: {on: [{interrupt: {task: nosuch}}]}}",
+            "signals:",
+            "the on: action of signal 'go' interrupts task 'nosuch', which is not "
+            "defined under tasks; add it under tasks",
+        ),
+        (
+            "signals: {reply: {family: true}}",
+            "signals: {reply: {family: true}, go: {on: [{resume: {task: nosuch}}]}}",
+            "signals:",
+            "the on: action of signal 'go' resumes task 'nosuch', which is not defined "
+            "under tasks; add it under tasks",
+        ),
+    ],
+)
+def test_a_load_refusal_gives_its_whole_text_at_its_line(
+    tmp_path, old, new, row, message
+):
+    """Each of these refusals of a file is the whole message, at the line of the key
+    it names: a signal's `on:` that names a family, a generator of `set` that reads
+    one, a `release` of an unknown resource, a `filter` on a store that serves by
+    priority, and an unknown task that a scenario step or an `on:` entry interrupts
+    or resumes."""
+    text = FAMILIES.replace(old, new)
+    if row is None:
+        text = text.replace(
+            "payload: {e: x}",
+            'payload: {e: x}\n    get: {store: pq, filter: "item > 1"}',
+        )
+        row = "    get:"
+    path = write(tmp_path, text)
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    line = next(
+        n for n, text_row in enumerate(text.splitlines(), 1) if text_row.startswith(row)
+    )
+    assert str(error.value) == f"{path}:{line}: {message}"
+
+
+EVENTS = FAMILIES.replace(
+    "signals: {reply: {family: true}}", "signals: {reply: {once: true}}"
+)
+
+
+@pytest.mark.parametrize(
+    "extra,fragment",
+    [
+        ("listen: {on: []}", "tasks.t.listen: Value error, listen takes exactly one"),
+        (
+            "listen: {signal: reply, handle: h, on: []}",
+            "tasks.t.listen: Value error, listen takes exactly one",
+        ),
+        (
+            "listen: {signal: reply, index: 0, on: []}",
+            "tasks.t.listen: Value error, listen index picks an element of a handle",
+        ),
+        (
+            "listen: {signal: nosuch, on: [{fire: {signal: reply}}]}",
+            "task 't' listens to signal 'nosuch', which is not defined under signals",
+        ),
+        (
+            "listen: {handle: nosuch, on: [{fire: {signal: reply}}]}",
+            "task 't': listen names 'nosuch', which no task opens",
+        ),
+        (
+            "on: [{when: 'attr.i +', fire: {signal: reply}}]",
+            "tasks.t.on.0.when: Value error, 'attr.i +' is not a valid expression",
+        ),
+        (
+            "on: [{fire: {signal: reply, fail: true, from: x}}]",
+            "tasks.t.on.0.fire: Value error, fail: true fails the signal with the value",
+        ),
+        (
+            "on: [{fire: {signal: reply, defused: true}}]",
+            "tasks.t.on.0.fire: Value error, defused is for a failure, so it needs fail: true",
+        ),
+        (
+            "on: [{fire: {signal: reply, urgent: true, priority: 0}}]",
+            "tasks.t.on.0.fire: Value error, urgent is priority 0",
+        ),
+        (
+            "on: [{fire: {signal: reply, priority: 0.5}}]",
+            "tasks.t.on.0.fire.priority: Input should be a valid integer",
+        ),
+        (
+            "on: [{fire: {signal: reply, priority: true}}]",
+            "tasks.t.on.0.fire.priority: Input should be a valid integer",
+        ),
+        (
+            "fail_reason: {gen: expr, expr: 'attr.i'}",
+            "tasks.t: Value error, fail_reason needs a fail condition",
+        ),
+        (
+            "fail: \"True\"\n    fail_reason: {gen: expr, expr: 'attr.i +'}",
+            "tasks.t.fail_reason.expr: Value error, 'attr.i +' is not a valid expression",
+        ),
+        (
+            'fail: "True"\n    fail_reason: {gen: lookup, task: nosuch, path: n}',
+            "tasks.t.fail_reason.task: lookup names task 'nosuch'",
+        ),
+        (
+            "listen: {signal: reply, on: [{path: S.variables.x, value: {gen: lookup, task: nosuch, path: n}}]}",
+            "tasks.t.listen.on.0.value.task: lookup names task 'nosuch'",
+        ),
+        (
+            "listen: {signal: reply, on: [{fire: {signal: reply, value: {gen: lookup, task: nosuch, path: n}}}]}",
+            "tasks.t.listen.on.0.fire.value.task: lookup names task 'nosuch'",
+        ),
+        (
+            "release: {of: plain, key: '1'}",
+            "task 't': release names 'plain', which is not a family of resources",
+        ),
+        (
+            "release: {of: nope, key: '1'}",
+            "task 't': release names 'nope', which is not a family of resources",
+        ),
+    ],
+)
+def test_events_refusals_name_the_place(tmp_path, extra, fragment):
+    """Y9 to Y11: a `fire` that fails, is defused or has a priority, a `listen`, a `when`
+    on an `on:` entry and a computed `fail_reason`, written wrongly, are refused when the
+    file loads, with the task and the key named. A `release` that names a reference to
+    something that is not a family is refused by the reference check alone."""
+    path = write(
+        tmp_path, EVENTS.replace("payload: {e: x}", "payload: {e: x}\n    " + extra)
+    )
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    assert fragment in str(error.value), str(error.value)
+
+
+@pytest.mark.parametrize(
+    "when,fragment",
+    [
+        ("signal.zz.value == 1", "signal.zz names no signal under signals"),
+        (
+            "registry['S.variables.nope'] == 1",
+            'registry["S.variables.nope"] is not a registry path',
+        ),
+        ("wait.zz.ok", "a signal's on entries run with no wait"),
+    ],
+)
+def test_a_when_on_the_on_of_a_signal_is_checked_at_load(tmp_path, when, fragment):
+    """Y11: the names a `when` reads are checked when the file loads in a signal's own
+    `on`, as in a task's `on` and a `listen`."""
+    text = EVENTS.replace(
+        "signals: {reply: {once: true}}",
+        f'signals: {{reply: {{once: true, on: [{{when: "{when}", fire: {{signal: reply}}}}]}}}}',
+    )
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(write(tmp_path, text))
+    assert fragment in str(error.value), str(error.value)
+
+
+def test_a_family_read_in_the_when_of_a_signal_names_the_place_and_its_line(tmp_path):
+    """A `users.plain[0]` in the `when` of a signal's `on` is refused with the place
+    named once ("reads" is not repeated) and the line of the signal in the file."""
+    text = EVENTS.replace(
+        "signals: {reply: {once: true}}",
+        'signals: {reply: {once: true, on: [{when: "users.plain[0] > 1", fire: {signal: reply}}]}}',
+    )
+    path = write(tmp_path, text)
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    line = next(
+        n for n, row in enumerate(text.splitlines(), 1) if row.startswith("signals:")
+    )
+    assert (
+        f"{path}:{line}: signal 'reply' on entry 0 when reads users.plain[...], "
+        "but 'plain' is not a family" in str(error.value)
+    ), str(error.value)
+
+
+def test_a_value_on_the_on_of_a_signal_cannot_read_a_wait(tmp_path):
+    """A signal's `on` entries run with no wait in scope, so a generator `value` that
+    reads `wait.<branch>` is refused when the file loads, as its `when` is."""
+    text = EVENTS.replace(
+        "signals: {reply: {once: true}}",
+        'signals: {reply: {once: true, on: [{fire: {signal: reply, value: {gen: expr, expr: "wait.zz.ok"}}}]}}',
+    )
+    with pytest.raises(BlueprintError, match="a signal's on entries run with no wait"):
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
+def test_a_when_on_the_on_of_a_task_reads_the_item_of_its_get_as_its_value_does(
+    tmp_path,
+):
+    """A task's `on` runs after its `get`, so its `when` may read `item.` as the
+    `value` beside it does."""
+    text = EVENTS.replace("stores: {q: {family: true}}", "stores: {q: {}}").replace(
+        "payload: {e: x}",
+        'payload: {e: x}\n    get: {store: q}\n    on: [{when: "item.x == 1", fire: {signal: reply}}]',
+    )
+    SimulationContext.from_yaml(write(tmp_path, text))
+
+
+def test_a_listen_entry_cannot_read_the_item_of_a_get(tmp_path):
+    """Y11 and V12: a `listen` attaches at step 6, before the task's `get` at step 11, so
+    an entry of it that reads `item.` is refused when the file loads, as for an `open`."""
+    text = EVENTS.replace("stores: {q: {family: true}}", "stores: {q: {}}").replace(
+        "payload: {e: x}",
+        'payload: {e: x}\n    get: {store: q}\n    listen: {signal: reply, on: [{fire: {signal: reply, value: {gen: expr, expr: "item.x"}}}]}',
+    )
+    with pytest.raises(BlueprintError, match="item"):
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
+_PUT_ITEM = """
+simulation: {sim_id: A, factor: 0}
+stores: {s: {}}
+arrivals: {a: {initial: 1, spawn: t}}
+tasks:
+  t:
+    put: {store: s, item: {x: {gen: expr, expr: "1 + 1"}, y: 3, z: [{gen: expr, expr: "2 * 3"}], w: {v: {gen: expr, expr: "7"}}}}
+    payload: {event_type: put}
+    next: g
+  g: {get: {store: s}, payload: {event_type: got, item: {gen: expr, expr: item}}}
+"""
+
+
+def test_a_put_item_mapping_evaluates_the_generators_nested_in_it(tmp_path):
+    """MF1: `put.item` is a value place, so a generator at any depth of a mapping or
+    list is read as the put is made, as a payload's is."""
+    app = SimulationContext.from_yaml(write(tmp_path, _PUT_ITEM))
+    capture = _Capture()
+    app.add_egress(capture)
+    app.run(until=5)
+    got = [
+        row["value"]["item"]
+        for row in capture.records
+        if row.get("value", {}).get("event_type") == "got"
+    ]
+    assert got == [{"x": 2, "y": 3, "z": [6], "w": {"v": 7}}]

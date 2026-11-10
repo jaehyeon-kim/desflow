@@ -11,6 +11,7 @@ from typing import Any, Optional, Union
 from desflow.explain.compare import compare
 from desflow.explain.pairs import pairs
 from desflow.explain.models import Explanation, Verification
+from desflow.utils import checked_whole
 
 NOTE = (
     "--verify checks the implementation against the queueing analysis where it "
@@ -44,20 +45,29 @@ def verify(
         Explanation: A copy of `explanation` with its `verification`.
 
     Raises:
-        ValueError: If there is no end time, the end is not after the warm-up, or
-            `replications` is below 2.
+        ValueError: If the model is a `LowLevelModel`, there is no end time, the end
+            is not after the warm-up, or `replications` is not a whole number of 2 or
+            more.
     """
     from desflow.analysis.intervals import interval
-    from desflow.analysis.models import context_of, run_once, seconds
-    from desflow.analysis.runner import run_replications, spawn_seeds
+    from desflow.analysis.models import context_of, run_once, seconds, spawn_seeds
+    from desflow.analysis.runner import run_replications
+    from desflow.core.context import parts_of
+    from desflow.core.statistics import published_value
 
-    if replications is not None and replications < 2:
-        raise ValueError(f"replications need 2 or more, got {replications}")
+    if replications is not None:
+        checked_whole(replications, "replications", 2)
+    if seed is not None:
+        checked_whole(seed, "seed", 0)
     context = context_of(model)
-    assert context is not None
+    if context is None:
+        raise ValueError(
+            "verify needs a model it can build again; a LowLevelModel cannot be "
+            "verified, so pass a blueprint path or a factory"
+        )
     end = seconds(until)
     if end is None:
-        end = seconds(context._default_until)
+        end = seconds(parts_of(context).defaults.until)
     if end is None:
         raise ValueError(
             "verify needs an end time: pass until, or set run.until in the blueprint"
@@ -76,8 +86,17 @@ def verify(
             model, spawn_seeds(seed, replications), until=end, stats="typical"
         )
     comparisons = []
+    seen = {name for r in results for name in r.readings}
     for pair in pairs(explanation, end - start):
-        found = [r.readings.get(f"{r.sim_id}.stats.{pair.statistic}") for r in results]
+        found = [
+            published_value(
+                r.readings,
+                f"{r.sim_id}.stats.{pair.statistic}",
+                seen,
+                prefix=f"{r.sim_id}.stats.",
+            )
+            for r in results
+        ]
         numbers = [float(v) * pair.scale for v in found if v is not None]
         # A run in which nothing it measures happened has no reading
         complete = numbers if len(numbers) == len(found) else None

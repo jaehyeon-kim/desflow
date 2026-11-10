@@ -1,22 +1,21 @@
-# Fuel dock: a lane of your own type, a tank that fills up and a put that is not waited for, in YAML.
+# Fuel dock: a lane of your own type, a tank that fills up and a put that is not waited
+# for, in YAML.
 #
-# The YAML version of fuel_dock_example.py, which --api builder downloads. Fuel trucks drive into a lane at
-# the dock, which holds two. The lane is a store of your own type (fuel_dock_types.Lane)
-# that gives back the newest truck first. A crew unloads one truck every 7 seconds. A
-# tank truck starts its pump into the tank and drives off without waiting; the tank holds
-# 100, so the third pump waits for room that never comes. A marshal waits until a truck
-# is held outside the full lane (putters.lane >= 1) and then calls the overflow bay.
+# The YAML version of fuel_dock_example.py, which --api builder downloads. Fuel trucks
+# drive into a lane at the dock, which holds two. The lane is a store of your own type
+# (fuel_dock_types.Lane) that gives back the newest truck first. A crew unloads one
+# truck every 7 seconds. A tank truck starts its pump into the tank and drives off
+# without waiting; the tank holds 100, so the third pump waits for room that never
+# comes. A marshal waits until a truck is held outside the full lane (putters.lane >= 1)
+# and then calls the overflow bay.
 #
 # Needs no Docker service. Runs unpaced and ends after 40 simulation seconds.
 # Run it from its folder with: desflow run fuel_dock.yaml
 
-simulation:
-  sim_id: Dock
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Dock, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 # --8<-- [start:dock]
 stores:
@@ -28,8 +27,16 @@ containers:
   tank: {current_cap: 100, max_cap: 100}
 
 arrivals:
-  diesel_trucks: {dist: constant, value: 3, spawn: park, attributes: {fuel: diesel}}
-  petrol_trucks: {dist: constant, value: 5, spawn: park, attributes: {fuel: petrol}}
+  diesel_trucks:
+    dist: constant
+    value: 3
+    spawn: park
+    attributes: {fuel: diesel}
+  petrol_trucks:
+    dist: constant
+    value: 5
+    spawn: park
+    attributes: {fuel: petrol}
   crew: {dist: constant, value: 7, spawn: unload}
   tankers: {dist: constant, value: 4, spawn: pump}
   marshals: {dist: constant, value: 15, spawn: marshal}
@@ -55,5 +62,4 @@ tasks:
     payload: {event_type: overflow_bay_called}
 # --8<-- [end:dock]
 
-run:
-  until: 40
+run: {until: 40}

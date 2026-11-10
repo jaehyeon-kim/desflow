@@ -1,6 +1,6 @@
 # Test a Model
 
-Write tests for a model that run with pytest and fail when a change breaks it. This page writes three kinds: a functional test of what the model does when an input changes, a unit test of one component on its own, and a back test against results saved from an earlier run.
+Write tests for a model that fail when a change breaks it. This page writes four kinds: a functional test of what the model does when an input changes, a unit test of one component on its own, a test written in the blueprint that states the statistics of a seeded run, and a back test against results saved from an earlier run.
 
 ---
 
@@ -8,8 +8,9 @@ Write tests for a model that run with pytest and fail when a change breaks it. T
 
 - [Checking a Model](../../learn/studies/checking-a-model.md) checks the shop by hand, against observed values and against [Little's law](../../learn/concepts/queueing-basics.md#littles-law).
 - [Checking and Validating](../../learn/concepts/checking-and-validating.md) says what each check proves.
-- The three kinds of test follow the [Tests chapter](https://des.hsma.co.uk/tests.html) of the HSMA book on discrete event simulation.
+- The functional, unit and back tests follow the [Tests chapter](https://des.hsma.co.uk/tests.html) of the HSMA book on discrete event simulation.
 - You need pytest: `pip install pytest`.
+- To test a program that reads the model's records, such as a detector, see [Test a Pipeline](test-a-pipeline.md).
 
 ---
 
@@ -44,8 +45,7 @@ A test changes one input and runs the model again, so write the model as a funct
 
     stats: {level: typical, interval: 600}
 
-    run:
-      until: 600
+    run: {until: 600}
     ```
 
     `shop` sets the variables and loads the blueprint, and `results` runs it:
@@ -185,9 +185,101 @@ def test_a_distribution_that_cannot_happen_is_refused(settings):
         DistributionConfig(**settings)
 ```
 
+### Write Tests in the Blueprint
+
+A blueprint carries tests of its own under `tests`. Each entry has these keys:
+
+- `name`: the name the test prints.
+- `seed`: the random seed of the run. Without it, the test uses the file's `random_seed`.
+- `until`: the end of the run. Without it, the test uses `run.until`.
+- `expect`: the statistics the run must give, each named as `measures` names it in an experiment file, such as `tasks.pack_order.finished`. A number must match exactly. `{value, within}` allows a difference of at most `within`.
+
+`desflow test` runs each entry once, unpaced, with no ingress and no egress, so a test contacts no service:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/test_a_model.yaml:tests"
+    tests:
+      # The statistics of one run of the file at its seed: 319 orders packed, 0.1106 s of
+      # wait
+      - name: two packers
+        expect:
+          tasks.pack_order.finished: 319
+          tasks.pack_order.wait_mean: {value: 0.1106, within: 0.001}
+      # The same shop at another seed
+      - name: another seed
+        seed: 7
+        expect: {tasks.pack_order.finished: 313}
+    ```
+
+=== "Builder"
+
+    A builder file has no `tests` key, so its tests go in a file named `tests.yaml` in the same folder, and each names its `until`. The file `test_a_model.py` also needs one context at module level for `desflow test` to build:
+
+    ```python title="docs/snippets/guides/test_a_model.py:app"
+    # `desflow test test_a_model.py` builds this context and runs the tests of tests.yaml
+    app = shop()
+    ```
+
+    ```yaml title="docs/snippets/yaml/test_a_model_tests.yaml:tests"
+    tests:
+      # A builder file has no run.until, so each test names its end
+      - name: two packers
+        until: 600
+        expect:
+          tasks.pack_order.finished: 319
+          tasks.pack_order.wait_mean: {value: 0.1106, within: 0.001}
+      # The same shop at another seed
+      - name: another seed
+        seed: 7
+        until: 600
+        expect: {tasks.pack_order.finished: 313}
+    ```
+
+=== "Low-level"
+
+    `desflow test` reads a blueprint or a builder file. A model written with the low-level API is tested with pytest, as the other steps of this page do, or with a saved result, as [Write a Back Test](#write-a-back-test) shows.
+
+Run the tests of your form:
+
+=== "YAML"
+
+    ```bash
+    desflow test test_a_model.yaml
+    ```
+
+=== "Builder"
+
+    ```bash
+    desflow test test_a_model.py
+    ```
+
+=== "Low-level"
+
+    `desflow test` has nothing to read in a low-level model. Run its tests with pytest, as the other steps of this page do, or write a back test, as [Write a Back Test](#write-a-back-test) shows.
+
+Each passing test prints `ok`:
+
+```text
+ok test_a_model.yaml: two packers
+ok test_a_model.yaml: another seed
+```
+
+A test that differs prints each statistic with its expected and measured values, and the command exits with 1. With `finished: 300` in place of 319, the first test prints:
+
+```text
+FAILED test_a_model.yaml: two packers
+  tasks.pack_order.finished: expected 300, measured 319
+ok test_a_model.yaml: another seed
+```
+
+`desflow test --fix` writes the measured values into the `expect` entries that differ, and into a test with no `expect`, instead of reporting them. Read the changes before you keep them.
+
+A test states the statistics at one seed of one version of desflow. A new release may draw its random numbers differently, so the same seed can give other values. After an upgrade, run `desflow test --fix` and read what changed.
+
 ### Write a Back Test
 
-A back test checks that the code gives the results an earlier version of it gave, with the same inputs and the same seed. Save the results once, and the test compares every later run with the file:
+A back test works for every form, including the low-level one. It checks that the code gives the results an earlier version of it gave, with the same inputs and the same seed. Save the results once, and the test compares every later run with the file:
 
 ```python title="docs/snippets/guides/test_a_model.py:back"
 def test_results_match_the_saved_run():
@@ -269,7 +361,7 @@ The times differ from run to run.
         ```yaml title="docs/snippets/yaml/test_a_model.yaml"
         # The Test a Model guide: the shop that test_a_model_yaml.py tests. Its inputs are
         # variables, so a test sets PACKERS, RATE and SEED and loads it again; each has the
-        # value the tests use by default.
+        # value the tests use by default. `desflow test test_a_model.yaml` runs its `tests`.
         simulation:
           sim_id: Shop
           factor: 0
@@ -292,8 +384,19 @@ The times differ from run to run.
 
         stats: {level: typical, interval: 600}
 
-        run:
-          until: 600
+        run: {until: 600}
+
+        tests:
+          # The statistics of one run of the file at its seed: 319 orders packed, 0.1106 s of
+          # wait
+          - name: two packers
+            expect:
+              tasks.pack_order.finished: 319
+              tasks.pack_order.wait_mean: {value: 0.1106, within: 0.001}
+          # The same shop at another seed
+          - name: another seed
+            seed: 7
+            expect: {tasks.pack_order.finished: 313}
         ```
 
         ```python title="docs/snippets/guides/test_a_model_yaml.py"
@@ -433,6 +536,10 @@ The times differ from run to run.
             }
 
 
+        # `desflow test test_a_model.py` builds this context and runs the tests of tests.yaml
+        app = shop()
+
+
         def test_more_packers_shorten_the_wait():
             """A functional test: change one input and check the output moves the right way."""
             waits = [results(packers=packers)["wait_mean"] for packers in (1, 2, 3)]
@@ -462,6 +569,25 @@ The times differ from run to run.
             SAVED.write_text(json.dumps(results(), indent=2) + "\n")
 
 
+        ```
+
+        Save this file as `tests.yaml` in the same folder:
+
+        ```yaml title="docs/snippets/yaml/test_a_model_tests.yaml"
+        # The Test a Model guide, Builder tab: the tests of test_a_model.py. Save this file as
+        # tests.yaml in the folder of test_a_model.py, and run: desflow test test_a_model.py
+        tests:
+          # A builder file has no run.until, so each test names its end
+          - name: two packers
+            until: 600
+            expect:
+              tasks.pack_order.finished: 319
+              tasks.pack_order.wait_mean: {value: 0.1106, within: 0.001}
+          # The same shop at another seed
+          - name: another seed
+            seed: 7
+            until: 600
+            expect: {tasks.pack_order.finished: 313}
         ```
 
     === "Low-level"

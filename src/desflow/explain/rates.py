@@ -97,9 +97,11 @@ def _unknown(
                     f"the split after {source.label} depends on the run{VERIFY_HINT}"
                 )
             elif source.kind == "task" and edge.probability is None:
+                # A spawn after a task that can fail, an `on:` spawn, a `task`
+                # branch or a signal's `on:` spawn
                 reasons[node.id] = (
-                    f"{source.label} spawns it only when it does not fail, and the "
-                    f"share that fails is not known before a run{VERIFY_HINT}"
+                    f"how often {source.label} starts it is not known before a "
+                    f"run{VERIFY_HINT}"
                 )
     for task in _downstream(graph, set(reasons)):
         if task not in reasons:

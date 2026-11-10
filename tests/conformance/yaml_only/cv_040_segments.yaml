@@ -1,0 +1,18 @@
+# CV-040: `run.segments`. The first segment stops at 2 and `look` reads the model
+# there, before the events at 2; the second stops at the next firing of the signal
+# gate; the third at 4. The replay file a.csv holds n rows at 1; each ticking task
+# takes 1 and fires gate. The smallest model of document GD-E1 and of the look tasks
+# of ST-R11 and ST-R17; the full documents run at Batch 6. See test_yaml_only.py.
+simulation: {sim_id: E, factor: 0, random_seed: 42}
+services: {one: {dist: constant, value: 1}}
+signals: {gate: {once: false}}
+arrivals: {a: {replay: {path: a.csv}, spawn: ticking}}
+tasks:
+  ticking: {service: one, signal: gate, payload: {event_type: tick}}
+  looking: {payload: {event_type: look}}
+run:
+  until: 6
+  segments:
+    - {until: 2, look: looking}
+    - {stop: {signal: gate}}
+    - {until: 4, sync: true}

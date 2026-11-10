@@ -81,6 +81,22 @@ def test_sample_ending_at_until_says_how_many_events_it_printed(tmp_path):
     assert f"sample ended at until with {count} of 1000 events" in result.stderr
 
 
+def test_sample_of_a_model_that_runs_out_of_events_says_so_and_exits_0(tmp_path):
+    """A model of one event has none left after it: the sample ends there, as it does
+    at `until`, not with SimPy's RuntimeError."""
+    text = """\
+        simulation: {sim_id: S, factor: 0}
+        arrivals: {a: {gap: 1, max_events: 1, spawn: t}}
+        tasks: {t: {payload: {}}}
+        """
+    result = _run(_write(tmp_path, text), "--sample", 100)
+    assert result.exit_code == 0, result.output
+    count = len(_events(result))
+    assert f"sample ended with no events left, with {count} of 100 events" in (
+        result.stderr
+    )
+
+
 def test_sample_runs_a_backfill_then_live_file_unpaced(tmp_path):
     """--sample sets factor 0 and clears go_live_at, so the events a paced run
     would print about 4 and 9 seconds after it starts print at once."""
@@ -168,12 +184,21 @@ def test_stdout_prints_a_label_once(tmp_path):
             ["--sample", "2", "--replications", "2"],
             "Error: --sample and --stdout print one run; leave out --replications",
         ),
-        (
-            "shop.py",
-            [],
-            "Error: desflow run takes a YAML blueprint; run a Python file with "
-            "python FILE",
-        ),
+        *[
+            (
+                "shop.py",
+                arguments,
+                "Error: desflow run takes a builder Python file only with --sample, "
+                "and without --stdout, --var or --watch; run a Python file with "
+                "python FILE",
+            )
+            for arguments in (
+                [],
+                ["--stdout"],
+                ["--sample", "2", "--var", "A=1"],
+                ["--sample", "2", "--watch"],
+            )
+        ],
     ],
 )
 def test_one_run_options_and_a_python_file_are_refused(
@@ -196,3 +221,47 @@ def test_a_replaced_connector_with_an_unknown_type_is_refused(
     result = _run(_write(tmp_path, SHOP + f"{section}:\n  - type: Wrong\n"), *option)
     assert result.exit_code == 1
     assert "unknown connector type 'Wrong'" in result.stderr
+
+
+SHOP_BUILDER = """\
+from datetime import datetime, timezone
+
+from desflow import ConsoleEgress, SimulationContext
+
+START = datetime(2026, 1, 1, tzinfo=timezone.utc)
+app = (
+    SimulationContext(sim_id="Shop", factor=0, random_seed=7, logical_start_time=START)
+    .add_egress(ConsoleEgress())
+    .add_resource("packers", current_cap=1, max_cap=1)
+    .add_service("packing", dist="exponential", rate=2)
+    .add_arrival("orders", dist="constant", value=1, spawn="pack")
+)
+app.task(service_id="packing", resource_id="packers", name="pack")(
+    lambda task_id: {"packed": True}
+)
+
+if __name__ == "__main__":
+    raise SystemExit("the main guard ran")
+"""
+
+
+def test_sample_takes_a_builder_file(tmp_path):
+    """A builder file of the shop prints the same records as its blueprint at a
+    seed, and its main guard does not run."""
+    # A random service time, so the records show that --seed reaches the file
+    text = SHOP.replace(
+        "random_seed: 7}", "random_seed: 7, logical_start_time: 2026-01-01}"
+    ).replace("dist: constant, value: 0.5", "dist: exponential, rate: 2")
+    blueprint = _run(_write(tmp_path, text), "--sample", 6, "--seed", 3, "--until", 9)
+    builder = _run(
+        _write(tmp_path, SHOP_BUILDER, "shop.py"),
+        "--sample",
+        6,
+        "--seed",
+        3,
+        "--until",
+        9,
+    )
+    assert builder.exit_code == 0, builder.output
+    assert len(_events(builder)) == 6
+    assert _records(builder) == _records(blueprint)

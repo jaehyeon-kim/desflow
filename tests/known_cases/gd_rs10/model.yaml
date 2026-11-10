@@ -1,0 +1,45 @@
+# case GD-RS10: PriorityStore with string priorities (resources.rst:500-528).
+simulation: {sim_id: R, factor: 0, random_seed: 42}
+
+stores:
+  repairs: {priority: true}
+
+arrivals:
+  inspector:
+    initial: 1
+    spawn: tick
+    attributes: {n: 0}
+  maintainer: {initial: 1, spawn: wait3}
+
+tasks:
+  tick:
+    service_time: 1
+    payload:
+      event_type: log
+      priority: {gen: expr, expr: "['P2', 'P0', 'P3', 'P1'][attr.n]"}
+      item: {gen: expr, expr: "['#0000', '#0001', '#0002', '#0003'][attr.n]"}
+    next: file
+  file:
+    put:
+      store: repairs
+      priority: "['P2', 'P0', 'P3', 'P1'][attr.n]"
+      item:
+        prio: {gen: expr, expr: "['P2', 'P0', 'P3', 'P1'][attr.n]"}
+        issue: {gen: expr, expr: "['#0000', '#0001', '#0002', '#0003'][attr.n]"}
+    set:
+      n: {gen: expr, expr: "attr.n + 1"}
+    payload: {event_type: filed}
+    next:
+      when:
+        - {condition: "attr.n < 4", task: tick}
+  wait3:
+    service_time: 3
+    payload: {event_type: waited}
+    next: take
+  take:
+    get: {store: repairs}
+    payload:
+      event_type: repair
+      priority: {gen: expr, expr: "item.prio"}
+      item: {gen: expr, expr: "item.issue"}
+    next: wait3

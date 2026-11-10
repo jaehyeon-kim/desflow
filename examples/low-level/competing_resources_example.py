@@ -64,7 +64,14 @@ class Shop:
             self.env.publish_event(key, value, task=task, instance=task_id)
 
         def status(state):
-            publish({"path_id": path_id, "status": state})
+            publish(
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": service,
+                    "status": state,
+                }
+            )
 
         def duration():
             return self.sampler.sample(self.env.registry.get_config(path_id))
@@ -87,7 +94,7 @@ def pick(shop, key):
     yield env.timeout(duration())
     publish({"event_type": "order_picked"})
     stats.task_finished("pick", task_id)
-    env.process(pack(shop, key, picker))
+    yield from pack(shop, key, picker)
 
 
 def pack(shop, key, picker):

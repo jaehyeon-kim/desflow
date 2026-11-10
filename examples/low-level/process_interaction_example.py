@@ -50,7 +50,7 @@ class Shop:
     def __init__(self, env, sampler):
         self.env, self.sampler = env, sampler
         self.packers = DynamicResource(env, "Shop", "packers")
-        self.courier_left = Signal(env, "courier_left")
+        self.courier_left = Signal(env, "courier_left", once=False)
         self.ids = {}
 
     def next_id(self, task):
@@ -68,16 +68,36 @@ def pack(shop, key, arrival):
     env, stats, task_id = shop.env, shop.env.stats, shop.next_id("pack")
     path_id = "Shop.service.packing"
     stats.flow_started(arrival)  # the order enters the shop
-    shop.publish(key, "pack", task_id, {"path_id": path_id, "status": "queued"})
+    shop.publish(
+        key,
+        "pack",
+        task_id,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": "queued",
+        },
+    )
     stats.task_queued("pack", task_id)
     with shop.packers.request() as req:
         yield req
-        shop.publish(key, "pack", task_id, {"path_id": path_id, "status": "started"})
+        shop.publish(
+            key,
+            "pack",
+            task_id,
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            },
+        )
         stats.task_started("pack", task_id)
         yield env.timeout(shop.service("packing")[1])
         shop.publish(key, "pack", task_id, {"event_type": "order_packed"})
         stats.task_finished("pack", task_id)
-    env.process(check(shop, key, arrival))
+    yield from check(shop, key, arrival)
 
 
 # --8<-- [start:check]
@@ -86,24 +106,36 @@ def check(shop, key, arrival):
     env, stats, task_id = shop.env, shop.env.stats, shop.next_id("check")
     shop.publish(key, "check", task_id, {"status": "queued"})
     stats.task_queued("check", task_id)
-    yield env.any_of([env.process(inspect(shop, key, arrival))])
+    yield env.process(inspect(shop, key, arrival))
     shop.publish(key, "check", task_id, {"status": "started"})
     stats.task_started("check", task_id)
     shop.publish(key, "check", task_id, {"event_type": "order_checked"})
     stats.task_finished("check", task_id)
-    env.process(dispatch(shop, key, arrival))
+    yield from dispatch(shop, key, arrival)
 
 
 def inspect(shop, key, arrival):
     """A gift fails inspection and is wrapped instead; returns the last payload."""
     env, stats, task_id = shop.env, shop.env.stats, shop.next_id("inspect")
     path_id = "Shop.service.inspecting"
-    shop.publish(key, "inspect", task_id, {"path_id": path_id, "status": "started"})
+    shop.publish(
+        key,
+        "inspect",
+        task_id,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "inspecting",
+            "status": "started",
+        },
+    )
     stats.task_started("inspect", task_id)
     yield env.timeout(shop.service("inspecting")[1])
     if GIFT[arrival] == 1:
         failed = {
             "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "inspecting",
             "status": "failed",
             "reason": "gift needs wrapping",
         }
@@ -119,7 +151,17 @@ def inspect(shop, key, arrival):
 def wrap(shop, key):
     env, stats, task_id = shop.env, shop.env.stats, shop.next_id("wrap")
     path_id = "Shop.service.wrapping"
-    shop.publish(key, "wrap", task_id, {"path_id": path_id, "status": "started"})
+    shop.publish(
+        key,
+        "wrap",
+        task_id,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "wrapping",
+            "status": "started",
+        },
+    )
     stats.task_started("wrap", task_id)
     yield env.timeout(shop.service("wrapping")[1])
     payload = {"event_type": "wrapped"}
@@ -142,7 +184,7 @@ def dispatch(shop, key, arrival):
     shop.publish(key, "dispatch", task_id, {"event_type": "dispatched"})
     stats.task_finished("dispatch", task_id)
     task = "by_courier" if courier in done else "by_post"
-    env.process(send(shop, key, arrival, task))
+    yield from send(shop, key, arrival, task)
 
 
 # --8<-- [end:dispatch]

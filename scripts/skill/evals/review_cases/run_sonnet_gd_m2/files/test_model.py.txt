@@ -1,0 +1,53 @@
+import json
+import pathlib
+import subprocess
+import sys
+
+import pytest
+
+HERE = pathlib.Path(__file__).parent
+PY = sys.executable
+DESFLOW = pathlib.Path(PY).with_name("desflow")
+
+
+def _records(cmd):
+    out = subprocess.run(cmd, cwd=HERE, capture_output=True, text=True, check=True).stdout
+    recs = [json.loads(l) for l in out.splitlines() if l.startswith("{")]
+    for r in recs:
+        r.pop("timestamp", None)  # wall-clock stamp differs between runs
+    return recs
+
+
+@pytest.fixture(scope="module")
+def runs():
+    return {
+        "yaml": _records([str(DESFLOW), "run", "model.yaml", "--stdout"]),
+        "builder": _records([PY, "builder.py"]),
+        "low_level": _records([PY, "low_level.py"]),
+    }
+
+
+def _res(recs, name):
+    return [(r["sim_ts"], r["value"]) for r in recs
+            if r.get("path_id") == f"M.stats.resources.res.{name}"]
+
+
+def test_forms_agree(runs):
+    assert runs["yaml"] == runs["builder"] == runs["low_level"]
+
+
+@pytest.mark.parametrize("form", ["yaml", "builder", "low_level"])
+def test_stats_on_every_change(runs, form):
+    recs = runs[form]
+    # after the request at 0 and after the release at 1 (not on a timer)
+    assert _res(recs, "in_use")[:2] == [(0.0, 1), (1.0, 0)]
+    assert _res(recs, "queue_length")[:2] == [(0.0, 0), (1.0, 0)]
+    assert all(v == 0 for _, v in _res(recs, "queue_length"))
+    assert {t for t, _ in _res(recs, "in_use")} <= {0.0, 1.0, 5.0}
+
+
+@pytest.mark.parametrize("form", ["yaml", "builder", "low_level"])
+def test_used_event(runs, form):
+    used = [r for r in runs[form] if r.get("value") == {"event_type": "used"}]
+    assert len(used) == 1
+    assert used[0]["sim_ts"] == 1.0 and used[0]["key"] == "a-1"

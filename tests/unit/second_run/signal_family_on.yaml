@@ -1,0 +1,10 @@
+# A signal family with `on:` entries, for `test_second_run.py`: each run opens the
+# member `done[1]`, which takes the family's `on:` entries. A run that added the member
+# to the declarations would give a second run a member with no entries.
+simulation: {sim_id: S, factor: 0, random_seed: 1}
+signals: {done: {family: true, once: false, on: [{spawn: {task: side}}]}}
+arrivals: {a: {initial: 2, spawn: work}}
+tasks:
+  work: {service_time: 1, signal: {of: done, key: 1}, payload: {event_type: work}}
+  side: {payload: {event_type: side}}
+run: {until: 10}

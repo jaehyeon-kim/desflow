@@ -1,0 +1,13 @@
+{
+  "fault": "K6: a name that starts with one underscore imported from desflow",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K6": 1
+  },
+  "evidence": {
+    "K6": [
+      "imports _clock"
+    ]
+  }
+}

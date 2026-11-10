@@ -1,0 +1,23 @@
+# The Serve Entities Together guide: seven orders arrive 1 second apart, and an
+# oven bakes them in batches of 3, or sooner when 2.5 seconds pass. Run it with:
+# desflow run serve_together.yaml --stdout
+simulation: {sim_id: Bakery, factor: 0, random_seed: 42}
+
+resources:
+  oven: {current_cap: 1}
+
+arrivals:
+  orders: {dist: constant, value: 1, max_events: 7, spawn: bake}
+
+tasks:
+  # --8<-- [start:batch]
+  bake:
+    # The batch closes with 3 members, or 2.5 seconds after its first member
+    # name defaults to the task's name; tasks with the same name share one open batch
+    batch: {name: oven_run, size: 3, timeout: 2.5}
+    resource: oven  # one run of the oven serves the whole batch
+    service_time: 4
+    payload: {event_type: baked}
+  # --8<-- [end:batch]
+
+run: {until: 30}

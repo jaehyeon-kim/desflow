@@ -1,0 +1,20 @@
+# case CV-004: Event.ok on a signal and on a wait branch.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+
+signals:
+  x: {once: true}
+
+arrivals:
+  w: {initial: 1, spawn: wait_x}
+  f: {dist: constant, value: 1, spawn: fire_it, max_events: 1}
+
+tasks:
+  wait_x:
+    wait: {signal: x}
+    payload:
+      event_type: ok
+      signal_ok: {gen: expr, expr: "signal.x.ok"}
+      branch_ok: {gen: expr, expr: "wait.x.ok"}
+  fire_it:
+    payload: {event_type: fired}
+    signal: x

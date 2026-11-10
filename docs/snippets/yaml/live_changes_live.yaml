@@ -1,10 +1,9 @@
 # The Live Changes tutorial: the same jam sent live, from a LocalIngress schedule.
 # Run it with: desflow run live_changes_live.yaml
-# The run is paced at 200 simulated seconds a wall-clock second, so 5 minutes take 1.5 s.
-simulation:
-  sim_id: Shop
-  factor: 0.005
-  random_seed: 42
+# The run is paced at 200 simulated seconds a wall-clock second, so 5 minutes take 1.5
+# s.
+# strict: false keeps a slow machine from stopping the run if it falls behind
+simulation: {sim_id: Shop, factor: 0.005, strict: false, random_seed: 42}
 
 resources:
   packers: {current_cap: 1, max_cap: 1}
@@ -25,8 +24,7 @@ tasks:
 # Half a wall-clock second after the start, set packing to 3 seconds
 ingress:
   - type: Local
-    config:
-      schedule: [[0.5, Shop.service.packing.value, 3.0]]
+    config: {schedule: [[0.5, Shop.service.packing.value, 3.0]]}
 # --8<-- [end:live]
 
 egress:
@@ -40,5 +38,4 @@ egress:
     config: {default_path: live/labels/labels.jsonl}
     when: labels
 
-run:
-  until: 5 min
+run: {until: 5 min}

@@ -1,13 +1,11 @@
-# The Share Work by Weight guide: one packer shared between two tiers of orders by weight.
-# Run it with: desflow run share_by_weight.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+# The Share Work by Weight guide: one packer shared between two tiers of orders by
+# weight. Run it with: desflow run share_by_weight.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 # --8<-- [start:resource]
 resources:
-  # queue: priority lets a task set a priority; the class orders the waiting requests itself
+  # queue: priority lets a task set a priority; the class orders the waiting requests
+  # itself
   packers:
     current_cap: 1
     max_cap: 4
@@ -34,7 +32,6 @@ tasks:
 # --8<-- [end:task]
 
 egress:
-  - type: Console
+  - {type: Console}
 
-run:
-  until: 20 s
+run: {until: 20 s}

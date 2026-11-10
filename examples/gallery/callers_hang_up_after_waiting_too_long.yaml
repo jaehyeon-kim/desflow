@@ -1,0 +1,43 @@
+# Callers hang up when they wait for an agent for longer than they will tolerate.
+#
+# Calls arrive at 54 an hour and two agents answer about 30 an hour, so a queue
+# builds. A caller who waits longer than their patience, 1 to 5 minutes, hangs up. A
+# scenario step adds two agents after half an hour, so calls wait less and fewer
+# callers hang up.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/callers_hang_up_after_waiting_too_long.yaml
+
+simulation:
+  sim_id: Centre
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+resources:
+  agents: {current_cap: 2, max_cap: 4}
+
+services:
+  talk: {dist: normal, mean: 4 min, std: 1 min}
+
+arrivals:
+  calls: {dist: exponential, rate: 0.015, spawn: answer_call}
+
+tasks:
+  answer_call:
+    service: talk
+    resource: agents
+    patience: {gen: uniform, low: 60, high: 300}
+    on_renege: hang_up
+    id_field: call_id
+    payload: {event_type: answered}
+  hang_up:
+    payload: {event_type: hung_up}
+
+scenario:
+  - {at: 30 min, path: Centre.resources.agents.current_cap, value: 4}
+
+run: {until: 1 hour}

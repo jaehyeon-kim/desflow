@@ -1,0 +1,19 @@
+Gas Station refuelling
+  87.0 s: Car 0 arrived at gas station
+ 105.5 s: Car 0 refueled with 37.0L
+ 129.0 s: Car 1 arrived at gas station
+ 148.0 s: Car 1 refueled with 38.0L
+ 284.0 s: Car 2 arrived at gas station
+ 305.0 s: Car 2 refueled with 42.0L
+ 385.0 s: Car 3 arrived at gas station
+ 398.5 s: Car 3 refueled with 27.0L
+ 459.0 s: Car 4 arrived at gas station
+ 460.0 s: Calling tank truck
+ 481.0 s: Car 4 refueled with 44.0L
+ 705.0 s: Car 5 arrived at gas station
+ 750.0 s: Car 6 arrived at gas station
+ 760.0 s: Tank truck arrived and refuelled station with 188.0L
+ 779.0 s: Car 6 refueled with 38.0L
+ 781.5 s: Car 5 refueled with 43.0L
+ 891.0 s: Car 7 arrived at gas station
+ 904.0 s: Car 7 refueled with 26.0L

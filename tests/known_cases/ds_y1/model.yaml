@@ -1,0 +1,96 @@
+# Design Y1 (prototype blueprints/Y1.yaml): families of resources and signals, round
+# robin over three desks, a reply signal for each entity. The client gives its put a
+# payload, because a put with payload: null is refused.
+simulation: {sim_id: Y1, factor: 0, random_seed: 42}
+
+variables: {n: 3, k: 1}
+
+resources:
+  desk:
+    family: true
+    members: {gen: expr, expr: "registry['Y1.variables.n']"}
+    current_cap: "registry['Y1.variables.k']"
+
+stores:
+  q: {}
+
+signals:
+  reply: {family: true, once: true}
+
+arrivals:
+  jobs:
+    initial: 4
+    spawn: job
+    attributes:
+      i: {gen: sequence, start: 0}
+  c0:
+    dist: constant
+    value: 1
+    spawn: client
+    max_events: 1
+    first_at: 0
+    attributes: {i: 0}
+  c1:
+    dist: constant
+    value: 1
+    spawn: client
+    max_events: 1
+    first_at: 0
+    attributes: {i: 1}
+  srv: {dist: constant, value: 1, spawn: server, max_events: 1, first_at: 0}
+
+tasks:
+  job:
+    resource: {of: desk, key: "attr.i % 3"}
+    service_time: 2
+    payload:
+      event_type: got
+      i: {gen: attr, name: i}
+  client:
+    put:
+      store: q
+      item: {gen: attr, name: i}
+    payload:
+      event_type: put
+      i: {gen: attr, name: i}
+    next:
+      when:
+        - {condition: "attr.i == 1", task: late}
+      default: waits
+  late:
+    wait: {timeout: 5}
+    payload: null
+    next: waits
+  waits:
+    payload:
+      event_type: waits
+      i: {gen: attr, name: i}
+      at: {gen: expr, expr: t}
+    next: hear
+  hear:
+    wait:
+      all:
+        r:
+          signal: {of: reply, key: "attr.i"}
+    payload:
+      event_type: reply
+      i: {gen: attr, name: i}
+      v: {gen: expr, expr: "wait.r.value"}
+      at: {gen: expr, expr: t}
+  server:
+    get: {store: q}
+    payload: null
+    next: server_fire
+  server_fire:
+    wait: {timeout: 1}
+    payload:
+      event_type: server_fired
+      i: {gen: expr, expr: item}
+      at: {gen: expr, expr: t}
+    on:
+      - fire:
+          signal: {of: reply, key: item}
+          value: {gen: expr, expr: "item * 10"}
+    next: server
+
+run: {until: 20}

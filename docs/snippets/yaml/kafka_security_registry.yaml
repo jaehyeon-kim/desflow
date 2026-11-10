@@ -1,0 +1,53 @@
+# The Connect to Secure Kafka guide: the shop of Use Avro and Pydantic, with its
+# predictions serialized through a schema registry that needs a user name, a client
+# certificate and more. Needs prediction_event.avsc from Use Avro and Pydantic beside
+# it. Set KAFKA_BOOTSTRAP_SERVERS, SCHEMA_REGISTRY_URL, REGISTRY_USER,
+# REGISTRY_PASSWORD, REGISTRY_CA_FILE, REGISTRY_CERT_FILE and REGISTRY_KEY_FILE, then
+# run it with: desflow run kafka_security_registry.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+# --8<-- [start:egress]
+egress:
+  - type: Kafka
+    config:
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS}
+      topics:
+        ml-predictions:
+          serializer:
+            type: confluent_avro
+            registry_url: ${SCHEMA_REGISTRY_URL}
+            schema_file: prediction_event.avsc
+            auth:  # a user name and a password
+              - ${REGISTRY_USER}
+              - ${REGISTRY_PASSWORD}
+            verify: ${REGISTRY_CA_FILE}  # true, false or a CA file or directory
+            cert:  # a client certificate file and its key file
+              - ${REGISTRY_CERT_FILE}
+              - ${REGISTRY_KEY_FILE}
+            headers: {X-Team: shop}  # added to every request
+            proxy: http://proxy.example.com:3128
+            timeout: 30  # seconds for each step of a request
+            max_retries: 5
+# --8<-- [end:egress]
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    # The finished event is a prediction for the order: the fields of MLPrediction
+    payload:
+      __topic__: ml-predictions
+      event_type: prediction
+      task_id: {gen: entity}
+      confidence: 0.9
+
+run: {until: 1 min}

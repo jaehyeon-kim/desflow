@@ -1,12 +1,9 @@
 # The flows of the Task Flow page, as a blueprint.
 # Run it with: desflow run task_flow.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   packers: {current_cap: 2, max_cap: 4}
@@ -23,9 +20,17 @@ services:
 arrivals:
   # Each order starts with these attributes, read as attr.gift
   # An order every 2 s on average (rate 0.5)
-  orders: {dist: exponential, rate: 0.5, spawn: check_order, attributes: {gift: 0}}
+  orders:
+    dist: exponential
+    rate: 0.5
+    spawn: check_order
+    attributes: {gift: 0}
   # A gift order every 10 s on average (rate 0.1)
-  gifts: {dist: exponential, rate: 0.1, spawn: check_order, attributes: {gift: 1}}
+  gifts:
+    dist: exponential
+    rate: 0.1
+    spawn: check_order
+    attributes: {gift: 1}
 # --8<-- [end:attributes]
   deliveries: {dist: constant, value: 30 s, spawn: restock}
 
@@ -70,5 +75,4 @@ tasks:
     # A payload includes attributes only when it names them
     attributes: [gift, backordered]
 
-run:
-  until: 2 min
+run: {until: 2 min}

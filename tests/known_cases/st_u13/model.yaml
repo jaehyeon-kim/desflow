@@ -1,0 +1,18 @@
+# case ST-U13: test_any_of: the first of ten timeouts 0 to 9 wins at 0.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  a:
+    initial: 1
+    spawn: pem
+    attributes: {delays: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}
+
+tasks:
+  pem:
+    wait:
+      each: "attr.delays"
+      group: any
+      branch: {timeout: "each.value"}
+    payload:
+      event_type: first
+      at: {gen: expr, expr: t}

@@ -1,0 +1,7 @@
+{
+  "rc": 1,
+  "contains": [
+    "sonnet, before, T-2, 1: task T-2 is not a folder name of cases/, such as t-2",
+    "sonnet, before, t-2, 1: REVIEWED"
+  ]
+}

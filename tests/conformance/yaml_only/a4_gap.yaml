@@ -1,0 +1,8 @@
+# A4: an arrival gap computed when the gap starts. The program is programs/a4_gap.py.
+# See test_yaml_only.py.
+simulation: {sim_id: A4, factor: 0, random_seed: 42}
+arrivals:
+  s1: {gap: '1 + t / 4', spawn: t}
+tasks:
+  t: {payload: {event_type: ran}}
+run: {until: 8}

@@ -1,0 +1,19 @@
+# case ST-X01: a failing child is caught by the parent that waits for it.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  p: {initial: 1, spawn: parent}
+
+tasks:
+  parent:
+    wait: {task: child}
+    on_fail: caught
+    payload: {event_type: no_error}
+  caught:
+    payload:
+      event_type: caught
+      reason: {gen: expr, expr: "upstream.reason"}
+  child:
+    fail: "True"
+    fail_reason: Onoes!
+    payload: {event_type: child}

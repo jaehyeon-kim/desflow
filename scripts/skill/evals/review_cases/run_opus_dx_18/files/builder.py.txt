@@ -1,0 +1,39 @@
+"""Shop, builder API: the same model as model.yaml.
+
+One packer packs an order every 2 seconds from time 2, for 1.5 seconds each. The
+one Console sink prints each record as a JSON line, and its `when` function keeps
+only the records whose value.event_type is order_packed (`packed_only`).
+
+Run it with: python builder.py
+"""
+
+from desflow import ConsoleEgress, SimulationContext
+
+
+def packed_only(record: dict) -> bool:
+    """The sink's `when`: true for a record whose value.event_type is order_packed.
+
+    A telemetry record or a queued/started record has no such field, so it is dropped,
+    as YAML's `{expr: "record.value.event_type == 'order_packed'"}` drops it.
+    """
+    value = record.get("value")
+    return isinstance(value, dict) and value.get("event_type") == "order_packed"
+
+
+app = (
+    SimulationContext(sim_id="Shop", factor=0, random_seed=42)
+    .add_egress(ConsoleEgress(format="json"), when=packed_only)
+    .add_resource("packers", current_cap=1)
+    .add_service("packing", dist="constant", value=1.5)
+    .add_arrival("orders", gap=2, first_at=2, spawn="pack_order")
+)
+
+
+@app.task(service_id="packing", resource_id="packers")
+def pack_order(task_id: int, context=None):
+    """Packs one order; the return value is the payload of its finished event."""
+    return {"event_type": "order_packed"}
+
+
+if __name__ == "__main__":
+    app.run(until=20)

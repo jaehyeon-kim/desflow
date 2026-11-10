@@ -1,0 +1,28 @@
+# Documents for patterns P46 to P51 and P50b.
+# case P46: select the shortest queue or the first free server (register
+# audit2/patterns/mine/g_c.py P46 shortest line: two machines of capacity 1, service 3,
+# entities at one instant).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+resources:
+  m1: {current_cap: 1}
+  m2: {current_cap: 1}
+
+arrivals:
+  a: {initial: 3, spawn: pick}
+
+tasks:
+  pick:
+    payload: {event_type: pick}
+    next:
+      when:
+        - {condition: "queue.m1 + users.m1 <= queue.m2 + users.m2", task: w1}
+      default: w2
+  w1:
+    resource: m1
+    service_time: 3
+    payload: {event_type: served_1}
+  w2:
+    resource: m2
+    service_time: 3
+    payload: {event_type: served_2}

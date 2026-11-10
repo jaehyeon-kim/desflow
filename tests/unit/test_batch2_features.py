@@ -6,6 +6,9 @@ desflow comparisons live in the conformance suite; here each feature is checked 
 the behaviour the plan settles.
 """
 
+import numpy as np
+import pytest
+
 from desflow.core.context import SimulationContext
 from tests.conformance.harness import run_builder, times
 
@@ -66,6 +69,30 @@ def test_spawn_after_delays_the_new_entity():
     records = run_builder(app, 10)
     # first arrival at 2, pack finishes at 3, courier starts 3 later, at 6
     assert times(records, "courier") == [6.0]
+
+
+@pytest.mark.parametrize("count", [lambda entity: np.array(2), "attr.n"])
+def test_a_spawn_count_takes_any_value_with_an_index(count):
+    """A spawn count is read with `operator.index`, so a 0-d NumPy integer array,
+    from a function or from an attribute, starts that many entities."""
+    app = SimulationContext("S", factor=0.0, random_seed=1)
+    app.add_arrival("a", "constant", value=5, first_at=0, attributes={"n": np.array(2)})
+
+    @app.task(name="parent", spawn={"task": "clone", "count": count})
+    def parent(task_id):
+        return {"event_type": "parent"}
+
+    @app.task(name="clone")
+    def clone(task_id):
+        return {"event_type": "clone"}
+
+    @app.arrival_loop("a")
+    def loop(context):
+        entity = yield context.wait_for_arrival("a")
+        context.spawn(parent(context.next_instance("parent"), entity=entity))
+
+    records = run_builder(app, 1)
+    assert times(records, "clone") == [0, 0]
 
 
 # ---------------------------------------------------------------- on: (V4 to V6)
@@ -191,7 +218,7 @@ def test_one_shot_signal_fired_twice_is_dropped_under_continue():
 
     app.add_process(script)
     # no waiter; the run reaches until with no error
-    records = run_builder(app, 6)
+    records = run_builder(app, 6, on_unhandled_failure="continue")
     assert times(records, "shut") == [1.0, 4.0]
 
 
@@ -213,7 +240,7 @@ def test_running_wait_resumes_when_the_named_instances_end():
         return {"left": task_id}
 
     def script(context):
-        entity = context._new_entity("car", None)
+        entity = context._run.arrivals.new_entity("car", None)
         # start charge on the entity, then a driver that waits for it
         context.spawn(charge(context.next_instance("charge"), entity=entity))
         context.spawn(driver(context.next_instance("driver"), entity=entity))
@@ -248,7 +275,7 @@ def test_subscribe_interrupts_when_the_event_happens():
         return {"done": task_id}
 
     def script(context):
-        entity = context._new_entity("car", None)
+        entity = context._run.arrivals.new_entity("car", None)
         context.spawn(waiting(context.next_instance("waiting"), entity=entity))
         yield context.env.event()
 
@@ -396,6 +423,21 @@ def test_stop_policy_raises_a_root_task_failure():
     cont_app.add_egress(RecordingEgress())
     cont_app.run(until=5, on_unhandled_failure="continue")  # no error
 
+    default_app = build()
+    default_app.add_egress(RecordingEgress())
+    with pytest.raises(Exception, match="scratched"):
+        default_app.run(until=5)  # the default is stop
+
+
+def test_a_signal_is_one_shot_unless_told_otherwise():
+    """`add_signal` with no `once` makes a one-shot signal, and `once=False` makes a
+    signal that re-arms."""
+    app = SimulationContext("S", factor=0.0)
+    app.add_signal("one")
+    app.add_signal("again", once=False)
+    assert app._signals.declaration("one").once is True
+    assert app._signals.declaration("again").once is False
+
 
 # -------------------------------------------------- on: fire-from load checks (V4-V6)
 
@@ -464,6 +506,90 @@ run: {until: 10}
         SimulationContext.from_yaml(path)  # pack reaches measure via next: accepted
     except BlueprintError as error:  # pragma: no cover
         pytest.fail(f"a same-flow fire-from was refused: {error}")
+
+
+def test_a_signal_on_action_fires_from_a_task_of_the_entity(tmp_path):
+    """A signal's `on:` entry that fires from a task copies the payload of that
+    task's last instance on the entity that fired the signal, so the waiter of the
+    copied firing reads it."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        """
+simulation: {sim_id: S, factor: 0, random_seed: 1}
+signals:
+  go: {on: [{fire: {signal: ready, from: measure}}]}
+  ready: {}
+arrivals:
+  orders: {initial: 1, spawn: measure}
+  watchers: {initial: 1, spawn: ship}
+tasks:
+  measure: {service_time: 1, payload: {grade: A}, next: ping}
+  ping: {service_time: 1, signal: go, payload: {event_type: pinged}}
+  ship:
+    wait: {signal: ready}
+    payload: {event_type: shipped, grade: {gen: expr, expr: wait.ready.value.grade}}
+"""
+    )
+
+    class Records:
+        def __init__(self):
+            self.records = []
+
+        def run(self, queue, *args, **kwargs):
+            while (batch := queue.get()) is not None:
+                self.records.extend(batch)
+
+    app = SimulationContext.from_yaml(path)
+    sink = Records()
+    app.add_egress(sink)
+    app.run(until=10)
+    shipped = [
+        (row["sim_ts"], row["value"])
+        for row in sink.records
+        if isinstance(row.get("value"), dict)
+        and row["value"].get("event_type") == "shipped"
+    ]
+    assert shipped == [(2.0, {"event_type": "shipped", "grade": "A"})]
+
+
+def test_a_fire_from_a_task_with_no_ended_instance_fires_nothing(tmp_path, caplog):
+    """A `fire ... from` a task that has not ended on the entity yet has nothing to
+    copy, so it fires nothing and logs a warning."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        """
+simulation: {sim_id: S, factor: 0, random_seed: 1}
+signals: [ready]
+arrivals: {orders: {initial: 1, spawn: pack}}
+tasks:
+  pack:
+    payload: {event_type: packed}
+    next: measure
+    on:
+      - fire: {signal: ready, from: measure}
+  measure:
+    payload: {grade: A}
+"""
+    )
+    app = SimulationContext.from_yaml(path)
+    with caplog.at_level("WARNING", logger="desflow.core.context"):
+        app.run(until=10)
+    assert app.signal("ready").count == 0
+    assert [r.getMessage() for r in caplog.records if "nothing" in r.getMessage()] == [
+        "the on: action of task 'pack' fires 'ready' from 'measure', which has "
+        "nothing to copy yet; it fires nothing"
+    ]
+
+
+def test_a_signal_declared_again_keeps_its_place_and_takes_the_new_settings():
+    """A second `add_signal` of one name keeps one signal, with the settings of the
+    second call."""
+    app = SimulationContext("S", factor=0)
+    app.add_signal("s")
+    app.add_signal("s", once=False)
+    app.start(until=1)
+    assert list(app._signals.entries) == ["s"]
+    assert app.signal("s").once is False
 
 
 def test_fire_from_neither_signal_nor_task_is_refused(tmp_path):

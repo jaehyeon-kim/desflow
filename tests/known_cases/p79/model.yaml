@@ -1,0 +1,27 @@
+# Fixed draws: the priorities of the five jobs are 3, 2, 1, 0 and 3, and the preempt
+# flags are true, false, true, false and true, the values programs/known8.py uses for
+# the draws. case P79: simmer set_prioritization with preempt and restart flags (design
+# Y8).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+resources:
+  m: {current_cap: 1, queue: priority, preempt: true}
+
+arrivals:
+  a:
+    dist: constant
+    value: 1
+    spawn: job
+    max_events: 5
+    attributes:
+      p: {gen: sequence, start: 3, step: -1, loop_after: 4}
+      can: {gen: sequence, start: 1, step: -1, loop_after: 2}
+
+tasks:
+  job:
+    resource: m
+    priority: "attr.p"
+    preempt: "attr.can"
+    service_time: 3
+    on_interrupt: restart
+    payload: {event_type: done}

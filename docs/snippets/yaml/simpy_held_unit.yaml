@@ -1,0 +1,22 @@
+# A job keeps its unit of a priority machine through two steps, so a waiting job
+# with a lower priority value goes first when the unit is released.
+simulation: {sim_id: Shop, factor: 0}
+
+resources:
+  machine: {current_cap: 1, queue: priority}
+
+processes:
+  - function: !python simpy_forms.repair
+    kwargs: {job: job-1, start: 0, priority: 2, first: 1, second: 2}
+  - function: !python simpy_forms.repair
+    kwargs: {job: job-2, start: 0, priority: 1, first: 2, second: 1}
+  - function: !python simpy_forms.repair
+    kwargs: {job: job-3, start: 1, priority: 0, first: 1, second: 1}
+
+tasks:
+  repaired: {payload: !python simpy_forms.repaired}
+
+run: {until: 20}
+
+egress:
+  - {type: Console}

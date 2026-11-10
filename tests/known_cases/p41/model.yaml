@@ -1,0 +1,18 @@
+# case P41: a drawn patience (register patterns/j_builder.py J6: three entities at 0,
+# capacity 1, service 10, patience drawn uniform 1 to 5, run until 20).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+resources:
+  m: {current_cap: 1}
+
+arrivals:
+  a: {initial: 3, spawn: job}
+
+tasks:
+  job:
+    resource: m
+    patience: {gen: sample, dist: uniform, low: 1, high: 5}
+    service_time: 10
+    payload: {event_type: served}
+
+run: {until: 20}

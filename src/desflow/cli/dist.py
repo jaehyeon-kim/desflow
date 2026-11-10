@@ -8,7 +8,18 @@ import typer
 from desflow.cli._common import fail
 
 # The options that take a family's parameters, in the order the help lists them
-_OPTIONS = ("rate", "mean", "std", "low", "value", "high", "mode", "shape", "scale")
+_OPTIONS = (
+    "rate",
+    "mean",
+    "std",
+    "low",
+    "value",
+    "high",
+    "mode",
+    "shape",
+    "scale",
+    "p",
+)
 
 
 # The examples --help prints after the options, as odctl's help does
@@ -59,12 +70,13 @@ def _dist(
     mode: Annotated[Optional[float], _option("The most likely value.")] = None,
     shape: Annotated[Optional[float], _option("The shape.")] = None,
     scale: Annotated[Optional[float], _option("The scale.")] = None,
+    p: Annotated[Optional[float], _option("The chance of success on each try.")] = None,
 ) -> None:
     """List the distribution families, or convert parameters to a mean and std and back.
 
     Exits 1 for a family with no formula from a mean and std.
     """
-    from desflow.core.distributions import DISTRIBUTIONS, parameters_from_moments
+    from desflow.models.distributions import DISTRIBUTIONS, parameters_from_moments
     from desflow.utils import suggestion
 
     if family is None:
@@ -82,7 +94,7 @@ def _dist(
     given = {
         name: number
         for name, number in zip(
-            _OPTIONS, (rate, mean, std, low, value, high, mode, shape, scale)
+            _OPTIONS, (rate, mean, std, low, value, high, mode, shape, scale, p)
         )
         if number is not None
     }
@@ -153,7 +165,7 @@ def _values_text(family: Any, parameters: Dict[str, float]) -> str:
     Raises `ValueError` when a parameter breaks the family's rules.
     """
     from desflow.config import MIN_DELAY
-    from desflow.core.distributions import clamped_normal_moments, variability
+    from desflow.models.distributions import clamped_normal_moments, variability
     from desflow.models.params import DistributionConfig
 
     config = DistributionConfig(dist=family.name, **parameters)  # type: ignore[arg-type]
@@ -166,7 +178,7 @@ def _values_text(family: Any, parameters: Dict[str, float]) -> str:
         assert config.mean is not None and config.std is not None
         mean, variance = clamped_normal_moments(config.mean, config.std)
         moments += (
-            f"; draws below {MIN_DELAY:.5f} s are raised to it, which gives "
+            f"; negative draws are raised to {MIN_DELAY}, which gives "
             f"mean {mean:.6g}, std {variance**0.5:.6g}"
         )
     std = variance**0.5
@@ -174,7 +186,7 @@ def _values_text(family: Any, parameters: Dict[str, float]) -> str:
     draw = f"{fixed:.6g}"
     if fixed < MIN_DELAY:
         # The sampler raises every draw below the minimum delay to it
-        draw += f", raised to the minimum delay {MIN_DELAY:.5f} s"
+        draw += f", raised to {MIN_DELAY}"
     ratio = f" (std / mean {std / mean:.3g})" if mean > 0 else ""
     lines = [
         "parameters: " + ", ".join(f"{k} {v:.6g}" for k, v in shown.items()),

@@ -3,9 +3,11 @@
 # each API, the conformance tests that compare it with plain SimPy (the version in
 # uv.lock, which scripts/gen_pages.py names on the page) and the docs page that
 # teaches it; a difference kept by design gives its reason. Every SimPy feature
-# is native or a difference: when desflow moves to a new SimPy release, the
+# is native or a difference here, and a gap in how a key or the engine behaves is
+# listed in simpy_constructs.yaml: when desflow moves to a new SimPy release, the
 # features it adds are native in that same desflow release.
-# scripts/gen_pages.py writes the SimPy Compatibility page from this file, and
+# scripts/gen_pages.py writes the SimPy Compatibility page from this file and
+# simpy_constructs.yaml, which names the page's rows and the gaps, and
 # tests/docs/test_gen_pages.py checks that every check names a test function,
 # every test function here is listed, and every page exists.
 #
@@ -18,7 +20,7 @@
 # status: native (the default: native in all three APIs and checked against
 #   SimPy) or difference
 # operation: what a model does
-# description: one sentence saying what the operation does, shown first on the page
+# description: one sentence saying what the operation does; the page does not show it
 # simpy: the SimPy construct it corresponds to
 # yaml, builder, low_level: one short form each
 # checks: pytest node ids of the conformance tests
@@ -30,23 +32,35 @@
   operation: Timed wait
   description: "A task waits a set or sampled time, such as the time packing takes, before it goes on."
   simpy: "`simpy.events.Timeout`"
-  yaml: a task with `service` and no `resource`
+  yaml: a task with `service` or `service_time` and no `resource`
   builder: "`@app.task(service_id=...)` with no resource"
   low_level: "`yield env.timeout(delay)`"
   checks:
     - tests/conformance/test_c1_timed_wait.py::test_c1_timed_wait
-  page: user-guide/tasks-and-processes/index.md#a-timed-step
+    - tests/conformance/test_c1_timed_wait.py::test_delay_of_zero_stays_zero
+    - tests/conformance/test_c1_timed_wait.py::test_a_gap_of_zero_keeps_an_arrival_at_one_instant
+    - tests/conformance/test_c1_timed_wait.py::test_integer_literals_stay_integers
+    - tests/conformance/test_builder_additions.py::test_builder_service_time
+    - tests/conformance/test_builder_additions.py::test_builder_service_time_refuses_what_it_cannot_run
+    - tests/conformance/test_yaml_only.py::test_v1_a_service_time_computed_for_each_entity_on_one_unit
+    - tests/conformance/test_yaml_only.py::test_v1_a_service_time_of_zero_takes_no_time
+    - tests/conformance/test_yaml_only.py::test_v1_an_interrupt_during_the_service_time
+    - tests/conformance/test_yaml_only.py::test_v1_a_negative_service_time_fails_the_run
+    - tests/conformance/test_c1_timed_wait.py::test_a_constant_arrival_keeps_integer_times
+    - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_single_branch_wait_goes_on_in_the_step_its_event_is_processed
+  page: user-guide/tasks-and-processes/tasks.md#a-timed-step
 
 - id: C1
   inventory: [SP-V1]
   operation: Signal event success and value
   description: "One task fires a named signal with a value, and every task waiting for it wakes up and reads that value."
   simpy: "`simpy.events.Event.succeed(value)`"
-  yaml: "`signals: [restocked]`, `signal: restocked` on the firing task and `wait: {signal: restocked}`"
+  yaml: "`signals: [restocked]`, `signal: restocked` on the firing task and `wait: {signal: restocked}`; `wait: {suspend: true}` and `resume: {task, where, value, limit}` wake instances that no signal names"
   builder: "`add_signal`, `@app.task(signal=...)`, `wait={\"signal\": ...}`, or `context.signal(name).fire(value)`"
   low_level: "`Signal(env, name)`: `yield signal.wait()` and `signal.fire(value)`"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_signal_event_success_and_value
+    - tests/conformance/test_yaml_only.py::test_i4_suspend_waits_for_a_resume_that_names_the_task
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
@@ -71,6 +85,18 @@
   low_level: "`yield env.process(child())`"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_start_and_wait_for_a_process
+    - tests/conformance/test_c1_process_interaction.py::test_c1_next_asks_for_the_unit_before_a_child_spawned_in_that_step
+    - tests/conformance/test_c1_process_interaction.py::test_c1_a_process_that_waits_for_a_flow_wakes_when_the_flow_ends
+    - tests/conformance/test_c1_process_interaction.py::test_c1_a_next_chain_of_5000_tasks_runs_without_nesting_generators
+    - tests/conformance/test_c1_process_interaction.py::test_c1_a_long_next_loop_keeps_no_finished_instances
+    - tests/conformance/test_yaml_only.py::test_v10_weights_from_an_expression_make_one_draw_each
+    - tests/conformance/test_yaml_only.py::test_v10_weights_that_add_up_to_nothing_or_below_0_fail_the_run
+    - tests/conformance/test_yaml_only.py::test_v9_args_of_a_task_started_by_wait
+    - tests/conformance/test_yaml_only.py::test_v9_args_on_a_spawn_are_read_for_each_child
+    - tests/conformance/test_generator_streams.py::test_group_spawn_count_and_spawn_args_draws_are_fixed_by_the_seed
+    - tests/conformance/test_yaml_only.py::test_on_entries_read_the_names_of_their_task
+    - tests/conformance/test_yaml_only.py::test_a_wait_on_running_ends_when_the_instances_end
+    - tests/conformance/test_yaml_only.py::test_y6_set_args_and_arg_are_local_to_each_process
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
@@ -90,14 +116,16 @@
   operation: Process failure
   description: "A failure inside a child flow reaches the task waiting for it, which can handle it or fail in turn."
   simpy: "an exception raised in a process reaches the process that waits for it"
-  yaml: "`fail`, `fail_reason` and `on_fail` on a task; a failure no `on_fail` handles fails the waiting task"
+  yaml: "`fail`, `fail_reason` and `on_fail` on a task, and `on_fail` alone for a failed wait or step; a failure no `on_fail` handles fails the waiting task"
   builder: "the same, and a function that raises fails its task"
   low_level: "`try: yield env.process(child())` and `except`"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_failure
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_failure_handled_by_on_fail
+    - tests/conformance/test_builder_additions.py::test_builder_on_fail_catches_a_raise
+    - tests/conformance/test_yaml_only.py::test_m3_a_failed_flow_goes_on_when_on_fail_names_a_task
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
-  differences: "By default (`on_unhandled_failure` is `continue`) a failure no task waits for ends the entity's flow in YAML and the builder, publishes `failed` and is counted, and the run goes on; under `on_unhandled_failure` of `stop` it stops the run, matching SimPy and the low-level API, where an exception nobody handles stops the run."
+  differences: "By default (`on_unhandled_failure` is `stop`) a failure no task waits for stops the run, matching SimPy and the low-level API, where an exception nobody handles stops the run; under `on_unhandled_failure` of `continue` it ends the entity's flow in YAML and the builder, publishes `failed` and is counted, and the run goes on."
 
 - id: C1
   inventory: [SP-V8]
@@ -121,6 +149,7 @@
   low_level: "the process `env.process` returns"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_inspection
+    - tests/conformance/test_c1_process_interaction.py::test_c1_process_is_alive_across_a_next_chain
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
@@ -146,8 +175,14 @@
   checks:
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_one_event
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_one_event_two_at_one_instant
+    - tests/conformance/test_yaml_only.py::test_v2_a_wait_timeout_computed_for_each_entity
+    - tests/conformance/test_yaml_only.py::test_v2_an_interrupt_while_the_computed_timeout_runs
+    - tests/conformance/test_yaml_only.py::test_v2_a_negative_timeout_fails_the_run
+    - tests/conformance/test_yaml_only.py::test_m4_initial_entities_start_before_the_run
+    - tests/conformance/test_yaml_only.py::test_losing_timeout_can_be_waited_for_again
+    - tests/conformance/test_yaml_only.py::test_y4_a_child_reads_a_handle_of_its_parent_and_a_group_is_made_now
   page: how-to/modelling/wait-for-one-or-all.md#wait-for-the-first
-  differences: Losing signal, timeout and condition branches are dropped when the wait ends; losing child flows keep running, as SimPy leaves processes running.
+  differences: "Losing signal, timeout and condition branches are dropped when the wait ends; losing child flows keep running, as SimPy leaves processes running. A request branch not yet granted when the wait ends is cancelled; a SimPy `with` block held over the rest of the task leaves it queued."
 
 - id: C2
   inventory: [SP-C2, SP-C4]
@@ -160,6 +195,13 @@
   checks:
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_all_events
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_all_events_with_a_failing_branch
+    - tests/conformance/test_yaml_only.py::test_y3_each_timeout_of_a_list_under_every_group
+    - tests/conformance/test_yaml_only.py::test_y3_a_when_group_is_done_when_its_expression_holds
+    - tests/conformance/test_yaml_only.py::test_y3_each_child_flow_of_a_number_returns_its_value
+    - tests/conformance/test_yaml_only.py::test_y3_each_request_of_a_computed_number_keeps_the_first_unit
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_11_runs_as_its_simpy_program
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_11_runs_at_other_sizes
+    - tests/conformance/test_yaml_only.py::test_every_known_case_of_batch_11_runs_or_shares_or_has_its_own_test
   page: how-to/modelling/wait-for-one-or-all.md#wait-for-all
 
 - id: C3
@@ -172,19 +214,49 @@
   low_level: "`process.interrupt(cause)`, caught as `simpy.Interrupt`"
   checks:
     - tests/conformance/test_c3_interrupts.py::test_c3_interrupt_while_waiting
+    - tests/conformance/test_c3_interrupts.py::test_c3_an_interrupt_in_a_queue_keeps_the_unit_already_granted
+    - tests/conformance/test_c3_interrupts.py::test_interrupt_reaches_an_instance_of_this_step
+    - tests/conformance/test_yaml_only.py::test_i10_a_wait_for_a_handle_goes_on_with_the_same_event_after_an_interrupt
+    - tests/conformance/test_yaml_only.py::test_y4_a_child_flow_is_a_handle_that_can_be_read_interrupted_and_waited_for
   page: learn/shop-logic/interruptions.md#interrupt-a-task
+  differences: "A task's own `spawn:` and `interrupt:` keys run in a fixed order, interrupt first, so one task cannot interrupt the instance it spawns with them. List a `spawn` and then an `interrupt` in `on:`, which run in the order written, or use `context.spawn` and `context.interrupt`."
 
 - id: C3
   inventory: [SP-P9, SP-P10, SP-P11]
   operation: Interrupt during service
   description: "A task is interrupted while it holds a resource, and resumes, restarts or abandons its work."
   simpy: "`simpy.Process.interrupt` while the process holds a unit"
-  yaml: "`on_interrupt: resume`, `restart` or `abandon`"
+  yaml: "`on_interrupt: resume`, `restart` or `abandon`, and `on_interrupt_run` for a task that runs first"
   builder: "`@app.task(on_interrupt=...)`"
   low_level: "`except simpy.Interrupt`, then request again"
   checks:
     - tests/conformance/test_c3_interrupts.py::test_c3_interrupt_during_service
     - tests/conformance/test_c3_interrupts.py::test_c3_two_interrupts_at_one_instant
+    - tests/conformance/test_c3_interrupts.py::test_c3_a_plain_interrupt_keeps_the_unit_while_others_wait
+    - tests/conformance/test_c3_interrupts.py::test_c3_abandon_with_a_next_task_gives_the_unit_back_and_asks_again
+    - tests/conformance/test_c3_interrupts.py::test_c3_a_unit_the_task_before_kept_goes_back_when_the_task_ends_without_starting
+    - tests/conformance/test_c3_interrupts.py::test_c3_a_breakdown_takes_the_broken_unit_and_a_worker_keeps_its_other_unit
+    - tests/conformance/test_c3_interrupts.py::test_c3_an_interrupt_during_a_get_keeps_the_unit_and_cancels_the_get
+    - tests/conformance/test_c3_interrupts.py::test_job_interrupted_at_its_end_ends
+    - tests/conformance/test_c3_interrupts.py::test_job_preempted_at_its_end_ends
+    - tests/conformance/test_c3_interrupts.py::test_interrupts_arrive_in_entry_order
+    - tests/conformance/test_c3_interrupts.py::test_c3_an_interrupt_in_a_put_after_the_service_does_not_serve_again
+    - tests/conformance/test_c3_interrupts.py::test_c3_a_kept_unit_goes_back_when_the_flow_ends_without_a_next_task
+    - tests/conformance/test_c3_interrupts.py::test_c3_an_error_outside_the_function_gives_back_a_kept_unit_in_a_child_flow
+    - tests/conformance/test_c3_interrupts.py::test_c3_a_child_flow_that_ends_does_not_give_back_a_unit_its_sibling_keeps
+    - tests/conformance/test_c1_process_interaction.py::test_c1_an_interrupt_cause_is_read_in_the_next_task
+    - tests/conformance/test_yaml_only.py::test_v7_cause_names_the_preempter_and_the_time_left
+    - tests/conformance/test_yaml_only.py::test_v7_a_holder_preempted_at_its_grant_has_its_whole_time_left
+    - tests/conformance/test_yaml_only.py::test_v7_cause_left_of_a_single_timeout_wait
+    - tests/conformance/test_yaml_only.py::test_p37_preemption_with_resume_and_restart
+    - tests/conformance/test_yaml_only.py::test_i3_a_flow_runs_after_an_interrupt_and_then_the_work_goes_on
+    - tests/conformance/test_yaml_only.py::test_unit_states_interrupt
+    - tests/conformance/test_yaml_only.py::test_a_request_asked_again_under_restart_and_interrupted_goes_to_the_back
+    - tests/conformance/test_yaml_only.py::test_an_interrupt_of_a_suspended_instance_follows_on_interrupt
+    - tests/conformance/test_yaml_only.py::test_an_interrupted_holder_leaves_no_unit_or_request_with_a_breakdown_or_a_release
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_9_runs_as_its_simpy_program
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_9_runs_at_other_sizes
+    - tests/conformance/test_yaml_only.py::test_every_known_case_of_batch_9_runs_or_names_the_key_it_waits_for
   page: learn/shop-logic/interruptions.md#resume-restart-or-abandon
 
 - id: C3
@@ -192,7 +264,7 @@
   operation: Priority preemption
   description: "A more urgent request takes a resource unit away from a less urgent user, who is interrupted."
   simpy: "`simpy.resources.resource.PreemptiveResource`"
-  yaml: "`resources.<name>.preempt: true` with `queue: priority`; `preempt: false` on a task opts out"
+  yaml: "`resources.<name>.preempt: true` with `queue: priority`; `preempt: false` on a task opts out, and `preempt` on a task, a `seize` or a `request` mapping can be an expression read for each request"
   builder: "`add_resource(..., queue=\"priority\", preempt=True)`"
   low_level: "`DynamicResource(..., queue=\"priority\", preempt=True)` and `request(priority, preempt=True)`"
   checks:
@@ -201,6 +273,10 @@
     - tests/conformance/test_c3_interrupts.py::test_c3_two_preemptions_at_one_instant
     - tests/conformance/test_c3_interrupts.py::test_c3_preemption_tie_between_users
     - tests/conformance/test_c3_interrupts.py::test_c3_priority_preemption_low_level
+    - tests/conformance/test_yaml_only.py::test_unit_states_preemption
+    - tests/conformance/test_yaml_only.py::test_a_seized_unit_that_a_preemption_takes_before_the_task_looked_is_asked_for_again
+    - tests/conformance/test_yaml_only.py::test_h1_preempting_a_unit_that_an_ended_flow_holds_fails_the_requesting_flow
+    - tests/conformance/test_yaml_only.py::test_y8_a_computed_preempt_flag_is_read_for_each_request
   page: user-guide/resources/priority-and-preemption.md#preemption
 
 - id: C3
@@ -227,7 +303,16 @@
   low_level: "`with packers.request() as req: yield req`"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_ordinary_request_and_release
-  page: user-guide/resources/index.md#declare-a-resource
+    - tests/conformance/test_low_level_surface.py::test_resource_put_and_get_exist_and_put_takes_a_unit
+    - tests/conformance/test_yaml_only.py::test_h6_release_frees_the_unit_another_flow_holds
+    - tests/conformance/test_yaml_only.py::test_unit_states_grant
+    - tests/conformance/test_yaml_only.py::test_unit_states_loss_in_any_and_release_of_a_queued_request
+    - tests/conformance/test_yaml_only.py::test_unit_states_release_of_held_and_of_ended_requests
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_8_runs_as_its_simpy_program
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_8_runs_at_other_sizes
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_8_document_equals_the_docs_snippet
+    - tests/conformance/test_yaml_only.py::test_every_known_case_of_batch_8_runs_in_a_document_that_a_case_runs
+  page: user-guide/resources/units-and-queues.md#declare-a-resource
 
 - id: C4
   inventory: [SP-Q1, SP-Q3]
@@ -240,6 +325,11 @@
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_priority_resource_request
     - tests/conformance/test_c4_resources.py::test_c4_priority_request_with_mixed_preempt_flags
+    - tests/conformance/test_yaml_only.py::test_v4_a_value_drawn_for_each_entity_orders_a_priority_queue
+    - tests/conformance/test_yaml_only.py::test_y8_a_request_mapping_gives_each_branch_its_own_priority
+    - tests/conformance/test_yaml_only.py::test_y8_a_request_mapping_that_names_no_priority_or_preempt_is_simpys_request
+    - tests/conformance/test_yaml_only.py::test_y8_a_request_mapping_beside_a_name_does_not_take_the_task_priority
+    - tests/conformance/test_yaml_only.py::test_y8_a_request_mapping_may_preempt_in_a_task_that_may_not
   page: user-guide/resources/priority-and-preemption.md#task-priority
   differences: Equal priorities are served first in, first out, as in SimPy; desflow also offers `fifo` and `lifo` queues, under which a request's priority is ignored.
 
@@ -254,33 +344,45 @@
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_cancel_before_a_grant
     - tests/conformance/test_c4_resources.py::test_c4_renege_ahead_of_a_preempting_request
-  page: user-guide/resources/index.md#cancel-and-release
+    - tests/conformance/test_yaml_only.py::test_unit_states_patience_end
+    - tests/conformance/test_yaml_only.py::test_unit_states_cancel_of_a_queued_request_and_release_after_it
+    - tests/conformance/test_yaml_only.py::test_unit_states_cancel_of_a_request_that_left_the_line_fails_the_run
+    - tests/conformance/test_yaml_only.py::test_y4_cancel_of_a_get_and_of_a_put_and_a_get_granted_before_the_cancel
+  page: user-guide/resources/units-and-queues.md#cancel-and-release
 
 - id: C4
   inventory: [SP-S9]
   operation: Cancel after a grant
   description: "A task that already holds a unit stops early and gives the unit back."
   simpy: "`Request.cancel()` after the grant releases nothing; `Resource.release(request)` does"
-  yaml: "an interrupt with `on_interrupt: abandon` gives the unit back"
+  yaml: "an interrupt with `on_interrupt: abandon` gives the unit back, as `release(request)` does; for a request made with `open`, `cancel` after the grant releases nothing, and `release: {handle: <name>}` does"
   builder: the same
   low_level: "`request.cancel()` releases nothing; `resource.release(request)`"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_cancel_after_a_grant
-  page: user-guide/resources/index.md#cancel-and-release
+    - tests/conformance/test_yaml_only.py::test_h9_a_cancel_after_the_grant_keeps_the_unit_until_the_release
+  page: user-guide/resources/units-and-queues.md#cancel-and-release
 
 - id: C4
   inventory: [SP-S12]
   operation: Hold several resources
   description: "A task holds more than one resource at once, taken in a fixed order, and can hand them to the next task."
   simpy: nested requests, each held while the next is awaited
-  yaml: "`resource: [picker, bench]`, acquired in that order; `keep` hands units to the next task"
-  builder: "`@app.task(resource_id=[\"picker\", \"bench\"], keep=[...])`"
+  yaml: "`resource: [picker, bench]`, acquired in that order; `keep` hands units to the next task; `seize` keeps a unit across later tasks until `release`"
+  builder: "`@app.task(resource_id=[\"picker\", \"bench\"], keep=[...])`, or `seize=` and `release=`"
   low_level: nested `with` blocks
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_hold_several_resources
     - tests/conformance/test_c4_resources.py::test_c4_keep_hands_a_unit_to_the_next_task
+    - tests/conformance/test_c4_resources.py::test_keep_survives_a_child_flow
+    - tests/conformance/test_c4_resources.py::test_keep_survives_a_child_that_abandons_or_balks
+    - tests/conformance/test_c1_process_interaction.py::test_c1_a_preempted_kept_unit_interrupts_the_next_task_while_it_queues
+    - tests/conformance/test_yaml_only.py::test_h1_a_seized_unit_is_held_across_tasks_until_the_release
+    - tests/conformance/test_yaml_only.py::test_h5_opposite_orders_of_seize_load_with_a_warning_and_run_as_simpy
+    - tests/conformance/test_yaml_only.py::test_unit_states_task_end_and_flow_end
+    - tests/conformance/test_yaml_only.py::test_y4_an_opened_request_is_ahead_of_a_seize_of_the_same_resource
   page: user-guide/resources/several-resources.md#several-resources
-  differences: A model whose tasks acquire two resources in opposite orders is refused when it is built, because those tasks could each wait for ever; SimPy runs it. Two requests under one `all` wait are made together, so another task that acquires the two one after the other, in either order, is refused too.
+  differences: A model whose tasks acquire two resources in opposite orders gets a warning when it is built, because those tasks could each wait for ever; it runs as SimPy runs it. Two requests under one `all` wait are made together, so another task that acquires the two one after the other, in either order, gets the warning too. A task that keeps a unit for a task that requests it in its wait is refused, because the wait would queue behind the unit it keeps.
 
 - id: C4
   inventory: [SP-S2]
@@ -293,7 +395,7 @@
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_default_capacity
     - tests/conformance/test_c4_resources.py::test_c4_resource_with_no_capacity_limit
-  page: user-guide/resources/index.md#declare-a-resource
+  page: user-guide/resources/units-and-queues.md#declare-a-resource
 
 - id: C4
   inventory: [SP-S4, SP-S5, SP-S6]
@@ -307,7 +409,10 @@
     - tests/conformance/test_c4_resources.py::test_c4_count_queue_and_users
     - tests/conformance/test_c4_resources.py::test_c4_users_and_queue_in_conditions
     - tests/conformance/test_c4_resources.py::test_c4_a_condition_is_not_checked_between_the_steps_of_one_call
-  page: user-guide/resources/index.md#read-the-queue-and-users
+    - tests/conformance/test_yaml_only.py::test_st_r11_users_and_queue_read_by_look
+    - tests/conformance/test_yaml_only.py::test_y7_running_waiting_held_peek_and_list_forms
+    - tests/conformance/test_yaml_only.py::test_y5_list_mapping_and_function_forms
+  page: user-guide/resources/units-and-queues.md#read-the-queue-and-users
   differences: "A `lifo` queue serves the newest request first, which SimPy has no counterpart of."
 
 - id: C4
@@ -320,7 +425,7 @@
   low_level: "`resource.release(request)` returns a `DynamicRelease` whose `request` is the request"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_release_event
-  page: user-guide/resources/index.md#cancel-and-release
+  page: user-guide/resources/units-and-queues.md#cancel-and-release
 
 - id: C4
   inventory: [SP-S11]
@@ -332,7 +437,7 @@
   low_level: "`request.usage_since`"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_usage_since
-  page: user-guide/resources/index.md#read-the-queue-and-users
+  page: user-guide/resources/units-and-queues.md#read-the-queue-and-users
 
 - id: C4
   inventory: [SP-Q2]
@@ -351,15 +456,17 @@
   operation: A waiting line with a limit
   description: "A resource refuses a request when a set number of requests wait already, and a task that is refused balks."
   simpy: "`resources.resource.SortedQueue(maxlen)`"
-  yaml: "`queue_limit: 5` on the resource"
+  yaml: "`queue_limit: 5` on the resource; a scenario step, an `on:` entry or an ingress message can write the registry path `<sim_id>.resources.<name>.queue_limit` during the run, with a whole number or `null` for no limit"
   builder: "`add_resource(..., queue_limit=5)`"
   low_level: "`DynamicResource(..., queue_limit=5)`: `request()` raises `RuntimeError`"
   checks:
     - tests/conformance/test_c7_patience.py::test_c7_queue_limit
+    - tests/conformance/test_yaml_only.py::test_h8_queue_limit_changes_during_the_run
     - tests/conformance/test_c7_patience.py::test_c7_queue_limit_on_the_second_of_two_resources
     - tests/conformance/test_c7_patience.py::test_c7_queue_limit_fails_a_request_wait_branch
     - tests/conformance/test_c7_patience.py::test_c7_a_type_with_its_own_queue_limit_balks_before_queued
     - tests/conformance/test_c7_patience.py::test_c7_a_preempted_request_wait_balks_when_the_line_is_full
+    - tests/conformance/test_c7_patience.py::test_c7_a_preempted_seize_balks_when_the_line_is_full
     - tests/conformance/test_c7_patience.py::test_c7_a_interrupt_while_a_preempted_request_waits_leaves_no_stale_request
     - tests/conformance/test_c7_patience.py::test_c7_a_preempted_request_wait_reneges_when_the_patience_runs_out
     - tests/conformance/test_c7_patience.py::test_c7_a_preempted_request_wait_targets_the_resource_while_it_asks_again
@@ -371,11 +478,17 @@
   operation: Subclass a resource to change its rules
   description: "A resource of your own class changes when a request is granted, how the waiting line is kept and what a request or release does."
   simpy: "`resources.resource.PreemptiveResource`"
-  yaml: "`type: !python module.Class` on the resource"
-  builder: "`add_resource(..., type=Class)`"
+  yaml: "`type: !python module.Class` on the resource; for a queue order and a preemption rule, `queue: {rank, ties}` and `preempt: {when, victim}`"
+  builder: "`add_resource(..., type=Class)`, or `queue={...}` and `preempt={...}`"
   low_level: "a subclass of `ResourceBase`, built as `Class(env, sim_id, name)`"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_custom_resource_type
+    - tests/conformance/test_yaml_only.py::test_m5_default_queue_rule_runs_as_a_preemptive_resource
+    - tests/conformance/test_yaml_only.py::test_m5_ties_change_only_the_order_of_equal_ranks
+    - tests/conformance/test_yaml_only.py::test_m5_when_rule_decides_each_preemption
+    - tests/conformance/test_yaml_only.py::test_m5_victim_rule_picks_the_holder_with_the_largest_value
+    - tests/conformance/test_yaml_only.py::test_on_change_publishes_the_reading_after_each_call_as_simpy_records_it
+    - tests/conformance/test_yaml_only.py::test_trace_publishes_each_event_the_run_processes_as_simpy_steps_it
   page: user-guide/resources/custom-resource-types.md#custom-resource-types
 
 - id: C5
@@ -388,6 +501,8 @@
   low_level: "`yield parcels.put(item)`"
   checks:
     - tests/conformance/test_c5_bounded.py::test_c5_bounded_store_put
+    - tests/conformance/test_c5_inventory.py::test_c5_a_default_put_goes_on_in_the_step_the_put_event_is_processed
+    - tests/conformance/test_yaml_only.py::test_v12_put_item_and_the_bare_item_name
   page: user-guide/model-parts/stores-and-containers.md#take-and-add
 
 - id: C5
@@ -445,13 +560,16 @@
   operation: Priority item storage
   description: "Items in a store come out by priority, the lowest number first, instead of in the order they went in."
   simpy: "`simpy.resources.store.PriorityStore`"
-  yaml: "`stores.<name>.priority: true` and a `put` with `priority`"
+  yaml: "`stores.<name>.priority: true` and a `put` with `priority`; `get_queue` and `put_queue` of a store or container rank the waiting gets and puts by an expression"
   builder: "`add_store(..., priority=True)` and `put={\"store\": ..., \"priority\": ...}`"
   low_level: "`DynamicStore(..., priority=True)` with `simpy.PriorityItem`"
   checks:
     - tests/conformance/test_c5_priority_store.py::test_c5_priority_item_storage
+    - tests/conformance/test_c5_priority_store.py::test_equal_priorities_follow_the_heap
+    - tests/conformance/test_yaml_only.py::test_y12_waiting_gets_of_a_store_follow_the_rank
+    - tests/conformance/test_yaml_only.py::test_y12_waiting_puts_of_a_store_follow_the_rank
+    - tests/conformance/test_yaml_only.py::test_y12_a_container_get_that_cannot_be_met_stops_the_scan
   page: user-guide/model-parts/stores-and-containers.md#start-with-items-and-serve-by-priority
-  differences: Equal priorities come out in put order in the builder and YAML, which add a rising put order to the priority; a plain SimPy `PriorityStore` gives no order among equal priorities.
 
 - id: C5
   inventory: [SP-T9]
@@ -463,6 +581,8 @@
   low_level: "`parcels.get(filter=lambda item: ...)`"
   checks:
     - tests/conformance/test_c5_inventory.py::test_c5_filtered_retrieval
+    - tests/conformance/test_builder_additions.py::test_filter_takes_the_entity_by_name
+    - tests/conformance/test_builder_additions.py::test_filter_of_one_parameter_is_called_with_the_item
   page: user-guide/model-parts/stores-and-containers.md#pick-an-item-or-give-up-waiting
   differences: A priority store takes no filter, because SimPy has no store that both ranks and filters.
 
@@ -512,6 +632,7 @@
   low_level: "`put.cancel()`"
   checks:
     - tests/conformance/test_c5_inventory.py::test_c5_cancel_quantity_put
+    - tests/conformance/test_c5_inventory.py::test_c5_container_amounts_and_levels_keep_integers
   page: user-guide/model-parts/stores-and-containers.md#pick-an-item-or-give-up-waiting
 
 - id: C5
@@ -526,6 +647,8 @@
     - tests/conformance/test_c5_queues.py::test_c5_store_put_and_get_queues
     - tests/conformance/test_c5_queues.py::test_c5_container_put_and_get_queues
     - tests/conformance/test_c5_queues.py::test_c5_queue_count_falls_when_a_waiter_leaves
+    - tests/conformance/test_low_level_surface.py::test_queue_attributes_exist
+    - tests/conformance/test_low_level_surface.py::test_isinstance_of_simpy_classes
   page: user-guide/model-parts/stores-and-containers.md#registry-paths-readings-and-conditions
 
 - id: C5
@@ -657,6 +780,12 @@
   low_level: "`CapacityConfig(current_cap=2, ...)`"
   checks:
     - tests/conformance/test_c6_initial_state.py::test_c6_initial_resources
+    - tests/conformance/test_yaml_only.py::test_y1_members_made_from_a_number_serve_in_turn
+    - tests/conformance/test_yaml_only.py::test_y1_a_store_family_is_made_at_its_first_put
+    - tests/conformance/test_yaml_only.py::test_y1_a_container_family_starts_each_member_at_its_level
+    - tests/conformance/test_yaml_only.py::test_y1_a_signal_family_wakes_the_waiter_of_its_key
+    - tests/conformance/test_yaml_only.py::test_y2_the_member_with_the_lowest_value_is_taken_at_the_step
+    - tests/conformance/test_yaml_only.py::test_y2_a_list_of_names_takes_the_one_the_key_gives
   page: user-guide/time-and-pacing/run-length.md#initial-time
 
 - id: C6
@@ -669,6 +798,9 @@
   low_level: "`ContainerConfig(level=6)` and `DynamicStore(..., items=[...])`"
   checks:
     - tests/conformance/test_c6_initial_state.py::test_c6_initial_inventory
+    - tests/conformance/test_low_level_surface.py::test_items_setter
+    - tests/conformance/test_low_level_surface.py::test_items_setter_serves_a_waiting_get_at_the_next_put
+    - tests/conformance/test_yaml_only.py::test_st_r17_container_queues_read_by_look
   page: user-guide/model-parts/stores-and-containers.md#start-with-items-and-serve-by-priority
 
 - id: C6
@@ -684,15 +816,33 @@
   page: user-guide/model-parts/task-flow.md#attributes
 
 - id: C6
+  inventory: [SP-E11]
+  operation: A run with no until
+  description: "A run with no `until` ends when no model event is left, as SimPy's `run()` does, with statistics, a sink or an ingress connector on; a `stop` that can no longer happen raises SimPy's `RuntimeError`, and only a model that keeps making events runs on."
+  simpy: "`core.Environment.run()` returns when no event is left"
+  yaml: "`run:` with no `until`"
+  builder: "`app.run()` with no `until`"
+  low_level: "`env.run()` with no `until`"
+  checks:
+    - tests/conformance/test_c6_end_conditions.py::test_no_until_ends_with_statistics
+    - tests/conformance/test_c6_end_conditions.py::test_no_until_ends_with_a_sink
+    - tests/conformance/test_c6_end_conditions.py::test_no_until_ends_with_ingress
+    - tests/conformance/test_c6_end_conditions.py::test_no_until_with_a_stop_that_never_fires
+    - tests/conformance/test_c6_end_conditions.py::test_no_until_with_a_stop_that_fires_at_the_last_event
+  page: user-guide/time-and-pacing/run-length.md#run-length_1
+
+- id: C6
   inventory: [SP-E12]
   operation: Stop at a time
   description: "The run ends at a given simulation time."
   simpy: "`simpy.core.Environment.run(until=...)`"
-  yaml: "`run.until`"
+  yaml: "`run.until`, or `run.segments` for several stops with a `look` at each"
   builder: "`app.run(until=...)`"
   low_level: "`env.run(until=...)`"
   checks:
     - tests/conformance/test_c6_run_control.py::test_c6_stop_at_a_time
+    - tests/conformance/test_yaml_only.py::test_cv_040_run_segments_with_a_look
+    - tests/conformance/test_yaml_only.py::test_cv_040_run_segments_every
   page: user-guide/time-and-pacing/run-length.md#run-length_1
 
 - id: C7
@@ -700,12 +850,22 @@
   operation: Reneging
   description: "A customer leaves the queue after waiting longer than their patience."
   simpy: "`simpy.events.AnyOf` of a request and a timeout"
-  yaml: "`patience: 3 min` on a task"
+  yaml: "`patience: 3 min` on a task, and `on_renege` for the task that follows"
   builder: "`@app.task(..., patience=180)`"
-  low_level: "`yield req | env.timeout(patience)`, then `req.triggered`"
+  low_level: "`yield req | env.timeout(patience)`, then `req not in result`"
   checks:
     - tests/conformance/test_c7_patience.py::test_c7_reneging
-    - tests/conformance/test_c7_patience.py::test_c7_reneging_tie_timeout_scheduled_after_the_grant
+    - tests/conformance/test_c7_patience.py::test_c7_patience_that_evaluates_to_text_is_read_as_a_number
+    - tests/conformance/test_c7_patience.py::test_patience_first_at_a_tie_reneges
+    - tests/conformance/test_c7_patience.py::test_child_that_reneged_reports_simpy_value
+    - tests/conformance/test_yaml_only.py::test_ex_1_bank_renege_prints_the_lines_of_the_simpy_program
+    - tests/conformance/test_yaml_only.py::test_ex_1_bank_renege_runs_with_its_own_draws
+    - tests/conformance/test_c7_patience.py::test_patience_does_not_beat_a_timeout_branch_processed_first
+    - tests/conformance/test_c7_patience.py::test_patience_first_at_a_tie_reneges_a_get
+    - tests/conformance/test_c7_patience.py::test_patience_first_at_a_tie_reneges_a_request_asked_again
+    - tests/conformance/test_builder_additions.py::test_builder_on_renege_on_balk
+    - tests/conformance/test_builder_additions.py::test_on_renege_and_on_balk_need_their_cause
+    - tests/conformance/test_yaml_only.py::test_i6_a_flow_goes_on_after_it_balks_or_reneges
     - tests/conformance/test_c7_patience.py::test_c7_reneging_tie_timeout_scheduled_before_the_grant
     - tests/conformance/test_c7_patience.py::test_c7_reneged_request_leaves_the_queue
     - tests/conformance/test_c7_patience.py::test_c7_patience_pauses_during_service
@@ -768,20 +928,23 @@
   operation: Step one event
   description: "The run advances one event at a time, so a script can watch each step."
   simpy: "`simpy.core.Environment.step()`"
-  yaml: "`SimulationContext.from_yaml(path).start()`, then `.step()`"
+  yaml: "`run: {steps: true}`, or `SimulationContext.from_yaml(path).start()`, then `.step()`"
   builder: "`app.start()`, `app.step()`, `app.close()`"
   low_level: "`env.step()`"
   checks:
     - tests/conformance/test_c6_end_conditions.py::test_c6_step_one_event
+    - tests/conformance/test_c6_run_control.py::test_step_count_equals_simpy
+    - tests/conformance/test_yaml_only.py::test_cv_032_and_cv_034_run_steps_reads_peek_and_step
+    - tests/conformance/test_yaml_only.py::test_gd_e3_peek_and_step_in_a_loop
   page: user-guide/time-and-pacing/run-length.md#step-and-peek
-  differences: A blueprint has no stepping key; its context, from `from_yaml`, steps as a builder context does.
+  differences: "`run.steps` publishes the step count and the clock after each step of a run; stepping a model by hand is for a script, which steps the context from `from_yaml` as it steps a builder context."
 
 - id: C6
   inventory: [SP-E8]
   operation: Inspect next event time
   description: "A script reads when the next event will happen without running it."
   simpy: "`simpy.core.Environment.peek()`"
-  yaml: "`SimulationContext.from_yaml(path).start()`, then `.peek()`"
+  yaml: "`run: {steps: true}` publishes `peek` after each step, or `SimulationContext.from_yaml(path).start()`, then `.peek()`"
   builder: "`app.peek()`"
   low_level: "`env.peek()`"
   checks:
@@ -805,7 +968,7 @@
     - tests/conformance/test_c6_end_conditions.py::test_c6_finish_after_steps_that_reached_until
     - tests/conformance/test_c6_end_conditions.py::test_c6_finish_after_steps_to_until_with_statistics_due_there
   page: user-guide/time-and-pacing/run-length.md#step-and-peek
-  differences: "With only desflow's own events left, `step()` raises `EmptySchedule` and `peek()` gives infinity, but the queue is not empty: `run()` and `finish()` still process those events."
+  differences: "With only desflow's own events left, `step()` raises `EmptySchedule` and `peek()` gives infinity, but the queue is not empty: `run()` and `finish()` with an `until` still process those events, and a run with no `until` ends when only they are left."
 
 - id: C6
   inventory: [SP-E14]
@@ -824,13 +987,16 @@
   operation: Breakdown and repair
   description: "A resource fails from time to time and is repaired, interrupting the work it was doing."
   simpy: "a repair process holding the machine on a `PreemptiveResource`"
-  yaml: "`resources.<name>.breakdown: {time_to_failure, repair, work}`"
-  builder: "`add_breakdown(resource, time_to_failure={...}, repair={...}, work=...)`"
-  low_level: "`run_breakdowns(env, resource, sampler, work=...)`"
+  yaml: "`resources.<name>.breakdown: {time_to_failure, repair, work, clock}`"
+  builder: "`add_breakdown(resource, time_to_failure={...}, repair={...}, work=..., clock=...)`"
+  low_level: "`run_breakdowns(env, resource, sampler, work=..., clock=...)`"
   checks:
     - tests/conformance/test_s1_breakdowns.py::test_s1_failure_during_service
     - tests/conformance/test_s1_breakdowns.py::test_s1_failure_during_service_work_finishes
     - tests/conformance/test_s1_breakdowns.py::test_s1_planned_change_during_repair
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_10_runs_as_its_simpy_program
+    - tests/conformance/test_yaml_only.py::test_known_case_of_batch_10_runs_at_other_sizes
+    - tests/conformance/test_yaml_only.py::test_every_known_case_of_batch_10_runs_or_names_the_key_it_waits_for
   page: how-to/modelling/breakdowns.md#steps
   differences: "The resource is down on a calendar clock, from the failure to the repair, even while it waits for the work in service to finish with `work: finish`."
 
@@ -857,7 +1023,9 @@
   low_level: "`read_trace(source, ...)` and a SimPy loop over its rows"
   checks:
     - tests/conformance/test_s3_replay.py::test_s3_replay_equal_times_invalid_rows_and_the_horizon
+    - tests/conformance/test_s3_replay.py::test_tied_replay_rows_start_in_one_step
   page: learn/inputs/local-replay.md#replay-the-rows
+  differences: "The rows of one time start their entities in one step, in file order. A low-level loop that waits one timeout per row starts tied rows in separate steps; a loop that waits once for each distinct time starts them in one step, as here."
 
 # SimPy 4.1.2 features made native in 0.23.0 (roadmap step 14).
 
@@ -885,6 +1053,10 @@
     - tests/conformance/test_c1_process_interaction.py::test_c1_active_process
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_name
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_target
+    - tests/conformance/test_c1_process_interaction.py::test_c1_process_target_across_a_next_chain
+    - tests/conformance/test_c1_process_interaction.py::test_c1_active_process_is_the_same_process_across_a_next_chain
+    - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_target_during_a_single_branch_wait_is_the_event_waited_on
+    - tests/conformance/test_yaml_only.py::test_m6_flow_name_is_the_first_task_of_the_process
   page: user-guide/tasks-and-processes/processes.md#how-it-works
 
 - id: C1
@@ -898,6 +1070,27 @@
   checks:
     - tests/conformance/test_c1_processes.py::test_c1_start_a_process_without_waiting_for_it
     - tests/conformance/test_c1_processes.py::test_c1_start_a_process_without_waiting_for_it_drain
+    - tests/conformance/test_builder_additions.py::test_builder_spawn_count
+    - tests/conformance/test_builder_additions.py::test_builder_spawn_copy_attributes_and_a_computed_count
+    - tests/conformance/test_builder_additions.py::test_builder_deactivate_and_activate_turn_sources_off_and_on
+    - tests/conformance/test_builder_additions.py::test_builder_put_item_and_set_args_reach_later_steps
+    - tests/conformance/test_builder_additions.py::test_builder_spawn_args_reach_each_child
+    - tests/conformance/test_builder_additions.py::test_builder_group_active_off_mode_and_initial
+    - tests/conformance/test_yaml_only.py::test_a1_a_fixed_number_of_arrivals
+    - tests/conformance/test_yaml_only.py::test_a1_a_computed_count_must_be_a_whole_number
+    - tests/conformance/test_yaml_only.py::test_a1_count_and_keys_make_entities_that_start_the_task_again
+    - tests/conformance/test_yaml_only.py::test_a1_a_drain_during_a_gap_or_a_stagger_ends_the_entities
+    - tests/conformance/test_yaml_only.py::test_a1_a_drain_during_a_gap_of_a_source_with_max_events
+    - tests/conformance/test_yaml_only.py::test_a4_a_gap_computed_from_the_time
+    - tests/conformance/test_yaml_only.py::test_a4_a_drain_during_a_computed_gap_ends_the_sources
+    - tests/conformance/test_yaml_only.py::test_a4_a_negative_gap_fails_the_run
+    - tests/conformance/test_yaml_only.py::test_a3_group_starts_a_drawn_number_of_members
+    - tests/conformance/test_yaml_only.py::test_a5_off_mode_drop_loses_the_arrivals_while_off
+    - tests/conformance/test_yaml_only.py::test_a5_off_mode_restart_starts_a_whole_gap_when_on
+    - tests/conformance/test_yaml_only.py::test_a7_spawn_count_and_copy_attributes
+    - tests/conformance/test_yaml_only.py::test_a7_spawn_count_reads_the_names_of_the_process
+    - tests/conformance/test_yaml_only.py::test_a5_a_source_with_count_or_keys_obeys_active_and_deactivate
+    - tests/conformance/test_yaml_only.py::test_a3_a_group_of_zero_draws_no_attribute
   page: user-guide/tasks-and-processes/signals-and-waiting.md#start-a-flow-without-waiting
 
 - id: C6
@@ -910,6 +1103,8 @@
   low_level: "`env.schedule(event, priority, delay)`"
   checks:
     - tests/conformance/test_c6_environment.py::test_c6_schedule_with_a_priority
+    - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_signal_scheduled_with_a_delay_or_priority_wakes_a_waiter_in_its_step
+    - tests/conformance/test_c1_events.py::test_c1_an_on_fire_with_after_or_urgent_is_scheduled_in_the_step_its_task_ends
     - tests/conformance/test_c6_environment.py::test_c6_fire_with_after_is_not_counted_by_a_drain
     - tests/conformance/test_c6_environment.py::test_c6_fire_twice_with_after_is_refused_as_a_one_shot_signal
   page: user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens
@@ -919,12 +1114,13 @@
   operation: Urgent and normal event priorities
   description: "An urgent event is processed before the normal events at its time, as SimPy's `URGENT` and `NORMAL` order them; `urgent: true` on a `fire` action resumes the waiters first."
   simpy: "`events.URGENT`, `events.NORMAL`"
-  yaml: "`fire: {signal: s, urgent: true}` on a signal with `once: true`"
-  builder: "`{\"fire\": {\"signal\": \"s\", \"urgent\": True}}` in `on=`, or `simpy.events.URGENT` in `context.env.schedule`"
+  yaml: "`fire: {signal: s, urgent: true}` or `fire: {signal: s, priority: 2}` on a signal with `once: true`"
+  builder: "`{\"fire\": {\"signal\": \"s\", \"urgent\": True}}` in `on=` (`\"priority\": 2` for another priority), or `simpy.events.URGENT` in `context.env.schedule`"
   low_level: "`env.schedule(event, URGENT)`"
   checks:
     - tests/conformance/test_c6_environment.py::test_c6_fire_with_urgent_and_after
     - tests/conformance/test_c6_environment.py::test_c6_fire_urgent_and_after_need_a_one_shot_signal
+    - tests/conformance/test_yaml_only.py::test_y10_events_at_one_time_run_by_priority_then_by_creation
   page: user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens
 
 - id: C6
@@ -976,7 +1172,7 @@
 - id: C6
   inventory: [SP-R2]
   operation: Strict pacing
-  description: "With `strict` on, a paced step more than `factor` seconds behind the wall clock raises `RuntimeError`, as SimPy's `RealtimeEnvironment(strict=True)` does."
+  description: "With `strict` on, a step more than `factor` seconds behind the wall clock raises `RuntimeError`, as SimPy's `RealtimeEnvironment(strict=True)` does, also at factor 0 once the wall clock has moved."
   simpy: "`rt.RealtimeEnvironment.strict`"
   yaml: "`simulation.strict`"
   builder: "`SimulationContext(strict=True)`"
@@ -988,13 +1184,16 @@
 - id: C6
   inventory: [SP-R3]
   operation: Strict by default
-  description: "The low-level environment is strict unless `strict=False` is passed, as SimPy's is; the builder and YAML default to off."
+  description: "Strict is on unless `strict=False` is passed, as SimPy's is, in the low-level environment, the builder and YAML. A run at factor 0 that does not set `strict` is not strict, because it has no wall clock to fall behind, and a `go_live_at` run is strict."
   simpy: "`rt.RealtimeEnvironment(strict=True)`"
-  yaml: "`simulation.strict`, default `false`"
-  builder: "`SimulationContext(strict=False)`, the default"
-  low_level: "`DynamicRealtimeEnvironment(strict=True)`, the default"
+  yaml: "`simulation.strict`, default `true` when `factor` is above 0 or `go_live_at` is set"
+  builder: "`SimulationContext(strict=None)`, the default, resolves the same way"
+  low_level: "`DynamicRealtimeEnvironment(strict=None)`, the default, resolves the same way"
   checks:
-    - tests/conformance/test_c6_pacing.py::test_c6_strict_default
+    - tests/conformance/test_c6_pacing.py::test_strict_default_resolves_by_factor
+    - tests/conformance/test_c6_pacing.py::test_explicit_strict_at_factor_zero_raises
+    - tests/conformance/test_c6_pacing.py::test_forced_factor_zero_ignores_strict
+    - tests/conformance/test_c6_pacing.py::test_c6_go_live_under_strict_raises_nothing
   page: user-guide/time-and-pacing/clocks-and-pacing.md#strict-pacing
 
 - id: C6
@@ -1002,21 +1201,23 @@
   operation: Sync with the wall clock
   description: "`sync()` resets only the wall-clock anchor (`real_start`), as SimPy's does, so strict stops counting the time before it. Going on after a pause with the pace kept needs `resume_pacing()`, which also moves the simulation anchor."
   simpy: "`rt.RealtimeEnvironment.sync`"
-  yaml: "not in YAML: `app.start()`, then `app.env.sync()`"
+  yaml: "`run: {sync: true}` syncs as the run starts, and `sync: true` on a segment as that segment starts, or `app.start()`, then `app.env.sync()`"
   builder: "`app.env.sync()` after `start()`; the builder syncs once when it builds a strict run"
   low_level: "`env.sync()`"
   checks:
     - tests/conformance/test_c6_pacing.py::test_c6_sync_catches_up
+    - tests/conformance/test_yaml_only.py::test_cv_099_run_sync_calls_sync_where_it_is_asked
+    - tests/conformance/test_yaml_only.py::test_st_rt6_sync_is_called_as_the_run_starts
   page: user-guide/time-and-pacing/clocks-and-pacing.md#strict-pacing
 
 - id: C1
   inventory: [SP-V3]
   operation: One-shot event
-  description: "A one-shot signal fires once, as SimPy's `Event` does: it does not re-arm, a wait after the firing resumes at once, and a second firing is refused."
+  description: "A signal is one-shot by default and fires once, as SimPy's `Event` does: it does not re-arm, a wait after the firing resumes at once, and a second firing is refused. `once: false` makes a signal that re-arms."
   simpy: "`events.Event`"
-  yaml: "`signals: {closing: {once: true}}`"
-  builder: "`add_signal(name, once=True)`"
-  low_level: "`Signal(env, name, once=True)`"
+  yaml: "`signals: {closing: {}}`, or `once: false` to re-arm"
+  builder: "`add_signal(name)`, or `once=False` to re-arm"
+  low_level: "`Signal(env, name)`, or `once=False` to re-arm"
   checks:
     - tests/conformance/test_c1_events.py::test_c1_one_shot_event
     - tests/conformance/test_c1_events.py::test_c1_one_shot_event_fired_twice
@@ -1027,7 +1228,7 @@
   operation: Actions when an event happens
   description: "An `on:` list runs actions when a signal fires or a task ends: fire a signal (copying another outcome), spawn a flow, interrupt a task, or set a value, as SimPy's callbacks, `trigger` and defused failures."
   simpy: "`events.Event.callbacks`, `events.Event.trigger`, `events.Event.defused`"
-  yaml: "`on: [{fire: {signal, from}}, {spawn: {...}}]` on a task or a signal"
+  yaml: "`on: [{fire: {signal, from}}, {spawn: {...}}]` on a task or a signal, `fire` with `fail`, `defused` and `priority`, `when` on an entry, and `listen` on a task for a callback added during the run"
   builder: "`on=[...]` on `@app.task` and `add_signal`"
   low_level: "`event.callbacks.append(fn)`, `ev.trigger(other)`, `ev.defused = True`"
   checks:
@@ -1035,21 +1236,41 @@
     - tests/conformance/test_c1_events.py::test_c1_trigger_from_another_event
     - tests/conformance/test_c1_events.py::test_c1_trigger_from_another_event_failure
     - tests/conformance/test_c1_events.py::test_c1_defused_failure
+    - tests/conformance/test_yaml_only.py::test_y9_a_defused_fire_ends_the_run_with_no_error_where_a_plain_one_stops_it
+    - tests/conformance/test_yaml_only.py::test_y9_a_failed_signal_fails_each_waiter_with_its_reason
+    - tests/conformance/test_yaml_only.py::test_y9_a_computed_fail_reason_is_read_when_the_task_fails
+    - tests/conformance/test_yaml_only.py::test_y11_a_listen_runs_when_the_event_fires_and_its_when_decides_each_entry
     - tests/conformance/test_c1_events.py::test_c1_drain_waits_for_an_on_spawn
     - tests/conformance/test_c1_events.py::test_c1_drain_waits_for_a_signals_on_actions
     - tests/conformance/test_c1_events.py::test_c1_drain_waits_through_a_balking_next
     - tests/conformance/test_c1_events.py::test_c1_drain_waits_through_a_chain_of_firings
     - tests/conformance/test_c1_events.py::test_c1_process_signal_fire_is_not_counted
     - tests/conformance/test_c1_events.py::test_c1_on_spawn_upstream_after_each_end
+    - tests/conformance/test_c1_events.py::test_c1_on_sets_a_flag_the_next_task_of_another_entity_reads_in_that_step
+    - tests/conformance/test_c1_events.py::test_c1_an_on_spawn_asks_for_the_unit_in_the_step_its_task_ends
+    - tests/conformance/test_c1_events.py::test_c1_two_on_spawns_then_a_running_join_wait_for_both_children
+    - tests/conformance/test_c1_events.py::test_c1_fire_from_the_ending_task_wakes_a_waiter_in_the_step_the_task_ends
+    - tests/conformance/test_c1_events.py::test_c1_an_on_interrupt_reaches_its_target_in_the_step_its_task_ends
+    - tests/conformance/test_c1_events.py::test_c1_an_on_path_sets_an_arrival_gap_in_the_step_its_task_ends
+    - tests/conformance/test_c1_events.py::test_c1_an_on_interrupt_reaches_a_task_that_ends_at_the_same_instant
+    - tests/conformance/test_c1_events.py::test_c1_the_next_task_of_the_same_entity_reads_the_flag_its_on_set
+    - tests/conformance/test_c1_events.py::test_c1_the_next_condition_of_the_task_with_the_on_reads_the_old_value
+    - tests/conformance/test_c1_events.py::test_c1_an_on_fire_to_a_signals_on_runs_the_actions_one_step_later
+    - tests/conformance/test_c1_events.py::test_c1_closing_a_task_that_is_still_serving_runs_no_on_action
+    - tests/conformance/test_c1_events.py::test_c1_a_task_that_balks_or_reneges_runs_its_on_actions
+    - tests/conformance/test_c3_interrupts.py::test_on_actions_do_not_run_after_a_run_failure
+    - tests/conformance/test_c3_interrupts.py::test_on_actions_do_not_run_after_a_task_function_raises
+    - tests/conformance/test_c1_events.py::test_c1_an_on_path_that_does_not_exist_in_a_child_flow_stops_the_run
+    - tests/conformance/test_c1_events.py::test_c1_an_on_path_that_does_not_exist_in_a_root_task_stops_the_run
     - tests/conformance/test_c1_events.py::test_c1_losing_child_flow_fire_after_left_is_not_counted
   page: user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens
 
 - id: C1
   inventory: [SP-V7]
   operation: Failure nobody handles
-  description: "Under `on_unhandled_failure: stop` a task, child flow or one-shot signal failure nobody handles stops the run, as SimPy; under `continue`, the default, it is defused and the run goes on."
+  description: "By default (`on_unhandled_failure: stop`) a task, child flow or one-shot signal failure nobody handles stops the run, as SimPy; under `continue` it is defused and the run goes on."
   simpy: "`core.Environment.run`"
-  yaml: "`run: {on_unhandled_failure: stop}`"
+  yaml: "`run: {on_unhandled_failure: continue}` to go on, `stop` is the default"
   builder: "`run(on_unhandled_failure=...)` or `start(on_unhandled_failure=...)`"
   low_level: "`DynamicRealtimeEnvironment(on_unhandled_failure=...)`"
   checks:
@@ -1068,6 +1289,7 @@
   low_level: "`env.timeout(delay, value)`"
   checks:
     - tests/conformance/test_c1_events.py::test_c1_timeout_value
+    - tests/conformance/test_yaml_only.py::test_v3_computed_values_in_a_write_a_cause_and_a_timeout_value
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
@@ -1086,6 +1308,7 @@
     - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_that_hands_on
     - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_that_it_spawned
     - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_abandoned_in_a_child_flow
+    - tests/conformance/test_yaml_only.py::test_m7_whole_flow_waits_for_the_flows_the_task_belongs_to
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C2
@@ -1115,7 +1338,9 @@
     - tests/conformance/test_c2_conditions.py::test_c2_custom_rule_equal_to_the_branch_count_is_all
     - tests/conformance/test_c2_conditions.py::test_c2_custom_rule_two_at_one_instant
     - tests/conformance/test_c2_conditions.py::test_c2_custom_rule_with_a_failing_member
-  page: how-to/modelling/wait-for-one-or-all.md#at-least-some-of-them
+    - tests/conformance/test_yaml_only.py::test_v11_wait_when_over_the_events_done
+    - tests/conformance/test_yaml_only.py::test_v11_a_when_group_cancels_the_requests_that_lose
+  page: how-to/modelling/wait-for-one-or-all.md#wait-for-some-of-them
 
 - id: C2
   inventory: [SP-C7]
@@ -1127,7 +1352,7 @@
   low_level: "`env.any_of([])`"
   checks:
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_condition_over_no_events
-  page: how-to/modelling/wait-for-one-or-all.md#an-empty-wait
+  page: how-to/modelling/wait-for-one-or-all.md#wait-for-nothing
 
 - id: C2
   inventory: [SP-C8]
@@ -1148,10 +1373,8 @@
     - tests/conformance/test_c2_conditions.py::test_c2_request_wait_branch_kept_across_a_resume_in_the_service
     - tests/conformance/test_c2_conditions.py::test_c2_abandon_during_a_wait_with_a_won_branch_is_clean
     - tests/conformance/test_c2_conditions.py::test_c2_request_wait_branch_reacquired_after_a_preemption
-    - tests/conformance/test_c2_conditions.py::test_c2_a_get_granted_as_the_wait_ends_counts_as_won
-    - tests/conformance/test_c2_conditions.py::test_c2_a_request_granted_as_the_wait_ends_counts_as_won
+    - tests/conformance/test_c2_wait_for_one_or_all.py::test_grant_at_the_wait_end_is_not_kept
   page: how-to/modelling/wait-for-one-or-all.md#wait-for-a-unit-an-item-or-room
-  differences: "A request, get or put branch that is granted at the instant its wait ends, after the condition was processed, counts as won, and the task keeps its unit or item, as SimPy's `if not event.triggered: event.cancel()` leaves a granted event. A SimPy waiter that ignores such an event, because it is not in the condition's value, keeps the unit held or loses the item."
 
 - id: C1
   inventory: [SP-U1]
@@ -1178,32 +1401,18 @@
   checks:
     - tests/conformance/test_c1_processes.py::test_c1_be_told_when_an_event_happens
     - tests/conformance/test_c1_processes.py::test_c1_be_told_when_an_event_happens_after_the_subscriber_ended
+    - tests/conformance/test_c1_process_interaction.py::test_c1_subscribe_interrupts_the_next_task_after_a_hand_on
   page: user-guide/tasks-and-processes/signals-and-waiting.md#be-told-when-a-flow-ends
 
-# Differences kept by design, approved by the owner: A run with no until and
-# Capacity 0 on 18 Oct 2026, Strict pacing at factor 0 on 21 Oct 2026 (D-E1).
-
-- id: D
-  inventory: [SP-E11]
-  status: difference
-  operation: A run with no until
-  simpy: "`core.Environment.run()` returns when no event is left"
-  checks: []
-  differences: "A run with a sink or an ingress connector and no `until` runs for ever, because a live run has no end: the connectors keep events coming. Give it an `until`, with a `drain` when it should finish its work, or a `stop` that is sure to happen, or stop it with Ctrl+C."
-
-- id: D
-  inventory: []
-  status: difference
-  operation: Strict pacing at factor 0
-  simpy: "`rt.RealtimeEnvironment(factor=0, strict=True)` raises once the wall clock has moved"
-  checks: []
-  differences: "An unpaced run has no wall clock to fall behind, so SimPy's check at factor 0 would raise on the first step of every unpaced script. `strict` is never checked at factor 0, also before `go_live_at`."
-  page: user-guide/time-and-pacing/clocks-and-pacing.md#strict-pacing
+# Differences kept by design, approved by the owner: Capacity 0 on 18 Oct 2026.
 
 - id: D
   inventory: [SP-S3]
   status: difference
   operation: Capacity 0
   simpy: "`resources.resource.Resource(capacity=0)` raises `ValueError`, and so do `Store` and `Container`"
+  yaml: "`current_cap: 0` on a resource"
+  builder: "`add_resource(name, current_cap=0)`"
+  low_level: "`DynamicResource(env, ..., current_cap=0)`"
   checks: []
   differences: "A resource, store or container may have a capacity of 0, at the start or later, because its capacity changes during a run: a shift with no packers, a shelf that is closed. At capacity 0 a resource grants no request, and a store or container accepts no put, until the capacity rises; a get still takes what a store or container holds."

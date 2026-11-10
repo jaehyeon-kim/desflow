@@ -32,7 +32,6 @@ tasks:
     payload: {event_type: order_packed}
 
 egress:
-  - type: Console
+  - {type: Console}
 
-run:
-  until: 1 min
+run: {until: 1 min}

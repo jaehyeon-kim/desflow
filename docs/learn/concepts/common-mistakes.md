@@ -16,7 +16,7 @@ Most wrong simulation results come from a short list of mistakes, and most of th
 
 ## No Clear Question
 
-### In the Tutorial
+### In the Shop
 
 A shop model built to "see what happens" could include the pickers, the stock, the couriers and the breaks. Nothing says which of them matter, so nothing says when the model is finished.
 
@@ -36,7 +36,7 @@ With the question written, each part of the model can be judged by whether it ch
 
 ## Copying the Real System in Full
 
-### In the Tutorial
+### In the Shop
 
 The busy-hour question depends on the arrivals, the packing times and the number of packers. The pickers, the stock and delivery are outside the shop's first model, and [A Flow of Tasks](../shop-logic/flow-of-tasks.md) adds picking only when a question needs it.
 
@@ -56,7 +56,7 @@ A small model that answers the question is easier to check and to explain. A par
 
 ## Replacing a Distribution by Its Mean
 
-### In the Tutorial
+### In the Shop
 
 Packing takes 1.5 seconds on average and an order arrives every 2.0 seconds on average, so it is tempting to put those two numbers in as constants. With one packer, constant gaps and constant packing times, the mean wait over 10 [replications](output-analysis.md#replications) is 0.00 seconds. With exponential gaps of the same mean and the same packing time, it is 2.45 seconds over the same 10 replications.
 
@@ -76,7 +76,7 @@ A model whose waits are near zero while utilisation is high has probably lost it
 
 ## Choosing a Normal or Uniform by Habit
 
-### In the Tutorial
+### In the Shop
 
 A normal distribution with a mean of 1.5 seconds and a standard deviation of 1.0 is a tempting packing time. About 6.7% of 100,000 draws from it are below zero.
 
@@ -96,9 +96,9 @@ With no data, a triangular distribution of the least, most likely and greatest v
 
 ## Taking One Run as the Answer
 
-### In the Tutorial
+### In the Shop
 
-Run the busy hour with three packers 10 times with different seeds. The mean wait of a run ranges from 1.52 seconds, 28% below the mean, to 2.75 seconds, 30% above it, and the mean of the 10 is 2.11 seconds.
+Run the busy hour with three packers, constant packing and no warm-up 10 times with different seeds. The mean wait of a run ranges from 1.52 seconds, 28% below the mean, to 2.75 seconds, 30% above it, and the mean of the 10 is 2.11 seconds.
 
 ### Why It Matters
 
@@ -110,13 +110,13 @@ Run replications and report the mean with an interval. [Output Analysis](output-
 
 ### What the Result Means
 
-The pages of this site give several figures for the busy hour's mean wait, because each runs it in a different way. [Busy Hour Figures](../first-model/first-simulation.md#busy-hour-figures) lists each figure and how it was run.
+The pages of this site give several figures for the busy hour's mean wait, because each runs it in a different way. [Busy Hour Figures](output-analysis.md#busy-hour-figures) lists each figure and how it was run.
 
 ---
 
 ## No Warm-up for a Steady State
 
-### In the Tutorial
+### In the Shop
 
 Take one packer and an order about every 1.58 seconds on average. With 1.5 seconds of packing, the packer is busy 1.5 ÷ 1.58 = 95% of the time. Forty runs of 30 minutes from an empty shop give a mean wait of 11.4 ± 2.1 seconds. The formula for the long-run wait of this shop (M/D/1) gives 14.25 seconds, above the whole interval.
 
@@ -136,7 +136,7 @@ Forty runs of 20,000 seconds that each leave out their first 4,000 seconds give 
 
 ## Comparing Designs With One Run Each
 
-### In the Tutorial
+### In the Shop
 
 Packing in 1.45 seconds instead of 1.5 is a real improvement. Over 20 runs of each, with seeds spawned from 1 for the slower design and from 2 for the faster one, the mean wait is 1.99 seconds for the slower design and 1.51 seconds for the faster. Match the runs in order, first with first: in 4 of the 20 matches, the slower design's run had a mean wait at or below the faster design's run.
 
@@ -156,7 +156,7 @@ These runs are not paired, so they are not the runs of the paired comparison in 
 
 ## Treating One Run's Statistics as Independent
 
-### In the Tutorial
+### In the Shop
 
 In the busy hour, an order that waits long is usually followed by another that waits long, because the second waited in the same queue, behind the first.
 

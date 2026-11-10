@@ -6,15 +6,18 @@ functions return Markdown, so tests/docs/test_gen_pages.py checks them without a
 build. They are in `scripts/reference_pages/`, one module for each page or group of
 pages:
 
-- Distributions: every family in `desflow.core.distributions.DISTRIBUTIONS`, with its
+- Distributions: every family in `desflow.models.distributions.DISTRIBUTIONS`, with its
   parameters, rules and registry paths, and the mean, variance and value with no
   random generator of one example, computed by the family's own functions.
 - Statistics: every name each level publishes, found by running the statistics on a
   model with one resource, store, container, task and flow.
 - YAML Keys: every key a blueprint takes, from the JSON Schema that ships with desflow
   (`desflow schema`), which is also published as `schema/blueprint.schema.json`.
-- SimPy Compatibility: every operation in `tests/conformance/register.yaml`, with its
-  form in each API, the conformance tests that compare it with SimPy, and its page.
+- SimPy Compatibility: every SimPy feature in `tests/conformance/simpy_constructs.yaml`,
+  with its form in each API from `tests/conformance/register.yaml`, its conformance
+  tests, its page and its gaps.
+- Generators: an overview page and one page for each `gen` kind of the JSON Schema,
+  with its keys, its example in YAML, Builder and Low-level, and its JSON Schema.
 - CLI: one page per command and sub-command of `desflow`, each its help as Click
   prints it, and an index page for `desflow` itself.
 """
@@ -25,18 +28,29 @@ from pathlib import Path
 # The page modules are a package beside this file; mkdocs-gen-files and the tests run
 # this file by its path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+# `mkdocs serve` runs this file again in the same process on each rebuild, and Python
+# keeps a module it has imported, so the page modules are dropped first: an edited
+# module is then read again and the page shows the edit
+for _name in [m for m in sys.modules if m.split(".")[0] == "reference_pages"]:
+    del sys.modules[_name]
 
 from reference_pages.cli import cli_overview, cli_pages, commands  # noqa: E402
 from reference_pages.compatibility import (  # noqa: E402
-    GROUPS,
+    PYTHON_FORMS,
     compatibility_page,
+    constructs,
     register,
     simpy_version,
 )
+from reference_pages.compatibility_groups import GROUPS  # noqa: E402
 from reference_pages.distributions import (  # noqa: E402
     EXAMPLES,
     distribution_sections,
     distributions_page,
+)
+from reference_pages.generators import (  # noqa: E402
+    generator_pages,
+    record_outputs,
 )
 from reference_pages.statistics import statistic_names, statistics_page  # noqa: E402
 from reference_pages.yaml_keys import (  # noqa: E402
@@ -49,12 +63,15 @@ from reference_pages.yaml_keys import (  # noqa: E402
 __all__ = [
     "EXAMPLES",
     "GROUPS",
+    "PYTHON_FORMS",
     "cli_overview",
     "cli_pages",
     "commands",
     "compatibility_page",
+    "constructs",
     "distribution_sections",
     "distributions_page",
+    "generator_pages",
     "paragraphs",
     "register",
     "simpy_version",
@@ -78,6 +95,7 @@ def write() -> None:
         ("reference/yaml-keys.md", yaml_keys_page()),
         ("simpy/compatibility.md", compatibility_page()),
         *cli_pages().items(),
+        *generator_pages().items(),
     ):
         with mkdocs_gen_files.open(path, "w") as file:
             file.write(page)
@@ -91,3 +109,8 @@ def write() -> None:
 # mkdocs-gen-files runs this file with runpy, under this name
 if __name__ == "<run_path>":
     write()
+elif __name__ == "__main__":
+    # `python scripts/gen_pages.py` rewrites the records that the Generators pages show,
+    # from a run of each kind's YAML example
+    for changed in record_outputs():
+        print(f"rewrote examples/generators/{changed}_output.txt")

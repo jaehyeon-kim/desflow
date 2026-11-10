@@ -19,7 +19,6 @@ The Builder and YAML blocks in the steps are functions of one script, `wait_for_
 import asyncio
 import queue
 import shutil
-import sys
 import tempfile
 from pathlib import Path
 
@@ -46,24 +45,26 @@ def _events(task: str, capture: Capture) -> list:
     return [e for e in capture.events if e["task"] == task]
 ```
 
-The YAML blocks read their files from the folder of the script. Save each blueprint under the name in its title, `wait_first.yaml`, `wait_tie.yaml` and `wait_all.yaml`, and the payload function as `wait_for_one_or_all_logic.py`. The Low-level blocks are functions of a second script, `wait_for_one_or_all_low_level.py`, which [Check the Result](#check-the-result) completes.
+The YAML blocks read their files from the folder of the script. Save each blueprint under the name in its title, `wait_first.yaml`, `wait_tie.yaml`, `wait_all.yaml`, `wait_suspend.yaml`, `wait_each.yaml` and `wait_pool.yaml`. The Low-level blocks are functions of a second script, `wait_for_one_or_all_low_level.py`, which [Check the Result](#check-the-result) completes.
 
 ### Wait for the First
 
-`wait: {any: {...}}` ends when the first branch happens, as SimPy's `AnyOf` (`a | b`) does. Name each branch. After the wait, `wait.<branch>.done` says which happened. Here an order waits for a restock or 30 seconds. A builder function that declares `wait` reads the branches, and so does a blueprint's `!python` payload:
+`wait: {any: {...}}` ends when the first branch happens, as SimPy's `AnyOf` (`a | b`) does. Name each branch. After the wait, `wait.<branch>.done` says which happened. Here an order waits for a restock or 30 seconds. A builder function that declares `wait` reads the branches. A blueprint's payload reads `wait.<branch>.done` in a `gen: expr` field:
 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/wait_first.yaml:first"
-    simulation:
-      sim_id: Shop
-      factor: 0
+    simulation: {sim_id: Shop, factor: 0}
 
     signals: [restocked]
 
     arrivals:
-      orders: {replay: {path: orders.csv}, spawn: order}
-      restocks: {replay: {path: restocks.csv}, spawn: restock}
+      orders:
+        replay: {path: orders.csv}
+        spawn: order
+      restocks:
+        replay: {path: restocks.csv}
+        spawn: restock
 
     tasks:
       order:
@@ -71,30 +72,17 @@ The YAML blocks read their files from the folder of the script. Save each bluepr
           any:
             stock: {signal: restocked}
             limit: {timeout: 30}
-        # Called as branches(task_id, context, wait); its event says which branches were done
-        payload: !python wait_for_one_or_all_logic.branches
+        # wait.<branch>.done is true for each branch that was done when the wait ended
+        payload:
+          event_type: resumed
+          done:
+            stock: {gen: expr, expr: wait.stock.done}
+            limit: {gen: expr, expr: wait.limit.done}
       restock:
         signal: restocked
         payload: {boxes: 6}
 
-    run:
-      until: 60
-    ```
-
-    The payload function reads the wait:
-
-    ```python title="docs/snippets/yaml/wait_for_one_or_all_logic.py"
-    """Python for the Wait for One or All blueprints: the order's payload, which reads
-    its wait, as the builder's task function does."""
-
-
-    def branches(task_id, context, wait):
-        """The order's event: which branches were done when its wait ended."""
-        # `wait` holds each branch's done, ok and value
-        return {
-            "event_type": "resumed",
-            "done": {name: branch["done"] for name, branch in wait.items()},
-        }
+    run: {until: 60}
     ```
 
     `first_yaml(gap)` replays the order at 0 and the restock at `gap` from CSV files:
@@ -108,18 +96,12 @@ The YAML blocks read their files from the folder of the script. Save each bluepr
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
             shutil.copy(blueprint, folder)
-            shutil.copy(blueprint.parent / "wait_for_one_or_all_logic.py", folder)
             for file, rows in arrivals.items():
                 (folder / file).write_text(rows)
-            sys.path.insert(0, str(folder))  # the blueprint's !python payload
-            try:
-                app = SimulationContext.from_yaml(folder / blueprint.name)
-                capture = Capture()
-                app.add_egress(capture)
-                app.run()  # until the blueprint's run.until
-            finally:
-                sys.path.remove(str(folder))
-                sys.modules.pop("wait_for_one_or_all_logic", None)
+            app = SimulationContext.from_yaml(folder / blueprint.name)
+            capture = Capture()
+            app.add_egress(capture)
+            app.run()  # until the blueprint's run.until
         return capture
 
 
@@ -153,6 +135,36 @@ The YAML blocks read their files from the folder of the script. Save each bluepr
             for e in capture.events
             if e["task"] in ("order", "inspect") and e["value"].get("status") != "started"
         ]
+
+
+    def suspend_and_resume_yaml(blueprint="wait_suspend.yaml") -> list:
+        capture = run_blueprint(Path(blueprint), {})
+        return [
+            (e["sim_ts"], e["value"]["by"])
+            for e in _events("hold", capture)
+            if e["value"].get("event_type") == "released"
+        ]
+
+
+    def each_of_three_yaml(blueprint="wait_each.yaml") -> tuple:
+        packed = _events("order", run_blueprint(Path(blueprint), {}))[-1]
+        return packed["sim_ts"], packed["value"]["flags"]
+
+
+    def _pool_result(capture: Capture) -> tuple:
+        """(time the order is packed, its granted flags, time the next order is packed),
+        with None for a record that never comes."""
+        packed = [e for e in _events("order", capture) if "granted" in e["value"]]
+        late = [e for e in _events("late_order", capture) if "event_type" in e["value"]]
+        return (
+            packed[0]["sim_ts"],
+            packed[0]["value"]["granted"],
+            late[0]["sim_ts"] if late else None,
+        )
+
+
+    def pool_of_requests_yaml(blueprint="wait_pool.yaml") -> tuple:
+        return _pool_result(run_blueprint(Path(blueprint), {}))
     ```
 
 === "Builder"
@@ -223,23 +235,27 @@ With the restock at 10 seconds, every form returns `{"stock": True, "limit": Fal
 
 When an `any` wait ends, its losing branches are cleaned up: a signal, timeout or condition branch is dropped, so it does nothing later. A losing child flow (`{task: name}`) keeps running to its end, as SimPy leaves a process running when nothing waits for it.
 
-### Two at the Same Instant
+### Read Both Branches When They Tie
 
 Two branches can happen at the same simulation time. SimPy's `AnyOf` holds every event processed before the `AnyOf` itself, so both are in its value, and desflow reports both as done:
 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/wait_tie.yaml:tie"
-    simulation:
-      sim_id: Shop
-      factor: 0
+    simulation: {sim_id: Shop, factor: 0}
 
     signals: [boxes, labels]
 
     arrivals:
-      orders: {replay: {path: orders.csv}, spawn: order}
-      box_deliveries: {replay: {path: boxes.csv}, spawn: deliver_boxes}
-      label_deliveries: {replay: {path: labels.csv}, spawn: deliver_labels}
+      orders:
+        replay: {path: orders.csv}
+        spawn: order
+      box_deliveries:
+        replay: {path: boxes.csv}
+        spawn: deliver_boxes
+      label_deliveries:
+        replay: {path: labels.csv}
+        spawn: deliver_labels
 
     tasks:
       order:
@@ -247,7 +263,11 @@ Two branches can happen at the same simulation time. SimPy's `AnyOf` holds every
           any:
             boxes: {signal: boxes}
             labels: {signal: labels}
-        payload: !python wait_for_one_or_all_logic.branches
+        payload:
+          event_type: resumed
+          done:
+            boxes: {gen: expr, expr: wait.boxes.done}
+            labels: {gen: expr, expr: wait.labels.done}
       deliver_boxes:
         signal: boxes
         payload: {item: boxes}
@@ -255,8 +275,7 @@ Two branches can happen at the same simulation time. SimPy's `AnyOf` holds every
         signal: labels
         payload: {item: labels}
 
-    run:
-      until: 10
+    run: {until: 10}
     ```
 
     `two_at_once_yaml()` runs it with `run_blueprint`, as `first_yaml` does.
@@ -331,9 +350,7 @@ Every form returns `{"boxes": True, "labels": True}`. A model that routes on one
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/wait_all.yaml:all"
-    simulation:
-      sim_id: Shop
-      factor: 0
+    simulation: {sim_id: Shop, factor: 0}
 
     signals: [restocked]
 
@@ -341,8 +358,12 @@ Every form returns `{"boxes": True, "labels": True}`. A model that routes on one
       inspecting: {dist: constant, value: 4}
 
     arrivals:
-      orders: {replay: {path: orders.csv}, spawn: order}
-      restocks: {replay: {path: restocks.csv}, spawn: restock}
+      orders:
+        replay: {path: orders.csv}
+        spawn: order
+      restocks:
+        replay: {path: restocks.csv}
+        spawn: restock
 
     tasks:
       order:
@@ -360,8 +381,7 @@ Every form returns `{"boxes": True, "labels": True}`. A model that routes on one
         fail_reason: broken delivery
         payload: {boxes: 6}
 
-    run:
-      until: 10
+    run: {until: 10, on_unhandled_failure: continue}
     ```
 
     `all_with_a_failure_yaml()` runs it with `run_blueprint`, with the restock at 2 marked broken in its CSV file.
@@ -399,7 +419,7 @@ Every form returns `{"boxes": True, "labels": True}`. A model that routes on one
             context.spawn(restock(0, entity=delivery))
 
         app.add_process(script)
-        app.run(until=10)
+        app.run(until=10, on_unhandled_failure="continue")
         return [
             (e["sim_ts"], e["task"], e["value"].get("status", "finished"))
             for e in capture.events
@@ -440,7 +460,9 @@ Every form returns `{"boxes": True, "labels": True}`. A model that routes on one
         return seen
     ```
 
-Every form returns `[(0.0, "order", "queued"), (2.0, "order", "failed"), (4.0, "inspect", "finished")]`. The order's failure goes to its `on_fail` task when it has one, and otherwise ends its flow. In the low-level form, the failed signal raises `SignalFailed` in the order.
+Every form returns `[(0.0, "order", "queued"), (2.0, "order", "failed"), (4.0, "inspect", "finished")]`. The order's failure goes to its `on_fail` task when it has one, and otherwise ends its flow. `on_fail` needs no `fail` condition: a failed wait is enough to send the task there. A step or an expression of the task that cannot run, such as a `service_time`, a payload field or a `gen: expr`, fails the task in the same way. The task that `on_fail` names reads `upstream.status`, which is `failed`, and `upstream.reason`. In the low-level form, the failed signal raises `SignalFailed` in the order.
+
+The restock's failure is one that no task handles, and a run stops at the first such failure unless `run.on_unhandled_failure` is `continue`. The blueprint sets `run: {until: 10, on_unhandled_failure: continue}`, and the Builder passes `on_unhandled_failure="continue"` to `run`. The low-level form needs no setting, because the order catches `SignalFailed`.
 
 A wait for signals, tasks and times never holds a resource. Waiting for all of several things that each free up a resource does not grant the resources together: the task asks for its resource only after the wait, and another task can take the unit in between. To hold several resources at once, list them on the task, `resource: [picker, bench]`, as [Several Resources](../../user-guide/resources/several-resources.md#several-resources) describes.
 
@@ -457,7 +479,8 @@ A branch of an `any` or an `all` may itself be an `any` or an `all`, so a wait n
         invoice: {timeout: 4 s}
         either:
           any:
-            boxes: {get: {container: boxes, amount: 2}}
+            boxes:
+              get: {container: boxes, amount: 2}
             limit: {timeout: 5 s}
     ```
 
@@ -471,7 +494,7 @@ A branch of an `any` or an `all` may itself be an `any` or an `all`, so a wait n
 
 Each branch name in the tree is unique. `wait.<name>` reads any node, whether a group or a leaf. For example, `wait.either.done` is true once the inner `any` is done, and `wait.either.value` maps its done leaves to their values.
 
-### At Least Some of Them
+### Wait for Some of Them
 
 `wait: {at_least: 2, of: {a: ..., b: ..., c: ...}}` is done when at least two of its branches are done. SimPy's `Condition` with a count rule does the same. `at_least` is a whole number of 1 or more, and an `at_least` above the number of branches is refused when the file loads. An empty `of` succeeds at once, whatever the count.
 
@@ -517,6 +540,30 @@ It then waits for two of three checks:
 
     The low-level form is `Condition(env, lambda events, count: count >= 2, [a, b, c])`.
 
+`wait: {when: <expression>, of: {...}}` is done when the expression holds. It is read each time a branch of `of` is processed, and once at the start for a branch that is processed already, as SimPy's `Condition(env, evaluate, events)` does. It reads `wait.<branch>.done`, `.ok` and `.value` of each branch, and `done_count`. A branch that fails fails the wait, and an empty `of` succeeds at once.
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/wait_when.yaml:when"
+    # Go on when the expression holds, read each time a branch is processed
+    wait:
+      when: done_count >= 2 and wait.stock.done
+      of:
+        stock: {timeout: 1 s}
+        payment: {timeout: 3 s}
+        address: {timeout: 6 s}
+    ```
+
+=== "Builder"
+
+    `@app.task(wait=...)` takes the same mapping as a dict.
+
+=== "Low-level"
+
+    The low-level form is a `Condition` whose function reads the count and the events, as above.
+
+The wait ends at 3 seconds, when the payment is the second branch done and the stock is one of them. The address check, which takes 6 seconds, is not done.
+
 ### Wait for a Unit, an Item or Room
 
 A branch may also be a resource `request`, a store or container `get`, or a `put`. A task can then wait for the first of a unit, an item, a signal or a time. A branch of each kind does this when it wins:
@@ -525,17 +572,21 @@ A branch may also be a resource `request`, a store or container `get`, or a `put
 - A `get` takes an item, and `wait.<branch>.value` is that item.
 - A `put` adds the payload of the task before it, or `None` for the first task of a flow.
 
-A single branch is named after its resource for a `request`, and `get` or `put` otherwise. An `any` ends when its first branch is granted, and every request, get or put granted at that same instant is kept as won too. A branch that loses is cancelled, so it takes or holds nothing. An interrupt with `on_interrupt: restart` during the wait starts the branches again. An item a get already took is then used by neither the old nor the new branch, because SimPy cannot put a taken item back.
+A single branch is named after its resource for a `request`, and `get` or `put` otherwise. An `any` ends when its first branch is granted. Only a branch processed before the wait ended is won. A request, get or put granted at the same instant, after the wait's condition was processed, is not won: the item of a get is lost, and the unit of a request stays with the task and goes back when the task ends. A request not yet granted is cancelled, so it holds nothing.
+
+An interrupt with `on_interrupt: restart` during the wait starts the branches again. A `request` branch that holds its unit keeps it, and the other branches start again. A `request` branch that is still queued keeps its place in the line under `resume` and asks again at the back under `restart`. A unit granted at the instant of the interrupt stays held. An item a get already took is used by neither the old nor the new branch, because SimPy cannot put a taken item back.
 
 This wait is for a packer or a time limit, and gives up the packer request if the limit comes first:
 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/wait_groups.yaml:request"
-    # A packer, or give up after 30 seconds; a packer won is held through packing
+    # A packer asked for with priority 1 and without taking the unit from another order,
+    # or give up after 30 seconds; a packer won is held through packing
     wait:
       any:
-        unit: {request: packers}
+        unit:
+          request: {resource: packers, priority: 1, preempt: false}
         limit: {timeout: 30 s}
     ```
 
@@ -555,8 +606,10 @@ A `get` branch with a time limit, whose `value` says why the wait ended:
     # Two boxes, or go on without them after 5 seconds with the value "no boxes"
     wait:
       any:
-        boxes: {get: {container: boxes, amount: 2}}
-        limit: {timeout: {after: 5 s, value: no boxes}}
+        boxes:
+          get: {container: boxes, amount: 2}
+        limit:
+          timeout: {after: 5 s, value: no boxes}
     ```
 
 === "Builder"
@@ -573,7 +626,8 @@ A `put` branch on its own:
 
     ```yaml title="docs/snippets/yaml/wait_groups.yaml:put"
     # Put the closed order's payload on the shelf, waiting while the shelf is full
-    wait: {put: {store: shelf}}
+    wait:
+      put: {store: shelf}
     ```
 
 === "Builder"
@@ -590,9 +644,311 @@ Requests in a wait count in the [order of acquisition](../../user-guide/resource
 - A single `request` branch of an `any` holds nothing while the `any` waits, and ends the `any` when it is granted. So such branches set no order.
 - A group branch of an `any`, such as an `all` of two requests, can hold a unit before the `any` is won. So its requests are made together with those of the other branches.
 
-A task that keeps a resource for a next task that requests it in its wait is refused when the model is built, because the request would wait behind the unit kept for it.
+A model whose tasks acquire two resources in opposite orders loads and logs one WARNING, and a `seize` counts as holding. A task that keeps a resource for a next task that requests it in its wait is still refused when the model is built, because the request would wait behind the unit kept for it.
 
-### An Empty Wait
+### Park a Task Until Another Resumes It
+
+`wait: {suspend: true}` parks the task until a `resume` of another task wakes it. The rules of `resume` and of an interrupt that reaches a parked task are in [Park a Task Until Another Resumes It](../../user-guide/tasks-and-processes/signals-and-waiting.md#park-a-task-until-another-resumes-it).
+
+Here three orders park, at 1, 2 and 3 seconds, and a truck at 5 seconds wakes the two oldest:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/wait_suspend.yaml:suspend"
+    simulation: {sim_id: Shop, factor: 0}
+
+    arrivals:
+      orders: {dist: constant, value: 1, max_events: 3, spawn: hold}
+      trucks: {dist: constant, value: 5, first_at: 5, max_events: 1, spawn: unload}
+
+    tasks:
+      # Parks until a resume wakes it; wait.suspend.value is the value of that resume
+      hold:
+        wait: {suspend: true}
+        payload:
+          event_type: released
+          by: {gen: expr, expr: wait.suspend.value}
+      # Wakes the two oldest parked orders; the third stays parked
+      unload:
+        resume: {task: hold, limit: 2, value: truck-1}
+        payload: {event_type: unloaded}
+
+    run: {until: 10}
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/guides/wait_for_one_or_all.py:suspend"
+    def suspend_and_resume() -> list:
+        """(time, value) of each order a truck woke: it wakes the two oldest of three."""
+        app, capture = _shop()
+        woken = []
+
+        @app.task(wait={"suspend": True})
+        def hold(task_id, wait):
+            # wait["suspend"]["value"] is the value of the resume that woke the order
+            woken.append((float(app.env.now), wait["suspend"]["value"]))
+            return {"event_type": "released"}
+
+        @app.task(resume={"task": "hold", "limit": 2, "value": "truck-1"})
+        def unload(task_id):
+            return {"event_type": "unloaded"}
+
+        def script(context):
+            for number in range(3):
+                yield context.env.timeout(1)
+                context.spawn(hold(number))
+            yield context.env.timeout(2)
+            context.spawn(unload(0))
+
+        app.add_process(script)
+        app.run(until=10)
+        return woken
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/guides/wait_for_one_or_all_low_level.py:suspend"
+    def suspend_and_resume() -> list:
+        """(time, value) of each order a truck woke: it wakes the two oldest of three."""
+        env = DynamicRealtimeEnvironment(factor=0)
+        parked = []  # the event each parked order waits for, oldest first
+        woken = []
+
+        def hold():
+            wake = env.event()
+            parked.append(wake)
+            value = yield wake  # the value of the succeed() that wakes it
+            woken.append((env.now, value))
+
+        def orders():
+            for _ in range(3):
+                yield env.timeout(1)
+                env.process(hold())
+
+        def truck():
+            yield env.timeout(5)
+            for wake in parked[:2]:  # the oldest first
+                wake.succeed("truck-1")
+
+        env.process(orders())
+        env.process(truck())
+        env.run(until=10)
+        env.teardown()
+        return woken
+    ```
+
+Every form wakes the first two orders at 5 seconds, with the value `truck-1`. The third stays parked until the run ends. The low-level form is SimPy's `event.succeed(value)` on the event that each process waits for.
+
+### Wait for a Computed Number of Branches
+
+`wait: {each: ..., group: ..., branch: ...}` makes the same `branch` once for each element of `each`, when the wait starts. The rules of `each`, `group` and `branch` are in [Wait for a Computed Number of Branches](../../user-guide/tasks-and-processes/signals-and-waiting.md#wait-for-a-computed-number-of-branches).
+
+Here an order packs three boxes of 2, 5 and 9 seconds, and goes on when two are packed:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/wait_each.yaml:each"
+    simulation: {sim_id: Shop, factor: 0}
+
+    arrivals:
+      orders: {initial: 1, spawn: order}
+
+    tasks:
+      order:
+        wait:
+          all:
+            boxes:
+              each: [2, 5, 9]  # one branch for each element
+              group: {at_least: 2}  # done when two branches are
+              branch:  # each.value is the element
+                timeout: {after: each.value}
+        payload:
+          event_type: packed
+          flags: {gen: expr, expr: wait.boxes.flags}  # which branches were done
+
+    run: {until: 30}
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/guides/wait_for_one_or_all.py:each"
+    def each_of_three() -> tuple:
+        """(time, flags) of an order that packs three boxes, of 2, 5 and 9 seconds, and
+        goes on when two are packed."""
+        app, capture = _shop()
+        seen = {}
+
+        @app.task(
+            wait={
+                "all": {
+                    "boxes": {
+                        "each": [2, 5, 9],
+                        "group": {"at_least": 2},
+                        "branch": {"timeout": {"after": "each.value"}},
+                    }
+                }
+            }
+        )
+        def order(task_id, wait):
+            seen["done"] = (float(app.env.now), wait["boxes"]["flags"])
+            return {"event_type": "packed"}
+
+        def script(context):
+            context.spawn(order(0))
+            yield context.env.timeout(0)
+
+        app.add_process(script)
+        app.run(until=30)
+        return seen["done"]
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/guides/wait_for_one_or_all_low_level.py:each"
+    from simpy.events import Condition
+
+
+    def each_of_three() -> tuple:
+        """(time, flags) of an order that packs three boxes, of 2, 5 and 9 seconds, and
+        goes on when two are packed."""
+        env = DynamicRealtimeEnvironment(factor=0)
+        seen = {}
+
+        def order():
+            boxes = [env.timeout(seconds) for seconds in (2, 5, 9)]
+            done = yield Condition(env, lambda events, count: count >= 2, boxes)
+            seen["done"] = (env.now, [box in done for box in boxes])
+
+        env.process(order())
+        env.run(until=30)
+        env.teardown()
+        return seen["done"]
+    ```
+
+Every form goes on at 5 seconds, and the flags are `[True, True, False]`. In SimPy, a `Condition` over the list of timeouts does the same: its count rule ends the wait at the second box.
+
+`open` takes the same form, `open: {pool: {each: ..., branch: ...}}`, and starts the branches without waiting for them. A later `wait: {handle: pool, index: 0}`, `cancel`, `release` or `interrupt` names one element with `{handle: pool, index: <expression>}`, and `cancel: pool` cancels every element not yet granted. `cancel` works on requests, gets and puts, and `interrupt` on child flows. A `handle` leaf with an `index` waits for the element it first resolved, after a resume and after a restart. `handle.pool.values` and `handle.pool.flags` read the results. Here an order asks for three packers at once and packs with the first it is given. It cancels the two requests that were not granted and releases the first unit by name. A second order arrives at 1 second and asks for a packer:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/wait_pool.yaml:pool"
+    simulation: {sim_id: Shop, factor: 0}
+
+    resources:
+      packers: {current_cap: 1}
+
+    arrivals:
+      orders: {initial: 1, spawn: order}
+      late: {dist: constant, value: 1, first_at: 1, max_events: 1, spawn: late_order}
+
+    tasks:
+      order:
+        open:
+          # three requests, made at once
+          pool:
+            each: 3
+            branch: {request: packers}
+        wait: {handle: pool, index: 0}  # the first of them
+        service_time: 2
+        cancel: pool  # the requests not yet granted: the second and the third
+        release: {handle: pool, index: 0}  # the unit of the first, when the task ends
+        payload:
+          event_type: packed
+          granted: {gen: expr, expr: handle.pool.flags}
+
+      late_order:
+        resource: packers
+        service_time: 1
+        payload: {event_type: late_packed}
+
+    run: {until: 30}
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/guides/wait_for_one_or_all.py:pool"
+    def pool_of_requests() -> tuple:
+        """(time, granted, time of the next order) of an order that asks for three packers
+        at once, packs with the first it gets and cancels the other two requests. A second
+        order arrives at 1 s and asks for a packer."""
+        from desflow.values import Template
+
+        app, capture = _shop()
+        app.add_resource("packers", current_cap=1)
+        packed = Template(
+            {
+                "event_type": "packed",
+                "granted": {"gen": "expr", "expr": "handle.pool.flags"},
+            },
+            name="tasks.order",
+        )
+
+        @app.task(
+            open={"pool": {"each": 3, "branch": {"request": "packers"}}},
+            wait={"handle": "pool", "index": 0},
+            service_time=2,
+            cancel="pool",  # the requests not yet granted: the second and the third
+            release={"handle": "pool", "index": 0},
+        )
+        def order(task_id):
+            return packed
+
+        @app.task(resource_id="packers", service_time=1)
+        def late_order(task_id):
+            return {"event_type": "late_packed"}
+
+        def script(context):
+            context.spawn(order(0))
+            yield context.env.timeout(1)
+            context.spawn(late_order(0))
+
+        app.add_process(script)
+        app.run(until=30)
+        return _pool_result(capture)
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/guides/wait_for_one_or_all_low_level.py:pool"
+    from simpy import Resource
+
+
+    def pool_of_requests() -> tuple:
+        """(time, granted, time of the next order) of an order that asks for three packers
+        at once, packs with the first it gets and cancels the other two requests. A second
+        order arrives at 1 s and asks for a packer."""
+        env = DynamicRealtimeEnvironment(factor=0)
+        packers = Resource(env, capacity=1)
+        seen: dict = {"late": None}
+
+        def order():
+            pool = [packers.request() for _ in range(3)]
+            yield pool[0]
+            yield env.timeout(2)  # the service
+            for request in pool[1:]:
+                request.cancel()  # a request not granted leaves the line
+            packers.release(pool[0])
+            seen["done"] = (env.now, [request.triggered for request in pool])
+
+        def late_order():
+            yield env.timeout(1)
+            with packers.request() as request:
+                yield request
+                yield env.timeout(1)
+            seen["late"] = env.now
+
+        env.process(order())
+        env.process(late_order())
+        env.run(until=30)
+        env.teardown()
+        finished, granted = seen["done"]
+        return finished, granted, seen["late"]
+    ```
+
+Every form returns the time the first order finishes, the flags of its three requests and the time the second order finishes: `(2.0, [True, False, False], 3.0)`, with whole numbers in the Low-level form. Only the first request was granted. The cancel takes the other two out of the line, so the second order gets the unit at 2 seconds and finishes at 3. Without the `cancel`, the release would hand the unit to the second request, which nothing would ever release, and the second order would wait for ever. `cancel: {handle: pool, index: 1}` cancels one element, but it would leave the third request in the line, with the same result.
+
+### Wait for Nothing
 
 An `any` or an `all` with no branches is accepted, and succeeds at once with an empty value. A task whose wait is `{any: {}}` or `{all: {}}` goes on in the step it starts, as SimPy's `env.any_of([])` and `env.all_of([])` do. With a `patience` of 0 the wait still wins. The empty wait succeeds the instant it is built, so it is already processed when the task resumes. The task therefore does not renege.
 
@@ -611,9 +967,15 @@ if __name__ == "__main__":
     print("check: the same in YAML:", first_yaml(10), first_yaml(50))
     print("check: two at once in YAML:", two_at_once_yaml())
     print("check: all, with a failure, in YAML:", all_with_a_failure_yaml())
+    print("check: suspend and resume:", suspend_and_resume())
+    print("check: suspend and resume, in YAML:", suspend_and_resume_yaml())
+    print("check: two of three boxes:", each_of_three())
+    print("check: two of three boxes, in YAML:", each_of_three_yaml())
+    print("check: the first of three packers:", pool_of_requests())
+    print("check: the first of three packers, in YAML:", pool_of_requests_yaml())
 ```
 
-Run it in the folder with the script, the three blueprints and the payload file, and keep the lines that start with `check:`:
+Run it in the folder with the script and the six blueprints, and keep the lines that start with `check:`:
 
 ```bash
 # With uv
@@ -631,9 +993,15 @@ check: all, with a failure: [(0.0, 'order', 'queued'), (2.0, 'order', 'failed'),
 check: the same in YAML: {'stock': True, 'limit': False} {'stock': False, 'limit': True}
 check: two at once in YAML: {'boxes': True, 'labels': True}
 check: all, with a failure, in YAML: [(0.0, 'order', 'queued'), (2.0, 'order', 'failed'), (4.0, 'inspect', 'finished')]
+check: suspend and resume: [(5.0, 'truck-1'), (5.0, 'truck-1')]
+check: suspend and resume, in YAML: [(5.0, 'truck-1'), (5.0, 'truck-1')]
+check: two of three boxes: (5.0, [True, True, False])
+check: two of three boxes, in YAML: (5.0, [True, True, False])
+check: the first of three packers: (2.0, [True, False, False], 3.0)
+check: the first of three packers, in YAML: (2.0, [True, False, False], 3.0)
 ```
 
-The Low-level script, `wait_for_one_or_all_low_level.py`, starts with the line `from desflow import DynamicRealtimeEnvironment, Signal, SignalFailed`, followed by the three Low-level functions in the order they appear above. It ends with:
+The Low-level script, `wait_for_one_or_all_low_level.py`, starts with the line `from desflow import DynamicRealtimeEnvironment, Signal, SignalFailed`, followed by the six Low-level functions in the order they appear above. It ends with:
 
 ```python title="docs/snippets/guides/wait_for_one_or_all_low_level.py:main"
 if __name__ == "__main__":
@@ -641,6 +1009,9 @@ if __name__ == "__main__":
     print("restock after 50 s:", first(50))
     print("two at once:", two_at_once())
     print("all, with a failure:", all_with_a_failure())
+    print("suspend and resume:", suspend_and_resume())
+    print("two of three boxes:", each_of_three())
+    print("the first of three packers:", pool_of_requests())
 ```
 
 It needs no blueprint. Run it:
@@ -658,11 +1029,14 @@ restock after 10 s: {'stock': True, 'limit': False}
 restock after 50 s: {'stock': False, 'limit': True}
 two at once: {'boxes': True, 'labels': True}
 all, with a failure: [(0, 'order', 'queued'), (2, 'order', 'failed'), (4, 'inspect', 'finished')]
+suspend and resume: [(5, 'truck-1'), (5, 'truck-1')]
+two of three boxes: (5, [True, True, False])
+the first of three packers: (2, [True, False, False], 3)
 ```
 
-The low-level form prints the times of the last line without a decimal point, because its timeouts are whole numbers.
+The low-level form prints the times without a decimal point, because its timeouts are whole numbers.
 
-The example is a shop where each order waits for a restock or 30 seconds, whichever comes first. A restock waits for both its delivery, which takes 10 seconds, and a stock count, which takes 20 seconds. Orders arrive about every 10 seconds, and a delivery every minute. Its files are in [Full Files](#full-files). Save the form you use in a folder of its own, and run it:
+The example is a shop where each order waits for a restock or 30 seconds, whichever comes first. A restock waits for both its delivery, which takes 10 seconds, and a stock count, which takes 20 seconds. Orders arrive about every 10 seconds, and a delivery every minute. The `restocked` signal fires once for each restock, so it is declared with `once: false`: a signal is one-shot by default, and a second firing stops the run. Its files are in [Full Files](#full-files). Save the form you use in a folder of its own, and run it:
 
 === "YAML"
 
@@ -724,12 +1098,10 @@ The `process-interaction` example waits for a child flow, then for the first of 
         # The Wait for One or All guide: a shop where orders wait for a restock or a time
         # limit, as wait_for_one_or_all_example.py builds it. Run it with:
         # desflow run wait_for_one_or_all_example.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
-        signals: [restocked]
+        signals:
+          restocked: {once: false}
 
         arrivals:
           orders: {dist: exponential, rate: 0.1, spawn: order}
@@ -747,7 +1119,8 @@ The `process-interaction` example waits for a child flow, then for the first of 
                 limit: {timeout: 30}
             payload: {event_type: waited}
             next:
-              when: [{condition: wait.stock.done, task: pack}]
+              when:
+                - {condition: wait.stock.done, task: pack}
               default: refund
           pack:
             payload: {event_type: packed}
@@ -768,8 +1141,7 @@ The `process-interaction` example waits for a child flow, then for the first of 
 
         stats: basic
 
-        run:
-          until: 10 min
+        run: {until: 10 min}
         ```
 
     === "Builder"
@@ -791,7 +1163,7 @@ The `process-interaction` example waits for a child flow, then for the first of 
             .add_arrival("orders", dist="exponential", rate=0.1, spawn="order")
             .add_arrival("deliveries", dist="constant", value=60, spawn="restock")
             .add_service("counting", dist="constant", value=20)
-            .add_signal("restocked")
+            .add_signal("restocked", once=False)
             .with_stats("basic")
         )
 
@@ -888,7 +1260,7 @@ The `process-interaction` example waits for a child flow, then for the first of 
             the restocks."""
             env = DynamicRealtimeEnvironment(factor=0)
             env.registry.register_sim_parameter(PARAMS)
-            restocked = Signal(env, "restocked")
+            restocked = Signal(env, "restocked", once=False)
             counts = {"pack": 0, "refund": 0}
             restocked_at = []  # the time of each restock
 

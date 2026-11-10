@@ -1,0 +1,16 @@
+# A family read and changed by a member's registry path, and a task and an arrival whose
+# names hold a dot, for `test_dotted_names.py`: the copy of this model with every name
+# given a dot and a section word finds the family `desk` and the task `pack.big` by
+# their declared names.
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+resources: {desk: {family: true, members: 1, current_cap: 1, max_cap: 3}}
+arrivals: {in.bound: {dist: constant, value: 2, spawn: pack.big}}
+tasks:
+  pack.big:
+    resource: {of: desk, key: 0}
+    service_time: 3
+    payload: {e: done, cap: {gen: expr, expr: "registry['S.resources.desk[0].current_cap']"}}
+scenario:
+  - {at: 5, path: "S.resources.desk[0].current_cap", value: 2}
+stats: basic
+run: {until: 30}

@@ -1,0 +1,28 @@
+# case CV-111: try and except around several steps: on_fail on each task.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+
+arrivals:
+  a:
+    dist: constant
+    value: 1
+    spawn: step_one
+    max_events: 3
+    attributes:
+      bad: {gen: boolean}
+
+tasks:
+  step_one:
+    service_time: 1
+    fail: "attr.bad"
+    fail_reason: step one failed
+    on_fail: handle
+    payload: {event_type: one}
+    next: step_two
+  step_two:
+    service_time: 1
+    fail: "attr.bad"
+    fail_reason: step two failed
+    on_fail: handle
+    payload: {event_type: two}
+  handle:
+    payload: {event_type: handled}

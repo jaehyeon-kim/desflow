@@ -1,0 +1,27 @@
+# case GD-S4: find_first_needle returns the first needle
+# (porting_from_simpy3.rst:83-101).
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+
+stores:
+  haystack:
+    items:
+      - {needle: 0, n: 1}
+      - {needle: 0, n: 2}
+      - {needle: 1, n: 3}
+
+arrivals:
+  a: {initial: 1, spawn: find}
+
+tasks:
+  find:
+    get: {store: haystack}
+    item_field: item
+    payload: {event_type: looked}
+    next:
+      when:
+        - {condition: "item.needle == 0", task: find}
+      default: found
+  found:
+    payload:
+      event_type: found
+      needle: {gen: expr, expr: "item"}

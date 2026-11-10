@@ -1,0 +1,27 @@
+# case ST-U05 and ST-U06: subscribe_at(timeout(2)) (with a value 'ohai'): the subscriber
+# is interrupted at 2; the cause is the value.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+signals:
+  to: {once: true}
+
+arrivals:
+  m: {initial: 1, spawn: make}
+  p: {initial: 1, spawn: pem}
+
+tasks:
+  make:
+    payload: {event_type: made}
+    on:
+      - fire: {signal: to, after: 2, value: ohai}
+  pem:
+    subscribe: {signal: to}
+    service_time: 10
+    on_interrupt: abandon
+    on_interrupt_next: told
+    payload: {event_type: should_not_finish}
+  told:
+    payload:
+      event_type: interrupted
+      at: {gen: expr, expr: t}
+      cause: {gen: expr, expr: "cause.value.value"}

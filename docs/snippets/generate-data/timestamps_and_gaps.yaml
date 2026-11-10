@@ -1,0 +1,38 @@
+# Timestamps and gaps: generated times and random gaps between records.
+#
+# An order event arrives on average every 0.4 s, with a gap drawn from a normal
+# distribution with a standard deviation of 30 ms, so the gaps vary around 0.4 s. Each
+# order holds the time it was placed, a delivery date up to 2 days later, and the same
+# time as a number of milliseconds since 1970. An offset below 0 gives an earlier time.
+#
+# Needs: nothing.
+# Run it with: desflow run docs/snippets/generate-data/timestamps_and_gaps.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:arrivals]
+arrivals:
+  orders:
+    gap: {gen: normal, mean: 0.4, std: 0.03}
+    spawn: order
+# --8<-- [end:arrivals]
+
+# --8<-- [start:tasks]
+tasks:
+  order:
+    payload:
+      placed_at: {gen: now}
+      deliver_by:
+        gen: now
+        offset: {gen: uniform, low: 0, high: 172800}
+      epoch_ms: {gen: format_time, format: epoch_ms}
+# --8<-- [end:tasks]
+
+run: {until: 10}

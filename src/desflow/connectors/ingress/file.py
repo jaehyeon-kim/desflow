@@ -11,6 +11,18 @@ from desflow.connectors.ingress.base import BaseIngress, parse_change
 logger = logging.getLogger(__name__)
 
 
+def _same(previous: Any, value: Any) -> bool:
+    """Whether an entry's value is the one it had at the last valid read.
+
+    Two NaN values are the same, because `nan == nan` is false and an entry that
+    has not changed would otherwise be applied again at every edit of the file.
+    """
+    if isinstance(previous, float) and isinstance(value, float):
+        if previous != previous and value != value:
+            return True
+    return bool(previous == value)
+
+
 class FileIngress(BaseIngress):
     """
     Ingress provider that applies the entries of a local YAML file when you edit it.
@@ -108,7 +120,7 @@ class FileIngress(BaseIngress):
     ) -> None:
         """Puts the entries that are new or differ from the last valid read."""
         for path, value in entries.items():
-            if path in previous and previous[path] == value:
+            if path in previous and _same(previous[path], value):
                 continue
             try:
                 ingress_queue.put(parse_change({"path": path, "value": value}))

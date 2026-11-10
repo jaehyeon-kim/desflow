@@ -1,0 +1,13 @@
+{
+  "fault": "S4: the first listed key leaves the records the same, so the change is not counted",
+  "task": "key_order",
+  "counts": {
+    "K9": 0
+  },
+  "notes": {
+    "K9": [
+      "grow at 1: failed by",
+      "(arrivals.boss.value = 1); the reviewer judges"
+    ]
+  }
+}

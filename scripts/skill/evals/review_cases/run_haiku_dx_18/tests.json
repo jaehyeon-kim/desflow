@@ -1,0 +1,98 @@
+{
+  "changes": [
+    {
+      "applied": "services.{tasks.pack_order.service}.value = 2.5",
+      "name": "packing 1.5 to 2.5",
+      "reason": ""
+    },
+    {
+      "applied": "arrivals.orders.value = 3",
+      "name": "order gap 2 to 3",
+      "reason": ""
+    },
+    {
+      "applied": "run.until = 10",
+      "name": "run to 10",
+      "reason": ""
+    }
+  ],
+  "tests": {
+    "test_model.py::test_blueprint_keeps_seed_42_as_a_literal": {
+      "changes": {
+        "order gap 2 to 3": "PASSED",
+        "packing 1.5 to 2.5": "PASSED",
+        "run to 10": "FAILED"
+      },
+      "forms": [
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_builder_and_low_level_keep_seed_42_as_a_literal": {
+      "changes": {
+        "order gap 2 to 3": "PASSED",
+        "packing 1.5 to 2.5": "PASSED",
+        "run to 10": "PASSED"
+      },
+      "forms": [],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_builder_prints_the_expected_records": {
+      "changes": {
+        "order gap 2 to 3": "PASSED",
+        "packing 1.5 to 2.5": "PASSED",
+        "run to 10": "PASSED"
+      },
+      "forms": [
+        "builder"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_low_level_prints_the_expected_records": {
+      "changes": {
+        "order gap 2 to 3": "PASSED",
+        "packing 1.5 to 2.5": "PASSED",
+        "run to 10": "PASSED"
+      },
+      "forms": [
+        "low_level"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_only_order_packed_events_reach_standard_output": {
+      "changes": {
+        "order gap 2 to 3": "PASSED",
+        "packing 1.5 to 2.5": "PASSED",
+        "run to 10": "PASSED"
+      },
+      "forms": [
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_three_forms_print_the_same_lines": {
+      "changes": {
+        "order gap 2 to 3": "FAILED",
+        "packing 1.5 to 2.5": "FAILED",
+        "run to 10": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_yaml_prints_the_expected_records": {
+      "changes": {
+        "order gap 2 to 3": "FAILED",
+        "packing 1.5 to 2.5": "FAILED",
+        "run to 10": "FAILED"
+      },
+      "forms": [
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    }
+  }
+}

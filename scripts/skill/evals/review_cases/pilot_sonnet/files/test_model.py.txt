@@ -1,0 +1,71 @@
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).parent
+BIN = Path(sys.executable).parent
+
+COMMANDS = {
+    "yaml": [str(BIN / "desflow"), "run", "model.yaml"],
+    "builder": [sys.executable, "builder.py"],
+    "low_level": [sys.executable, "low_level.py"],
+}
+
+
+def records(form):
+    out = subprocess.run(
+        COMMANDS[form], cwd=HERE, capture_output=True, text=True, check=True
+    ).stdout
+    rows = [json.loads(line) for line in out.splitlines() if line.startswith("{")]
+    for row in rows:
+        del row["timestamp"]  # wall-clock stamp, differs between runs
+    return rows
+
+
+@pytest.fixture(scope="module", params=list(COMMANDS))
+def rows(request):
+    return records(request.param)
+
+
+@pytest.fixture(scope="module")
+def all_rows():
+    return {form: records(form) for form in COMMANDS}
+
+
+def finished(rows, task):
+    return [
+        (r["sim_ts"], r["key"], r["value"])
+        for r in rows
+        if r["task"] == task and "event_type" in r["value"]
+    ]
+
+
+def test_done_times_show_capacity_one_then_grow(rows):
+    # a-1 holds m from 0 to 5. a-2 queues at 1 and, once grow raises the
+    # capacity to 3 at time 2, starts at 2 and finishes at 7 (not at 10).
+    assert finished(rows, "job") == [
+        (5.0, "a-1", {"event_type": "done"}),
+        (7.0, "a-2", {"event_type": "done"}),
+    ]
+
+
+def test_grow_published_once_at_time_2(rows):
+    assert finished(rows, "grow") == [(2.0, "boss-1", {"event_type": "grow"})]
+
+
+def test_second_job_starts_when_capacity_grows(rows):
+    started = {
+        r["key"]: r["sim_ts"] for r in rows if r["value"].get("status") == "started"
+    }
+    assert started == {"a-1": 0.0, "a-2": 2.0}
+
+
+def test_no_record_after_run_end(rows):
+    assert max(r["sim_ts"] for r in rows) <= 20
+
+
+def test_three_forms_give_the_same_records(all_rows):
+    assert all_rows["yaml"] == all_rows["builder"] == all_rows["low_level"]

@@ -1,0 +1,25 @@
+# Batch 3 keys: `tests`, `when: {expr: ...}`, `envelope: false` and `key_field`. The
+# unit tests in tests/unit/test_cli_batch3.py run `desflow test` on it.
+simulation: {sim_id: B3, factor: 0, random_seed: 7}
+services: {pack: {dist: constant, value: 2}}
+arrivals:
+  orders: {dist: constant, value: 5, spawn: pack_order, attributes: {order_id: 1}}
+tasks:
+  pack_order:
+    service: pack
+    key_field: order_id
+    payload: {event_type: order_packed, order_id: attr.order_id}
+egress:
+  - type: Console
+    when: {expr: "record.value.event_type == 'order_packed'"}
+    envelope: false
+stats: basic
+run: {until: 21}
+tests:
+  - name: orders_are_packed
+    expect: {tasks.pack_order.finished: 3}
+  - name: queue_is_short
+    seed: 8
+    until: 21
+    expect:
+      tasks.pack_order.finished: {value: 3, within: 1}

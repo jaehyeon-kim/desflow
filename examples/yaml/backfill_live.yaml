@@ -23,8 +23,7 @@ simulation:
 # --8<-- [start:split]
 egress:
   - type: Parquet
-    config:
-      default_path: data/backfill/events.parquet
+    config: {default_path: data/backfill/events.parquet}
     # Records stamped before go_live_at.
     when: history
   - type: Kafka
@@ -39,9 +38,7 @@ egress:
 # batch_size flushes the history only when 2000 records are waiting. The interval
 # flush starts at go-live, so it writes what is left about 10 seconds later, and the
 # live tail also flushes every 10 seconds.
-batching:
-  batch_size: 2000
-  flush_interval: 10.0
+batching: {batch_size: 2000, flush_interval: 10.0}
 
 resources:
   packers: {current_cap: 4, max_cap: 10}

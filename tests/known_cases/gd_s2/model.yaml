@@ -1,0 +1,25 @@
+# case GD-S2: waituntil(cond_func) (porting_from_simpy2.rst:250-255). The guide's
+# replacement polls cond_func every delay=1, so the blueprint polls: a task that waits
+# 1, publishes nothing (payload: null) and tests the level in next.when.
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+
+containers:
+  tank: {current_cap: 100, level: 0}
+
+arrivals:
+  w: {initial: 1, spawn: poll}
+  f: {dist: constant, value: 1.5, spawn: fill, max_events: 4}
+
+tasks:
+  poll:
+    wait: {timeout: 1}
+    payload: null
+    next:
+      when:
+        - {condition: "level.tank >= 30", task: waiter}
+      default: poll
+  waiter:
+    payload: {event_type: waituntil_done}
+  fill:
+    put: {container: tank, amount: 10}
+    payload: {event_type: filled}

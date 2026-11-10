@@ -256,6 +256,92 @@ def test_registry_keeps_a_container_fraction_within_max_cap(registry, sample_par
 
 
 @pytest.mark.parametrize(
+    "sim_id,name",
+    [
+        ("Shop", "desk"),
+        ("Shop", "service"),
+        ("Shop", "containers"),
+        ("Shop", "variables"),
+        ("Shop.v2", "desk"),
+        ("Shop.service", "desk"),
+    ],
+)
+def test_a_resource_update_does_not_depend_on_its_name(registry, sim_id, name):
+    """The kind of element is the segment after the sim id, so a resource named like
+    a kind, or one in a model whose sim id holds a dot, still gets its capacity cast
+    to a whole number."""
+    registry.register_resource(sim_id, name, CapacityConfig(current_cap=2, max_cap=5))
+    registry.update(f"{sim_id}.resources.{name}.current_cap", 2.5)
+    assert repr(registry.get(f"{sim_id}.resources.{name}.current_cap").value) == "2"
+
+
+def test_a_sim_id_with_a_dot_stores_a_rate_as_given(registry):
+    """A distribution parameter of a model whose sim id holds a dot is stored as
+    given, as in any other model."""
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop.v2",
+            service={"s": DistributionConfig(dist="exponential", rate=2)},
+        )
+    )
+    registry.update("Shop.v2.service.s.rate", 0.5)
+    assert registry.get("Shop.v2.service.s.rate").value == 0.5
+
+
+def test_a_sim_id_that_is_another_with_a_kind_keeps_each_paths_kind(registry):
+    """`Shop` and `Shop.service` registered together: `Shop.service.s.rate` is a
+    service rate of `Shop`, so 0.5 is stored as given."""
+    for sim_id in ("Shop", "Shop.service"):
+        registry.register_sim_parameter(
+            SimParameter(
+                sim_id=sim_id,
+                service={"s": DistributionConfig(dist="exponential", rate=2)},
+            )
+        )
+    registry.update("Shop.service.s.rate", 0.5)
+    assert registry.get("Shop.service.s.rate").value == 0.5
+    registry.update("Shop.service.service.s.rate", 0.25)
+    assert registry.get("Shop.service.service.s.rate").value == 0.25
+
+
+@pytest.mark.parametrize(
+    "sim_id,name,current,new,stored",
+    [
+        # A variable named like a capacity holds a number, not a capacity
+        ("Shop", "max_cap", 3, "inf", 3),
+        # A variable named `queue_limit` in a sim id that holds `resources`
+        ("Shop.resources", "queue_limit", 5, 2.5, 2.5),
+    ],
+)
+def test_a_variable_update_does_not_depend_on_its_name(
+    registry, sim_id, name, current, new, stored
+):
+    """A variable is updated as a variable, whatever its name and sim id say."""
+    registry.register_sim_parameter(
+        SimParameter(sim_id=sim_id, variables={name: current})
+    )
+    registry.update(f"{sim_id}.variables.{name}", new)
+    assert registry.get(f"{sim_id}.variables.{name}").value == stored
+
+
+def test_a_variable_with_a_dot_in_its_name_is_written_into_its_mapping(registry):
+    """A change to `a.b` is written into the variables mapping, as for any variable."""
+    registry.register_sim_parameter(SimParameter(sim_id="Shop", variables={"a.b": 1}))
+    registry.update("Shop.variables.a.b", 5)
+    assert registry.get_config("Shop.variables") == {"a.b": 5}
+
+
+@pytest.mark.parametrize("name", ["tank", "stores"])
+def test_a_container_update_does_not_depend_on_its_name(registry, name):
+    """A container named `stores` keeps a fractional capacity as any container does."""
+    registry.register_container(
+        "Shop", name, CapacityConfig(current_cap=10.0, max_cap=20.0)
+    )
+    registry.update(f"Shop.containers.{name}.current_cap", 12.5)
+    assert registry.get(f"Shop.containers.{name}.current_cap").value == 12.5
+
+
+@pytest.mark.parametrize(
     "config,paths",
     [
         (DistributionConfig(dist="exponential", rate=1.0), {"rate"}),
@@ -355,8 +441,8 @@ def test_update_logs_each_refusal_at_its_level(registry, sample_params, caplog):
         ),
         (
             logging.ERROR,
-            "Type mismatch for 'Shop.resources.packers.max_cap'. Expected int, "
-            "got str with value 'not a number'. Update ignored.",
+            "resource 'packers' needs a whole number of 0 or more for max_cap, "
+            "got 'not a number'. Update ignored.",
         ),
         (
             logging.ERROR,
@@ -425,7 +511,7 @@ def test_change_accepts_a_cast_and_a_clamp(registry, sample_params):
     "path,value,fragment",
     [
         ("Shop.resources.lath.current_cap", 3, "is not a registry path"),
-        ("Shop.resources.packers.max_cap", "x", "cannot be converted"),
+        ("Shop.resources.packers.max_cap", "x", "needs a whole number of 0 or more"),
         ("Shop.service.packing.std", -1.0, "invalid value for"),
     ],
 )
@@ -445,7 +531,7 @@ def test_change_raises_for_each_refusal(
     assert isinstance(exc, ValueError)
     assert (exc.path, exc.value) == (path, value)
     assert fragment in exc.reason and str(exc) == exc.reason
-    assert path in exc.reason
+    assert path.rsplit(".", 1)[-1] in exc.reason
     assert caplog.records == []
     assert seen == []
     if path in registry._values:
@@ -645,3 +731,51 @@ def test_a_refusal_inside_a_process_ends_the_run_as_param_rejected(
     assert raised.value.value == -1
     assert str(raised.value) == raised.value.reason
     assert "std" in raised.value.reason
+
+
+def test_a_number_over_a_number_is_stored_as_given(registry):
+    """A live update keeps the number as written, as SimPy keeps it: 0.5 over 2 is
+    0.5, 3 over 2.5 is 3, true over a variable is 1, and 9.5 over a variable of 10 is 9.5. Text is still
+    cast to the type of the current value, so "7" over 10 is 7.0."""
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop",
+            arrival={"orders": DistributionConfig(dist="exponential", rate=2)},
+            service={"pack": DistributionConfig(dist="normal", mean=2.5, std=1)},
+            containers={"tank": CapacityConfig(current_cap=10, max_cap=10)},
+            variables={"count": 10},
+        )
+    )
+    cases = [
+        ("Shop.arrival.orders.rate", 0.5, 0.5, float),
+        ("Shop.service.pack.mean", 3, 3, int),
+        ("Shop.variables.count", True, 1, int),
+        ("Shop.containers.tank.level", 4, 4, int),
+        ("Shop.containers.tank.level", 4.5, 4.5, float),
+        ("Shop.variables.count", 9.5, 9.5, float),
+        ("Shop.variables.count", "7", 7.0, float),
+        ("Shop.arrival.orders.rate", "0.25", 0.25, float),
+        ("Shop.containers.tank.current_cap", "7.5", 7.5, float),
+    ]
+    for path, written, stored, kind in cases:
+        registry.update(path, written)
+        value = registry.get(path).value
+        assert value == stored and type(value) is kind, (path, written, value)
+    # text over an integer variable casts to the integer type
+    registry.update("Shop.variables.count", 10)
+    registry.update("Shop.variables.count", "8")
+    assert registry.get("Shop.variables.count").value == 8
+    assert type(registry.get("Shop.variables.count").value) is int
+    registry.update("Shop.variables.count", float("inf"))
+    assert registry.get("Shop.variables.count").value == 8
+
+
+def test_infinity_and_nan_are_refused_over_an_integer_variable(registry):
+    """A finite number is stored as written, but infinity and NaN go to the cast to
+    the current type, which refuses them over an integer."""
+    registry.register_sim_parameter(
+        SimParameter(sim_id="Shop", variables={"count": 10})
+    )
+    for bad in (float("inf"), float("nan")):
+        registry.update("Shop.variables.count", bad)
+        assert registry.get("Shop.variables.count").value == 10

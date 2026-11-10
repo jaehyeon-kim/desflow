@@ -1,0 +1,44 @@
+# Resource monitoring: the usage and queue length of `res` recorded after every
+# request and release call (SimPy's monitoring guide, "patch request and release").
+#
+# One entity of arrival `a` starts at time 0, takes `res` (capacity 1), holds it for
+# 1 second and publishes {event_type: used}. `stats.on_change` publishes the readings
+# of `res` (capacity, in_use, queue_length, utilization) right after each request and
+# each release, as telemetry named M.stats.resources.res.<reading>.
+#
+# Run it with: desflow run model.yaml
+
+simulation:
+  sim_id: M
+  random_seed: 42
+  # Unpaced, so the 5 simulation seconds take no wall-clock time.
+  factor: 0
+  # A fixed start, so each record's timestamp is the same on every run.
+  logical_start_time: "2026-01-01T00:00:00+00:00"
+
+egress:
+  - {type: Console, config: {format: json}}
+
+resources:
+  res: {current_cap: 1}
+
+services:
+  hold: {dist: constant, value: 1}
+
+arrivals:
+  # One entity at time 0. max_events: 1 stops the arrival after it, so the gap is
+  # never drawn; the builder API needs a gap or dist on every arrival.
+  a: {gap: 1, first_at: 0, max_events: 1, spawn: use}
+
+tasks:
+  use:
+    service: hold
+    resource: res
+    payload: {event_type: used}
+
+# minimal = the resource readings right now. on_change publishes them after every
+# request and release. The interval timer (60 s) never fires inside a 5 s run; the
+# statistics are still published once at the end of the run.
+stats: {level: minimal, interval: 60, on_change: true}
+
+run: {until: 5}

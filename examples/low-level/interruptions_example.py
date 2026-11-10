@@ -5,7 +5,7 @@ orders (priority 0) before regular ones (priority 1), and an express order takes
 packer from a regular order being packed: SimPy delivers a `simpy.Interrupt` whose
 cause is `Preempted`. The regular order queues again and resumes with the packing
 time it had left. At 60 seconds a fire drill interrupts the order being packed,
-which resumes when it gets the packer back.
+which goes on with its packer.
 
 Needs no containers. Runs unpaced and ends after 120 simulation seconds.
 """
@@ -46,30 +46,49 @@ PRIORITIES = {"orders": 1, "express": 0}
 
 # --8<-- [start:pack]
 def pack(env, sampler, shop, key, priority, task_id):
-    """Packs one order; a preemption or an interrupt sends it back to the queue
-    with the packing time it had left."""
+    """Packs one order; a preemption sends it back to the queue with the packing
+    time it had left, and an interrupt keeps its packer, as `on_interrupt` does."""
     path_id = "Shop.service.packing"
 
     def publish(value):
         env.publish_event(key, value, task="pack", instance=task_id)
 
     env.stats.flow_started(key.rsplit("-", 1)[0])  # the order enters the shop
-    publish({"path_id": path_id, "status": "queued"})
+    publish(
+        {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+    )
     env.stats.task_queued("pack", task_id)
     remaining, started = None, False
     shop["packing"].append(env.active_process)
     shop["keys"][env.active_process] = key
+    request = None
     while True:
-        request = shop["packers"].request(priority=priority)
+        if request is None:
+            request = shop["packers"].request(priority=priority)
         since = None
         try:
-            yield request
+            if not request.processed:
+                yield request
             if not started:
                 started = True
-                publish({"path_id": path_id, "status": "started"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    }
+                )
                 env.stats.task_started("pack", task_id)
             else:
-                publish({"path_id": path_id, "status": "resumed"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "resumed",
+                    }
+                )
                 env.stats.task_resumed("pack", task_id)
             if remaining is None:
                 remaining = sampler.sample(env.registry.get_config(path_id))
@@ -81,13 +100,17 @@ def pack(env, sampler, shop, key, priority, task_id):
             shop["packers"].release(request)
             break
         except simpy.Interrupt as interrupt:
-            request.cancel()
-            shop["packers"].release(request)  # nothing to give back if preempted
             if since is not None:
                 remaining -= env.now - since
+            if request not in shop["packers"].users:
+                # Queued, or preempted: ask again. A unit still held is kept.
+                request.cancel()
+                request = None
             if isinstance(interrupt.cause, Preempted):
                 value = {
                     "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
                     "status": "preempted",
                     "resource": "packers",
                     "preempted_by": shop["keys"].get(interrupt.cause.by),
@@ -96,7 +119,12 @@ def pack(env, sampler, shop, key, priority, task_id):
                 publish(value)
                 env.stats.task_interrupted("pack", task_id, preempted=True)
             else:
-                value = {"path_id": path_id, "status": "interrupted"}
+                value = {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "interrupted",
+                }
                 publish({**value, "cause": interrupt.cause})
                 env.stats.task_interrupted("pack", task_id)
     shop["packing"].remove(env.active_process)

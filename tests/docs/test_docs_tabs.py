@@ -12,6 +12,10 @@ ROOT = Path(__file__).resolve().parents[2]
 EXPECTED = ["YAML", "Builder", "Low-level"]
 # Tab sets that are not about the way a simulation is written.
 OTHER_SETS = [["uv", "pip"]]
+# A SimPy Examples page shows SimPy's own file after the three forms, in its Full Files
+# (owner, 30 Oct 2026), so the shared tabs keep their names and order.
+SIMPY_EXAMPLES = ROOT / "docs" / "simpy" / "examples"
+SIMPY_SET = EXPECTED + ["SimPy"]
 
 
 def _tab_sets(text):
@@ -36,6 +40,8 @@ def test_every_tab_set_is_complete_and_in_order():
     wrong = []
     for page in sorted((ROOT / "docs").rglob("*.md")):
         for tabs in _tab_sets(page.read_text(encoding="utf-8")):
+            if tabs == SIMPY_SET and page.is_relative_to(SIMPY_EXAMPLES):
+                continue
             if tabs != EXPECTED and tabs not in OTHER_SETS:
                 wrong.append(f"{page.relative_to(ROOT)}: {tabs}")
     assert wrong == [], (

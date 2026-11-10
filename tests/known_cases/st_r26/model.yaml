@@ -1,0 +1,40 @@
+# case ST-R26: issue 49: after a mismatch a later get still matches; eggs asked before
+# spam, spam put first.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+stores:
+  s: {current_cap: 2}
+
+arrivals:
+  g: {initial: 1, spawn: getter}
+  p: {initial: 1, spawn: putter}
+
+tasks:
+  getter:
+    open:
+      eggs:
+        get: {store: s, filter: "item == 'eggs'"}
+      spam:
+        get: {store: s, filter: "item == 'spam'"}
+    wait:
+      any:
+        spam: {handle: spam}
+        eggs: {handle: eggs}
+    payload:
+      event_type: first
+      spam_first: {gen: expr, expr: "handle.spam.triggered"}
+    next: second
+  second:
+    wait: {handle: eggs}
+    payload: {event_type: eggs_at_one}
+  putter:
+    put: {store: s, item: spam}
+    payload: {event_type: put_spam}
+    next: later
+  later:
+    service_time: 1
+    payload: {event_type: pause}
+    next: put_eggs
+  put_eggs:
+    put: {store: s, item: eggs}
+    payload: {event_type: put_eggs}

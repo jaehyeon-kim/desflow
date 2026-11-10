@@ -1,0 +1,19 @@
+# case GD-TT7: the loop `while env.now < 2` logs and waits 1; env.run(10) ends when no
+# event is left (tests/test_environment.py:10).
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  a: {initial: 1, spawn: log_now}
+
+tasks:
+  log_now:
+    payload: {event_type: logged}
+    next: wait_one
+  wait_one:
+    service_time: 1
+    payload: {event_type: waited}
+    next:
+      when:
+        - {condition: "t < 2", task: log_now}
+
+run: {until: 10}

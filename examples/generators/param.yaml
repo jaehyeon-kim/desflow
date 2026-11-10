@@ -1,0 +1,26 @@
+# Param: the live value of a variable.
+# An order starts every 60 seconds, and the run lasts 200 seconds, so three orders
+# start.
+#
+# Run it with: desflow run examples/generators/param.yaml
+
+simulation:
+  sim_id: Gen
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+variables: {tax_rate: 0.2}
+
+arrivals:
+  orders: {dist: constant, value: 60, spawn: order}
+
+tasks:
+  order:
+    payload:
+      tax_rate: {gen: param, path: Gen.variables.tax_rate}
+
+run: {until: 200}

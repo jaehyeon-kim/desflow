@@ -1,0 +1,12 @@
+# Y3: an each wait done when two elements are (at_least), and one done when an expression holds (when).
+simulation: {sim_id: Y3, factor: 0, random_seed: 42}
+arrivals: {a: {dist: constant, value: 4, spawn: job, max_events: 2, first_at: 0}}
+tasks:
+  job:
+    wait: {each: [3, 1, 2], group: {at_least: 2}, branch: {timeout: {after: "each.value", value: {gen: expr, expr: "each.value * 10"}}}}
+    payload: {e: first}
+    next: later
+  later:
+    wait: {each: [3, 1, 2], group: {when: "done_count >= 2"}, branch: {timeout: {after: "each.value", value: {gen: expr, expr: "each.value * 10"}}}}
+    payload: {e: done, x: {gen: expr, expr: "[wait.each.values, wait.each.flags]"}}
+run: {until: 500}

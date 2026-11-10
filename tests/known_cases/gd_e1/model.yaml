@@ -1,0 +1,19 @@
+# case GD-E1: run(until=i) in a loop (environments.rst:57-59). `run.segments`, settled
+# for T8.
+simulation: {sim_id: E, factor: 0, random_seed: 42}
+
+services:
+  tick: {dist: constant, value: 1}
+
+arrivals:
+  a: {initial: 1, spawn: ticking}
+
+tasks:
+  ticking:
+    service: tick
+    payload: {event_type: tick}
+    next: ticking
+
+run:
+  until: 99
+  segments: {every: 1}

@@ -18,6 +18,15 @@ MAX_TITLE = 24
 # Kept on purpose: the example names both halves of its run.
 LONG_TITLES_ALLOWED = {"Parquet History, Kafka Live"}
 
+# A How-To page whose own title is longer than its sidebar title, which is 24
+# characters or fewer: the page names the task in full. The page title comes from the
+# page table of docs.md in the planning folder (`~/personal/planning/desflow/docs.md`,
+# line 265: "| Change the Schema | Change the Schema During a Run |"), which sets this
+# page's title apart from its Sidebar title.
+HOW_TO_PAGE_TITLES = {
+    "how-to/generate-data/change-the-schema.md": "Change the Schema During a Run",
+}
+
 FENCE = re.compile(r"^```.*?^```", re.S | re.M)
 BOX_CHARACTERS = re.compile(r"[\u2500-\u257f]")
 NUMBERED = re.compile(r"^#{1,6} \d", re.M)
@@ -74,15 +83,14 @@ def _nav_pages(items):
 
 
 def test_how_to_titles_match_the_sidebar(mkdocs_nav):
-    """A How-To page names one task, so its own title is its sidebar title."""
+    """A How-To page names one task, so its own title is its sidebar title, except the
+    pages listed in HOW_TO_PAGE_TITLES."""
     differ = [
         f"{page}: {title!r}"
         for title, page in _nav_pages(mkdocs_nav)
         if page.startswith("how-to/")
-        and not page.startswith("how-to/examples/")
-        and page != "how-to/projects.md"
         and (ROOT / "docs" / page).read_text(encoding="utf-8").split("\n")[0]
-        != f"# {title}"
+        != f"# {HOW_TO_PAGE_TITLES.get(page, title)}"
     ]
     assert differ == [], "Give these pages their sidebar title: " + "; ".join(differ)
 

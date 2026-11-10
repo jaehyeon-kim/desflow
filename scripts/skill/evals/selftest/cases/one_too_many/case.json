@@ -1,0 +1,13 @@
+{
+  "fault": "N10: K2's upper bound of `count`: st_r18 with two readers, one record too many",
+  "task": "st-r18",
+  "tasks": "main",
+  "counts": {
+    "K2": 1
+  },
+  "evidence": {
+    "K2": [
+      "model.yaml: 'one record': 2 records, wanted 1"
+    ]
+  }
+}

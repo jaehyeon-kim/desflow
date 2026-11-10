@@ -1,0 +1,112 @@
+{
+  "changes": [
+    {
+      "applied": "arrivals.a.group.mean = 4",
+      "name": "mean 2 to 4",
+      "reason": ""
+    },
+    {
+      "applied": "arrivals.a.gap = 10",
+      "name": "gap 5 to 10",
+      "reason": ""
+    },
+    {
+      "applied": "arrivals.a.max_events = 20, run.until = 105",
+      "name": "firings 40 to 20",
+      "reason": ""
+    }
+  ],
+  "tests": {
+    "test_model.py::test_every_record_is_a_member_event": {
+      "changes": {
+        "firings 40 to 20": "PASSED",
+        "gap 5 to 10": "PASSED",
+        "mean 2 to 4": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_group_sizes_match_poisson_draws": {
+      "changes": {
+        "firings 40 to 20": "FAILED",
+        "gap 5 to 10": "FAILED",
+        "mean 2 to 4": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_keys_and_instances_are_consecutive": {
+      "changes": {
+        "firings 40 to 20": "PASSED",
+        "gap 5 to 10": "PASSED",
+        "mean 2 to 4": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_records_fall_only_on_firing_times": {
+      "changes": {
+        "firings 40 to 20": "PASSED",
+        "gap 5 to 10": "PASSED",
+        "mean 2 to 4": "PASSED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_some_groups_are_empty_and_some_larger_than_one": {
+      "changes": {
+        "firings 40 to 20": "PASSED",
+        "gap 5 to 10": "PASSED",
+        "mean 2 to 4": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_three_forms_give_the_same_records": {
+      "changes": {
+        "firings 40 to 20": "FAILED",
+        "gap 5 to 10": "FAILED",
+        "mean 2 to 4": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_total_is_plausible_for_mean_two": {
+      "changes": {
+        "firings 40 to 20": "FAILED",
+        "gap 5 to 10": "FAILED",
+        "mean 2 to 4": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    }
+  }
+}

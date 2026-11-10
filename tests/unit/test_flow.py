@@ -136,7 +136,15 @@ def test_a_timed_step_has_no_queued_event_and_waits_nothing():
     _arrivals(app, "orders", ship, count=1)
     events = _run(app, 20)
     assert [(r["sim_ts"], r["value"]) for r in events] == [
-        (10.0, {"path_id": "Shop.service.shipping", "status": "started"}),
+        (
+            10.0,
+            {
+                "path_id": "Shop.service.shipping",
+                "sim_id": "Shop",
+                "service": "shipping",
+                "status": "started",
+            },
+        ),
         (14.0, {"status": "shipped"}),
     ]
     readings = app.env.stats.readings()
@@ -380,8 +388,26 @@ def test_yaml_routes_and_includes_only_the_attributes_it_names(tmp_path):
     events = _run(app, 3)
     assert [(r["key"], r["task"], r["value"]) for r in events][:4] == [
         ("orders-1", "pick", {"event_type": "picked", "gift": 1}),
-        ("orders-1", "pack", {"path_id": "Shop.service.packing", "status": "queued"}),
-        ("orders-1", "pack", {"path_id": "Shop.service.packing", "status": "started"}),
+        (
+            "orders-1",
+            "pack",
+            {
+                "path_id": "Shop.service.packing",
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "queued",
+            },
+        ),
+        (
+            "orders-1",
+            "pack",
+            {
+                "path_id": "Shop.service.packing",
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            },
+        ),
         ("orders-2", "pick", {"event_type": "picked", "gift": 1}),
     ]
 
@@ -453,7 +479,7 @@ def test_a_child_flow_that_raises_gives_its_unit_back():
         context.spawn(pack(0))
 
     app.add_process(script)
-    app.start(until=20)
+    app.start(until=20, on_unhandled_failure="continue")
     try:
         app.env.run(until=20)
         packers = app.get_resource("packers")
@@ -485,9 +511,8 @@ def _statuses(records):
 
 
 def test_a_wait_and_a_patience_that_end_at_the_same_instant():
-    """The patience timer was scheduled first, so it wins the tie and the order
-    reneges, as `yield wait | patience` does in SimPy; the wait's own branch,
-    triggered at that instant but not yet processed, is not read."""
+    """The wait's timeout is processed before the patience condition, so the order
+    goes on, as `yield timeout | patience` does in SimPy: `ev in result` is true."""
     keep = _Keep()
     app = SimulationContext("Shop", factor=0).add_egress(keep)
 
@@ -501,7 +526,11 @@ def test_a_wait_and_a_patience_that_end_at_the_same_instant():
 
     app.add_process(script)
     app.run(until=10)
-    assert _statuses(keep.records) == [(0.0, "queued"), (5.0, "reneged")]
+    assert _statuses(keep.records) == [
+        (0.0, "queued"),
+        (5.0, "started"),
+        (5.0, "went_on"),
+    ]
 
 
 def test_a_resumed_wait_waits_again_for_the_same_child_flow():
@@ -639,10 +668,10 @@ def test_a_single_timeout_branch_is_read_as_wait_timeout_done():
     assert (5.0, "after", "after") in events
 
 
-def test_a_preempted_task_gives_a_kept_unit_back_and_the_stat_counts_it():
-    """A task preempted while keeping a second unit for its next task gives that kept
-    unit back before its preempted record, so a task waiting for it starts, and the
-    preempted statistic counts the preemption."""
+def test_a_task_preempted_on_its_second_resource_keeps_the_first_and_the_stat_counts_it():
+    """A task preempted on its second resource keeps the first, as nested `with`
+    blocks do, so a task waiting for the first starts when the preempted task ends,
+    not at the preemption. The preempted statistic counts the preemption."""
     keep = _Keep()
     app = SimulationContext("Shop", factor=0).add_egress(keep)
     app.with_stats("basic", interval=1000)
@@ -651,25 +680,18 @@ def test_a_preempted_task_gives_a_kept_unit_back_and_the_stat_counts_it():
     )
     app.add_resource("tray", current_cap=1, max_cap=1, queue="priority")
     app.add_service("working", dist="constant", value=10)
-    app.add_service("finishing", dist="constant", value=1)
     app.add_service("grabbing", dist="constant", value=1)
     app.add_service("rushing", dist="constant", value=1)
 
     @app.task(
         service_id="working",
         resource_id=["tray", "machine"],
-        keep=["tray"],
-        next="finish",
         priority=5,
         on_interrupt="resume",
         name="work",
     )
     def work(task_id):
         return {"event": "worked"}
-
-    @app.task(service_id="finishing", resource_id="tray", name="finish")
-    def finish(task_id):
-        return {"event": "finished"}
 
     @app.task(service_id="grabbing", resource_id="tray", name="grab")
     def grab(task_id):
@@ -680,7 +702,7 @@ def test_a_preempted_task_gives_a_kept_unit_back_and_the_stat_counts_it():
         return {"event": "rushed"}
 
     def script(context):
-        context.spawn(work(0))  # holds the machine and the tray, keeps the tray
+        context.spawn(work(0))  # holds the machine and the tray
         context.spawn(grab(0))  # waits for the tray
         yield context.env.timeout(3)
         context.spawn(rush(0))  # preempts work on the machine
@@ -693,15 +715,10 @@ def test_a_preempted_task_gives_a_kept_unit_back_and_the_stat_counts_it():
         if r["stream_type"] == "event"
     ]
     assert (3.0, "work", "preempted") in events
+    assert (4.0, "work", "resumed") in events
+    assert (11.0, "work", "worked") in events
     grab_started = [t for t, task, s in events if task == "grab" and s == "started"]
-    assert grab_started == [3.0]
-    # The kept unit is given back before the preempted record, so the record is
-    # published first and grab starts in the next step.
-    preempted_index = events.index((3.0, "work", "preempted"))
-    started_index = next(
-        i for i, (t, task, s) in enumerate(events) if task == "grab" and s == "started"
-    )
-    assert preempted_index < started_index
+    assert grab_started == [11.0]
     assert app.env.stats.readings()["Shop.stats.tasks.work.preempted"] == 1
 
 
@@ -728,7 +745,7 @@ def test_a_losing_child_flow_that_fails_later_does_not_stop_the_run():
         yield context.env.timeout(0)
 
     app.add_process(script)
-    app.run(until=30)
+    app.run(until=30, on_unhandled_failure="continue")
     events = [
         (r["sim_ts"], r["task"], r["value"].get("event"))
         for r in keep.records
@@ -738,3 +755,11 @@ def test_a_losing_child_flow_that_fails_later_does_not_stop_the_run():
     # running and fails at 10, which does not stop the run.
     assert (5.0, "order", "ordered") in events
     assert app.env.now == 30.0
+
+
+def test_a_weighted_router_with_no_generator_refuses_to_choose():
+    """`Router.choose` draws weights from the router's own generator, so a weighted
+    router made without one refuses to choose."""
+    router = Router({"weights": {"ship": 1, "rework": 1}})
+    with pytest.raises(ValueError, match="weights need a random generator"):
+        router.choose(Upstream(0, "e", {}))

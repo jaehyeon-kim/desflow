@@ -37,7 +37,6 @@ tasks:
 stats: {level: typical, interval: 2 h}
 
 egress:
-  - type: Console
+  - {type: Console}
 
-run:
-  until: 1 h
+run: {until: 1 h}

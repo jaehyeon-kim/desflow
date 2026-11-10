@@ -4,7 +4,8 @@
 variable, so one file can serve several environments. The default applies when the
 variable is unset or empty, as in a shell. `$${` writes a literal `${`. An unquoted
 value is then read as YAML reads it, so `port: ${PG_PORT:-5432}` gives the number
-5432. A quoted value stays a string.
+5432. A quoted value stays a string. A value given by name to `read_document`, as
+`desflow run --var NAME=VALUE` does, is used before the environment.
 
 `!python module.attribute` imports the module and returns the attribute, so a
 blueprint can reference a process, a router or any other Python object. Loading a
@@ -19,7 +20,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Tuple, Union
 
 import yaml
 
@@ -41,14 +42,16 @@ class BlueprintLoader(yaml.SafeLoader):
 _VARIABLE = re.compile(r"\$\$\{|\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 
 
-def substitute(text: str) -> str:
-    """Replaces `${VAR}` and `${VAR:-default}` with the environment variable.
+def substitute(text: str, overrides: Optional[Mapping[str, str]] = None) -> str:
+    """Replaces `${VAR}` and `${VAR:-default}` with the variable's value.
 
-    `${VAR:-default}` uses the default when the variable is unset or empty. `$${` is
-    a literal `${`.
+    A variable in `overrides` takes its value from there, and any other from the
+    environment. `${VAR:-default}` uses the default when the value is unset or empty.
+    `$${` is a literal `${`.
 
     Args:
         text: The text of a blueprint.
+        overrides: Values that are used before the environment, by name.
 
     Returns:
         str: The text with every reference replaced.
@@ -61,7 +64,10 @@ def substitute(text: str) -> str:
         if match.group(0) == "$${":
             return "${"
         name, default = match.group(1), match.group(2)
-        value = os.environ.get(name)
+        if overrides is not None and name in overrides:
+            value: Optional[str] = overrides[name]
+        else:
+            value = os.environ.get(name)
         if value:
             return value
         if default is not None:
@@ -79,7 +85,7 @@ def substitute(text: str) -> str:
 def _substitute_at(loader: yaml.SafeLoader, node: yaml.Node, text: str) -> str:
     """`substitute`, with a failure reported at the line of `node`."""
     try:
-        return substitute(text)
+        return substitute(text, getattr(loader, "variables", None))
     except ValueError as exc:
         raise BlueprintError(
             f"{loader.name}:{node.start_mark.line + 1}: {exc}"
@@ -199,7 +205,10 @@ def _construct_include(loader: yaml.SafeLoader, node: yaml.Node) -> Any:
     # Read as a document of its own, so a YAML error in it names its own file and
     # line, and a file that is not a mapping is refused there
     data, _ = read_document(
-        path, including=including, at=getattr(loader, "includes", {}).get(node)
+        path,
+        including=including,
+        at=getattr(loader, "includes", {}).get(node),
+        variables=getattr(loader, "variables", None),
     )
     return {**data, **extra}
 
@@ -236,6 +245,14 @@ class SourceMap:
                 return self._lines[location[:end]]
         return 1
 
+    def has(self, location: Iterable[Union[str, int]]) -> bool:
+        """Whether the document has a key or list item at exactly `location`.
+
+        Args:
+            location: The keys and list indexes from the document's top.
+        """
+        return tuple(location) in self._lines
+
     def error(
         self, location: Iterable[Union[str, int]], message: str
     ) -> BlueprintError:
@@ -251,19 +268,46 @@ class SourceMap:
         return BlueprintError(f"{self.path}:{self.line(location)}: {message}")
 
 
-def _record_lines(node: yaml.Node, location: Location, lines: Dict[Location, int]):
-    """Walks the node tree and records the line of every key and list item."""
+def _record_lines(
+    node: yaml.Node,
+    location: Location,
+    lines: Dict[Location, int],
+    key_of: Optional[Callable[[yaml.Node], Any]] = None,
+):
+    """Walks the node tree and records the line of every key and list item.
+
+    A key written with `${VAR}` is recorded under the name it has after substitution,
+    which `key_of` gives, as the built mapping holds it."""
     lines.setdefault(location, node.start_mark.line + 1)
     if isinstance(node, yaml.MappingNode):
+        seen: Dict[Any, int] = {}
         for key_node, value_node in node.value:
-            child = location + (key_node.value,)
+            name = key_node.value
+            if key_of is not None and "${" in str(name):
+                try:
+                    name = key_of(key_node)
+                except BlueprintError:
+                    pass  # the load reports it
+            if isinstance(key_node, yaml.ScalarNode) and name != "<<":
+                # A key written twice would keep only the last value, with no sign
+                # that the first was dropped
+                if name in seen:
+                    raise yaml.constructor.ConstructorError(
+                        None,
+                        None,
+                        f"the key '{name}' is written twice in this mapping, at lines "
+                        f"{seen[name]} and {key_node.start_mark.line + 1}; keep one",
+                        key_node.start_mark,
+                    )
+                seen[name] = key_node.start_mark.line + 1
+            child = location + (name,)
             # A key's own line is where a reader looks, even when its value is a
             # block starting on the next line.
             lines[child] = key_node.start_mark.line + 1
-            _record_lines(value_node, child, lines)
+            _record_lines(value_node, child, lines, key_of)
     elif isinstance(node, yaml.SequenceNode):
         for index, item in enumerate(node.value):
-            _record_lines(item, location + (index,), lines)
+            _record_lines(item, location + (index,), lines, key_of)
 
 
 _BOOL_TAG = "tag:yaml.org,2002:bool"
@@ -273,7 +317,8 @@ _STR_TAG = "tag:yaml.org,2002:str"
 def _keep_on_keys(
     root: yaml.Node, includes: Dict[yaml.Node, str], at: Optional[str] = None
 ) -> None:
-    """Keeps the key `on` a string in task, signal and experiment check mappings.
+    """Keeps the key `on` a string in task, signal and experiment check mappings, and in
+    the `listen` mapping of a task.
 
     YAML 1.1 reads the bare word `on` as the boolean True, so a task's or a signal's
     `on:` actions and an experiment check's `on` were refused with "Keys should be
@@ -296,7 +341,7 @@ def _keep_on_keys(
 
     def retag(node: yaml.Node) -> None:
         if isinstance(node, yaml.MappingNode):
-            for key, _ in node.value:
+            for key, value in node.value:
                 if (
                     isinstance(key, yaml.ScalarNode)
                     and key.tag == _BOOL_TAG
@@ -304,6 +349,13 @@ def _keep_on_keys(
                 ):
                     key.tag = _STR_TAG
                     key.value = "on"
+                if (
+                    isinstance(key, yaml.ScalarNode)
+                    and key.value == "listen"
+                    and isinstance(value, yaml.MappingNode)
+                ):
+                    # The `on` of a task's `listen` is an `on:` list as well
+                    retag(value)
 
     def item(node: yaml.Node) -> None:
         retag(node)
@@ -336,10 +388,41 @@ def _keep_on_keys(
                 item(member)
 
 
+def _keep_switch_on(node: yaml.Node) -> None:
+    """Keeps the key `on` a string in a `{gen: switch, on: ...}` mapping.
+
+    YAML 1.1 reads the bare word `on` as the boolean True, so the `on` of a `switch`
+    generator would be refused as a key that is not a string. Only a mapping whose
+    `gen` is `switch` changes; every other mapping keeps today's reading.
+    """
+    if isinstance(node, yaml.SequenceNode):
+        for member in node.value:
+            _keep_switch_on(member)
+    elif isinstance(node, yaml.MappingNode):
+        switch = any(
+            isinstance(key, yaml.ScalarNode)
+            and key.value == "gen"
+            and isinstance(value, yaml.ScalarNode)
+            and value.value == "switch"
+            for key, value in node.value
+        )
+        for key, value in node.value:
+            if (
+                switch
+                and isinstance(key, yaml.ScalarNode)
+                and key.tag == _BOOL_TAG
+                and key.value.lower() == "on"
+            ):
+                key.tag = _STR_TAG
+                key.value = "on"
+            _keep_switch_on(value)
+
+
 def read_document(
     path: Union[str, Path],
     including: Tuple[Path, ...] = (),
     at: Optional[str] = None,
+    variables: Optional[Mapping[str, str]] = None,
 ) -> Tuple[Dict[str, Any], SourceMap]:
     """Parses a blueprint file into a mapping and its source map.
 
@@ -353,6 +436,9 @@ def read_document(
         at: What the file is when an `!include` read it: `item` for one task, signal
             or check, `section` for the `tasks` or `signals` section, so its `on`
             keys stay strings; None for a whole document.
+        variables: Values for `${NAME}` that are used before the environment, as
+            `desflow run --var NAME=VALUE` gives them. Files that `!include` reads
+            see them too.
 
     Raises:
         BlueprintError: If the file is not valid YAML, is not a mapping, or names a
@@ -369,6 +455,7 @@ def read_document(
     loader.name = str(path)
     # The files being read, so an !include of one of them is refused, not followed
     loader.including = (*including, path.resolve())  # type: ignore[attr-defined]
+    loader.variables = variables  # type: ignore[attr-defined]
     lines: Dict[Location, int] = {}
     try:
         node = loader.get_single_node()
@@ -376,8 +463,9 @@ def read_document(
             raise BlueprintError(f"{path}:1: the file is empty")
         includes: Dict[yaml.Node, str] = {}
         _keep_on_keys(node, includes, at)
+        _keep_switch_on(node)
         loader.includes = includes  # type: ignore[attr-defined]
-        _record_lines(node, (), lines)
+        _record_lines(node, (), lines, loader.construct_object)
         data = loader.construct_document(node)
     except yaml.MarkedYAMLError as exc:
         mark = exc.problem_mark or exc.context_mark

@@ -1,0 +1,13 @@
+{
+  "fault": "S3: a key under on: is never found",
+  "task": "on_key",
+  "counts": {
+    "K9": 0
+  },
+  "notes": {
+    "K9": [
+      "grow to 1: failed by",
+      "(tasks.grow.on.0.value = 1); the reviewer judges"
+    ]
+  }
+}

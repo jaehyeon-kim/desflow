@@ -1,0 +1,12 @@
+{
+  "namespace": "me.jaehyeon.avro",
+  "type": "record",
+  "name": "Order",
+  "fields": [
+    { "name": "order_id", "type": "string" },
+    { "name": "bid_time", "type": "string" },
+    { "name": "price", "type": "double" },
+    { "name": "item", "type": "string" },
+    { "name": "supplier", "type": "string" }
+  ]
+}

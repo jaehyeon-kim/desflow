@@ -1,0 +1,30 @@
+{
+  "fault": "pilot: the Haiku run of p33 (before-p33-haiku-1), whose test is parametrized by form with a mark.",
+  "task": "p33",
+  "tasks": "main",
+  "skill": true,
+  "counts": {
+    "K1": 0,
+    "K2": 0,
+    "K4": 0,
+    "K6": 0,
+    "K7": 0,
+    "K9": 0,
+    "K11": 0,
+    "K12": 0,
+    "K13": 0,
+    "BASE": 0
+  },
+  "notes": {
+    "K9": [
+      "capacity 1 to 2: failed by",
+      "grow at 4 instead of 2: failed by",
+      "job takes 6 instead of 5: failed by"
+    ]
+  },
+  "forms": {
+    "test_model.py::test_form_gives_the_expected_records[yaml]": [
+      "yaml"
+    ]
+  }
+}

@@ -6,12 +6,12 @@ low-level part routes an entity with a Router and checks a refused expression.
 
 from desflow import (
     Entity,
+    Expression,
     Router,
     Sampler,
     SimulationContext,
     Upstream,
 )
-from desflow.core.expressions import Expression
 
 app = (
     SimulationContext(sim_id="Shop", factor=0.0, random_seed=42)
@@ -150,7 +150,7 @@ choices = [rework.choose(finished) for _ in range(1000)]
 # --8<-- [end:low-level-weights]
 
 # --8<-- [start:refused]
-for text in ("payload.total ** 2", "x > 1", "open('orders.csv')"):
+for text in ("payload.total @ 2", "x > 1", "open('orders.csv')"):
     try:
         Expression(text)
     except ValueError as error:

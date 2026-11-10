@@ -1,0 +1,18 @@
+{
+  "fault": "round 3 P10: p60 whose split spawns through an on: action; the two spawn changes found no key",
+  "task": "p60",
+  "tasks": "main",
+  "counts": {
+    "K9": 0,
+    "K2": 0,
+    "BASE": 0
+  },
+  "notes": {
+    "K9": [
+      "two children: failed by",
+      "(tasks.split.on.0.spawn.count = 2)",
+      "children do not copy the attributes: failed by",
+      "(tasks.split.on.0.spawn.copy_attributes = False)"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "fault": "N10: K2's `before`: ds_m4 with `check` after the cars in the stream",
+  "task": "ds-m4",
+  "tasks": "main",
+  "counts": {
+    "K2": 1
+  },
+  "evidence": {
+    "K2": [
+      "model.yaml: 'check': comes after 'car 1' in the stream"
+    ]
+  }
+}

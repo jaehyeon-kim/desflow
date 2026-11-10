@@ -1,0 +1,11 @@
+# case P07: a rate as a function of t (shared with design A4).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+arrivals:
+  a: {gap: "1 + t / 4", spawn: t}
+
+tasks:
+  t:
+    payload: {event_type: arrived}
+
+run: {until: 8}

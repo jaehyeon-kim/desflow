@@ -1,0 +1,104 @@
+{
+  "changes": [
+    {
+      "applied": "tasks.use.service_time = 2",
+      "name": "use takes 2",
+      "reason": ""
+    },
+    {
+      "applied": "arrivals.a.max_events = 2",
+      "name": "two users",
+      "reason": ""
+    },
+    {
+      "applied": "resources.res.current_cap = 0",
+      "name": "capacity 0",
+      "reason": ""
+    }
+  ],
+  "tests": {
+    "test_model.py::test_forms_give_the_same_res_records[builder]": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "two users": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_forms_give_the_same_res_records[low_level]": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "two users": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_low_level_seed_is_a_literal_and_capacity_is_one": {
+      "changes": {
+        "capacity 0": "PASSED",
+        "two users": "PASSED",
+        "use takes 2": "PASSED"
+      },
+      "forms": [],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_no_timer_publication_inside_the_run": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "two users": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_res_counts_change_on_each_request_and_release": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "two users": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "builder",
+        "low_level",
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_yaml_capacity_and_arrival": {
+      "changes": {
+        "capacity 0": "FAILED",
+        "two users": "FAILED",
+        "use takes 2": "FAILED"
+      },
+      "forms": [
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    },
+    "test_model.py::test_yaml_seed_is_a_literal_42": {
+      "changes": {
+        "capacity 0": "PASSED",
+        "two users": "PASSED",
+        "use takes 2": "PASSED"
+      },
+      "forms": [
+        "yaml"
+      ],
+      "unchanged": "PASSED"
+    }
+  }
+}

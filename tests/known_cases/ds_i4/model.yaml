@@ -1,0 +1,17 @@
+# Design I4: suspend until another task resumes (three parked at 0, the second one
+# resumed at 2 with value 9).
+simulation: {sim_id: I4, factor: 0, random_seed: 42}
+
+arrivals:
+  parked: {initial: 3, spawn: park}
+  waker: {dist: constant, value: 2, spawn: wake, max_events: 1}
+
+tasks:
+  park:
+    wait: {suspend: true}
+    payload:
+      event_type: woke
+      got: {gen: expr, expr: "wait.suspend.value"}
+  wake:
+    payload: {event_type: wake}
+    resume: {task: park, where: "process.instance == 1", value: 9, limit: 1}

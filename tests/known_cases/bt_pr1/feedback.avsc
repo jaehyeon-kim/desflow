@@ -1,0 +1,31 @@
+{
+  "namespace": "me.jaehyeon",
+  "type": "record",
+  "name": "FeedbackEvent",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string"
+    },
+    {
+      "name": "product_id",
+      "type": "string"
+    },
+    {
+      "name": "reward",
+      "type": "int"
+    },
+    {
+      "name": "context_vector",
+      "type": {
+        "type": "array",
+        "items": "double"
+      }
+    },
+    {
+      "name": "timestamp",
+      "type": "long",
+      "logicalType": "timestamp-millis"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+"""The group-arrival model with the Builder API (SimulationContext).
+
+Arrival `a` fires every 5 s from t=5, 40 times in all. Each firing starts a group
+whose size is drawn from Poisson(mean 2); a size of 0 starts nobody. Each entity runs
+`member`, which publishes {event_type: member}. Runs to 205 s and prints each record
+as one JSON line on stdout.
+"""
+
+from datetime import datetime, timezone
+
+from desflow import ConsoleEgress, SimulationContext
+from desflow.values.template import generator
+
+app = (
+    SimulationContext(
+        sim_id="Groups",
+        factor=0,  # unpaced
+        random_seed=42,
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    .add_egress(ConsoleEgress(format="json"))
+    .add_arrival(
+        "a",
+        gap=5,
+        first_at=5,
+        max_events=40,
+        group=generator({"gen": "sample", "dist": "poisson", "mean": 2}),
+        spawn="member",
+    )
+)
+
+
+@app.task()
+def member(task_id):
+    """Publishes the member's finished event."""
+    return {"event_type": "member"}
+
+
+if __name__ == "__main__":
+    app.run(until=205)

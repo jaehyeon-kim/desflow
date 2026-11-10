@@ -1,0 +1,27 @@
+# set_capacity from a flow: the task `grow` raises the capacity of resource `m`
+# from 1 to 3 at time 2, which lets the waiting job start at once.
+simulation:
+  sim_id: P
+  random_seed: 42
+  logical_start_time: "2026-01-01T00:00:00+00:00"   # fixed, so timestamps repeat
+  factor: 0            # unpaced: the 20 seconds run as fast as possible
+resources:
+  m: {current_cap: 1, max_cap: 3}   # max_cap 3 gives room to grow to 3
+services:
+  hold: {dist: constant, value: 5}
+arrivals:
+  a: {dist: constant, value: 1, first_at: 0, max_events: 2, spawn: job}
+  boss: {dist: constant, value: 1, first_at: 2, max_events: 1, spawn: grow}
+tasks:
+  job:
+    resource: m
+    service: hold
+    payload: {event_type: done}
+  grow:
+    payload: {event_type: grow}
+    on:
+      - {path: P.resources.m.current_cap, value: 3}
+egress:
+  - {type: Console, config: {format: json}}
+run:
+  until: 20

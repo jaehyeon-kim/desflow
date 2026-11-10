@@ -138,7 +138,7 @@ def run_yaml(
     error: Optional[BaseException] = None
     try:
         value = app.run(until=until)
-    except Exception as exc:  # noqa: BLE001: kept for the caller to assert on
+    except Exception as exc:  # kept for the caller to assert on
         error = exc
     return Outcome(rec.records, value, error, app)
 
@@ -165,29 +165,33 @@ def run_yaml_text(
     value: Any = None
     try:
         value = app.run()
-    except Exception as exc:  # noqa: BLE001: returned for the caller to assert on
+    except Exception as exc:  # returned for the caller to assert on
         error = exc
     return Outcome(rec.records, value, error, app)
 
 
 def run_builder(
-    app: SimulationContext, until: float, raises: bool = False
+    app: SimulationContext,
+    until: float,
+    raises: bool = False,
+    on_unhandled_failure: Optional[str] = None,
 ) -> Union[List[Dict[str, Any]], Outcome]:
     """Runs a builder model into a recording egress.
 
     With `raises=True` the run's exception is caught and returned in an
-    `Outcome`; otherwise it propagates, as today.
+    `Outcome`; otherwise it propagates, as today. `on_unhandled_failure` is passed to
+    `run()`, whose default is `stop`.
     """
     rec = RecordingEgress()
     app.add_egress(rec)
     if not raises:
-        app.run(until=until)
+        app.run(until=until, on_unhandled_failure=on_unhandled_failure)
         return rec.records
     value: Any = None
     error: Optional[BaseException] = None
     try:
-        value = app.run(until=until)
-    except Exception as exc:  # noqa: BLE001: kept for the caller to assert on
+        value = app.run(until=until, on_unhandled_failure=on_unhandled_failure)
+    except Exception as exc:  # kept for the caller to assert on
         error = exc
     return Outcome(rec.records, value, error, app)
 
@@ -195,13 +199,16 @@ def run_builder(
 def run_low_level(
     params: Optional[SimParameter],
     start: Callable[[DynamicRealtimeEnvironment], Any],
-    until: float,
-    stats: Optional[str] = None,
+    until: Any,
+    stats: Optional[Any] = None,
     initial_time: float = 0.0,
     factor: float = 0.0,
     strict: bool = False,
     on_unhandled_failure: str = "stop",
     raises: bool = False,
+    drive: Optional[Callable[[], Any]] = None,
+    trace: bool = False,
+    environment: Optional[Dict[str, Any]] = None,
 ) -> Union[Tuple[List[Dict[str, Any]], DynamicRealtimeEnvironment], Outcome]:
     """Runs a low-level model into a recording egress.
 
@@ -220,26 +227,38 @@ def run_low_level(
         factor=factor,
         strict=strict,
         on_unhandled_failure=on_unhandled_failure,
+        **(environment or {}),  # such as `logical_start_time` and `go_live_at`
     )
     if params is not None:
         env.registry.register_sim_parameter(params)
     rec = RecordingEgress()
-    env.setup_egress([rec], lag_monitor_interval=None)
+    sinks, traces = [rec], None
+    traced = RecordingEgress()
+    if trace:  # a second sink receives the trace records, and only those
+        sinks, traces = [rec, traced], [False, True]
+    env.setup_egress(sinks, lag_monitor_interval=None, traces=traces)
     if stats is not None:
-        env.setup_stats(params.sim_id if params else "Sim", stats)
+        level, *interval = (
+            (stats,) if isinstance(stats, str) else stats
+        )  # (level, interval)
+        env.setup_stats(params.sim_id if params else "Sim", level, *interval)
     start(env)
+    if callable(until):  # a run that ends with a process or an event `start` made
+        until = until()
     value: Any = None
     error: Optional[BaseException] = None
     try:
-        value = env.run(until=until)
-    except Exception as exc:  # noqa: BLE001: returned when raises, else re-raised
+        value = drive() if drive is not None else env.run(until=until)
+    except Exception as exc:  # returned when raises, else re-raised
         if not raises:
             raise
         error = exc
     finally:
         env.teardown()
     if raises:
-        return Outcome(rec.records, value, error, env)
+        outcome = Outcome(rec.records, value, error, env)
+        outcome.trace = traced.records  # type: ignore[attr-defined]
+        return outcome
     return rec.records, env
 
 

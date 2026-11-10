@@ -1,0 +1,14 @@
+{
+  "fault": "stage 2 round 5 F1: a draw through functools.partial, which no call in the model's code shows; the run with the file's seeds changed finds it",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K13": 1
+  },
+  "evidence": {
+    "K13": [
+      "low_level.py:18: ",
+      "seeds a random generator the model makes itself"
+    ]
+  }
+}

@@ -11,6 +11,7 @@ from . import (
     cli,
     examples,
     flows,
+    generate_data,
     guides,
     inputs,
     tutorial_runs,
@@ -31,4 +32,5 @@ BLOCKS: Dict[str, Callable[[], List[str]]] = {
     **tutorial_yaml.BLOCKS,
     **inputs.BLOCKS,
     **flows.BLOCKS,
+    **generate_data.BLOCKS,
 }

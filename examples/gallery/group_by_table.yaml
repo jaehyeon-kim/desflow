@@ -1,0 +1,51 @@
+# A table for group-by benchmarks.
+#
+# Each row has three keys that are text (id1 to id3, with 100, 100 and 100,000 values),
+# three that are whole numbers (id4 to id6) and three measures (v1, v2 and v3). A
+# group-by on a key and a sum of a measure is the usual test of a data frame library.
+# One row a second, 1,000 rows.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/group_by_table.yaml
+
+simulation:
+  sim_id: Table
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  rows: {dist: constant, value: 1, spawn: row, max_events: 1000}
+
+tasks:
+  row:
+    payload:
+      id1:
+        gen: format
+        template: "id{n:03d}"
+        names:
+          n: {gen: integer, bounds: [1, 100]}
+      id2:
+        gen: format
+        template: "id{n:03d}"
+        names:
+          n: {gen: integer, bounds: [1, 100]}
+      id3:
+        gen: format
+        template: "id{n:010d}"
+        names:
+          n: {gen: integer, bounds: [1, 100000]}
+      id4: {gen: integer, bounds: [1, 100]}
+      id5: {gen: integer, bounds: [1, 100]}
+      id6: {gen: integer, bounds: [1, 100000]}
+      v1: {gen: integer, bounds: [1, 5]}
+      v2: {gen: integer, bounds: [1, 15]}
+      v3: {gen: uniform, low: 0, high: 100, decimals: 6}
+
+run:
+  # The 1,000th row is at 1,000 s, and a run stops before the events due at its end
+  # time, so it ends 1 s later.
+  until: 1001

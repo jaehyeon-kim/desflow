@@ -1,0 +1,90 @@
+"""Tests for the group-arrival model: Poisson(mean 2) group size per arrival.
+
+Run from this folder with: pytest test_model.py
+"""
+
+import json
+import subprocess
+import sys
+import zlib
+from collections import Counter
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+HERE = Path(__file__).resolve().parent
+BIN = Path(sys.executable).parent
+FIRINGS = [5.0 * i for i in range(1, 41)]  # 5, 10, ..., 200
+
+
+def _records(cmd):
+    out = subprocess.run(
+        cmd, cwd=HERE, capture_output=True, text=True, check=True, timeout=120
+    ).stdout
+    return [json.loads(line) for line in out.splitlines() if line.strip()]
+
+
+@pytest.fixture(scope="module")
+def runs():
+    return {
+        "yaml": _records([str(BIN / "desflow"), "run", "model.yaml"]),
+        "builder": _records([sys.executable, "builder.py"]),
+        "low_level": _records([sys.executable, "low_level.py"]),
+    }
+
+
+@pytest.fixture(scope="module")
+def records(runs):
+    return runs["yaml"]
+
+
+def expected_sizes():
+    """The 40 group sizes drawn from the stream of `arrivals.a.group`, seed 42."""
+    rng = np.random.default_rng(
+        np.random.SeedSequence(42, spawn_key=(zlib.crc32(b"arrivals.a.group"),))
+    )
+    return [int(rng.poisson(2)) for _ in FIRINGS]
+
+
+def test_three_forms_give_the_same_records(runs):
+    assert runs["yaml"], "the blueprint printed no records"
+    assert runs["builder"] == runs["yaml"]
+    assert runs["low_level"] == runs["yaml"]
+
+
+def test_every_record_is_a_member_event(records):
+    for r in records:
+        assert r["stream_type"] == "event"
+        assert r["task"] == "member"
+        assert r["value"] == {"event_type": "member"}
+
+
+def test_records_fall_only_on_firing_times(records):
+    assert {r["sim_ts"] for r in records} <= set(FIRINGS)
+    assert max(r["sim_ts"] for r in records) <= 205
+
+
+def test_group_sizes_match_poisson_draws(records):
+    per_time = Counter(r["sim_ts"] for r in records)
+    assert [per_time.get(t, 0) for t in FIRINGS] == expected_sizes()
+
+
+def test_some_groups_are_empty_and_some_larger_than_one(records):
+    per_time = Counter(r["sim_ts"] for r in records)
+    sizes = [per_time.get(t, 0) for t in FIRINGS]
+    assert 0 in sizes  # a size of 0 starts nobody
+    assert max(sizes) > 1  # a group can hold several entities
+
+
+def test_total_is_plausible_for_mean_two(records):
+    # 40 firings x mean 2 = 80; the sum of 40 Poisson(2) has sd sqrt(80) ~ 8.9
+    assert len(records) == sum(expected_sizes())
+    assert 80 - 4 * 80**0.5 < len(records) < 80 + 4 * 80**0.5
+
+
+def test_keys_and_instances_are_consecutive(records):
+    # An empty group uses no key number, so keys run a-1 .. a-N with no gaps
+    assert [r["key"] for r in records] == [f"a-{i}" for i in range(1, len(records) + 1)]
+    assert [r["instance"] for r in records] == list(range(len(records)))
+    assert len({r["key"] for r in records}) == len(records)  # one record per entity

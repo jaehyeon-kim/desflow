@@ -1,0 +1,23 @@
+# case ST-R06: a process that releases and requests again does not pass others in the
+# queue; child a gets [0, 2, 4], child b [1, 3, 5].
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+resources:
+  res: {current_cap: 1}
+
+arrivals:
+  children:
+    initial: 2
+    spawn: round
+    attributes: {n: 0}
+
+tasks:
+  round:
+    resource: res
+    service_time: 1
+    set:
+      n: {gen: expr, expr: "attr.n + 1"}
+    payload: {event_type: acquired}
+    next:
+      when:
+        - {condition: "attr.n < 3", task: round}

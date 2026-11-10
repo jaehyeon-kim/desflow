@@ -1,0 +1,17 @@
+# case P69: leave(prob): an entity leaves with a probability (patterns/i_run.py I3).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+arrivals:
+  orders: {dist: constant, value: 1, spawn: t}
+
+tasks:
+  t:
+    payload: {e: 1}
+    next:
+      weights: {gone: 1, stay: 1}
+  gone:
+    payload: {left: 1}
+  stay:
+    payload: {stay: 1}
+
+run: {until: 5}

@@ -1,0 +1,20 @@
+# Design A3: a group size drawn for each arrival. Source:
+# research/yaml-only/programs/A3.py run([2, 0, 1]): the gap of 5 comes first, then the
+# size is drawn (2, 0, 1 in turn), then the members start. The group size is drawn from
+# a Poisson distribution of mean 2; the comparison with the program fixes the draws to
+# 2, 0 and 1 (`DRAWS` of original.py). The other scenarios (negative, float, text sizes
+# and the tie with a second source) are not in this row.
+simulation: {sim_id: A3, factor: 0, random_seed: 42}
+
+arrivals:
+  a:
+    dist: constant
+    value: 5
+    spawn: member
+    group: {gen: sample, dist: poisson, mean: 2}
+
+tasks:
+  member:
+    payload: {event_type: member}
+
+run: {until: 16}

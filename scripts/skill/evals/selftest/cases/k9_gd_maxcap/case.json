@@ -1,0 +1,26 @@
+{
+  "fault": "N9: gd_m2 with a resource of max_cap only: 'capacity 0' found no key",
+  "task": "gd-m2",
+  "tasks": "main",
+  "skill": true,
+  "counts": {
+    "K1": 0,
+    "K2": 0,
+    "K4": 0,
+    "K6": 0,
+    "K7": 0,
+    "K9": 0,
+    "K11": 0,
+    "K12": 0,
+    "K13": 0,
+    "BASE": 0
+  },
+  "notes": {
+    "K9": [
+      "capacity 0: failed by",
+      "(resources.res.current_cap = 0); the reviewer judges",
+      "two users: failed by",
+      "use takes 2: failed by"
+    ]
+  }
+}

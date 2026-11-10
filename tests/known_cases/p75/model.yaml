@@ -1,0 +1,21 @@
+# case P75: salabim Component.remaining_duration: the time left after an interrupt
+# (design V7, cause.left).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+arrivals:
+  a: {initial: 1, spawn: work}
+  i: {dist: constant, value: 4, spawn: hit, max_events: 1}
+
+tasks:
+  work:
+    service_time: 10
+    on_interrupt: abandon
+    on_interrupt_next: left
+    payload: {event_type: done}
+  left:
+    payload:
+      event_type: left
+      remaining: {gen: expr, expr: "cause.left"}
+  hit:
+    payload: {event_type: hit}
+    interrupt: {task: work, cause: x}

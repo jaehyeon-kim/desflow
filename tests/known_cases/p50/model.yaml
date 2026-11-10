@@ -1,0 +1,43 @@
+# Pattern P50: a failure clock with a repairman: a job of 10 on a preemptive machine,
+# another job of 6 on the repairman, a failure clock of 5 that needs both machine and
+# repairman for 2, until 16; the busy-time clock itself is design B1.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+resources:
+  mach: {current_cap: 1, queue: priority, preempt: true}
+  rep: {current_cap: 1, queue: priority}
+
+services:
+  w: {dist: constant, value: 10}
+  o: {dist: constant, value: 6}
+  ttf: {dist: constant, value: 5}
+  fix: {dist: constant, value: 2}
+
+arrivals:
+  jobs: {initial: 1, spawn: job}
+  others: {initial: 1, spawn: other}
+  clock: {initial: 1, spawn: tick}
+
+tasks:
+  job:
+    service: w
+    resource: mach
+    priority: 1
+    on_interrupt: resume
+    payload: {event_type: job_done}
+  other:
+    service: o
+    resource: rep
+    payload: {event_type: other_done}
+  tick:
+    service: ttf
+    payload: {event_type: tick}
+    next: repair
+  repair:
+    service: fix
+    resource: [mach, rep]
+    priority: -1
+    payload: {event_type: repaired}
+    next: tick
+
+run: {until: 16}

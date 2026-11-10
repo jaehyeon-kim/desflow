@@ -1,0 +1,43 @@
+# case GD-RS5: PreemptiveResource with Preempted.by and usage_since
+# (resources.rst:232-258).
+simulation: {sim_id: R, factor: 0, random_seed: 42}
+
+resources:
+  res: {current_cap: 1, queue: priority, preempt: true}
+
+arrivals:
+  u1:
+    initial: 1
+    spawn: user
+    attributes: {wait: 0, prio: 0}
+  u2:
+    initial: 1
+    spawn: user
+    attributes: {wait: 1, prio: 0}
+  u3:
+    initial: 1
+    spawn: user
+    attributes: {wait: 2, prio: -1}
+
+tasks:
+  user:
+    service_time: "attr.wait"
+    payload:
+      event_type: requesting
+      priority: {gen: expr, expr: "attr.prio"}
+    next: get
+  get:
+    seize: {resource: res, priority: "attr.prio"}
+    payload: {event_type: got}
+    next: hold
+  hold:
+    service_time: 3
+    release: res
+    on_interrupt: abandon
+    on_interrupt_next: preempted
+    payload: {event_type: held}
+  preempted:
+    payload:
+      event_type: preempted
+      by: {gen: expr, expr: "cause.by"}
+      usage: {gen: expr, expr: "t - cause.usage_since"}

@@ -1,0 +1,8 @@
+{
+  "fault": "N10: K2's `between`: the correct ds_a5, whose records lie outside the window in which src is off, so they do not count against 'no src arrival while src is off'",
+  "task": "ds-a5",
+  "tasks": "main",
+  "counts": {
+    "K2": 0
+  }
+}

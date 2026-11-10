@@ -1,0 +1,19 @@
+# Records of a model of the self-test whose job times are drawn at random: five jobs on
+# one machine, each taking an exponential time at a rate of 0.5 a second. The fields are
+# read by ../../../grade.py (see its docstring).
+
+task: RAND
+
+until: 30
+
+run_end: 30
+
+records:
+  - name: five jobs done
+    match: {task: job, value.event_type: done}
+    count: 5
+
+varies:
+  - name: the job times change with the seed
+    match: {task: job, value.event_type: done}
+    project: [sim_ts]

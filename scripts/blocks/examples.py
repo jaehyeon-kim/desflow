@@ -1,5 +1,6 @@
 """The blocks of the Examples pages."""
 
+from pathlib import Path
 from typing import Callable, Dict, List
 
 from .capture import event_lines, fields, yaml_records
@@ -27,7 +28,33 @@ def _example_sample(name: str, events: int) -> Callable[[], List[str]]:
     return block
 
 
+# The gallery entries that need no service: `desflow run <file> --sample 5`. The two
+# that need a broker or a database show no records.
+_GALLERY_SERVICES = {
+    "retail_records_to_three_sinks",
+    "customer_deletes_become_kafka_tombstones",
+}
+
+
+def _gallery_sample(slug: str) -> Callable[[], List[str]]:
+    """A gallery page: the first five events of `examples/gallery/<slug>.yaml`."""
+
+    def block() -> List[str]:
+        return sample(f"examples/gallery/{slug}.yaml", 5)
+
+    return block
+
+
+GALLERY_BLOCKS: Dict[str, Callable[[], List[str]]] = {
+    f"gallery-{path.stem}": _gallery_sample(path.stem)
+    for path in sorted(
+        (Path(__file__).resolve().parents[2] / "examples" / "gallery").glob("*.yaml")
+    )
+    if path.stem not in _GALLERY_SERVICES
+}
+
 BLOCKS: Dict[str, Callable[[], List[str]]] = {
+    **GALLERY_BLOCKS,
     "kafka-sample": _example_sample("kafka", 5),
     "parquet-sample": _example_sample("parquet", 4),
     "iceberg-sample": _example_sample("iceberg", 4),

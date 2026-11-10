@@ -27,6 +27,7 @@ from the code by scripts/gen_pages.py, so the tests check the generated text. Th
 skill is checked in the files scripts/gen_skill.py writes.
 """
 
+import functools
 import importlib.util
 import re
 import tomllib
@@ -38,10 +39,10 @@ ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
 SKILL = ROOT / "skills" / "desflow"
 README = (ROOT / "README.md").read_text(encoding="utf-8")
-# The Learn, User Guide, How-To and SimPy and desflow pages
+# The Learn, User Guide, How-To, SimPy and desflow, and Gallery pages
 PAGES = sorted(
     page
-    for folder in ("learn", "user-guide", "how-to", "simpy")
+    for folder in ("learn", "user-guide", "how-to", "simpy", "gallery")
     for page in (DOCS / folder).rglob("*.md")
 )
 LABELLED = re.compile(
@@ -74,6 +75,41 @@ def gen_pages():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+@functools.cache
+def _keys_pages():
+    """YAML Keys, the Generators pages and the models only the generator kinds reach."""
+    pages = gen_pages()
+    from reference_pages.generators import generator_only_models, key_pages
+
+    return (
+        pages.yaml_keys_page(),
+        pages.generator_pages(),
+        generator_only_models(),
+        key_pages,
+    )
+
+
+def generator_only() -> set:
+    """The models whose keys are on the Generators pages and not on YAML Keys."""
+    return _keys_pages()[2]
+
+
+def keys_pages(model: str) -> dict:
+    """The pages that must list the keys of a model, each with its text.
+
+    A generator kind's model is on the page of its kind. A model only the kinds reach is
+    on the page of every kind that reaches it. `Generator`, the keys every kind accepts,
+    is on the Generators index. Every other model is on YAML Keys.
+
+    Returns:
+        dict: The page path mapped to its Markdown.
+    """
+    yaml_keys, generators, only, key_pages = _keys_pages()
+    if model in only or model == "Generator":
+        return {path: generators[path] for path in key_pages(model)}
+    return {"reference/yaml-keys.md": yaml_keys}
 
 
 def _commands():
@@ -117,6 +153,6 @@ def extras():
 
 
 def families():
-    from desflow.core.distributions import DISTRIBUTIONS
+    from desflow.models.distributions import DISTRIBUTIONS
 
     return sorted(DISTRIBUTIONS)

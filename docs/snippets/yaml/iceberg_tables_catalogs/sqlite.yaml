@@ -1,0 +1,9 @@
+# A SQL catalog on SQLite, with no service, for a first run. The folder iceberg must
+# exist
+name: sqlite
+
+type: sql
+
+uri: sqlite:///iceberg/catalog.db
+
+warehouse: iceberg/warehouse

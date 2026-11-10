@@ -1,0 +1,59 @@
+"""Tests for the set_capacity model, in its YAML, Builder and Low-level forms.
+
+Each form runs as a reader runs it, in a subprocess, and prints one JSON line per
+record. The tests keep the parts of each record that the model fixes: the
+simulation time, the key, the task and the value. The wall-clock timestamp is left
+out, because it differs from one run to the next.
+
+Run with: pytest test_model.py
+"""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).resolve().parent
+DESFLOW = Path(sys.executable).parent / "desflow"
+
+FORMS = {
+    "yaml": [str(DESFLOW), "run", "model.yaml", "--stdout"],
+    "builder": [sys.executable, "builder.py"],
+    "low_level": [sys.executable, "low_level.py"],
+}
+
+# The records of the model, in the order they are published, with the run to 20 s.
+# Job a-2 starts at 2 s, when the boss raises the capacity of m from 1 to 3,
+# rather than at 5 s, when a-1 releases the only unit.
+EXPECTED = [
+    (0.0, "a-1", "job", {"status": "queued"}),
+    (0.0, "a-1", "job", {"status": "started"}),
+    (1.0, "a-2", "job", {"status": "queued"}),
+    (2.0, "boss-1", "grow", {"event_type": "grow"}),
+    (2.0, "a-2", "job", {"status": "started"}),
+    (5.0, "a-1", "job", {"event_type": "done"}),
+    (7.0, "a-2", "job", {"event_type": "done"}),
+]
+
+
+def run_form(command):
+    """Runs one form and returns its records without the wall-clock timestamp."""
+    proc = subprocess.run(
+        command, cwd=HERE, capture_output=True, text=True, check=True
+    )
+    records = []
+    for line in proc.stdout.splitlines():
+        if not line.startswith("{"):
+            continue
+        record = json.loads(line)
+        records.append(
+            (record["sim_ts"], record["key"], record["task"], record["value"])
+        )
+    return records
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_form_gives_the_expected_records(form):
+    assert run_form(FORMS[form]) == EXPECTED

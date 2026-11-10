@@ -1,0 +1,16 @@
+# case ST-E04: run(until=event) when the event never triggers and nothing is scheduled:
+# RuntimeError.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+signals:
+  never: {once: true}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
+tasks:
+  pem:
+    payload: {event_type: done}
+
+run:
+  stop: {signal: never}

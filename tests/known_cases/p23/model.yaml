@@ -1,0 +1,20 @@
+# case P23: a probability from an attribute or state (shared with design V10).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+arrivals:
+  a:
+    dist: constant
+    value: 1
+    spawn: pick
+    max_events: 6
+    attributes: {w: 0.8}
+
+tasks:
+  pick:
+    payload: {event_type: pick}
+    next:
+      weights: {fast: "attr.w", slow: "1 - attr.w"}
+  fast:
+    payload: {event_type: fast}
+  slow:
+    payload: {event_type: slow}

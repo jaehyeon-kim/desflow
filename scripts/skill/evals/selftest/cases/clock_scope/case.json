@@ -1,0 +1,18 @@
+{
+  "fault": "round 4 S8: clocks.json lists only asserts that read a clock name of their own test",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "BASE": 0
+  },
+  "facts": {
+    "clocks.json": [
+      "time.monotonic() - started < 60"
+    ]
+  },
+  "facts_absent": {
+    "clocks.json": [
+      "started[-1] == 5"
+    ]
+  }
+}

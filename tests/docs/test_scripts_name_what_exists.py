@@ -1,9 +1,8 @@
 """Every script under examples/ and docs/snippets/ names only what desflow has.
 
 The tests run these scripts, but not every line of them: an example's `run()` wires
-real connectors and is never called, and docs/snippets/hot_rolling/ imports another
-project's modules, so it is never imported at all. A rename in desflow would leave
-those lines stale without any test failing. So each file is parsed, every name it
+real connectors and is never called, so it is never run as a whole. A rename in desflow
+would leave those lines stale without any test failing. So each file is parsed, every name it
 imports from desflow must exist, and every method it calls on the builder (`app`,
 `context`), the environment (`env`, `context.env`) or the registry must exist on that
 class.
@@ -87,7 +86,7 @@ def _missing_names(path):
 def test_scripts_name_only_what_exists():
     scripts = list(public_api.scripts())
     # A path that matched nothing would make the check pass without reading a file.
-    assert any("hot_rolling" in p.parts for p in scripts)
+    assert any("examples" in p.parts for p in scripts)
     assert len(scripts) > 30
     missing = [name for path in scripts for name in _missing_names(path)]
     assert missing == [], "; ".join(missing)

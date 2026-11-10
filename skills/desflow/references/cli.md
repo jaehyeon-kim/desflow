@@ -2,6 +2,20 @@
 
 The help of every `desflow` command, generated from the command's code.
 
+- [`desflow`](#desflow)
+- [`desflow run`](#desflow-run)
+- [`desflow check`](#desflow-check)
+- [`desflow test`](#desflow-test)
+- [`desflow explain`](#desflow-explain)
+- [`desflow experiment`](#desflow-experiment)
+- [`desflow report`](#desflow-report)
+- [`desflow fit`](#desflow-fit)
+- [`desflow dist`](#desflow-dist)
+- [`desflow schema`](#desflow-schema)
+- [`desflow examples`](#desflow-examples)
+- [`desflow examples list`](#desflow-examples-list)
+- [`desflow examples get`](#desflow-examples-get)
+
 ## `desflow`
 
 ```text
@@ -16,6 +30,8 @@ Options:
 
 Commands:
   run         Build the simulation in FILE and run it, or run replications...
+  check       Check that each blueprint or builder file in FILE...
+  test        Run the tests of each file in FILE...
   explain     Show the model in SOURCE as a graph, with its utilisation,...
   experiment  Run the experiment in FILE and write its artifacts and report.
   report      Build the report of an experiment again from the artifacts in...
@@ -52,8 +68,12 @@ Usage: desflow run [OPTIONS] {FILE}
 
   Build the simulation in FILE and run it, or run replications of it.
 
+  FILE is a YAML blueprint. With --sample it may also be a builder file, a `.py`
+  file with a module-level `SimulationContext`, which is imported as `desflow
+  test` imports it, so its `if __name__ == "__main__":` block does not run.
+
 Arguments:
-  FILE  The blueprint file.  [required]
+  FILE  The blueprint file, or a builder file with --sample.  [required]
 
 Options:
   --until TIME      Simulation time to stop at, in seconds or as a duration such
@@ -80,6 +100,10 @@ Options:
                     readings as a JSON line, instead of writing to the file's
                     sinks. The lag readings describe the wall clock, not the
                     model.
+  --var NAME=VALUE  Fill ${NAME} in the file and in the files it includes,
+                    before the environment does. Repeat it for more.
+  --watch           Run in a child process, and run again whenever the file or a
+                    .py file beside it changes. Needs the watch extra.
   --help            Show this message and exit.
 
   Examples:
@@ -100,6 +124,101 @@ Options:
     statistic
 
     $ desflow run shop.yaml --replications 20 --seed 7
+
+    # Print the first five events again whenever the file changes
+
+    $ desflow run shop.yaml --sample 5 --watch
+```
+
+## `desflow check`
+
+```text
+Usage: desflow check [OPTIONS] {FILE...}
+
+  Check that each blueprint or builder file in FILE... builds, without running
+  it.
+
+  It reports what `desflow run` reports before the clock starts: YAML errors,
+  unknown keys, missing names, unset variables, `!python` references that cannot
+  be imported, and connectors whose extra is missing or whose settings are
+  refused. A Parquet, Jsonl or Iceberg connector, in a blueprint or a builder
+  file, is refused when its extra is not installed. It also reports a `tests`
+  entry with no seed in a file with none, as `desflow test` does. It warns about
+  a run with no end: an arrival with a `dist` or a `gap` and no `max_events`, in
+  a file with no `run.until`, `run.stop` or `run.segments`. It does not call
+  `run.before`, contact a broker, a database or a catalog, or run a `!python`
+  function. Importing a `!python` module runs its top-level code, as `desflow
+  run` does. A builder file, a `.py` file with a module-level
+  `SimulationContext`, is imported as `desflow test` imports it, so an import
+  whose extra is missing is reported; its `if __name__ == "__main__":` block
+  does not run. An error or a `sys.exit` of the file's code is one line, with
+  the file, its line and the error's type. Prints `ok FILE (sim_id ID)` for each
+  valid file and every error of an invalid one, and exits 1 if any file is
+  invalid.
+
+Arguments:
+  FILE...  The blueprint files, or builder files.  [required]
+
+Options:
+  --var NAME=VALUE  Fill ${NAME} in the files and in the files they include,
+                    before the environment does. Repeat it for more.
+  --help            Show this message and exit.
+
+  Examples:
+
+    # Check one blueprint without running it
+
+    $ desflow check shop.yaml
+
+    # Check every blueprint in a folder, as a pre-commit hook does
+
+    $ desflow check examples/*.yaml
+
+    # Check a builder file, which defines its model in Python
+
+    $ desflow check shop.py
+```
+
+## `desflow test`
+
+```text
+Usage: desflow test [OPTIONS] {FILE...}
+
+  Run the tests of each file in FILE... and report the statistics that differ.
+
+  A test names a seed, an end time and the statistics its run must give, such as
+  tasks.pack_order.finished. It runs the model once, unpaced, with no ingress
+  and no egress, so a test contacts no service. A test states its measures at
+  one seed in one version of desflow: a new release may draw its random numbers
+  differently, so exact seeded values are not promised across versions. Run it
+  with --fix after an upgrade or a deliberate change and read the changes. A
+  builder file reads its tests from a tests.yaml in its folder.
+
+  Prints ok for each passing test, and each difference of a failing one. Exits 1
+  if any test fails.
+
+Arguments:
+  FILE...  The blueprint files, or builder files with a tests.yaml beside them.
+           [required]
+
+Options:
+  --fix             Write the statistics the runs gave into the expect values
+                    that differ, and into a test with none, instead of reporting
+                    differences. Read the changes before you keep them.
+  --var NAME=VALUE  Fill ${NAME} in a blueprint and in the files it includes,
+                    before the environment does. Repeat it for more.
+  --help            Show this message and exit.
+
+  Examples:
+
+    # Check the tests in a blueprint
+
+    $ desflow test shop.yaml
+
+    # Write the statistics the runs gave into the expect values, then read
+    them
+
+    $ desflow test shop.yaml --fix
 ```
 
 ## `desflow explain`
@@ -265,6 +384,7 @@ Options:
   --mode X   The most likely value.
   --shape X  The shape.
   --scale X  The scale.
+  --p X      The chance of success on each try.
   --help     Show this message and exit.
 
   Examples:

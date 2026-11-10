@@ -1,0 +1,14 @@
+# case GD-RS2: the with form (resources.rst:132-140).
+simulation: {sim_id: R, factor: 0, random_seed: 42}
+
+resources:
+  res: {current_cap: 1}
+
+arrivals:
+  a: {initial: 1, spawn: user}
+
+tasks:
+  user:
+    resource: res
+    service_time: 1
+    payload: {event_type: used}

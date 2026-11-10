@@ -1,0 +1,19 @@
+# A job takes an exponential time with mean 2 seconds on one machine.
+simulation: {sim_id: R, factor: 0, random_seed: 42}
+
+resources:
+  m: {current_cap: 1, max_cap: 1}
+
+services:
+  work: {dist: exponential, rate: 0.5}
+
+arrivals:
+  a: {dist: constant, value: 1 s, spawn: job, max_events: 5, first_at: 0}
+
+tasks:
+  job:
+    resource: m
+    service: work
+    payload: {event_type: done}
+
+run: {until: 30 s}

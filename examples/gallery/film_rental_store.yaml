@@ -1,0 +1,75 @@
+# A film rental store: films, customers, rentals, payments and returns.
+#
+# The tables have the shape of the Sakila sample database. A store has 20 films and 15
+# customers at the start. About one rental starts every 8 minutes, for a week. A rental
+# names a film and a customer that exist, is paid for at once at the film's rental rate,
+# and is returned 1 to 7 days later.
+#
+# Needs: the fake extra.
+# Run it with: desflow run examples/gallery/film_rental_store.yaml
+
+simulation:
+  sim_id: Store
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  films: {initial: 20, spawn: film}
+  customers: {initial: 15, spawn: customer}
+  rentals: {dist: exponential, rate: 0.002, spawn: rental}
+
+tasks:
+  film:
+    payload:
+      film_id: {gen: sequence, start: 1}
+      title:
+        gen: format
+        template: "{adjective} {noun}"
+        names:
+          adjective: {gen: one_of, choices: [Silent, Broken, Golden, Hidden, Last]}
+          noun: {gen: one_of, choices: [River, Garden, Highway, Letter, Harbour]}
+      rating:
+        gen: weighted
+        options: {G: 2, PG: 3, PG-13: 3, R: 3, NC-17: 1}
+      rental_rate: {gen: one_of, choices: [0.99, 2.99, 4.99]}
+      length: {gen: integer, bounds: [60, 180]}
+
+  customer:
+    payload:
+      customer_id: {gen: sequence, start: 1}
+      first_name: {gen: fake, method: first_name}
+      last_name: {gen: fake, method: last_name}
+      active: {gen: boolean, p: 0.9}
+
+  rental:
+    vars:
+      film: {gen: lookup, task: film}
+    payload:
+      rental_id: {gen: sequence, start: 1}
+      rental_date: {gen: now}
+      film_id: {gen: var, name: film, path: film_id}
+      rental_rate: {gen: var, name: film, path: rental_rate}
+      customer_id: {gen: lookup, task: customer, path: customer_id}
+    next: payment
+
+  payment:
+    payload:
+      rental_id: {gen: upstream, path: rental_id}
+      customer_id: {gen: upstream, path: customer_id}
+      amount: {gen: upstream, path: rental_rate}
+      payment_date: {gen: now}
+    next: return
+
+  return:
+    # 1 to 7 days, in seconds
+    wait:
+      timeout: {gen: uniform, low: 86400, high: 604800}
+    payload:
+      rental_id: {gen: upstream, path: rental_id}
+      return_date: {gen: now}
+
+run: {until: 7 days}

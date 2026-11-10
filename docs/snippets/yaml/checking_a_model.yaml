@@ -1,9 +1,6 @@
 # The Checking a Model tutorial: the shop with fixed inputs, to compare with a trace
 # worked by hand. Run it with: desflow run checking_a_model.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 # --8<-- [start:fixed]
 # Three packers; an order arrives every second and takes 4 seconds to pack
@@ -27,7 +24,6 @@ tasks:
 stats: {level: typical, interval: 1 h}
 
 egress:
-  - type: Console
+  - {type: Console}
 
-run:
-  until: 10
+run: {until: 10}

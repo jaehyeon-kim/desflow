@@ -1,19 +1,32 @@
 import asyncio
+import importlib
 import logging
 import queue
+from collections import Counter
 from collections.abc import Mapping
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from desflow.connectors.egress.base import (
     BaseEgress,
     drop_reserved_keys,
     group_rows,
+    keep_keyed,
+    load_arrow,
+    require_packages,
+    warn_skipped,
+    write_error,
     parse_iso_columns,
     rows_table,
 )
 
 logger = logging.getLogger(__name__)
 
+
+TABLE_POLICIES = ("create", "drop_and_create", "manual")
+
+# PyIceberg's catalog types whose module, under `pyiceberg.catalog`, has another
+# name; every other type's module is named after the type
+_CATALOG_MODULES = {"in-memory": "memory", "bigquery": "bigquery_metastore"}
 
 # Iceberg's primitive type names, as accepted in a `schemas` mapping, and the
 # PyArrow type each one is created with.
@@ -92,6 +105,65 @@ def _time_columns(schema: Any, pa: Any) -> Dict[str, str]:
     return columns
 
 
+def _truncates(value: Any, kind: Any, pa: Any) -> bool:
+    """
+    Tells whether converting `value` to the Arrow type `kind` would drop a fraction.
+
+    `pa.Table.from_pylist` with a schema turns 15.5 into 15 for an integer column
+    and raises nothing. It looks inside a struct and a list for the same case.
+
+    Args:
+        value (Any): A Python value of a row.
+        kind (Any): The `pyarrow.DataType` of its column.
+        pa (Any): Injected reference to the `pyarrow` module.
+
+    Returns:
+        bool: True when `value` is a float with a fraction, or not finite, for an
+            integer type.
+    """
+    if isinstance(value, float) and pa.types.is_integer(kind):
+        return not value.is_integer()
+    if isinstance(value, dict) and pa.types.is_struct(kind):
+        return any(
+            _truncates(item, kind.field(name).type, pa)
+            for name, item in value.items()
+            if kind.get_field_index(name) >= 0
+        )
+    if isinstance(value, list) and (
+        pa.types.is_list(kind) or pa.types.is_large_list(kind)
+    ):
+        return any(_truncates(item, kind.value_type, pa) for item in value)
+    return False
+
+
+def _rows_to_table(records: list, schema: Any, pa: Any) -> Any:
+    """
+    Builds the Arrow table of a table's rows in the table's schema.
+
+    Args:
+        records (list): The rows of one table.
+        schema (Any): The table's PyArrow schema.
+        pa (Any): Injected reference to the `pyarrow` module.
+
+    Returns:
+        Any: The `pyarrow.Table`.
+
+    Raises:
+        ValueError: A float with a fraction would go into an integer column. The
+            caller logs it as a batch that could not be written, so no value is
+            truncated.
+    """
+    for field in schema:
+        for number, record in enumerate(records, start=1):
+            if _truncates(record.get(field.name), field.type, pa):
+                raise ValueError(
+                    f"row {number} holds {record[field.name]!r} for the "
+                    f"{field.type} column '{field.name}', which would lose "
+                    f"its fraction"
+                )
+    return pa.Table.from_pylist(records, schema=schema)
+
+
 class IcebergStorageEgress(BaseEgress):
     """
     Apache Iceberg table writer for lakehouse ingestion patterns.
@@ -118,6 +190,15 @@ class IcebergStorageEgress(BaseEgress):
     missing column is written as null. Within one flush, the last record for a key wins. An upsert
     flush is still one commit, but it can add up to three snapshots: an overwrite
     and two appends.
+
+    An event whose `value` holds `__table__`, a `namespace.table` identifier, is written
+    to that table, and the key is removed from the row. This replaces a
+    `table_router` for the common case. A `table_router` wins over `__table__`, and a
+    record with no `__table__` goes to `default_table`. An entry with `upsert_keys` is
+    keyed. It skips a record that has no destination, and a record with a null or
+    missing key column of its table, and it logs one warning at the end of each flush
+    with the counts skipped. Before 1.0.0 such a record stopped the batch with an
+    error.
 
     The catalog is supplied by the caller, either as a built `Catalog` or as a
     mapping of PyIceberg catalog properties that is passed to `load_catalog`. The
@@ -196,6 +277,7 @@ class IcebergStorageEgress(BaseEgress):
         schemas: Optional[Dict[str, Any]] = None,
         locations: Optional[Dict[str, str]] = None,
         upsert_keys: Optional[Dict[str, list]] = None,
+        table_policy: str = "create",
     ):
         """
         Initializes the IcebergStorageEgress with a catalog and routing settings.
@@ -221,19 +303,39 @@ class IcebergStorageEgress(BaseEgress):
                 `unique-table-location` set otherwise appends a random suffix.
             upsert_keys: Optional key columns per table identifier. A table named
                 here is written with `upsert` on those columns; any other table is
-                appended to.
+                appended to. An entry with `upsert_keys` is keyed: it skips a record
+                that has no destination (no `__table__`, no router and no
+                `default_table`), and a record with a null or missing key column of its
+                table, and warns once at the end of each flush with the counts.
+            table_policy: What the sink does about a table at its first write.
+                `create`, the default, creates the namespace and the table when they
+                do not exist. `drop_and_create` drops the table if it exists and
+                creates it again, once per run. `manual` creates nothing and fails
+                the write if the table does not exist.
 
         Raises:
-            ValueError: If neither `default_table` nor `table_router` is given, since
-                the connector would then have nowhere to write.
-            ImportError: If `upsert_keys` is given and the installed pyiceberg is
+            ValueError: If `table_policy` is not one of its three words, or if none
+                of `default_table`, `table_router`, `schemas`, `locations` and
+                `upsert_keys` is given, since the connector would then have nowhere
+                to write.
+            ImportError: If pyiceberg or pyarrow is not installed (the `iceberg`
+                extra), or if `upsert_keys` is given and the installed pyiceberg is
                 older than 0.9.0, which added `Table.upsert`.
         """
-        if default_table is None and table_router is None:
+        require_packages("IcebergStorageEgress", "iceberg", "pyiceberg", "pyarrow")
+        if table_policy not in TABLE_POLICIES:
             raise ValueError(
-                "IcebergStorageEgress needs default_table or table_router; "
-                "without one it has no table to write to"
+                f"table_policy '{table_policy}' is not one of {', '.join(TABLE_POLICIES)}"
             )
+        # An entry that names its tables routes by `__table__` alone
+        names_tables = bool(schemas or locations or upsert_keys)
+        if default_table is None and table_router is None and not names_tables:
+            raise ValueError(
+                "IcebergStorageEgress needs default_table or table_router, or "
+                "tables named in schemas, locations or upsert_keys to route "
+                "__table__ to; without one it has no table to write to"
+            )
+        self.table_policy = table_policy
         # A mapping of properties is loaded on the first write rather than here,
         # because a REST catalog contacts its server as soon as it is built.
         self.catalog_properties: Optional[Dict[str, Any]] = None
@@ -250,6 +352,7 @@ class IcebergStorageEgress(BaseEgress):
         # A table whose schema the caller gave keeps it; an inferred one gains the
         # columns later batches add
         self._pinned = set(self.schemas)
+        self._declared_schemas = dict(self.schemas)
         self.locations: Dict[str, str] = dict(locations or {})
         self.upsert_keys: Dict[str, list] = {
             identifier: list(keys) for identifier, keys in (upsert_keys or {}).items()
@@ -267,7 +370,42 @@ class IcebergStorageEgress(BaseEgress):
         # Loaded tables, kept so a batch costs one append rather than a catalog
         # round trip as well. pyiceberg retries the commit if the handle is stale,
         # so another writer changing the table does not lose this one's records.
+        # `run` empties it at the start of each run.
         self._tables: Dict[str, Any] = {}
+
+    def _start_run(self) -> None:
+        """Forgets what the last run learned: the loaded tables, the schemas read back
+        from them, and a catalog built from `catalog_properties`. The table policy then
+        applies to the first write of every run, as `drop_and_create` says."""
+        self._tables = {}
+        self.schemas = dict(self._declared_schemas)
+        if self.catalog_properties is not None:
+            self.catalog = None
+
+    def _load_libraries(self) -> None:
+        """Imports `pyarrow` and what it loads on its first table, and
+        `pyiceberg.io.pyarrow`, which the first write imports. When the catalog is
+        built from `catalog_properties`, it also imports `pyiceberg.catalog` and the
+        module of the catalog's type, such as `pyiceberg.catalog.sql`."""
+        load_arrow("pyiceberg.io.pyarrow")
+        if self.catalog is None:
+            try:
+                from pyiceberg.catalog import CatalogType, infer_catalog_type
+
+                name, properties = self._catalog_arguments()
+                name = name or "default"
+                given = properties.get("type")
+                if given:
+                    catalog_type = str(given).lower()
+                else:
+                    inferred = infer_catalog_type(name, properties)
+                    catalog_type = inferred.value if inferred else ""
+                if catalog_type in {kind.value for kind in CatalogType}:
+                    module = _CATALOG_MODULES.get(catalog_type, catalog_type)
+                    importlib.import_module(f"pyiceberg.catalog.{module}")
+            except (ImportError, ValueError):
+                # `run` builds the catalog and reports what is missing or wrong
+                return
 
     async def run(self, egress_queue: queue.Queue) -> None:
         """
@@ -296,21 +434,22 @@ class IcebergStorageEgress(BaseEgress):
                 "pyarrow is required to build the batches. pip install desflow[iceberg]"
             )
 
+        self._start_run()
         batches_processed = 0
 
         try:
             while True:
                 try:
                     batch = egress_queue.get_nowait()
-                    self.active_tasks = getattr(self, "active_tasks", 0) + 1
                     written = 0
-                    try:
-                        written = await asyncio.to_thread(self._write_batch, batch, pa)
-                    except Exception as exc:
-                        # A batch that fails is logged, and the sink goes on
-                        logger.error(f"Iceberg Writer: batch not written: {exc}")
-                    finally:
-                        self.active_tasks -= 1
+                    with self._writing():
+                        try:
+                            written = await asyncio.to_thread(
+                                self._write_batch, batch, pa
+                            )
+                        except Exception as exc:
+                            # A batch that fails is logged, and the sink goes on
+                            logger.error(f"Iceberg Writer: batch not written: {exc}")
                     if not written:
                         continue
                     # Only what was written counts; log a heartbeat every 10
@@ -347,40 +486,51 @@ class IcebergStorageEgress(BaseEgress):
         Returns:
             int: The commits made, one per table written.
 
-        Raises:
-            ValueError: If an identifier names no namespace, or a record for an
-                upserted table lacks a key column. A batch the table refuses is
-                logged at ERROR instead.
+        A record at fault is skipped alone, with a warning: one routed to a table
+        with no namespace, or one with a null or missing upsert key. The other tables
+        and records are written.
         """
-        # A table routes by no reserved key, so it writes none
-        batch = drop_reserved_keys(batch, self)
-        grouped_batches = group_rows(batch, self.table_router, self.default_table)
+        # A table routes by __table__, and writes no other reserved key
+        batch = drop_reserved_keys(batch, self, keep=("__table__",))
+        skipped: Counter = Counter()
+        grouped_batches = group_rows(
+            batch,
+            self.table_router,
+            self.default_table,
+            self.envelope,
+            route_key="__table__",
+            require_route=self.default_table is None and self.table_router is None,
+            skipped=skipped,
+        )
 
         written = 0
-        for identifier, records in grouped_batches.items():
-            if "." not in identifier:
-                raise ValueError(
-                    f"'{identifier}' names no namespace; Iceberg identifiers are "
-                    "'namespace.table'"
-                )
-            keys = self.upsert_keys.get(identifier)
-            if keys:
-                missing = sorted({k for r in records for k in keys if r.get(k) is None})
-                if missing:
-                    # A null key never matches, so a rerun would insert the record again.
-                    raise ValueError(
-                        f"Records for {identifier} lack the upsert key column(s) {missing}"
+        try:
+            for identifier, records in grouped_batches.items():
+                if "." not in identifier:
+                    # Only the records of this table are at fault
+                    skipped["no_namespace"] += len(records)
+                    logger.warning(
+                        f"'{identifier}' names no namespace; Iceberg identifiers are "
+                        "'namespace.table'"
                     )
-            try:
-                self._write_table(identifier, records, keys, pa)
-            except Exception as exc:
-                # One batch the table refuses does not stop the sink
-                logger.error(
-                    f"Iceberg Writer: could not write {len(records)} rows to "
-                    f"{identifier}: {exc}"
-                )
-                continue
-            written += 1
+                    continue
+                keys = self.upsert_keys.get(identifier)
+                if keys:
+                    records = keep_keyed(records, keys, skipped)
+                    if not records:
+                        continue
+                try:
+                    self._write_table(identifier, records, keys, pa)
+                except Exception as exc:
+                    # One batch the table refuses does not stop the sink
+                    logger.error(
+                        f"Iceberg Writer: could not write {len(records)} rows to "
+                        f"{identifier}: {write_error(exc, records, self.schemas.get(identifier))}"
+                    )
+                    continue
+                written += 1
+        finally:
+            warn_skipped(self, skipped, "__table__")
         return written
 
     def _write_table(
@@ -404,12 +554,10 @@ class IcebergStorageEgress(BaseEgress):
         )
         if keys:
             latest = {tuple(r[k] for k in keys): r for r in records}
-            df = pa.Table.from_pylist(
-                list(latest.values()), schema=self.schemas[identifier]
-            )
+            df = _rows_to_table(list(latest.values()), self.schemas[identifier], pa)
             table.upsert(df, join_cols=keys)
         else:
-            table.append(pa.Table.from_pylist(records, schema=self.schemas[identifier]))
+            table.append(_rows_to_table(records, self.schemas[identifier], pa))
 
     def _resolve_table(self, identifier: str, records: list, pa: Any) -> Any:
         """
@@ -418,7 +566,9 @@ class IcebergStorageEgress(BaseEgress):
         The schema comes from `schemas` when the caller pinned one, and from every
         row of this first batch otherwise. Either way the created table's own schema
         becomes the cast target for later batches, so a table that already existed
-        governs rather than the records that happen to arrive first.
+        governs rather than the records that happen to arrive first. `table_policy`
+        decides whether the namespace and table are created (`create`), the table is
+        dropped first (`drop_and_create`), or the table must exist (`manual`).
 
         Args:
             identifier (str): A `namespace.table` identifier.
@@ -443,10 +593,17 @@ class IcebergStorageEgress(BaseEgress):
                 [field for field in inferred if not pa.types.is_null(field.type)]
             )
         catalog = self._load_catalog()
-        catalog.create_namespace_if_not_exists(namespace)
-        table = catalog.create_table_if_not_exists(
-            identifier, schema=schema, location=self.locations.get(identifier)
-        )
+        if self.table_policy == "manual":
+            table = catalog.load_table(identifier)
+        else:
+            catalog.create_namespace_if_not_exists(namespace)
+            if self.table_policy == "drop_and_create" and catalog.table_exists(
+                identifier
+            ):
+                catalog.drop_table(identifier)
+            table = catalog.create_table_if_not_exists(
+                identifier, schema=schema, location=self.locations.get(identifier)
+            )
 
         # Read the cast target back from the table rather than trusting what was sent,
         # because a table that already existed keeps the schema it was created with.
@@ -464,10 +621,20 @@ class IcebergStorageEgress(BaseEgress):
         if self.catalog is None:
             from pyiceberg.catalog import load_catalog
 
-            properties = {
-                key: _catalog_property(value)
-                for key, value in (self.catalog_properties or {}).items()
-            }
-            name = properties.pop("name", None)
+            name, properties = self._catalog_arguments()
             self.catalog = load_catalog(name, **properties)
         return self.catalog
+
+    def _catalog_arguments(self) -> Tuple[Optional[str], Dict[str, Any]]:
+        """
+        Renders `catalog_properties` as PyIceberg reads them.
+
+        Returns:
+            Tuple[Optional[str], Dict[str, Any]]: The catalog's `name`, or None when
+            none is given, and the other properties, each scalar as a string.
+        """
+        properties = {
+            key: _catalog_property(value)
+            for key, value in (self.catalog_properties or {}).items()
+        }
+        return properties.pop("name", None), properties

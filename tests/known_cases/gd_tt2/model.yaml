@@ -1,0 +1,37 @@
+# case GD-TT2: three interrupts at one time, each with its own cause
+# (tests/test_interrupts.py:29).
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  fox: {initial: 1, spawn: fox}
+  boggis:
+    initial: 1
+    spawn: farmer
+    attributes: {name: boggis}
+  bunce:
+    initial: 1
+    spawn: farmer
+    attributes: {name: bunce}
+  beans:
+    initial: 1
+    spawn: farmer
+    attributes: {name: beans}
+
+tasks:
+  fox:
+    service_time: 10
+    on_interrupt: restart
+    on_interrupt_run: note_cause
+    payload: {event_type: ran}
+    next: fox
+  note_cause:
+    payload:
+      event_type: interrupted
+      cause: {gen: expr, expr: "cause.value"}
+  farmer:
+    payload: {event_type: farmer}
+    interrupt:
+      task: fox
+      cause: {gen: expr, expr: "attr.name"}
+
+run: {until: 20}

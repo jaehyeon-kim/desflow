@@ -1,0 +1,64 @@
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).parent
+DESFLOW = Path(sys.executable).with_name("desflow")
+
+
+def _parse(text):
+    rows = []
+    for line in text.splitlines():
+        if line.startswith("{"):
+            r = json.loads(line)
+            if r.get("path_id") == "system.simulation.lag_seconds":
+                continue  # wall-clock lag, differs from run to run
+            r.pop("timestamp", None)
+            rows.append(r)
+    return rows
+
+
+def _run(args):
+    out = subprocess.run(args, cwd=HERE, capture_output=True, text=True, timeout=120)
+    assert out.returncode == 0, out.stderr
+    return _parse(out.stdout)
+
+
+@pytest.fixture(scope="module")
+def forms():
+    return {
+        "yaml": _run([str(DESFLOW), "run", "model.yaml"]),
+        "builder": _run([sys.executable, "builder.py"]),
+        "low": _run([sys.executable, "low_level.py"]),
+    }
+
+
+def test_forms_agree(forms):
+    assert forms["yaml"] == forms["builder"] == forms["low"]
+    assert forms["yaml"]
+
+
+def test_timeline(forms):
+    ev = [
+        (r["sim_ts"], r["key"], r["value"].get("status") or r["value"]["event_type"])
+        for r in forms["yaml"]
+        if r.get("stream_type") == "event"
+    ]
+    assert ev == [
+        (0.0, "a-1", "queued"),
+        (0.0, "a-1", "started"),
+        (1.0, "a-2", "queued"),
+        (2.0, "boss-1", "grow"),
+        (2.0, "a-2", "started"),  # the raised capacity lets the waiting job in
+        (5.0, "a-1", "done"),
+        (7.0, "a-2", "done"),
+    ]
+
+
+def test_second_job_not_delayed_to_first_release(forms):
+    done = {r["key"]: r["sim_ts"] for r in forms["yaml"]
+            if r.get("value", {}).get("event_type") == "done"}
+    assert done == {"a-1": 5.0, "a-2": 7.0}  # with capacity 1 it would be 10.0

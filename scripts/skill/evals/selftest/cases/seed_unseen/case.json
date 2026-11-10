@@ -1,0 +1,14 @@
+{
+  "fault": "N3, round 4 S5: a Builder seed no pattern can change (`random_seed=SEEDS[0]`); the seed is set through desflow, so the pair is compared at three seeds with no note",
+  "task": "rand",
+  "tasks": "own",
+  "counts": {
+    "K4": 0
+  },
+  "notes_absent": {
+    "K4": [
+      "own seed only",
+      "no literal seed"
+    ]
+  }
+}

@@ -3,15 +3,18 @@
 from typing import Dict, List, Tuple
 
 from desflow.config import MIN_DELAY
+from desflow.explain import features
 from desflow.explain.models import VERIFY_HINT, ArrivalResult, Graph, Node
+
+
+_NO_RATE = "a gap of 0 has no rate"
 
 
 def moments(parameters: Dict) -> Tuple[float, float]:
     """The mean and variance of the values the sampler gives for a distribution.
 
-    The sampler raises every draw below its minimum delay to it, so a normal's mean
-    is the clamped normal's (`clamped_normal_moments`), and a constant below the
-    minimum delay is the minimum delay.
+    The sampler raises every negative draw to 0, so a normal's mean is the clamped
+    normal's (`clamped_normal_moments`), and a negative constant is 0.
 
     Args:
         parameters: The distribution, such as `{"dist": "exponential", "rate": 2}`.
@@ -19,7 +22,7 @@ def moments(parameters: Dict) -> Tuple[float, float]:
     Returns:
         Tuple[float, float]: The effective mean and variance.
     """
-    from desflow.core.distributions import clamped_normal_moments, get_distribution
+    from desflow.models.distributions import clamped_normal_moments, get_distribution
     from desflow.models.params import DistributionConfig
 
     config = DistributionConfig(**parameters)
@@ -40,18 +43,52 @@ def arrival_results(graph: Graph) -> List[ArrivalResult]:
         graph: The graph.
 
     Returns:
-        List[ArrivalResult]: One per arrival, a replayed one unknown.
+        List[ArrivalResult]: One per arrival; a replayed one, one with computed
+            gaps and one with `initial` alone are unknown.
     """
     results = []
     for node in graph.nodes:
         if node.kind != "arrival":
             continue
         if node.distribution is None:
+            what = "replayed rows"
+            if features.COMPUTED_GAPS in node.features:
+                what = "computed gaps"
+            elif features.INITIAL_ONLY in node.features:
+                what = "it starts only its initial entities, at the start of the run"
+            results.append(ArrivalResult(name=node.label, reason=what + VERIFY_HINT))
+            continue
+        if features.GROUPED_ARRIVALS in node.features:
             results.append(
-                ArrivalResult(name=node.label, reason="replayed rows" + VERIFY_HINT)
+                ArrivalResult(
+                    name=node.label,
+                    reason="group starts a batch at each arrival, which is not a "
+                    "Poisson input" + VERIFY_HINT,
+                )
+            )
+            continue
+        if features.INACTIVE_ARRIVAL in node.features:
+            results.append(
+                ArrivalResult(
+                    name=node.label,
+                    reason="it starts off (active: false), so its rate holds only "
+                    "once something turns it on" + VERIFY_HINT,
+                )
+            )
+            continue
+        if features.LIMITED_ARRIVALS in node.features:
+            results.append(
+                ArrivalResult(
+                    name=node.label,
+                    reason="count, keys, key or max_events change how many entities "
+                    "arrive" + VERIFY_HINT,
+                )
             )
             continue
         mean, variance = moments(node.distribution)
+        if mean == 0:
+            results.append(ArrivalResult(name=node.label, reason=_NO_RATE))
+            continue
         results.append(
             ArrivalResult(name=node.label, rate=1.0 / mean, ca2=variance / mean**2)
         )

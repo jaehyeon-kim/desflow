@@ -78,14 +78,14 @@ Each form runs the shop for an hour of simulated time at `factor=0.0`, so the ru
       - type: Parquet
         config:
           default_path: ${STORAGE_BUCKET:-output}/parquet/events.parquet
-          filesystem: !python cloud_storage_stores.filesystem
+          filesystem: !include cloud_storage_stores/${STORAGE:-local}.yaml
       - type: Jsonl
         config:
           default_path: ${STORAGE_BUCKET:-output}/jsonl/events.jsonl
-          filesystem: !python cloud_storage_stores.filesystem
+          filesystem: !include cloud_storage_stores/${STORAGE:-local}.yaml
     ```
 
-    The blueprint loads the mapping of `cloud_storage_stores.py` with `!python`, so `STORAGE` picks the store in every form. `${STORAGE_BUCKET:-output}` reads the bucket from the same variable.
+    The YAML form keeps the same four mappings in the files `local.yaml`, `s3.yaml`, `gcs.yaml` and `azure.yaml` of the folder `cloud_storage_stores`. `!include cloud_storage_stores/${STORAGE:-local}.yaml` reads the one that `STORAGE` names, so the variable picks the store in every form. `${STORAGE_BUCKET:-output}` reads the bucket from its variable in the same way.
 
 === "Builder"
 
@@ -139,12 +139,28 @@ Each form runs the shop for an hour of simulated time at `factor=0.0`, so the ru
     def pack_order(env, packers, sampler, key, task_id):
         path_id = "Shop.service.packing"
         env.publish_event(
-            key, {"path_id": path_id, "status": "queued"}, "pack_order", task_id
+            key,
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "queued",
+            },
+            "pack_order",
+            task_id,
         )
         with packers.request() as unit:
             yield unit
             env.publish_event(
-                key, {"path_id": path_id, "status": "started"}, "pack_order", task_id
+                key,
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "started",
+                },
+                "pack_order",
+                task_id,
             )
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
             # The finished event is the order record
@@ -168,6 +184,134 @@ Each form runs the shop for an hour of simulated time at `factor=0.0`, so the ru
         env.process(orders(env, packers, Sampler(seed=42)))
         return env
     ```
+
+### Write a File for Each Day
+
+A record whose `__path__` key holds a file path is written to that file, and the key is removed from the row. `{gen: format_time, format: ...}` builds the path from the simulated time, so each day goes to a file of its own. The shop below packs an order every hour for two days from 1 January 2026:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/cloud_storage_daily.yaml:payload"
+    payload:
+      order_id: {gen: sequence}
+      amount: 19.99
+      # The file of the order: the day it was packed, in the simulated calendar
+      __path__:
+        gen: format_time
+        format: "${STORAGE_BUCKET:-output}/daily/%Y-%m-%d.jsonl"
+    ```
+
+    The same file gives the sink a `default_path` and `!include`s the store, as the first shop does.
+
+=== "Builder"
+
+    ```python title="docs/snippets/guides/cloud_storage_daily.py:shop"
+    import logging
+    from datetime import datetime, timezone
+
+    from cloud_storage_stores import bucket, filesystem
+
+    from desflow import JsonlStorageEgress, SimulationContext
+    from desflow.values import Template
+
+
+    def build_shop() -> SimulationContext:
+        """The shop, writing each order to the file of its day."""
+        app = SimulationContext(
+            sim_id="Shop",
+            factor=0.0,
+            random_seed=42,
+            timezone="UTC",
+            logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+        app.add_arrival("orders", dist="constant", value=3600, spawn="pack_order")
+        app.add_egress(
+            # The file of a record with no __path__
+            JsonlStorageEgress(
+                default_path=f"{bucket}/daily/other.jsonl", filesystem=filesystem
+            )
+        )
+        order = Template(
+            {
+                "order_id": {"gen": "sequence"},
+                "amount": 19.99,
+                # The file of the order: the day it was packed, in the simulated calendar
+                "__path__": {
+                    "gen": "format_time",
+                    "format": f"{bucket}/daily/%Y-%m-%d.jsonl",
+                },
+            },
+            name="tasks.pack_order",
+        )
+
+        @app.task(name="pack_order")
+        def pack_order(task_id):
+            return order
+
+        return app
+
+
+    app = build_shop()
+
+    if __name__ == "__main__":
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+        app.run(until="2 days")
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/guides/cloud_storage_daily_low_level.py:shop"
+    import itertools
+    import logging
+    from datetime import datetime, timedelta, timezone
+
+    from cloud_storage_stores import bucket, filesystem
+
+    from desflow import DynamicRealtimeEnvironment, JsonlStorageEgress
+
+    START = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+    def orders(env):
+        for number in itertools.count():
+            yield env.timeout(3600)
+            # The file of the order: the day it was packed, in the simulated calendar
+            day = env.start_datetime + timedelta(seconds=env.now)
+            order = {
+                "order_id": number,
+                "amount": 19.99,
+                "__path__": day.strftime(f"{bucket}/daily/%Y-%m-%d.jsonl"),
+            }
+            env.publish_event(f"orders-{number + 1}", order, "pack_order", number)
+
+
+    def shop() -> DynamicRealtimeEnvironment:
+        """The shop, writing each order to the file of its day."""
+        env = DynamicRealtimeEnvironment(
+            factor=0.0, logical_start_time=START, timezone="UTC"
+        )
+        env.setup_egress(
+            # The file of a record with no __path__
+            [
+                JsonlStorageEgress(
+                    default_path=f"{bucket}/daily/other.jsonl", filesystem=filesystem
+                )
+            ]
+        )
+        env.process(orders(env))
+        return env
+
+
+    if __name__ == "__main__":
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+        env = shop()
+        try:
+            env.run(until=2 * 24 * 3600)
+        finally:
+            env.teardown()
+    ```
+
+The sink writes one file for each flush and adds an identifier to its name: the orders of 1 January go to `output/daily/2026-01-01_<id>.jsonl`. A record whose `__path__` is missing, null or empty goes to `default_path`. A `path_router` wins over `__path__`. A sink with neither `default_path` nor `path_router` writes only the records that carry a `__path__`, and each flush logs a warning with the number of records it skipped. `ParquetStorageEgress` takes `__path__` in the same way.
 
 ### Read the Files Back
 
@@ -233,19 +377,22 @@ jsonl: 5291 rows
 
 Both folders hold the same number of rows. For a cloud, run the script with the same `STORAGE` and `STORAGE_BUCKET` as the shop.
 
+The daily shop is run as `python cloud_storage_daily.py`, `python cloud_storage_daily_low_level.py` or `desflow run cloud_storage_daily.yaml`. Each form writes 47 orders to `output/daily`: 23 in the file of 1 January and 24 in the file of 2 January. The packing at midnight belongs to the new day.
+
 ---
 
 ## Full Files
 
-Every form uses the store and the sinks of `cloud_storage_stores.py`, which builds no shop, so keep the files in one folder.
+The Builder and Low-level forms use the store and the sinks of `cloud_storage_stores.py`, which builds no shop. The YAML form uses the folder `cloud_storage_stores` instead. Keep the files of the form you run in one folder.
 
 ??? example "Full files"
 
     ```python title="docs/snippets/guides/cloud_storage_stores.py"
     """The stores, sinks and reader of the Write to Cloud Storage page.
 
-    Every form of the shop imports the store and the sinks from this file: cloud_storage.py
-    (builder), cloud_storage.yaml and cloud_storage_low_level.py. It builds no simulation.
+    The builder and low-level forms of the shop import the store and the sinks from this file:
+    cloud_storage.py and cloud_storage_low_level.py, and the daily shops. cloud_storage.yaml
+    reads the same mappings from the folder cloud_storage_stores. It builds no simulation.
     STORAGE picks the store: local (the default), s3, gcs or azure. STORAGE_BUCKET names the
     bucket or container, or the folder on the local disk, with the credentials of that cloud
     set up as the page describes.
@@ -324,15 +471,12 @@ Every form uses the store and the sinks of `cloud_storage_stores.py`, which buil
     === "YAML"
 
         ```yaml title="docs/snippets/yaml/cloud_storage.yaml"
-        # The Write to Cloud Storage guide: the shop writes an hour of orders as Parquet and JSON
-        # Lines files, as fast as the machine allows. STORAGE picks the store (local, the default,
-        # s3, gcs or azure) and STORAGE_BUCKET the bucket, container or local folder. Needs
-        # cloud_storage_stores.py and cloud_storage_logic.py beside it. Run it with:
+        # The Write to Cloud Storage guide: the shop writes an hour of orders as Parquet and
+        # JSON Lines files, as fast as the machine allows. STORAGE picks the store (local, the
+        # default, s3, gcs or azure) and STORAGE_BUCKET the bucket, container or local folder.
+        # Needs the folder cloud_storage_stores beside it. Run it with:
         # desflow run cloud_storage.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0.0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0.0, random_seed: 42}
 
         resources:
           packers: {current_cap: 1, max_cap: 1}
@@ -348,31 +492,82 @@ Every form uses the store and the sinks of `cloud_storage_stores.py`, which buil
             service: packing
             resource: packers
             # The finished event is the order record
-            payload: !python cloud_storage_logic.order_record
+            payload:
+              order_id: {gen: sequence}
+              amount: 19.99
 
         egress:
           # Every event as Parquet and as JSON Lines, in two folders of the bucket
           - type: Parquet
             config:
               default_path: ${STORAGE_BUCKET:-output}/parquet/events.parquet
-              filesystem: !python cloud_storage_stores.filesystem
+              filesystem: !include cloud_storage_stores/${STORAGE:-local}.yaml
           - type: Jsonl
             config:
               default_path: ${STORAGE_BUCKET:-output}/jsonl/events.jsonl
-              filesystem: !python cloud_storage_stores.filesystem
+              filesystem: !include cloud_storage_stores/${STORAGE:-local}.yaml
 
-        run:
-          until: 1 hour
+        run: {until: 1 hour}
         ```
 
-        ```python title="docs/snippets/yaml/cloud_storage_logic.py"
-        """Python for cloud_storage.yaml: the order record each packed order publishes. The store
-        is that of cloud_storage_stores.py, which must be beside the blueprint."""
 
+        ```yaml title="docs/snippets/yaml/cloud_storage_stores/local.yaml"
+        # The local disk, for a first run
+        type: local
+        ```
 
-        def order_record(task_id, context, entity):
-            """The finished event of a packed order: the order record."""
-            return {"order_id": task_id, "amount": 19.99}
+        ```yaml title="docs/snippets/yaml/cloud_storage_stores/s3.yaml"
+        # Amazon S3, with the standard AWS settings: environment variables, ~/.aws or a role
+        type: s3
+
+        region: ${AWS_REGION:-us-east-1}
+        ```
+
+        ```yaml title="docs/snippets/yaml/cloud_storage_stores/gcs.yaml"
+        # Google Cloud Storage, with Google's default credentials
+        type: gcs
+        ```
+
+        ```yaml title="docs/snippets/yaml/cloud_storage_stores/azure.yaml"
+        # Azure Blob Storage, with Azure's default credentials for the storage account
+        type: azure
+
+        account_name: ${AZURE_STORAGE_ACCOUNT}
+        ```
+
+        ```yaml title="docs/snippets/yaml/cloud_storage_daily.yaml"
+        # The Write to Cloud Storage guide, "Write a File for Each Day": two days of orders,
+        # each day in a file of its own. STORAGE picks the store and STORAGE_BUCKET the bucket,
+        # as in cloud_storage.yaml. Needs the folder cloud_storage_stores beside it. Run it
+        # with: desflow run cloud_storage_daily.yaml
+        simulation:
+          sim_id: Shop
+          factor: 0.0
+          random_seed: 42
+          timezone: UTC
+          logical_start_time: "2026-01-01T00:00:00+00:00"
+
+        arrivals:
+          orders: {dist: constant, value: 3600, spawn: pack_order}
+
+        tasks:
+          pack_order:
+            payload:
+              order_id: {gen: sequence}
+              amount: 19.99
+              # The file of the order: the day it was packed, in the simulated calendar
+              __path__:
+                gen: format_time
+                format: "${STORAGE_BUCKET:-output}/daily/%Y-%m-%d.jsonl"
+
+        egress:
+          - type: Jsonl
+            config:
+              # The file of a record with no __path__
+              default_path: ${STORAGE_BUCKET:-output}/daily/other.jsonl
+              filesystem: !include cloud_storage_stores/${STORAGE:-local}.yaml
+
+        run: {until: 2 days}
         ```
 
     === "Builder"
@@ -430,6 +625,67 @@ Every form uses the store and the sinks of `cloud_storage_stores.py`, which buil
             app.run(until="1 hour")
         ```
 
+        ```python title="docs/snippets/guides/cloud_storage_daily.py"
+        """The "Write a File for Each Day" step of the Write to Cloud Storage page, built with the
+        builder API.
+
+        The shop packs an order every hour for two days, and each order goes to the file of its
+        day. STORAGE and STORAGE_BUCKET pick the store as in cloud_storage.py. Needs
+        cloud_storage_stores.py beside it. Run it with `python cloud_storage_daily.py`.
+        """
+
+        import logging
+        from datetime import datetime, timezone
+
+        from cloud_storage_stores import bucket, filesystem
+
+        from desflow import JsonlStorageEgress, SimulationContext
+        from desflow.values import Template
+
+
+        def build_shop() -> SimulationContext:
+            """The shop, writing each order to the file of its day."""
+            app = SimulationContext(
+                sim_id="Shop",
+                factor=0.0,
+                random_seed=42,
+                timezone="UTC",
+                logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            )
+            app.add_arrival("orders", dist="constant", value=3600, spawn="pack_order")
+            app.add_egress(
+                # The file of a record with no __path__
+                JsonlStorageEgress(
+                    default_path=f"{bucket}/daily/other.jsonl", filesystem=filesystem
+                )
+            )
+            order = Template(
+                {
+                    "order_id": {"gen": "sequence"},
+                    "amount": 19.99,
+                    # The file of the order: the day it was packed, in the simulated calendar
+                    "__path__": {
+                        "gen": "format_time",
+                        "format": f"{bucket}/daily/%Y-%m-%d.jsonl",
+                    },
+                },
+                name="tasks.pack_order",
+            )
+
+            @app.task(name="pack_order")
+            def pack_order(task_id):
+                return order
+
+            return app
+
+
+        app = build_shop()
+
+        if __name__ == "__main__":
+            logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+            app.run(until="2 days")
+        ```
+
     === "Low-level"
 
         ```python title="docs/snippets/guides/cloud_storage_low_level.py"
@@ -466,12 +722,28 @@ Every form uses the store and the sinks of `cloud_storage_stores.py`, which buil
         def pack_order(env, packers, sampler, key, task_id):
             path_id = "Shop.service.packing"
             env.publish_event(
-                key, {"path_id": path_id, "status": "queued"}, "pack_order", task_id
+                key,
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "queued",
+                },
+                "pack_order",
+                task_id,
             )
             with packers.request() as unit:
                 yield unit
                 env.publish_event(
-                    key, {"path_id": path_id, "status": "started"}, "pack_order", task_id
+                    key,
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    },
+                    "pack_order",
+                    task_id,
                 )
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 # The finished event is the order record
@@ -503,6 +775,65 @@ Every form uses the store and the sinks of `cloud_storage_stores.py`, which buil
             env = shop(sinks)  # Parquet and JSON Lines files in the store STORAGE names
             try:
                 env.run(until=3600)
+            finally:
+                env.teardown()
+        ```
+
+        ```python title="docs/snippets/guides/cloud_storage_daily_low_level.py"
+        """The "Write a File for Each Day" step of the Write to Cloud Storage page, low-level API.
+
+        The shop packs an order every hour for two days, and each order goes to the file of its
+        day. The path is built from the start time of the environment plus the simulation time,
+        as the blueprint's `format_time` builds it. Needs cloud_storage_stores.py beside it. Run
+        it with `python cloud_storage_daily_low_level.py`.
+        """
+
+        import itertools
+        import logging
+        from datetime import datetime, timedelta, timezone
+
+        from cloud_storage_stores import bucket, filesystem
+
+        from desflow import DynamicRealtimeEnvironment, JsonlStorageEgress
+
+        START = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+        def orders(env):
+            for number in itertools.count():
+                yield env.timeout(3600)
+                # The file of the order: the day it was packed, in the simulated calendar
+                day = env.start_datetime + timedelta(seconds=env.now)
+                order = {
+                    "order_id": number,
+                    "amount": 19.99,
+                    "__path__": day.strftime(f"{bucket}/daily/%Y-%m-%d.jsonl"),
+                }
+                env.publish_event(f"orders-{number + 1}", order, "pack_order", number)
+
+
+        def shop() -> DynamicRealtimeEnvironment:
+            """The shop, writing each order to the file of its day."""
+            env = DynamicRealtimeEnvironment(
+                factor=0.0, logical_start_time=START, timezone="UTC"
+            )
+            env.setup_egress(
+                # The file of a record with no __path__
+                [
+                    JsonlStorageEgress(
+                        default_path=f"{bucket}/daily/other.jsonl", filesystem=filesystem
+                    )
+                ]
+            )
+            env.process(orders(env))
+            return env
+
+
+        if __name__ == "__main__":
+            logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+            env = shop()
+            try:
+                env.run(until=2 * 24 * 3600)
             finally:
                 env.teardown()
         ```

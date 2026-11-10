@@ -1,0 +1,34 @@
+# case P19: a global counter that is not a plain increment by one, and cannot go below 0
+# (a container with a lock).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+containers:
+  total: {level: 0}
+  lock: {current_cap: 1, level: 1}
+
+arrivals:
+  a:
+    dist: constant
+    value: 5
+    spawn: add
+    max_events: 4
+    attributes: {k: 3}
+
+tasks:
+  add:
+    get: {container: lock, amount: 1}
+    payload: {event_type: locked}
+    next: put_total
+  put_total:
+    put: {container: total, amount: "attr.k * 2"}
+    payload: {event_type: added}
+    next:
+      when:
+        - {condition: "level.total >= 10", task: big}
+      default: small
+  big:
+    put: {container: lock, amount: 1}
+    payload: {event_type: big}
+  small:
+    put: {container: lock, amount: 1}
+    payload: {event_type: small}

@@ -38,7 +38,7 @@ Here is the busy hour. The arrival rate is 1.8 orders a second, and `until` is o
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml/queues_and_capacity.yaml:load" hl_lines="11 23"
+    ```yaml title="docs/snippets/yaml/queues_and_capacity.yaml:load" hl_lines="11 22"
     simulation:
       sim_id: Shop
       factor: 0  # unpaced: the hour runs in about a second
@@ -58,10 +58,9 @@ Here is the busy hour. The arrival rate is 1.8 orders a second, and `until` is o
         payload: {event_type: order_packed}
 
     egress:
-      - type: Console
+      - {type: Console}
 
-    run:
-      until: 1 h
+    run: {until: 1 h}
     ```
 
 === "Builder"
@@ -74,6 +73,8 @@ Here is the busy hour. The arrival rate is 1.8 orders a second, and `until` is o
     app.add_arrival("orders", dist="exponential", rate=1.8, spawn="pack_order")
     ```
 
+    `spawn="pack_order"` starts the task for each arrival, as `spawn:` does in YAML, so this page needs no `@app.arrival_loop`.
+
 === "Low-level"
 
     ```python title="docs/snippets/tutorials/queues_and_capacity_low_level.py:load"
@@ -82,7 +83,7 @@ Here is the busy hour. The arrival rate is 1.8 orders a second, and `until` is o
     arrival={"orders": DistributionConfig(dist="exponential", rate=1.8)},
     ```
 
-A blueprint accepts a duration with a unit wherever it takes a time, such as `until: 1 h` and `value: 1.5 s`, and reads a plain number as seconds. `factor: 0` runs the hour unpaced: as fast as the computer can, in about a second. Nobody needs to watch this run in real time.
+A blueprint accepts a duration with a unit wherever it takes a time, such as `until: 1 h` and `value: 1.5 s`, and reads a plain number as seconds. A text that is a plain number, such as `"5"` or `"1e-3"`, is read as seconds too. `factor: 0` runs the hour unpaced: as fast as the computer can, in about a second. Nobody needs to watch this run in real time.
 
 ---
 
@@ -221,6 +222,8 @@ To read the mean wait, switch on the built-in statistics at the `typical` level,
     env.setup_stats("Shop", "typical", interval=3600)
     ```
 
+    A low-level process has no task for desflow to watch, so on this page it reports to `env.stats` itself instead of publishing events: it calls `task_queued`, `task_started` and `task_finished` with the task's name and instance id. [Measuring a Run](measuring-a-run.md) explains these calls.
+
 Now run the hour with 1, 2, 3 and 4 packers:
 
 === "YAML"
@@ -309,215 +312,13 @@ Each tab prints the mean wait with 1, 2, 3 and 4 packers:
 
 With 2 packers, utilisation is 1.35. The queue grows all hour, so the mean wait depends mainly on how long the run was: run two hours and it roughly doubles. With 3 packers, utilisation is 0.9 and the wait settles. With 4 it is 0.675, and almost nobody waits.
 
-A stable model can still wait a long time, because the wait grows much faster than utilisation near 1. Take one packer with exponential gaps and exponential service times: an M/M/1 queue, in the notation that [Queueing Basics](../concepts/queueing-basics.md#kendalls-notation) explains. Its mean wait in the queue is ρ ÷ (1 − ρ) × the mean service time, where ρ is the utilisation. At utilisation 0.95 the factor is 0.95 ÷ 0.05 = 19, and at 0.8 it is 0.8 ÷ 0.2 = 4, so the wait at 0.95 is about 5 times the wait at 0.8. The chart draws the formula for the shop's 1.5-second packing, with the function `desflow explain` uses:
-
-![The M/M/1 mean wait against utilisation for a mean service of 1.5 seconds: 6.0 seconds at 0.8 and 28.5 seconds at 0.95, rising steeply towards 1](../../assets/charts/queues-mm1.png)
-
-Variable times make the wait longer still. Bursts of arrivals, or packing times that vary a lot, fill the queue while the average load is moderate, and the queue takes a long time to empty again. [Kingman's formula](../concepts/queueing-basics.md#variation-lengthens-waits) gives the size of the effect for one server: it multiplies the M/M/1 wait by a factor for the spread of the gaps and of the service times. With exponential gaps and constant packing the factor is 0.5, so the shop's constant packing halves the wait. `desflow explain` uses Kingman's formula for a resource with one unit, and [Choosing Inputs](../inputs/choosing-inputs.md) measures the wait with constant, triangular, empirical and exponential packing times.
-
-Little's Law checks a run's output. In a model that settles, the mean number of orders waiting is the arrival rate times the mean wait, Lq = λ × Wq, and the number in the shop is L = λ × (Wq + mean service time). `desflow explain` prints L beside Wq, and [Queueing Basics](../concepts/queueing-basics.md#littles-law) checks the law against runs of the shop.
+A stable model can still wait a long time, because the wait grows much faster than utilisation near 1, and variable times make it longer still. [Queueing Basics](../concepts/queueing-basics.md#waits-near-full-use) gives the formulas for one packer, the effect of variation and Little's law, and checks them against runs of this shop. `desflow explain` uses them, and [Choosing Inputs](../inputs/choosing-inputs.md) measures the wait with constant, triangular, empirical and exponential packing times.
 
 ---
 
-## Networks and Bottlenecks
+## Find the Bottleneck
 
-In a network, each task's rate comes from the tasks before it. This version of the shop checks every packed order with one checker, and sends one order in ten back to be packed again:
-
-=== "YAML"
-
-    ```yaml title="docs/snippets/yaml/queues_network.yaml:network"
-    arrivals:
-      orders: {dist: exponential, rate: 1.6, spawn: pack_order}
-
-    services:
-      packing: {dist: constant, value: 1.5 s}
-      checking: {dist: exponential, rate: 2.5}  # 0.4 s on average
-
-    resources:
-      packers: {current_cap: 4, max_cap: 10}
-      checkers: {current_cap: 1, max_cap: 4}
-
-    tasks:
-      pack_order:
-        service: packing
-        resource: packers
-        payload: {event_type: order_packed}
-        next: check_order
-      check_order:
-        service: checking
-        resource: checkers
-        payload: {event_type: order_checked}
-        # Nine in ten pass; the tenth is packed again
-        next: {weights: {ship_order: 9, pack_order: 1}}
-      ship_order:
-        payload: {event_type: order_shipped}
-    ```
-
-=== "Builder"
-
-    ```python title="docs/snippets/tutorials/queues_and_capacity.py:network"
-    app = SimulationContext(sim_id="Shop", factor=0, random_seed=42)
-    app.add_arrival("orders", dist="exponential", rate=1.6, spawn="pack_order")
-    app.add_service("packing", dist="constant", value=1.5)
-    app.add_service("checking", dist="exponential", rate=2.5)  # 0.4 s on average
-    app.add_resource("packers", current_cap=4, max_cap=10)
-    app.add_resource("checkers", current_cap=1, max_cap=4)
-
-    @app.task(service_id="packing", resource_id="packers", next="check_order")
-    def pack_order(task_id):
-        return {"event_type": "order_packed"}
-
-    # Nine in ten pass; the tenth is packed again
-    @app.task(
-        service_id="checking",
-        resource_id="checkers",
-        next={"weights": {"ship_order": 9, "pack_order": 1}},
-    )
-    def check_order(task_id):
-        return {"event_type": "order_checked"}
-
-    @app.task()
-    def ship_order(task_id):
-        return {"event_type": "order_shipped"}
-
-    # print(render_terminal(app.analyze())) prints what desflow explain prints
-    ```
-
-=== "Low-level"
-
-    ```python title="docs/snippets/tutorials/queues_and_capacity_low_level.py:network"
-    NETWORK = SimParameter(
-        sim_id="Shop",
-        arrival={"orders": DistributionConfig(dist="exponential", rate=1.6)},
-        service={
-            "packing": DistributionConfig(dist="constant", value=1.5),
-            # One check takes 0.4 s on average
-            "checking": DistributionConfig(dist="exponential", rate=2.5),
-        },
-        resources={
-            "packers": CapacityConfig(current_cap=4, max_cap=10),
-            "checkers": CapacityConfig(current_cap=1, max_cap=4),
-        },
-    )
-    # Each task's service and resource, and the task after it
-    STEPS = {
-        "pack_order": ("packing", "packers", Router("check_order")),
-        # Nine in ten pass; the tenth is packed again
-        "check_order": (
-            "checking",
-            "checkers",
-            Router({"weights": {"ship_order": 9, "pack_order": 1}}),
-        ),
-        "ship_order": (None, None, Router(None)),
-    }
-
-
-    def step(env, sampler, shop, name, entity, counters):
-        """One task of an order, then the task its router chooses."""
-        service, resource, router = STEPS[name]
-        task_id = next(counters[name])
-        if resource is None:
-            env.stats.task_finished(name, task_id)
-        else:
-            env.stats.task_queued(name, task_id)
-            with shop[resource].request() as request:
-                yield request
-                env.stats.task_started(name, task_id)
-                config = env.registry.get_config(f"Shop.service.{service}")
-                yield env.timeout(sampler.sample(config))
-            env.stats.task_finished(name, task_id)
-        following = router.choose(Upstream(task_id, entity, {}, {}), env)
-        if following is None:
-            env.stats.flow_finished("orders")
-        else:
-            env.process(step(env, sampler, shop, following, entity, counters))
-    ```
-
-    `desflow explain` does not support low-level models. It reads which arrival starts which task and which resource each task uses, and a low-level model does not declare those links: its SimPy code makes them as it runs.
-
-Every packed order is checked. Packing receives the new orders, 1.6 a second, and also the tenth of the checked orders that come back. Call the rate into packing x: then x = 1.6 + 0.1 × x, which gives x = 1.6 ÷ 0.9 = 1.778 orders a second. `desflow explain queues_network.yaml` solves this [flow balance](../concepts/queueing-basics.md#flow-balance-and-the-bottleneck) for every task. This is its output without the hints at the end:
-
-<!-- records: queues-network -->
-```text
-Shop
-`-- orders (arrival, rate 1.6/s)
-    `-- spawn -> pack_order (task, rate 1.778/s)
-        +-- uses packers (resource)
-        `-- next (share 1) -> check_order (task, rate 1.778/s)
-            +-- uses checkers (resource)
-            +-- next (share 0.9) -> ship_order (task, rate 1.6/s)
-            |   `-- next (share 1) -> exit
-            `-- next (share 0.1) -> pack_order (again)
-Resources
-+----------------------------------------------------------+
-| resource |     λ |      μ | c |      ρ | Wq | L | status |
-|----------+-------+--------+---+--------+----+---+--------|
-| packers  | 1.778 | 0.6667 | 4 | 0.6667 |  - | - | OK     |
-| checkers | 1.778 |    2.5 | 1 | 0.7111 |  - | - | OK     |
-+----------------------------------------------------------+
-packers by units
-+-------------------------+
-|  c |      ρ | status    |
-|----+--------+-----------|
-|  1 |  2.667 | UNSTABLE  |
-|  2 |  1.333 | UNSTABLE  |
-|  3 | 0.8889 | CONGESTED |
-|  4 | 0.6667 | OK        |
-|  5 | 0.5333 | OK        |
-|  6 | 0.4444 | OK        |
-|  7 |  0.381 | OK        |
-|  8 | 0.3333 | OK        |
-|  9 | 0.2963 | OK        |
-| 10 | 0.2667 | OK        |
-+-------------------------+
-checkers by units
-+---------------------+
-| c |      ρ | status |
-|---+--------+--------|
-| 1 | 0.7111 | OK     |
-| 2 | 0.3556 | OK     |
-| 3 |  0.237 | OK     |
-| 4 | 0.1778 | OK     |
-+---------------------+
-Bottleneck: checkers
-Not estimated:
-  wait at packers: no closed formula for c > 1 with non-exponential times; run --verify to measure it
-  wait at checkers: its input is not one arrival or a Poisson flow, which Kingman's formula needs; run --verify to measure it
-```
-
-The four packers are at utilisation 0.667 and the checker at 0.711, the higher of the two, so the checker is the bottleneck. In the table by units, 3 packers would be at utilisation 0.889, above the checker. So with 3 packers the packers are the bottleneck, and a fourth packer moves the bottleneck to the checker. Relieving a bottleneck makes the next busiest resource the new one. `desflow explain` estimates neither wait here, and says why: four packers with constant packing have no closed formula, and the checker's input is the packers' output, which is neither one arrival nor a [Poisson](../concepts/queueing-basics.md#kendalls-notation) flow. `--verify`, in [Check Against Theory](../../how-to/analysis/check-against-theory.md), measures both.
-
----
-
-## Tuning
-
-To keep a resource stable, lower its utilisation or its variability:
-
-- more units: a higher `current_cap`;
-- faster service: a shorter service time;
-- fewer arrivals: a lower `rate`;
-- less variable gaps or service times, which shorten the wait at the same utilisation.
-
-To test how a consumer of the records copes, do the opposite on purpose. From utilisation 0.85 a resource is congested, with long waits that come and go, and bursts make them longer. Above 1 it is overloaded: its queue, and the lag of everything after it, grows for as long as the overload lasts.
-
-`--target` sets the utilisation the hints aim for, 0.85 by default. At 1 or above, the hints are for deliberate overload:
-
-```bash
-desflow explain queues_and_capacity.yaml --target 1.2
-```
-
-The end of its output, the hints:
-
-<!-- records: queues-overload -->
-```text
-Hints for utilisation 1.2:
-  packers with 2 units: utilisation 1.35, at least 1.2, for deliberate overload
-  packers with 1 unit: utilisation 1.2 at a request every 1.25 seconds (48 a minute, 0.8 a second)
-```
-
-With 2 packers the shop runs at utilisation 1.35, above the target of 1.2. With 1 packer, an arrival rate of 0.8 orders a second, an order every 1.25 seconds (48 a minute), gives exactly 1.2.
-
-A scenario step can raise the arrival rate while the model runs and push a resource past full use on purpose. [Changing Demand](../inputs/changing-demand.md) runs such a rush, and its queue grows for as long as the rush lasts.
+The **bottleneck** is the resource with the highest utilisation. Relieving it makes the next busiest resource the new bottleneck. In a shop with one resource that is the packer. In a shop with several tasks, `desflow explain` finds it from each task's rate, as [A Flow of Tasks](../shop-logic/flow-of-tasks.md#networks-and-bottlenecks) shows for a shop with a checker and rework. The hints that `desflow explain` prints for tuning a resource, and its `--target` option, are in [Check It Before a Long Run](../../cli/index.md#check-it-before-a-long-run).
 
 ---
 
@@ -527,7 +328,7 @@ How many packers keep the mean wait under 10 seconds? **3 packers**, as the mean
 
 ![Mean wait in the busy hour for 1 to 4 packers on a log scale: 1127 seconds with 1, 426 with 2, 1.27 with 3 and 0.20 with 4; the 10-second line separates 2 from 3](../../assets/charts/queues-wait.png)
 
-With 3 packers the mean wait is 1.27 seconds, from [one run of the hour](first-simulation.md#busy-hour-figures) with constant packing and the seed 42. With 2 packers it is over 400 seconds and still growing when the hour ends. The answer is the fewest packers that bring utilisation below 1. At utilisation 0.9 the wait stays under 10 seconds, because the shop's packing time is constant and 0.9 is not yet close enough to 1.
+With 3 packers the mean wait is 1.27 seconds, from [one run of the hour](../concepts/output-analysis.md#busy-hour-figures) with constant packing and the seed 42. With 2 packers it is over 400 seconds and still growing when the hour ends. The answer is the fewest packers that bring utilisation below 1. At utilisation 0.9 the wait stays under 10 seconds, because the shop's packing time is constant and 0.9 is not yet close enough to 1.
 
 [Queueing Basics](../concepts/queueing-basics.md) explains why the wait grows without limit as utilisation reaches 1, as the table shows for 1 and 2 packers. It also gives the formula for several packers sharing one queue. Each term of the utilisation is a live parameter, so a running model can be relieved, or overloaded on purpose, as [Live Parameters](../../user-guide/live-runs-and-connectors/live-parameters.md) shows. [Statistics](../../user-guide/results/statistics.md) describes how the mean wait is measured.
 
@@ -570,10 +371,9 @@ The formulas describe a queue that has settled. A run starts with no orders in t
             payload: {event_type: order_packed}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
 
         resources:
           # The number of packers comes from the PACKERS variable, 1 when it is not set
@@ -589,10 +389,7 @@ The formulas describe a queue that has settled. A run starts with no orders in t
         # Queues and Capacity: the busy shop as a network. Packed orders are checked, and
         # one in ten goes back to be packed again.
         # Explain it with: desflow explain queues_network.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         arrivals:
           orders: {dist: exponential, rate: 1.6, spawn: pack_order}
@@ -616,15 +413,15 @@ The formulas describe a queue that has settled. A run starts with no orders in t
             resource: checkers
             payload: {event_type: order_checked}
             # Nine in ten pass; the tenth is packed again
-            next: {weights: {ship_order: 9, pack_order: 1}}
+            next:
+              weights: {ship_order: 9, pack_order: 1}
           ship_order:
             payload: {event_type: order_shipped}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"
@@ -639,7 +436,7 @@ The formulas describe a queue that has settled. A run starts with no orders in t
         """
 
         from desflow import SimulationContext
-        from desflow.explain.render import render_terminal
+        from desflow.explain import render_terminal
 
         UNTIL = "1 h"  # the busy hour
 
@@ -826,7 +623,7 @@ The formulas describe a queue that has settled. A run starts with no orders in t
             if following is None:
                 env.stats.flow_finished("orders")
             else:
-                env.process(step(env, sampler, shop, following, entity, counters))
+                yield from step(env, sampler, shop, following, entity, counters)
 
 
         def network_orders(env, sampler, shop, counters):

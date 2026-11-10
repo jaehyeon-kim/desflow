@@ -6,8 +6,6 @@ M/M/c queue), of which the wait in the queue is the response time less the mean
 service time.
 """
 
-import math
-
 from desflow.explain.models import Status
 
 CONGESTED_AT = 0.85
@@ -44,8 +42,12 @@ def erlang_c(servers: int, load: float) -> float:
     Returns:
         float: C(c, λ / μ).
     """
-    last = load**servers / math.factorial(servers) / (1 - load / servers)
-    return last / (sum(load**k / math.factorial(k) for k in range(servers)) + last)
+    # Erlang B by its recurrence, which stays in range for any number of servers,
+    # then C from B: C = B / (1 - (load / servers) (1 - B))
+    blocking = 1.0
+    for k in range(1, servers + 1):
+        blocking = load * blocking / (k + load * blocking)
+    return blocking / (1 - load / servers * (1 - blocking))
 
 
 def erlang_wait(servers: int, rate: float, service_mean: float) -> float:

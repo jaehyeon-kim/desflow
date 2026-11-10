@@ -1,0 +1,22 @@
+# case GD-TT5: an event fires and an interrupt arrives together
+# (tests/test_interrupts.py:54).
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+signals:
+  coup: {once: true}
+
+arrivals:
+  fox: {initial: 1, spawn: fox}
+  plan: {dist: constant, value: 1, spawn: master_plan, max_events: 1}
+
+tasks:
+  fox:
+    wait: {signal: coup}
+    on_interrupt: resume
+    payload: {event_type: coup_completed}
+  master_plan:
+    payload: {event_type: plan}
+    signal: coup
+    interrupt: {task: fox}
+
+run: {until: 5}

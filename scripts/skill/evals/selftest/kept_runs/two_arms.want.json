@@ -1,0 +1,9 @@
+{
+  "fault": "round 4 S10, S11: the task is the case name, and a run with an error prints - even when it kept a folder",
+  "args": [
+    "--version",
+    "before"
+  ],
+  "rc": 1,
+  "stdout": "p33\tbefore\t1\t/tmp/e-aaaaaa\np33\tbefore\t2\t/tmp/e-bbbbbb\np33\tbefore\t3\t-\texit 1: usage limit\np33\tnone\t1\t-\tscaffold failed (exit 1)\nds-a3\tbefore\t1\t/tmp/e-cccccc\n"
+}

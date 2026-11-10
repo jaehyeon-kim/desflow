@@ -15,6 +15,7 @@ from desflow import (
     SimParameter,
     SimulationContext,
 )
+from desflow.values import Template
 
 app = (
     SimulationContext(sim_id="Shop", factor=0.0, random_seed=1)
@@ -48,6 +49,25 @@ def print_label(task_id: int):
 
 
 # --8<-- [end:builder-timed-step]
+
+
+# --8<-- [start:builder-payload-mapping]
+# A payload with generated fields: nine orders in ten are standard, one is express
+delivery = Template(
+    {
+        "event_type": "order_packed",
+        "delivery": {"gen": "weighted", "options": {"standard": 0.9, "express": 0.1}},
+    },
+    name="tasks.pack_with_delivery",
+)
+
+
+@app.task(service_id="packing", resource_id="packers")
+def pack_with_delivery(task_id: int):
+    return delivery
+
+
+# --8<-- [end:builder-payload-mapping]
 
 
 # --8<-- [start:builder-arrival]
@@ -98,15 +118,24 @@ def pack_order_process(env, sampler, packers, key, task_id, label_ids):
     def publish(value):
         env.publish_event(key, value, task="pack_order", instance=task_id)
 
-    publish({"path_id": path_id, "status": "queued"})
+    publish(
+        {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+    )
     with packers.request() as request:
         yield request
-        publish({"path_id": path_id, "status": "started"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            }
+        )
         payload = {"event_type": "order_packed"}
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         publish(payload)
     # next: print_label, a new instance for the same order
-    env.process(print_label_process(env, sampler, key, next(label_ids)))
+    yield from print_label_process(env, sampler, key, next(label_ids))
 
 
 # --8<-- [end:low-level-task]
@@ -120,7 +149,14 @@ def print_label_process(env, sampler, key, task_id):
     def publish(value):
         env.publish_event(key, value, task="print_label", instance=task_id)
 
-    publish({"path_id": path_id, "status": "started"})
+    publish(
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "labelling",
+            "status": "started",
+        }
+    )
     yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
     publish({"event_type": "label_printed"})
 

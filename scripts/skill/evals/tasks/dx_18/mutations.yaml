@@ -1,0 +1,21 @@
+# Three changes to the YAML an agent writes for task DX-18: a rate, a weight or share, a
+# capacity, or the nearest time or count, or, where no number the request names changes
+# the records, one step of the flow. Each change tries the keys of `keys` that exist in
+# model.yaml, in order, and keeps the first that alters the records (grade.py).
+
+task: DX-18
+
+mutations:
+  - name: packing 1.5 to 2.5
+    changes:
+      - keys:
+          - tasks.pack_order.service_time
+          - "services.{tasks.pack_order.service}.value"
+        new: 2.5
+  - name: order gap 2 to 3
+    changes:
+      - keys: [arrivals.orders.value, arrivals.orders.gap, arrivals.orders.gap.value]
+        new: 3
+  - name: run to 10
+    changes:
+      - {keys: [run.until], new: 10}

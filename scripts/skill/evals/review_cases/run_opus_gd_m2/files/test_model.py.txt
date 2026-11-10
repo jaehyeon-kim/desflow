@@ -1,0 +1,146 @@
+"""Tests of the resource-monitoring model in its three forms.
+
+Run from this folder with: pytest test_model.py
+"""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).resolve().parent
+# The desflow command installed beside the Python that runs the tests
+DESFLOW = str(Path(sys.executable).parent / "desflow")
+
+COMMANDS = {
+    "yaml": [DESFLOW, "run", "model.yaml"],
+    "builder": [sys.executable, "builder.py"],
+    "low_level": [sys.executable, "low_level.py"],
+}
+
+RES = "M.stats.resources.res."
+
+
+def run_form(name):
+    """Runs one form and returns its records, one per JSON line of stdout."""
+    done = subprocess.run(
+        COMMANDS[name], cwd=HERE, capture_output=True, text=True, timeout=120
+    )
+    assert done.returncode == 0, done.stderr
+    return [json.loads(line) for line in done.stdout.splitlines() if line.strip()]
+
+
+@pytest.fixture(scope="module")
+def records():
+    return {name: run_form(name) for name in COMMANDS}
+
+
+@pytest.fixture(scope="module")
+def yaml_records(records):
+    return records["yaml"]
+
+
+def readings(recs, stat):
+    """(sim_ts, value) of each published reading of res named `stat`."""
+    return [
+        (r["sim_ts"], r["value"])
+        for r in recs
+        if r["stream_type"] == "telemetry" and r["path_id"] == RES + stat
+    ]
+
+
+def test_three_forms_give_the_same_records(records):
+    assert records["builder"] == records["yaml"]
+    assert records["low_level"] == records["yaml"]
+
+
+def test_used_event_at_one_second(yaml_records):
+    used = [
+        r
+        for r in yaml_records
+        if r["stream_type"] == "event" and r["value"].get("event_type") == "used"
+    ]
+    assert len(used) == 1
+    assert used[0]["sim_ts"] == 1.0
+    assert used[0]["key"] == "a-1"
+    assert used[0]["task"] == "use"
+
+
+def test_task_lifecycle(yaml_records):
+    statuses = [
+        (r["sim_ts"], r["value"].get("status", r["value"].get("event_type")))
+        for r in yaml_records
+        if r["stream_type"] == "event"
+    ]
+    assert statuses == [(0.0, "queued"), (0.0, "started"), (1.0, "used")]
+
+
+def test_in_use_after_request_and_release(yaml_records):
+    # 1 after the request at 0, 0 after the release at 1, and the end-of-run
+    # publication at 5
+    assert readings(yaml_records, "in_use") == [(0.0, 1), (1.0, 0), (5.0, 0)]
+
+
+def test_queue_length_after_request_and_release(yaml_records):
+    assert readings(yaml_records, "queue_length") == [(0.0, 0), (1.0, 0), (5.0, 0)]
+
+
+def test_capacity_and_utilization(yaml_records):
+    assert readings(yaml_records, "capacity") == [(0.0, 1), (1.0, 1), (5.0, 1)]
+    assert readings(yaml_records, "utilization") == [
+        (0.0, 100.0),
+        (1.0, 0.0),
+        (5.0, 0.0),
+    ]
+
+
+def test_readings_only_at_calls_and_end(yaml_records):
+    """The readings come at the request (0), the release (1) and the end of the
+    run (5): no timer publishes between them."""
+    times = {
+        r["sim_ts"]
+        for r in yaml_records
+        if r["stream_type"] == "telemetry" and r["path_id"].startswith(RES)
+    }
+    assert times == {0.0, 1.0, 5.0}
+
+
+def test_readings_follow_the_request_and_release(yaml_records):
+    """The request's readings come between `queued` and `started`; the release's
+    come right after `used`, so each is recorded right after its call."""
+    order = [
+        r["value"].get("status", r["value"].get("event_type"))
+        if r["stream_type"] == "event"
+        else r["path_id"].removeprefix(RES)
+        for r in yaml_records
+    ]
+    queued, started, used = (order.index(s) for s in ("queued", "started", "used"))
+    assert order[queued + 1 : started] == [
+        "capacity",
+        "in_use",
+        "queue_length",
+        "utilization",
+    ]
+    assert order[used + 1 : used + 5] == [
+        "capacity",
+        "in_use",
+        "queue_length",
+        "utilization",
+    ]
+
+
+def test_records_end_at_five_seconds(yaml_records):
+    assert max(r["sim_ts"] for r in yaml_records) == 5.0
+
+
+def test_seed_is_literal_42():
+    import yaml
+
+    blueprint = yaml.safe_load((HERE / "model.yaml").read_text())
+    assert blueprint["simulation"]["random_seed"] == 42
+    assert blueprint["simulation"]["sim_id"] == "M"
+    assert blueprint["resources"]["res"]["current_cap"] == 1
+    assert blueprint["stats"]["on_change"] is True
+    assert blueprint["run"]["until"] == 5

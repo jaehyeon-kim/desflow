@@ -1,0 +1,19 @@
+# case P14, P15: a delay from state (P14) and from the time (P15). b_values.py has no
+# SimPy program for these two; the program is written from the description.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+variables: {slow: 3}
+
+arrivals:
+  a: {dist: constant, value: 5, spawn: u, max_events: 3}
+
+tasks:
+  u:
+    service_time: "registry['P.variables.slow']"
+    payload: {event_type: by_state}
+    next: v
+  v:
+    service_time: "1 + t / 10"
+    payload: {event_type: by_time}
+
+run: {until: 30}

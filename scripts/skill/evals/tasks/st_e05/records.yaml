@@ -1,0 +1,38 @@
+# Records of task ST-E05, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: ST-E05
+
+until: 10
+
+run_end: null
+
+records:
+  - name: tick at 1
+    match: {task: tick, key: period-1, value.event_type: tick}
+    at: 1
+  - name: tick at 2
+    match: {task: tick, key: period-1, value.event_type: tick}
+    at: 2
+  - name: tick at 3
+    match: {task: tick, key: period-1, value.event_type: tick}
+    at: 3
+  - name: five seen at 1
+    match: {task: consume, value.event_type: seen}
+    at: 1
+    count: 5
+  - name: five seen at 2
+    match: {task: consume, value.event_type: seen}
+    at: 2
+    count: 5
+  - name: five seen at 3
+    match: {task: consume, value.event_type: seen}
+    at: 3
+    count: 5
+  - name: 15 seen in all
+    match: {task: consume, value.event_type: seen}
+    count: 15
+  - name: nothing after 3
+    match: {value.event_type: [tick, seen]}
+    between: [3, 1000]
+    count: 0

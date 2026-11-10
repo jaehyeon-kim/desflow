@@ -29,6 +29,11 @@ FEATURE_EXTRAS = {
 }
 
 
+# Requirements that no import names. ZoneInfo reads the data of tzdata at run time on
+# Windows, which has no time zone database of its own.
+RUNTIME_DATA = {"tzdata"}
+
+
 def _distribution_name(requirement: str) -> str:
     """The normalised distribution name of a requirement string (PEP 503)."""
     name = re.split(r"[\[<>=!~;\s]", requirement, maxsplit=1)[0]
@@ -61,6 +66,7 @@ def test_every_declared_dependency_is_imported_by_desflow():
     for requirements in project["optional-dependencies"].values():
         declared.update(_distribution_name(r) for r in requirements)
     declared.discard("desflow")
+    declared -= RUNTIME_DATA
     missing = sorted(name for name in declared if not _installed(name))
     if missing:
         pytest.skip(f"run with --all-extras: {', '.join(missing)} not installed")

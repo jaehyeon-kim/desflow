@@ -1,0 +1,21 @@
+# Design M1: a reading at each change of a resource, and an event trace (two jobs at
+# time 0 on one unit, each holds it for a zero-time step).
+simulation: {sim_id: M1, factor: 0, random_seed: 42}
+
+stats: {level: basic, on_change: true, trace: true}
+
+egress:
+  - {type: Console, when: trace}
+  - {type: Console}
+
+resources:
+  res: {current_cap: 1}
+
+arrivals:
+  a: {initial: 2, spawn: use}
+
+tasks:
+  use:
+    resource: res
+    service_time: 0
+    payload: {event_type: used}

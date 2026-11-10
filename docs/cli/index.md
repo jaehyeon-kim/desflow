@@ -11,6 +11,8 @@ The `desflow` command runs a model without a line of Python, and also checks it,
 | Command | What it does |
 |---|---|
 | [`desflow run`](run.md) | Build the simulation in FILE and run it, or run replications of it. |
+| [`desflow check`](check.md) | Check that each blueprint or builder file in FILE... builds, without running it. |
+| [`desflow test`](test.md) | Run the tests of each file in FILE... and report the statistics that differ. |
 | [`desflow explain`](explain.md) | Show the model in SOURCE as a graph, with its utilisation, status, waits and tuning hints where the queueing formulas apply, and why where they do not. |
 | [`desflow experiment`](experiment.md) | Run the experiment in FILE and write its artifacts and report. |
 | [`desflow report`](report.md) | Build the report of an experiment again from the artifacts in FOLDER. |
@@ -35,6 +37,8 @@ The `desflow` command runs a model without a line of Python, and also checks it,
 
     Commands:
       run         Build the simulation in FILE and run it, or run replications...
+      check       Check that each blueprint or builder file in FILE...
+      test        Run the tests of each file in FILE...
       explain     Show the model in SOURCE as a graph, with its utilisation,...
       experiment  Run the experiment in FILE and write its artifacts and report.
       report      Build the report of an experiment again from the artifacts in...
@@ -118,9 +122,87 @@ The builder version goes under `shop/experiment/builder`, and the last line runs
 desflow examples get experiment --api yaml --force
 ```
 
+### Check a File Before You Run It
+
+`desflow check` builds each blueprint or builder file you give it, and does not run it. It reports what `desflow run` reports before the clock starts: YAML errors, unknown keys, missing names, unset variables, `!python` references that cannot be imported, and connectors whose extra is missing or whose settings are refused. It does not call `run.before`, contact a broker, a database or a catalog, or run a `!python` function. Importing a `!python` module runs its top-level code, as `desflow run` does. It prints `ok FILE (sim_id ID)` for each valid file and every error of an invalid one, and exits 1 if any file is invalid.
+
+The commands below use a small shop in a file of its own. Its packers come from the variable `PACKERS`, 2 when it is not set, and it holds one test. Save it as `shop.yaml`:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/command_line_shop.yaml"
+    # A small shop for the commands of the Command Line page that need a file with a
+    # variable and a test. The packers come from PACKERS, 2 when it is not set.
+    # Run it with: desflow run shop.yaml --sample 5
+    simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+    resources:
+      packers: {current_cap: "${PACKERS:-2}", max_cap: 5}
+
+    services:
+      packing: {dist: gamma, shape: 4, scale: 1 s}
+
+    arrivals:
+      orders: {dist: exponential, rate: 0.4, spawn: pack}
+
+    tasks:
+      pack:
+        service: packing
+        resource: packers
+        payload: {event_type: order_packed}
+
+    stats: basic
+
+    run: {until: 10 min}
+
+    # desflow test runs the model once at the seed and compares these statistics
+    tests:
+      - name: two packers
+        expect:
+          tasks.pack.finished: 254
+          tasks.pack.wait_mean: {value: 4.592, within: 0.001}
+    ```
+
+=== "Builder"
+
+    A builder file has no `${PACKERS}` variable and no `test` section: its values are Python. `desflow check` and `desflow run` take a builder file too, and [Test a Model](../how-to/analysis/test-a-model.md) shows how to test one with pytest.
+
+=== "Low-level"
+
+    A low-level script is not a file the command reads. Run it with `python`, and test it with pytest as [Test a Model](../how-to/analysis/test-a-model.md) shows.
+
+`desflow check` takes more than one file, and `--var NAME=VALUE` fills `${NAME}` in the files and in the files they include, before the environment does. Repeat `--var` for more variables:
+
+```bash
+desflow check shop.yaml
+desflow check shop.yaml experiment/yaml/experiment_shop.yaml --var PACKERS=3
+```
+
+It also warns about a run with no end: an arrival with a `dist` or a `gap` and no `max_events`, in a file with no `run.until`, `run.stop` or `run.segments`. The experiment's shop gives no `until`, because the experiment file gives it, so `check` warns about it and still prints `ok`. A `tests` entry with no seed, in a file with no seed of its own, is reported as `desflow test` reports it.
+
+desflow ships no pre-commit hook. A repository that keeps its blueprints in a folder can add its own to `.pre-commit-config.yaml`. pre-commit passes the changed files as the arguments, which `check` takes:
+
+```text title=".pre-commit-config.yaml"
+repos:
+  - repo: local
+    hooks:
+      - id: desflow-check
+        name: desflow check
+        entry: desflow check
+        language: system
+        files: ^models/.*\.ya?ml$
+```
+
+`desflow test` runs the tests that a file holds under `tests`. A test names a seed, an end time and the statistics its run must give. It runs the model once, unpaced, with no ingress and no egress, so a test contacts no service. It prints `ok` for each passing test and each difference of a failing one, and exits 1 if any test fails. A file with no tests prints `no tests`. A builder file reads its tests from a `tests.yaml` in its folder. `--fix` writes the measured statistics into the values that differ, and into a test with none, in place of reporting the differences. Read the changes before you keep them, because a test states its numbers at one seed of one desflow version. [Test a Model](../how-to/analysis/test-a-model.md#write-tests-in-the-blueprint) writes tests step by step.
+
+```bash
+desflow test shop.yaml
+desflow test shop.yaml --fix --var PACKERS=2
+```
+
 ### Check It Before a Long Run
 
-`desflow explain` reads the model without running it. It draws the model as a graph and works out each resource's [utilisation](../learn/concepts/queueing-basics.md#utilisation), the share of its units that the arrivals keep busy:
+`desflow explain` reads the model without running it. It draws the model as a graph and works out each resource's [utilisation](../learn/concepts/queueing-basics.md#utilisation), the share of its units that the arrivals keep busy. SOURCE is a blueprint, a builder Python file with a module-level `SimulationContext`, or a URI such as `s3://bucket/sims/shop.yaml`. A URI that ends in a folder is refused with its name, such as `Error: no file s3://bucket/models/`.
 
 ```bash
 desflow explain experiment/yaml/experiment_shop.yaml
@@ -167,7 +249,26 @@ The packers are at utilisation 0.8: they are busy 80% of the time. An order arri
 - ρ (rho) is the utilisation.
 - Wq is the mean wait in the queue, and L the mean number of orders in the shop. Both show `-` when no formula applies.
 
-The status is `OK` below 0.85, `CONGESTED` from 0.85 and `UNSTABLE` from 1, where the queue grows for as long as the run lasts. The table by units shows that one packer would be `UNSTABLE`. The hints give the units and the arrival rate that reach the target of 0.85. A hint of more units than the resource's `max_cap` also says to raise `max_cap`, because a `current_cap` above `max_cap` is lowered to it.
+The line `Bottleneck: packers` names the resource with the highest utilisation. Relieving it makes the next busiest resource the bottleneck. The status is `OK` below 0.85, `CONGESTED` from 0.85 and `UNSTABLE` from 1, where the queue grows for as long as the run lasts. The table by units shows that one packer would be `UNSTABLE`. The hints give the units and the arrival rate that reach the target of 0.85. A hint of more units than the resource's `max_cap` also says to raise `max_cap`, because a `current_cap` above `max_cap` is lowered to it.
+
+To keep a resource stable, lower its utilisation or its variability: more units (a higher `current_cap`), a shorter service time, a lower arrival `rate`, or less variable gaps or service times. To test how a consumer of the records copes, do the opposite on purpose. From utilisation 0.85 a resource is congested, with long waits that come and go. Above 1 it is overloaded and its queue grows for as long as the overload lasts.
+
+`--target` sets the utilisation the hints aim for, 0.85 by default. At 1 or above the hints are for deliberate overload. This command uses the shop of [Queues and Capacity](../learn/first-model/queues-and-capacity.md), saved as `queues_and_capacity.yaml`:
+
+```bash
+desflow explain queues_and_capacity.yaml --target 1.2
+```
+
+The end of the output is the hints:
+
+<!-- records: queues-overload -->
+```text
+Hints for utilisation 1.2:
+  packers with 2 units: utilisation 1.35, at least 1.2, for deliberate overload
+  packers with 1 unit: utilisation 1.2 at a request every 1.25 seconds (48 a minute, 0.8 a second)
+```
+
+With 2 packers the shop runs at utilisation 1.35, above the target of 1.2. With 1 packer, an arrival rate of 0.8 orders a second (an order every 1.25 seconds, 48 a minute) gives exactly 1.2.
 
 The formulas give no wait for two packers with gamma packing times, so the line under `Not estimated` says to measure it. [Queues and Capacity](../learn/first-model/queues-and-capacity.md#explain-the-load) works the same numbers out by hand.
 
@@ -237,14 +338,21 @@ desflow run experiment/yaml/experiment_shop.yaml --sample 5
 
 <!-- records: cli-sample -->
 ```text
-{"stream_type":"event","sim_ts":3.19,"timestamp":"...","key":"orders-1","task":"pack","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
-{"stream_type":"event","sim_ts":3.19,"timestamp":"...","key":"orders-1","task":"pack","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
-{"stream_type":"event","sim_ts":3.37,"timestamp":"...","key":"orders-2","task":"pack","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
-{"stream_type":"event","sim_ts":3.37,"timestamp":"...","key":"orders-2","task":"pack","instance":1,"value":{"path_id":"Shop.service.packing","status":"started"}}
-{"stream_type":"event","sim_ts":4.672,"timestamp":"...","key":"orders-3","task":"pack","instance":2,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":3.1904748458705834,"timestamp":"...","key":"orders-1","task":"pack","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":3.1904748458705834,"timestamp":"...","key":"orders-1","task":"pack","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":3.369806658930949,"timestamp":"...","key":"orders-2","task":"pack","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":3.369806658930949,"timestamp":"...","key":"orders-2","task":"pack","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":4.671648089361866,"timestamp":"...","key":"orders-3","task":"pack","instance":2,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
 ```
 
-Each order publishes `queued` when it joins the packers' queue and `started` when a packer takes it. The first two orders find a packer free, so each starts at the moment it queues. Without `--sample`, `desflow run` runs the model with its own settings and sinks.
+Each order publishes `queued` when it joins the packers' queue and `started` when a packer takes it. The first two orders find a packer free, so each starts at the moment it queues. Without `--sample`, `desflow run` runs the model with its own settings and sinks. A model that runs out of events before the sample is full ends with exit 0 and the records it made.
+
+`--var NAME=VALUE` fills `${NAME}` in the file and in the files it includes, before the environment does, and `check` and `test` take it too. `explain` and `experiment` do not take `--var`. `--watch` runs the file in a child process and runs it again whenever the file, or a `.py` file beside it, changes, so a change to a blueprint shows its first events at once. It needs the `watch` extra: `pip install "desflow[watch]"`. Press Ctrl+C to stop it:
+
+```bash
+desflow run shop.yaml --var PACKERS=3 --sample 5
+desflow run shop.yaml --sample 5 --watch
+```
 
 One run is one sample, so measure the wait with [replications](../user-guide/results/replications.md): the same model with ten seeds, each run for one hour:
 
@@ -296,7 +404,7 @@ Repeat one replication with: desflow run experiment/yaml/experiment_shop.yaml --
 
 The means are the same as before. At 99%, the half-width of the mean wait grows from 0.6483 to 0.9314 seconds, because more confidence needs a wider interval.
 
-`--stdout` prints the run's records as JSON lines, instead of writing to the file's sinks. `--drain` stops the arrivals at the end time and runs on until every order has left. This run stops the arrivals at 20 seconds, and its last record is the ninth order packed, at 24.789 seconds:
+`--stdout` prints the run's records as JSON lines, instead of writing to the file's sinks. The run keeps its ingress connectors, so a `KafkaIngress` still applies its `topic_policy`: it creates the control topic, and with `drop_and_create` it deletes it and creates it again. `--drain` stops the arrivals at the end time and runs on until every order has left. This run stops the arrivals at 20 seconds, and its last record is the ninth order packed, at 24.789303362278915 seconds. A record keeps its time unrounded:
 
 ```bash
 # Every record of a 20-second run that drains, as JSON lines in a file
@@ -330,7 +438,7 @@ Wrote results/packers/report.md
 
 ### Fit Measured Times
 
-A packing time in a model comes from measured times. The `fitting` example holds 40 packing times measured at a bench, for a shop of its own, and `desflow fit` fits every distribution family to them:
+A packing time in a model comes from measured times. The `fitting` example holds 40 packing times measured at a bench, for a shop of its own, and `desflow fit` fits every family of times to them:
 
 ```bash
 desflow examples get fitting --api yaml
@@ -360,10 +468,10 @@ The other options shape the fit, as [Input Fitting](../user-guide/model-parts/in
 
 - `--unit` names the data's unit, `ms`, `s`, `min` or `h`, and the settings are written in seconds.
 - `--upper` is the highest plausible value, and a family that can draw above it is marked.
-- `--candidates` names the families to try.
+- `--candidates` names the families to try. The default is every family that fits times, ten of them. `poisson` and `geometric` count whole numbers, so a fit does not try them, and named in `--candidates` they are skipped with the reason that they count whole numbers.
 - `--bins` offers the empirical distribution as a histogram with that many bins.
 - `--min-count` is the fewest values a family is fitted to.
-- `--tolerance` is how far a fitted mean and standard deviation may be from the data's, as a share of the data's.
+- `--tolerance` is how far a fitted mean and standard deviation may be from the data's, as a share of the data's. A tolerance that is negative or NaN, and a bound that is NaN, are refused, and so is a name in `--candidates` that is not a family, which the refusal quotes.
 - `--drop-invalid` leaves out values that are not numbers or lie outside the bounds, instead of stopping.
 - `--out` writes the best fit as YAML that a blueprint includes, and `--plot` draws the data against it as a PNG.
 
@@ -431,6 +539,12 @@ YAML: {dist: triangular, low: 0.55, mode: 1.2, high: 2.84}
 Python: dist="triangular", low=0.55, mode=1.2, high=2.84
 ```
 
+`poisson` takes `--mean`, and `geometric` takes `--p`, the chance of success on each try. Both give whole numbers:
+
+```bash
+desflow dist geometric --p 0.25
+```
+
 `desflow dist` alone prints a table of every family with its parameters and a one-line summary, and [Choosing Inputs](../learn/inputs/choosing-inputs.md#measured-times) explains the variability line:
 
 ```bash
@@ -457,9 +571,9 @@ Each command reads its file and calls the library function a Python script would
 
 ![desflow explain loads the model, builds the graph from what the model declares, works out each task's rate by flow balance, marks the tasks the formulas do not cover, then gives each resource its utilisation, status and wait by Kingman's formula or Erlang C, and names the bottleneck and the hints. --verify runs the model unpaced with no ingress or egress and compares utilisation, queue length, wait and throughput with the analysis, within 10% for one run, or for replications within the 95% interval's half-width or 1%, whichever is larger](../assets/diagrams/explain-steps.png)
 
-**Graph.** `explain` builds the graph from what the model declares: its arrivals, tasks, resources, stores, containers and `next` shares. It builds and runs nothing. Code the model does not declare, such as a hand-written arrival loop or an `add_process` function, becomes an opaque node.
+**Graph.** `explain` builds the graph from what the model declares: its arrivals, tasks, resources, stores, containers and `next` shares. It builds and runs nothing. Code the model does not declare, such as a hand-written arrival loop or an `add_process` function, becomes an opaque node. The graph also has an edge with no share from a task to each task it starts by an `on:` or `listen` spawn, a `task` branch of `wait`, `open` or `subscribe`, a spawn in the `on:` of a signal it fires, and `on_interrupt_next` and `on_interrupt_run`. `next` weights, fixed or computed, end no flow.
 
-**Rates.** Each task's arrival rate comes from flow balance: the rate from its arrivals plus the share of each task that sends work to it. A `next` function or a hand-written arrival loop makes the rates unknown, because the graph cannot see where the work goes.
+**Rates.** Each task's arrival rate comes from flow balance: the rate from its arrivals plus the share of each task that sends work to it. A `next` function or a hand-written arrival loop makes the rates unknown, because the graph cannot see where the work goes. A task reached by an edge with no share has no rate either, with the reason "how often <task> starts it is not known before a run" or "the split after <task> depends on the run".
 
 **Coverage.** The formulas hold for a plain network of queues:
 
@@ -469,8 +583,10 @@ Each command reads its file and calls the library function a Python script would
 
 Anything else marks tasks, and the rate of a marked task is unknown. These mark tasks:
 
-- A task feature, such as `put`, `patience` or `fail`, marks that task and every task after it.
-- A resource feature, such as `queue_limit` or breakdowns, marks the tasks that use it and every task after them.
+- A task feature, such as `put`, `patience`, `fail`, a `service_time` (`computed service time`) or an `interrupt` that names the task (`interruptions (an interrupt names it)`), marks that task and every task after it.
+- An arrival feature gives the arrival no rate, so the tasks it starts have none: a `gap` (`computed gaps`), a `count`, `keys`, a `key` that can repeat or `max_events` (`limited or repeated arrivals`), a `group` other than 1, and `active: false`. A spawn `count` other than 1 is a feature too.
+- A resource feature, such as `queue_limit`, breakdowns, a capacity that an `on:` entry sets, a resource family, or a resource picked by `key` or `lowest`, marks the tasks that use it and every task after them.
+- A router with a weight that is an expression ends no flow and has no shares.
 - A priority queue whose tasks have different priorities marks every task after its tasks. The resource keeps its utilisation but has no wait.
 - An unstable resource marks every task after its tasks. The resource keeps its status.
 - A scenario step, live ingress or an `add_process` function marks every arrival and every task.
@@ -502,9 +618,9 @@ A measure is not compared in these cases:
 
 ## Stability and Limits
 
-- **Inputs are files.** `run` reads a blueprint, `explain` a blueprint or a builder file with a module-level `SimulationContext`, `experiment` an experiment file, and `fit` a CSV file. For a Python model, use `replicate` and `run_experiment`, as [Replications](../user-guide/results/replications.md) shows.
+- **Inputs are files.** `run` reads a blueprint, or a builder file with `--sample` (not with `--stdout`, `--var` or `--watch`), `check` a blueprint or a builder file, `test` a blueprint or a builder file with a `tests.yaml`, `explain` a blueprint or a builder file with a module-level `SimulationContext`, `experiment` an experiment file, and `fit` a CSV file. For a Python model, use `replicate` and `run_experiment`, as [Replications](../user-guide/results/replications.md) shows.
 - **Examples need the network.** `examples get` downloads from GitHub at the installed release's tag. `--ref` picks another tag or branch.
 - **`explain --json` is experimental.** Its shape can change in 1.x, and `schema_version` changes with it.
 - **Exit statuses:** 0 on success, 1 on a failure, 2 on a usage error.
-    - **1:** `run` or `explain` cannot load the file, an `experiment` check fails (its files are still written), `fit` finds no usable family, or `dist` has no formula from a mean and a standard deviation for the family.
+    - **1:** `run`, `check`, `test` or `explain` cannot load the file, a `test` differs from the measured statistics, an `experiment` check fails (its files are still written), `fit` finds no usable family, or `dist` has no formula from a mean and a standard deviation for the family.
     - **2:** a missing file, an option value that is not valid such as `--until abc`, a value that is not a number in a `fit` column, or an experiment file that is not valid.

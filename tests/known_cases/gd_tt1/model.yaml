@@ -1,0 +1,19 @@
+# case GD-TT1: interrupted while joining a child, then join it again
+# (tests/test_process.py:130).
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  p: {initial: 1, spawn: parent}
+  i: {dist: constant, value: 1, spawn: interruptor, max_events: 1}
+
+tasks:
+  parent:
+    wait: {task: child}
+    on_interrupt: resume
+    payload: {event_type: joined}
+  child:
+    service_time: 2
+    payload: {event_type: child_done}
+  interruptor:
+    payload: {event_type: interrupt}
+    interrupt: {task: parent}

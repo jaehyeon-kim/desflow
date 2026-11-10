@@ -1,0 +1,28 @@
+# Stop after a count: an arrival that ends after exactly 12 records.
+#
+# An order arrives every 2 seconds, and `max_events` ends the arrival after 12. The run
+# has no `until`, so it ends when the last record is written.
+#
+# Needs: nothing.
+# Run it with: desflow run docs/snippets/generate-data/stop_after_a_count.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:arrivals]
+arrivals:
+  orders: {dist: constant, value: 2, spawn: order, max_events: 12}
+# --8<-- [end:arrivals]
+
+# --8<-- [start:tasks]
+tasks:
+  order:
+    payload:
+      order_id: {gen: sequence, start: 1}
+# --8<-- [end:tasks]

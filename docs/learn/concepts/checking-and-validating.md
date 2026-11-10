@@ -193,7 +193,7 @@ The results need to agree closely enough for the decision, not exactly. The mode
 
 ### In the Tutorial
 
-[Parameter Sweeps](../studies/parameter-sweeps.md) changes the shop's arrival rate around its estimate of 1.8 orders a second. With three packers, a rate 6% above the estimate more than doubles the mean wait, from 2.48 to 5.55 seconds, each the [mean of 20 replications after a 2-minute warm-up](../first-model/first-simulation.md#busy-hour-figures). With four packers, the mean wait is at most 0.35 seconds at every rate in the sweep.
+[Parameter Sweeps](../studies/parameter-sweeps.md) changes the shop's arrival rate around its estimate of 1.8 orders a second. With three packers, a rate 6% above the estimate more than doubles the mean wait, from 2.48 to 5.55 seconds, each the [mean of 20 replications after a 2-minute warm-up](output-analysis.md#busy-hour-figures). With four packers, the mean wait is at most 0.35 seconds at every rate in the sweep.
 
 ### Why It Matters
 

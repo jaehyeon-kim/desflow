@@ -1,12 +1,12 @@
 # Input Fitting
 
-A model's distributions should come from data where data exists. Input fitting takes a column of measured times and fits every distribution family desflow has. It checks each result, and also offers the data itself as an empirical distribution. It writes the chosen settings in a form a model loads. This page describes the command and the Python call, every option, each outcome and how to deal with it, and how the fitting is done.
+A model's distributions should come from data where data exists. Input fitting takes a column of measured times and fits every distribution family of times that desflow has. It checks each result, and also offers the data itself as an empirical distribution. It writes the chosen settings in a form a model loads. This page describes the command and the Python call, every option, each outcome and how to deal with it, and how the fitting is done.
 
 ---
 
 ## What It Is
 
-`desflow fit` and `fit_column` fit the families of [Arrivals and Services](arrivals-and-services.md) to service durations or to the gaps between arrivals, by maximum likelihood with scipy. Maximum likelihood chooses the parameters under which the measured values are most probable. Each family's fit becomes one row of a table, with its parameters in seconds and its diagnostics, and the best is marked. [Fitting the Inputs](../../learn/inputs/fit-the-inputs.md) fits the shop's 40 packing times and shows why the best by the numbers still needs checking against the model's answer. [Fit a Distribution](../../how-to/analysis/fit-a-distribution.md) fits the gaps of an order log.
+`desflow fit` and `fit_column` fit the families of times of [Arrivals and Services](arrivals-and-services.md) to service durations or to the gaps between arrivals, by maximum likelihood with scipy. Maximum likelihood chooses the parameters under which the measured values are most probable. Each family's fit becomes one row of a table, with its parameters in seconds and its diagnostics, and the best is marked. [Fitting the Inputs](../../learn/inputs/fit-the-inputs.md) fits the shop's 40 packing times and shows why the best by the numbers still needs checking against the model's answer. [Fit a Distribution](../../how-to/analysis/fit-a-distribution.md) fits the gaps of an order log.
 
 Fitting needs the `fit` extra, which installs scipy and matplotlib: `pip install "desflow[fit]"`. A base install runs without the extra: desflow imports scipy and matplotlib only when a fit runs.
 
@@ -16,14 +16,18 @@ Fitting needs the `fit` extra, which installs scipy and matplotlib: `pip install
 
 ### Fit a Column
 
+The command fits a CSV column, prints the table, writes the best candidate's settings to `--out` and the plot to `--plot`. It exits with status 1 when no candidate is usable, and with status 2 when the input is invalid:
+
+```bash
+# Fit the packing times, write the best fit and plot every candidate
+desflow fit packing_times.csv --column packing_seconds --unit s --lower 0 --out packing_fit.yaml --plot fit.png
+```
+
+In Python, `fit_column` does the same on a list of numbers:
+
 === "YAML"
 
-    ```bash
-    # Fit the packing times, write the best fit and plot every candidate
-    desflow fit packing_times.csv --column packing_seconds --unit s --lower 0 --out packing_fit.yaml --plot fit.png
-    ```
-
-    The command prints the table, writes the best candidate's settings to `--out` and the plot to `--plot`. It exits with status 1 when no candidate is usable, and with status 2 when the input is invalid.
+    A blueprint holds the fit as a file: the YAML that `--out` wrote, which [Load the Settings](#load-the-settings) includes in the blueprint.
 
 === "Builder"
 
@@ -48,7 +52,7 @@ Fitting needs the `fit` extra, which installs scipy and matplotlib: `pip install
     )
     ```
 
-`read_column(path, column)`, imported with `from desflow.analysis.fit import read_column`, reads one CSV column as text. `fit_column` takes any list of numbers or text, where an empty cell or None is a missing value.
+`read_column(path, column)`, imported with `from desflow.analysis import read_column`, reads one CSV column as text. `fit_column` takes any list of numbers or text, where an empty cell or None is a missing value.
 
 ### Options
 
@@ -56,11 +60,11 @@ Fitting needs the `fit` extra, which installs scipy and matplotlib: `pip install
 |---|---|---|---|
 | `--column` | | the CSV column to fit | required |
 | `--unit` | `unit` | the data's unit: `ms`, `s`, `min` or `h`; the settings are always in seconds | `s` |
-| `--candidates` | `candidates` | the families to try, such as `gamma,lognormal`; an unknown name is refused | every family |
-| `--lower`, `--upper` | `lower`, `upper` | the plausible range, in the data's unit: a value outside it is invalid, and a family that can draw outside it is flagged | none |
+| `--candidates` | `candidates` | the families to try, such as `gamma,lognormal`; spaces around a name are ignored, and an unknown name is refused, quoted; `poisson` and `geometric` are skipped, as they count whole numbers | every family of times |
+| `--lower`, `--upper` | `lower`, `upper` | the plausible range, in the data's unit: a value outside it is invalid, and a family that can draw outside it is flagged; a NaN bound is refused | none |
 | `--bins` | `bins` | offer the empirical distribution as a histogram with this many bins | the values themselves |
 | `--min-count` | `min_count` | the fewest values a family is fitted to | 20 |
-| `--tolerance` | `tolerance` | how far a fitted mean and standard deviation may be from the data's, as a share of the data's | 0.25 |
+| `--tolerance` | `tolerance` | how far a fitted mean and standard deviation may be from the data's, as a share of the data's; NaN and a negative number are refused | 0.25 |
 | `--drop-invalid` | `drop_invalid` | leave invalid values out, counted, rather than stopping | off |
 | `--out` | `result.yaml()` | write the best candidate's settings as YAML | |
 | `--plot` | `result.plot(path)` | draw the data against the best candidate | |
@@ -94,6 +98,7 @@ Each candidate ends with one status. Every one but `fitted` has a reason, and no
 |---|---|---|
 | `skipped` | fewer values than `--min-count` | collect more data, or use the `empirical` candidate, which is still offered; lower `--min-count` only if the values are known to be typical |
 | `skipped` | a value of 0 or below, for `gamma`, `weibull` or `lognormal`, which are defined above 0 only | find out what the zeros are: rounding (record finer times), a different kind of event (remove it from the data), or real zero durations (use a family with no positive-only support, such as `exponential` or `truncated_normal`) |
+| `skipped` | `poisson` or `geometric` named in `--candidates`, with the reason "<family> counts whole numbers, and fit tries families of times only" | fit the times with a family of times; the two families are for counts, not times |
 | `skipped` | every value is the same, so only `constant` and `empirical` are fitted | use `constant`, or check that the column is the one meant |
 | `skipped` | a value below `low`, for `truncated_normal`, whose `low` is `--lower`, or 0 | set `--lower` to the true lower bound |
 | `did not fit` | scipy's fit raised an error or its search did not settle; the reason is scipy's message | the data is far from that family's shape: choose another family; more data can help |
@@ -212,10 +217,14 @@ The tutorial page [Fitting the Inputs](../../learn/inputs/fit-the-inputs.md) tea
     The file the fit writes, which the download already holds:
 
     ```yaml title="examples/yaml/packing_fit.yaml"
-    # Fitted by desflow fit from packing_times.csv, column packing_seconds: triangular, from 40 values in s, written in seconds.
+    # Fitted by desflow fit from packing_times.csv, column packing_seconds: triangular, from
+    # 40 values in s, written in seconds.
     dist: triangular
+
     low: 0.546332
+
     mode: 1.2
+
     high: 2.83766
     ```
 

@@ -1,0 +1,13 @@
+simulation: {sim_id: A3, factor: 0, random_seed: 42}
+arrivals:
+  a:
+    dist: constant
+    value: 5
+    first_at: 5
+    max_events: 40
+    spawn: member
+    group: {gen: sample, dist: poisson, mean: 2}
+tasks:
+  member:
+    payload: {event_type: member}
+run: {until: 205}

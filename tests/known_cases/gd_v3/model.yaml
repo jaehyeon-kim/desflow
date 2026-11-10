@@ -1,0 +1,22 @@
+# case GD-V3: a shared event re-created after each firing; three pupils wait twice, the
+# bell rings twice (events.rst:141-163).
+simulation: {sim_id: V, factor: 0, random_seed: 42}
+
+signals:
+  class_ends: {once: false}
+
+arrivals:
+  pupils: {initial: 3, spawn: first_class}
+  bell: {dist: constant, value: 45, spawn: ring, max_events: 2}
+
+tasks:
+  first_class:
+    wait: {signal: class_ends}
+    payload: {event_type: class_over}
+    next: second_class
+  second_class:
+    wait: {signal: class_ends}
+    payload: {event_type: class_over_again}
+  ring:
+    signal: class_ends
+    payload: {event_type: bell}

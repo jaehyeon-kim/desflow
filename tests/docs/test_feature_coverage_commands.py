@@ -77,6 +77,7 @@ _TEACHING = (
     "learn/running-live",
     "user-guide",
     "how-to",
+    "gallery",
 )
 
 

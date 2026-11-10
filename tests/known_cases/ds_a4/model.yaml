@@ -1,0 +1,11 @@
+# Design A4: an arrival gap computed from the time (gap 1 + t / 4), stopped at 8.
+simulation: {sim_id: A4, factor: 0, random_seed: 42}
+
+arrivals:
+  a: {gap: "1 + t / 4", spawn: t}
+
+tasks:
+  t:
+    payload: {event_type: arrived}
+
+run: {until: 8}

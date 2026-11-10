@@ -63,11 +63,13 @@ Equal priorities do not preempt, so one express order does not take the packer f
 
 ## Resume, Restart or Abandon
 
-A preempted or interrupted task first gives back everything it holds and stops waiting for anything, as SimPy's `with` blocks do on the way out. Its `on_interrupt` then says what it does:
+A preempted or interrupted task stops waiting for anything. A preemption takes its packer, so it gives that up. A plain `interrupt` leaves a packer it already holds with it, as a SimPy process that keeps its request does. A packer it was still waiting for depends on how the task asks for it. With `resource:`, the request goes back to the end of the line. With `seize` or a `request` in a wait, the request keeps its place under `resume`, and asks again at the back of the line under `restart`. A packer granted at the instant of the interrupt stays held. A breakdown takes the unit too. Its `on_interrupt` then says what it does:
 
-- `resume`, the default: it queues again and, once it has the packer back, packs for the time it had left;
-- `restart`: it queues again and packs for a new time, drawn from the same seeded stream, as if the work were spoiled;
-- `abandon`: it ends, and its flow with it, unless `on_interrupt_next` names a task to go to.
+- `resume`, the default: it goes on at once with a packer it still holds, or queues again and, once it has the packer back, packs for the time it had left;
+- `restart`: it does the same but packs for a new time, drawn from the same seeded stream, as if the work were spoiled;
+- `abandon`: it gives back every unit and ends, and its flow with it, unless `on_interrupt_next` names a task to go to. A task that names a task which asks for the packer again queues behind the orders already waiting.
+
+A task can also do work of its own when the interrupt arrives, without giving up its place in the flow. `on_interrupt_run` names a task that runs as a child flow of the same entity after each interrupt or preemption under `resume` or `restart`. The task then goes on with the time it had left, or with a new time under `restart`. An interrupt that arrives while the child runs reaches the child, and a child that fails fails the task. `on_interrupt_run` is refused with `abandon`, with `resource` and with a `request` in a wait, because it is for work that holds no unit of its own.
 
 An order that is abandoned when it loses its packer, and goes to be packed by hand:
 
@@ -107,14 +109,14 @@ An order that is abandoned when it loses its packer, and goes to be packed by ha
             counts["packed"] += 1
         except simpy.Interrupt:
             # An order that loses its packer to a rush order is packed by hand instead
-            env.process(pack_by_hand(env, sampler, counts))
+            yield from pack_by_hand(env, sampler, counts)
         finally:
             packers.release(request)
     ```
 
-    In the low-level API the process catches the `Interrupt` and starts the process that packs by hand.
+    In the low-level API the process catches the `Interrupt` and packs by hand with `yield from`, in the same process.
 
-The task publishes `preempted` (or `interrupted`) when it loses the packer, and `resumed` when it has it again. A `preempted` record names the express order that took the packer (`preempted_by`, its entity key) and the time the regular order had held it (`usage_since`):
+The task publishes `preempted` (or `interrupted`) when it loses the packer, and `resumed` when it is served again, also when it never gave the packer up. A preempted request is marked as preempted, so the packer is never given back to it by mistake. If the order that lost the packer has already ended, the preemption fails the flow that asked, with SimPy's `RuntimeError`. A `seize` unit is asked for again under `resume` and `restart`. A `preempted` record names the express order that took the packer (`preempted_by`, its entity key) and the time the regular order had held it (`usage_since`). In a blueprint, a task that `on_interrupt_next` names reads the same facts as `cause.by`, `cause.usage_since` and `cause.left` (the service time that was left). An expression reads who holds a unit and who waits as `held(packers)` and `waiting(packers)`, lists with each entity and its `rank` and `time`:
 
 === "YAML"
 
@@ -155,18 +157,30 @@ The task publishes `preempted` (or `interrupted`) when it loses the packer, and 
         def publish(value):
             env.publish_event(key, value, task=task, instance=task_id)
 
-        publish({"path_id": path_id, "status": "queued"})
+        publish(
+            {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+        )
         env.stats.task_queued(task, task_id)
         shop["running"].setdefault(task, []).append(env.active_process)
         shop["keys"][env.active_process] = key
         remaining, started = None, False
+        request = None
         while True:
-            request = shop["packers"].request(priority=priority)
+            if request is None:
+                request = shop["packers"].request(priority=priority)
             since = None
             try:
-                yield request
+                if not request.processed:
+                    yield request
                 status = "resumed" if started else "started"
-                publish({"path_id": path_id, "status": status})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": status,
+                    }
+                )
                 if started:
                     env.stats.task_resumed(task, task_id)
                 else:
@@ -181,8 +195,11 @@ The task publishes `preempted` (or `interrupted`) when it loses the packer, and 
                 shop["packers"].release(request)
                 break
             except simpy.Interrupt as interrupt:
-                request.cancel()
-                shop["packers"].release(request)
+                if policy == "abandon" or request not in shop["packers"].users:
+                    # Ask again if queued or preempted; abandon gives a held unit back
+                    request.cancel()
+                    shop["packers"].release(request)
+                    request = None
                 if since is not None:
                     # resume serves what is left; restart draws a new packing time
                     remaining = (
@@ -198,7 +215,9 @@ The task publishes `preempted` (or `interrupted`) when it loses the packer, and 
                     }
                 else:
                     value = {"status": "interrupted", "cause": interrupt.cause}
-                publish({"path_id": path_id, **value})
+                publish(
+                    {"path_id": path_id, "sim_id": "Shop", "service": "packing", **value}
+                )
                 env.stats.task_interrupted(task, task_id, preempted=preempted)
                 if policy == "abandon":
                     env.stats.task_dropped(task, task_id)
@@ -210,7 +229,7 @@ The task publishes `preempted` (or `interrupted`) when it loses the packer, and 
         env.stats.flow_finished(arrival)
     ```
 
-    The process catches `simpy.Interrupt`. For a preemption, its cause is SimPy's `Preempted`. The process gives back its request and requests the packer again. `on_interrupt` writes that loop for you. SimPy delivers an interrupt as an `URGENT` event, which [End Conditions](../first-model/end-conditions.md#close-the-doors-then-finish) explains.
+    The process catches `simpy.Interrupt`. For a preemption, its cause is SimPy's `Preempted`. A preempted process, or one whose request still waits, cancels its request and requests the packer again. An interrupted process that holds the packer keeps its request. `on_interrupt` writes that loop for you. SimPy delivers an interrupt as an `URGENT` event, which [End Conditions](../first-model/end-conditions.md#close-the-doors-then-finish) explains.
 
 The statistics count each `preempted`, `interrupted` and `resumed`. A resumed order's wait is the sum of its waits, and its packing time is the total time it was packed:
 
@@ -247,7 +266,8 @@ Preemption is one source of interrupts, and a model can send others. An `interru
     scenario:
       # A recall at 31 minutes: every regular order in the shop,
       # waiting or being packed, is interrupted
-      - {at: 31 min, interrupt: {task: pack_order, cause: recalled}}
+      - at: 31 min
+        interrupt: {task: pack_order, cause: recalled}
     ```
 
     A task can carry the same `interrupt`, applied when it finishes.
@@ -349,7 +369,7 @@ Each tab prints all three policies: the orders packed, preempted and recalled (`
     abandon: 312 preempted, 2 recalled, 1293 packed, mean wait  3.60 s, mean packing 1.50 s
     ```
 
-Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders. The mean time packed rises from 1.50 to 1.69 seconds, and the load nears what one packer can do. Waits then grow fast, as [Queueing Basics](../concepts/queueing-basics.md#waits-near-full-use) explains. `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost. So report their count beside it. [Priority and Preemption](../../user-guide/resources/priority-and-preemption.md#preemption) describes preemption, and [Tasks and Processes](../../user-guide/tasks-and-processes/index.md) the task's steps.
+Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders. The mean time packed rises from 1.50 to 1.69 seconds, and the load nears what one packer can do. Waits then grow fast, as [Queueing Basics](../concepts/queueing-basics.md#waits-near-full-use) explains. `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost. The decision is `resume`: it loses no order and its mean wait, 8.12 seconds, is the lowest of the two policies that keep every order. So report their count beside it. [Priority and Preemption](../../user-guide/resources/priority-and-preemption.md#preemption) describes preemption, and [Tasks and Processes](../../user-guide/tasks-and-processes/index.md) the task's steps.
 
 ## Key Takeaways
 
@@ -369,10 +389,7 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
         # The Interruptions tutorial: express orders take the packer from regular ones.
         # Run it with: desflow run interruptions.yaml
         # With restart instead of resume: POLICY=restart desflow run interruptions.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           # An express order takes the packer from a regular one being packed
@@ -403,16 +420,16 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
         scenario:
           # A recall at 31 minutes: every regular order in the shop,
           # waiting or being packed, is interrupted
-          - {at: 31 min, interrupt: {task: pack_order, cause: recalled}}
+          - at: 31 min
+            interrupt: {task: pack_order, cause: recalled}
 
         # Counts of preemptions and resumptions, and the mean wait and service, at the end
         stats: {level: typical, interval: 1 h}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"
@@ -568,18 +585,30 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
             def publish(value):
                 env.publish_event(key, value, task=task, instance=task_id)
 
-            publish({"path_id": path_id, "status": "queued"})
+            publish(
+                {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+            )
             env.stats.task_queued(task, task_id)
             shop["running"].setdefault(task, []).append(env.active_process)
             shop["keys"][env.active_process] = key
             remaining, started = None, False
+            request = None
             while True:
-                request = shop["packers"].request(priority=priority)
+                if request is None:
+                    request = shop["packers"].request(priority=priority)
                 since = None
                 try:
-                    yield request
+                    if not request.processed:
+                        yield request
                     status = "resumed" if started else "started"
-                    publish({"path_id": path_id, "status": status})
+                    publish(
+                        {
+                            "path_id": path_id,
+                            "sim_id": "Shop",
+                            "service": "packing",
+                            "status": status,
+                        }
+                    )
                     if started:
                         env.stats.task_resumed(task, task_id)
                     else:
@@ -594,8 +623,11 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
                     shop["packers"].release(request)
                     break
                 except simpy.Interrupt as interrupt:
-                    request.cancel()
-                    shop["packers"].release(request)
+                    if policy == "abandon" or request not in shop["packers"].users:
+                        # Ask again if queued or preempted; abandon gives a held unit back
+                        request.cancel()
+                        shop["packers"].release(request)
+                        request = None
                     if since is not None:
                         # resume serves what is left; restart draws a new packing time
                         remaining = (
@@ -611,7 +643,9 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
                         }
                     else:
                         value = {"status": "interrupted", "cause": interrupt.cause}
-                    publish({"path_id": path_id, **value})
+                    publish(
+                        {"path_id": path_id, "sim_id": "Shop", "service": "packing", **value}
+                    )
                     env.stats.task_interrupted(task, task_id, preempted=preempted)
                     if policy == "abandon":
                         env.stats.task_dropped(task, task_id)

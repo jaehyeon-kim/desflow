@@ -1,0 +1,11 @@
+# case P68: warm-up (patterns/i_run.py I2).
+simulation: {sim_id: P, factor: 0, random_seed: 42, warmup: 5}
+
+arrivals:
+  orders: {dist: constant, value: 2, spawn: t}
+
+tasks:
+  t:
+    payload: {e: 1}
+
+run: {until: 9}

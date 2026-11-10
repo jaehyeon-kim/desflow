@@ -1,0 +1,15 @@
+{
+  "asserts": [
+    {
+      "file": "test_model.py",
+      "line": 108,
+      "text": "assert started[:2] == [(\"a-1\", 0.0), (\"a-2\", 0.0)]"
+    },
+    {
+      "file": "test_model.py",
+      "line": 126,
+      "text": "assert elapsed >= SIM_SECONDS * FACTOR"
+    }
+  ],
+  "paced_wall": 0.4
+}

@@ -13,7 +13,7 @@ def _start_at(context: Any, moment: float, task: str):
 
     def run():
         yield context.env.timeout(moment - context.env.now)
-        wrapper = context._tasks[task]
+        wrapper = context._task_functions[task]
         context.spawn(wrapper(context.next_instance(task), context))
 
     return run
@@ -40,6 +40,14 @@ def one_start(context: Any):
     yield context.env.event()
 
 
+def start_wait(context: Any):
+    """Starts one `wait` task at 0, with no delay, as a single arrival would."""
+    context.spawn(
+        context._task_functions["wait"](context.next_instance("wait"), context)
+    )
+    yield context.env.event()
+
+
 def one_driver(context: Any):
     """Starts one `driver` task at 0, as a single arrival would."""
     yield from _start_at(context, 0, "driver")()
@@ -55,15 +63,30 @@ def start_task(context: Any, task: str, at: float = 0.0):
 def two_charges(context: Any):
     """Starts two charge instances and a driver on one car entity, so the driver's
     running wait selects several instances."""
-    entity = context._new_entity("car", None)
-    charge, driver = context._tasks["charge"], context._tasks["driver"]
-    context.spawn(
-        charge(context.next_instance("charge"), *context._task_args, entity=entity)
+    entity = context._run.arrivals.new_entity("car", None)
+    charge, driver = (
+        context._task_functions["charge"],
+        context._task_functions["driver"],
     )
     context.spawn(
-        charge(context.next_instance("charge"), *context._task_args, entity=entity)
+        charge(
+            context.next_instance("charge"),
+            *context._tasks.args_for(context),
+            entity=entity,
+        )
     )
     context.spawn(
-        driver(context.next_instance("driver"), *context._task_args, entity=entity)
+        charge(
+            context.next_instance("charge"),
+            *context._tasks.args_for(context),
+            entity=entity,
+        )
+    )
+    context.spawn(
+        driver(
+            context.next_instance("driver"),
+            *context._tasks.args_for(context),
+            entity=entity,
+        )
     )
     yield context.env.event()

@@ -1,0 +1,23 @@
+# Records of task ST-E06, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: ST-E06
+
+until: null
+
+run_end: 3.141592
+
+records:
+  - name: pem at 0, 1, 2 and 3
+    match: {task: pem, value.event_type: now}
+    count: 4
+  - name: pem at 3
+    match: {task: pem, value.event_type: now}
+    at: 3
+  - name: three ticks
+    match: {task: pem_wait, value.event_type: tick}
+    count: 3
+  - name: nothing after the end
+    match: {value.event_type: [now, tick]}
+    between: [3.141592, 1000]
+    count: 0

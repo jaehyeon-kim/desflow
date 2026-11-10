@@ -1,0 +1,14 @@
+{
+  "fault": "K6 missed an import from desflow.values, which the skill's API page before the changes does not name",
+  "task": "p33",
+  "tasks": "main",
+  "api": "before",
+  "counts": {
+    "K6": 1
+  },
+  "evidence": {
+    "K6": [
+      "builder.py:4: imports from desflow.values"
+    ]
+  }
+}

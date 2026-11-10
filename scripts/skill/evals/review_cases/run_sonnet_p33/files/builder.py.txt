@@ -1,0 +1,26 @@
+"""Builder API form of the model in model.yaml."""
+
+from desflow import ConsoleEgress, SimulationContext
+
+app = (
+    SimulationContext(sim_id="P", random_seed=42, factor=0)
+    .add_egress(ConsoleEgress(format="json"))
+    .add_resource("m", current_cap=1, max_cap=3)
+    .add_service("hold", dist="constant", value=5)
+    .add_arrival("a", first_at=0, gap=1, max_events=2, spawn="job")
+    .add_arrival("boss", first_at=2, gap=1, max_events=1, spawn="grow")
+)
+
+
+@app.task(service_id="hold", resource_id="m", name="job")
+def job(task_id):
+    return {"event_type": "done"}
+
+
+@app.task(name="grow", on=[{"path": "P.resources.m.current_cap", "value": 3}])
+def grow(task_id):
+    return {"event_type": "grow"}
+
+
+if __name__ == "__main__":
+    app.run(until=20)

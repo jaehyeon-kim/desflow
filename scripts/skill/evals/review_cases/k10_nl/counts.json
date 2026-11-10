@@ -1,0 +1,7 @@
+{
+  "known": true,
+  "counts": {
+    "K10": 0
+  },
+  "reason": "nl -ba prints every line of model.yaml after --fix."
+}

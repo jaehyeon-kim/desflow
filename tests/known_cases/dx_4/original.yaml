@@ -1,0 +1,10 @@
+# DX-4: the same model with the snippet's own Python: `order_record` of docs/snippets/yaml/iceberg_tables_logic.py.
+simulation: {sim_id: Shop, factor: 0, random_seed: 1}
+resources: {packers: {current_cap: 1, max_cap: 3}}
+arrivals: {orders: {dist: constant, value: 5, spawn: pack}}
+tasks:
+  pack:
+    service_time: 2
+    resource: packers
+    payload: !python iceberg_tables_logic.order_record
+run: {until: 40}

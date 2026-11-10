@@ -1,0 +1,22 @@
+# case P17: set a computed attribute: a counter, the time, a payload value.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+arrivals:
+  a:
+    initial: 1
+    spawn: t
+    attributes: {n: 0}
+
+tasks:
+  t:
+    set:
+      n: {gen: expr, expr: "attr.n + 1"}
+      t0: {gen: expr, expr: t}
+    service_time: 1
+    payload: {event_type: set}
+    next: u
+  u:
+    payload:
+      event_type: read
+      n: {gen: attr, name: n}
+      t0: {gen: attr, name: t0}

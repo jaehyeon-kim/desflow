@@ -1,0 +1,3 @@
+{"instance": null, "key": "boss-1", "sim_ts": 2.0, "stream_type": "event", "task": "grow", "timestamp": "2026-11-07T11:06:25.161+00:00", "value": {"event_type": "grow"}}
+{"instance": null, "key": "a-1", "sim_ts": 5.0, "stream_type": "event", "task": "job", "timestamp": "2026-11-07T11:06:28.161+00:00", "value": {"event_type": "done"}}
+{"instance": null, "key": "a-2", "sim_ts": 7.0, "stream_type": "event", "task": "job", "timestamp": "2026-11-07T11:06:30.161+00:00", "value": {"event_type": "done"}}

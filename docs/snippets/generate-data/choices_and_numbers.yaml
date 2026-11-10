@@ -1,0 +1,42 @@
+# Choices and numbers: weighted choices and drawn numbers.
+#
+# A payment arrives every second. 60 percent are paid by card and the rest in cash. A
+# purchase arrives about once a second. A purchase has a price between 1 and 250, a
+# whole number of items from 1 to 5, a delivery time that is normal around 120 minutes,
+# a channel chosen with equal chance, and a `gift` flag that is true for 1 in 10.
+#
+# Needs: nothing.
+# Run it with: desflow run docs/snippets/generate-data/choices_and_numbers.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:arrivals]
+arrivals:
+  payments: {dist: constant, value: 1, spawn: payment}
+  purchases: {dist: exponential, rate: 1, spawn: purchase}
+# --8<-- [end:arrivals]
+
+# --8<-- [start:tasks]
+tasks:
+  payment:
+    payload:
+      method:
+        gen: weighted
+        options: {card: 60, cash: 40}
+  purchase:
+    payload:
+      price: {gen: uniform, low: 1, high: 250, decimals: 2}
+      items: {gen: integer, bounds: [1, 5]}
+      delivery_minutes: {gen: normal, mean: 120, std: 15, decimals: 1}
+      channel: {gen: one_of, choices: [web, app, store]}
+      gift: {gen: boolean, p: 0.1}
+# --8<-- [end:tasks]
+
+run: {until: 30}

@@ -21,13 +21,13 @@ simulation:
   lag_interval: 10 s
   # --8<-- [end:lag]
   # --8<-- [start:strict]
-  # Under simulation: raise RuntimeError when a paced step is more than factor
-  # seconds behind the wall clock; false by default, and never checked at factor 0
-  strict: true
+  # Under simulation: true by default for a paced run and false at factor 0; false
+  # lets a live run go on when a slow sink makes it fall behind the wall clock
+  strict: false
   # --8<-- [end:strict]
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   # Quoted, because ${...} inside {...} would end the mapping early; the check

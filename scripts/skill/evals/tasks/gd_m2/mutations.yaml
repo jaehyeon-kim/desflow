@@ -1,0 +1,18 @@
+# Three changes to the YAML an agent writes for task GD-M2: a rate, a weight or share, a
+# capacity, or the nearest time or count, or, where no number the request names changes
+# the records, one step of the flow. Each change tries the keys of `keys` that exist in
+# model.yaml, in order, and keeps the first that alters the records (grade.py).
+
+task: GD-M2
+
+mutations:
+  - name: use takes 2
+    changes:
+      - keys: [tasks.use.service_time, "services.{tasks.use.service}.value"]
+        new: 2
+  - name: two users
+    changes:
+      - {keys: [arrivals.a.initial, arrivals.a.count, arrivals.a.max_events], new: 2}
+  - name: capacity 0
+    changes:
+      - {keys: [resources.res.current_cap], new: 0, add: true}

@@ -1,0 +1,35 @@
+# case P48: periodic shifts: a flow takes the machine off duty for 3 every 10 at
+# priority -1 (register review-r1/patterns/r8_shift.py SimPy: PriorityResource, break 3,
+# jobs every 1 of service 1, until 35).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+resources:
+  m: {current_cap: 1, queue: priority}
+
+services:
+  ten: {dist: constant, value: 10}
+  brk: {dist: constant, value: 3}
+  one: {dist: constant, value: 1}
+
+arrivals:
+  shift: {initial: 1, spawn: offduty}
+  jobs: {dist: constant, value: 1, spawn: job}
+
+tasks:
+  offduty:
+    service: ten
+    payload: {event_type: on_duty_ends}
+    next: brk
+  brk:
+    resource: m
+    priority: -1
+    service: brk
+    payload: {event_type: break}
+    next: offduty
+  job:
+    resource: m
+    priority: 0
+    service: one
+    payload: {event_type: job}
+
+run: {until: 35}

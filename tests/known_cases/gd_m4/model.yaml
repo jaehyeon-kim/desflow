@@ -1,0 +1,15 @@
+# Guides M4: a trace of every event the run processes (monitoring.rst:255-296).
+simulation: {sim_id: M, factor: 0, random_seed: 42}
+
+stats: {trace: true}
+
+egress:
+  - {type: Console, when: trace}
+
+arrivals:
+  a: {initial: 1, spawn: ticking}
+
+tasks:
+  ticking:
+    service_time: 1
+    payload: {event_type: tick}

@@ -1,0 +1,29 @@
+# The keys of the ranking batch in their forms: a queue rank with ties and a preempt
+# rule on a resource, a computed preempt and a request mapping with its own priority, a
+# rank on the waiting gets and puts of a store and of a container, and a change of
+# `queue_limit` during the run.
+simulation: {sim_id: Ranking, factor: 0, random_seed: 42}
+resources:
+  m: {current_cap: 1, queue: {rank: "attr.rank", ties: lifo}, preempt: {when: "request.rank < holder.rank and t - holder.since > 1", victim: "holder.rank"}}
+  k: {current_cap: 1, queue: priority, queue_limit: 3}
+stores:
+  s: {get_queue: {rank: "attr.rank", ties: fifo}, put_queue: {rank: "attr.rank", ties: lifo}}
+containers:
+  c: {level: 0, get_queue: {rank: "attr.rank"}, put_queue: {rank: "attr.rank", ties: lifo}}
+arrivals:
+  a: {dist: constant, value: 1, spawn: job, max_events: 2, first_at: 0, attributes: {rank: 5, pre: true}}
+  b: {dist: constant, value: 1, spawn: job, max_events: 2, first_at: 2, attributes: {rank: 1, pre: true}}
+  d: {dist: constant, value: 1, spawn: both, max_events: 1, first_at: 1, attributes: {rank: 2}}
+  g: {dist: constant, value: 1, spawn: shelve, max_events: 2, first_at: 0, attributes: {rank: 2}}
+  t: {dist: constant, value: 1, spawn: take, max_events: 2, first_at: 1, attributes: {rank: 2}}
+  p: {dist: constant, value: 1, spawn: pour, max_events: 2, first_at: 0, attributes: {rank: 2}}
+  q: {dist: constant, value: 1, spawn: draw, max_events: 2, first_at: 1, attributes: {rank: 2}}
+tasks:
+  job: {resource: m, preempt: "attr.pre", service_time: 2, on_interrupt: abandon, payload: {e: job_done}}
+  both: {wait: {all: {x: {request: {resource: m, preempt: "attr.rank > 1"}}, y: {request: {resource: k, priority: 1}}}}, service_time: 1, payload: {e: both_done}}
+  shelve: {put: {store: s, item: {gen: attr, name: rank}}, payload: {e: shelved}}
+  take: {get: {store: s}, payload: {e: taken}}
+  pour: {put: {container: c, amount: 1}, payload: {e: poured}}
+  draw: {get: {container: c, amount: 1}, payload: {e: drawn}}
+scenario: [{at: 3, path: Ranking.resources.k.queue_limit, value: 1}]
+run: {until: 20}

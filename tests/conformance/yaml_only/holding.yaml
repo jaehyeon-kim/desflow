@@ -1,0 +1,38 @@
+# The keys of the holding batch in their forms: seize with options, an opened
+# request, cancel and release by handle, release of another flow's unit, a handle in a
+# wait and in an interrupt, and whole_flow.
+simulation: {sim_id: Holding, factor: 0, random_seed: 42}
+resources:
+  m: {current_cap: 1, queue: priority, preempt: true}
+  k: {current_cap: 2}
+arrivals:
+  job: {dist: constant, value: 1, spawn: take, max_events: 2}
+  watcher: {dist: constant, value: 1, spawn: watch, max_events: 1}
+tasks:
+  take:
+    seize: {resource: m, priority: 5, preempt: true, patience: 30 s}
+    open: {slot: {request: k}, limit: {timeout: 5}, helper: {task: work}}
+    payload: {e: taken}
+    next: use
+  use:
+    wait: {any: {got: {handle: slot}, out: {handle: limit}}}
+    interrupt: {handle: helper, cause: stop}
+    payload: {e: used, x: {gen: expr, expr: "handle.slot.triggered"}}
+    next: leave
+  leave:
+    cancel: {handle: slot}
+    release: {handle: slot}
+    payload: {e: left}
+    next: free
+  free:
+    release: m
+    payload: {e: freed}
+    next: others
+  others:
+    release: {resource: m, task: take, where: "process.instance == 0"}
+    payload: {e: others}
+  work: {service_time: 3, payload: {e: worked}}
+  watch:
+    wait: {running: {task: take, whole_flow: true}}
+    payload: {e: flow_done}
+run: {until: 20}

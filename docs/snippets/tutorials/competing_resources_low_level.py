@@ -42,7 +42,12 @@ def step(env, sampler, key, task, task_id, service):
     path_id = f"Shop.service.{service}"
 
     def status(state):
-        value = {"path_id": path_id, "status": state}
+        value = {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": service,
+            "status": state,
+        }
         env.publish_event(key, value, task=task, instance=task_id)
 
     def finished(value):
@@ -69,7 +74,7 @@ def pick_order(env, sampler, shop, key, task_id, keep):
         shop["picker"].release(picker)
         picker = None
     # With keep, the picker carries the order and stays with it until it is on the bench
-    env.process(pack_order(env, sampler, shop, key, task_id, picker))
+    yield from pack_order(env, sampler, shop, key, task_id, picker)
 
 
 def pack_order(env, sampler, shop, key, task_id, picker):

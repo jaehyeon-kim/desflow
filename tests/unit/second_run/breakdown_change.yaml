@@ -1,0 +1,18 @@
+# A breakdown whose repair time a scenario step changes, for `test_second_run.py`: the
+# step writes into the run's copy of the breakdown's `repair`. A run that wrote into the
+# declared distribution would give a second run a repair time of 40 from the start.
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+resources:
+  station:
+    current_cap: 1
+    breakdown:
+      time_to_failure: {dist: exponential, rate: 0.05}
+      repair: {dist: constant, value: 5}
+      work: finish
+services: {packing: {dist: constant, value: 1}}
+arrivals: {orders: {dist: exponential, rate: 0.6, spawn: pack}}
+tasks: {pack: {resource: station, service: packing, payload: {e: done}}}
+scenario:
+  - {at: 150, path: Shop.breakdown.station.repair.value, value: 40}
+stats: {level: basic}
+run: {until: 200}

@@ -1,0 +1,75 @@
+# case ST-C15 and ST-C16: test_shared_and_condition and test_shared_or_condition. Two
+# processes wait on conditions that share timeouts. A blueprint wait makes its own
+# timeouts, so each process has its own, which trigger at the same times.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  p1: {initial: 1, spawn: and_1}
+  p2: {initial: 1, spawn: and_2}
+  p3: {initial: 1, spawn: or_1}
+  p4: {initial: 1, spawn: or_2}
+
+tasks:
+  and_1:
+    wait:
+      all:
+        t0:
+          timeout: {after: 0, value: 0}
+        t1:
+          timeout: {after: 1, value: 1}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      values:
+        - {gen: expr, expr: "wait.t0.value"}
+        - {gen: expr, expr: "wait.t1.value"}
+      in_result: {gen: expr, expr: "[wait.t0.done, wait.t1.done]"}
+  and_2:
+    wait:
+      all:
+        both:
+          all:
+            t0:
+              timeout: {after: 0, value: 0}
+            t1:
+              timeout: {after: 1, value: 1}
+        t2:
+          timeout: {after: 2, value: 2}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      values:
+        - {gen: expr, expr: "wait.t0.value"}
+        - {gen: expr, expr: "wait.t1.value"}
+        - {gen: expr, expr: "wait.t2.value"}
+      in_result: {gen: expr, expr: "[wait.t0.done, wait.t1.done, wait.t2.done]"}
+  or_1:
+    wait:
+      any:
+        t0:
+          timeout: {after: 0, value: 0}
+        t1:
+          timeout: {after: 1, value: 1}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      values:
+        - {gen: expr, expr: "wait.t0.value"}
+      in_result: {gen: expr, expr: "[wait.t0.done, wait.t1.done]"}
+  or_2:
+    wait:
+      any:
+        either:
+          any:
+            t0:
+              timeout: {after: 0, value: 0}
+            t1:
+              timeout: {after: 1, value: 1}
+        t2:
+          timeout: {after: 2, value: 2}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      values:
+        - {gen: expr, expr: "wait.t0.value"}
+      in_result: {gen: expr, expr: "[wait.t0.done, wait.t1.done, wait.t2.done]"}

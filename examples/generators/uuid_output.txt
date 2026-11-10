@@ -1,0 +1,3 @@
+[EVT] {'sim_ts': 60.0, 'timestamp': '...', 'key': 'orders-1', 'task': 'order', 'instance': 0, 'value': {'order_id': '06b1853a-cba6-4dc7-943c-d8ec60965917'}}
+[EVT] {'sim_ts': 120.0, 'timestamp': '...', 'key': 'orders-2', 'task': 'order', 'instance': 1, 'value': {'order_id': 'd7a5fb8e-9c34-46c3-935f-e50a2e95279a'}}
+[EVT] {'sim_ts': 180.0, 'timestamp': '...', 'key': 'orders-3', 'task': 'order', 'instance': 2, 'value': {'order_id': '88c290a0-156f-4cbd-87df-1dcee0d18461'}}

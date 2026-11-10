@@ -1,0 +1,84 @@
+# Design Y8: a preempt flag and a priority per request. Source:
+# research/yaml-only/programs/Y8.py computed(1), computed(3) and branches(), as three
+# independent groups. A low holder (priority 5) holds for 5 from 0; high asks at 1 with
+# priority p and preempt p < 2. In branches() two units are held for 2 from 0; p asks at
+# 0.5 for m at rank 0 and n at rank 5 together; q asks for n at rank 1 at 1. The source
+# logs the grant time; here a record comes at the end of the 1 s hold and carries the
+# grant time as t - 1.
+simulation: {sim_id: Y8, factor: 0, random_seed: 42}
+
+resources:
+  r1: {current_cap: 1, queue: priority, preempt: true}
+  r2: {current_cap: 1, queue: priority, preempt: true}
+  m: {current_cap: 1, queue: priority}
+  n: {current_cap: 1, queue: priority}
+
+arrivals:
+  low1:
+    dist: constant
+    value: 1
+    spawn: job1
+    max_events: 1
+    first_at: 0
+    attributes: {p: 5}
+  high1:
+    dist: constant
+    value: 1
+    spawn: job1
+    max_events: 1
+    first_at: 1
+    attributes: {p: 1}
+  low2:
+    dist: constant
+    value: 1
+    spawn: job2
+    max_events: 1
+    first_at: 0
+    attributes: {p: 5}
+  high2:
+    dist: constant
+    value: 1
+    spawn: job2
+    max_events: 1
+    first_at: 1
+    attributes: {p: 3}
+  hm: {dist: constant, value: 1, spawn: hold_m, max_events: 1, first_at: 0}
+  hn: {dist: constant, value: 1, spawn: hold_n, max_events: 1, first_at: 0}
+  p: {dist: constant, value: 1, spawn: ask, max_events: 1, first_at: 0.5}
+  q: {dist: constant, value: 1, spawn: only_n, max_events: 1, first_at: 1}
+
+tasks:
+  job1:
+    resource: r1
+    priority: "attr.p"
+    preempt: "attr.p < 2"
+    service_time: 5
+    on_interrupt: abandon
+    payload: {event_type: done}
+  job2:
+    resource: r2
+    priority: "attr.p"
+    preempt: "attr.p < 2"
+    service_time: 5
+    on_interrupt: abandon
+    payload: {event_type: done}
+  hold_m: {resource: m, service_time: 2, payload: null}
+  hold_n: {resource: n, service_time: 2, payload: null}
+  ask:
+    wait:
+      all:
+        x:
+          request: {resource: m, priority: 0}
+        y:
+          request: {resource: n, priority: 5}
+    service_time: 1
+    payload:
+      event_type: got
+      at: {gen: expr, expr: "t - 1"}
+  only_n:
+    resource: n
+    priority: 1
+    service_time: 1
+    payload:
+      event_type: got
+      at: {gen: expr, expr: "t - 1"}

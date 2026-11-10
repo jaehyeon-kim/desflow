@@ -1,0 +1,61 @@
+"""Group arrivals, Low-level API. Run: python low_level.py"""
+import zlib
+from datetime import datetime, timezone
+
+import numpy as np
+
+from desflow import (
+    ConsoleEgress,
+    DistributionConfig,
+    DynamicRealtimeEnvironment,
+    SimParameter,
+)
+
+PARAMS = SimParameter(
+    sim_id="Sim",
+    arrival={"a": DistributionConfig(dist="constant", value=5)},
+)
+
+SEED = 42
+# The blueprint draws the group sizes from the stream of "arrivals.a.group":
+# SeedSequence(seed, spawn_key=(crc32(place),)). Using it here gives the same sizes.
+GROUP_RNG = np.random.default_rng(
+    np.random.SeedSequence(SEED, spawn_key=(zlib.crc32(b"arrivals.a.group"),))
+)
+
+
+def member(env, key, task_id):
+    env.publish_event(key, {"event_type": "member"}, task="member", instance=task_id)
+    yield env.timeout(0)
+
+
+def arrival(env):
+    entity = 0
+    task_id = 0
+    yield env.timeout(5)  # first_at
+    for firing in range(40):  # max_events
+        if firing:
+            yield env.timeout(5)
+        for _ in range(int(GROUP_RNG.poisson(2))):  # 0 starts nobody
+            entity += 1
+            env.process(member(env, f"a-{entity}", task_id))
+            task_id += 1
+
+
+def run():
+    env = DynamicRealtimeEnvironment(
+        factor=0,
+        strict=False,
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress([ConsoleEgress(format="json")])
+    env.process(arrival(env))
+    try:
+        env.run(until=205)
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

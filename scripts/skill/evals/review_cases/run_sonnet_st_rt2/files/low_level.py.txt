@@ -1,0 +1,43 @@
+"""Low-level form of the paced tick model, on DynamicRealtimeEnvironment."""
+import numpy as np
+
+from desflow import ConsoleEgress, DynamicRealtimeEnvironment, Sampler, SimParameter
+
+PARAMS = SimParameter(sim_id="Sim")
+
+
+def pem(env, key, task_id):
+    """One entity's loop: queued, then after 1 s started and a tick, then again."""
+    while True:
+        env.publish_event(key, {"status": "queued"}, task="pem", instance=task_id)
+        env.stats.task_queued("pem", task_id)
+        yield env.timeout(1)
+        env.publish_event(key, {"status": "started"}, task="pem", instance=task_id)
+        env.stats.task_started("pem", task_id)
+        env.publish_event(key, {"event_type": "tick"}, task="pem", instance=task_id)
+        env.stats.task_finished("pem", task_id)
+        task_id += 2  # the next instance of this entity
+
+
+def run():
+    env = DynamicRealtimeEnvironment(factor=0.1, strict=False)
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress([ConsoleEgress(format="json")])
+    env.setup_stats("Sim", "none")
+    # The model draws no random numbers; the sampler only carries the seed.
+    Sampler(rng=np.random.default_rng(42))
+    for n in (1, 2):
+        env.process(pem(env, f"a-{n}", n - 1))
+    try:
+        for index, until in enumerate((2, 4)):
+            env.run(until=until)
+            env.publish_telemetry(
+                "system.simulation.segment",
+                {"index": index, "now": env.now, "peek": env.peek()},
+            )
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

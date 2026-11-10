@@ -1,0 +1,7 @@
+{
+  "known": true,
+  "counts": {
+    "K9": 0
+  },
+  "reason": "A module fixture runs every form once, so tests.json gives every test all three forms; the [yaml] cases read only all_events['yaml'], check the done and start times, and fail under each change."
+}

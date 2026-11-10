@@ -1,0 +1,25 @@
+# Documents of SimPy tests/test_condition.py.
+# case ST-C01: test_operator_and: t0 & t1 & t2 (delays 0, 1, 2, value = delay); the
+# process continues at 2 with the three values.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
+tasks:
+  pem:
+    wait:
+      all:
+        t0:
+          timeout: {after: 0, value: 0}
+        t1:
+          timeout: {after: 1, value: 1}
+        t2:
+          timeout: {after: 2, value: 2}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+      values:
+        - {gen: expr, expr: "wait.t0.value"}
+        - {gen: expr, expr: "wait.t1.value"}
+        - {gen: expr, expr: "wait.t2.value"}

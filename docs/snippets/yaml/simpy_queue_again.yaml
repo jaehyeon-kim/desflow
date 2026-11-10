@@ -1,0 +1,22 @@
+# `first` queues for the machine behind `holder` and is interrupted at 2. It yields
+# the same request again, so it keeps its place ahead of `second` and goes on at 6.
+simulation: {sim_id: Shop, factor: 0}
+
+resources:
+  machine: {current_cap: 1}
+
+processes:
+  - function: !python simpy_forms.queue_again
+    kwargs: {job: holder, start: 0, time: 5}
+  - function: !python simpy_forms.queue_again
+    kwargs: {job: first, start: 0, time: 1, interrupt_at: 2}
+  - function: !python simpy_forms.queue_again
+    kwargs: {job: second, start: 1, time: 1}
+
+tasks:
+  done: {payload: !python simpy_forms.done}
+
+run: {until: 20}
+
+egress:
+  - {type: Console}

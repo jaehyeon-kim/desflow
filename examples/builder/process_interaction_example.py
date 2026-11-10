@@ -26,7 +26,7 @@ app = (
     .add_service("packing", dist="triangular", low=1, mode=2, high=4)
     .add_service("inspecting", dist="constant", value=2)
     .add_service("wrapping", dist="constant", value=3)
-    .add_signal("courier_left")
+    .add_signal("courier_left", once=False)
     .add_arrival("orders", dist="exponential", rate=0.12, attributes={"gift": 0})
     .add_arrival("gifts", dist="exponential", rate=0.04, attributes={"gift": 1})
     .add_arrival("couriers", dist="constant", value=50)

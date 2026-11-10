@@ -1,0 +1,31 @@
+# DX-18: a sink that keeps only the finished orders. The snippet's `packed_only`
+# (docs/snippets/yaml/streaming_out_logic.py) is a function; here `when` is an
+# expression over the record. The sink is taken away for the run, and `check` applies
+# its filter to the records.
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: "2026-01-01T00:00:00+00:00"
+  timezone: UTC
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: constant, value: 2, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+egress:
+  - type: Console
+    when: {expr: "record.value.event_type == 'order_packed'"}
+
+run: {until: 20}

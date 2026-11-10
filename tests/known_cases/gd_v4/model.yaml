@@ -1,0 +1,22 @@
+# case GD-V4: a process is an event; run(env.process(parent)) returns 23
+# (events.rst:196-205).
+simulation: {sim_id: V, factor: 0, random_seed: 42}
+
+signals:
+  done: {once: true}
+
+arrivals:
+  a: {initial: 1, spawn: parent}
+
+tasks:
+  parent:
+    wait: {task: sub}
+    signal: done
+    payload:
+      ret: {gen: expr, expr: "wait.sub.value.ret"}
+  sub:
+    service_time: 1
+    payload: {ret: 23}
+
+run:
+  stop: {signal: done}

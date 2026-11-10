@@ -4,11 +4,11 @@
 and builder models give the same graph, and nothing is built or run. Linkage the
 code does not declare, such as a hand-written `arrival_loop`, is an opaque node.
 
-It reads these private attributes of `SimulationContext`, so a rename of any of them
-must be made here too (`tests/unit/test_explain.py` covers each): `_arrivals_config`,
-`_replays`, `_arrival_spawns`, `_startup_loops`, `_processes`, `_run_scenario`,
-`_task_specs`, `_services_config`, `_resources_config`, `_stores_config`,
-`_containers_config`. `features.py` and `edges.py` read the rest.
+It reads the model through `parts_of(context)` (`tests/unit/test_explain.py` covers
+each read): `arrivals` (its `configs`, `replays`, `plans` and `spawns`), `startup`,
+`processes`, `run_scenario`, `tasks` (its `specs`), `signals` (its `on`), `services`
+and `holders` (its `resources_config`, `stores_config` and `containers_config`).
+`features.py` and `edges.py` read the rest.
 """
 
 import dataclasses
@@ -16,8 +16,10 @@ import math
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from desflow.explain import features
-from desflow.explain.edges import EXIT, node_id, task_edges
+from desflow.explain.edges import EXIT, node_id, signal_edges, task_edges
 from desflow.explain.models import Edge, Graph, Node
+
+from desflow.core.context import parts_of
 
 if TYPE_CHECKING:
     from desflow.core.context import SimulationContext
@@ -33,20 +35,40 @@ def build_graph(context: "SimulationContext") -> Graph:
         Graph: Its arrivals, tasks, resources, stores, containers, opaque code and
             the exit, with the edges between them.
     """
+    parts = parts_of(context)
     nodes: List[Node] = []
     edges: List[Edge] = []
-    for name, config in context._arrivals_config.items():
+    for name, config in parts.arrivals.configs.items():
         nodes.append(
             Node(
                 id=node_id("arrival", name),
                 kind="arrival",
                 label=name,
                 distribution=_parameters(config),
+                features=features.arrival_features(context, name),
             )
         )
-    for name in context._replays:
-        nodes.append(Node(id=node_id("arrival", name), kind="arrival", label=name))
-    for arrival, task in context._arrival_spawns.items():
+    for name in parts.arrivals.replays:
+        nodes.append(
+            Node(
+                id=node_id("arrival", name),
+                kind="arrival",
+                label=name,
+                features=features.arrival_features(context, name),
+            )
+        )
+    for name, plan in parts.arrivals.plans.items():
+        # An arrival with `initial` alone draws no gaps, and still starts its task
+        if plan.gap is not None or plan.sourceless:
+            nodes.append(
+                Node(
+                    id=node_id("arrival", name),
+                    kind="arrival",
+                    label=name,
+                    features=features.arrival_features(context, name),
+                )
+            )
+    for arrival, task in parts.arrivals.spawns.items():
         edges.append(
             Edge(
                 source=node_id("arrival", arrival),
@@ -56,8 +78,8 @@ def build_graph(context: "SimulationContext") -> Graph:
         )
     _add_opaque(context, nodes, edges)
     ends = False
-    for name, spec in context._task_specs.items():
-        service = context._services_config.get(spec.service_id or "")
+    for name, spec in parts.tasks.specs.items():
+        service = parts.services.get(spec.service_id or "")
         nodes.append(
             Node(
                 id=node_id("task", name),
@@ -69,7 +91,8 @@ def build_graph(context: "SimulationContext") -> Graph:
             )
         )
         ends = task_edges(spec, nodes, edges) or ends
-    for name, capacity in context._resources_config.items():
+    edges += signal_edges(parts.tasks.specs, parts.signals.on)
+    for name, capacity in parts.holders.resources_config.items():
         current = 1 if capacity.current_cap is None else capacity.current_cap
         most = current if capacity.max_cap is None else capacity.max_cap
         nodes.append(
@@ -84,8 +107,8 @@ def build_graph(context: "SimulationContext") -> Graph:
             )
         )
     for kind, configs in (
-        ("store", context._stores_config),
-        ("container", context._containers_config),
+        ("store", parts.holders.stores_config),
+        ("container", parts.holders.containers_config),
     ):
         for name in configs:
             nodes.append(Node(id=node_id(kind, name), kind=kind, label=name))
@@ -119,13 +142,14 @@ def _add_opaque(
     context: "SimulationContext", nodes: List[Node], edges: List[Edge]
 ) -> None:
     """Adds a node for each hand-written arrival loop and each `add_process`."""
+    parts = parts_of(context)
     loops: Dict[str, int] = {}
-    for _, arrival in context._startup_loops:
+    for _, arrival in parts.startup:
         if arrival is not None:
             loops[arrival] = loops.get(arrival, 0) + 1
     for arrival, count in loops.items():
         # An arrival with spawn has one loop of its own, which the spawn edge shows
-        for number in range(count - (arrival in context._arrival_spawns)):
+        for number in range(count - (arrival in parts.arrivals.spawns)):
             node = node_id(
                 "opaque", f"{arrival}.arrival_loop" + (f".{number}" if number else "")
             )
@@ -140,8 +164,8 @@ def _add_opaque(
             edges.append(
                 Edge(source=node_id("arrival", arrival), target=node, kind="spawn")
             )
-    for number, function in enumerate(context._processes):
-        if function == context._run_scenario:
+    for number, function in enumerate(parts.processes):
+        if function == parts.run_scenario:
             continue  # the scenario's own process, a model feature
         name = getattr(function, "__name__", type(function).__name__)
         nodes.append(

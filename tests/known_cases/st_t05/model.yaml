@@ -1,0 +1,25 @@
+# case ST-T05: a child starts after a timeout has been processed and gets its value at
+# once.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+signals:
+  early: {once: true}
+
+arrivals:
+  p: {initial: 1, spawn: parent}
+
+tasks:
+  parent:
+    payload: {event_type: parent}
+    on:
+      - fire: {signal: early, after: 1, value: i was already done}
+    next: later
+  later:
+    service_time: 2
+    payload: {event_type: later}
+    next: child
+  child:
+    wait: {signal: early}
+    payload:
+      event_type: child
+      value: {gen: expr, expr: "wait.early.value"}

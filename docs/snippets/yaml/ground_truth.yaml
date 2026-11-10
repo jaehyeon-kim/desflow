@@ -1,14 +1,11 @@
 # Ground-truth records of the Live Parameters page: what a scenario changed, and why.
 # Run it with: desflow run ground_truth.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 # --8<-- [start:sinks]
 egress:
   # The data under test: events and telemetry, and no label
-  - type: Console
+  - {type: Console}
   # The labels only, for a scorer that checks what a detector found
   - type: Jsonl
     config: {default_path: labels/labels.jsonl}
@@ -42,5 +39,4 @@ scenario:
     record: {fault: label_printer_offline}
 # --8<-- [end:record]
 
-run:
-  until: 1 min
+run: {until: 1 min}

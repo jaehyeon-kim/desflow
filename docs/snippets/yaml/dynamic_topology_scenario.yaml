@@ -1,0 +1,34 @@
+# The Add Resources Mid-run guide: the gift wrappers exist from the start with no units,
+# and a scenario step gives them 2 units at 12 seconds. Run it with:
+# desflow run dynamic_topology_scenario.yaml --stdout
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+# --8<-- [start:scenario]
+resources:
+  packers: {current_cap: 1, max_cap: 5}
+  # No units yet: a job that asks for one waits
+  wrappers: {current_cap: 0, max_cap: 5}
+
+scenario:
+  # At 12 seconds the wrappers get 2 units, and the step records what it did
+  - at: 12
+    path: Shop.resources.wrappers.current_cap
+    value: 2
+    record: {status: wrappers_added, capacity: 2}
+# --8<-- [end:scenario]
+
+arrivals:
+  pack_rounds: {dist: constant, value: 4, spawn: pack_job}
+  wrap_rounds: {dist: constant, value: 4, first_at: 12, spawn: wrap_job}
+
+tasks:
+  pack_job:
+    resource: packers
+    service_time: 3
+    payload: {resource: packers, status: finished}
+  wrap_job:
+    resource: wrappers
+    service_time: 3
+    payload: {resource: wrappers, status: finished}
+
+run: {until: 20}

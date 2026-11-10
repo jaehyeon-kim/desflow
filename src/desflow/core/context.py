@@ -1,10 +1,14 @@
-import copy
+import collections
+import dataclasses
 import functools
 import inspect
-import itertools
 import logging
 import math
+import numbers
 import secrets
+import shlex
+import weakref
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import (
@@ -13,37 +17,114 @@ from typing import (
     Callable,
     Dict,
     Iterable,
+    Iterator,
     List,
+    NamedTuple,
     Mapping,
     Optional,
+    Sequence,
+    Set,
     Tuple,
     Type,
     Union,
 )
 
 import simpy
+from pydantic import ValidationError
 from simpy.core import StopSimulation
 
 from desflow.config import (
     DEFAULT_QUEUE_ORDER,
     INTERRUPT_POLICIES,
     DEFAULT_STATS_INTERVAL,
-    DEFAULT_STATS_LEVEL,
     LABELS,
-    QUEUE_ORDERS,
+    TRACE,
     STATS_LEVELS,
 )
-from desflow.core.environment import DynamicRealtimeEnvironment, resolve_zone
-from desflow.core.expressions import Expression
-from desflow.core.flow import NextSpec, Router, Transfer, Wait, make_scope
-from desflow.core.signals import Signal
-from desflow.core.task import TaskRun, TaskSpec, check_acquisition_order
+from desflow.core.environment import (
+    DynamicRealtimeEnvironment,
+    end_is_set,
+    resolve_zone,
+    schedule_urgent,
+)
+from desflow.core.expressions import (
+    ANY_NAME,
+    Expression,
+    boolean_word,
+    rank_problem,
+)
+from desflow.core.arrivals import (
+    Arrivals,
+    defuse_stopped,
+    distribution,
+    distribution_of,
+)
+from desflow.core.flow import (
+    NextSpec,
+    Listen,
+    Open,
+    Release,
+    Router,
+    Seize,
+    Transfer,
+    LiveScope,
+    Wait,
+    check_batch_size,
+)
+from desflow.core.families import (
+    Families,
+    SECTIONS as _FAMILY_SECTIONS,
+    Reference,
+    member_path,
+    name_of,
+)
+from desflow.core.signals import Signal, Signals, event_priority, timing_problem
+from desflow.core.task import Batch, TaskRun, TaskSpec
+from desflow.core.task_checks import (
+    Holding,
+    batch_mismatch,
+    batch_mismatch_text,
+    builder_value,
+    check_acquisition_order,
+    family_read_problem,
+    first_family_problem,
+    flow_sets,
+    generator_expressions,
+    handle_problem,
+    scope_problem,
+    rule_expressions,
+    whole_flow_problems,
+)
 from desflow.core.registry import ParamChange, ParamRejected, SimulationRegistry
+from desflow.core.holders import (
+    _run_copy,
+    _within_max,
+    Holders,
+    check_capacity,
+    check_level,
+    check_queue_limit,
+)
+from desflow.core.sinks import Sink, Sinks
+from desflow.core.runs import EndSets, Parts, RunState
+from desflow.core.tasks import Tasks, task_generator
 from desflow.core.sampler import Sampler
 from desflow.models.flow import Entity, Upstream
-from desflow.core.breakdowns import run_breakdowns
-from desflow.core.replay import UNITS, Row, read_trace
-from desflow.core.scenario import apply_step, check_step, run_scenario
+from desflow.core.replay import read_trace
+from desflow.core.scenario import check_step, run_scenario, walk_steps
+from desflow.values.models import (
+    _Gen,
+    values_adapter,
+)
+from desflow.values.runtime import DEFAULT_HISTORY, RunStopped, ValueRuntime
+from desflow.values.check import (
+    task_value_places,
+    generators_in,
+    load_rows,
+    lookup_cycle,
+    task_value_problems,
+)
+from desflow.values.models import Row as RowGenerator
+from desflow.values.template import bind as bind_values, looked_up
 from desflow.models.params import (
     BreakdownConfig,
     CapacityConfig,
@@ -51,18 +132,28 @@ from desflow.models.params import (
     DistributionConfig,
     SimParameter,
 )
+from desflow.resources.base import check_ties
 from desflow.resources.container import (
     ContainerBase,
     DynamicContainer,
     check_container_type,
 )
 from desflow.resources.resource import (
-    DynamicResource,
     ResourceBase,
+    check_resource_queue,
     check_resource_type,
 )
 from desflow.resources.store import DynamicStore, StoreBase, check_store_type
-from desflow.utils import suggestion, time_to_seconds
+from desflow.utils import (
+    _seconds,
+    checked_count,
+    checked_factor,
+    checked_interval,
+    checked_seconds,
+    checked_whole,
+    suggestion,
+    time_to_seconds,
+)
 
 if TYPE_CHECKING:
     # build.py imports this module, so the import is for type checkers only
@@ -72,24 +163,95 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _within_max(
-    kind: str,
-    name: str,
-    current_cap: Optional[Union[int, float]],
-    max_cap: Optional[Union[int, float]],
-) -> Optional[Union[int, float]]:
-    """A `current_cap` clamped to `[0, max_cap]`, with a warning when it changes, as
-    the registry clamps a live update; the run and `analyze()` then use the same
-    capacity."""
-    if current_cap is None or max_cap is None:
-        return current_cap
-    clamped = type(current_cap)(min(max(current_cap, 0), max_cap))
-    if clamped != current_cap:
-        logger.warning(
-            f"current_cap {current_cap} of {kind} '{name}' is outside "
-            f"[0, max_cap {max_cap}]. Using {clamped}."
-        )
-    return clamped
+@dataclass
+class RunDefaults:
+    """What a model's runs take when `run()` or `start()` does not say.
+
+    `from_yaml` sets it from the blueprint's `run` section. `load_context` sets
+    `source`, and `desflow run` adds its options to `repeat_hint`.
+
+    Attributes:
+        until: The end of a run, in simulation seconds.
+        stop: The stop condition of a run.
+        drain: The drain setting of a run.
+        unhandled: What a run does with a failure no task handles.
+        segments: The blueprint's `run.segments`, a list of mappings or
+            `{every: seconds}`, which `start()` keeps for the run that uses them.
+        steps: The blueprint's `run.steps`.
+        sync: The blueprint's `run.sync`.
+        before_run: The functions each run calls before it starts.
+        repeat_hint: How the log tells a run without a seed to repeat itself, with
+            `{seed}`.
+        sample_limit: The events a preview prints before it ends the run, for
+            `desflow run --sample`.
+        source: What builds the model again, a blueprint path or a function, so
+            `analyze(verify=True)` can run a copy.
+    """
+
+    until: Any = None
+    stop: Any = None
+    drain: Any = None
+    unhandled: str = "stop"
+    segments: Any = None
+    steps: bool = False
+    sync: bool = False
+    before_run: List[Callable[[], Any]] = dataclasses.field(default_factory=list)
+    repeat_hint: Optional[str] = None
+    sample_limit: Optional[int] = None
+    source: Any = None
+
+
+@dataclass(frozen=True)
+class _RunSettings:
+    """The settings of one run as `start()` resolved them, which `_build` reads.
+
+    Attributes:
+        until: The end of the run, in simulation seconds, or None.
+        stop: The stop condition, or None.
+        drain: The drain setting, or None.
+        seed: The run's seed, in place of `random_seed`, or None.
+        overrides: Registry paths and the values they take before the clock starts.
+        stats: The lowest statistics level the run keeps, or None.
+        egress: Whether the run has its sinks and the statistics timer.
+        ingress: Whether the run has its ingress.
+        source: Where each override came from, for its `ParamChange`.
+        actor: Who made each override, for its `ParamChange`.
+        reason: Why each override was made, for its `ParamChange`.
+    """
+
+    until: Any
+    stop: Any
+    drain: Any
+    seed: Optional[int]
+    overrides: Optional[Mapping[str, Any]]
+    stats: Optional[str]
+    egress: bool
+    ingress: bool
+    source: Optional[str]
+    actor: Optional[str]
+    reason: Optional[str]
+
+
+# The kinds of name an expression reads, in the order each check reads them
+_RESOURCE_REFERENCES = ("users", "queue", "held", "waiting")
+_HOLDER_REFERENCES = ("level", "putters", "getters", "putting", "getting")
+_RULE_REFERENCES = (
+    *_RESOURCE_REFERENCES,
+    *_HOLDER_REFERENCES,
+    "count",
+    "items",
+    "signal",
+    "running",
+    "registry",
+)
+_TASK_REFERENCES = (
+    *_HOLDER_REFERENCES,
+    "running",
+    "count",
+    "items",
+    *_RESOURCE_REFERENCES,
+    "registry",
+)
 
 
 class SimulationContext:
@@ -146,7 +308,7 @@ class SimulationContext:
         initial_time: Union[float, str] = 0.0,
         lag_interval: Union[float, str, None] = None,
         timezone: Optional[str] = None,
-        strict: bool = False,
+        strict: Optional[bool] = None,
         environment: Optional[Type[DynamicRealtimeEnvironment]] = None,
     ):
         """
@@ -181,11 +343,13 @@ class SimulationContext:
                 record timestamps are written in, with their offset. By default the
                 zone of `logical_start_time`, or UTC. A `logical_start_time` or
                 `go_live_at` without an offset is read in it.
-            strict: When True a paced step raises `RuntimeError` if the run is more
-                than `factor` real seconds behind the wall clock, as SimPy's
-                `RealtimeEnvironment` does. It is never checked at `factor` 0. False
-                by default, unlike the low-level environment, because a live run
-                whose sink blocks falls behind and should go on.
+            strict: When True a step raises `RuntimeError` if the run is more than
+                `factor` real seconds behind the wall clock, as SimPy's
+                `RealtimeEnvironment` does; at `factor` 0 that is any step once the
+                wall clock has moved. By default (None) it is True for a paced run or
+                one with `go_live_at`, and False at `factor` 0 with no `go_live_at`.
+                Pass False for a live run whose sink blocks and should go on when it
+                falls behind.
             environment: A subclass of `DynamicRealtimeEnvironment` that the run is
                 built on, for a model that overrides `step`, `schedule` or `__init__`.
                 A subclass that overrides `__init__` takes `**kwargs` and passes
@@ -206,90 +370,75 @@ class SimulationContext:
                 f"got {environment!r}"
             )
         self.sim_id = sim_id
-        self.factor = factor
+        self.factor = checked_factor(factor)
         self.strict = strict
         self.environment: Type[DynamicRealtimeEnvironment] = (
             environment or DynamicRealtimeEnvironment
         )
-        self.random_seed = random_seed
+        self.random_seed = (
+            None
+            if random_seed is None
+            else checked_whole(random_seed, "random_seed", 0)
+        )
         self.logical_start_time = logical_start_time
         self.go_live_at = go_live_at
-        self.initial_time = _seconds(initial_time)
-        self.warmup = None if warmup is None else _seconds(warmup)
-        if self.warmup is not None and self.warmup < 0:
-            raise ValueError(f"warmup must be 0 or more, got {warmup}")
+        self.initial_time = checked_seconds(
+            initial_time, "initial_time", ends=True, below_zero=True
+        )
+        self.warmup = None if warmup is None else checked_seconds(warmup, "warmup")
         resolve_zone(timezone)  # an unknown name is refused here, not at run()
         self.timezone = timezone
-        self.lag_interval = None if lag_interval is None else _seconds(lag_interval)
-        if self.lag_interval is not None and self.lag_interval < 0:
-            raise ValueError(f"lag_interval must be 0 or more, got {lag_interval}")
+        self.lag_interval = (
+            None
+            if lag_interval is None
+            else checked_seconds(lag_interval, "lag_interval")
+        )
 
-        # Builder State (Pre-Compilation)
-        self._ingress_providers: List[Any] = []
-        self._egress_providers: List[Any] = []
-        # Aligned with _egress_providers by position. None means the provider
-        # receives every record.
-        self._egress_predicates: List[Optional[Callable[[dict], bool]]] = []
-        # Aligned with _egress_providers by position. None falls back to the
-        # context default set by with_batching.
-        self._egress_batch_sizes: List[Optional[int]] = []
-        self._egress_flush_intervals: List[Optional[float]] = []
-        self._batch_size = 500
-        self._flush_interval = 1.0
-        self._max_queued_batches = 2000
-        self._drain_stall_seconds = 30.0
-
-        # Aligned with _egress_providers by position.
-        self._egress_labels: List[bool] = []
-        self._stats_level = DEFAULT_STATS_LEVEL
-        self._stats_interval = DEFAULT_STATS_INTERVAL
-
-        self._resources_config: Dict[str, CapacityConfig] = {}
-        self._resource_queues: Dict[str, str] = {}
-        self._resource_preempt: Dict[str, bool] = {}
-        self._resource_queue_limits: Dict[str, Optional[int]] = {}
-        self._resource_types: Dict[str, Optional[Type[ResourceBase]]] = {}
-        self._breakdowns_config: Dict[str, BreakdownConfig] = {}
+        # The sinks piece: the egress and ingress providers, batching and statistics
+        self._sinks = Sinks()
+        # The holders piece: the resources, stores, containers and breakdowns
+        self._holders = Holders()
+        # The readings of `add_readings`, one mapping of name to expression for each call
+        self._readings: List[Dict[str, Expression]] = []
+        # The scenario's steps, which `_check_tasks`, the build and `explain` read
         self._scenario_steps: List[Dict[str, Any]] = []
-        # Replayed arrivals: how to read each, and the rows left once read
-        self._replays: Dict[str, Dict[str, Any]] = {}
-        self._replay_rows: Dict[str, List[Row]] = {}
-        self._replays_done: set = set()
-        self._containers_config: Dict[str, CapacityConfig] = {}
-        self._stores_config: Dict[str, CapacityConfig] = {}
-        self._store_priority: Dict[str, bool] = {}
-        self._store_types: Dict[str, Optional[Type[StoreBase]]] = {}
-        self._container_types: Dict[str, Optional[Type[ContainerBase]]] = {}
-        self._store_items: Dict[str, List[Any]] = {}
+        # Whether the process that applies the steps was added, once for all calls
+        self._scenario_added = False
+        # The startup loop each arrival with a spawn has, so a second call replaces it
+        self._arrival_loops: Dict[str, Tuple[Callable, Optional[str]]] = {}
+        # The services' distributions: a declaration that no piece owns, read only by
+        # `compile_parameters` and the checks
         self._services_config: Dict[str, DistributionConfig] = {}
-        self._arrivals_config: Dict[str, DistributionConfig] = {}
-        # Per arrival: the attributes each entity starts with, and the key function
-        self._arrival_entities: Dict[
-            str, Tuple[Dict[str, Any], Optional[Callable[[int], str]]]
-        ] = {}
-        # Per arrival given `spawn`: the task each of its entities starts
-        self._arrival_spawns: Dict[str, str] = {}
+        # The loops and processes the run starts, in the order they were added
+        self._startup_loops: List[Tuple[Callable, Optional[str]]] = []
+        # The arrivals piece
+        self._arrivals = Arrivals()
+        # The variables: a declaration that no piece owns, read only by
+        # `compile_parameters` and the checks
         self._variables_config: Dict[str, Any] = {}
-        # Tasks by name, with what run() checks before the clock starts
-        self._tasks: Dict[str, Callable] = {}
-        self._task_specs: Dict[str, TaskSpec] = {}
-        self._signal_names: List[str] = []
-        self._signal_once: Dict[str, bool] = {}
-        # Each signal's `on:` actions, in normalized form, run when it fires
-        self._signal_on: Dict[str, List[Dict[str, Any]]] = {}
-        self._signals: Dict[str, Signal] = {}
-        # Tasks whose instances need an end event, filled by _check_tasks: those a
-        # `running` branch or `subscribe` names (_tracked), those a `fire from`
-        # copies (_copied), and every task with `on:` actions (_ended, the union)
-        self._tracked: set = set()
-        self._copied: set = set()
-        self._ended: set = set()
-        # Task instances running now, by task, which interrupt() reaches
-        self._running: Dict[str, List[TaskRun]] = {}
-        # The positional arguments a YAML task's function takes after its id
-        self._task_args: Tuple[Any, ...] = ()
-
-        # Runtime State (Post-Compilation)
+        # The tasks: their specs and what the values of the tasks read from other
+        # records; and the function `task` returns for each, by name
+        self._tasks = Tasks()
+        self._task_functions: Dict[str, Callable] = {}
+        # The signals piece
+        self._signals = Signals()
+        # The declared families, by name, whose entries in the sections above are the
+        # template each member is made from
+        self._families = Families()
+        # Which tasks' instances need an end event, set by _check_tasks
+        self._ends = EndSets()
+        # The acquisition-order warnings logged, so each is logged once
+        self._order_warned: set = set()
+        # The state of the current run, which each start() makes new; this one is
+        # read before the first run
+        self._run = RunState()
+        # The instance a task function's generator runs, until `spawn` starts it.
+        # It is kept across runs, so `spawn` still finds a generator that a task
+        # function made before the current run started
+        self._runs_of: "weakref.WeakKeyDictionary[Any, TaskRun]" = (
+            weakref.WeakKeyDictionary()
+        )
+        # The environment of the current run, None before the first start()
         self._env: Optional[DynamicRealtimeEnvironment] = None
         # Called with a `ParamChange` for every accepted registry change of a run;
         # start() copies them into that run's registry
@@ -297,47 +446,30 @@ class SimulationContext:
         # True once start() has built and started everything, so a caller can tell
         # a value refused before the run from an error inside it
         self.started = False
+        # The random draws of the current run, made by each start()
         self.sampler: Optional[Sampler] = None
-        self._resources_map: Dict[str, ResourceBase] = {}
-        self._stores_map: Dict[str, DynamicStore] = {}
-        self._containers_map: Dict[str, DynamicContainer] = {}
-        self._entity_counters: Dict[str, "itertools.count[int]"] = {}
-        self._instance_counters: Dict[str, "itertools.count[int]"] = {}
-        self._startup_loops: List[Tuple[Callable, Optional[str]]] = []
+        # The generators' state for the run, made when the run is built; nothing
+        # generates a value before that
+        self.values: ValueRuntime = None  # type: ignore[assignment]
         # The functions add_process started, which explain shows as opaque nodes
         self._processes: List[Callable] = []
-        # What builds this model again, a blueprint path or a function, set by
-        # from_yaml and load_context, so analyze(verify=True) can run a copy
-        self._source: Any = None
-
-        # Set by from_yaml from the blueprint's `run` section.
-        self._default_until: Any = None
-        self._default_stop: Any = None
-        self._default_drain: Any = None
-        self._default_unhandled: str = "continue"
-        self._on_unhandled_failure: str = "continue"
-        # The run's end, entities in the model, and the drain state, set by start()
-        self._until: Any = None
-        self._end: Optional[simpy.Event] = None
-        self._end_done = False
-        # The internal event at `until` that advance() stops at, made on first use
-        self._limit_event: Optional[simpy.Event] = None
+        # What a run takes when its caller does not say, and what builds the model
+        # again; from_yaml and load_context set it
+        self._defaults = RunDefaults()
+        # What every scope of the run reads, and the parts the run's tasks are given,
+        # made by each run's build
+        self._scope: Optional[LiveScope] = None
+        self._parts: Optional[Parts] = None
+        # Whether the current run is closed. start() reads it before it replaces the
+        # run state, to close an open run first
         self._closed = True
-        self._in_system = 0
-        self._draining = False
-        self._finish_run: Optional[Callable[..., None]] = None
-        self._arrival_processes: List[simpy.Process] = []
-        self._before_run: List[Callable[[], Any]] = []
-        # How the log tells a run without a seed to repeat itself, with `{seed}`
-        self._repeat_hint: Optional[str] = None
-        # Set by from_yaml for `desflow run --sample`: the events a preview prints
-        # before it ends the run, and how many it has printed
-        self._sample_limit: Optional[int] = None
-        self._sample_seen = 0
 
     @classmethod
     def from_yaml(
-        cls, path: Union[str, Path], preview: Optional["Preview"] = None
+        cls,
+        path: Union[str, Path],
+        preview: Optional["Preview"] = None,
+        variables: Optional[Mapping[str, str]] = None,
     ) -> "SimulationContext":
         """
         Builds a context from a YAML blueprint file.
@@ -354,6 +486,9 @@ class SimulationContext:
                 does not use. A sample also leaves out the ingress, and runs
                 unpaced from `logical_start_time`, with `go_live_at` cleared, until
                 it has printed that many events.
+            variables: Values for `${NAME}` in the file and the files it includes,
+                used before the environment, as `desflow run --var NAME=VALUE` gives
+                them.
 
         Returns:
             SimulationContext: The built context. Its `run()` calls the blueprint's
@@ -370,23 +505,34 @@ class SimulationContext:
             app.run()
             ```
         """
-        from desflow.blueprint.build import build
+        from desflow.blueprint.build import build, run_as_sample
 
-        context, run = build(path, preview)
-        context._default_until = run.until
-        context._default_stop = run.stop
-        context._default_drain = run.drain_setting()
-        context._default_unhandled = run.on_unhandled_failure
+        context, run = build(path, preview, variables)
+        context._defaults.until = run.until
+        context._defaults.stop = run.stop
+        context._defaults.drain = run.drain_setting()
+        context._defaults.unhandled = run.on_unhandled_failure
+        context._defaults.segments = _segment_plan(run)
+        context._defaults.steps = run.steps
+        context._defaults.sync = run.sync
         if preview is None:
-            context._before_run = list(run.before)
+            context._defaults.before_run = list(run.before)
         elif run.before:
             logger.warning("run.before skipped: preview runs use no real sinks")
-        if preview is not None and preview.sample is not None:
-            context.factor = 0.0
-            context.go_live_at = None
-            context._sample_limit = preview.sample
-        context._repeat_hint = f"Repeat it with: desflow run {path} --seed {{seed}}"
-        context._source = Path(path)
+        if preview is not None:
+            run_as_sample(context, preview)
+        # Quoted as the shell reads it; the seed is filled in later, so braces in
+        # the path are doubled
+        shown = shlex.quote(str(path)).replace("{", "{{").replace("}", "}}")
+        context._defaults.repeat_hint = (
+            f"Repeat it with: desflow run {shown} --seed {{seed}}"
+        )
+        # A copy that `analyze(verify=True)` builds reads the same variables
+        context._defaults.source = (
+            functools.partial(cls.from_yaml, path, variables=dict(variables))
+            if variables
+            else Path(path)
+        )
         return context
 
     # ==========================================
@@ -404,7 +550,7 @@ class SimulationContext:
         Returns:
             SimulationContext: The current instance for method chaining.
         """
-        self._ingress_providers.append(provider)
+        self._sinks.ingress.append(provider)
         return self
 
     def add_egress(
@@ -413,6 +559,7 @@ class SimulationContext:
         when: Union[Callable[[dict], bool], str, None] = None,
         batch_size: Optional[int] = None,
         flush_interval: Optional[float] = None,
+        envelope: bool = True,
     ) -> "SimulationContext":
         """
         Registers an asynchronous egress provider for data exfiltration.
@@ -429,7 +576,10 @@ class SimulationContext:
                 this provider. None sends every record, which is the usual case.
                 `"labels"` makes it a labels sink: it receives the ground-truth
                 records (`env.publish_label`) and nothing else, and no other sink
-                receives them.
+                receives them. `"trace"` makes it a trace sink: it receives the
+                event trace that `with_stats(trace=True)` switches on, and nothing
+                else, and no other sink receives it. A run with a trace sink and no
+                `with_stats(trace=True)` is refused, as YAML refuses it at load.
             batch_size: Records this provider buffers before flushing. None uses the
                 context default from `with_batching`. A stream sink wants a small
                 value to keep latency down; a file or lake sink wants a large one,
@@ -437,12 +587,23 @@ class SimulationContext:
             flush_interval: Simulation seconds this provider waits before forcing a
                 flush. None uses the context default. Ignored when `factor` is 0,
                 because simulation time is then detached from the wall clock.
+            envelope: False makes this a plain-output provider. It receives no
+                telemetry record and no `queued` or `started` record, and it writes
+                each event's `value` without the record around it. A Kafka sink
+                sends a null value as a tombstone, a message with the record's key
+                and a null value, and sends any other value that is not a mapping
+                as JSON. A Redis sink sends a value that is not a mapping as JSON,
+                null included. A storage, Iceberg or PostgreSQL sink skips it, with
+                one warning. Ground-truth records are not affected. Defaults to
+                True. With the envelope on, a null value stays in the record, and a
+                Kafka serializer whose schema has no null for `value` refuses it:
+                the record is skipped with a warning.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If `when` is a string other than `"labels"`.
+            ValueError: If `when` is a string other than `"labels"` or `"trace"`.
 
         Each provider has its own buffer and its own queue of batches. A record that
         several providers take is stored once, and stays in memory until the last
@@ -462,17 +623,33 @@ class SimulationContext:
             app.add_egress(parquet, batch_size=200_000, flush_interval=300)
             ```
         """
-        if isinstance(when, str) and when != LABELS:
-            raise ValueError(f"when takes a function or '{LABELS}', got '{when}'")
-        self._egress_providers.append(provider)
-        self._egress_predicates.append(None if isinstance(when, str) else when)
-        self._egress_labels.append(when == LABELS)
-        self._egress_batch_sizes.append(batch_size)
-        self._egress_flush_intervals.append(flush_interval)
+        if isinstance(when, str) and when not in (LABELS, TRACE):
+            raise ValueError(
+                f"when takes a function, '{LABELS}' or '{TRACE}', got '{when}'"
+            )
+        if batch_size is not None:
+            batch_size = checked_count(batch_size, "egress batch_size")
+        if flush_interval is not None:
+            flush_interval = checked_interval(flush_interval, "egress flush_interval")
+        self._sinks.egress.append(
+            Sink(
+                provider,
+                predicate=None if isinstance(when, str) else when,
+                batch_size=batch_size,
+                flush_interval=flush_interval,
+                label=when == LABELS,
+                trace=when == TRACE,
+                envelope=envelope,
+            )
+        )
         return self
 
     def with_stats(
-        self, level: str = "basic", interval: float = DEFAULT_STATS_INTERVAL
+        self,
+        level: str = "basic",
+        interval: float = DEFAULT_STATS_INTERVAL,
+        on_change: bool = False,
+        trace: bool = False,
     ) -> "SimulationContext":
         """
         Switches on the built-in statistics, published as telemetry.
@@ -488,21 +665,43 @@ class SimulationContext:
             interval: Simulation seconds between publications; they are also
                 published once at the end of the run, except the values unchanged
                 since a reading at that same time. Defaults to 10.
+            on_change: True also publishes a resource's readings, the names it
+                publishes at each interval, right after each `request` and each
+                `release` call on it, as a patched `request` and `release` would
+                record them. A grant that a release event makes later, and a cancel,
+                publish none of their own. Needs a level above `none`.
+            trace: True publishes one record of the kind `trace` for each model event
+                the environment processes, before its callbacks run, with the value
+                `{"priority", "event_id", "event"}`: the event's priority, its
+                `event_id` (SimPy's sequence number of the event, which desflow's own
+                events also advance) and its name, one of `Initialize`, `Process`,
+                `Timeout`, `Condition`, `Interruption`, `Request`, `Release`, `Get`,
+                `Put`, `Suspension` or `Event`. It reaches only the sinks added with
+                `when="trace"`.
+                Needs no level.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If the level is unknown or the interval is not positive.
+            ValueError: If the level is unknown, the interval is not positive, or
+                `on_change` is set with the level `none`.
         """
         if level not in STATS_LEVELS:
             raise ValueError(
                 f"stats level must be one of {', '.join(STATS_LEVELS)}, got '{level}'"
             )
-        if not interval > 0:
+        if checked_seconds(interval, "stats interval") <= 0:
             raise ValueError(f"stats interval must be greater than 0, got {interval}")
-        self._stats_level = level
-        self._stats_interval = float(interval)
+        if on_change and level == "none":
+            raise ValueError(
+                "on_change publishes the statistics at each request and release, so "
+                "it needs a level above none"
+            )
+        self._sinks.stats_level = level
+        self._sinks.stats_interval = interval
+        self._sinks.stats_on_change = bool(on_change)
+        self._sinks.stats_trace = bool(trace)
         return self
 
     def with_batching(
@@ -535,10 +734,16 @@ class SimulationContext:
         Returns:
             SimulationContext: The current instance for method chaining.
         """
-        self._batch_size = batch_size
-        self._flush_interval = flush_interval
-        self._max_queued_batches = max_queued_batches
-        self._drain_stall_seconds = drain_stall_seconds
+        self._sinks.batch_size = checked_count(batch_size, "batching batch_size")
+        self._sinks.flush_interval = checked_interval(
+            flush_interval, "batching flush_interval"
+        )
+        self._sinks.max_queued_batches = checked_count(
+            max_queued_batches, "batching max_queued_batches"
+        )
+        self._sinks.drain_stall_seconds = checked_interval(
+            drain_stall_seconds, "batching drain_stall_seconds"
+        )
         return self
 
     def add_resource(
@@ -546,10 +751,12 @@ class SimulationContext:
         name: str,
         current_cap: Optional[Union[int, float]] = None,
         max_cap: Optional[Union[int, float]] = None,
-        queue: str = DEFAULT_QUEUE_ORDER,
-        preempt: bool = False,
+        queue: Union[str, Mapping[str, Any]] = DEFAULT_QUEUE_ORDER,
+        preempt: Union[bool, Mapping[str, Any]] = False,
         queue_limit: Optional[int] = None,
         type: Optional[Type[ResourceBase]] = None,
+        family: bool = False,
+        members: Any = None,
     ) -> "SimulationContext":
         """
         Registers a discrete logical resource capable of processing tasks.
@@ -567,67 +774,95 @@ class SimulationContext:
                 to `current_cap`.
             queue: The order waiting tasks are served in: `fifo` (the default),
                 `lifo` or `priority`, which serves the lowest task priority first and
-                the oldest first among equal priorities.
+                the oldest first among equal priorities. A mapping `{"rank":
+                "<expression>", "ties": "fifo" or "lifo"}` serves the lowest value of
+                the expression first, read once as each request is made, in the scope
+                of the task that makes it. `ties` orders requests of one rank, the
+                oldest first (the default) or the latest first, and does not change who
+                preempts. A task, a `seize` or a `request` of such a resource gives no
+                `priority`, because the rank is the request's priority.
             preempt: When True, a task of a lower priority value takes a unit from
                 a task of a higher one when every unit is busy, as SimPy's
                 `PreemptiveResource` does; the task that loses it follows its
-                `on_interrupt`. Needs `queue="priority"`.
+                `on_interrupt`. Needs `queue="priority"` or a `queue` rank. A mapping
+                `{"when": "<expression>", "victim": "<expression>"}` changes the
+                rule: `victim` gives each holder a value and the highest is the one
+                `when` is tested on (the first granted among equals), and `when` says
+                whether the request takes its unit. Both read `request.rank`,
+                `request.time`, `request.preempt`, `request.key`, `holder.rank`,
+                `holder.time`, `holder.preempt`, `holder.key`, `holder.since` and
+                `holder.attr.<name>`, and `t`, `users.`, `queue.`, `level.` and
+                `registry[...]`.
             queue_limit: The most requests that may wait, or None for no limit. A
                 task that finds that many waiting balks; a request made in the
                 low-level API raises `RuntimeError`, as SimPy's `SortedQueue` does.
                 0 refuses every request. Not allowed with a `type` whose `PutQueue`
-                is not the default.
+                is not the default. The limit is also the registry path
+                `<sim_id>.resources.<name>.queue_limit`: a change applies from the
+                next request and removes nobody who waits.
             type: A subclass of `ResourceBase` to build the resource from, such as
                 one that overrides `_do_put`. Defaults to `DynamicResource`.
+            family: When True, the entry is a family: a set of resources, one for each
+                key, made from this entry. A task names a member with `{"of": name,
+                "key": "<expression>"}` where it names a resource, and a member is made
+                at its first use. `current_cap` and `max_cap` may then be text, read
+                once when the member is made.
+            members: With `family`, how many members exist when the run starts, with
+                the keys 0 to n - 1: a whole number, an expression text, or a
+                generator, read once when the run is built. None starts the family
+                empty.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If `queue` is not one of the three orders, `preempt` is set
-                without `queue="priority"`, `current_cap` or `max_cap` is not a
-                whole number or infinity, only `max_cap` is given and is below 1,
-                `type` is not a subclass of `ResourceBase`, or `queue_limit` is
-                negative or is set on a `type` with its own `PutQueue`.
+            ValueError: If `family` is not set and `members` is given, `queue` is not one of the three orders or a rank mapping,
+                `preempt` is set without `queue="priority"` or a rank, a rank or
+                a preempt rule is malformed or reads what it cannot, `current_cap` or
+                `max_cap` is not a whole number or infinity, only `max_cap` is given
+                and is below 1, `type` is not a subclass of `ResourceBase`, or
+                `queue_limit` is negative or is set on a `type` with its own
+                `PutQueue`.
         """
-        if queue not in QUEUE_ORDERS:
-            raise ValueError(
-                f"queue must be one of {', '.join(QUEUE_ORDERS)}, got '{queue}'"
-            )
-        if preempt and queue != "priority":
-            raise ValueError(
-                "preempt ranks users by priority, so it needs queue='priority'"
-            )
+        self._families.claim("resource", name)
+        (current_cap, max_cap), texts = _family_fields(
+            "resource", name, family, members, current_cap=current_cap, max_cap=max_cap
+        )
+        rank = None
+        if isinstance(queue, Mapping):
+            rank = _queue_rule(queue, f"resource '{name}' queue")
+            queue = "priority"
+        rule = None
+        if isinstance(preempt, Mapping):
+            rule = _preempt_rule(preempt, f"resource '{name}' preempt")
+            preempt = True
+        check_resource_queue(queue, preempt)
         check_resource_type(type, queue_limit)
         for field, value in (("current_cap", current_cap), ("max_cap", max_cap)):
-            if value is not None and not (
-                math.isinf(value) or float(value).is_integer()
-            ):
-                raise ValueError(
-                    f"resource '{name}' needs a whole number for {field}, got {value}"
-                )
-        if current_cap is None and max_cap is not None and max_cap < 1:
+            check_capacity("resource", name, field, value)
+        check_queue_limit("resource", name, queue_limit)
+        if current_cap is None and max_cap is not None and 0 <= max_cap < 1:
             raise ValueError(
                 f"resource '{name}' has max_cap {max_cap} and no current_cap, whose "
                 f"default is 1; set current_cap to {max_cap} or less"
             )
-        self._resource_preempt[name] = preempt
-        self._resources_config[name] = CapacityConfig(
-            current_cap=_within_max("resource", name, current_cap, max_cap),
-            max_cap=max_cap,
+        self._holders.declare_resource(
+            name, current_cap, max_cap, queue, preempt, queue_limit, rank, rule, type
         )
-        self._resource_queues[name] = queue
-        self._resource_queue_limits[name] = queue_limit
-        self._resource_types[name] = type
+        self._families.declare("resource", name, family, members, texts)
         return self
 
     def add_container(
         self,
         name: str,
-        current_cap: Optional[float] = None,
-        max_cap: Optional[float] = None,
-        level: float = 0.0,
+        current_cap: Union[float, str, None] = None,
+        max_cap: Union[float, str, None] = None,
+        level: Union[float, str] = 0.0,
         type: Optional[Type[ContainerBase]] = None,
+        get_queue: Optional[Mapping[str, Any]] = None,
+        put_queue: Optional[Mapping[str, Any]] = None,
+        family: bool = False,
+        members: Any = None,
     ) -> "SimulationContext":
         """
         Registers a container: an amount that tasks take from and add to, such as stock.
@@ -650,23 +885,51 @@ class SimulationContext:
             level: The amount held at simulation start. Defaults to 0.
             type: A subclass of `ContainerBase` to build the container from, such as
                 one that overrides `_do_get`. Defaults to `ContainerBase`.
+            get_queue: A mapping `{"rank": "<expression>", "ties": "fifo" or "lifo"}`
+                that ranks the waiting gets, lowest first, in place of first in, first
+                out. The expression is read once as each get is made, in the scope of
+                the task that makes it, and `ties` orders equal ranks. A get at the
+                head that cannot be met holds back the gets behind it, as in SimPy.
+                Not allowed with `type`.
+            put_queue: As `get_queue`, for the waiting puts.
+            family: When True, the entry is a family of containers, as for
+                `add_resource`. `current_cap`, `max_cap` and `level` may then be text,
+                read once when the member is made.
+            members: With `family`, how many members exist when the run starts, as
+                for `add_resource`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If a store already has this name, or `type` is not a
-                subclass of `ContainerBase`.
+            ValueError: If `family` is not set and `members` is given, a store already has this name, `type` is not a
+                subclass of `ContainerBase`, or `get_queue` or `put_queue` is
+                malformed, reads what it cannot or is given with `type`.
         """
-        if name in self._stores_config:
+        self._families.claim("container", name)
+        if name in self._holders.stores_config:
             raise ValueError(f"'{name}' is already a store")
-        check_container_type(type)
-        self._container_types[name] = type
-        self._containers_config[name] = ContainerConfig(
-            current_cap=_within_max("container", name, current_cap, max_cap),
+        (cap, top, start), texts = _family_fields(
+            "container",
+            name,
+            family,
+            members,
+            current_cap=current_cap,
             max_cap=max_cap,
             level=level,
         )
+        check_container_type(type)
+        for field, value in (("current_cap", cap), ("max_cap", top)):
+            check_capacity("container", name, field, value, whole=False)
+        check_level(name, start, cap if cap is not None else top)
+        config = ContainerConfig(
+            current_cap=_within_max("container", name, cap, top),
+            max_cap=top,
+            level=start,
+        )
+        self._set_holder_ranks("container", name, get_queue, put_queue, type)
+        self._holders.declare_container(name, config, type)
+        self._families.declare("container", name, family, members, texts, start=start)
         return self
 
     def add_store(
@@ -677,6 +940,10 @@ class SimulationContext:
         priority: bool = False,
         items: Optional[List[Any]] = None,
         type: Optional[Type[StoreBase]] = None,
+        get_queue: Optional[Mapping[str, Any]] = None,
+        put_queue: Optional[Mapping[str, Any]] = None,
+        family: bool = False,
+        members: Any = None,
     ) -> "SimulationContext":
         """
         Registers a store: a place that holds items, which tasks put and get.
@@ -701,24 +968,43 @@ class SimulationContext:
             type: A subclass of `StoreBase` to build the store from, such as one
                 that overrides `_do_get`. Defaults to a `simpy.FilterStore`. It
                 cannot be combined with `priority`.
+            get_queue: A mapping `{"rank": "<expression>", "ties": "fifo" or "lifo"}`
+                that ranks the waiting gets, lowest first, in place of first in, first
+                out. The expression is read once as each get is made, in the scope of
+                the task that makes it, and `ties` orders equal ranks. It ranks
+                waiters and not items: `priority` still ranks the items. Not allowed
+                with `type`.
+            put_queue: As `get_queue`, for the waiting puts.
+            family: When True, the entry is a family of stores, as for
+                `add_resource`, each member made with the `items` given. `current_cap`
+                and `max_cap` may then be text, read once when the member is made.
+            members: With `family`, how many members exist when the run starts, as
+                for `add_resource`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If a container already has this name, a capacity is not a
+            ValueError: If `family` is not set and `members` is given, a container already has this name, a capacity is not a
                 whole number or infinity, there are more items than `current_cap`,
-                a priority store's item is not a pair, or `type` is not a subclass
-                of `StoreBase` or is given with `priority`.
+                a priority store's item is not a pair, `type` is not a subclass
+                of `StoreBase` or is given with `priority`, or `get_queue` or
+                `put_queue` is malformed, reads what it cannot or is given with
+                `type`.
         """
-        if name in self._containers_config:
+        self._families.claim("store", name)
+        if not isinstance(priority, bool):
+            raise ValueError(
+                f"store '{name}': priority is true or false, got {priority!r}"
+            )
+        if name in self._holders.containers_config:
             raise ValueError(f"'{name}' is already a container")
+        (current_cap, max_cap), texts = _family_fields(
+            "store", name, family, members, current_cap=current_cap, max_cap=max_cap
+        )
         check_store_type(type, priority)
         for field, value in (("current_cap", current_cap), ("max_cap", max_cap)):
-            if value is not None and not _whole_or_unlimited(value):
-                raise ValueError(
-                    f"store '{name}' needs a whole number for {field}, got {value}"
-                )
+            check_capacity("store", name, field, value)
         start = list(items or [])
         room = [cap for cap in (current_cap, max_cap) if cap is not None]
         if room and len(start) > min(room):
@@ -728,20 +1014,50 @@ class SimulationContext:
                 f"give fewer items"
             )
         if priority and not all(
-            isinstance(item, (tuple, list)) and len(item) == 2 for item in start
+            (isinstance(item, (tuple, list)) and len(item) == 2)
+            or isinstance(item, _Gen)
+            for item in start
         ):
             raise ValueError(
                 f"priority store '{name}' starts with (priority, item) pairs; give "
                 f"each item as a pair, such as (1, item)"
             )
-        self._store_items[name] = start
-        self._stores_config[name] = CapacityConfig(
+        self._bind_values(start, ("stores", name, "items"), overwrite=False)
+        config = CapacityConfig(
             current_cap=_within_max("store", name, current_cap, max_cap),
             max_cap=max_cap,
         )
-        self._store_priority[name] = priority
-        self._store_types[name] = type
+        self._set_holder_ranks("store", name, get_queue, put_queue, type)
+        self._holders.declare_store(name, config, start, priority, type)
+        self._families.declare("store", name, family, members, texts)
         return self
+
+    def _set_holder_ranks(
+        self,
+        kind: str,
+        name: str,
+        get_queue: Optional[Mapping[str, Any]],
+        put_queue: Optional[Mapping[str, Any]],
+        holder_type: Optional[Any],
+    ) -> None:
+        """Checks and keeps the `get_queue` and `put_queue` ranks of a store or
+        container. Nothing is kept when one is refused."""
+        found = {}
+        for direction, rule in (("get", get_queue), ("put", put_queue)):
+            if rule is not None:
+                found[direction] = _queue_rule(
+                    rule, f"{kind} '{name}' {direction}_queue"
+                )
+        check_ties(
+            found["get"][1] if "get" in found else None,
+            found["put"][1] if "put" in found else None,
+            holder_type,
+        )
+        for direction in ("get", "put"):
+            if direction in found:
+                self._holders.holder_ranks[(name, direction)] = found[direction]
+            else:
+                self._holders.holder_ranks.pop((name, direction), None)
 
     def add_scenario(self, steps: List[Mapping[str, Any]]) -> "SimulationContext":
         """
@@ -766,7 +1082,10 @@ class SimulationContext:
                 refused when the run starts.
         """
         checked = [check_step(step) for step in steps]
-        if not self._scenario_steps:
+        for index, step in enumerate(checked, len(self._scenario_steps)):
+            self._bind_values(step, ("scenario", index), overwrite=False)
+        if not self._scenario_added:
+            self._scenario_added = True
             self.add_process(self._run_scenario)
         self._scenario_steps.extend(checked)
         return self
@@ -806,9 +1125,15 @@ class SimulationContext:
         return run_scenario(
             self.env,
             self._scenario_steps,
-            until=self._until,
+            until=self._run.until,
             interrupt=self.interrupt,
+            evaluate=self._evaluate_free,
         )
+
+    def _evaluate_free(self, value: Any) -> Any:
+        """Evaluates a value outside a task, such as a scenario step's: it reads the
+        registry and the clock, and no entity."""
+        return self.values.evaluate(value, self.values.scope_of())
 
     def add_breakdown(
         self,
@@ -816,14 +1141,17 @@ class SimulationContext:
         time_to_failure: Mapping[str, Any],
         repair: Mapping[str, Any],
         work: str = "interrupt",
+        clock: str = "calendar",
     ) -> "SimulationContext":
         """
         Makes a resource break down at random and be repaired.
 
-        The failure clock runs on calendar time: after each repair, or the start,
-        the time to the next failure is drawn, busy or idle. While the resource is
-        down its capacity is 0, its `current_cap` keeps the planned value, and a
-        change to it during the repair sets the capacity the resource returns to.
+        After each repair, or the start, the time to the next failure is drawn. The
+        `calendar` clock counts it from then, busy or idle. The `busy` clock counts
+        it only while the resource holds a unit, so an idle resource does not wear out.
+        While the resource is down its capacity is 0, its `current_cap` keeps the
+        planned value, and a change to it during the repair sets the capacity the
+        resource returns to.
         Each failure and repair publishes an event keyed by the resource's name,
         `{"status": "down", "reason": "failure"}` and `{"status": "repaired", ...}`.
         The two distributions are registry paths,
@@ -832,21 +1160,27 @@ class SimulationContext:
         Args:
             resource: The resource's name.
             time_to_failure: A distribution, such as
-                `{"dist": "weibull", "shape": 1.5, "scale": 3600}`.
-            repair: A distribution, such as `{"dist": "exponential", "rate": 0.01}`.
+                `{"dist": "weibull", "shape": 1.5, "scale": "1 hour"}`, whose
+                time-valued parameters take seconds or a duration, as for
+                `add_service`.
+            repair: A distribution, such as `{"dist": "exponential", "rate": 0.01}`,
+                with the same durations.
             work: `interrupt` (the default) interrupts the tasks being served, which
                 follow their `on_interrupt`; `finish` lets them finish.
+            clock: `calendar` (the default) or `busy`, the time the time to failure
+                counts.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If a distribution or `work` is invalid.
+            ValueError: If a distribution, `work` or `clock` is invalid.
         """
-        self._breakdowns_config[resource] = BreakdownConfig(
-            time_to_failure=_distribution_of(time_to_failure),
-            repair=_distribution_of(repair),
+        self._holders.breakdowns_config[resource] = BreakdownConfig(
+            time_to_failure=distribution_of(time_to_failure),
+            repair=distribution_of(repair),
             work=work,
+            clock=clock,
         )
         return self
 
@@ -874,33 +1208,38 @@ class SimulationContext:
         dist: str,
         *,
         rate: Optional[float] = None,
-        mean: Optional[float] = None,
-        std: Optional[float] = None,
-        low: Optional[float] = None,
-        value: Optional[float] = None,
-        high: Optional[float] = None,
-        mode: Optional[float] = None,
+        mean: Optional[Union[float, str]] = None,
+        std: Optional[Union[float, str]] = None,
+        low: Optional[Union[float, str]] = None,
+        value: Optional[Union[float, str]] = None,
+        high: Optional[Union[float, str]] = None,
+        mode: Optional[Union[float, str]] = None,
         shape: Optional[float] = None,
-        scale: Optional[float] = None,
-        values: Optional[List[float]] = None,
+        scale: Optional[Union[float, str]] = None,
+        values: Optional[Sequence[Union[float, str]]] = None,
         weights: Optional[List[float]] = None,
-        edges: Optional[List[float]] = None,
+        edges: Optional[Sequence[Union[float, str]]] = None,
         counts: Optional[List[float]] = None,
+        p: Optional[float] = None,
     ) -> "SimulationContext":
         """
         Registers a statistical distribution defining a process service duration.
 
         The parameters are keyword-only, so their order never changes the meaning.
-        Give only those `dist` takes; `desflow.core.distributions.DISTRIBUTIONS`
-        lists each family's parameters and rules.
+        Give only those `dist` takes; `desflow.models.distributions.DISTRIBUTIONS`
+        lists each family's parameters and rules. A time-valued parameter (`mean`,
+        `std`, `low`, `mode`, `high`, `scale`, `value`, and the `values` and `edges`
+        of an empirical) takes seconds or a duration such as `"4 min"`, as a
+        blueprint's does.
 
         Args:
             name: The internal identifier (e.g., 'packing').
             dist: The family: exponential, normal, lognormal, truncated_normal,
-                constant, uniform, triangular, gamma, weibull or empirical.
+                poisson, geometric, constant, uniform, triangular, gamma, weibull or
+                empirical.
             rate: Events per second, for exponential.
-            mean: The mean, for normal, lognormal and truncated_normal.
-            std: The standard deviation, for the same three (0 when not given).
+            mean: The mean, for normal, lognormal, truncated_normal and poisson.
+            std: The standard deviation, for the first three (0 when not given).
             low: The lowest value, for truncated_normal (0 when not given), uniform
                 and triangular.
             value: The time a constant distribution always gives.
@@ -912,6 +1251,7 @@ class SimulationContext:
             weights: One weight per empirical value.
             edges: The bin edges of an empirical histogram.
             counts: One count per empirical histogram bin.
+            p: The chance of success on each try, for geometric.
 
         Returns:
             SimulationContext: The current instance for method chaining.
@@ -920,30 +1260,39 @@ class SimulationContext:
             ValueError: If the family is unknown, or a parameter is missing, out of
                 range or not one the family takes.
         """
-        self._services_config[name] = _distribution(dist, locals())
+        self._services_config[name] = distribution(dist, locals())
         return self
 
     def add_arrival(
         self,
         name: str,
-        dist: str,
+        dist: Optional[str] = None,
         *,
         rate: Optional[float] = None,
-        mean: Optional[float] = None,
-        std: Optional[float] = None,
-        low: Optional[float] = None,
-        value: Optional[float] = None,
-        high: Optional[float] = None,
-        mode: Optional[float] = None,
+        mean: Optional[Union[float, str]] = None,
+        std: Optional[Union[float, str]] = None,
+        low: Optional[Union[float, str]] = None,
+        value: Optional[Union[float, str]] = None,
+        high: Optional[Union[float, str]] = None,
+        mode: Optional[Union[float, str]] = None,
         shape: Optional[float] = None,
-        scale: Optional[float] = None,
-        values: Optional[List[float]] = None,
+        scale: Optional[Union[float, str]] = None,
+        values: Optional[Sequence[Union[float, str]]] = None,
         weights: Optional[List[float]] = None,
-        edges: Optional[List[float]] = None,
+        edges: Optional[Sequence[Union[float, str]]] = None,
         counts: Optional[List[float]] = None,
+        p: Optional[float] = None,
+        gap: Any = None,
         attributes: Optional[Mapping[str, Any]] = None,
-        key: Optional[Callable[[int], str]] = None,
+        key: Any = None,
         spawn: Optional[str] = None,
+        first_at: Optional[float] = None,
+        group: Any = 1,
+        active: bool = True,
+        off_mode: str = "drop",
+        initial: int = 0,
+        max_events: Any = None,
+        vars: Optional[Mapping[str, Any]] = None,
     ) -> "SimulationContext":
         """
         Registers a statistical distribution defining the inter-arrival times of entities.
@@ -954,10 +1303,12 @@ class SimulationContext:
 
         Args:
             name: The internal identifier (e.g., 'orders').
-            dist: The family, as for `add_service`.
+            dist: The family, as for `add_service`, with the same parameters and the
+                same durations. Give `gap` instead of it for a gap that is not a
+                distribution.
             rate: Events per second, for exponential.
-            mean: The mean, for normal, lognormal and truncated_normal.
-            std: The standard deviation, for the same three (0 when not given).
+            mean: The mean, for normal, lognormal, truncated_normal and poisson.
+            std: The standard deviation, for the first three (0 when not given).
             low: The lowest value, for truncated_normal, uniform and triangular.
             value: The time a constant distribution always gives.
             high: The highest value, for uniform and triangular.
@@ -968,36 +1319,163 @@ class SimulationContext:
             weights: One weight per empirical value.
             edges: The bin edges of an empirical histogram.
             counts: One count per empirical histogram bin.
+            p: The chance of success on each try, for geometric.
+            gap: The time to the next arrival in place of `dist`, as a blueprint's
+                `gap`: a number of seconds, a duration such as `"5 min"`, an
+                expression such as `"1 + t / 4"` or a generator, read at the start
+                of each gap.
             attributes: The attributes each entity starts with, read in conditions
                 as `attr.<name>`. Each entity gets its own copy.
-            key: A function of the entity's counter, from 1, returning its key.
+            key: The entity's key. A function of the entity's counter, from 1, returning
+                its key; or a value as a blueprint's `key` reads it: text or a number
+                is the key itself, and a generator is read once for each entity, after
+                `vars` and the attributes. An expression key is
+                `generator({"gen": "expr", "expr": "..."})`. `wait_for_arrival` reads
+                it too, so it needs no `spawn`.
             spawn: The task each arrival starts, with the arrival's entity and the
                 task's next instance id, as YAML's `spawn` key does. None leaves
                 the arrival to an `arrival_loop` written by hand.
+            first_at: The simulation time of the first arrival, which the first
+                `wait_for_arrival` waits for in place of a gap. The gaps after it
+                come from the distribution. A time already past arrives at once.
+            group: How many entities one arrival starts, with `spawn`: a whole number,
+                an expression such as `"int(t / 5)"` or a generator, read at each
+                arrival after the gap. 0 or less starts nobody and takes no key
+                number.
+            active: False starts the source off, with `spawn`. A task's `activate`
+                turns it on.
+            off_mode: With `spawn`, `"drop"` (the default): an arrival that falls
+                while the source is off starts nobody. `"restart"`: turning the
+                source off drops the pending arrival, and turning it on starts a
+                whole new gap.
+            initial: With `spawn`, how many entities exist, in creation order, when
+                the run starts, before any gap passes.
+            max_events: With `spawn`, how many times the arrival starts its task, in
+                all, as a blueprint's `max_events`: a whole number of 0 or more, an
+                expression such as `"int(t / 5)"` or a generator, read when the
+                source starts. The arrival stops after the last, and its last start
+                draws no further gap.
+            vars: Named values read once for each entity, before its attributes and
+                key, as a blueprint's arrival `vars`. Each is a constant or a
+                generator such as `generator({"gen": "boolean", "p": 0.1})`; a plain
+                mapping with `gen` is refused. A name is one an expression can read
+                and does not already use. An attribute and the `key` read them with
+                `generator({"gen": "var", "name": ...})`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
             ValueError: If the family is unknown, or a parameter is missing, out of
-                range or not one the family takes. A `spawn` naming no task is
+                range or not one the family takes, or both or neither of `dist` and
+                `gap` are given, or `gap` is a negative number or neither a number,
+                an expression nor a generator, or `first_at` is below 0 or not a
+                number, or `off_mode`, `active`, `group`, `initial`, `max_events` or
+                `vars` is malformed, or `group`, `active`, `off_mode`, `initial` or
+                `max_events` is given with no `spawn`, or `gap`, `group` or
+                `max_events` is an expression that reads the entity, or a `vars`
+                name is not one an expression can read. A `spawn` naming no task is
                 refused when the run starts.
         """
-        params = {
-            k: v for k, v in locals().items() if k not in ("attributes", "key", "spawn")
-        }
-        self._arrivals_config[name] = _distribution(dist, params)
-        self._arrival_entities[name] = (dict(attributes or {}), key)
-        self._add_spawn(name, spawn)
+        self._arrivals.add_arrival(
+            self._bind_values,
+            name,
+            dist,
+            rate=rate,
+            mean=mean,
+            std=std,
+            low=low,
+            value=value,
+            high=high,
+            mode=mode,
+            shape=shape,
+            scale=scale,
+            values=values,
+            weights=weights,
+            edges=edges,
+            counts=counts,
+            p=p,
+            gap=gap,
+            attributes=attributes,
+            key=key,
+            spawn=spawn,
+            first_at=first_at,
+            group=group,
+            active=active,
+            off_mode=off_mode,
+            initial=initial,
+            max_events=max_events,
+            vars=vars,
+        )
+        self._add_arrival_loop(name, spawn)
         return self
 
-    def _add_spawn(self, arrival: str, task: Optional[str]) -> None:
-        """Starts `task` for each arrival, from a loop added now, so the arrival
-        loops start in the order the arrivals were added."""
+    def add_initial_arrival(
+        self,
+        name: str,
+        initial: int,
+        *,
+        spawn: str,
+        attributes: Optional[Mapping[str, Any]] = None,
+        key: Any = None,
+        gap: Any = None,
+        vars: Optional[Mapping[str, Any]] = None,
+    ) -> "SimulationContext":
+        """
+        Registers an arrival that has only `initial` entities and no source: `initial`
+        entities exist when the run starts, in creation order, before any step runs,
+        each keyed `<name>-n` unless `key` gives another, and each starts `spawn`. A
+        blueprint's arrival with `initial` alone.
+
+        Args:
+            name: The arrival's name.
+            initial: How many entities, 1 or more.
+            spawn: The task each entity starts.
+            attributes: The attributes each entity starts with.
+            key: The entity's key, in every form `add_arrival` takes: a function of
+                the entity's counter, from 1, or a value as a blueprint's `key`
+                reads it.
+            gap: With a gap the arrival is not sourceless: it also starts an entity
+                after each gap once the first `initial` exist, as
+                `add_arrival(name, gap=gap, initial=initial, ...)` does.
+            vars: Named values read once for each entity, before its attributes and
+                key, as for `add_arrival`.
+
+        Returns:
+            SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If `initial` is not a whole number above 0, or `gap` or
+                `vars` is refused as for `add_arrival`.
+        """
+        self._arrivals.add_initial_arrival(
+            self._bind_values,
+            name,
+            initial,
+            spawn=spawn,
+            attributes=attributes,
+            key=key,
+            gap=gap,
+            vars=vars,
+        )
+        self._add_arrival_loop(name, spawn)
+        return self
+
+    def _add_arrival_loop(self, arrival: str, task: Optional[str]) -> None:
+        """Adds the loop that starts `task` for each entity of an arrival with
+        `spawn` to the startup loops, so the arrival loops start in the order the
+        arrivals were added."""
+        replaced = self._arrival_loops.pop(arrival, None)
+        if replaced is not None:
+            self._startup_loops.remove(replaced)
         if task is None:
             return
-        self._arrival_spawns[arrival] = task
-        self._startup_loops.append((_spawn_loop(arrival, task), arrival))
+
+        def loop(context: "SimulationContext"):
+            return context._run.arrivals.loop(arrival, task)
+
+        self._arrival_loops[arrival] = (loop, arrival)
+        self._startup_loops.append((loop, arrival))
 
     # ==========================================
     # DECORATORS (Execution Logic)
@@ -1006,7 +1484,7 @@ class SimulationContext:
     def task(
         self,
         service_id: Optional[str] = None,
-        resource_id: Union[str, List[str], None] = None,
+        resource_id: Union[str, Mapping[str, Any], List[Any], None] = None,
         *,
         name: Optional[str] = None,
         priority: Union[
@@ -1016,23 +1494,42 @@ class SimulationContext:
         put: Union[Transfer, Mapping[str, Any], None] = None,
         next: NextSpec = None,
         set: Optional[Mapping[str, Any]] = None,
-        patience: Union[
-            float, str, Callable[[Any, Dict[str, Any]], float], None
-        ] = None,
+        patience: Union[float, str, Callable[[Any, Dict[str, Any]], float], Any] = None,
         balk: Optional[str] = None,
         wait: Optional[Mapping[str, Any]] = None,
-        signal: Optional[str] = None,
+        open: Optional[Mapping[str, Any]] = None,
+        listen: Optional[Mapping[str, Any]] = None,
+        cancel: Union[str, Mapping[str, Any], None] = None,
+        seize: Union[str, Mapping[str, Any], None] = None,
+        release: Union[str, Mapping[str, Any], None] = None,
+        signal: Union[str, Mapping[str, Any], None] = None,
         fail: Union[str, Callable[[Any, Any], bool], None] = None,
-        fail_reason: Optional[str] = None,
+        fail_reason: Any = None,
         on_fail: Optional[str] = None,
+        on_renege: Optional[str] = None,
+        on_balk: Optional[str] = None,
+        service_time: Union[float, str, Callable[[Entity], float], Any] = None,
+        key_field: Optional[str] = None,
+        key: Any = None,
         keep: Optional[List[str]] = None,
-        preempt: bool = True,
+        preempt: Union[bool, str] = True,
         on_interrupt: str = "resume",
         on_interrupt_next: Optional[str] = None,
+        on_interrupt_run: Optional[str] = None,
         interrupt: Optional[Mapping[str, Any]] = None,
+        resume: Optional[Mapping[str, Any]] = None,
+        batch: Optional[Mapping[str, Any]] = None,
         spawn: Optional[Mapping[str, Any]] = None,
         subscribe: Optional[Mapping[str, Any]] = None,
         on: Optional[List[Mapping[str, Any]]] = None,
+        vars: Optional[Mapping[str, Any]] = None,
+        vars_once: Optional[Mapping[str, Any]] = None,
+        on_start: Optional[Mapping[str, Any]] = None,
+        finish_vars: Optional[Mapping[str, Any]] = None,
+        set_args: Optional[Mapping[str, Any]] = None,
+        activate: Union[str, List[str], None] = None,
+        deactivate: Union[str, List[str], None] = None,
+        history: Optional[int] = None,
     ) -> Callable:
         """
         Transforms a standard Python function into an event-driven SimPy task.
@@ -1050,7 +1547,8 @@ class SimulationContext:
            while the task is served.
         4. Emits a `started` event.
         5. Executes the wrapped user function to extract custom payload data.
-        6. Samples the live `service_id` distribution and yields the timeout.
+        6. Samples the live `service_id` distribution, or reads `service_time`, and
+           yields the timeout.
         7. Adds its `put`, waiting for room, and checks `fail`.
         8. Emits its finished event with the user's payload, or `failed`.
         9. Fires its `signal` (or fails it), sends its `interrupt` action, applies
@@ -1077,8 +1575,19 @@ class SimulationContext:
 
         Args:
             service_id: The ID of the configured distribution dictating the execution time.
+            service_time: The execution time of this task, in place of `service_id`:
+                seconds, a duration such as `"30 s"`, an expression such as
+                `"attr.fuel / 2"` read when the service starts, or a function of the
+                entity, such as `lambda entity: entity.attributes["fuel"] / 2`, or a
+                typed generator from `desflow.values.generator`, drawn when the
+                service starts. A text or a generator may read the task's vars,
+                which then get their value at that moment. A result below 0 fails
+                the run. A task takes `service_id` or `service_time`, not both, and
+                records no `path_id`. An interrupt under `restart` reads it again.
             resource_id: The resource the task holds while it works, or a list of
                 them, acquired in the order listed while the earlier ones are held.
+                A member of a family is `{"of": family, "key": expression}` or
+                `{"of": family, "lowest": expression}`.
             name: The task's name in records, statistics and `next` rules. Defaults
                 to the function's name.
             priority: For a resource whose queue order is `priority`, lowest first: a
@@ -1101,8 +1610,9 @@ class SimulationContext:
                 `reneged`. It pauses while the task is served, so a preempted task
                 that queues again goes on with the time it has left. Seconds, a
                 duration such as `"30 s"`,
-                an expression such as `"attr.patience"`, or a function of the task id
-                and the entity's attributes.
+                an expression such as `"attr.patience"`, a function of the task id
+                and the entity's attributes, or a typed generator from
+                `desflow.values.generator`.
             balk: A condition, such as `"t >= 3300"`, checked before the task joins
                 the queue; when it holds, the task publishes `balked` and never
                 requests the resource.
@@ -1110,36 +1620,150 @@ class SimulationContext:
                 branch, `{"signal": name}`, `{"task": name}`, `{"timeout": seconds}`
                 or `{"condition": "..."}`, or `{"any": {...}}` or `{"all": {...}}`
                 of named branches. After it, `wait.<branch>.done`, `.ok` and
-                `.value` are read in `next`, `fail` and amounts.
+                `.value` are read in `next`, `fail` and amounts. A branch
+                `{"handle": name}` waits for an event `open` made.
+            open: Events the task makes at its step, before its `wait`, and does not
+                wait for: a mapping of names to one wait branch each (`timeout`,
+                `request`, `get`, `put`, `task` or `signal`), or `any` or `all` of
+                named `timeout`, `task`, `signal` and `handle` branches. A `task`
+                branch may carry `args`. A name is read as `handle.<name>.triggered`,
+                `.processed`, `.ok`, `.value` and `.alive`, and by `{"handle": name}`
+                in a `wait`, `cancel`, `release` and `interrupt`, in this task, the
+                tasks after it in the flow and the child flows it starts. A request
+                keeps its place in the line and publishes `queued` when it is made and
+                `started` when it is granted. Opening a name again replaces it.
+            listen: Callbacks added to an event when the task starts, after its
+                `open` and before its `wait`: `{"signal": name, "on": [...]}` (a
+                member of a family is `{"of": family, "key": expression}`), or
+                `{"handle": name, "on": [...]}` for an opened event, with `"index"` to
+                pick one element of an opened `each` group. The `on` entries are those
+                of a task's `on`. They run once, on the next firing of the event, after
+                the callbacks and waiters added before. Listening to a signal whose
+                firing was processed already, or to an event that was processed, fails
+                the task, as `event.callbacks.append` raises.
+            cancel: The name of an opened request, get or put, taken out of its line
+                (`"slot"` or `{"handle": "slot"}`). A granted one is left as it is.
+                A second cancel of one that left the line fails the run.
+            seize: A unit of a resource the flow keeps across later tasks until a
+                `release`: a resource name, or `{"resource": ..., "priority": ...,
+                "preempt": ..., "patience": ...}`. The task asks at its step and goes
+                on once the unit is granted. `priority` and `preempt` default to the
+                task's; `priority` is a number, an expression or a function of the
+                task id and the entity's attributes, and `preempt` is a bool or an
+                expression. A preemption takes the unit, and the task asks again under
+                the same name.
+            release: Gives back units when the task finishes: a resource name (the
+                oldest unit of it the flow holds, and nothing if it holds none),
+                `{"handle": name}` (the unit of that opened request), or
+                `{"resource": ..., "task": ..., "where": ...}` (the units of that
+                resource that instances of that task hold, whichever flow they are in).
             signal: A signal, added with `add_signal`, that the task fires with its
-                finished payload, or fails with its reason when it fails.
+                finished payload, or fails with its reason when it fails. A member of
+                a family is `{"of": family, "key": expression}`.
             fail: A condition checked after the service, such as
                 `"payload.defect == 1"`, where `payload` is the task's own payload,
                 or a function of the task id and the payload. When it holds, the
                 task publishes `failed` instead of its payload.
-            fail_reason: The `reason` a failure publishes. Defaults to the `fail`
-                condition's text.
+            fail_reason: The `reason` a failure publishes: text, or a generator
+                from `desflow.values.generator` read in the step the failure happens
+                (it may read `payload.`). Defaults to the `fail` condition's text.
+                A reason that is None is the condition's text.
             on_fail: The task a failed instance goes to. Without it, a failure ends
                 the entity's flow. A function that raises fails the task the same
-                way, with the error as the reason.
+                way, with the error as the reason, and goes to `on_fail`; so
+                `on_fail` needs no `fail` condition.
+            on_renege: The task an instance goes to after it reneges, in place of the
+                end of its flow. It still publishes `reneged` and counts as
+                reneged. Needs a `patience`.
+            on_balk: The task an instance goes to after it balks, in place of the end
+                of its flow, whether its `balk` condition holds or the waiting line
+                of its resource is full. It still publishes `balked` and counts as
+                balked. Needs a `balk` or a resource.
+            key_field: A field of the task's payload whose value becomes the key of
+                the finished event, and so the Kafka message key, in place of the
+                entity's key. The `queued` and `started` records keep the entity's
+                key. A payload without the field fails the run.
+            key: One record key for every record of an instance, in place of the
+                entity's key: a constant, or a typed generator from
+                `desflow.values.generator`, drawn at the instance's first record. It
+                gives an integer or text, and records carry its text. It cannot be
+                given with `key_field`.
             keep: Resources in `resource_id` whose units the task hands to the next
                 task of the flow instead of releasing them; that task releases them
                 once it publishes `started`.
             preempt: On a resource added with `preempt=True`, whether the task's
-                requests may take a unit from a task of a higher priority value.
+                requests may take a unit from a task of a higher priority value. It is
+                a bool, a boolean word of a blueprint (`"t"`, `"off"`) or an expression
+                read for each request, such as `"attr.urgent"`.
             on_interrupt: What an interrupt or a preemption does: `resume` (the
-                default) gives back every unit, queues again and serves the
-                remaining time; `restart` does the same with a new service time;
-                `abandon` ends the flow, or goes to `on_interrupt_next`.
+                default) goes on with the units it still holds, asks again for the
+                one it lost or waited for, and serves the remaining time; `restart`
+                does the same with a new service time; `abandon` gives back every
+                unit and ends the flow, or goes to `on_interrupt_next`. A plain
+                interrupt leaves a granted unit with the task; a preemption or a
+                breakdown takes it.
             on_interrupt_next: The task an abandoned instance goes to.
+            on_interrupt_run: The task that runs as a child flow of the same entity
+                after each interrupt or preemption, under `resume` or `restart`, before
+                the task goes on with the time left (a new time under `restart`). The
+                child reads `cause.<name>`. Not with `abandon`, a `resource` or a
+                request in the `wait`, because it is for work that holds no unit of
+                its own. The child runs in the task's process, so an interrupt that
+                arrives while it runs reaches the child at its next wait and follows
+                the child's own `on_interrupt`.
+            resume: An action applied when the task finishes:
+                `{"task": name, "where": condition, "value": value, "limit": n}` wakes
+                the instances of that task suspended in `wait={"suspend": True}`, in the
+                order they suspended, up to `limit` (all when it is None), whose
+                `where` holds. Each reads `value` as `wait.suspend.value`.
+            batch: Members that wait together: `{"size": n, "timeout": seconds,
+                "close_when": condition, "name": text}`. The batch closes when `size`
+                members have joined (a number, or an expression read when the first
+                member joins), `timeout` after its first member, or when `close_when`
+                holds as a member joins; it reads `batch.size` and `batch.age`. The
+                `resource` and service run once for the batch, and each member then
+                publishes its own payload and follows its own `next`. `name` defaults
+                to the task's name, and tasks with the same name share one open batch,
+                so they must have the same `size`, `timeout`, `close_when`, `resource`
+                and service; a run with different ones is refused.
+                It takes no `get`, `seize`, `open` or `cancel`.
             interrupt: An action applied when the task finishes:
                 `{"task": name, "where": condition, "cause": value}` interrupts every
-                running instance of that task whose condition holds.
+                running instance of that task whose condition holds, and
+                `{"handle": name, "cause": value}` interrupts the child flow that
+                name was opened as; that is a run failure if the flow has ended.
+            vars: Named values, each a generator mapping such as
+                `{"gen": "uniform", "low": 2, "high": 200}` or a constant, evaluated in
+                order after the service, before the payload. A later var and the
+                payload read an earlier one with `{"gen": "var", "name": ...}`, and an
+                expression after the service (`put`, `fail`, `next`) reads it as a
+                bare name. With `on_start` they are evaluated when the task starts.
+            vars_once: Named values made once for each entity, at its first event,
+                and the same in every later instance of this task for the entity. A wait
+                timeout value can read them.
+            on_start: A mapping of values published as a record when the task starts,
+                after `started`.
+            finish_vars: Named values evaluated after `vars` and before the payload,
+                which can read the vars.
+            activate: The arrival, or arrivals, whose source the task turns on when it
+                finishes, after `set_args`.
+            deactivate: The same, turning the source off. A source already in that
+                state is left as it is.
+            set_args: Names written in this process's own locals after `set`, read in
+                expressions as `arg.<name>`. A child flow has its own names, and the
+                `next` chain of a flow shares them.
+            history: How many finished payloads the task keeps for `lookup` and
+                `aggregate` (a whole number of 1 or more). A task
+                keeps none unless this is given, or a generator in a `vars`,
+                `vars_once`, `on_start`, `finish_vars`, `set` or `set_args` value of a
+                task, or in a blueprint, names it. A `Template` payload is not
+                searched, so a builder task that a `Template` looks up asks for its
+                rows here.
 
         Raises:
             ValueError: If a resource is given without a service, a priority without
-                a resource, the name is taken, or `get`, `put` or `next` is
-                malformed.
+                a resource, the name is taken, `key` and `key_field` are both given,
+                or `get`, `put` or `next` is malformed.
 
         Returns:
             Callable: A decorator that wraps the target function into a SimPy generator.
@@ -1151,104 +1775,56 @@ class SimulationContext:
                 return {"status": "packed"}
             ```
         """
-        resources = (
-            []
-            if resource_id is None
-            else [resource_id]
-            if isinstance(resource_id, str)
-            else list(resource_id)
-        )
-        # `set` is a parameter here, so the sets are written as literals
-        if len({*resources}) != len(resources):
-            raise ValueError("a task lists each resource once")
-        if not {*(keep or [])} <= {*resources}:
-            raise ValueError(
-                "keep names resources the task holds; list only resources in its "
-                "resource_id"
-            )
-        if on_interrupt not in INTERRUPT_POLICIES:
-            raise ValueError(
-                f"on_interrupt must be one of {', '.join(INTERRUPT_POLICIES)}, "
-                f"got '{on_interrupt}'"
-            )
-        if on_interrupt_next is not None and on_interrupt != "abandon":
-            raise ValueError("on_interrupt_next needs on_interrupt='abandon'")
-        if interrupt is not None:
-            interrupt = dict(interrupt)
-            unknown = {*interrupt} - {"task", "where", "cause"}
-            if "task" not in interrupt or unknown:
-                raise ValueError(
-                    "interrupt takes a task, and an optional where and cause"
-                )
-            if interrupt.get("where") is not None:
-                Expression(interrupt["where"])
-        resource_id = resources[0] if resources else None
-        if resource_id is not None and service_id is None:
-            raise ValueError(
-                "a task with a resource needs a service; give service_id too"
-            )
-        if (
-            priority is not None
-            and resource_id is None
-            and not (wait is not None and Wait(wait).requests())
-        ):
-            raise ValueError(
-                "priority orders a resource's queue, so it needs a resource or a "
-                "request in its wait"
-            )
-        if balk is not None and resource_id is None:
-            raise ValueError("balking refuses a resource queue, so it needs a resource")
-        if isinstance(patience, str):
-            try:
-                patience = time_to_seconds(patience)
-            except ValueError:
-                pass  # not a duration, so an expression such as "attr.patience"
-        take = None if get is None else Transfer.of(get)
-        if take is not None and take.priority != 0.0:
-            raise ValueError(
-                "a get takes no priority; priority orders a put into a priority store"
-            )
-        give = None if put is None else Transfer.of(put)
-        if give is not None and give.filter is not None:
-            raise ValueError(
-                "a put takes no filter; a filter picks the item a get takes"
-            )
-        if (
-            patience is not None
-            and resource_id is None
-            and (take is None or not take.wait)
-            and wait is None
-        ):
-            raise ValueError(
-                "patience is how long a task waits, so it needs a wait, a resource "
-                "or a get"
-            )
-        if fail is None and (fail_reason is not None or on_fail is not None):
-            raise ValueError("fail_reason and on_fail need a fail condition")
-        spec_kwargs = dict(
+        spec_kwargs, generated, router, take, give, resource_id = _task_fields(
+            service_id,
+            resource_id,
+            name=name,
+            priority=priority,
+            get=get,
+            put=put,
+            next=next,
+            set=set,
             patience=patience,
             balk=balk,
-            wait=None if wait is None else Wait(wait),
+            wait=wait,
+            open=open,
+            listen=listen,
+            cancel=cancel,
+            seize=seize,
+            release=release,
             signal=signal,
             fail=fail,
             fail_reason=fail_reason,
             on_fail=on_fail,
-            attribute_changes=dict(set or {}),
-            resources=resources,
+            on_renege=on_renege,
+            on_balk=on_balk,
+            service_time=service_time,
+            key_field=key_field,
+            key=key,
             keep=keep,
             preempt=preempt,
             on_interrupt=on_interrupt,
             on_interrupt_next=on_interrupt_next,
+            on_interrupt_run=on_interrupt_run,
             interrupt=interrupt,
-            spawn=None if spawn is None else _parse_spawn(spawn),
-            subscribe=None if subscribe is None else Wait(subscribe),
-            on=[_parse_on_action(entry) for entry in on or []],
+            resume=resume,
+            batch=batch,
+            spawn=spawn,
+            subscribe=subscribe,
+            on=on,
+            vars=vars,
+            vars_once=vars_once,
+            on_start=on_start,
+            finish_vars=finish_vars,
+            set_args=set_args,
+            activate=activate,
+            deactivate=deactivate,
+            history=history,
         )
-        router = Router(next)
 
         def decorator(user_func):
             task_name = name or user_func.__name__
-            if task_name in self._tasks:
+            if task_name in self._tasks.specs:
                 raise ValueError(f"a task called '{task_name}' already exists")
             spec = TaskSpec(
                 task_name,
@@ -1261,6 +1837,39 @@ class SimulationContext:
                 **spec_kwargs,
             )
             spec.user_func = user_func
+            if not self._tasks.rows_deferred:
+                self._bind_values(
+                    spec.spawn, ("tasks", task_name, "spawn"), overwrite=False
+                )
+            self.note_values(
+                task_name,
+                *(getattr(spec, field) for field in generated),
+                spec.attribute_changes,
+                spec.on,
+                spec.interrupt,
+                spec.spawn,
+                spec.service_time,
+                spec.patience,
+                spec.key,
+            )
+            for field in (*generated, "attribute_changes", "on", "interrupt"):
+                self._bind_values(
+                    getattr(spec, field),
+                    (
+                        "tasks",
+                        task_name,
+                        "set" if field == "attribute_changes" else field,
+                    ),
+                    overwrite=False,
+                )
+            for field in ("service_time", "patience", "key"):
+                self._bind_values(
+                    getattr(spec, field), ("tasks", task_name, field), overwrite=False
+                )
+            for key, given in (("wait", wait), ("open", open)):
+                # Each generator of a wait or an open at the place a blueprint gives
+                # it, such as `wait.all.<name>.each`, as the YAML binds them
+                self._bind_values(given, ("tasks", task_name, key), overwrite=False)
             spec.declared = inspect.signature(user_func).parameters
             if "item" in spec.declared and take is not None and not take.wait:
                 raise ValueError(
@@ -1278,19 +1887,83 @@ class SimulationContext:
                 if not self._env or not self.sampler:
                     raise RuntimeError("Simulation has not been built yet.")
                 if entity is None:
-                    entity = self._new_entity(task_name, None)
-                generator = TaskRun(
-                    self, spec, task_id, entity, upstream, args, kwargs
-                ).run()
-                # A process is named after its generator; name it after the task (P6)
-                generator.__name__ = task_name  # type: ignore[attr-defined]
+                    entity = self._run.arrivals.new_entity(task_name, None)
+                assert self._parts is not None  # the run is built
+                run = self._tasks.new_run(
+                    self,
+                    self._parts,
+                    task_name,
+                    entity,
+                    upstream,
+                    args=args,
+                    kwargs=kwargs,
+                    task_id=task_id,
+                )
+                generator = task_generator(run)
+                self._runs_of[generator] = run
                 return generator
 
-            self._tasks[task_name] = wrapper
-            self._task_specs[task_name] = spec
+            spec.router.where = f"task '{task_name}' next.weights"
+            # A failure when an expression is read names the task and the place; a
+            # blueprint replaces the name with the file and the line
+            for found in spec.expressions:
+                if found.place is not None and not found.expression.where:
+                    found.expression.where = f"task '{task_name}' " + ".".join(
+                        map(str, found.place)
+                    )
+            self._task_functions[task_name] = wrapper
+            self._tasks.specs[task_name] = spec
             return wrapper
 
         return decorator
+
+    def _bind_values(
+        self, node: Any, path: Tuple[Any, ...], *, overwrite: bool = True
+    ) -> None:
+        """Gives the generators of a place their position, and reads the file of each
+        `row` among them, from the working directory. A blueprint reads the files
+        itself, from its own folder, after it has built the context.
+
+        Raises:
+            ValueError: If a `row` file is missing or cannot be used.
+        """
+        bind_values(node, path, overwrite=overwrite)
+        if self._tasks.rows_deferred:
+            return
+        problems = []
+        for _, row in generators_in(node, (RowGenerator,)):
+            problem = load_rows(row, Path.cwd())
+            if problem is not None:
+                problems.append(f"{row._path}.file: {problem}")
+        if problems:
+            raise ValueError("; ".join(problems))
+
+    def note_values(self, task: Optional[str], *places: Any) -> None:
+        """Notes what the values of a place read from other records, so the run keeps
+        what they need: the rows of the tasks a `lookup` or `aggregate` names, and the
+        last payload of a task whose values hold a `previous`. A task with a `lookup`
+        does not start before each task it names has a row.
+
+        A blueprint calls this for the places that `task()` cannot see, such as a
+        payload and an arrival's `attributes`. A builder script needs it only to
+        search a place of its own.
+
+        Args:
+            task: The task whose values the places are, or None for a place that
+                belongs to no task.
+            places: Values: generators, mappings, lists or constants, or a `Template`
+                (its `payload`, `vars` and `vars_once` are searched).
+
+        Raises:
+            TypeError: If a place is a set or an iterator, which are not searched.
+        """
+        gates, rows, previous = looked_up(*places)
+        self._tasks.row_targets |= rows
+        if task is not None:
+            if gates:
+                self._tasks.gates.setdefault(task, set()).update(gates)
+            if previous:
+                self._tasks.previous_users.add(task)
 
     def arrival_loop(self, arrival_id: str) -> Callable:
         """
@@ -1318,7 +1991,12 @@ class SimulationContext:
 
         Args:
             interval: The simulation time (in seconds) to wait between iterations.
+
+        Raises:
+            ValueError: If `interval` is not above 0.
         """
+        if checked_seconds(interval, "telemetry_loop interval") <= 0:
+            raise ValueError(f"telemetry_loop interval must be above 0, got {interval}")
 
         def decorator(user_func):
             def wrapper():
@@ -1332,6 +2010,79 @@ class SimulationContext:
             return user_func
 
         return decorator
+
+    def add_readings(
+        self, interval: float, readings: Mapping[str, str]
+    ) -> "SimulationContext":
+        """
+        Publishes expressions of the run as telemetry every `interval` seconds.
+
+        It is the builder form of a YAML `telemetry` entry with `readings`, and
+        `telemetry_loop` with a function that publishes values, written as
+        expressions. Each reading is evaluated over the run (`level.`, `users.`,
+        `queue.`, `signal.`, `registry[...]`, `t` and the functions of the expression
+        language, and no name of an entity or a task), at the start and then every
+        `interval`. Each interval publishes one telemetry record for each reading, in
+        the order given, named `<sim_id>.<reading>` as `publish` names one. The
+        readings of one interval are all evaluated before the first is published.
+
+        Args:
+            interval: Simulation seconds between two publications.
+            readings: A reading name mapped to an expression, such as
+                `{"waiting_per_packer": "queue.packers / 2"}`.
+
+        Returns:
+            SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If `interval` is not positive, `readings` is empty or not a
+                mapping of text to text, or an expression is invalid or reads an
+                entity. A name that is not in the model, or an expression that cannot
+                be evaluated, is refused when the run is built or stops the run.
+        """
+        if checked_seconds(interval, "the interval of readings") <= 0:
+            raise ValueError(
+                f"the interval of readings must be above 0, got {interval}"
+            )
+        if not isinstance(readings, Mapping) or not readings:
+            raise ValueError("readings is a mapping of a reading name to an expression")
+        parsed: Dict[str, Expression] = {}
+        for name, text in readings.items():
+            if not isinstance(name, str) or not name or not isinstance(text, str):
+                raise ValueError(
+                    f"a reading is a name and the text of an expression, got "
+                    f"{name!r}: {text!r}"
+                )
+            problem = reading_problem(name, self._readings)
+            if problem is not None:
+                raise ValueError(problem)
+            try:
+                expression = Expression(text, names=ANY_NAME)
+            except ValueError as error:
+                raise ValueError(f"reading '{name}': {error}") from None
+            outside = expression.outside_run()
+            if outside:
+                raise ValueError(
+                    f"reading '{name}' '{text}' reads {outside}, but a reading reads "
+                    f"the run (level, users, queue, signal, registry and t), not an "
+                    f"entity or a task"
+                )
+            parsed[name] = expression
+        self._readings.append(parsed)
+
+        def report(context: "SimulationContext") -> None:
+            scope = context.values.scope_of()
+            values: Dict[str, Any] = {}
+            for name, expression in parsed.items():
+                try:
+                    values[name] = expression.evaluate(scope)
+                except ValueError as error:
+                    raise ValueError(f"telemetry reading '{name}': {error}") from None
+            for name, value in values.items():
+                context.publish(name, value)
+
+        self.telemetry_loop(interval)(report)
+        return self
 
     def add_process(self, func: Callable, **kwargs: Any) -> "SimulationContext":
         """
@@ -1404,34 +2155,7 @@ class SimulationContext:
         """
         if not self._env or not self.sampler:
             raise RuntimeError("Cannot sample arrival before context is run.")
-
-        if arrival_id in self._replays:
-            return self._next_replayed(arrival_id)
-        cfg = self._env.registry.get_config(f"{self.sim_id}.arrival.{arrival_id}")
-        entity = self._new_entity(arrival_id, self._arrival_entities.get(arrival_id))
-        return self._env.timeout(self.sampler.sample(cfg), value=entity)
-
-    def _next_replayed(self, arrival_id: str) -> simpy.Event:
-        """The wait for the next row of a replayed arrival; it never ends after the
-        last row, so the arrival stops."""
-        rows = self._replay_rows[arrival_id]
-        if not rows:
-            if arrival_id not in self._replays_done:
-                self._replays_done.add(arrival_id)
-                logger.info(
-                    f"Arrival '{arrival_id}' replayed its last row at "
-                    f"{self.env.now:g} s; it stops."
-                )
-            return self.env.event()
-        row = rows.pop(0)
-        attributes = {
-            **self._arrival_entities.get(arrival_id, ({}, None))[0],
-            **row.fields,
-        }
-        entity = self._new_entity(
-            arrival_id, (attributes, self._arrival_entities[arrival_id][1])
-        )
-        return self.env.timeout(max(0.0, row.time - self.env.now), value=entity)
+        return self._run.arrivals.wait_for_arrival(arrival_id)
 
     def add_arrival_replay(
         self,
@@ -1443,8 +2167,11 @@ class SimulationContext:
         fields: Union[str, List[str]] = "all",
         on_invalid: str = "error",
         attributes: Optional[Mapping[str, Any]] = None,
-        key: Optional[Callable[[int], str]] = None,
+        key: Any = None,
         spawn: Optional[str] = None,
+        active: bool = True,
+        off_mode: str = "drop",
+        vars: Optional[Mapping[str, Any]] = None,
     ) -> "SimulationContext":
         """
         Registers an arrival taken from recorded rows instead of a distribution.
@@ -1470,27 +2197,39 @@ class SimulationContext:
                 out with a warning.
             attributes: Attributes every entity starts with; a row's fields of the
                 same name replace them.
-            key: A function of the entity's counter, from 1, returning its key.
+            key: The entity's key, in every form `add_arrival` takes: a function of
+                the entity's counter, from 1, or a value as a blueprint's `key`
+                reads it.
             spawn: The task each row starts, as for `add_arrival`.
+            active: False starts the source off, as for `add_arrival`.
+            off_mode: `"drop"` or `"restart"`, as for `add_arrival`.
+            vars: Named values read once for each entity, before its attributes and
+                key, as for `add_arrival`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If `unit` or `on_invalid` is unknown. A `spawn` naming no
-                task is refused when the run starts.
+            ValueError: If `unit` or `on_invalid` is unknown, `fields` is a string
+                other than `all`, or `vars` is refused as for `add_arrival`. A
+                `spawn` naming no task is refused when the run starts.
         """
-        if unit not in UNITS and unit != "timestamp":
-            raise ValueError(
-                f"unit must be one of {', '.join([*UNITS, 'timestamp'])}, got '{unit}'"
-            )
-        if on_invalid not in ("error", "skip"):
-            raise ValueError(f"on_invalid must be error or skip, got '{on_invalid}'")
-        self._replays[name] = dict(
-            source=source, time=time, unit=unit, fields=fields, on_invalid=on_invalid
+        self._arrivals.add_arrival_replay(
+            self._bind_values,
+            name,
+            source,
+            time=time,
+            unit=unit,
+            fields=fields,
+            on_invalid=on_invalid,
+            attributes=attributes,
+            key=key,
+            spawn=spawn,
+            active=active,
+            off_mode=off_mode,
+            vars=vars,
         )
-        self._arrival_entities[name] = (dict(attributes or {}), key)
-        self._add_spawn(name, spawn)
+        self._add_arrival_loop(name, spawn)
         return self
 
     def next_instance(self, task: str) -> int:
@@ -1507,37 +2246,92 @@ class SimulationContext:
         Returns:
             int: The task's next instance id.
         """
-        counter = self._instance_counters.setdefault(task, itertools.count())
-        return next(counter)
+        return self._run.next_instance(task)
 
-    def _new_entity(
+    def _check_rule_names(
+        self, place: str, expression: Expression, holders: Mapping[str, Any]
+    ) -> None:
+        """Checks that the resources, stores, containers, signals and registry paths a
+        queue rank or a preempt rule reads exist.
+
+        Raises:
+            ValueError: Naming the place and the name, for the first that does not.
+        """
+        for branch in sorted(expression.references["wait"]):
+            raise ValueError(
+                f"{place} reads wait.{branch}, where no wait is in scope; a signal's "
+                f"on entries run with no wait in scope"
+            )
+        for kind, name in self._unknown_references(
+            expression, _RULE_REFERENCES, holders, lambda: scratch_registry(self)
+        ):
+            if kind in _RESOURCE_REFERENCES:
+                raise ValueError(
+                    f"{place} reads {kind}.{name}, but no resource is called "
+                    f"'{name}'" + suggestion(name, self._holders.resources_config)
+                )
+            if kind in _HOLDER_REFERENCES:
+                raise ValueError(
+                    f"{place} reads {kind}.{name}, but no store or container "
+                    f"is called '{name}'" + suggestion(name, holders)
+                )
+            if kind in ("count", "items"):
+                raise ValueError(
+                    f"{place} reads count or items of '{name}', but no store is "
+                    f"called '{name}'" + suggestion(name, self._holders.stores_config)
+                )
+            if kind == "signal":
+                raise ValueError(
+                    f"{place} reads signal.{name}, but no signal is called '{name}'"
+                )
+            if kind == "running":
+                raise ValueError(
+                    f"{place} reads running({name}), but no task is called '{name}'"
+                )
+            raise ValueError(
+                f'{place} reads registry["{name}"], which is not a registry path'
+            )
+
+    def _unknown_references(
         self,
-        arrival: str,
-        options: Optional[Tuple[Dict[str, Any], Optional[Callable[[int], str]]]],
-    ) -> Entity:
-        """Starts an entity: the next counter of `arrival`, its key and attributes."""
-        counter = self._entity_counters.setdefault(arrival, itertools.count(1))
-        number = next(counter)
-        attributes, key = options if options is not None else ({}, None)
-        return Entity(
-            key=f"{arrival}-{number}" if key is None else key(number),
-            arrival=arrival,
-            attributes=dict(attributes),
-        )
+        expression: Expression,
+        kinds: Tuple[str, ...],
+        holders: Mapping[str, Any],
+        registry: Callable[[], SimulationRegistry],
+    ) -> Iterator[Tuple[str, str]]:
+        """Yields `(kind, name)` for each name an expression reads that the model does
+        not declare, in the order of `kinds` and then of the expression's references,
+        so each caller words its own message.
 
-    def _entity_key_of(self, process: Any) -> Optional[str]:
-        """The key of the entity whose task runs in `process`, as text; None for a
-        process that is not a task, or None itself."""
-        if process is not None:
-            for runs in self._running.values():
-                for run in runs:
-                    if run.process is process:
-                        return str(run.entity.key)
-        return None
-
-    def _levels(self) -> Dict[str, Any]:
-        """Stores and containers by name, which `level.<name>` reads."""
-        return {**self._stores_map, **self._containers_map}
+        Args:
+            expression: The expression.
+            kinds: The kinds of reference to check, in the order they are checked.
+            holders: The stores and containers by name.
+            registry: Gives the scratch registry a `registry[...]` path is looked up
+                in; it is called for each path that names no member of a family.
+        """
+        for kind in kinds:
+            for name in expression.references[kind]:
+                if kind in _RESOURCE_REFERENCES:
+                    known = name in self._holders.resources_config
+                elif kind in _HOLDER_REFERENCES:
+                    known = name in holders
+                elif kind in ("count", "items"):
+                    known = name in self._holders.stores_config
+                elif kind == "signal":
+                    known = name in self._signals.entries
+                elif kind == "running":
+                    known = name in self._tasks.specs
+                elif member_path(name, self._families.by_name, self.sim_id) is not None:
+                    known = True
+                else:
+                    try:
+                        registry().get(name)
+                        known = True
+                    except KeyError:
+                        known = False
+                if not known:
+                    yield kind, name
 
     def get_store(self, store_id: str) -> DynamicStore:
         """
@@ -1551,10 +2345,16 @@ class SimulationContext:
 
         Raises:
             RuntimeError: If called during the Builder Phase.
+            KeyError: If the model has no such holder, or the last start failed
+                before it made the run's holders.
         """
         if not self._env:
             raise RuntimeError("Stores are not instantiated until context is run.")
-        return self._stores_map[store_id]
+        holders = self._run.holder_run
+        if holders is None:
+            # The last start failed before it made the run's holders
+            raise KeyError(store_id)
+        return holders.stores[store_id]
 
     def get_container(self, container_id: str) -> DynamicContainer:
         """
@@ -1568,10 +2368,16 @@ class SimulationContext:
 
         Raises:
             RuntimeError: If called during the Builder Phase.
+            KeyError: If the model has no such holder, or the last start failed
+                before it made the run's holders.
         """
         if not self._env:
             raise RuntimeError("Containers are not instantiated until context is run.")
-        return self._containers_map[container_id]
+        holders = self._run.holder_run
+        if holders is None:
+            # The last start failed before it made the run's holders
+            raise KeyError(container_id)
+        return holders.containers[container_id]
 
     def get_resource(self, resource_id: str) -> ResourceBase:
         """Returns the resource a running model built: a `DynamicResource`, or the
@@ -1585,10 +2391,16 @@ class SimulationContext:
 
         Raises:
             RuntimeError: If called before the run has started.
+            KeyError: If the model has no such holder, or the last start failed
+                before it made the run's holders.
         """
         if not self._env:
             raise RuntimeError("Resources are not instantiated until context is run.")
-        return self._resources_map[resource_id]
+        holders = self._run.holder_run
+        if holders is None:
+            # The last start failed before it made the run's holders
+            raise KeyError(resource_id)
+        return holders.resources[resource_id]
 
     def publish(self, metric_name: str, value: Any) -> None:
         """Publishes a telemetry value, named `<sim_id>.<metric_name>`, to the sinks.
@@ -1628,7 +2440,12 @@ class SimulationContext:
         if not self._env:
             raise RuntimeError("Cannot spawn processes before context is run.")
         if delay is None:
-            return self._env.process(process)
+            started = self._env.process(process)
+            run = self._runs_of.pop(process, None)
+            if run is not None:
+                # A task instance is reachable by `interrupt` from the step it starts in
+                run.reach(started)
+            return started
         import simpy.util
 
         return simpy.util.start_delayed(self._env, process, delay)
@@ -1660,7 +2477,7 @@ class SimulationContext:
         def signaller(signal: Any, receiver: Any):
             try:
                 result = yield signal
-            except Exception as error:  # noqa: BLE001: the event failed
+            except Exception as error:  # the event failed
                 # Under `continue` the subscriber is told; under `stop` the failure
                 # is left undefused, so it stops the run as SimPy's does.
                 if getattr(self.env, "on_unhandled_failure", "stop") == "stop":
@@ -1708,230 +2525,33 @@ class SimulationContext:
                 "Cannot call tasks before context is run; call them from a task or "
                 "a process"
             )
-        if task not in self._task_specs:
+        if task not in self._tasks.specs:
             raise ValueError(
                 f"no task is called '{task}'"
-                + (suggestion(task, self._task_specs) or "; add it with @app.task()")
+                + (suggestion(task, self._tasks.specs) or "; add it with @app.task()")
             )
         if entity is None:
-            entity = self._new_entity(task, None)
-        return self._start(
-            task, entity, upstream, child=True, args=args or None, kwargs=kwargs
-        )
-
-    def _start(
-        self,
-        task: str,
-        entity: Entity,
-        upstream: Optional[Upstream],
-        child: bool = False,
-        args: Optional[Tuple[Any, ...]] = None,
-        kwargs: Optional[Dict[str, Any]] = None,
-    ) -> simpy.Process:
-        """Starts one instance of a task as a process, with its next instance id.
-
-        `args` are the positional arguments after the task id; None gives the ones a
-        YAML task takes, the context, and none for a builder task.
-        """
-        spec = self._task_specs[task]
-        run = TaskRun(
+            entity = self._run.arrivals.new_entity(task, None)
+        assert self._parts is not None  # the run is built
+        return self._tasks.start(
             self,
-            spec,
-            self.next_instance(task),
+            self._parts,
+            task,
             entity,
             upstream,
-            self._task_args if args is None else args,
-            kwargs or {},
-            child=child,
+            child=True,
+            args=args or None,
+            kwargs=kwargs,
         )
-        generator = run.run()
-        # SimPy names a process after its generator's __name__; name it after the
-        # task, not `run`, so `active_process.name` and records read the task (P6).
-        generator.__name__ = spec.name  # type: ignore[attr-defined]
-        process = self.env.process(generator)
-        if child and self._on_unhandled_failure == "continue":
-            # Under `continue`, a child flow that fails with no task waiting for it
-            # ends that flow, not the run; under `stop` the failure stops the run.
-            process.callbacks.append(_defuse)
-        return process
-
-    def _spawn_entity(
-        self,
-        task: str,
-        parent: Optional[Entity],
-        upstream: Optional[Upstream],
-        after: Optional[float],
-    ) -> simpy.Process:
-        """Starts `task` as the first task of a new entity, keyed `<task>-n`, with
-        `parent` as its `spawned_by` and `attr.parent` the parent's key.
-
-        Without `after` the entity is made and counted in now; with `after` a wrapper
-        named after the task makes and counts it in when the task starts, built with
-        SimPy's `start_delayed` so the events order as SimPy's.
-        """
-        parent_key = parent.key if parent is not None else None
-
-        def make() -> Any:
-            entity = self._new_entity(task, ({"parent": parent_key}, None))
-            entity.spawned_by = parent
-            entity.entered = True
-            self._entity_entered(entity)
-            run = TaskRun(
-                self,
-                self._task_specs[task],
-                self.next_instance(task),
-                entity,
-                upstream,
-                self._task_args,
-                {},
-                child=False,
-            )
-            gen = run.run()
-            gen.__name__ = task  # type: ignore[attr-defined]
-            return gen
-
-        if after is None:
-            return self.env.process(make())
-
-        def wrapper() -> Any:
-            return (yield from make())
-
-        delayed = wrapper()
-        delayed.__name__ = task  # type: ignore[attr-defined]
-        import simpy.util
-
-        return simpy.util.start_delayed(self.env, delayed, after)
-
-    def _fire_signal(
-        self,
-        name: str,
-        ok: bool,
-        value: Any,
-        entity: Optional[Entity],
-        urgent: bool = False,
-        after: Optional[float] = None,
-    ) -> None:
-        """Fires or fails a signal through one path, counting its `on:` actions
-        against `entity` so a drain waits for them.
-
-        When the firing is new, the signal has `on:` actions, and `entity` has not
-        left, 1 is added to `entity.ends_pending` and the entity is stored on the
-        pending event, so the signal's last callback counts it back out.
-
-        A firing with `urgent` or `after` is for a one-shot signal and is scheduled
-        with that priority and delay. With `after` it is not counted against
-        `entity`, because the entity may leave before the signal fires, so a drain
-        can end before the signal's `on:` actions run.
-        """
-        signal = self._signals[name]
-        pending = signal.wait()
-        if (
-            after is None
-            and not pending.triggered
-            and self._signal_on.get(name)
-            and entity is not None
-            and not entity.left
-        ):
-            entity.ends_pending += 1
-            pending._desflow_entity = entity  # type: ignore[attr-defined]
-        if ok:
-            signal.fire(value, urgent=urgent, after=after or 0.0)
-        else:
-            signal.fail(value, urgent=urgent, after=after or 0.0)
-
-    def _signal_fired(self, name: str, event: Any) -> None:
-        """The signal's last `on:` callback: runs its actions, then counts the firing
-        task's entity out, as a pending `ended` is counted out."""
-        entity = getattr(event, "_desflow_entity", None)
-        for action in self._signal_on.get(name, []):
-            self._run_on_action(action, f"signal '{name}'", entity, None)
-        if entity is not None:
-            self._end_processed(entity)
-
-    def _end_processed(self, entity: Entity, _event: Any = None) -> None:
-        """Takes 1 from `entity.ends_pending`; when it reaches 0 and the flow has
-        ended, counts the entity out."""
-        entity.ends_pending -= 1
-        if entity.ends_pending == 0 and entity.ending:
-            self._entity_left(entity)
-
-    def _run_on_action(
-        self,
-        action: Dict[str, Any],
-        owner: str,
-        entity: Optional[Entity],
-        upstream: Optional[Upstream],
-    ) -> None:
-        """Runs one `on:` action: fire a signal, spawn a new entity, interrupt a
-        task, or set a registry value. `owner` labels the action for a warning,
-        `entity` is the entity it runs for, and `upstream` is what a spawn hands on.
-        """
-        if "fire" in action:
-            spec = action["fire"]
-            copied = self._copy_outcome(spec, entity)
-            if copied is None:
-                logger.warning(
-                    "the on: action of %s fires '%s' from '%s', which has nothing "
-                    "to copy yet; it fires nothing",
-                    owner,
-                    spec["signal"],
-                    spec["from"],
-                )
-                return
-            ok, value = copied
-            self._fire_signal(
-                spec["signal"],
-                ok,
-                value,
-                entity,
-                urgent=spec.get("urgent", False),
-                after=spec.get("after"),
-            )
-        elif "spawn" in action:
-            spec = action["spawn"]
-            self._spawn_entity(spec["task"], entity, upstream, spec["after"])
-        elif "interrupt" in action:
-            spec = action["interrupt"]
-            where = spec.get("where")
-            self.interrupt(
-                spec["task"],
-                where=Expression(where) if isinstance(where, str) else where,
-                cause=spec.get("cause"),
-            )
-        else:
-            apply_step(self.env, action["path"], action["value"])
-
-    def _copy_outcome(
-        self, fire: Dict[str, Any], entity: Optional[Entity]
-    ) -> Optional[Tuple[bool, Any]]:
-        """The outcome a `fire` action fires with: its literal `value`, or the
-        outcome `from` copies from a signal or a task. None when there is nothing to
-        copy (a signal not fired, a task with no ended instance, or no entity)."""
-        source = fire["from"]
-        if source is None:
-            return True, fire["value"]
-        if source in self._signals:
-            signal = self._signals[source]
-            if signal.ok is None:
-                return None
-            return signal.ok, signal.value
-        # a task: copy its last-ended instance on this entity
-        if (
-            entity is None
-            or entity.last_ended is None
-            or source not in entity.last_ended
-        ):
-            return None
-        event = entity.last_ended[source]
-        if event.ok:
-            return True, event.value
-        return False, getattr(event.value, "reason", event.value)
 
     def add_signal(
         self,
         name: str,
-        once: bool = False,
+        once: bool = True,
         on: Optional[List[Mapping[str, Any]]] = None,
+        family: bool = False,
+        members: Any = None,
+        defused: bool = False,
     ) -> "SimulationContext":
         """
         Declares a signal that tasks fire and wait for.
@@ -1942,19 +2562,46 @@ class SimulationContext:
 
         Args:
             name: The signal's name.
-            once: When True the signal fires once, as SimPy's `Event` does: it does
-                not re-arm, a wait after the firing resumes at once, and a second
-                firing is refused.
+            once: When True, the default, the signal fires once, as SimPy's `Event`
+                does: it does not re-arm, a wait after the firing resumes at once,
+                and a second firing is an error under `stop`. When False it re-arms
+                after each firing, and a wait after a firing waits for the next.
             on: Actions run when the signal fires, each a mapping with one of `fire`,
                 `spawn`, `interrupt` or `path`, as a task's `on` takes them.
+            family: When True, the entry is a family of signals, one for each key,
+                made from this entry. A task names a member with `{"of": name, "key":
+                "<expression>"}` where it names a signal, and a member is made at its
+                first use.
+            members: With `family`, how many members exist when the run starts, with
+                the keys 0 to n - 1: a whole number, an expression text, or a
+                generator, read once when the run is built. None starts the family
+                empty.
+            defused: When True, a failure of the signal that no waiter handles does
+                not stop the run, as a callback's `event.defused = True` does.
+                Without it, a one-shot signal's failure with no waiter stops the run
+                under `on_unhandled_failure: stop`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If `members` is given without `family`, or `defused` is not
+                True or False.
         """
-        if name not in self._signal_names:
-            self._signal_names.append(name)
-        self._signal_once[name] = once
-        self._signal_on[name] = [_parse_on_action(entry) for entry in on or []]
+        self._families.claim("signal", name)
+        _family_fields("signal", name, family, members)
+        for flag, value in (("once", once), ("defused", defused)):
+            if not isinstance(value, bool):
+                raise ValueError(
+                    f"signal '{name}': {flag} is true or false, got {value!r}"
+                )
+        self._families.declare("signal", name, family, members, {})
+        self._signals.declare(
+            name, once, defused, (_parse_on_action(entry) for entry in on or [])
+        )
+        self._bind_values(
+            self._signals.on[name], ("signals", name, "on"), overwrite=False
+        )
         return self
 
     def signal(self, name: str) -> Signal:
@@ -1976,7 +2623,7 @@ class SimulationContext:
                 "Signals are not created until context is run; read them from a "
                 "task or a process"
             )
-        return self._signals[name]
+        return self._run.signals.made[name]
 
     def interrupt(
         self,
@@ -2013,8 +2660,8 @@ class SimulationContext:
         condition = Expression(where) if isinstance(where, str) else where
         active = self._env.active_process
         count = 0
-        for run in list(self._running.get(task, [])):
-            process = run.process
+        for run in list(self._run.running.get(task, [])):
+            process = run.flow.process
             if process is None or process is active or not process.is_alive:
                 continue
             if condition is not None and not condition.evaluate(run.scope()):
@@ -2035,38 +2682,19 @@ class SimulationContext:
         or to compare two configurations.
 
         Returns:
-            SimParameter: The parameters, sharing their config objects with the builder.
+            SimParameter: The parameters, sharing their config objects with the
+                builder; `run()` registers a copy of them.
         """
         return SimParameter(
             sim_id=self.sim_id,
-            resources=self._resources_config,
-            containers=self._containers_config,
-            stores=self._stores_config,
-            breakdowns=self._breakdowns_config,
+            resources=self._families.without(self._holders.resources_config),
+            containers=self._families.without(self._holders.containers_config),
+            stores=self._families.without(self._holders.stores_config),
+            breakdowns=self._families.without(self._holders.breakdowns_config),
             service=self._services_config,
-            arrival=self._arrivals_config,
+            arrival=self._arrivals.configs,
             variables=self._variables_config,
         )
-
-    def _scratch_registry(self, isolated: bool = False) -> SimulationRegistry:
-        """Builds a registry with the paths a run registers, on a plain SimPy clock.
-
-        The load checks and `registry_paths` call it, so they cannot build the
-        registry two ways. Registration fills defaults on the shared config objects,
-        as a run does.
-
-        Args:
-            isolated: Register a deep copy of the parameters instead. A check that
-                applies values with `change` needs this, because a change is stored
-                in the config object, and the model's own starting values must not
-                move.
-        """
-        registry = SimulationRegistry(simpy.Environment())
-        parameters = self.compile_parameters()
-        registry.register_sim_parameter(
-            copy.deepcopy(parameters) if isolated else parameters
-        )
-        return registry
 
     def registry_paths(self) -> Dict[str, Any]:
         """
@@ -2087,7 +2715,7 @@ class SimulationContext:
             ValueError: If the registry refuses the model's parameters, as a run
                 would at its start.
         """
-        registry = self._scratch_registry()
+        registry = scratch_registry(self)
         return {path: registry.get(path).value for path in registry.paths()}
 
     def analyze(
@@ -2139,12 +2767,12 @@ class SimulationContext:
         explanation = analyze(build_graph(self), target)
         if not verify:
             return explanation
-        if self._source is None:
+        if self._defaults.source is None:
             raise ValueError(
                 "verify needs a model it can build again; use desflow explain "
                 "--verify FILE"
             )
-        return run_verify(self._source, explanation, until, seed, replications)
+        return run_verify(self._defaults.source, explanation, until, seed, replications)
 
     def run(
         self,
@@ -2152,6 +2780,9 @@ class SimulationContext:
         stop: Any = None,
         drain: Any = None,
         on_unhandled_failure: Optional[str] = None,
+        segments: Any = None,
+        steps: Optional[bool] = None,
+        sync: Optional[bool] = None,
     ) -> Any:
         """
         Compiles the defined infrastructure architecture and triggers the simulation loop.
@@ -2175,6 +2806,15 @@ class SimulationContext:
             drain: At `until`, stop the arrivals and keep running until no entity
                 is in the model: True, or `{"limit": duration}` to stop at the
                 latest that long after `until`. Needs `until`.
+            on_unhandled_failure: `"stop"` or `"continue"`, as `run.on_unhandled_failure`.
+            segments: Runs the model in parts and publishes `system.simulation.segment`
+                after each, as `run.segments` does: a list of mappings with the keys
+                `until`, `stop`, `look` and `sync` of a blueprint's entry, or
+                `{"every": seconds}` for equal parts up to `until`. A context built
+                by `from_yaml` uses the blueprint's `run.segments` when this is None.
+            steps: True publishes `system.simulation.step` after each model event,
+                as `run.steps` does. Not with `segments`, `stop` or `drain`.
+            sync: True calls `env.sync()` as the run starts, as `run.sync` does.
 
         Returns:
             Any: The value of the event that stopped the run, as SimPy's `env.run`
@@ -2189,7 +2829,15 @@ class SimulationContext:
                 failed stop event is raised the same way. The run closes first, and
                 the sinks receive the records.
         """
-        self.start(until, stop, drain, on_unhandled_failure=on_unhandled_failure)
+        self.start(
+            until,
+            stop,
+            drain,
+            on_unhandled_failure=on_unhandled_failure,
+            segments=segments,
+            steps=steps,
+            sync=sync,
+        )
         return self.finish()
 
     def finish(self) -> Any:
@@ -2221,17 +2869,20 @@ class SimulationContext:
         if self._env is None or not self.started:
             raise RuntimeError("finish() needs a run that start() has started")
         try:
-            env = self._env
-            if self._end is not None:
-                if self._end.callbacks is None and not self._end._ok:
+            if not self._run.moved:
+                self._run_plan()
+            if self._run.stopped:
+                return None
+            if self._run.end is not None:
+                if self._run.end.callbacks is None and not self._run.end.ok:
                     # `env.run(until=...)` returns the value of a processed event,
                     # so a failed stop that advance() reached is raised here
-                    raise self._end._value
-                return env.run(until=self._end)
+                    raise self._run.end.value
+                return self._run_env(self._run.end)
             if self._run_ended():
                 # advance() or step() already reached until, where a run ends
                 return None
-            return env.run(until=self._until)
+            return self._run_env(self._run.until)
         finally:
             self.close()
 
@@ -2268,13 +2919,14 @@ class SimulationContext:
         """
         if self._env is None or not self.started:
             raise RuntimeError("advance() needs a run that start() has started")
+        self._run.moved = True
         env = self._env
         if self._run_ended():
             raise RuntimeError(
                 f"the run ended at {env.now:g}; close() it, or start() a new run"
             )
-        if isinstance(until, str):
-            until = time_to_seconds(until)
+        if isinstance(until, (str, bool, float, int)):
+            until = checked_seconds(until, "until", below_zero=True)
         if isinstance(until, simpy.Event):
             if until.callbacks is None:
                 return until.value
@@ -2285,24 +2937,142 @@ class SimulationContext:
             raise ValueError(
                 f"until ({at}) must be greater than the current simulation time"
             )
-        if self._end is None:
-            return env.run(
-                until=until if self._until is None else min(until, self._until)
-            )
-        segment = simpy.Event(env)
-        segment._ok, segment._value = True, None
-        env.schedule(segment, simpy.events.URGENT, until - env.now)
+        if self._run.end is None:
+            try:
+                return env.run(
+                    until=until
+                    if self._run.until is None
+                    else min(until, self._run.until)
+                )
+            except RunStopped:
+                return None  # a `row` with on_end: stop ended the run
+        segment = schedule_urgent(env, simpy.Event(env), until - env.now)
         return self._advance_to(segment)
+
+    def _run_plan(self) -> None:
+        """Runs the blueprint's `run.segments` or `run.steps` before `finish()` runs the
+        rest of the run, publishing a reading after each segment or event."""
+        if self._run.segments is not None:
+            self._run_segments(self._run.segments)
+        elif self._run.steps:
+            self._run_steps()
+
+    def _segment_entries(self, segments: Any) -> List[Mapping[str, Any]]:
+        """The entries of `run.segments`: the list as given, or for `{every: t}` one
+        entry ending at each multiple of `t` below `until`, and one at `until`."""
+        if not isinstance(segments, Mapping):
+            return list(segments)
+        every, entries, count = segments["every"], [], 1
+        while (
+            self._run.until is not None
+            and self.initial_time + count * every < self._run.until
+        ):
+            entries.append({"until": self.initial_time + count * every})
+            count += 1
+        return [*entries, {"until": self._run.until}]
+
+    def _run_segments(self, segments: Any) -> None:
+        """Runs the model one segment at a time, as a SimPy program that calls
+        `env.run(until=...)` in a loop does, and publishes `system.simulation.segment`
+        after each.
+
+        A segment ends at its `until`, at its `stop`, or, for `{}`, at the end of the
+        run. A segment after the run's own end does not run. A list with no `run.until`
+        whose last entry has an `until` or a `stop` ends the run there, as a SimPy
+        program that stops calling `env.run` does; `{}` as the last entry runs to the
+        end. `look` names a task whose new entity runs its zero-time steps once the
+        segment has stopped, ahead of the events at the stop time.
+        """
+        env = self.env
+        entries = self._segment_entries(segments)
+        for index, entry in enumerate(entries):
+            if self._run_ended():
+                break
+            if entry.get("sync"):
+                env.sync()
+            if entry.get("until") is not None:
+                self.advance(entry["until"])
+            elif entry.get("stop") is not None:
+                self.advance(self._stop_event(entry["stop"]))
+            else:
+                self._run_to_end()
+            if entry.get("look") is not None:
+                self._look(entry["look"])
+            self._publish_reading("system.simulation.segment", {"index": index})
+            if entry.get("until") is None and entry.get("stop") is None:
+                break
+        else:
+            if entries and self._run.until is None and isinstance(segments, list):
+                self._run.stopped = True
+
+    def _run_to_end(self) -> None:
+        """Runs a started run to its own end, which `finish()` then finds reached."""
+        self._run.moved = True
+        self._run_env(self._run.end if self._run.end is not None else self._run.until)
+
+    def _look(self, task: str) -> None:
+        """Runs a new entity of `task` to the end of its zero-time steps, before any
+        other event at this instant, which SimPy's urgent start of a process ensures."""
+        assert self._parts is not None  # the run is built
+        process = self._tasks.spawn_entity(self, self._parts, task, None, None, None)
+        try:
+            while not process.triggered:
+                self.env.step()
+        except StopSimulation:
+            pass  # _stop_run() ended the run
+
+    def _run_steps(self) -> None:
+        """Processes the model's events one at a time up to `until`, as a loop of
+        `env.peek()` and `env.step()` does, publishing `system.simulation.step` after
+        each. The run ends in place of SimPy's `EmptySchedule` when none is left."""
+        count = 0
+        while self.peek() < (math.inf if self._run.until is None else self._run.until):
+            self.step()
+            if self._run.stopped:
+                break
+            count += 1
+            self._publish_reading("system.simulation.step", {"step": count})
+
+    def _publish_reading(self, path: str, fields: Dict[str, Any]) -> None:
+        """Publishes `fields`, then `now` and `peek` (null when no model event is
+        left, because a JSON record cannot hold infinity), as telemetry."""
+        env = self.env
+        head = env.peek()
+        env.publish_telemetry(
+            path, {**fields, "now": env.now, "peek": None if math.isinf(head) else head}
+        )
+
+    def _run_env(self, until: Any) -> Any:
+        """Runs the environment to `until`, ending the run when no model event is left
+        if the context has no `until` of its own.
+
+        A `stop` or a drain reaches `env.run` as an event, so the environment cannot
+        tell from its argument that the run has no time limit.
+        """
+        env = self._env
+        assert env is not None  # the callers checked that the run has started
+        previous, env._until_none = env._until_none, self._run.until is None
+        try:
+            with end_is_set(env):
+                return env.run(until=until)
+        except RunStopped:
+            # A `row` with on_end: stop used its last row where no task ran: an
+            # arrival's attributes, vars or key. _stop_run() ended the run.
+            return None
+        finally:
+            env._until_none = previous
 
     def _run_ended(self) -> bool:
         """Whether the run has reached its own end: the end event of a `stop` or
         `drain` has been processed, else `until` has been reached."""
-        if self._end is not None:
-            return self._end_done
+        if self._run.stopped:
+            return True
+        if self._run.end is not None:
+            return self._run.end_done
         return (
-            self._until is not None
+            self._run.until is not None
             and self._env is not None
-            and self._env.now >= self._until
+            and self._env.now >= self._run.until
         )
 
     def _advance_to(self, target: simpy.Event) -> Any:
@@ -2310,22 +3080,20 @@ class SimulationContext:
         the value of whichever stopped the run."""
         env = self._env
         assert env is not None  # advance() checked that the run has started
-        limit = self._end
-        if limit is None and self._until is not None:
+        limit = self._run.end
+        if limit is None and self._run.until is not None:
             # No stop or drain: the run's end is `until`, as `env.run(until)` ends it.
             # One internal event per run, so later calls add nothing to the queue.
-            if self._limit_event is None:
-                self._limit_event = env.internal_event()
-                self._limit_event._ok, self._limit_event._value = True, None
-                env.schedule(
-                    self._limit_event, simpy.events.URGENT, self._until - env.now
+            if self._run.limit_event is None:
+                self._run.limit_event = schedule_urgent(
+                    env, env.internal_event(), self._run.until - env.now
                 )
-            limit = self._limit_event
+            limit = self._run.limit_event
         stop = StopSimulation.callback
         if limit is not None:
             limit.callbacks.append(stop)
         try:
-            return env.run(until=target)
+            return self._run_env(target)
         finally:
             # An event that did not stop the run must not stop a later one
             for event in (limit, target):
@@ -2348,6 +3116,9 @@ class SimulationContext:
         source: Optional[str] = None,
         actor: Optional[str] = None,
         reason: Optional[str] = None,
+        segments: Any = None,
+        steps: Optional[bool] = None,
+        sync: Optional[bool] = None,
     ) -> DynamicRealtimeEnvironment:
         """
         Builds and starts everything `run()` does before the clock moves.
@@ -2386,29 +3157,50 @@ class SimulationContext:
                 came from, such as `"user"`.
             actor: How the `ParamChange` of each override describes it: who made it.
             reason: How the `ParamChange` of each override describes it: why.
+            segments: As for `run()`. The segments and the steps run in `finish()`,
+                and only when `advance` and `step` have not moved the run.
+            steps: As for `run()`.
+            sync: As for `run()`.
 
         Returns:
             DynamicRealtimeEnvironment: The environment, also `context.env`.
 
         Raises:
-            ValueError: As for `run()`; or `stats` is not a level, or an override's
-                path does not exist or its value is refused.
+            ValueError: As for `run()`; or `segments` is malformed, a segment's
+                `look` names a task that does not exist, or `{"every": ...}` has no
+                `until`; or `steps` is used with `segments`, or `steps` or `sync` is
+                not a bool; or `stats` is not a level, or an override's path does not
+                exist or its value is refused, or a trace sink has no
+                `with_stats(trace=True)`.
         """
         if until is None and run_settings:
-            until = self._default_until
+            until = self._defaults.until
         if stop is None and run_settings:
-            stop = self._default_stop
+            stop = self._defaults.stop
         if drain is None and run_settings:
-            drain = self._default_drain
+            drain = self._defaults.drain
         if on_unhandled_failure is None:
             on_unhandled_failure = (
-                self._default_unhandled if run_settings else "continue"
+                self._defaults.unhandled if run_settings else "continue"
             )
-        self._on_unhandled_failure = on_unhandled_failure
+        # Held in locals and written to the run state after every check passes, so a
+        # refused start leaves the run that is open as it was
+        if segments is not None:
+            run_segments = _segments_arg(segments)
+        elif run_settings:
+            run_segments = self._defaults.segments
+        else:
+            run_segments = None
+        run_steps = _flag_arg(
+            "steps", steps, self._defaults.steps if run_settings else False
+        )
+        run_sync = _flag_arg(
+            "sync", sync, self._defaults.sync if run_settings else False
+        )
         # Read before any connector starts its thread, so a bad value stops the run
         # with nothing to tear down
-        if isinstance(until, str):
-            until = time_to_seconds(until)
+        if until is not None and not isinstance(until, simpy.Event):
+            until = checked_seconds(until, "until", below_zero=True)
         if until is not None and until <= self.initial_time:
             # SimPy's run(until=) refuses it; with stop or drain the end is an
             # event desflow schedules itself, which would be in the past
@@ -2416,44 +3208,95 @@ class SimulationContext:
                 f"until ({until:g}) must be greater than the initial time "
                 f"({self.initial_time:g}); set until later, or initial_time earlier"
             )
+        if (stop or drain) and run_segments is not None:
+            raise ValueError(
+                "run.segments cannot be used with run.stop or run.drain: a segment "
+                "ends at its own until or stop"
+            )
+        if (stop or drain) and run_steps:
+            raise ValueError(
+                "run.steps cannot be used with run.stop or run.drain: steps already "
+                "reads the run after each event"
+            )
+        if run_steps and run_segments is not None:
+            raise ValueError(
+                "run.steps cannot be used with run.segments: steps already reads "
+                "the run after each event"
+            )
+        if isinstance(run_segments, Mapping) and until is None:
+            raise ValueError("segments {'every': ...} needs an until to divide")
+        previous = self.initial_time
+        for entry in run_segments if isinstance(run_segments, list) else ():
+            if entry.get("until") is not None:
+                problem = segment_until_problem(entry["until"], previous)
+                if problem is not None:
+                    raise ValueError(problem)
+                previous = entry["until"]
+            if entry.get("stop") is not None:
+                _check_end(
+                    None,
+                    entry["stop"],
+                    None,
+                    self._signals.entries,
+                    self._families.by_name,
+                )
+            look = entry.get("look")
+            if look is not None and look not in self._tasks.specs:
+                raise ValueError(
+                    f"a segment's look names task '{look}', "
+                    + _not_added(look, self._tasks.specs, f"@app.task(name='{look}')")
+                )
         if isinstance(drain, Mapping) and drain.get("limit") is not None:
-            _seconds(drain["limit"])
+            if checked_seconds(drain["limit"], "drain limit") <= 0:
+                raise ValueError(
+                    f"drain limit gave {drain['limit']!r}, and it must be above 0"
+                )
         if stats is not None and stats not in STATS_LEVELS:
             raise ValueError(
                 f"stats must be one of {', '.join(STATS_LEVELS)}, got {stats!r}"
             )
-        _check_end(until, stop, drain, self._signal_names)
+        _check_end(until, stop, drain, self._signals.entries, self._families.by_name)
         self._check_tasks(overrides)
-        for setup in self._before_run:
+        if self._sinks.traces and not self._sinks.stats_trace:
+            raise ValueError(
+                "when='trace' receives the records of stats.trace, so the context needs "
+                "with_stats(trace=True)"
+            )
+        for setup in self._defaults.before_run:
             setup()
         # A run started and not closed is closed first, so its connectors stop
         if self._env is not None and not self._closed:
             self.close()
         # A second run of the same context starts with no entity and no task, and
-        # numbers its entities and instances from the start again, so it repeats
-        self._in_system = 0
-        self._draining = False
-        self._running = {}
-        self._entity_counters = {}
-        self._instance_counters = {}
-        self._sample_seen = 0
+        # numbers its entities and instances from the start again, so it repeats.
+        # The settings above were set on the state of the run before, as they are
+        # read from the new run's state from here on
+        self._run = RunState(
+            held=self._ends.held,
+            segments=run_segments,
+            steps=run_steps,
+            sync=run_sync,
+            on_unhandled_failure=on_unhandled_failure,
+        )
         self._env = None
         self.started = False
 
         logger.info(f"Building SimulationContext for '{self.sim_id}'...")
         try:
             return self._build(
-                until,
-                stop,
-                drain,
-                seed,
-                overrides,
-                stats,
-                egress,
-                ingress,
-                source,
-                actor,
-                reason,
+                _RunSettings(
+                    until=until,
+                    stop=stop,
+                    drain=drain,
+                    seed=seed,
+                    overrides=overrides,
+                    stats=stats,
+                    egress=egress,
+                    ingress=ingress,
+                    source=source,
+                    actor=actor,
+                    reason=reason,
+                )
             )
         except BaseException:
             # The connectors may have started their threads; stop them, as run()
@@ -2462,22 +3305,50 @@ class SimulationContext:
                 self._env.teardown()
             raise
 
-    def _build(
-        self,
-        until: Any,
-        stop: Any,
-        drain: Any,
-        seed: Optional[int],
-        overrides: Optional[Mapping[str, Any]],
-        stats: Optional[str],
-        egress: bool,
-        ingress: bool,
-        source: Optional[str],
-        actor: Optional[str],
-        reason: Optional[str],
-    ) -> DynamicRealtimeEnvironment:
-        """The part of `start()` after the checks: builds and starts the run."""
+    def _build(self, settings: _RunSettings) -> DynamicRealtimeEnvironment:
+        """The part of `start()` after the checks: builds and starts the run, step by
+        step in this order."""
+        self._env = self._new_environment()
+        self._run.env = self._env
+        # The callbacks of this run, in place before the overrides are applied
+        self._env.registry.on_change.extend(self.on_change)
+        # One random sequence per distribution, all from the run's seed
+        seed = self._run_seed(settings.seed)
+        self.sampler = Sampler(seed=seed)
+        # Fresh counters, vars_once and unique history for every run; each generator
+        # draws from a sequence of its own, made from the seed, never the sampler's
+        self._scope = LiveScope(self._env, self._run, self._families.by_name)
+        parts = self._parts = parts_of(self)
+        self.values = ValueRuntime(
+            seed,
+            self._env,
+            self.sampler,
+            self,
+            live_scope=self._scope,
+            stop=self._stop_run,
+        )
+        self._run.values = self.values
+        self._new_arrival_and_holder_runs(self._env, self.sampler, self._scope, parts)
+        self._keep_value_history(self.sampler)
+        self._set_up_statistics(self._env, settings.stats, settings.egress)
+        self._new_signal_and_family_runs(self._env, parts)
+        self._read_replay_rows(self._env)
+        self._register_parameters(self._env, settings)
+        self._connect(self._env, settings.egress, settings.ingress)
+        self._make_holders(self._env)
+        self._start_loops(self._env)
+        self._run.until = settings.until
+        self._run.end = self._end_event(settings.until, settings.stop, settings.drain)
+        self._closed = False
+        self.started = True
+        if self._env.strict or self._run.sync:
+            # Building takes wall time, which a strict run must not count as lag
+            self._env.sync()
+        logger.info("Simulation engine started.")
+        return self._env
 
+    def _new_environment(self) -> DynamicRealtimeEnvironment:
+        """The run's environment, with the context's clock and time zone settings."""
         env_kwargs: Dict[str, Any] = {"factor": self.factor, "strict": self.strict}
         if self.initial_time:
             env_kwargs["initial_time"] = self.initial_time
@@ -2487,153 +3358,191 @@ class SimulationContext:
             env_kwargs["go_live_at"] = self.go_live_at
         if self.timezone is not None:
             env_kwargs["timezone"] = self.timezone
-        env_kwargs["on_unhandled_failure"] = self._on_unhandled_failure
-        self._env = self.environment(**env_kwargs)
-        # The callbacks of this run, in place before the overrides are applied
-        self._env.registry.on_change.extend(self.on_change)
+        env_kwargs["on_unhandled_failure"] = self._run.on_unhandled_failure
+        return self.environment(**env_kwargs)
 
-        # One random sequence per distribution, all from the run's seed
-        if seed is None:
+    def _run_seed(self, seed: Optional[int]) -> int:
+        """The run's seed: the one `start()` was given, else `random_seed`, else a
+        new one, which the log names so the run can be repeated."""
+        if seed is not None:
+            checked_whole(seed, "seed", 0)
+        else:
             seed = self.random_seed
+            if seed is not None:
+                checked_whole(seed, "random_seed", 0)
         if seed is None:
             seed = secrets.randbelow(2**32)
             logger.info(
                 f"No random_seed was given, so this run uses {seed}. "
                 + (
-                    self._repeat_hint.format(seed=seed)
-                    if self._repeat_hint
+                    self._defaults.repeat_hint.format(seed=seed)
+                    if self._defaults.repeat_hint
                     else f"Pass random_seed={seed} to repeat it."
                 )
             )
-        self.sampler = Sampler(seed=seed)
-        for task_name, spec in self._task_specs.items():
-            if spec.router.weighted:
-                spec.router.rng = self.sampler.generator(f"route.{task_name}")
+        return seed
 
-        level = self._stats_level
+    def _new_arrival_and_holder_runs(
+        self,
+        env: DynamicRealtimeEnvironment,
+        sampler: Sampler,
+        scope: LiveScope,
+        parts: Parts,
+    ) -> None:
+        """Makes the run's part of the arrivals and of the holders."""
+        self._run.arrival_run = self._arrivals.new_run(
+            env,
+            self.values,
+            sampler,
+            self.sim_id,
+            functools.partial(self._tasks.start, self, parts),
+        )
+        self._run.holder_run = self._holders.new_run(
+            env, self.values, sampler, self.sim_id, scope.scope
+        )
+
+    def _keep_value_history(self, sampler: Sampler) -> None:
+        """Keeps the rows, the previous values and the route generators the run's
+        tasks read."""
+        for task_name in sorted(
+            self._tasks.row_targets
+            | {n for n, spec in self._tasks.specs.items() if spec.history is not None}
+        ):
+            self.values.keep_rows(
+                task_name, self._tasks.specs[task_name].history or DEFAULT_HISTORY
+            )
+        for task_name in self._tasks.previous_users:
+            self.values.keep_previous(task_name)
+        for task_name, spec in self._tasks.specs.items():
+            if spec.router.weighted:
+                self._run.routes[task_name] = sampler.generator(f"route.{task_name}")
+
+    def _set_up_statistics(
+        self, env: DynamicRealtimeEnvironment, stats: Optional[str], egress: bool
+    ) -> None:
+        """Sets the run's statistics level, and its timer when the run has sinks."""
+        level = self._sinks.stats_level
         if stats is not None and STATS_LEVELS.index(stats) > STATS_LEVELS.index(level):
             level = stats
         if level != "none" and egress:
-            self._env.setup_stats(self.sim_id, level, self._stats_interval)
+            env.setup_stats(self.sim_id, level, self._sinks.stats_interval)
         elif level != "none":
             # Without sinks nothing receives a publication, so no timer runs and
             # the statistics are read at the end
-            self._env.stats.configure(self.sim_id, level, self._stats_interval)
-        self._signals = {
-            name: Signal(self._env, name, once=self._signal_once.get(name, False))
-            for name in self._signal_names
-        }
-        for name, actions in self._signal_on.items():
-            if actions:
-                self._signals[name].attach(
-                    [functools.partial(self._signal_fired, name)]
+            env.stats.configure(self.sim_id, level, self._sinks.stats_interval)
+        env.stats.on_change = self._sinks.stats_on_change and level != "none"
+
+    def _new_signal_and_family_runs(
+        self, env: DynamicRealtimeEnvironment, parts: Parts
+    ) -> None:
+        """Makes the run's part of the signals and of the families."""
+        self._run.signal_run = self._signals.new_run(
+            env,
+            self._families.by_name,
+            functools.partial(self._tasks.run_on_action, self, parts),
+            self._run.end_processed,
+        )
+        self._run.family_run = self._families.new_run(
+            self.values, self._run.holders, self._run.signals
+        )
+
+    def _read_replay_rows(self, env: DynamicRealtimeEnvironment) -> None:
+        """Reads the rows of each replayed arrival into the run's arrivals."""
+        self._run.arrivals.replay_rows = {
+            name: collections.deque(
+                read_trace(
+                    **spec,
+                    start=env.start_datetime,
+                    initial_time=float(self.initial_time),
                 )
-        self._replay_rows = {
-            name: read_trace(
-                **spec,
-                start=self._env.start_datetime,
-                initial_time=float(self.initial_time),
             )
-            for name, spec in self._replays.items()
+            for name, spec in self._arrivals.replays.items()
         }
-        self._replays_done = set()
 
-        # Compile Master Parameter Object
-        self._env.registry.register_sim_parameter(self.compile_parameters())
-        for path, value in (overrides or {}).items():
-            self._env.registry.set_exactly(
-                path, value, source=source, actor=actor, reason=reason
+    def _register_parameters(
+        self, env: DynamicRealtimeEnvironment, settings: _RunSettings
+    ) -> None:
+        """Registers the run's copy of the parameters, then applies the overrides."""
+        # The run registers its own copy of the parameters, so a live change or an
+        # override changes the copy and the declarations stay as written: a second
+        # run starts from the values the first one started from
+        env.registry.register_sim_parameter(_run_parameters(self.compile_parameters()))
+        for path, value in (settings.overrides or {}).items():
+            env.registry.set_exactly(
+                path,
+                value,
+                source=settings.source,
+                actor=settings.actor,
+                reason=settings.reason,
             )
 
-        # Connect External Infrastructure
-        if self._ingress_providers and ingress:
-            self._env.setup_ingress(self._ingress_providers)
+    def _connect(
+        self, env: DynamicRealtimeEnvironment, egress: bool, ingress: bool
+    ) -> None:
+        """Starts the run's ingress and egress connectors, or the warmup's end when
+        the run has no sinks, and the event trace."""
+        if self._sinks.ingress and ingress:
+            env.setup_ingress(self._sinks.ingress)
 
-        if self._egress_providers and egress:
-            self._env.setup_egress(
-                self._egress_providers,
-                batch_size=self._batch_size,
-                flush_interval=self._flush_interval,
-                max_queued_batches=self._max_queued_batches,
-                drain_stall_seconds=self._drain_stall_seconds,
-                predicates=self._egress_predicates,
-                batch_sizes=self._egress_batch_sizes,
-                flush_intervals=self._egress_flush_intervals,
-                labels=self._egress_labels,
-                warmup=self.warmup,
-                lag_monitor_interval=(
-                    "auto" if self.lag_interval is None else self.lag_interval
-                ),
+        if self._sinks.egress and egress:
+            self._sinks.setup_egress(
+                env,
+                self.warmup,
+                "auto" if self.lag_interval is None else self.lag_interval,
             )
         elif self.warmup is not None:
-            self._env.start_internal(self._end_warmup(self.warmup))
+            env.start_internal(self._end_warmup(self.warmup))
+        env.trace_events(self._sinks.stats_trace and egress and self._sinks.traces)
 
-        # Hydrate Physical SimPy Resources
-        for res_id in self._resources_config.keys():
-            resource_type = self._resource_types.get(res_id) or DynamicResource
-            self._resources_map[res_id] = resource_type(
-                self._env,
-                self.sim_id,
-                res_id,
-                queue=self._resource_queues[res_id],
-                preempt=self._resource_preempt.get(res_id, False),
-                **(
-                    {"queue_limit": self._resource_queue_limits[res_id]}
-                    if self._resource_queue_limits.get(res_id) is not None
-                    else {}
-                ),
-            )
-        for store_id in self._stores_config:
-            self._stores_map[store_id] = DynamicStore(
-                self._env,
-                self.sim_id,
-                store_id,
-                priority=self._store_priority.get(store_id, False),
-                items=self._store_items.get(store_id),
-                type=self._store_types.get(store_id),
-            )
-        for container_id in self._containers_config:
-            self._containers_map[container_id] = DynamicContainer(
-                self._env,
-                self.sim_id,
-                container_id,
-                type=self._container_types.get(container_id),
-            )
-        for res_id, breakdown in self._breakdowns_config.items():
-            self._env.process(
-                run_breakdowns(
-                    self._env,
-                    self._resources_map[res_id],
-                    self.sampler,
-                    work=breakdown.work,
-                )
-            )
+    def _make_holders(self, env: DynamicRealtimeEnvironment) -> None:
+        """Makes the resources, stores and containers that are not members of a
+        family, starts their breakdowns, then the families' members."""
+        for res_id in self._holders.resources_config.keys():
+            if res_id not in self._families.by_name:
+                self._run.holders.new_resource(res_id)
+        for store_id in self._holders.stores_config:
+            if store_id not in self._families.by_name:
+                self._run.holders.new_store(store_id)
+        for container_id in self._holders.containers_config:
+            if container_id not in self._families.by_name:
+                self._run.holders.new_container(container_id)
+        for res_id, breakdown in self._holders.breakdowns_config.items():
+            if res_id not in self._families.by_name:
+                self._run.holders.start_breakdown(res_id, breakdown)
+        self._run.families.start_members()
 
-        # Boot Registered Daemon Generators
-        self._arrival_processes = []
+    def _start_loops(self, env: DynamicRealtimeEnvironment) -> None:
+        """Starts the arrival loops, with each arrival's `initial` entities, and the
+        other startup loops, in the order they were added."""
         for loop_func, meta in self._startup_loops:
             if meta:
                 # Arrival loops require context injection
-                process = self._env.process(loop_func(self))
+                process = env.process(loop_func(self))
+                # An arrival's `initial` entities are created right after its source
+                # starts, so file order is creation order
+                plan = self._arrivals.plans.get(meta)
+                if plan is not None and plan.initial:
+                    self._run.arrivals.start_initial(meta, plan)
                 # Stopped by an interrupt when a drain starts, which ends the loop;
                 # any other error in the loop still stops the run, as in SimPy
-                process.callbacks.append(_defuse_arrivals_stopped)
-                self._arrival_processes.append(process)
+                process.callbacks.append(defuse_stopped)
+                self._run.arrivals.processes.append(process)
             else:
                 # Telemetry loops run blindly
-                self._env.process(loop_func())
+                env.process(loop_func())
 
-        self._until = until
-        self._end_done = False
-        self._limit_event = None
-        self._end = self._end_event(until, stop, drain)
-        self._closed = False
-        self.started = True
-        if self.strict:
-            # Building takes wall time, which a strict run must not count as lag
-            self._env.sync()
-        logger.info("Simulation engine started.")
-        return self._env
+    def _stop_run(self) -> None:
+        """Ends the run at the current time: the events already due run no further,
+        `finish()` returns at once, and a later `advance()` or `step()` raises and
+        `peek()` gives infinity.
+
+        A `row` generator with `on_end: stop` calls it when its rows run out."""
+        env = self._env
+        if env is None or self._run.stopped:
+            return
+        self._run.stopped = True
+        event = schedule_urgent(env, env.internal_event())
+        event.callbacks.append(StopSimulation.callback)
 
     def step(self) -> None:
         """
@@ -2643,22 +3552,35 @@ class SimulationContext:
         reading or a flush timer, run in the same call and are not counted.
 
         Raises:
-            RuntimeError: If the run has not started.
+            RuntimeError: If the run has not started, or it was ended by a `row` with
+                `on_end: stop` or by the last entry of `run.segments`, as `advance()`
+                raises (`close()` it, or `start()` a new run).
             simpy.core.EmptySchedule: If no model event is left.
         """
-        self.env.step()
+        env = self.env
+        if self._run.stopped:
+            raise RuntimeError(
+                f"the run ended at {env.now:g}; close() it, or start() a new run"
+            )
+        try:
+            env.step()
+        except (StopSimulation, RunStopped):
+            pass  # _stop_run() ended the run
+        self._run.moved = True
 
     def peek(self) -> float:
         """
         Returns the time of the next model event of a started run, or infinity if none.
 
         The events of desflow's own, such as a statistics reading or a flush timer,
-        are not counted.
+        are not counted. It is infinity once a `row` with `on_end: stop` or the last
+        entry of `run.segments` has ended the run, because `step()` runs no more.
 
         Raises:
             RuntimeError: If the run has not started.
         """
-        return self.env.peek()
+        env = self.env
+        return math.inf if self._run.stopped else env.peek()
 
     def close(self) -> None:
         """
@@ -2669,6 +3591,8 @@ class SimulationContext:
         if self._env is not None and not self._closed:
             self._closed = True
             self.started = False
+            if self.values is not None:
+                self.values.report_refused()
             self._env.teardown()
 
     def stop_arrivals(self) -> None:
@@ -2676,18 +3600,18 @@ class SimulationContext:
         Stops every arrival loop, so no new entity arrives; the entities already in
         the model carry on. A drain calls it at `until`.
         """
-        for process in getattr(self, "_arrival_processes", []):
-            if process.is_alive:
-                process.interrupt(_ARRIVALS_STOPPED)
+        if self._run.arrival_run is not None:
+            self._run.arrival_run.stop()
 
     def _end_event(self, until: Any, stop: Any, drain: Any) -> Optional[simpy.Event]:
         """The event that ends the run when `stop`, `drain` or a sample limit is
         given, else None.
 
         It is scheduled urgent, like SimPy's own `until`, so no other event at that
-        time runs after it. A sample's console calls `_finish_run` at its last event.
+        time runs after it. A sample's console calls `RunState.finish_run` at its
+        last event.
         """
-        if stop is None and not drain and self._sample_limit is None:
+        if stop is None and not drain and self._defaults.sample_limit is None:
             return None
         env = self.env
         end = env.internal_event()
@@ -2695,18 +3619,17 @@ class SimulationContext:
         def finish(event: Any = None) -> None:
             if not end.triggered:
                 if event is None:
-                    end._ok, end._value = True, None
+                    schedule_urgent(env, end)
                 else:
                     # The run ends with what its stop event carried: a signal's
                     # value, True for a condition, or the exception of a failed
                     # stop, which `end` raises once. The stop event is defused so
                     # the run does not raise it a second time.
-                    end._ok, end._value = event._ok, event._value
-                    if not event._ok:
+                    if not event.ok:
                         event.defused = True
-                env.schedule(end, simpy.events.URGENT)
+                    schedule_urgent(env, end, ok=event.ok, value=event.value)
 
-        self._finish_run = finish
+        self._run.finish_run = finish
         limit = None
         if drain:
             if until is None:
@@ -2721,21 +3644,17 @@ class SimulationContext:
                 if drain.get("limit") is not None:
                     limit = _seconds(drain["limit"])
         if until is not None:
-            horizon = env.internal_event()
-            horizon._ok, horizon._value = True, None
-            env.schedule(horizon, simpy.events.URGENT, float(until) - env.now)
+            horizon = schedule_urgent(env, env.internal_event(), until - env.now)
             if drain:
 
                 def begin_drain(_event: Any) -> None:
                     self.stop_arrivals()
-                    self._draining = True
-                    if self._in_system == 0:
+                    self._run.draining = True
+                    if self._run.in_system == 0:
                         finish()
                     elif limit is not None:
-                        timer = env.internal_event()
-                        timer._ok, timer._value = True, None
+                        timer = schedule_urgent(env, env.internal_event(), limit)
                         timer.callbacks.append(finish)
-                        env.schedule(timer, simpy.events.URGENT, limit)
 
                 horizon.callbacks.append(begin_drain)
             else:
@@ -2747,7 +3666,7 @@ class SimulationContext:
 
     def _mark_end(self, _event: Any) -> None:
         """Records that the end event has been processed, for `advance()`."""
-        self._end_done = True
+        self._run.end_done = True
 
     def _stop_event(self, stop: Any) -> simpy.Event:
         """The event a `stop` names: a signal's next firing, a condition, or an event."""
@@ -2767,26 +3686,29 @@ class SimulationContext:
             )
         ((kind, target),) = stop.items()
         if kind == "signal":
-            if target not in self._signals:
+            target = name_of(target, "a stop signal")
+            if isinstance(target, Reference):
+                # Read once, in run scope, as the run starts
+                target = self._run.families.open_reference(
+                    target, self.values.scope_of()
+                )
+            if target not in self._run.signals.made:
                 raise ValueError(
                     f"stop names signal '{target}', "
-                    + _not_added(target, self._signals, f"add_signal('{target}')")
+                    + _not_added(
+                        target, self._run.signals.made, f"add_signal('{target}')"
+                    )
                 )
-            return self._signals[target].wait()
+            return self._run.signals.made[target].wait()
         if kind != "condition":
             raise ValueError(f"stop takes a signal or a condition, not '{kind}'")
         condition = Expression(target)
         env, event = self.env, self.env.event()
+        live = self._scope
+        assert live is not None
 
         def check() -> None:
-            scope = make_scope(
-                None,
-                {},
-                env,
-                self._levels(),
-                signals=self._signals,
-                resources=self._resources_map,
-            )
+            scope = live.scope(None, {})
             if not event.triggered and condition.evaluate(scope):
                 event.succeed(True)
                 env.unwatch_changes(check)
@@ -2796,37 +3718,15 @@ class SimulationContext:
             env.watch_changes(check, queues=condition.reads_queues)
         return event
 
-    def _entity_entered(self, entity: Entity) -> None:
-        """Counts an entity whose first task instance has begun as in the model."""
-        self._in_system += 1
-        self.env.stats.flow_started(entity.arrival)
-
-    def _entity_left(self, entity: Entity) -> None:
-        """Counts an entity out; a drain ends when the last one leaves.
-
-        It drops the entity's instance lists, so a live run keeps lists only for
-        entities still in the model and a `running` branch reads None as no instance.
-        """
-        self._in_system -= 1
-        entity.instances = None
-        entity.spawned_by = None
-        entity.last_ended = None
-        if self._draining and self._in_system == 0 and self._finish_run is not None:
-            self._finish_run()
-
     def _end_warmup(self, warmup: float):
         """Resets the statistics at the end of the warm-up, for a run with no sink."""
         yield self.env.internal_timeout(warmup)
         self.env.stats.reset()
 
     def _build_end_sets(self) -> None:
-        """Fills `_tracked`, `_copied` and `_ended` and checks the `spawn` and `on:`
-        names, so a task knows at build time whether its instances need an end event.
-        """
-        self._tracked = set()
-        self._copied = set()
-        has_on = set()
-        arrivals = set(self._arrival_entities)
+        """Checks the `spawn`, `subscribe` and `on:` names, then sets `_ends` to the
+        tasks whose instances need an end event, so a task knows it at build time."""
+        arrivals = set(self._arrivals.entities)
 
         def fire_sources(actions: Iterable[Mapping[str, Any]]) -> Iterable[str]:
             for action in actions:
@@ -2837,10 +3737,10 @@ class SimulationContext:
                     yield source
 
         def check_spawn(task: str, owner: str, spawned: str) -> None:
-            if spawned not in self._task_specs:
+            if spawned not in self._tasks.specs:
                 raise ValueError(
                     f"{owner} spawns task '{spawned}', "
-                    + _not_added(spawned, self._task_specs, "@app.task()")
+                    + _not_added(spawned, self._tasks.specs, "@app.task()")
                 )
             if spawned in arrivals:
                 raise ValueError(
@@ -2849,39 +3749,59 @@ class SimulationContext:
                     f"statistics and entity numbers would merge"
                 )
 
+        def check_switches(names: Any, owner: str) -> None:
+            for arrival in [names] if isinstance(names, str) else list(names or []):
+                if arrival not in self._arrivals.spawns:
+                    raise ValueError(
+                        f"{owner} switches '{arrival}', which is not an arrival with "
+                        f"a spawn" + suggestion(arrival, self._arrivals.spawns)
+                    )
+
         def check_action(name: str, action: Mapping[str, Any], owner: str) -> None:
+            for key in ("activate", "deactivate"):
+                if key in action:
+                    check_switches(action[key], owner)
             if "spawn" in action:
                 check_spawn(name, owner, action["spawn"]["task"])
             if "interrupt" in action:
                 target = action["interrupt"]["task"]
-                if target not in self._task_specs:
+                if target not in self._tasks.specs:
                     raise ValueError(
                         f"the on: action of {owner} interrupts task '{target}', "
-                        + _not_added(target, self._task_specs, "@app.task()")
+                        + _not_added(target, self._tasks.specs, "@app.task()")
+                    )
+            if "resume" in action:
+                target = action["resume"]["task"]
+                if target not in self._tasks.specs:
+                    raise ValueError(
+                        f"the on: action of {owner} resumes task '{target}', "
+                        + _not_added(target, self._tasks.specs, "@app.task()")
                     )
             if "fire" in action:
                 signal = action["fire"]["signal"]
-                if signal not in self._signal_names:
+                if signal not in self._signals.entries:
                     raise ValueError(
                         f"the on: action of {owner} fires signal '{signal}', "
                         + _not_added(
-                            signal, self._signal_names, f"add_signal('{signal}')"
+                            signal, self._signals.entries, f"add_signal('{signal}')"
                         )
                     )
                 fire = action["fire"]
-                if (fire.get("urgent") or fire.get("after") is not None) and not (
-                    self._signal_once.get(signal, False)
-                ):
-                    raise ValueError(
-                        "`urgent` and `after` need a one-shot signal (`once=True`); "
-                        "a re-arming signal fires now"
-                    )
+                problem = timing_problem(
+                    fire.get("urgent", False),
+                    fire.get("after"),
+                    fire.get("priority"),
+                    self._signals.declaration(signal).once,
+                    "`once=True`",
+                )
+                if problem is not None:
+                    raise ValueError(problem)
                 if fire["from"] is not None:
                     check_from(fire["from"], owner)
 
         def check_from(source: str, owner: str) -> None:
-            is_signal = source in self._signal_names
-            is_task = source in self._task_specs
+            is_signal = source in self._signals.entries
+            is_task = source in self._tasks.specs
             if is_signal and is_task:
                 raise ValueError(
                     f"the on: action of {owner} fires from '{source}', which is both "
@@ -2893,45 +3813,142 @@ class SimulationContext:
                     f"neither a signal nor a task"
                 )
 
-        for name, spec in self._task_specs.items():
+        for name, spec in self._tasks.specs.items():
             owner = f"task '{name}'"
-            if spec.wait is not None:
-                self._tracked |= spec.wait.targets("running")
             if spec.subscribe is not None:
-                self._tracked |= spec.subscribe.targets("running")
                 for target in spec.subscribe.targets("task"):
-                    if target not in self._task_specs:
+                    if target not in self._tasks.specs:
                         raise ValueError(
                             f"task '{name}' subscribes to task '{target}', "
-                            + _not_added(target, self._task_specs, "@app.task()")
+                            + _not_added(target, self._tasks.specs, "@app.task()")
                         )
                 for target in spec.subscribe.targets("signal"):
-                    if target not in self._signal_names:
+                    if target not in self._signals.entries:
                         raise ValueError(
                             f"task '{name}' subscribes to signal '{target}', "
                             + _not_added(
-                                target, self._signal_names, f"add_signal('{target}')"
+                                target, self._signals.entries, f"add_signal('{target}')"
                             )
                         )
-            if spec.on:
-                has_on.add(name)
             if spec.spawn is not None:
                 check_spawn(name, owner, spec.spawn["task"])
-            for action in spec.on:
+            check_switches(spec.activate, owner)
+            check_switches(spec.deactivate, owner)
+            listened = [] if spec.listen is None else spec.listen.on
+            for action in [*spec.on, *listened]:
                 check_action(name, action, owner)
-            for source in fire_sources(spec.on):
-                if source in self._task_specs:
-                    self._copied.add(source)
 
-        for name, actions in self._signal_on.items():
+        for name, actions in self._signals.on.items():
             owner = f"signal '{name}'"
             for action in actions:
                 check_action(name, action, owner)
-            for source in fire_sources(actions):
-                if source in self._task_specs:
-                    self._copied.add(source)
 
-        self._ended = self._tracked | self._copied | has_on
+        # The sets, worked out once every name is checked; nothing below raises
+        tracked: Set[str] = set()
+        copied: Set[str] = set()
+        has_on = set()
+        for name, spec in self._tasks.specs.items():
+            if spec.wait is not None:
+                tracked |= spec.wait.targets("running")
+            if spec.subscribe is not None:
+                tracked |= spec.subscribe.targets("running")
+            if spec.on:
+                has_on.add(name)
+            listened = [] if spec.listen is None else spec.listen.on
+            for source in fire_sources([*spec.on, *listened]):
+                if source in self._tasks.specs:
+                    copied.add(source)
+        for actions in self._signals.on.values():
+            for source in fire_sources(actions):
+                if source in self._tasks.specs:
+                    copied.add(source)
+        self._ends = EndSets(
+            tracked=frozenset(tracked),
+            copied=frozenset(copied),
+            ended=frozenset(tracked | copied | has_on),
+            whole_flow=frozenset(
+                node.target["task"]
+                for spec in self._tasks.specs.values()
+                for node in (spec.wait.branches.values() if spec.wait else ())
+                if node.kind == "running" and node.target["whole_flow"]
+            ),
+            held=frozenset(
+                spec.release.task
+                for spec in self._tasks.specs.values()
+                if spec.release is not None and spec.release.task is not None
+            ),
+        )
+
+    def _check_lookups(self) -> None:
+        """Checks that every task a `lookup` or `aggregate` names is a task, and that
+        no tasks look each other up, because none of them could start. A task that
+        `note_values` names must be a task too."""
+        for target in sorted(self._tasks.row_targets):
+            if target not in self._tasks.specs:
+                raise ValueError(
+                    f"a lookup or aggregate names task '{target}', "
+                    + _not_added(target, self._tasks.specs, "@app.task()")
+                )
+        for task in sorted(self._tasks.gates):
+            if task not in self._tasks.specs:
+                raise ValueError(
+                    f"note_values names task '{task}', "
+                    + _not_added(task, self._tasks.specs, "@app.task()")
+                )
+        cycle = lookup_cycle(self._tasks.gates)
+        if cycle:
+            raise ValueError(
+                "tasks look each other up, so none could start a flow before the "
+                "other had a row: " + " -> ".join(cycle)
+            )
+
+    def _check_batches(self) -> None:
+        """Refuses two tasks that share a batch name but differ in what the batch needs
+        one answer for.
+
+        Raises:
+            ValueError: Naming both tasks and the key that differs.
+        """
+        found = batch_mismatch(self._tasks.specs)
+        if found is not None:
+            raise ValueError(batch_mismatch_text(*found))
+
+    def family_read_problem(self, expression: Expression) -> Optional[str]:
+        """What is wrong with the way an expression reads families, or None: a family
+        read without an index, or an index on a name that is no family.
+
+        Args:
+            expression: The parsed expression.
+
+        Returns:
+            Optional[str]: The reason, naming the read.
+        """
+        return family_read_problem(expression, self._families.by_name)
+
+    def _check_families(self) -> None:
+        """Checks that every place naming a family uses a reference, a reference's `of`
+        is a family of the right kind, a list names declared entries, and no entry is
+        named as a member.
+
+        Raises:
+            ValueError: Naming the task and the key.
+        """
+        found = first_family_problem(
+            self._tasks.specs,
+            self._families.by_name,
+            self._holders,
+            self._signals,
+            self._readings,
+        )
+        if found is None:
+            return
+        section, name = found.holder
+        if found.kind == "entry":
+            raise ValueError(f"{section}.{name} {found.message}")
+        if section == "rule":
+            raise ValueError(f"{name} {found.message}")
+        label = f"signals.{name}" if section == "signals" else f"task '{name}'"
+        raise ValueError(f"{label}: {found.key} {found.message}")
 
     def _check_tasks(self, overrides: Optional[Mapping[str, Any]] = None) -> None:
         """Checks what each task names, before the clock or any connector starts.
@@ -2941,8 +3958,52 @@ class SimulationContext:
                 scenario is checked against them, as the run will apply it.
         """
         self._build_end_sets()
+        self._check_batches()
+        self._check_lookups()
+        self._check_families()
+        self._check_scenario_steps(overrides)
+        self._check_spawns_and_breakdowns()
+        self._check_resources_held_once()
+        self._check_handles()
+        self._warn_acquisition_order()
+        holders = {**self._holders.stores_config, **self._holders.containers_config}
+        registry: Optional[SimulationRegistry] = None
+        written = written_paths(parts_of(self))
+        for place, expression, _location in rule_expressions(
+            self._holders, self._readings, self._signals.on
+        ):
+            self._check_rule_names(place, expression, holders)
+        routes = self._routes()
+        self._warn_whole_flows(routes)
+        after_get_tasks, cause_targets = flow_sets(
+            routes,
+            [
+                name
+                for name, spec in self._tasks.specs.items()
+                if spec.get is not None and spec.get.store is not None and spec.get.wait
+            ],
+            [
+                target
+                for spec in self._tasks.specs.values()
+                for target in (spec.on_interrupt_next, spec.on_interrupt_run)
+                if target
+            ],
+        )
+        for name, spec in self._tasks.specs.items():
+            self._check_task_holding(name, spec)
+            self._check_task_signals(name, spec)
+            self._check_task_expressions(name, spec, after_get_tasks, cause_targets)
+            if registry is None:
+                # The paths the run will register, built by the same code
+                registry = scratch_registry(self)
+            self._check_task_values(name, spec, registry, written)
+            self._check_task_reads(name, spec, holders, registry)
+
+    def _check_scenario_steps(self, overrides: Optional[Mapping[str, Any]]) -> None:
+        """Checks each scenario step against the registry the run will build, after
+        the overrides `start()` applies."""
         if self._scenario_steps:
-            known = self._scratch_registry(isolated=True)
+            known = scratch_registry(self)
             for path, value in (overrides or {}).items():
                 try:
                     known.change(path, value)
@@ -2952,43 +4013,61 @@ class SimulationContext:
                     pass
             # In the order run_scenario applies them, so a value that is valid only
             # after an earlier step loads as it runs
-            for step in sorted(self._scenario_steps, key=lambda step: step["at"]):
-                if step.get("path") is not None:
-                    try:
-                        known.get(step["path"])
-                    except KeyError:
-                        raise ValueError(
-                            f"scenario step at {step['at']:g} s sets '{step['path']}', "
-                            f"which is not a registry path"
-                            + suggestion(step["path"], known.paths())
-                        ) from None
-                    try:
-                        known.change(step["path"], step["value"])
-                    except ParamRejected as exc:
-                        raise ValueError(
-                            f"scenario step at {step['at']:g} s sets "
-                            f"'{step['path']}': {exc.reason}"
-                        ) from None
+            steps = self._scenario_steps
+            for index, problem, detail in walk_steps(
+                [(step["at"], step.get("path"), step.get("value")) for step in steps],
+                known,
+                lambda path: (
+                    member_path(str(path), self._families.by_name, self.sim_id)
+                    is not None
+                ),
+            ):
+                step = steps[index]
+                if problem == "path":
+                    raise ValueError(
+                        f"scenario step at {step['at']:g} s sets '{step['path']}', "
+                        f"which is not a registry path"
+                        + suggestion(step["path"], known.paths())
+                    )
+                if problem == "value":
+                    raise ValueError(
+                        f"scenario step at {step['at']:g} s sets "
+                        f"'{step['path']}': {detail}"
+                    )
                 action = step.get("interrupt")
-                if action is not None and action["task"] not in self._tasks:
+                if (
+                    action is not None
+                    and action["task"] is not None
+                    and action["task"] not in self._tasks.specs
+                ):
                     raise ValueError(
                         f"scenario step at {step['at']:g} s interrupts task "
                         f"'{action['task']}', "
-                        + _not_added(action["task"], self._tasks, "@app.task()")
+                        + _not_added(action["task"], self._tasks.specs, "@app.task()")
                     )
-        for arrival, task in self._arrival_spawns.items():
-            if task not in self._tasks:
+
+    def _check_spawns_and_breakdowns(self) -> None:
+        """Checks that the task each arrival spawns, and the resource each breakdown
+        names, are added."""
+        for arrival, task in self._arrivals.spawns.items():
+            if task not in self._tasks.specs:
                 raise ValueError(
                     f"arrival '{arrival}' spawns task '{task}', "
-                    + _not_added(task, self._tasks, "@app.task()")
+                    + _not_added(task, self._tasks.specs, "@app.task()")
                 )
-        for resource in self._breakdowns_config:
-            if resource not in self._resources_config:
+        for resource in self._holders.breakdowns_config:
+            if resource not in self._holders.resources_config:
                 raise ValueError(
                     f"a breakdown names resource '{resource}', "
-                    + _not_added(resource, self._resources_config, "add_resource()")
+                    + _not_added(
+                        resource, self._holders.resources_config, "add_resource()"
+                    )
                 )
-        for name, spec in self._task_specs.items():
+
+    def _check_resources_held_once(self) -> None:
+        """Checks that no task both requests a resource in its wait and lists it in
+        `resource`."""
+        for name, spec in self._tasks.specs.items():
             for resource in spec.wait.requests() if spec.wait else ():
                 if resource in spec.resources:
                     raise ValueError(
@@ -2996,206 +4075,865 @@ class SimulationContext:
                         f"'{resource}' is both requested in the wait and listed in "
                         f"resource; list it in only one"
                     )
-        check_acquisition_order(
-            {name: list(spec.resources) for name, spec in self._task_specs.items()},
+
+    def _check_handles(self) -> None:
+        """Checks that each handle a task uses is opened by a task, as the use needs."""
+        opens: Dict[str, List[Tuple[str, str]]] = {}
+        for name, spec in self._tasks.specs.items():
+            if spec.open is not None:
+                for handle in spec.open.nodes:
+                    opens.setdefault(handle, []).append(
+                        (name, spec.open.opened_as(handle))
+                    )
+        uses: List[Tuple[str, str, str, str]] = []
+        for name, spec in self._tasks.specs.items():
+            if spec.wait is not None:
+                uses += [
+                    (name, "wait", h, "any")
+                    for h in sorted(spec.wait.targets("handle"))
+                ]
+            if spec.open is not None:
+                uses += [
+                    (name, "open", h, "any")
+                    for h in sorted(spec.open.targets("handle"))
+                ]
+            if spec.wait is not None:
+                uses += [
+                    (name, "wait", h, "element")
+                    for h in sorted(spec.wait.indexed_handles())
+                ]
+            if spec.open is not None:
+                uses += [
+                    (name, "open", h, "element")
+                    for h in sorted(spec.open.indexed_handles())
+                ]
+            if spec.cancel is not None:
+                uses.append((name, "cancel", spec.cancel, "line"))
+                if spec.cancel_index is not None:
+                    uses.append((name, "cancel", spec.cancel, "element"))
+            if spec.release is not None and spec.release.handle is not None:
+                uses.append((name, "release", spec.release.handle, "unit"))
+                if spec.release.index is not None:
+                    uses.append((name, "release", spec.release.handle, "element"))
+            if spec.listen is not None and spec.listen.handle is not None:
+                uses.append((name, "listen", spec.listen.handle, "any"))
+                if spec.listen.index is not None:
+                    uses.append((name, "listen", spec.listen.handle, "element"))
+            if spec.interrupt is not None and spec.interrupt.get("handle") is not None:
+                uses.append((name, "interrupt", spec.interrupt["handle"], "child"))
+                if spec.interrupt.get("index") is not None:
+                    uses.append(
+                        (name, "interrupt", spec.interrupt["handle"], "element")
+                    )
+            for key, expression, _place in spec.expressions:
+                uses += [
+                    (name, key, h, "any")
+                    for h in sorted(expression.references["handle"])
+                ]
+            # The expressions inside the generators of the task's value places
+            for key, _where, _after, place in task_value_places(
+                lambda key: builder_value(spec, key)
+            ):
+                for _where, generator in generators_in(place, (_Gen,)):
+                    for text in generator_expressions(generator):
+                        try:
+                            read = Expression(text, names=ANY_NAME)
+                        except ValueError:
+                            continue  # reported where the value is checked
+                        uses += [
+                            (name, key, h, "any")
+                            for h in sorted(read.references["handle"])
+                        ]
+        unmatched = handle_problem(opens, uses)
+        if unmatched is not None:
+            holder, key, message = unmatched
+            raise ValueError(f"task '{holder}': {key} {message}")
+
+    def _warn_acquisition_order(self) -> None:
+        """Warns, once each, of two tasks that take the same resources in different
+        orders."""
+        for message in check_acquisition_order(
+            {name: list(spec.resources) for name, spec in self._tasks.specs.items()},
             {
                 name: (spec.keep, spec.router.tasks or set())
-                for name, spec in self._task_specs.items()
+                for name, spec in self._tasks.specs.items()
             },
-            {name: spec.wait for name, spec in self._task_specs.items()},
-        )
-        holders = {**self._stores_config, **self._containers_config}
-        registry: Optional[SimulationRegistry] = None
-        for name, spec in self._task_specs.items():
-            for resource in spec.resources:
-                if resource not in self._resources_config:
-                    raise ValueError(
-                        f"task '{name}' uses resource '{resource}', "
-                        + _not_added(resource, self._resources_config, "add_resource()")
+            {name: spec.wait for name, spec in self._tasks.specs.items()},
+            {name: _holding(spec) for name, spec in self._tasks.specs.items()},
+        ):
+            if message not in self._order_warned:
+                self._order_warned.add(message)
+                logger.warning(message)
+
+    def _routes(self) -> Dict[str, Set[str]]:
+        """The tasks each task can go on to: its `next` and its `on_*` routes."""
+        return {
+            name: {
+                *(spec.router.tasks or ()),
+                *(
+                    target
+                    for target in (
+                        spec.on_fail,
+                        spec.on_renege,
+                        spec.on_balk,
+                        spec.on_interrupt_next,
                     )
+                    if target is not None
+                ),
+            }
+            for name, spec in self._tasks.specs.items()
+        }
+
+    def _warn_whole_flows(self, routes: Mapping[str, Set[str]]) -> None:
+        """Warns, once each, of a whole-flow wait that its own flow cannot end."""
+        waited_handles = {
+            handle
+            for spec in self._tasks.specs.values()
+            if spec.wait is not None
+            for handle in spec.wait.targets("handle")
+        }
+        for message in whole_flow_problems(
+            {
+                # a child flow a task waits for ends before the task does, and so
+                # does one it opens when a task waits for its handle
+                name: {
+                    *routes[name],
+                    *([spec.on_interrupt_run] if spec.on_interrupt_run else ()),
+                    *(spec.wait.targets("task") if spec.wait else ()),
+                    *(
+                        node.target
+                        for handle, node in (
+                            spec.open.nodes if spec.open else {}
+                        ).items()
+                        if node.kind == "task" and handle in waited_handles
+                    ),
+                }
+                for name, spec in self._tasks.specs.items()
+            },
+            {
+                name: [
+                    node.target["task"]
+                    for node in (spec.wait.branches.values() if spec.wait else ())
+                    if node.kind == "running" and node.target.get("whole_flow")
+                ]
+                for name, spec in self._tasks.specs.items()
+            },
+        ):
+            if message not in self._order_warned:
+                self._order_warned.add(message)
+                logger.warning(message)
+
+    def _check_task_holding(self, name: str, spec: TaskSpec) -> None:
+        """Checks the resources, stores, containers and tasks a task holds, waits for
+        and goes on to."""
+        holds = [
+            *spec.resources,
+            *([spec.seize.resource] if spec.seize is not None else []),
+            *(spec.open.requests() if spec.open is not None else []),
+            *(
+                [spec.release.resource]
+                if spec.release is not None and spec.release.resource is not None
+                else []
+            ),
+        ]
+        for resource in holds:
+            if resource not in self._holders.resources_config:
+                raise ValueError(
+                    f"task '{name}' uses resource '{resource}', "
+                    + _not_added(
+                        resource, self._holders.resources_config, "add_resource()"
+                    )
+                )
+        if spec.service_id is not None and spec.service_id not in self._services_config:
+            raise ValueError(
+                f"task '{name}' uses service '{spec.service_id}', "
+                + _not_added(spec.service_id, self._services_config, "add_service()")
+            )
+        for resource in (
+            (
+                *(spec.wait.requests() if spec.wait else ()),
+                *spec.resources,
+                *([spec.seize.resource] if spec.seize is not None else []),
+                *(spec.open.requests() if spec.open is not None else []),
+            )
+            if spec.priority is not None
+            else ()
+        ):
             if (
-                spec.service_id is not None
-                and spec.service_id not in self._services_config
+                resource in self._holders.resources_config
+                and self._holders.resource_queues.get(resource) != "priority"
             ):
                 raise ValueError(
-                    f"task '{name}' uses service '{spec.service_id}', "
-                    + _not_added(
-                        spec.service_id, self._services_config, "add_service()"
-                    )
+                    f"task '{name}' has a priority, but resource '{resource}' "
+                    f"does not queue by priority; add it with queue='priority'"
                 )
-            for resource in (
-                (*(spec.wait.requests() if spec.wait else ()), *spec.resources)
-                if spec.priority is not None
-                else ()
-            ):
+            if resource in self._holders.resource_rank:
+                raise ValueError(
+                    f"task '{name}' has a priority, but resource '{resource}' "
+                    f"ranks its queue by an expression, which is every "
+                    f"request's priority; remove the priority"
+                )
+        if (
+            spec.seize is not None
+            and spec.seize.priority is not None
+            and spec.seize.resource in self._holders.resources_config
+            and self._holders.resource_queues.get(spec.seize.resource) != "priority"
+        ):
+            raise ValueError(
+                f"task '{name}' has a priority on its seize, but resource "
+                f"'{spec.seize.resource}' does not queue by priority; add it "
+                f"with queue='priority'"
+            )
+        if (
+            spec.seize is not None
+            and spec.seize.priority is not None
+            and spec.seize.resource in self._holders.resource_rank
+        ):
+            raise ValueError(
+                f"task '{name}' has a priority on its seize, but resource "
+                f"'{spec.seize.resource}' ranks its queue by an expression, which "
+                f"is every request's priority; remove the priority"
+            )
+        for place, group in (
+            ("wait", spec.wait),
+            ("open", spec.open.wait if spec.open is not None else None),
+        ):
+            for node in group.all_nodes if group else ():
                 if (
-                    resource in self._resources_config
-                    and self._resource_queues.get(resource) != "priority"
+                    node.options is None
+                    or node.options.priority is None
+                    or node.target not in self._holders.resources_config
                 ):
-                    raise ValueError(
-                        f"task '{name}' has a priority, but resource '{resource}' "
-                        f"does not queue by priority; add it with queue='priority'"
-                    )
-            for transfer in (spec.get, spec.put):
-                if transfer is None:
                     continue
-                kind = "store" if transfer.store is not None else "container"
-                config = (
-                    self._stores_config if kind == "store" else self._containers_config
+                if self._holders.resource_queues.get(node.target) != "priority":
+                    raise ValueError(
+                        f"task '{name}' has a priority on its request in its "
+                        f"{place}, but resource '{node.target}' does not queue by "
+                        f"priority; add it with queue='priority'"
+                    )
+                if node.target in self._holders.resource_rank:
+                    raise ValueError(
+                        f"task '{name}' has a priority on its request in its "
+                        f"{place}, but resource '{node.target}' ranks its queue "
+                        f"by an expression, which is every request's priority; "
+                        f"remove the priority"
+                    )
+        for transfer in (spec.get, spec.put):
+            if transfer is None:
+                continue
+            kind = "store" if transfer.store is not None else "container"
+            config = (
+                self._holders.stores_config
+                if kind == "store"
+                else self._holders.containers_config
+            )
+            if transfer.target not in config:
+                raise ValueError(
+                    f"task '{name}' uses {kind} '{transfer.target}', which is not added"
                 )
-                if transfer.target not in config:
-                    raise ValueError(
-                        f"task '{name}' uses {kind} '{transfer.target}', which is not added"
-                    )
-                if transfer.filter is not None and self._store_priority.get(
-                    transfer.target
-                ):
-                    raise ValueError(
-                        f"task '{name}' filters priority store '{transfer.target}'; "
-                        f"SimPy has no store that both ranks and filters its items"
-                    )
+            if transfer.filter is not None and self._holders.store_priority.get(
+                transfer.target
+            ):
+                raise ValueError(
+                    f"task '{name}' filters priority store '{transfer.target}'; "
+                    f"SimPy has no store that both ranks and filters its items"
+                )
+            if (
+                transfer.filter is not None
+                and kind == "store"
+                and (store_type := self._holders.store_types.get(transfer.target))
+                is not None
+                and not issubclass(store_type, simpy.FilterStore)
+            ):
+                raise ValueError(
+                    f"task '{name}' filters store '{transfer.target}', whose "
+                    f"type is not a simpy.FilterStore; subclass FilterStore to "
+                    f"filter its gets"
+                )
+        for place, group in (
+            ("wait", spec.wait),
+            ("open", spec.open.wait if spec.open is not None else None),
+        ):
+            for node in group.all_nodes if group else ():
                 if (
-                    transfer.filter is not None
-                    and kind == "store"
-                    and (store_type := self._store_types.get(transfer.target))
-                    is not None
-                    and not issubclass(store_type, simpy.FilterStore)
+                    node.kind == "request"
+                    and node.target not in self._holders.resources_config
                 ):
                     raise ValueError(
-                        f"task '{name}' filters store '{transfer.target}', whose "
-                        f"type is not a simpy.FilterStore; subclass FilterStore to "
-                        f"filter its gets"
-                    )
-            for node in spec.wait.branches.values() if spec.wait else ():
-                if node.kind == "request" and node.target not in self._resources_config:
-                    raise ValueError(
-                        f"task '{name}' requests resource '{node.target}' in a wait, "
-                        "which is not added"
+                        f"task '{name}' requests resource '{node.target}' in "
+                        f"its {place}, which is not added"
                     )
                 if node.kind in ("get", "put"):
                     kind = "store" if node.target.store is not None else "container"
                     config = (
-                        self._stores_config
+                        self._holders.stores_config
                         if kind == "store"
-                        else self._containers_config
+                        else self._holders.containers_config
                     )
                     if node.target.target not in config:
                         raise ValueError(
                             f"task '{name}' {node.kind}s from {kind} "
-                            f"'{node.target.target}' in a wait, which is not added"
+                            f"'{node.target.target}' in its {place}, which is "
+                            "not added"
                         )
-            for target in spec.router.tasks or ():
-                if target not in self._tasks:
-                    raise ValueError(
-                        f"task '{name}' routes to '{target}', which is not a task"
-                    )
-            for target in (
-                spec.on_fail,
-                spec.on_interrupt_next,
-                spec.interrupt["task"] if spec.interrupt else None,
-                *(spec.wait.targets("task") if spec.wait else ()),
-            ):
-                if target is not None and target not in self._tasks:
-                    raise ValueError(
-                        f"task '{name}' names task '{target}', "
-                        + _not_added(target, self._tasks, "@app.task()")
-                    )
-            signals = set(spec.wait.targets("signal")) if spec.wait else set()
-            if spec.signal is not None:
-                signals.add(spec.signal)
-            expressions = [expression for _key, expression in spec.expressions]
-            for expression in expressions:
-                signals |= expression.references["signal"]
-            for signal in signals:
-                if signal not in self._signal_names:
-                    raise ValueError(
-                        f"task '{name}' uses signal '{signal}', which is not added; "
-                        f"add it with add_signal('{signal}')"
-                    )
-            branches = set(spec.wait.branches) if spec.wait else set()
-            for key, expression in spec.expressions:
-                unknown = expression.references["wait"] - branches
-                # balk and patience are read before the wait starts
-                early = key in ("wait", "balk", "patience")
-                if unknown or (expression.references["wait"] and early):
-                    branch = sorted(unknown or expression.references["wait"])[0]
-                    raise ValueError(
-                        f"task '{name}' reads wait.{branch} in '{expression.text}', "
-                        f"which is not a branch of its wait read after it"
-                    )
-                # item.<field> reads what the task's store get took, so it means
-                # nothing before the get, and nothing without one
-                takes_item = spec.get is not None and spec.get.store is not None
-                # A get that is not waited for gives the task no item, so only its
-                # own filter reads one
-                after_get = key == "get" or (
-                    takes_item
-                    and spec.get is not None
-                    and spec.get.wait
-                    and key in ("put", "next", "fail")
+        for target in spec.router.tasks or ():
+            if target not in self._tasks.specs:
+                raise ValueError(
+                    f"task '{name}' routes to '{target}', which is not a task"
                 )
-                if expression.references["item"] and not (takes_item and after_get):
-                    raise ValueError(
-                        f"task '{name}' reads item.<field> in '{expression.text}', "
-                        f"but it has no store get before it"
-                    )
-            for expression in expressions:
-                for level in expression.references["level"]:
-                    if level not in holders:
-                        raise ValueError(
-                            f"task '{name}' reads level.{level}, but no store or "
-                            f"container is called '{level}'"
+        for target in (
+            spec.on_fail,
+            spec.on_renege,
+            spec.on_balk,
+            spec.on_interrupt_next,
+            spec.on_interrupt_run,
+            spec.resume["task"] if spec.resume else None,
+            spec.interrupt["task"] if spec.interrupt else None,
+            *(spec.wait.targets("task") if spec.wait else ()),
+            *(spec.open.targets("task") if spec.open is not None else ()),
+            spec.release.task if spec.release is not None else None,
+        ):
+            if target is not None and target not in self._tasks.specs:
+                raise ValueError(
+                    f"task '{name}' names task '{target}', "
+                    + _not_added(target, self._tasks.specs, "@app.task()")
+                )
+
+    def _check_task_signals(self, name: str, spec: TaskSpec) -> None:
+        """Checks that each signal a task waits for, opens, fires, listens to or
+        reads is added."""
+        signals = set(spec.wait.targets("signal")) if spec.wait else set()
+        if spec.open is not None:
+            signals |= spec.open.targets("signal")
+        if spec.signal is not None:
+            signals.add(spec.signal)
+        if spec.listen is not None and spec.listen.signal is not None:
+            signals.add(spec.listen.signal)
+        expressions = [found.expression for found in spec.expressions]
+        for expression in expressions:
+            signals |= expression.references["signal"]
+        for signal in signals:
+            if signal not in self._signals.entries:
+                raise ValueError(
+                    f"task '{name}' uses signal '{signal}', which is not added; "
+                    f"add it with add_signal('{signal}')"
+                )
+
+    def _check_task_expressions(
+        self,
+        name: str,
+        spec: TaskSpec,
+        after_get_tasks: Set[str],
+        cause_targets: Set[str],
+    ) -> None:
+        """Checks what each expression of a task may read where it is written."""
+        branches = set(spec.wait.branches) if spec.wait else set()
+        for key, expression, _place in spec.expressions:
+            problem = scope_problem(
+                expression,
+                own_item=bool(
+                    spec.get is not None
+                    and spec.get.store is not None
+                    and (
+                        key == "get"
+                        or (
+                            spec.get.wait
+                            and key in ("put", "next", "fail", "service_time")
                         )
-                for kind in ("putters", "getters"):
-                    for holder in expression.references[kind]:
-                        if holder not in holders:
-                            raise ValueError(
-                                f"task '{name}' reads {kind}.{holder}, but no store "
-                                f"or container is called '{holder}'"
-                            )
-                for kind in ("count", "items"):
-                    for store in expression.references[kind]:
-                        if store not in self._stores_config:
-                            raise ValueError(
-                                f"task '{name}' reads {kind}({store}), but no store "
-                                f"is called '{store}'"
-                            )
-                for kind in ("users", "queue"):
-                    for resource in expression.references[kind]:
-                        if resource not in self._resources_config:
-                            raise ValueError(
-                                f"task '{name}' reads {kind}.{resource}, but no "
-                                f"resource is called '{resource}'"
-                                + (
-                                    suggestion(resource, self._resources_config)
-                                    or "; add it with add_resource()"
-                                )
-                            )
-                for path in expression.references["registry"]:
-                    if registry is None:
-                        # The paths the run will register, built by the same code
-                        registry = self._scratch_registry()
-                    try:
-                        registry.get(path)
-                    except KeyError:
-                        raise ValueError(
-                            f"task '{name}' reads registry[\"{path}\"], which is "
-                            f"not a registry path"
-                        ) from None
+                    )
+                ),
+                later_item=name in after_get_tasks,
+                cause_ok=name in cause_targets,
+                in_when=key == "wait_when",
+                has_each=spec.has_each,
+                each_here=key in ("wait", "open", "subscribe"),
+            )
+            if problem:
+                raise ValueError(f"task '{name}' reads '{expression.text}': {problem}")
+            unknown = expression.references["wait"] - branches
+            # balk and patience are read before the wait starts
+            early = key in (
+                "wait",
+                "batch",
+                "balk",
+                "patience",
+                "open",
+                "seize",
+                "preempt",
+            )
+            if unknown or (expression.references["wait"] and early):
+                branch = sorted(unknown or expression.references["wait"])[0]
+                raise ValueError(
+                    f"task '{name}' reads wait.{branch} in '{expression.text}', "
+                    f"which is not a branch of its wait read after it"
+                )
+            # item.<field> reads what the task's store get took, so it means
+            # nothing before the get, and nothing without one
+            takes_item = spec.get is not None and spec.get.store is not None
+            # A get that is not waited for gives the task no item, so only its
+            # own filter reads one
+            after_get = key == "get" or (
+                takes_item
+                and spec.get is not None
+                and spec.get.wait
+                and key in ("put", "next", "fail", "service_time")
+            )
+            if (
+                expression.references["item"]
+                and not (takes_item and after_get)
+                and name not in after_get_tasks
+            ):
+                raise ValueError(
+                    f"task '{name}' reads item.<field> in '{expression.text}', "
+                    f"but it has no store get before it"
+                )
+        for key, expression, _place in spec.expressions:
+            # vars get a value at step 14, after the service: put, fail and
+            # next read them, and nothing evaluated earlier can
+            bare = expression.references["name"]
+            allowed = (
+                set(spec.var_names)
+                if key in ("put", "fail", "next")
+                else {*spec.vars_once, *spec.vars}
+                if key == "service_time"
+                else set()
+            )
+            if bare - allowed:
+                var = sorted(bare - allowed)[0]
+                raise ValueError(
+                    f"task '{name}' reads the name '{var}' in "
+                    f"'{expression.text}', which is "
+                    + (
+                        "not one of its vars"
+                        if key in ("put", "fail", "next")
+                        else "not one of the vars a service time reads "
+                        "(vars_once and vars)"
+                        if key == "service_time"
+                        else f"not available in {key}, which is evaluated before "
+                        "the vars have a value"
+                    )
+                )
+
+    def _check_task_values(
+        self,
+        name: str,
+        spec: TaskSpec,
+        registry: SimulationRegistry,
+        written: Set[str],
+    ) -> None:
+        """Checks the generated values of a task against the registry the run will
+        build and the paths a run writes."""
+        problems = task_value_problems(
+            vars_once=spec.vars_once,
+            vars=spec.vars,
+            on_start=spec.on_start,
+            finish_vars=spec.finish_vars,
+            others={
+                "set": spec.attribute_changes,
+                "interrupt": spec.interrupt or {},
+                "on": spec.on,
+                "fail_reason": spec.fail_reason,
+                "listen": [] if spec.listen is None else spec.listen.on,
+            },
+            wait_values={
+                **{
+                    where: found
+                    for node in (spec.wait.branches.values() if spec.wait else ())
+                    if node.kind == "timeout"
+                    for where, found in (
+                        (("wait", node.name, "timeout"), node.target[0]),
+                        (("wait", node.name), node.target[1]),
+                    )
+                },
+                ("patience",): spec.patience,
+                ("key",): spec.key,
+                ("batch", "timeout"): (
+                    None if spec.batch is None else spec.batch.timeout
+                ),
+            },
+            service_time=spec.service_time,
+            services=set(self._services_config),
+            base_dir=Path.cwd(),
+            registry=registry,
+            early_end=(
+                spec.patience is not None
+                or spec.balk is not None
+                or spec.wait is not None
+                or spec.on_interrupt == "abandon"
+                or self._holders.ends_early(
+                    self.sim_id,
+                    (
+                        *spec.resources,
+                        *([spec.seize.resource] if spec.seize is not None else []),
+                        *(spec.open.requests() if spec.open is not None else []),
+                    ),
+                    written,
+                )
+            ),
+        )
+        if problems:
+            where, message = problems[0]
+            raise ValueError(
+                f"task '{name}' {'.'.join(str(p) for p in where)}: {message}"
+            )
+
+    def _check_task_reads(
+        self,
+        name: str,
+        spec: TaskSpec,
+        holders: Mapping[str, Any],
+        registry: SimulationRegistry,
+    ) -> None:
+        """Checks that each name a task's expressions read is declared."""
+        expressions = [found.expression for found in spec.expressions]
+        for expression in expressions:
+            for kind, ref in self._unknown_references(
+                expression, _TASK_REFERENCES, holders, lambda: registry
+            ):
+                if kind in ("putting", "getting"):
+                    raise ValueError(
+                        f"task '{name}' reads {kind}({ref}), but no store "
+                        f"or container is called '{ref}'"
+                    )
+                if kind in _HOLDER_REFERENCES:
+                    raise ValueError(
+                        f"task '{name}' reads {kind}.{ref}, but no "
+                        f"store or container is called '{ref}'"
+                    )
+                if kind == "running":
+                    raise ValueError(
+                        f"task '{name}' reads running({ref}), but no task is "
+                        f"called '{ref}'"
+                        + (
+                            suggestion(ref, self._tasks.specs)
+                            or "; add it with @app.task()"
+                        )
+                    )
+                if kind in ("count", "items"):
+                    raise ValueError(
+                        f"task '{name}' reads {kind}({ref}), but no store "
+                        f"is called '{ref}'"
+                    )
+                if kind in _RESOURCE_REFERENCES:
+                    raise ValueError(
+                        f"task '{name}' reads {kind}.{ref}, but no "
+                        f"resource is called '{ref}'"
+                        + (
+                            suggestion(ref, self._holders.resources_config)
+                            or "; add it with add_resource()"
+                        )
+                    )
+                raise ValueError(
+                    f"task '{name}' reads registry[\"{ref}\"], which is "
+                    f"not a registry path"
+                )
 
 
-def _whole_or_unlimited(value: Any) -> bool:
-    """Whether a store capacity is a whole number or positive infinity."""
-    if isinstance(value, (str, bytes)):
-        return False
+def _queue_rule(rule: Mapping[str, Any], what: str) -> Tuple[Expression, str]:
+    """Checks a `queue`, `get_queue` or `put_queue` rank: `{rank, ties}`.
+
+    Args:
+        rule: The mapping; `rank` is an expression and `ties` is `fifo` (the default)
+            or `lifo`.
+        what: The place, for the messages.
+
+    Returns:
+        Tuple[Expression, str]: The parsed rank and the ties order.
+
+    Raises:
+        ValueError: If the mapping is malformed, `ties` is not `fifo` or `lifo`, or the
+            rank is not an expression or reads what a request does not have.
+    """
+    if (
+        not isinstance(rule, Mapping)
+        or set(rule) - {"rank", "ties"}
+        or not isinstance(rule.get("rank"), str)
+    ):
+        raise ValueError(
+            f"{what} is a mapping with a rank expression and, optionally, ties "
+            f"('fifo' or 'lifo'), got {rule!r}"
+        )
+    ties = rule.get("ties", "fifo")
+    if ties not in ("fifo", "lifo"):
+        raise ValueError(f"{what} ties is 'fifo' or 'lifo', got {ties!r}")
     try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return False
-    return number == math.inf or (math.isfinite(number) and number.is_integer())
+        expression = Expression(rule["rank"])
+    except ValueError as error:
+        raise ValueError(f"{what} rank: {error}") from None
+    problem = rank_problem(expression)
+    if problem:
+        raise ValueError(f"{what} rank: {problem}")
+    return expression, ties
 
 
-def _check_end(until: Any, stop: Any, drain: Any, signals: List[str]) -> None:
+def _preempt_rule(
+    rule: Mapping[str, Any], what: str
+) -> Tuple[Optional[Expression], Optional[Expression]]:
+    """Checks a `preempt` rule: `{when, victim}`.
+
+    Args:
+        rule: The mapping; each of `when` and `victim` is an expression.
+        what: The place, for the messages.
+
+    Returns:
+        Tuple[Optional[Expression], Optional[Expression]]: The parsed `when` and
+            `victim`, None where the rule leaves one out.
+
+    Raises:
+        ValueError: If the mapping is malformed, or an expression is not valid or
+            reads the entity, a payload or any other name a rule has no value for.
+    """
+    if not isinstance(rule, Mapping) or set(rule) - {"when", "victim"}:
+        raise ValueError(
+            f"{what} is true, false, or a mapping with when and victim "
+            f"expressions, got {rule!r}"
+        )
+    parsed: List[Optional[Expression]] = []
+    for key in ("when", "victim"):
+        text = rule.get(key)
+        if text is None:
+            parsed.append(None)
+            continue
+        if not isinstance(text, str):
+            raise ValueError(f"{what} {key} is an expression, got {text!r}")
+        try:
+            expression = Expression(text, rule=True)
+        except ValueError as error:
+            raise ValueError(f"{what} {key}: {error}") from None
+        outside = expression.outside_run()
+        if outside:
+            raise ValueError(
+                f"{what} {key}: '{text}' reads {outside}, which a preempt rule "
+                f"cannot: it reads request., holder., t and the run"
+            )
+        parsed.append(expression)
+    return parsed[0], parsed[1]
+
+
+def _holding(spec: TaskSpec) -> Holding:
+    """What a task does with the units a flow holds, for the order check: the resource
+    it seizes, the resource a `release` names, and the tasks that can follow it."""
+    release = spec.release
+    return Holding(
+        None if spec.seize is None else spec.seize.resource,
+        release.resource if release is not None and release.task is None else None,
+        {
+            *(spec.router.tasks or ()),
+            *(
+                target
+                for target in (
+                    spec.on_fail,
+                    spec.on_renege,
+                    spec.on_balk,
+                    spec.on_interrupt_next,
+                )
+                if target is not None
+            ),
+        },
+    )
+
+
+def _family_fields(
+    kind: str,
+    name: str,
+    family: bool,
+    members: Any,
+    **fields: Any,
+) -> Tuple[Tuple[Any, ...], Dict[str, str]]:
+    """Checks the `family` and `members` of an entry and takes out the capacities
+    written as text, which only a family accepts.
+
+    Args:
+        kind: `resource`, `store`, `container` or `signal`.
+        name: The entry's name.
+        family: The entry's `family`.
+        members: The entry's `members`.
+        **fields: The capacities `current_cap`, `max_cap` and `level` as given.
+
+    Returns:
+        Tuple[Tuple[Any, ...], Dict[str, str]]: The values in the order given, with a
+            text replaced by None, and the texts by field.
+
+    Raises:
+        ValueError: If `members` is given without `family`, or is not a whole number,
+            text or generator.
+    """
+    where = f"{_FAMILY_SECTIONS[kind]}.{name}"
+    if not isinstance(family, bool):
+        raise ValueError(f"{where}.family is true or false, got {family!r}")
+    if members is not None:
+        if not family:
+            raise ValueError(f"{where}.members needs family: true")
+        from desflow.values.models import _Gen
+
+        if isinstance(members, bool) or not (
+            isinstance(members, (numbers.Integral, str, _Gen)) or callable(members)
+        ):
+            raise ValueError(
+                f"{where}.members is a whole number, an expression or a generator, "
+                f"got {members!r}"
+            )
+        if isinstance(members, numbers.Integral) and members < 0:
+            raise ValueError(f"{where}.members is 0 or more, got {members!r}")
+        if isinstance(members, str):
+            outside = Expression(members).outside_run()
+            if outside:
+                raise ValueError(
+                    f"{where}.members '{members}' reads {outside}, but a family has "
+                    f"no entity; members reads the run (level, users, queue, signal, "
+                    f"registry and t)"
+                )
+    texts: Dict[str, str] = {}
+    values: List[Any] = []
+    for field, value in fields.items():
+        if isinstance(value, str) and family:
+            texts[field] = value
+            value = None
+        values.append(value)
+    return tuple(values), texts
+
+
+def _segment_plan(run: Any) -> Any:
+    """A blueprint's `run.segments` as plain data: a list of mappings with the keys
+    that are set, or `{"every": seconds}`; None when it has none."""
+    segments = run.segments
+    if segments is None:
+        return None
+    if hasattr(segments, "every"):
+        return {"every": segments.every}
+    return [segment.model_dump(exclude_none=True) for segment in segments]
+
+
+def _segments_arg(segments: Any) -> Any:
+    """`segments` as `run()` takes it, as plain data like `_segment_plan` gives: a list
+    of mappings with the keys that are set, or `{"every": seconds}`.
+
+    Raises:
+        ValueError: If it is not a list of segment mappings or an `every` mapping, or
+            an entry takes a key a segment does not.
+    """
+    from desflow.blueprint.models import RunSegment, SegmentEvery
+
+    if isinstance(segments, Mapping):
+        try:
+            return {"every": SegmentEvery.model_validate(dict(segments)).every}
+        except ValidationError as error:
+            raise ValueError(f"segments: {_first_message(error)}") from None
+        except ValueError as error:
+            raise ValueError(f"segments: {error}") from None
+    if isinstance(segments, (str, bytes)) or not isinstance(segments, (list, tuple)):
+        raise ValueError(
+            "segments is a list of segment mappings or {'every': seconds}, "
+            f"got {segments!r}"
+        )
+    plan = []
+    for index, entry in enumerate(segments):
+        try:
+            plan.append(RunSegment.model_validate(entry).model_dump(exclude_none=True))
+        except ValidationError as error:
+            raise ValueError(f"segments[{index}]: {_first_message(error)}") from None
+        except ValueError as error:
+            raise ValueError(f"segments[{index}]: {error}") from None
+    return plan
+
+
+def _first_message(error: Any) -> str:
+    """The first message of a pydantic error, as a blueprint gives it: a refusal a
+    validator wrote as it is, and any other with the key it is about in front."""
+    first = error.errors()[0]
+    text = first["msg"].removeprefix("Value error, ")
+    if first["type"] != "value_error" and first["loc"]:
+        return f"{'.'.join(str(part) for part in first['loc'])}: {text}"
+    return text
+
+
+def segment_until_problem(until: float, previous: float) -> Optional[str]:
+    """The refusal for a segment that does not end after the one before it.
+
+    Args:
+        until: The segment's end.
+        previous: The end of the segment before it, or of the run so far.
+    """
+    if until <= previous:
+        return (
+            f"segment until ({until:g}) must be after the previous end "
+            f"({previous:g}); segment untils increase"
+        )
+    return None
+
+
+def _flag_arg(name: str, value: Any, default: bool) -> bool:
+    """A `run()` switch: `value` when it is given, else `default`."""
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} is True or False, got {value!r}")
+    return value
+
+
+def reading_problem(name: str, earlier: Iterable[Mapping[str, Any]]) -> Optional[str]:
+    """The refusal for a telemetry reading named as a statistic the run publishes, or
+    as a reading of an earlier entry, which would put two records with one `path_id`
+    in the stream.
+
+    Args:
+        name: The reading's name.
+        earlier: The readings already declared, one mapping for each entry.
+    """
+    if name == "stats" or name.startswith("stats."):
+        return (
+            f"reading '{name}' has the name of a statistic the run publishes (the "
+            f"names under stats.); use another name"
+        )
+    if any(name in readings for readings in earlier):
+        return f"reading '{name}' is already a reading of another entry"
+    return None
+
+
+def stop_family_problem(name: str) -> str:
+    """The refusal for a stop that names a family of signals rather than a member.
+
+    Args:
+        name: The family's name.
+    """
+    return (
+        f"stop names the family '{name}'; a stop names a member with "
+        f"{{of: {name}, key: ...}}"
+    )
+
+
+def stop_condition(text: Any) -> Expression:
+    """A stop condition, parsed, and refused when it reads the entity or a payload.
+
+    One check for `run(stop=)`, a segment's stop and a blueprint's `run.stop`.
+
+    Args:
+        text: The stop condition as written.
+
+    Raises:
+        ValueError: If the text does not parse or reads what no task is running.
+    """
+    expression = Expression(text)
+    entity = [
+        f"{kind}.<...>"
+        for kind in ("payload", "attr", "item", "wait")
+        if expression.references.get(kind)
+    ]
+    if entity:
+        raise ValueError(
+            f"a stop condition is checked outside every task, so it cannot read "
+            f"{', '.join(entity)}; read levels, registry values, signals or t"
+        )
+    return expression
+
+
+def _check_end(
+    until: Any,
+    stop: Any,
+    drain: Any,
+    signals: Mapping[str, Any],
+    families: Iterable[str] = (),
+) -> None:
     """Checks `stop` and `drain` before anything is built."""
     if drain and until is None:
         raise ValueError("a drain starts at until, so it needs until")
@@ -3214,13 +4952,17 @@ def _check_end(until: Any, stop: Any, drain: Any, signals: List[str]) -> None:
         )
     ((kind, target),) = stop.items()
     if kind == "signal":
+        written = target
+        target = name_of(target, "a stop signal")
+        if isinstance(written, str) and target in families:
+            raise ValueError(stop_family_problem(target))
         if target not in signals:
             raise ValueError(
                 f"stop names signal '{target}', "
                 + _not_added(target, signals, f"add_signal('{target}')")
             )
     elif kind == "condition":
-        Expression(target)
+        stop_condition(target)
     else:
         raise ValueError(f"stop takes a signal or a condition, not '{kind}'")
 
@@ -3230,51 +4972,470 @@ def _not_added(name: str, added: Iterable[str], how: str) -> str:
     return "which is not added" + (suggestion(name, added) or f"; add it with {how}")
 
 
-_ARRIVALS_STOPPED = "arrivals stopped"
+def _run_parameters(params: SimParameter) -> SimParameter:
+    """The parameters one run registers, copied from a model's parameters.
 
+    Each section is a new mapping with `_run_copy` of each config object in it, and
+    the variables are a new mapping. A variable's value and a store's starting items
+    are the user's own objects, shared by every run. The run and `scratch_registry`
+    both register what this gives.
 
-def _spawn_loop(arrival: str, task: str) -> Callable:
-    """The arrival loop of an arrival with `spawn`: each entity starts `task`.
-
-    The instance id comes from the task's one counter on the context, which `next`
-    and every other arrival that spawns the task share.
+    Args:
+        params: The model's parameters, from `SimulationContext.compile_parameters`.
     """
 
-    def loop(context: "SimulationContext"):
-        while True:
-            entity = yield context.wait_for_arrival(arrival)
-            context._start(task, entity, None)
+    def copied(section: Dict[str, Any]) -> Dict[str, Any]:
+        return {name: _run_copy(config) for name, config in section.items()}
 
-    return loop
+    return SimParameter(
+        sim_id=params.sim_id,
+        resources=copied(params.resources),
+        containers=copied(params.containers),
+        stores=copied(params.stores),
+        breakdowns=copied(params.breakdowns),
+        service=copied(params.service),
+        arrival=copied(params.arrival),
+        variables=dict(params.variables),
+    )
 
 
-def _defuse_arrivals_stopped(event: Any) -> None:
-    """Marks an arrival loop ended by `stop_arrivals` as handled, and nothing else."""
-    value = getattr(event, "_value", None)
-    if (
-        not event.ok
-        and isinstance(value, simpy.Interrupt)
-        and value.cause == _ARRIVALS_STOPPED
+def scratch_registry(context: SimulationContext) -> SimulationRegistry:
+    """Builds a registry with the paths a run of `context` registers, on a plain
+    SimPy clock.
+
+    The load and start checks and `registry_paths` call it, so they cannot build the
+    registry two ways. It registers `_run_parameters` of the model's parameters, the
+    copy a run registers, so the defaults registration fills in and a check's
+    `change` go into the copy, and the model's own starting values do not move. A
+    value that cannot be copied, such as a lock, is the user's own object here too.
+
+    Args:
+        context: The context, read through its public `compile_parameters`.
+    """
+    registry = SimulationRegistry(simpy.Environment())
+    registry.register_sim_parameter(_run_parameters(context.compile_parameters()))
+    return registry
+
+
+def written_paths(parts: Parts) -> Set[str]:
+    """The registry paths a model writes: its scenario steps and the `path` actions
+    of its tasks' and signals' `on:` lists.
+
+    Args:
+        parts: The model's parts, from `parts_of`.
+    """
+    paths = {step["path"] for step in parts.scenario_steps if step.get("path")}
+    actions = [
+        action
+        for spec in parts.tasks.specs.values()
+        for action in [*spec.on, *(spec.listen.on if spec.listen else [])]
+    ] + [action for found in parts.signals.on.values() for action in found]
+    return paths | {a["path"] for a in actions if isinstance(a.get("path"), str)}
+
+
+def parts_of(context: SimulationContext) -> Parts:
+    """The parts of `context`, read from its attributes now.
+
+    The package's own modules reach the pieces of a context through this, where a
+    frozen signature gives them only the context.
+
+    Args:
+        context: The context.
+    """
+    return Parts(
+        tasks=context._tasks,
+        families=context._families,
+        arrivals=context._arrivals,
+        holders=context._holders,
+        signals=context._signals,
+        sinks=context._sinks,
+        defaults=context._defaults,
+        scenario_steps=context._scenario_steps,
+        startup=context._startup_loops,
+        ends=context._ends,
+        run=context._run,
+        scope=context._scope,
+        services=context._services_config,
+        processes=context._processes,
+        run_scenario=context._run_scenario,
+        readings=context._readings,
+    )
+
+
+def _task_fields(
+    service_id: Optional[str] = None,
+    resource_id: Union[str, Mapping[str, Any], List[Any], None] = None,
+    *,
+    name: Optional[str] = None,
+    priority: Union[float, str, Callable[[Any, Dict[str, Any]], float], None] = None,
+    get: Union[Transfer, Mapping[str, Any], None] = None,
+    put: Union[Transfer, Mapping[str, Any], None] = None,
+    next: NextSpec = None,
+    set: Optional[Mapping[str, Any]] = None,
+    patience: Union[float, str, Callable[[Any, Dict[str, Any]], float], Any] = None,
+    balk: Optional[str] = None,
+    wait: Optional[Mapping[str, Any]] = None,
+    open: Optional[Mapping[str, Any]] = None,
+    listen: Optional[Mapping[str, Any]] = None,
+    cancel: Union[str, Mapping[str, Any], None] = None,
+    seize: Union[str, Mapping[str, Any], None] = None,
+    release: Union[str, Mapping[str, Any], None] = None,
+    signal: Union[str, Mapping[str, Any], None] = None,
+    fail: Union[str, Callable[[Any, Any], bool], None] = None,
+    fail_reason: Any = None,
+    on_fail: Optional[str] = None,
+    on_renege: Optional[str] = None,
+    on_balk: Optional[str] = None,
+    service_time: Union[float, str, Callable[[Entity], float], Any] = None,
+    key_field: Optional[str] = None,
+    key: Any = None,
+    keep: Optional[List[str]] = None,
+    preempt: Union[bool, str] = True,
+    on_interrupt: str = "resume",
+    on_interrupt_next: Optional[str] = None,
+    on_interrupt_run: Optional[str] = None,
+    interrupt: Optional[Mapping[str, Any]] = None,
+    resume: Optional[Mapping[str, Any]] = None,
+    batch: Optional[Mapping[str, Any]] = None,
+    spawn: Optional[Mapping[str, Any]] = None,
+    subscribe: Optional[Mapping[str, Any]] = None,
+    on: Optional[List[Mapping[str, Any]]] = None,
+    vars: Optional[Mapping[str, Any]] = None,
+    vars_once: Optional[Mapping[str, Any]] = None,
+    on_start: Optional[Mapping[str, Any]] = None,
+    finish_vars: Optional[Mapping[str, Any]] = None,
+    set_args: Optional[Mapping[str, Any]] = None,
+    activate: Union[str, List[str], None] = None,
+    deactivate: Union[str, List[str], None] = None,
+    history: Optional[int] = None,
+) -> "_TaskFields":
+    """The first phase of `task()`: checks its arguments, in the order `task()`
+    documents its refusals, and turns them into the fields of its `TaskSpec`."""
+    resources = [
+        name_of(found, "resource_id")
+        for found in (
+            []
+            if resource_id is None
+            else [resource_id]
+            if isinstance(resource_id, (str, Mapping))
+            else list(resource_id)
+        )
+    ]
+    # `set` is a parameter here, so the sets are written as literals
+    plain = [found for found in resources if not isinstance(found, Reference)]
+    if len({*plain}) != len(plain):
+        raise ValueError("a task lists each resource once")
+    if any(isinstance(found, Reference) for found in resources) and (
+        {*(keep or [])}
+        & {*(found for found in resources if isinstance(found, Reference))}
     ):
-        event.defused = True
+        raise ValueError(
+            "keep hands a unit to the next task, so it names a resource and not a "
+            "computed member"
+        )
+    if not {*(keep or [])} <= {*resources}:
+        raise ValueError(
+            "keep names resources the task holds; list only resources in its "
+            "resource_id"
+        )
+    if history is not None and (
+        isinstance(history, bool)
+        or not isinstance(history, numbers.Integral)
+        or history < 1
+    ):
+        raise ValueError(
+            f"history is how many finished payloads to keep, a whole number "
+            f"of 1 or more, got {history!r}"
+        )
+    if on_interrupt not in INTERRUPT_POLICIES:
+        raise ValueError(
+            f"on_interrupt must be one of {', '.join(INTERRUPT_POLICIES)}, "
+            f"got '{on_interrupt}'"
+        )
+    if on_interrupt_next is not None and on_interrupt != "abandon":
+        raise ValueError("on_interrupt_next needs on_interrupt='abandon'")
+    if on_interrupt_run is not None:
+        if on_interrupt == "abandon":
+            raise ValueError(
+                "on_interrupt_run runs a flow and then goes on with the task, so "
+                "it needs on_interrupt='resume' or 'restart'; with 'abandon', use "
+                "on_interrupt_next"
+            )
+        if resources or (wait is not None and Wait(wait).requests()):
+            raise ValueError(
+                "on_interrupt_run is for work that holds no unit of its own, so "
+                "a task with resource or a request in its wait does not take it; "
+                "a repair task preempts the unit instead, and a unit an earlier "
+                "seize took is kept"
+            )
+    resumed = None if resume is None else _parse_resume(resume)
+    batched = None if batch is None else _parse_batch(batch)
+    if batched is not None:
+        for given_key, given in (
+            ("get", get),
+            ("seize", seize),
+            ("open", open),
+            ("cancel", cancel),
+        ):
+            if given is not None:
+                raise ValueError(
+                    f"a batch serves its members with one run of the resource and "
+                    f"service, so it takes no {given_key}"
+                )
+    interrupt = _parse_interrupt(interrupt)
+    cancel_index = None
+    if isinstance(cancel, Mapping):
+        if "handle" not in cancel or not {*cancel} <= {"handle", "index"}:
+            raise ValueError(
+                f"cancel is a name or {{handle: name, index: expression}}, got "
+                f"{cancel!r}"
+            )
+        if cancel.get("index") is not None:
+            cancel_index = Expression(str(cancel["index"]))
+        cancel = cancel["handle"]
+    if cancel is not None and not isinstance(cancel, str):
+        raise ValueError(f"cancel is a name or {{handle: name}}, got {cancel!r}")
+    seized = None if seize is None else Seize(seize)
+    if seized is not None and seized.patience is not None:
+        if patience is not None:
+            raise ValueError(
+                "patience is on the task and on its seize; give it in one place"
+            )
+        patience = seized.patience
+    released = None if release is None else Release(release)
+    opened = None if open is None else Open(open)
+    resource_id = resources[0] if resources else None
+    if service_id is not None and service_time is not None:
+        raise ValueError("a task takes service_id or service_time, not both")
+    if key is not None and key_field is not None:
+        raise ValueError(
+            "key and key_field both set the key of the finished record; use one"
+        )
+    if isinstance(service_time, str):
+        try:
+            service_time = time_to_seconds(service_time)
+        except ValueError:
+            pass  # not a duration, so an expression such as "attr.fuel / 2"
+    if isinstance(service_time, numbers.Real):
+        service_time = checked_seconds(service_time, f"task '{name}' service_time")
+    if service_time is not None and not (
+        isinstance(service_time, (str, _Gen))
+        or callable(service_time)
+        or (
+            isinstance(service_time, numbers.Real)
+            and not isinstance(service_time, bool)
+        )
+    ):
+        raise ValueError(
+            f"service_time must be seconds, a duration, an expression, a generator "
+            f"or a function of the entity, got {service_time!r}"
+        )
+    if resource_id is not None and service_id is None and service_time is None:
+        raise ValueError(
+            "a task with a resource needs a service; give service_id or "
+            "service_time too"
+        )
+    if (
+        priority is not None
+        and resource_id is None
+        and seized is None
+        and not (wait is not None and Wait(wait).requests())
+        and not (opened is not None and opened.requests())
+    ):
+        raise ValueError(
+            "priority orders a resource's queue, so it needs a resource, a seize "
+            "or a request in its wait or open"
+        )
+    if (
+        (priority is not None or boolean_word(preempt) is not True)
+        and resource_id is None
+        and seized is None
+        and (
+            (wait is not None and Wait(wait).requests())
+            or (opened is not None and opened.requests())
+        )
+        and not (wait is not None and Wait(wait).plain_requests())
+        and not (opened is not None and opened.plain_requests())
+    ):
+        raise ValueError(
+            f"task '{name}': priority and preempt of a task apply to a resource, a "
+            "seize or a request written as a name; every request of this task is "
+            "a mapping, which takes its own priority and preempt, so put them there"
+        )
+    if balk is not None and resource_id is None and opened is None:
+        raise ValueError(
+            "balking refuses a resource queue, so it needs a resource or an open"
+        )
+    if isinstance(patience, str):
+        try:
+            patience = time_to_seconds(patience)
+        except ValueError:
+            pass  # not a duration, so an expression such as "attr.patience"
+    if isinstance(patience, numbers.Real):
+        patience = checked_seconds(patience, f"task '{name}' patience")
+    take = None if get is None else Transfer.of(get)
+    if take is not None and take.priority != 0.0:
+        raise ValueError(
+            "a get takes no priority; priority orders a put into a priority store"
+        )
+    give = None if put is None else Transfer.of(put)
+    if give is not None and give.filter is not None:
+        raise ValueError("a put takes no filter; a filter picks the item a get takes")
+    if (
+        patience is not None
+        and resource_id is None
+        and (take is None or not take.wait)
+        and wait is None
+        and seized is None
+        and batched is None
+    ):
+        raise ValueError(
+            "patience is how long a task waits, so it needs a wait, a seize, a "
+            "resource or a get"
+        )
+    if fail is None and fail_reason is not None:
+        raise ValueError("fail_reason needs a fail condition")
+    if on_renege is not None and patience is None:
+        raise ValueError(
+            "on_renege is where a reneging task goes, so it needs patience"
+        )
+    if (
+        on_balk is not None
+        and balk is None
+        and resource_id is None
+        and seized is None
+        and opened is None
+    ):
+        raise ValueError(
+            "on_balk is where a balking task goes, so it needs a balk, a "
+            "resource, a seize or an open"
+        )
+    spec_kwargs = dict(
+        patience=patience,
+        balk=balk,
+        wait=None if wait is None else Wait(wait),
+        seize=seized,
+        release=released,
+        open=opened,
+        listen=None if listen is None else _parse_listen(listen),
+        cancel=cancel,
+        cancel_index=cancel_index,
+        signal=signal,
+        fail=fail,
+        fail_reason=fail_reason,
+        on_fail=on_fail,
+        on_renege=on_renege,
+        on_balk=on_balk,
+        service_time=service_time,
+        key_field=key_field,
+        key=key,
+        attribute_changes=dict(set or {}),
+        resources=resources,
+        keep=keep,
+        preempt=preempt,
+        on_interrupt=on_interrupt,
+        on_interrupt_next=on_interrupt_next,
+        on_interrupt_run=on_interrupt_run,
+        interrupt=interrupt,
+        resume=resumed,
+        batch=batched,
+        spawn=None if spawn is None else _parse_spawn(spawn),
+        subscribe=None if subscribe is None else Wait(subscribe),
+        on=[_parse_on_action(entry) for entry in on or []],
+        activate=_arrival_list(activate),
+        deactivate=_arrival_list(deactivate),
+        history=None if history is None else int(history),
+    )
+    generated = {
+        "vars": vars,
+        "vars_once": vars_once,
+        "on_start": on_start,
+        "finish_vars": finish_vars,
+        "set_args": set_args,
+    }
+    for key, mapping in generated.items():
+        # The values are generator mappings such as {"gen": "uuid"}; a mistake in
+        # one raises pydantic's ValidationError, with no file or line
+        spec_kwargs[key] = (
+            values_adapter().validate_python(dict(mapping)) if mapping else {}
+        )
+    router = Router(next)
+    return _TaskFields(spec_kwargs, generated, router, take, give, resource_id)
 
 
-def _defuse(event: Any) -> None:
-    """Marks a failed child flow as handled, so a failure nobody waits for ends that
-    flow and not the run, as the builder and YAML treat every task failure."""
-    if not event.ok:
-        event.defused = True
+def _parse_interrupt(
+    interrupt: Optional[Mapping[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """A task's `interrupt` mapping as a dict, checked, with its `index` parsed."""
+    if interrupt is None:
+        return None
+    interrupt = dict(interrupt)
+    unknown = {*interrupt} - {"task", "handle", "where", "cause", "index"}
+    if interrupt.get("index") is not None:
+        if interrupt.get("handle") is None:
+            raise ValueError("interrupt takes an index with a handle only")
+        interrupt["index"] = Expression(str(interrupt["index"]))
+    if (interrupt.get("task") is None) == (interrupt.get("handle") is None):
+        raise ValueError(
+            "interrupt takes a task or a handle, and an optional where and cause"
+        )
+    if unknown:
+        raise ValueError(
+            "interrupt takes a task or a handle, and an optional where and cause"
+        )
+    if interrupt.get("handle") is not None:
+        if interrupt.get("where") is not None:
+            raise ValueError(
+                "interrupt takes no where with a handle, which names one child flow"
+            )
+        interrupt.setdefault("task", None)
+    if interrupt.get("where") is not None:
+        Expression(interrupt["where"])
+    return interrupt
+
+
+class _TaskFields(NamedTuple):
+    """What `_task_fields` gives `task()`'s decorator."""
+
+    spec_kwargs: Dict[str, Any]
+    generated: Dict[str, Any]
+    router: Router
+    take: Optional[Transfer]
+    give: Optional[Transfer]
+    resource_id: Any
 
 
 def _parse_spawn(spec: Mapping[str, Any]) -> Dict[str, Any]:
-    """Checks a `spawn:` key or spawn action and returns `{task, after}`."""
+    """Checks a `spawn:` key or spawn action and returns `{task, after, count}`.
+
+    `count` is how many entities one spawn starts: a whole number, or a function of
+    the spawning entity. It defaults to 1.
+    """
     if not isinstance(spec, Mapping):
         raise ValueError(f"a spawn is a mapping with a task, got {spec!r}")
-    extra = set(spec) - {"task", "after"}
+    extra = set(spec) - {"task", "after", "count", "copy_attributes", "args"}
     if extra:
         raise ValueError(
-            f"a spawn takes task and after, not {', '.join(sorted(extra))}"
+            f"a spawn takes task, after, count, copy_attributes and args, not "
+            f"{', '.join(sorted(extra))}"
         )
+    args = spec.get("args")
+    if args is not None and not isinstance(args, Mapping):
+        raise ValueError(f"spawn args is a mapping of names to values, got {args!r}")
+    count = spec.get("count", 1)
+    if isinstance(count, str):
+        count = Expression(count)
+    elif not callable(count) and not isinstance(count, _Gen):
+        if isinstance(count, bool) or not isinstance(count, int):
+            raise ValueError(
+                f"a spawn count is a whole number, an expression, a generator or a "
+                f"function of the entity, got {count!r}"
+            )
+        if count < 0:
+            raise ValueError(f"a spawn count must be 0 or more, got {count!r}")
+    copy_attributes = spec.get("copy_attributes", False)
+    if not isinstance(copy_attributes, bool):
+        raise ValueError(f"copy_attributes is true or false, got {copy_attributes!r}")
     task = spec.get("task")
     if not isinstance(task, str):
         raise ValueError(f"a spawn names a task, got {task!r}")
@@ -3285,44 +5446,112 @@ def _parse_spawn(spec: Mapping[str, Any]) -> Dict[str, Any]:
         raise ValueError(f"a spawn after is seconds or a duration, got {after!r}")
     if after is not None and not after > 0:
         raise ValueError(f"a spawn after is more than 0, got {after:g}")
-    return {"task": task, "after": after}
+    return {
+        "task": task,
+        "after": after,
+        "count": count,
+        "copy_attributes": copy_attributes,
+        "args": None if args is None else dict(args),
+    }
+
+
+def _arrival_list(value: Union[str, List[str], None]) -> List[str]:
+    """The arrival names of an `activate` or `deactivate`, as a list."""
+    if value is None:
+        return []
+    names = [value] if isinstance(value, str) else list(value)
+    if not all(isinstance(name, str) for name in names):
+        raise ValueError(f"activate and deactivate name arrivals, got {value!r}")
+    return names
+
+
+_ON_ACTIONS = (
+    "fire",
+    "spawn",
+    "interrupt",
+    "resume",
+    "activate",
+    "deactivate",
+    "path",
+)
 
 
 def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
     """Checks one `on:` action and returns it normalized: `{fire: {signal, value,
-    from}}`, `{spawn: {task, after}}`, `{interrupt: {...}}` or `{path, value}`."""
+    from, urgent, after, priority, fail, defused}}`, `{spawn: {task, after}}`,
+    `{interrupt: {...}}` or `{path, value}`, with `when`, the parsed expression, when
+    the entry has one."""
+    found = _parse_action(entry)
+    when = entry.get("when")
+    if when is not None:
+        if not isinstance(when, str):
+            raise ValueError(f"an on: entry's when is an expression, got {when!r}")
+        found["when"] = Expression(when)
+    return found
+
+
+def _parse_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
+    """Checks the action of one `on:` entry and returns it normalized, without its
+    `when`."""
     if not isinstance(entry, Mapping):
         raise ValueError(f"an on: action is a mapping, got {entry!r}")
-    present = [
-        k for k in ("fire", "spawn", "interrupt", "path") if entry.get(k) is not None
-    ]
+    present = [k for k in _ON_ACTIONS if entry.get(k) is not None]
     if len(present) != 1:
         raise ValueError(
-            "an on: action takes exactly one of fire, spawn, interrupt or path"
+            "an on: action takes exactly one of fire, spawn, interrupt, resume, "
+            "activate, deactivate or path"
+        )
+    unknown = set(entry) - {*_ON_ACTIONS, "value", "when"}
+    if unknown:
+        raise ValueError(
+            f"an on: action takes {', '.join(_ON_ACTIONS)}, value and when, not "
+            f"{', '.join(sorted(map(str, unknown)))}"
         )
     kind = present[0]
     if kind == "fire":
         fire = dict(entry["fire"])
-        signal = fire.get("signal")
-        if not isinstance(signal, str):
-            raise ValueError(f"a fire action names a signal, got {signal!r}")
+        try:
+            signal = name_of(fire.get("signal"), "a fire action's signal")
+        except ValueError as error:
+            raise ValueError(str(error)) from None
         value, source = fire.get("value"), fire.get("from")
         if value is not None and source is not None:
             raise ValueError("a fire action takes value or from, not both")
         urgent, after = fire.get("urgent", False), fire.get("after")
         if not isinstance(urgent, bool):
             raise ValueError(f"a fire urgent is true or false, got {urgent!r}")
+        priority = event_priority(fire.get("priority"), urgent)
+        fail, defused = fire.get("fail", False), fire.get("defused", False)
+        for word, flag in (("fail", fail), ("defused", defused)):
+            if not isinstance(flag, bool):
+                raise ValueError(f"a fire {word} is true or false, got {flag!r}")
+        if fail and source is not None:
+            raise ValueError(
+                "fail: true fails the signal with the value as the reason, and from "
+                "copies an outcome, so a fire action takes one of them"
+            )
+        if defused and not fail:
+            raise ValueError("defused is for a failure, so it needs fail: true")
         if isinstance(after, str):
             after = time_to_seconds(after)
         if isinstance(after, bool):
             raise ValueError(f"a fire after is seconds or a duration, got {after!r}")
         if after is not None and not after > 0:
             raise ValueError(f"a fire after is more than 0, got {after:g}")
-        extra = set(fire) - {"signal", "value", "from", "urgent", "after"}
+        extra = set(fire) - {
+            "signal",
+            "value",
+            "from",
+            "urgent",
+            "after",
+            "priority",
+            "fail",
+            "defused",
+        }
         if extra:
             raise ValueError(
-                f"a fire action takes signal, value, from, urgent and after, "
-                f"not {', '.join(sorted(extra))}"
+                f"a fire action takes signal, value, from, urgent, after, priority, "
+                f"fail and defused, not {', '.join(sorted(extra))}"
             )
         return {
             "fire": {
@@ -3331,10 +5560,15 @@ def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
                 "from": source,
                 "urgent": urgent,
                 "after": after,
+                "priority": priority,
+                "fail": fail,
+                "defused": defused,
             }
         }
     if kind == "spawn":
         return {"spawn": _parse_spawn(entry["spawn"])}
+    if kind in ("activate", "deactivate"):
+        return {kind: _arrival_list(entry[kind])}
     if kind == "interrupt":
         action = dict(entry["interrupt"])
         if "task" not in action or set(action) - {"task", "where", "cause"}:
@@ -3344,27 +5578,90 @@ def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
         if action.get("where") is not None:
             Expression(action["where"])
         return {"interrupt": action}
-    return {"path": entry["path"], "value": entry.get("value")}
+    if kind == "resume":
+        return {"resume": _parse_resume(entry["resume"])}
+    if "value" not in entry:
+        raise ValueError("a path needs a value")
+    return {"path": entry["path"], "value": entry["value"]}
 
 
-def _seconds(value: Union[float, str]) -> float:
-    """Reads seconds, or a duration such as `"10 min"`."""
-    return time_to_seconds(value) if isinstance(value, str) else float(value)
+def _parse_listen(spec: Mapping[str, Any]) -> Listen:
+    """Checks a `listen` key and returns it, with its `on` entries normalized."""
+    if not isinstance(spec, Mapping):
+        raise ValueError(
+            f"listen is {{signal: ..., on: [...]}} or {{handle: ..., on: [...]}}, "
+            f"got {spec!r}"
+        )
+    entries = spec.get("on") or []
+    if not isinstance(entries, (list, tuple)):
+        raise ValueError(f"listen on is a list of on: entries, got {entries!r}")
+    return Listen(spec, [_parse_on_action(entry) for entry in entries])
 
 
-def _distribution_of(spec: Mapping[str, Any]) -> DistributionConfig:
-    """Builds a config from a mapping such as `{"dist": "exponential", "rate": 1}`."""
-    if not isinstance(spec, Mapping) or "dist" not in spec:
-        raise ValueError(f"a distribution is a mapping with a dist, got {spec!r}")
-    given = {key: value for key, value in spec.items() if key != "dist"}
-    return DistributionConfig(dist=spec["dist"], **given)
+def _parse_batch(spec: Mapping[str, Any]) -> Batch:
+    """Checks a `batch` key and returns it.
+
+    Args:
+        spec: A mapping of `size` and optionally `name`, `timeout` and `close_when`.
+
+    Returns:
+        Batch: The batch.
+
+    Raises:
+        ValueError: If it is not such a mapping.
+    """
+    if not isinstance(spec, Mapping) or "size" not in spec:
+        raise ValueError(
+            f"a batch is a mapping with a size, and optionally a name, timeout and "
+            f"close_when, got {spec!r}"
+        )
+    extra = set(spec) - {"name", "size", "timeout", "close_when"}
+    if extra:
+        raise ValueError(
+            f"a batch takes name, size, timeout and close_when, not "
+            f"{', '.join(sorted(map(str, extra)))}"
+        )
+    timeout = spec.get("timeout")
+    if isinstance(timeout, str):
+        try:
+            timeout = time_to_seconds(timeout)
+        except ValueError:
+            pass  # not a duration, so an expression
+    if isinstance(timeout, numbers.Real):
+        timeout = checked_seconds(timeout, "batch timeout")
+    check_batch_size(spec["size"])
+    return Batch(spec["size"], spec.get("name"), timeout, spec.get("close_when"))
 
 
-def _distribution(dist: str, params: Mapping[str, Any]) -> DistributionConfig:
-    """Builds a config from the parameters a builder method was given."""
-    given = {
-        key: value
-        for key, value in params.items()
-        if key not in ("self", "name", "dist") and value is not None
+def _parse_resume(spec: Mapping[str, Any]) -> Dict[str, Any]:
+    """Checks a `resume` action and returns it with `where` and a text `limit` parsed:
+    `{task, where, value, limit}`."""
+    if (
+        not isinstance(spec, Mapping)
+        or not isinstance(spec.get("task"), str)
+        or set(spec) - {"task", "where", "value", "limit"}
+    ):
+        raise ValueError(
+            "a resume action takes a task, and an optional where, value and limit, "
+            f"got {spec!r}"
+        )
+    where, limit = spec.get("where"), spec.get("limit")
+    if where is not None and not isinstance(where, (str, Expression)):
+        raise ValueError(f"a resume where is an expression, got {where!r}")
+    if isinstance(limit, str):
+        limit = Expression(limit)
+    elif isinstance(limit, bool) or not (
+        limit is None or isinstance(limit, (numbers.Integral, _Gen, Expression))
+    ):
+        raise ValueError(
+            f"a resume limit is a whole number, an expression or a generator, "
+            f"got {limit!r}"
+        )
+    if isinstance(limit, numbers.Integral) and limit < 0:
+        raise ValueError(f"a resume limit must be 0 or more, got {limit!r}")
+    return {
+        "task": spec["task"],
+        "where": Expression(where) if isinstance(where, str) else where,
+        "value": spec.get("value"),
+        "limit": limit,
     }
-    return DistributionConfig(dist=dist, **given)

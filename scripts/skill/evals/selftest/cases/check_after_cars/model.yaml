@@ -1,0 +1,21 @@
+simulation: {sim_id: M4, factor: 0, random_seed: 42}
+arrivals:
+  control: {gap: 1, first_at: 0, max_events: 1, spawn: check}
+  cars: {initial: 4, gap: 5, spawn: car}
+services:
+  s5: {dist: constant, value: 5}
+
+tasks:
+  check:
+    payload: {event_type: first_step}
+    next: check_on
+  check_on:
+    service_time: 0
+    payload: {event_type: goes_on}
+  car:
+    payload: {event_type: first_step}
+    next: car_on
+  car_on:
+    service: s5
+    payload: {event_type: goes_on}
+run: {until: 12}

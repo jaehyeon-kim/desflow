@@ -1,0 +1,26 @@
+# case ST-R24: three items with equal priority come out in insertion order.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+stores:
+  s: {current_cap: 3, priority: true}
+
+arrivals:
+  puts:
+    initial: 3
+    spawn: put_it
+    attributes:
+      id: {gen: sequence}
+  getters: {dist: constant, value: 1, spawn: get_it, max_events: 3, first_at: 1}
+
+tasks:
+  put_it:
+    put:
+      store: s
+      priority: 0
+      item: {gen: expr, expr: "attr.id"}
+    payload: {event_type: put}
+  get_it:
+    get: {store: s}
+    payload:
+      event_type: got
+      item: {gen: expr, expr: item}

@@ -1,0 +1,27 @@
+# case ST-E02: run(until=10), run(until=15), run(): three segments. Keys settled for T8.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  a:
+    initial: 1
+    spawn: pem
+    attributes: {t: 5}
+  b:
+    initial: 1
+    spawn: pem
+    attributes: {t: 10}
+  c:
+    initial: 1
+    spawn: pem
+    attributes: {t: 15}
+
+tasks:
+  pem:
+    service_time: "attr.t"
+    payload: {event_type: done}
+
+run:
+  segments:
+    - {until: 10}
+    - {until: 15}
+    - {}

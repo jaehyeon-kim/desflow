@@ -2,7 +2,10 @@ import asyncio
 import logging
 import queue
 import sys
-from typing import Literal
+import warnings
+from pathlib import Path
+from types import FrameType
+from typing import Any, Literal, Optional
 
 import orjson
 
@@ -14,6 +17,21 @@ _PREFIXES = {"telemetry": "[TEL]", "event": "[EVT]", "label": "[LBL]"}
 
 
 _FORMATS = ("log", "json")
+
+
+# The folder of the desflow package, whose frames a warning skips
+_PACKAGE = str(Path(__file__).resolve().parents[2])
+
+
+def _caller_level() -> int:
+    """The `stacklevel` of a warning that names the first line outside desflow,
+    such as the script's `app.run()`, rather than a line of desflow itself."""
+    level = 2
+    frame: Optional[FrameType] = sys._getframe(2)
+    while frame is not None and frame.f_code.co_filename.startswith(_PACKAGE):
+        frame = frame.f_back
+        level += 1
+    return level
 
 
 class ConsoleEgress(BaseEgress):
@@ -41,6 +59,35 @@ class ConsoleEgress(BaseEgress):
         if format not in _FORMATS:
             raise ValueError(f"format must be log or json, got {format!r}")
         self.format = format
+
+    # The console loads no library. It overrides this hook only because
+    # setup_egress calls it before the run, which is when the warning must come
+    def _load_libraries(self) -> None:
+        """Warns, before the run starts, when the `log` format would print nothing.
+
+        `setup_egress` calls this for each provider before the run. The console
+        imports no library, so it uses the call to check its logger. The warning is
+        a Python warning, not a log record: the `desflow` logger has a
+        `NullHandler`, so with no logging set up a log record goes nowhere, and a
+        script run with `python FILE` would print nothing at all. Python prints a
+        warning on stderr unless its filters hide it. `desflow run` sets up logging
+        at INFO, so a blueprint run gets no warning.
+        """
+        if self.format == "log" and not logger.isEnabledFor(logging.INFO):
+            warnings.warn(
+                "ConsoleEgress writes each batch with logging at INFO, which is not "
+                'enabled, so it prints nothing. Use ConsoleEgress(format="json"), or '
+                "call logging.basicConfig(level=logging.INFO) before the run.",
+                stacklevel=_caller_level(),
+            )
+
+    def _shown(self, record: dict, shown: Optional[dict] = None) -> Any:
+        """Returns what a record is written as: the record, or `shown` in its place,
+        or only its value when the entry has `envelope` off. A ground-truth record is
+        always written whole."""
+        if not self.envelope and record.get("stream_type") != "label":
+            return record.get("value")
+        return record if shown is None else shown
 
     async def run(self, egress_queue: queue.Queue) -> None:
         """
@@ -81,9 +128,15 @@ class ConsoleEgress(BaseEgress):
                 # sys.stdout is read at each write, so a caller that replaces it,
                 # such as a test runner, receives the lines
                 batch = drop_reserved_keys(batch, self)
-                sys.stdout.write(
-                    "".join(orjson.dumps(r).decode() + "\n" for r in batch)
-                )
+                try:
+                    text = "".join(
+                        orjson.dumps(self._shown(r)).decode() + "\n" for r in batch
+                    )
+                except Exception as exc:
+                    # A batch that cannot be encoded is logged, and the sink goes on
+                    logger.error(f"Console: batch not printed: {exc}")
+                    continue
+                sys.stdout.write(text)
                 sys.stdout.flush()
                 continue
             if not logger.isEnabledFor(logging.INFO):
@@ -95,7 +148,7 @@ class ConsoleEgress(BaseEgress):
             # from what another attached sink writes.
             lines = [
                 f"{_PREFIXES.get(data.get('stream_type', 'unknown'), '[EVT]')} "
-                f"{ {k: v for k, v in data.items() if k != 'stream_type'} }"
+                f"{self._shown(data, {k: v for k, v in data.items() if k != 'stream_type'})}"
                 for data in batch
             ]
             logger.info("\n".join(lines))

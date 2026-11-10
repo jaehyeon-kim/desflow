@@ -1,0 +1,57 @@
+{
+  "fault": "fix 3 and round 4 S9: the reviewer's folder names neither the skill copy's path, nor a scratch folder or kept folder, and holds only the pages both versions have",
+  "task": "p33",
+  "tasks": "main",
+  "skill": true,
+  "counts": {
+    "K1": 0,
+    "K2": 0,
+    "K4": 0,
+    "K6": 0,
+    "K7": 0,
+    "K9": 0,
+    "K11": 0,
+    "K12": 0,
+    "K13": 0,
+    "BASE": 0
+  },
+  "facts": {
+    "files/reply.md": [
+      "<skill>/references/page-1.md",
+      "references/api.md"
+    ],
+    "trace.jsonl": [
+      "read <skill>/SKILL.md and page-1.md",
+      "<suite>/desflow/references/api.md",
+      "<run>/home/cwd"
+    ],
+    "skill/references/api.md": [
+      "`from desflow.values import ...`"
+    ],
+    "task/prompt.md": [
+      "set_capacity from a flow"
+    ],
+    "task/records.yaml": [
+      "grow at 2"
+    ],
+    "task/original.py.txt": [
+      "P33: Change a capacity from a flow"
+    ],
+    "records/yaml.jsonl": [
+      "\"event_type\": \"grow\""
+    ],
+    "files/builder.py.txt": [
+      "import"
+    ]
+  },
+  "facts_absent": {
+    "skill/references/page-1.md": [],
+    "skill/references/testing.md": [],
+    "trace.jsonl": [
+      "before20",
+      "e-AbC123",
+      "scratchpad"
+    ]
+  },
+  "hidden": true
+}

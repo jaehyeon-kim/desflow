@@ -1,0 +1,14 @@
+simulation: {sim_id: Sim, factor: 0, random_seed: 42, logical_start_time: "2026-01-01T00:00:00+00:00"}
+egress:
+  - {type: Console, config: {format: json}}
+arrivals:
+  a:
+    gap: 5
+    first_at: 5
+    max_events: 40
+    spawn: member
+    group: {gen: sample, dist: poisson, mean: 2}
+tasks:
+  member:
+    payload: {event_type: member}
+run: {until: 205}

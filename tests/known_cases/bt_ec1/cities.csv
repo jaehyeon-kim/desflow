@@ -1,0 +1,61 @@
+country,state,city,postal_code,latitude,longitude,population
+China,Fujian,Dongguan,361006,24.5095,118.1006,1298368
+China,Guangdong,Shenzhen,523850,22.8263,113.7858,772125
+China,Guangdong,Dongguan,518172,22.7164,114.239,710307
+China,Guangdong,Baoding,523900,22.8105,113.6835,681780
+China,Hebei,Shenzhen,71051,38.8668,115.4801,673684
+China,Guangdong,Jilin,518109,22.6662,114.0052,657969
+China,Jilin,Shenzhen,132001,43.8496,126.6119,636311
+China,Guangdong,Yinchuan,518024,22.5916,114.1003,636152
+China,Ningxia Hui Autonomous Region,Shenzhen,750000,38.5076,106.3158,631948
+China,Guangdong,Beijing,518102,22.5887,113.8823,621290
+United States,Texas,El Paso,79936,31.7762,-106.2978,129566
+United States,California,Riverside,92503,33.8858,-117.4479,120768
+United States,Texas,Brownsville,78521,25.9624,-97.3255,118948
+United States,Texas,Houston,77084,29.8247,-95.6502,117503
+United States,Texas,Sugar Land,77479,29.5668,-95.6334,116497
+United States,California,Bakersfield,93307,35.2567,-118.9304,114019
+United States,California,Fontana,92335,34.0873,-117.4649,113685
+United States,California,Jurupa Valley,92509,34.003,-117.4456,109868
+United States,New York,New York,11368,40.7498,-73.854,108647
+United States,Washington,Pasco,99301,46.4183,-118.9075,107807
+Brasil,São Paulo,São Paulo,02675-031,-23.4726,-46.7466,2049839
+Brasil,Distrito Federal,Brasília,70297-400,-15.8268,-47.9226,1640936
+Brasil,Bahia,Salvador,40301-110,-12.629,-38.6999,1189323
+Brasil,Paraná,Curitiba,81020-490,-25.5031,-49.3314,465169
+Brasil,Maranhão,São Luís,65137-000,-2.5481,-44.1893,390034
+Brasil,Rio de Janeiro,Duque de Caxias,25265-008,-22.7245,-43.2869,370859
+Brasil,Pará,Belém,68447-000,-1.4909,-48.6117,346681
+Brasil,Pará,Parauapebas,68515-000,-6.1549,-50.4863,331051
+Brasil,Maranhão,São José de Ribamar,65110-000,-2.5663,-44.0889,268899
+Brasil,Maranhão,Paço do Lumiar,65060-000,-2.514,-44.1447,241686
+South Korea,Seoul,Seoul,151-015,37.4647,126.9357,303915
+South Korea,Gyeonggi-do,Siheung City,429-450,37.3434,126.7109,170543
+South Korea,Gyeonggi-do,Anyang City,430-010,37.3899,126.9168,141826
+South Korea,Gyeonggi-do,Hwaseong City,445-810,37.1854,127.1157,139337
+South Korea,Gyeongsangnam-do,Gimhae City,621-830,35.1845,128.8,133656
+South Korea,Gyeonggi-do,Namyangju City,472-840,37.6532,127.3158,124309
+South Korea,Busan,Busan,611-080,35.1785,129.0913,124238
+South Korea,Gyeonggi-do,Yongin City,446-913,37.3095,127.107,121294
+South Korea,Incheon Metropolitan City,Incheon Metropolitan City,405-310,37.3896,126.6984,118090
+South Korea,Gyeonggi-do,Bucheon City,420-020,37.5006,126.7693,116262
+France,Île-de-France,Paris,75015,48.8401,2.2929,226701
+France,Auvergne-Rhône-Alpes,Villeurbanne,69100,45.771,4.889,162658
+France,Grand Est,Reims,51100,49.2517,4.0401,162563
+France,Bourgogne-Franche-Comté,Dijon,21000,47.3229,5.0376,147000
+France,Provence-Alpes-Côte d'Azur,Nice,6200,43.7045,7.2083,134356
+France,Bretagne,Rennes,35000,48.1112,-1.6984,128534
+France,Occitanie,Toulouse,31200,43.6381,1.4385,125106
+France,Occitanie,Montpellier,34000,43.606,3.9007,124632
+France,Bretagne,Brest,29200,48.4001,-4.5023,123821
+France,Pays de la Loire,Le Mans,72100,47.985,0.2072,123430
+United Kingdom,England,Croydon,CR0,51.3655,-0.0656,166862
+United Kingdom,England,Leicester,LE2,52.6027,-1.0956,124740
+United Kingdom,England,London,E17,51.5875,-0.0232,121162
+United Kingdom,England,Brighton,BN1,50.8681,-0.1338,91427
+United Kingdom,England,Coventry,CV6,52.4372,-1.5082,89781
+United Kingdom,Wales,Cardiff,CF14,51.5305,-3.1951,88602
+United Kingdom,England,Nottingham,NG5,53.0122,-1.1398,88317
+United Kingdom,England,Maidenhead,SL6,51.5188,-0.7406,86084
+United Kingdom,England,Hove,BN3,50.8421,-0.1811,85204
+United Kingdom,England,Newcastle-under-Lyme,ST5,52.9901,-2.2725,81830

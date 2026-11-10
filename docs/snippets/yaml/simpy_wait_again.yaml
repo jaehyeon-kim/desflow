@@ -1,0 +1,15 @@
+# A job waits for a timeout of 5 seconds and is interrupted at 2. It waits for
+# the same timeout again, so it ends at 5.
+simulation: {sim_id: Shop, factor: 0}
+
+processes:
+  - function: !python simpy_forms.wait_again
+    kwargs: {job: job-1, delay: 5, interrupt_at: 2}
+
+tasks:
+  done: {payload: !python simpy_forms.done}
+
+run: {until: 20}
+
+egress:
+  - {type: Console}

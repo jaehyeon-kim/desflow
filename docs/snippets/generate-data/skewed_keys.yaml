@@ -1,0 +1,40 @@
+# Skewed keys: 5 of 25 customers place 75 percent of the orders.
+#
+# An order arrives every second. A draw that is true 75 percent of the time makes the
+# order come from one of 5 busy customers out of 25, and the rest come from the other
+# 20. `key_field` makes the customer the record key, so a Kafka topic puts the busy
+# customers' records in a few partitions.
+#
+# Needs: nothing.
+# Run it with: desflow run docs/snippets/generate-data/skewed_keys.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:arrivals]
+arrivals:
+  orders: {dist: constant, value: 1, spawn: order}
+# --8<-- [end:arrivals]
+
+# --8<-- [start:tasks]
+tasks:
+  order:
+    vars:
+      busy: {gen: boolean, p: 0.75}
+    key_field: customer_id
+    payload:
+      order_id: {gen: sequence, start: 1}
+      customer_id:
+        gen: when
+        condition: busy
+        then: {gen: integer, bounds: [1, 5]}
+        else: {gen: integer, bounds: [6, 25]}
+# --8<-- [end:tasks]
+
+run: {until: 1000}

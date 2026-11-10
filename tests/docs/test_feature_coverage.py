@@ -23,6 +23,7 @@ from feature_lists import (
     extras,
     families,
     gen_pages,
+    keys_pages,
 )
 
 # --- Blueprint keys -------------------------------------------------------------
@@ -30,16 +31,26 @@ from feature_lists import (
 USED = used_pairs()
 
 
-@pytest.mark.parametrize(
-    "model,key", pairs(), ids=[f"{model}.{key}" for model, key in pairs()]
-)
-def test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry(model, key):
+KEY_IDS = [f"{model}.{key}" for model, key in pairs()]
+
+
+@pytest.mark.parametrize("model,key", pairs(), ids=KEY_IDS)
+def test_every_blueprint_key_has_an_example(model, key):
     assert (model, key) in USED, (
         f"{model}.{key}: no labelled YAML block on a Learn, How-To, User Guide or "
         "Examples page sets it"
     )
-    page = gen_pages().yaml_keys_page()
-    assert f"`{key}`" in page or f"## {key}\n" in page, f"{key}: not on YAML Keys"
+
+
+@pytest.mark.parametrize("model,key", pairs(), ids=KEY_IDS)
+def test_every_blueprint_key_has_a_reference_and_a_skill_entry(model, key):
+    # The keys of the generator kinds are on the page of each kind that has them, every
+    # other key is on YAML Keys
+    for path, page in keys_pages(model).items():
+        # A table row on a kind's page, not the key named anywhere on it
+        in_table = path.startswith("generators/") and model != "Generator"
+        row = f"| `{key}` |" if in_table else f"`{key}`"
+        assert row in page or f"## {key}\n" in page, f"{model}.{key}: not on {path}"
     keys = (SKILL / "references" / "blueprint-keys.md").read_text(encoding="utf-8")
     assert f"`{key}`" in keys or f"## {key}\n" in keys, f"{key}: not in the skill"
 
@@ -88,7 +99,9 @@ def test_every_extra_has_an_example_a_reference_a_skill_and_a_readme_line(extra)
     assert f"| `{extra}` |" in getting_started, f"{extra}: not on Installation"
     assert f"| `{extra}` |" in README, f"{extra}: not in the README"
     if extra != "all":  # all installs every other extra, so it has no feature
-        assert f"`{extra}`" in SKILL_TEXT, f"{extra}: not in the skill"
+        # the command help, which the skill copies, says "the watch extra" with no backticks
+        named = f"`{extra}`" in SKILL_TEXT or f"the {extra} extra" in SKILL_TEXT
+        assert named, f"{extra}: not in the skill"
 
 
 # --- Distribution families ------------------------------------------------------

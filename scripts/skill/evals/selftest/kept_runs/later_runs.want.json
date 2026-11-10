@@ -1,0 +1,11 @@
+{
+  "fault": "round 4 S10: a file of runs 2 and 3 whose arm with ran with no skill",
+  "args": [
+    "--version",
+    "none",
+    "--first-run",
+    "2"
+  ],
+  "rc": 0,
+  "stdout": "st-rt2\tnone\t2\t/tmp/e-eeeeee\nst-rt2\tnone\t3\t/tmp/e-ffffff\n"
+}

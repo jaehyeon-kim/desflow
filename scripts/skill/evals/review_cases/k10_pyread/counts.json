@@ -1,0 +1,7 @@
+{
+  "known": true,
+  "counts": {
+    "K10": 0
+  },
+  "reason": "The Python call prints model.yaml after --fix."
+}

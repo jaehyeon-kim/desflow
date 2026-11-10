@@ -1,21 +1,20 @@
-# Process events: a one-shot signal, a spawn after a delay, a subscribe and an on: action, in YAML.
+# Process events: a one-shot signal, a spawn after a delay, a subscribe and an on:
+# action, in YAML.
 #
-# The YAML version of process_events_example.py, which --api builder downloads. A guard starts an alarm
-# round and is told when it ends (subscribe); a packed order fires the ready signal
-# from its own payload (on: with fire ... from), which a shipper waiting for it reads;
-# and closing time fires the one-shot closing signal, whose on: spawns a sweep one
-# second later (spawn with after). The arrival gaps are set so each happens once.
+# The YAML version of process_events_example.py, which --api builder downloads. A guard
+# starts an alarm round and is told when it ends (subscribe); a packed order fires the
+# ready signal from its own payload (on: with fire ... from), which a shipper waiting
+# for it reads; and closing time fires the one-shot closing signal, whose on: spawns a
+# sweep one second later (spawn with after). The arrival gaps are set so each happens
+# once.
 #
 # Needs no containers. Runs unpaced and ends after 12 simulation seconds.
 # Run it from its folder with: desflow run process_events.yaml
 
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 services:
   packing: {dist: constant, value: 2 s}
@@ -25,8 +24,8 @@ services:
 
 # --8<-- [start:events]
 signals:
-  # A plain signal re-arms; the one-shot closing fires once and spawns a sweep
-  ready: {}
+  # ready re-arms; the one-shot closing fires once and spawns a sweep
+  ready: {once: false}
   closing:
     once: true
     on:
@@ -66,5 +65,4 @@ tasks:
     payload: {event_type: alarm_rang}
 # --8<-- [end:events]
 
-run:
-  until: 12
+run: {until: 12}

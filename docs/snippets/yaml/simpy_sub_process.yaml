@@ -1,0 +1,18 @@
+# A process calls the task `pack` with an argument, reads the value it returns,
+# and passes a total on to the task `ship`.
+simulation: {sim_id: Dock, factor: 0}
+
+processes:
+  - function: !python simpy_forms.order
+    kwargs: {boxes: 2}
+
+tasks:
+  pack:
+    wait: {timeout: 1}
+    payload: !python simpy_forms.pack
+  ship: {payload: !python simpy_forms.shipped}
+
+run: {until: 10}
+
+egress:
+  - {type: Console}

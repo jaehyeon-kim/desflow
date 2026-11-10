@@ -1,0 +1,18 @@
+# P33 records, for the self-test case add_order.
+
+task: P33
+
+until: 20
+
+run_end: 20
+
+records:
+  - name: grow at 2
+    match: {task: grow, key: boss-1, value.event_type: grow}
+    at: 2
+  - name: first job done at 5
+    match: {task: job, key: a-1, value.event_type: done}
+    at: 5
+  - name: second job done at 7, after the capacity grows
+    match: {task: job, key: a-2, value.event_type: done}
+    at: 7

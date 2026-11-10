@@ -1,0 +1,28 @@
+# DX-7: custom readings every 30 s: the orders waiting per packer and the live arrival
+# rate. The snippet's `packers_report` (docs/snippets/yaml/shop_logic.py) is a function
+# that publishes them; here `telemetry.readings` gives each as an expression.
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+resources:
+  packers: {current_cap: 2, max_cap: 5}
+
+services:
+  packing: {dist: gamma, shape: 4, scale: 0.75}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.6, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+telemetry:
+  - interval: 30
+    readings:
+      waiting_per_packer: "queue.packers /
+        max(registry['Shop.resources.packers.current_cap'], 1)"
+      arrival_rate: "registry['Shop.arrival.orders.rate']"
+
+run: {until: 120}

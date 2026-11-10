@@ -7,7 +7,7 @@ Get completion for the keys of a blueprint as you type, and a mark under a missp
 ## Before You Start
 
 - [YAML Blueprints](../../user-guide/writing-a-model/blueprints.md) describes what a blueprint file is.
-- [YAML Keys](../../reference/yaml-keys.md) lists every key the editor will offer.
+- [YAML Keys](../../reference/yaml-keys.md) and the [Generators](../../generators/index.md) pages together list every key the editor will offer.
 - The editor checks the shape of the file against the blueprint JSON Schema. It does not run the model, so `desflow run` is still what proves a blueprint works.
 
 ---
@@ -53,7 +53,7 @@ The address above always serves the latest release, so it can offer keys that an
 
 ## Check the Result
 
-Open the blueprint from [Full Files](#full-files) in the editor. Its highlighted third line names the schema. Change `packers` to `packer` under `tasks`, and the editor underlines nothing. Resource names are checked by `desflow run`, as the list below says. Change `current_cap` to `capacity` instead, and the editor underlines it as a key it does not know. Run the blueprint with `desflow run editor_setup.yaml`.
+Open the blueprint from [Full Files](#full-files) in the editor. Its highlighted line names the schema. Change `packers` to `packer` under `tasks`, and the editor underlines nothing. Resource names are checked by `desflow run`, as the list below says. Change `current_cap` to `capacity` instead, and the editor underlines it as a key it does not know. Run the blueprint with `desflow run editor_setup.yaml`.
 
 ### What the Editor Cannot Check
 
@@ -75,14 +75,13 @@ Where a value is a number, a whole number, `true` or `false`, or one of a fixed 
 
 ??? example "Full files"
 
-    ```yaml title="docs/snippets/yaml/editor_setup.yaml" hl_lines="3"
-    # A small blueprint with the line that tells the Red Hat YAML extension which schema to use.
-    # Run it with: desflow run editor_setup.yaml
+    ```yaml title="docs/snippets/yaml/editor_setup.yaml" hl_lines="5"
+    # A small blueprint with the line that tells the Red Hat YAML extension which schema to
+    # use. Run it with: desflow run editor_setup.yaml
+    # yamllint disable rule:line-length
     # yaml-language-server: $schema=https://jaehyeon.me/desflow/latest/schema/blueprint.schema.json
-    simulation:
-      sim_id: Shop
-      factor: 0
-      random_seed: 42
+    # yamllint enable rule:line-length
+    simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
     resources:
       packers: {current_cap: 1, max_cap: 1}
@@ -100,10 +99,9 @@ Where a value is a number, a whole number, `true` or `false`, or one of a fixed 
         payload: {event_type: order_packed}
 
     egress:
-      - type: Console
+      - {type: Console}
 
-    run:
-      until: 20
+    run: {until: 20}
     ```
 
 ---

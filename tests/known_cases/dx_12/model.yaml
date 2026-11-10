@@ -1,0 +1,37 @@
+# DX-12: simpy_forms.py order, pack, shipped (simpy_sub_process.yaml): arguments passed
+# to a child flow and its value read. Same form as DS-V9.
+simulation: {sim_id: Dock, factor: 0}
+
+arrivals:
+  orders:
+    dist: constant
+    value: 1
+    spawn: order
+    max_events: 1
+    first_at: 0
+    attributes: {boxes: 2}
+
+tasks:
+  order:
+    open:
+      p:
+        task: pack
+        args:
+          boxes: {gen: expr, expr: "attr.boxes"}
+    payload: null
+    next: wait_pack
+  wait_pack:
+    wait: {handle: p}
+    set:
+      packed: {gen: expr, expr: "wait.p.value.total"}
+    payload: null
+    next: ship
+  ship:
+    payload:
+      total: {gen: expr, expr: "attr.packed + 1"}
+  pack:
+    service_time: 1
+    payload:
+      total: {gen: expr, expr: "arg.boxes * 3"}
+
+run: {until: 10}

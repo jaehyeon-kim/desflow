@@ -1,0 +1,49 @@
+# An audit that finds an issue needs a follow-up, which waits for the same two auditors.
+#
+# An audit of one of 150 merchants is due about every 3 hours and takes an auditor
+# about 4 hours, and 15 percent find an issue. A follow-up takes about an hour and
+# goes to the back of the same queue, so audits and follow-ups compete for the two
+# auditors.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/audits_with_findings_need_a_follow_up.yaml
+
+simulation:
+  sim_id: Compliance
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+resources:
+  auditors: {current_cap: 2, max_cap: 2}
+
+services:
+  audit: {dist: normal, mean: 4 hours, std: 1 hour}
+  follow_up: {dist: normal, mean: 1 hour, std: 15 min}
+
+arrivals:
+  audits_due: {dist: exponential, rate: 0.0001, spawn: audit}
+
+tasks:
+  audit:
+    service: audit
+    resource: auditors
+    payload:
+      merchant: {gen: integer, bounds: [1, 150]}
+      finding:
+        gen: weighted
+        options: {clean: 85, issue: 15}
+    next:
+      when:
+        - {condition: "payload.finding == 'issue'", task: follow_up}
+  follow_up:
+    service: follow_up
+    resource: auditors
+    payload:
+      merchant: {gen: upstream, path: merchant}
+      event_type: follow_up_done
+
+run: {until: 14 days}

@@ -4,20 +4,26 @@ the API page.
 The API page renders docstrings with mkdocstrings, which hides names that start
 with an underscore. So a public function or method in `src/desflow` with
 parameters needs a docstring with an `Args:` section, a public class needs a
-docstring, and every name `desflow` and `desflow.analysis` export needs a
-`::: <module>.<name>` line in `docs/reference/api.md`.
+docstring, and every name a package of `PROMISED_PACKAGES` exports needs a
+`::: <path>` line in `docs/reference/api.md`, at the path 1.x keeps for it
+(`scripts/public_api.py`).
 """
 
 import ast
+import importlib
+import importlib.util
 import re
 from pathlib import Path
 from typing import List
 
-import desflow
-import desflow.analysis
-
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "src" / "desflow"
+_spec = importlib.util.spec_from_file_location(
+    "public_api", ROOT / "scripts" / "public_api.py"
+)
+assert _spec is not None and _spec.loader is not None
+public_api = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(public_api)
 
 
 def _public_without_docs() -> List[str]:
@@ -62,12 +68,15 @@ def test_every_public_definition_has_a_docstring_with_its_args():
 
 
 def test_every_exported_name_is_on_the_api_page():
+    """Every name of every promised package has a `:::` line at its promised path."""
     text = (ROOT / "docs" / "reference/api.md").read_text(encoding="utf-8")
     entries = set(re.findall(r"^::: (\S+)$", text, re.M))
-    missing = [
-        f"{getattr(package, name).__module__}.{name}"
-        for package in (desflow, desflow.analysis)
-        for name in package.__all__
-        if f"{getattr(package, name).__module__}.{name}" not in entries
-    ]
-    assert missing == []
+    missing = []
+    for package in public_api.PROMISED_PACKAGES:
+        module = importlib.import_module(package)
+        for name in module.__all__:
+            path = public_api.promised_path(getattr(module, name), f"{package}.{name}")
+            module_form = f"{path}.{path.rsplit('.', 1)[-1]}"
+            if path not in entries and module_form not in entries:
+                missing.append(path)
+    assert sorted(set(missing)) == []

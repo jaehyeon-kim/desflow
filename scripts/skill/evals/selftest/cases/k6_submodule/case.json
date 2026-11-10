@@ -1,0 +1,13 @@
+{
+  "fault": "round 4 S3: `from desflow import connectors` reaches a module the API page does not name",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K6": 1
+  },
+  "evidence": {
+    "K6": [
+      "builder.py:3: imports desflow.connectors"
+    ]
+  }
+}

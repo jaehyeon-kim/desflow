@@ -1,0 +1,26 @@
+# note: ST-R04 is GD-TT3 (continue waiting after an interrupt): see gd-tests.yaml,
+# GD-TT3. case ST-R05: a queued victim is interrupted, releases its request and does not
+# wait.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+resources:
+  res: {current_cap: 1}
+
+arrivals:
+  blocker: {initial: 1, spawn: blocker}
+  victim: {initial: 1, spawn: victim}
+  poke: {initial: 1, spawn: poker}
+
+tasks:
+  blocker:
+    resource: res
+    service_time: 1
+    payload: {event_type: blocker_done}
+  victim:
+    resource: res
+    service_time: 1
+    on_interrupt: abandon
+    payload: {event_type: victim_done}
+  poker:
+    payload: {event_type: poke}
+    interrupt: {task: victim}

@@ -1,0 +1,99 @@
+"""Tests for the ST-RT2 model: RealtimeEnvironment(factor=0.1), the run called twice.
+
+Run with: pytest test_model.py
+"""
+
+import json
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).parent
+DESFLOW = Path(sys.executable).parent / "desflow"
+
+FORMS = {
+    "yaml": [str(DESFLOW), "run", "model.yaml"],
+    "builder": [sys.executable, "builder.py"],
+    "low_level": [sys.executable, "low_level.py"],
+}
+
+
+def parse(text):
+    return [json.loads(line) for line in text.splitlines() if line.startswith("{")]
+
+
+@pytest.fixture(scope="module")
+def runs():
+    """Each form's records and its wall time."""
+    out = {}
+    for name, cmd in FORMS.items():
+        start = time.monotonic()
+        done = subprocess.run(
+            cmd, cwd=HERE, capture_output=True, text=True, check=True, timeout=60
+        )
+        out[name] = (parse(done.stdout), time.monotonic() - start)
+    return out
+
+
+def test_three_forms_give_the_same_records(runs):
+    yaml_records = runs["yaml"][0]
+    assert yaml_records
+    assert runs["builder"][0] == yaml_records
+    assert runs["low_level"][0] == yaml_records
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_ticks_at_1_2_3_for_each_entity(runs, form):
+    records = runs[form][0]
+    ticks = [
+        (r["key"], r["sim_ts"])
+        for r in records
+        if r["stream_type"] == "event" and r["value"] == {"event_type": "tick"}
+    ]
+    for key in ("a-1", "a-2"):
+        assert [t for k, t in ticks if k == key] == [1.0, 2.0, 3.0]
+    assert len(ticks) == 6
+    # The run ends at 4, before a tick at 4 is published.
+    assert all(r["sim_ts"] < 4 for r in records if r["stream_type"] == "event")
+    assert all(r["task"] == "pem" for r in records if r["stream_type"] == "event")
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_run_called_twice(runs, form):
+    segments = [
+        r["value"]
+        for r in runs[form][0]
+        if r.get("path_id") == "system.simulation.segment"
+    ]
+    assert segments == [
+        {"index": 0, "now": 2, "peek": 2},
+        {"index": 1, "now": 4, "peek": 4},
+    ]
+    assert not any(
+        r.get("path_id") == "system.simulation.lag_seconds" for r in runs[form][0]
+    )
+
+
+@pytest.mark.parametrize("form", FORMS)
+def test_paced_at_factor_0_1(runs, form):
+    # Four simulation seconds take at least 0.4 s of wall time.
+    assert runs[form][1] >= 0.4
+
+
+def test_paced_run_in_process(capfd):
+    """Times the builder run alone, without interpreter start-up."""
+    sys.dont_write_bytecode = True  # leave no __pycache__ beside the model
+    sys.path.insert(0, str(HERE))
+    try:
+        import builder
+    finally:
+        sys.path.remove(str(HERE))
+    start = time.monotonic()
+    builder.run()
+    elapsed = time.monotonic() - start
+    assert 0.4 <= elapsed < 5
+    records = parse(capfd.readouterr().out)
+    assert sum(r["value"] == {"event_type": "tick"} for r in records if "key" in r) == 6

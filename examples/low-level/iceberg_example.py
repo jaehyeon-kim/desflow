@@ -26,8 +26,8 @@ from desflow import (
     IcebergStorageEgress,
     Sampler,
     SimParameter,
+    time_to_seconds,
 )
-from desflow.utils import time_to_seconds
 
 logging.basicConfig(
     level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
@@ -108,7 +108,12 @@ def pack_order(env, sampler, packers, key, task_id):
     path_id = "Shop.service.packing"
     env.publish_event(
         key,
-        {"path_id": path_id, "status": "queued"},
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": "queued",
+        },
         task="pack_order",
         instance=task_id,
     )
@@ -116,14 +121,22 @@ def pack_order(env, sampler, packers, key, task_id):
         yield req
         env.publish_event(
             key,
-            {"path_id": path_id, "status": "started"},
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            },
             task="pack_order",
             instance=task_id,
         )
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         env.publish_event(
             key,
-            {"path_id": path_id, "status": "finished"},
+            {
+                "path_id": path_id,
+                "status": "finished",
+            },
             task="pack_order",
             instance=task_id,
         )

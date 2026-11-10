@@ -144,21 +144,48 @@ INPUT_FORMS: Dict[Tuple[str, str], Any] = {
     ("Simulation", "_parse_instant"): INSTANT,
     ("Simulation", "_parse_duration"): DURATION,
     ("Distribution", "_duration"): DURATION,
+    ("Distribution", "_no_boolean"): None,
     ("Distribution", "_durations"): DURATION_ITEMS,
     ("SpawnAction", "_after_duration"): DURATION,
     ("FireAction", "_after_duration"): DURATION,
     ("Task", "_patience_duration"): PATIENCE,
+    ("Arrival", "_place_duration"): PATIENCE,
+    ("Arrival", "_first_at_time"): DURATION,
     ("Stats", "_parse_interval"): DURATION,
     ("ScenarioStep", "_parse_at"): DURATION,
     ("Drain", "_parse_limit"): DURATION,
     ("Run", "_parse_until"): DURATION,
+    ("RunSegment", "_parse_until"): DURATION,
+    ("BlueprintTest", "_parse_until"): DURATION,
+    ("SegmentEvery", "_parse_every"): DURATION,
     ("Blueprint", "_signal_mapping"): SIGNAL_NAMES,
     ("Blueprint", "_bare_level"): STATS_LEVEL,
     ("Blueprint", "_bare_functions"): PROCESS_REFS,
     # Narrowing validators and the wait parser, which returns the value unchanged
     ("TransferStep", "_priority_is_a_literal"): None,
+    ("Next", "_numeric_text"): None,
+    ("Simulation", "_check_seed"): None,
     ("Task", "_wait_parses"): None,
+    ("Task", "_open_parses"): None,
+    ("SeizeSpec", "_patience_duration"): PATIENCE,
+    ("BatchSpec", "_timeout_duration"): PATIENCE,
+    ("BatchSpec", "_size_not_boolean"): None,
+    ("SeizeSpec", "_preempt_words"): None,
+    ("RequestSpec", "_preempt_words"): None,
+    ("Task", "_preempt_words"): None,
     ("EgressConnector", "_known_name"): None,
+    # Checks of seconds, sizes and intervals, which return the value unchanged
+    ("Simulation", "_factor_number"): None,
+    ("Resource", "_queue_limit_not_boolean"): None,
+    ("TransferStep", "_amount_not_boolean"): None,
+    ("Telemetry", "_interval_seconds"): None,
+    ("Batching", "_counts"): None,
+    ("Batching", "_intervals"): None,
+    ("EgressConnector", "_batch_size_count"): None,
+    ("EgressConnector", "_flush_interval_seconds"): None,
+    # An `on:` value that is a mapping with no `gen` is data, as the Value type says
+    ("_generator_or_data", "_value_form"): None,
+    ("_capacity_text", "_capacity_numbers"): None,
 }
 
 _OUTSIDE = ("default", "description", "title")
@@ -252,6 +279,47 @@ def _apply_input_forms(schema: Dict[str, Any]) -> None:
                         ]
 
 
+# The fields the frozen 1.0 schema writes as `oneOf`
+ONE_OF_FIELDS = {("Task", "payload"), ("Task", "next")}
+
+
+def _plain_unions(node: Any) -> None:
+    """Writes a field that picks its form by shape as the `anyOf` it was before.
+
+    A callable discriminator makes pydantic write `oneOf`. The frozen 1.0 schema holds
+    these fields as one flat `anyOf`, and a form of both is the same file to a reader.
+    The `oneOf` of the generators is left as it is.
+    """
+    if isinstance(node, dict):
+        members = node.get("oneOf")
+        if (
+            isinstance(members, list)
+            and "anyOf" not in node
+            and "discriminator" not in node
+            and not any(
+                isinstance(m, dict)
+                and (
+                    "discriminator" in m or str(m.get("$ref", "")).endswith("/Uniform")
+                )
+                for m in members
+            )
+        ):
+            node["anyOf"] = node.pop("oneOf")
+        for value in list(node.values()):
+            _plain_unions(value)
+        if "anyOf" in node and isinstance(node["anyOf"], list):
+            flat: list = []
+            for alt in node["anyOf"]:
+                if isinstance(alt, dict) and set(alt) == {"anyOf"}:
+                    flat.extend(alt["anyOf"])
+                else:
+                    flat.append(alt)
+            node["anyOf"] = flat
+    elif isinstance(node, list):
+        for item in node:
+            _plain_unions(item)
+
+
 def _connector_names(schema: Dict[str, Any]) -> None:
     """`Connector.type` and `EgressConnector.type` list the names `build.py` knows."""
     for name, types in (
@@ -274,12 +342,115 @@ def _tighten(schema: Dict[str, Any]) -> None:
         prop = defs[name]["properties"]["after"]
         prop["anyOf"] = [alt for alt in prop["anyOf"] if alt != {"type": "string"}]
         for alt in prop["anyOf"]:
-            if alt == {"type": "number"}:
+            if alt in ({"type": "integer"}, {"type": "number"}):
                 alt["exclusiveMinimum"] = 0
     defs["Stats"]["properties"]["level"] = {"enum": list(STATS_LEVELS)}
     defs["Task"]["properties"]["on_interrupt"] = {
         "enum": list(INTERRUPT_POLICIES),
         "default": "resume",
+    }
+
+
+def _integer_first(node: Any) -> None:
+    """Puts the `integer` form before the `number` form in every `anyOf`.
+
+    `Union[int, float]` and `Union[float, int]` are equal to `typing`, which keeps one
+    object for both, so the order Pydantic sees depends on which a module in the process
+    wrote first, and a plugin such as Faker's writes `Union[float, int]` before
+    desflow is imported. Without this the same models give two texts.
+    """
+    if isinstance(node, list):
+        for item in node:
+            _integer_first(item)
+    elif isinstance(node, dict):
+        options = node.get("anyOf")
+        if isinstance(options, list):
+            slots = [
+                at
+                for at, option in enumerate(options)
+                if isinstance(option, dict)
+                and option.get("type") in ("integer", "number")
+            ]
+            ordered = sorted(
+                (options[at] for at in slots), key=lambda o: o["type"] != "integer"
+            )
+            for at, option in zip(slots, ordered):
+                options[at] = option
+        for key, value in node.items():
+            if key not in ("default", "enum", "const"):
+                _integer_first(value)
+
+
+def _generators(schema: Dict[str, Any]) -> None:
+    """Writes `Value` and `Payload` as the file reads them: a mapping with a `gen`
+    key must be one of the generators, and anything else is data.
+
+    Pydantic writes both as a union of the generators, a mapping, a list and anything,
+    and a plain mapping then matches two members of the `oneOf`, so a valid file fails.
+    The generators are shared as `Generator`, a `oneOf` over the kinds.
+    """
+    defs = schema["$defs"]
+    union = dict(defs["Value"]["oneOf"][0])
+    union.pop("discriminator", None)
+    defs["Generator"] = {
+        "description": (
+            "A generator: a mapping whose `gen` key names its kind, and whose other "
+            "keys are its arguments."
+        ),
+        **union,
+    }
+    # A time or count place writes the kinds out again; point it at the shared list
+    for name, node in list(defs.items()):
+        if name != "Generator":
+            defs[name] = _use_generator(node, union)
+    schema["properties"] = _use_generator(schema["properties"], union)
+    has_gen = {"type": "object", "required": ["gen"]}
+    defs["Value"] = {
+        "description": (
+            "A value: a constant, a mapping or list of values, or a generator (a "
+            "mapping with a `gen` key). `{gen: literal, value: ...}` writes a mapping "
+            "that has a `gen` key as data."
+        ),
+        "if": has_gen,
+        "then": {"$ref": "#/$defs/Generator"},
+        # A mapping or list without `gen` is data, but a generator inside it is still
+        # checked
+        "else": {
+            "if": {"type": "object"},
+            "then": {
+                "type": "object",
+                "additionalProperties": {"$ref": "#/$defs/Value"},
+            },
+            "else": {
+                "if": {"type": "array"},
+                "then": {"type": "array", "items": {"$ref": "#/$defs/Value"}},
+            },
+        },
+    }
+    defs["Payload"] = {
+        "description": (
+            "A mapping of values, or one generator that gives a mapping or null; "
+            "a null publishes a record whose value is null."
+        ),
+        "if": has_gen,
+        "then": {"$ref": "#/$defs/Generator"},
+        "else": {"type": "object", "additionalProperties": {"$ref": "#/$defs/Value"}},
+    }
+
+
+def _use_generator(node: Any, union: Dict[str, Any]) -> Any:
+    """Replaces every written-out copy of the generator kinds with a `$ref`."""
+    if isinstance(node, list):
+        return [_use_generator(item, union) for item in node]
+    if not isinstance(node, dict):
+        return node
+    if {k: v for k, v in node.items() if k != "discriminator"} == union:
+        return {"$ref": "#/$defs/Generator"}
+    return {
+        key: value
+        if key in ("default", "enum", "const")
+        else _use_generator(value, union)
+        for key, value in node.items()
     }
 
 
@@ -341,8 +512,14 @@ def schema() -> Dict[str, Any]:
     """The blueprint JSON Schema, as a dict."""
     raw = Blueprint.model_json_schema(schema_generator=_Schema, mode="validation")
     _apply_input_forms(raw)
+    for owner, definition in raw.get("$defs", {}).items():
+        for name, prop in definition.get("properties", {}).items():
+            if (owner, name) not in ONE_OF_FIELDS:
+                _plain_unions(prop)
     _connector_names(raw)
     _tighten(raw)
+    _generators(raw)
+    _integer_first(raw)
     body = _placeholders(_share(raw))
     body.pop("title", None)
     body.pop("description", None)

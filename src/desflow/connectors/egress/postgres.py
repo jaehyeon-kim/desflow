@@ -1,15 +1,23 @@
 import asyncio
 import logging
 import queue
+from collections import Counter
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Optional
 
 import asyncpg
 import orjson
 
-from desflow.connectors.egress.base import BaseEgress, parse_iso_columns
+from desflow.connectors.egress.base import (
+    BaseEgress,
+    keep_keyed,
+    parse_iso_columns,
+    warn_skipped,
+)
 
 logger = logging.getLogger(__name__)
+
+TABLE_POLICIES = ("create", "drop_and_create", "manual")
 
 # information_schema data types whose columns take a Python datetime or date.
 # asyncpg rejects an ISO string for these, so such strings are converted first.
@@ -82,6 +90,20 @@ def _label_row(record: dict) -> dict:
     }
 
 
+def _create_schema_sql(name: str) -> Optional[str]:
+    """
+    Builds the `CREATE SCHEMA IF NOT EXISTS` statement for a qualified table name.
+
+    Args:
+        name (str): The table name, such as `dashboard.orders`.
+
+    Returns:
+        Optional[str]: The statement, or None when the name has no schema.
+    """
+    schema, dot, _ = name.rpartition(".")
+    return f"CREATE SCHEMA IF NOT EXISTS {schema}" if dot else None
+
+
 def _create_table_sql(
     name: str, columns: dict[str, str], primary_key: list[str]
 ) -> str:
@@ -117,6 +139,13 @@ class PostgresEgress(BaseEgress):
     NOTHING`). Name the key columns in `upsert_keys` to update the existing row
     instead, which a simulation needs when it changes rows it wrote earlier, such
     as an order moving from processing to shipped.
+
+    A payload field `__table__` names the table of that event, and is removed from the
+    row. An entry writes the events of its own `table_name` and ignores the others, so
+    one entry per table, all fed by the same events, splits a stream into tables. An
+    entry with `upsert_keys` is keyed: it skips an event with a null or missing key column,
+    and logs one warning at the end of each batch with the count. Before 1.0.0 such an
+    event stopped the batch with an error.
 
     An ISO time string bound for a timestamp or date column is converted to a
     `datetime` or `date` first, because asyncpg rejects the string itself.
@@ -161,6 +190,7 @@ class PostgresEgress(BaseEgress):
         table_name: str | None = None,
         upsert_keys: list[str] | None = None,
         tables: dict[str, Any] | None = None,
+        table_policy: str = "create",
         **kwargs: Any,
     ):
         """
@@ -178,12 +208,23 @@ class PostgresEgress(BaseEgress):
             tables: Optional tables to create at start when they do not exist. Each
                 table name maps to `columns`, a mapping of column name to SQL type,
                 and an optional `primary_key`, a column name or a list of them.
+            table_policy: What the sink does about the tables in `tables` when the
+                run starts. `create`, the default, creates the schema of a qualified
+                name (`CREATE SCHEMA IF NOT EXISTS`) and the table when they do not
+                exist. `drop_and_create` also drops the table first
+                (`DROP TABLE IF EXISTS`). `manual` creates nothing.
             **kwargs: Additional connection pool arguments for asyncpg.
 
         Raises:
-            ValueError: If a `tables` entry is malformed, or if `tables` names
-                several tables and `table_name` does not say which one to write to.
+            ValueError: If a `tables` entry is malformed, if `table_policy` is not one
+                of its three words, or if `tables` names several tables and
+                `table_name` does not say which one to write to.
         """
+        if table_policy not in TABLE_POLICIES:
+            raise ValueError(
+                f"table_policy '{table_policy}' is not one of {', '.join(TABLE_POLICIES)}"
+            )
+        self.table_policy = table_policy
         self.tables: dict[str, tuple[dict[str, str], list[str]]] = {
             str(name): _table_spec(str(name), spec)
             for name, spec in (tables or {}).items()
@@ -213,7 +254,23 @@ class PostgresEgress(BaseEgress):
             assert self.pool is not None
             async with self.pool.acquire() as conn:
                 for name, (columns, primary_key) in self.tables.items():
+                    if self.table_policy == "manual":
+                        break
                     try:
+                        schema_sql = _create_schema_sql(name)
+                        if schema_sql is not None:
+                            # CREATE SCHEMA IF NOT EXISTS checks the database
+                            # privilege first, so a role that may only use an
+                            # existing schema is not asked to create it
+                            schema = name.rpartition(".")[0].lower()
+                            known = await conn.fetchval(
+                                "SELECT 1 FROM pg_namespace WHERE nspname = $1",
+                                schema,
+                            )
+                            if not known:
+                                await conn.execute(schema_sql)
+                        if self.table_policy == "drop_and_create":
+                            await conn.execute(f"DROP TABLE IF EXISTS {name}")
                         await conn.execute(
                             _create_table_sql(name, columns, primary_key)
                         )
@@ -224,11 +281,18 @@ class PostgresEgress(BaseEgress):
                         # Another writer created it between the existence check
                         # and the create, which IF NOT EXISTS does not guard.
                         pass
-                rows = await conn.fetch(
-                    "SELECT column_name, data_type FROM information_schema.columns "
-                    "WHERE table_name = $1",
-                    self.table_name,
-                )
+                # The one table the statements reach: PostgreSQL folds the name's case
+                # and resolves it through `search_path` here as it does in them
+                try:
+                    rows = await conn.fetch(
+                        "SELECT attname AS column_name, "
+                        "format_type(atttypid, NULL) AS data_type "
+                        "FROM pg_attribute WHERE attrelid = $1::regclass "
+                        "AND attnum > 0 AND NOT attisdropped",
+                        self.table_name,
+                    )
+                except asyncpg.exceptions.UndefinedTableError:
+                    rows = []
                 self.valid_columns = {row["column_name"] for row in rows}
                 self.time_columns = {
                     row["column_name"]: _TIME_TYPES[row.get("data_type")]
@@ -305,6 +369,63 @@ class PostgresEgress(BaseEgress):
         assignments = ", ".join(f"{k} = EXCLUDED.{k}" for k in updates)
         return f"{query} ON CONFLICT ({conflict}) DO UPDATE SET {assignments}"
 
+    def _rows(self, batch: list) -> list[dict]:
+        """
+        Turns a batch into the rows of this sink's table.
+
+        A label record becomes a row of its own. An event or telemetry record whose
+        value is a mapping becomes that mapping, with the envelope fields when
+        `envelope` is on, unless its `__table__` names another table or a keyed
+        entry finds a null or missing key column. One warning gives the counts of the
+        records skipped.
+
+        Args:
+            batch: The batch's records, in the order they arrived.
+
+        Returns:
+            list[dict]: The rows, in the order of their records.
+        """
+        # Support multi-table multiplexing using a __table__ key
+        clean_batch = []
+        skipped: Counter = Counter()
+        keyed = bool(self.upsert_keys)
+        for item in batch:
+            if item.get("stream_type") == "label":
+                clean_batch.append(_label_row(item))
+                continue
+            # `item` is an EventPayload or TelemetryPayload dict.
+            # The actual user data is in `item["value"]`.
+            payload = item.get("value")
+            if not isinstance(payload, dict):
+                # PostgresEgress requires dictionaries (or Pydantic models
+                # dumped to dicts). A telemetry reading that is a number
+                # is not written either, and is skipped without a warning
+                if item.get("stream_type") != "telemetry":
+                    skipped["not_mapping"] += 1
+                continue
+            # Merge the simulation metadata into the payload so it CAN be inserted if the user configured their schema to accept it
+            payload_copy = payload.copy()
+            if self.envelope:
+                payload_copy["sim_ts"] = item.get("sim_ts")
+                payload_copy["timestamp"] = item.get("timestamp")
+                if "key" in item:
+                    payload_copy["event_id"] = item["key"]
+                    # A payload field of the same name wins, as in flat files
+                    for field in ("task", "instance"):
+                        payload_copy.setdefault(field, item.get(field))
+                if "path_id" in item:
+                    payload_copy["path_id"] = item["path_id"]
+            # A null or empty `__table__` is no route: the record goes to this table
+            target = payload_copy.pop("__table__", None) or self.table_name
+            if target == self.table_name:
+                if keyed and not keep_keyed(
+                    [payload_copy], self.upsert_keys or [], skipped
+                ):
+                    continue
+                clean_batch.append(payload_copy)
+        warn_skipped(self, skipped, "__table__")
+        return clean_batch
+
     async def run(self, egress_queue: queue.Queue) -> None:
         """
         Main execution loop for PostgreSQL data persistence.
@@ -315,8 +436,21 @@ class PostgresEgress(BaseEgress):
         Raises:
             ValueError: If a column in `upsert_keys` is not in the table.
         """
-        await self._init_pool()
+        try:
+            await self._init_pool()
+            await self._write_forever(egress_queue)
+        finally:
+            await self._close_pool()
 
+    async def _close_pool(self) -> None:
+        """Closes the pool and forgets it, so the next run makes its own in its own
+        event loop and sets the tables up again."""
+        pool, self.pool = self.pool, None
+        if pool is not None:
+            await pool.close()
+
+    async def _write_forever(self, egress_queue: queue.Queue) -> None:
+        """Writes the batches of the queue until the task is cancelled."""
         while True:
             try:
                 # Receive a batch (list) of dictionaries
@@ -324,39 +458,7 @@ class PostgresEgress(BaseEgress):
                 if not batch:
                     continue
 
-                # Support multi-table multiplexing using a __table__ key
-                clean_batch = []
-                for item in batch:
-                    if item.get("stream_type") == "label":
-                        clean_batch.append(_label_row(item))
-                        continue
-                    # `item` is an EventPayload or TelemetryPayload dict.
-                    # The actual user data is in `item["value"]`.
-                    payload = item.get("value")
-
-                    if not isinstance(payload, dict):
-                        # PostgresEgress requires dictionaries (or Pydantic models dumped to dicts)
-                        continue
-
-                    # Merge the simulation metadata into the payload so it CAN be inserted if the user configured their schema to accept it
-                    payload_copy = payload.copy()
-                    payload_copy["sim_ts"] = item.get("sim_ts")
-                    payload_copy["timestamp"] = item.get("timestamp")
-
-                    if "key" in item:
-                        payload_copy["event_id"] = item["key"]
-                        # A payload field of the same name wins, as in flat files
-                        for field in ("task", "instance"):
-                            payload_copy.setdefault(field, item.get(field))
-                    if "path_id" in item:
-                        payload_copy["path_id"] = item["path_id"]
-
-                    # Determine target table, defaulting to self.table_name if not specified
-                    target = payload_copy.get("__table__", self.table_name)
-                    if target == self.table_name:
-                        payload_copy.pop("__table__", None)
-                        clean_batch.append(payload_copy)
-
+                clean_batch = self._rows(batch)
                 if not clean_batch:
                     continue
 
@@ -375,10 +477,13 @@ class PostgresEgress(BaseEgress):
                     continue
 
                 assert self.pool is not None
-                async with self.pool.acquire() as conn:
-                    for keys, records in runs:
-                        values = [tuple(data.get(k) for k in keys) for data in records]
-                        await conn.executemany(self._insert_query(keys), values)
+                with self._writing():
+                    async with self.pool.acquire() as conn:
+                        for keys, records in runs:
+                            values = [
+                                tuple(data.get(k) for k in keys) for data in records
+                            ]
+                            await conn.executemany(self._insert_query(keys), values)
 
                 written = sum(len(records) for _, records in runs)
                 logger.debug(f"Inserted {written} records into {self.table_name}")

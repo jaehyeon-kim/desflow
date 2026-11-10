@@ -1,0 +1,101 @@
+# Messages and reviews with a known intent or sentiment.
+#
+# Each message has an intent and each review a sentiment, drawn first by weight. The
+# text is then written from one of the templates for that label, so the label is known
+# for every record, and can be used to check a classifier, a retrieval system or a
+# language model against what it should find.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/labelled_text.yaml
+
+simulation:
+  sim_id: Text
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  messages: {dist: exponential, rate: 0.5, spawn: message}
+  reviews: {dist: exponential, rate: 0.2, spawn: review}
+
+tasks:
+  message:
+    vars:
+      intent:
+        gen: weighted
+        options: {order_status: 4, refund: 2, cancel: 1, hello: 3}
+    payload:
+      message_id: {gen: sequence, start: 1}
+      intent: {gen: var, name: intent}
+      text:
+        gen: switch
+        on: {gen: var, name: intent}
+        cases:
+          order_status:
+            gen: weighted
+            choices:
+              - value:
+                  gen: format
+                  template: "Where is my order {n}?"
+                  names:
+                    n: {gen: integer, bounds: [1000, 9999]}
+                weight: 2
+              - {value: "Has my parcel been sent yet?", weight: 1}
+          refund:
+            gen: weighted
+            choices:
+              - {value: "I want my money back for this order.", weight: 2}
+              - value:
+                  gen: format
+                  template: "Please refund order {n}."
+                  names:
+                    n: {gen: integer, bounds: [1000, 9999]}
+                weight: 1
+          cancel:
+            gen: weighted
+            choices:
+              - {value: "Cancel my order, I changed my mind.", weight: 1}
+              - {value: "Please stop my subscription.", weight: 1}
+          hello:
+            gen: weighted
+            choices:
+              - {value: "Hi, I have a question.", weight: 1}
+              - {value: "Hello, is anyone there?", weight: 1}
+
+  review:
+    vars:
+      sentiment:
+        gen: weighted
+        options: {positive: 6, neutral: 2, negative: 2}
+      product: {gen: one_of, choices: [lamp, notebook, backpack, headphones]}
+    payload:
+      review_id: {gen: sequence, start: 1}
+      sentiment: {gen: var, name: sentiment}
+      text:
+        gen: switch
+        on: {gen: var, name: sentiment}
+        cases:
+          positive:
+            gen: weighted
+            choices:
+              - value:
+                  gen: format
+                  template: "The {product} is great and arrived early."
+                weight: 1
+              - value:
+                  gen: format
+                  template: "I love this {product}, I would buy it again."
+                weight: 1
+          neutral: {gen: format, template: "The {product} is fine, nothing special."}
+          negative:
+            gen: weighted
+            choices:
+              - value: {gen: format, template: "The {product} broke after a week."}
+                weight: 1
+              - value: {gen: format, template: "I would not recommend this {product}."}
+                weight: 1
+
+run: {until: 10 min}

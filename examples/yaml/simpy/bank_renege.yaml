@@ -1,0 +1,42 @@
+# Bank Renege: SimPy's bank_renege.py example, in YAML.
+#
+# The YAML version of bank_renege_example.py, which --api builder downloads. One
+# counter serves five customers. The first arrives at 0 and the others about 10
+# seconds apart (exponential gaps). Each customer waits for the counter for a patience
+# drawn between 1 and 3 seconds, and goes away (reneged) if the counter is not free by
+# then. A customer at the counter is served for about 12 seconds (exponential).
+#
+# SimPy's example counts seconds, as desflow does. Each value is drawn from desflow's
+# random sequence for its place in the file, so the numbers differ from those SimPy
+# prints.
+#
+# Needs no containers. Runs unpaced and ends when the last customer leaves.
+# Run it from its folder with: desflow run bank_renege.yaml
+
+simulation: {sim_id: Bank, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:customers-arrive]
+resources:
+  counter: {current_cap: 1}
+
+arrivals:
+  customers:
+    dist: exponential
+    rate: 0.1
+    first_at: 0
+    max_events: 5
+    key: {gen: sequence, format: "Customer{:02d}"}
+    spawn: customer
+# --8<-- [end:customers-arrive]
+
+# --8<-- [start:customer-waits-or-reneges]
+tasks:
+  customer:
+    resource: counter
+    patience: {gen: uniform, low: 1, high: 3}
+    service_time: {gen: sample, dist: exponential, rate: 0.08333333333333333}
+    payload: {event_type: finished}
+# --8<-- [end:customer-waits-or-reneges]

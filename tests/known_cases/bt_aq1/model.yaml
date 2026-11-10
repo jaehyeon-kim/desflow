@@ -1,0 +1,276 @@
+# case BT-AQ (rows AQ1 to AQ13): air-quality hourly step. HOURS is the length of the run
+# from the stored first hour; WARMUP_HOURS of it are not written (AQ12).
+# AQ12, AQ13: today
+simulation:
+  sim_id: air_quality
+  factor: 0
+  random_seed: "${SEED:-42}"
+  logical_start_time: "${START:-2024-10-01T00:00:00+00:00}"
+  timezone: UTC
+  lag_interval: 3600
+  warmup: "${WARMUP_HOURS:-0}h"
+
+# the window plus the 7 days of forecasts issued in its last hours (AQ6)
+run: {until: "${RUN_HOURS:-888}h"}
+
+egress:
+  - type: Iceberg
+    config:
+      # the project's catalog (airq/core/config.py); the test replaces the sink
+      catalog:
+        name: odctl
+        type: rest
+        uri: "http://127.0.0.1:8181"
+        warehouse: "s3://warehouse/"
+      # AQ10: the 0.29.0 key is a mapping from table identifier to key columns (docker
+      # run, round 4); the tables list of the first round is refused by 0.29.0
+      upsert_keys:
+        airq.observations: [location_id, measured_at]
+        airq.weather_forecasts: [location_id, forecast_for, lead_days]
+        airq.daily_weather: [location_id, day, lead_days]
+        airq.daily_air_quality: [location_id, day]
+      # AQ11: a column type name; `timestamptz` is the original's type (`timestamp`
+      # gives a column without a zone). AQ9: `__table__` routing on Iceberg ships with
+      # the sink options
+      schemas:
+        airq.observations: {measured_at: timestamptz}
+
+arrivals:
+  # AQ1: today; generator.py _CALM is the state of the first hour. `count: 1` is one
+  # entity that repeats, so its attributes carry the weather from hour to hour (AQ2)
+  hour:
+    dist: constant
+    value: 3600
+    count: 1
+    first_at: 0
+    spawn: weather
+    attributes:
+      temp: 0
+      wind: 0
+      wet: false
+      rain: 0
+      direction: 180
+      prev_mean: 0
+      act_pm: 0
+      act_temp: 0
+      act_wind: 0
+      act_rain: 0
+      act_direction: 0
+
+tasks:
+  # one hour of generator.py `generate`: this hour's true state is in `attr`, the next
+  # hour's is drawn now and kept by `set`
+  weather:
+    vars:
+      epoch_s: {gen: format_time, format: epoch_s}
+      # generator.py actual
+      temperature:
+        gen: expr
+        expr: "18 + 5 * cos(2 * 3.141592653589793 * (epoch_s / 3600 - 360) / 8766) + 3 *
+          cos(2 * 3.141592653589793 * (epoch_s / 3600 - 4.5) / 24) + attr.temp"
+      wind:
+        gen: expr
+        expr: "max(10 + 2.4 * cos(2 * 3.141592653589793 * (epoch_s / 3600 - 5.5) / 24) +
+          attr.wind, 0)"
+      # AQ5: 1 January 1970 was a Thursday, so +3 counts from Monday
+      weekday: {gen: expr, expr: "1 if ((epoch_s // 86400 + 3) % 7) < 5 else 0"}
+      # AQ4: generator.py observation, peak at 17 UTC
+      pm:
+        gen: expr
+        expr: "max(exp(2.05 + 0.4 * weekday + 0.12 * cos(2 * 3.141592653589793 *
+          (epoch_s / 3600 - 17) / 24) - 0.1 * (wind - 10) - 0.4 * (1 if attr.wet else 0)
+          + e) - 1, 0)"
+        names:
+          e: {gen: normal, mean: 0, std: 0.1}
+        decimals: 2
+      # AQ2: generator.py next_hour
+      n_temp:
+        gen: expr
+        expr: "0.96 * attr.temp + e"
+        names:
+          e: {gen: normal, mean: 0, std: 0.8}
+      n_wind:
+        gen: expr
+        expr: "0.9 * attr.wind + e"
+        names:
+          e: {gen: normal, mean: 0, std: 1.8}
+      n_wet:
+        gen: boolean
+        p: {gen: expr, expr: "0.78 if attr.wet else 0.06"}
+      # AQ3: exponential with mean 0.6
+      n_rain:
+        gen: expr
+        expr: "r if n_wet else 0"
+        names:
+          r: {gen: sample, dist: exponential, rate: 1.6667}
+      n_direction:
+        gen: expr
+        expr: "(attr.direction + e) % 360"
+        names:
+          e: {gen: normal, mean: 0, std: 27}
+    payload: {}
+    next: fanout
+    set:
+      act_pm: {gen: var, name: pm}
+      act_temp: {gen: var, name: temperature}
+      act_wind: {gen: var, name: wind}
+      act_rain: {gen: expr, expr: attr.rain}
+      act_direction: {gen: expr, expr: attr.direction}
+      temp: {gen: var, name: n_temp}
+      wind: {gen: var, name: n_wind}
+      wet: {gen: var, name: n_wet}
+      rain: {gen: var, name: n_rain}
+      direction: {gen: var, name: n_direction}
+  fanout:
+    open:
+      readings:
+        each: "1 if int(t // 3600) < ${HOURS:-720} else 0"
+        branch:
+          task: reading
+          args:
+            pm: {gen: expr, expr: attr.act_pm}
+      # AQ6, AQ7: the forecast of this hour issued `lead` days ago, in place of a
+      # look-ahead; only leads issued inside the window
+      forecasts:
+        each: "range(max(1, (int(t // 3600) - ${HOURS:-720}) // 24 + 1), min(7, (int(t
+          // 3600) - ${WARMUP_HOURS:-0}) // 24) + 1)"
+        branch:
+          task: forecast
+          args:
+            lead: {gen: expr, expr: each.value}
+            temp: {gen: expr, expr: attr.act_temp}
+            wind: {gen: expr, expr: attr.act_wind}
+            rain: {gen: expr, expr: attr.act_rain}
+            direction: {gen: expr, expr: attr.act_direction}
+      first_day:
+        each: "1 if int(t // 3600) == 23 else 0"
+        branch: {task: day_one}
+      daily_air:
+        each: "1 if int(t // 3600) % 24 == 23 and int(t // 3600) >= 47 and int(t //
+          3600) < ${HOURS:-720} else 0"
+        branch: {task: daily_air_quality}
+      daily_weather:
+        each: "range(max(1, int(t // 86400) - ${HOURS:-720} // 24 + 1), min(7, int(t //
+          86400) - ${WARMUP_HOURS:-0} // 24) + 1) if int(t // 3600) % 24 == 23 else []"
+        branch:
+          task: daily_weather
+          args:
+            lead: {gen: expr, expr: each.value}
+    payload: {}
+  reading:                                                   # table airq.observations
+    payload:
+      location_id: station-1
+      measured_at: {gen: now}
+      pm2_5: {gen: expr, expr: arg.pm}
+      __table__: airq.observations
+  # table airq.weather_forecasts
+  forecast:
+    vars:
+      t2m:
+        gen: expr
+        expr: "arg.temp + e"
+        names:
+          e:
+            gen: normal
+            mean: 0
+            std: {gen: expr, expr: "1 + 0.2 * arg.lead"}
+        decimals: 1
+      precipitation:
+        gen: expr
+        expr: "arg.rain * exp(e)"
+        names:
+          e:
+            gen: normal
+            mean: 0
+            std: {gen: expr, expr: "0.3 + 0.1 * arg.lead"}
+        decimals: 1
+      wind_speed:
+        gen: expr
+        expr: "arg.wind * exp(e)"
+        names:
+          e:
+            gen: normal
+            mean: 0
+            std: {gen: expr, expr: "0.1 + 0.03 * arg.lead"}
+        decimals: 1
+      wind_direction:
+        gen: expr
+        expr: "round(arg.direction + e) % 360"
+        names:
+          e:
+            gen: normal
+            mean: 0
+            std: {gen: expr, expr: "35 + 5 * arg.lead"}
+    payload:
+      location_id: station-1
+      forecast_for: {gen: now}
+      issued_at:
+        gen: now
+        offset: {gen: expr, expr: "-86400 * arg.lead"}
+      lead_days: {gen: expr, expr: arg.lead}
+      temperature_2m: {gen: var, name: t2m}
+      precipitation: {gen: var, name: precipitation}
+      wind_speed_10m: {gen: var, name: wind_speed}
+      wind_direction_10m: {gen: var, name: wind_direction}
+      __table__: airq.weather_forecasts
+  # the first day has no air quality row: it has no day before; it keeps its mean for
+  # the second day
+  day_one:
+    vars:
+      m: {gen: aggregate, task: reading, path: pm2_5, last: 24, function: mean}
+    payload: {}
+    set:
+      prev_mean: {gen: var, name: m}
+  # AQ8: table airq.daily_air_quality
+  daily_air_quality:
+    vars:
+      m: {gen: aggregate, task: reading, path: pm2_5, last: 24, function: mean}
+      epoch_s: {gen: format_time, format: epoch_s}
+    payload:
+      location_id: station-1
+      day: {gen: format_time, format: "%Y-%m-%d"}
+      pm2_5: {gen: expr, expr: "round(m, 2)"}
+      is_weekend: {gen: expr, expr: "((epoch_s // 86400 + 3) % 7) >= 5"}
+      pm2_5_lag1: {gen: expr, expr: "round(attr.prev_mean, 2)"}
+      __table__: airq.daily_air_quality
+    set:
+      prev_mean: {gen: var, name: m}
+  # AQ8: table airq.daily_weather, one row per lead for the forecast day that ends now
+  daily_weather:
+    vars:
+      day: {gen: format_time, format: "%Y-%m-%d"}
+      temp_mean:
+        gen: aggregate
+        task: forecast
+        path: temperature_2m
+        last: 24
+        function: mean
+        where: "lead_days == arg.lead and forecast_for[:10] == day"
+      wind_mean:
+        gen: aggregate
+        task: forecast
+        path: wind_speed_10m
+        last: 24
+        function: mean
+        where: "lead_days == arg.lead and forecast_for[:10] == day"
+      wet:
+        gen: aggregate
+        task: forecast
+        last: 24
+        function: count
+        where: "lead_days == arg.lead and forecast_for[:10] == day and precipitation >
+          0"
+    payload:
+      location_id: station-1
+      day: {gen: var, name: day}
+      lead_days: {gen: expr, expr: arg.lead}
+      issued_on:
+        gen: format_time
+        time:
+          gen: now
+          offset: {gen: expr, expr: "-86400 * arg.lead"}
+        format: "%Y-%m-%d"
+      temperature_2m: {gen: expr, expr: "round(temp_mean, 2)"}
+      wind_speed_10m: {gen: expr, expr: "round(wind_mean, 2)"}
+      wet_hours: {gen: var, name: wet}
+      __table__: airq.daily_weather

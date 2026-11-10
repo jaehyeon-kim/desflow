@@ -10,6 +10,7 @@ it creates no request and is counted once.
 
 import functools
 
+import pytest
 import simpy
 from simpy.resources.resource import SortedQueue
 
@@ -53,8 +54,8 @@ def _reference(holder_at, hold, waiter_at, patience, until):
 
     def waiter():
         with machine.request() as req:
-            yield req | env.timeout(patience)
-            if not req.triggered:
+            result = yield req | env.timeout(patience)
+            if req not in result:
                 outcome.append(("reneged", env.now))
                 return
             outcome.append(("started", env.now))
@@ -87,8 +88,8 @@ def _low_level(sim_id, holder_at, hold, waiter_at, patience, until, stats=None):
             env.publish_event("w-1", {"status": "queued"}, task="waiter", instance=0)
             env.stats.task_queued("waiter", 0)
             with machine.request() as req:
-                yield req | env.timeout(patience)
-                if not req.triggered:
+                result = yield req | env.timeout(patience)
+                if req not in result:
                     env.publish_event(
                         "w-1", {"status": "reneged"}, task="waiter", instance=0
                     )
@@ -164,19 +165,110 @@ def test_c7_reneging():
         assert _waiter_outcome(records) == expected
 
 
-def test_c7_reneging_tie_timeout_scheduled_after_the_grant():
-    """The holder's service ends at 6, scheduled at 0; the waiter's patience ends
-    at 6, scheduled at 3. SimPy serves the waiter, and so does desflow."""
-    expected = _reference(0, 6, 3, 3, 8)
-    assert expected == [("started", 6)]
-    low, _env = _low_level("C7tie", 0.0, 6.0, 3.0, 3.0, 8)
-    builder, _app = _builder("C7tie", 0.0, 6.0, 3.0, 3.0, 8)
-    # YAML arrivals start at their first gap, so the same tie is at 16
-    yaml, _app = run_yaml("patience_tie_served.yaml")
-    assert _waiter_outcome(low) == expected
-    assert _waiter_outcome(builder) == expected
-    # The same tie, from SimPy, 10 s later
-    assert _waiter_outcome(yaml) == _reference(10, 6, 13, 3, 18)
+def _reference_first_at_a_tie(n):
+    """`n` holders serve 6 on `n` units from 0. `n` waiters ask at 3 with a patience of
+    3, which ends at 6, the instant the units are given back. The waiter's timeout was
+    made at 3, before the holders' release at 6 grants the requests, so at 6 the
+    patience comes first and `req in result` is false: every waiter reneges."""
+    env = simpy.Environment()
+    machine = simpy.Resource(env, capacity=n)
+    outcome = []
+
+    def holder():
+        with machine.request() as req:
+            yield req
+            yield env.timeout(6)
+
+    def waiter():
+        yield env.timeout(3)
+        with machine.request() as req:
+            result = yield req | env.timeout(3)
+            outcome.append(("reneged" if req not in result else "started", env.now))
+
+    for make in (holder, waiter):
+        for _ in range(n):
+            env.process(make())
+    env.run(until=12)
+    return outcome, machine.count
+
+
+TIE_FIRST = """
+simulation: {sim_id: C7tie, factor: 0}
+resources:
+  machine: {current_cap: %(n)d, max_cap: %(n)d}
+services:
+  hold: {dist: constant, value: 6}
+  quick: {dist: constant, value: 1}
+arrivals:
+  holders: {replay: {path: holders.csv}, spawn: holder}
+  waiters: {replay: {path: waiters.csv}, spawn: waiter}
+tasks:
+  holder:
+    service: hold
+    resource: machine
+    payload: {event: held}
+  waiter:
+    %(body)s
+    patience: 3
+    payload: {event: served}
+run: {until: 12}
+"""
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+@pytest.mark.parametrize("kind", ["resource", "wait_branch"])
+def test_patience_first_at_a_tie_reneges(tmp_path, n, kind):
+    """A patience that ends at the instant its unit is granted, when the patience's
+    event comes first, reneges, as SimPy's `req in result` is false for a request
+    granted after the condition was processed. The same holds when the task waits for
+    its unit in a `wait` branch (register row I5)."""
+    expected, _count = _reference_first_at_a_tie(n)
+    assert expected == [("reneged", 6)] * n
+
+    app = SimulationContext("C7tie", factor=0.0)
+    app.add_resource("machine", current_cap=n, max_cap=n)
+    app.add_service("hold", dist="constant", value=6)
+    app.add_service("quick", dist="constant", value=1)
+    options = (
+        {"resource_id": "machine"}
+        if kind == "resource"
+        else {"wait": {"request": "machine"}}
+    )
+
+    @app.task(service_id="hold", resource_id="machine", name="holder")
+    def holder(task_id):
+        return {"event": "held"}
+
+    @app.task(service_id="quick", patience=3, name="waiter", **options)
+    def waiter(task_id):
+        return {"event": "served"}
+
+    def script(context):
+        for i in range(n):
+            context.spawn(holder(0, entity=Entity(f"h-{i}", "h")))
+        yield context.env.timeout(3)
+        for i in range(n):
+            context.spawn(waiter(0, entity=Entity(f"w-{i}", "w")))
+
+    app.add_process(script)
+    records = run_builder(app, 12)
+    assert at(records, "reneged") == [(6.0, f"w-{i}") for i in range(n)]
+    assert at(records, "started") == [(0.0, f"h-{i}") for i in range(n)]
+    assert app.get_resource("machine").count == 0
+
+    body = (
+        "resource: machine\n    service: quick"
+        if kind == "resource"
+        else "wait: {request: machine}\n    service: quick"
+    )
+    outcome = run_yaml_text(
+        tmp_path,
+        TIE_FIRST % {"n": n, "body": body},
+        {"holders": [0] * n, "waiters": [3] * n},
+    )
+    assert outcome.error is None
+    assert [t for t, _key in at(outcome.records, "reneged")] == [6.0] * n
+    assert outcome.app_or_env.get_resource("machine").count == 0
 
 
 def test_c7_reneging_tie_timeout_scheduled_before_the_grant():
@@ -802,7 +894,7 @@ def test_c7_queue_limit_fails_a_request_wait_branch():
             context.spawn(task(context.next_instance(task.__name__)))
 
     app.add_process(script)
-    assert seen(run_builder(app, 20)) == expected
+    assert seen(run_builder(app, 20, on_unhandled_failure="continue")) == expected
     assert app.get_resource("machine").in_use == 0
 
 
@@ -916,6 +1008,33 @@ def test_c7_a_preempted_request_wait_balks_when_the_line_is_full(tmp_path):
     ]
 
 
+def test_c7_a_preempted_seize_balks_when_the_line_is_full(tmp_path):
+    """B-U2: a `seize` unit lost to a preemption is asked for again on resume; the
+    line is full by then, so the task balks, as a `request` wait branch does."""
+
+    def prepare(app):
+        def script(context):
+            env = context.env
+            yield env.timeout(1)
+            machine = context.get_resource("machine")
+            first = machine.request(priority=-1)  # preempts the task's unit
+            machine.request(priority=4)  # takes the one place in the line
+            yield env.timeout(1)
+            machine.release(first)
+
+        app.add_process(script)
+
+    text = PREEMPTED_LINE.replace("wait: {request: machine}", "seize: machine")
+    outcome = run_yaml_text(tmp_path, text, {"los": [0]}, prepare)
+    assert outcome.error is None
+    assert _statuses(outcome.records, "lo") == [
+        "queued",
+        "started",
+        "preempted",
+        "balked",
+    ]
+
+
 PREEMPTED_WAIT = """
 simulation: {sim_id: T3, factor: 0}
 resources:
@@ -1004,3 +1123,299 @@ def test_c7_a_preempted_request_wait_reneges_when_the_patience_runs_out(tmp_path
     assert outcome.error is None
     assert times(outcome.records, "lo", "reneged") == [5.0]
     assert len(outcome.app_or_env.get_resource("machine").queue) == 0
+
+
+def test_c7_patience_that_evaluates_to_text_is_read_as_a_number(tmp_path):
+    """A patience expression that gives text, such as an attribute written "2", is
+    converted to a number as it was before numbers were kept as written."""
+    text = (
+        "simulation: {sim_id: C7, factor: 0}\n"
+        "resources: {machine: {current_cap: 1, max_cap: 1}}\n"
+        "services: {hold: {dist: constant, value: 5}}\n"
+        "arrivals:\n"
+        "  a: {replay: {path: a.csv}, spawn: hold, attributes: {p: '2'}}\n"
+        "tasks:\n"
+        "  hold: {service: hold, resource: machine, patience: attr.p,"
+        " payload: {event: done}}\n"
+        "run: {until: 20}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"a": [0, 1]})
+    assert outcome.error is None, outcome.error
+
+
+def _child_value_reference(n):
+    """`n` workers hold a machine of capacity `n` until 5. Each parent waits for a child
+    that asks for the machine with a patience of 2. A child that gives up returns
+    without a value, which the parent reads as `ok` with no value; a child that is
+    served returns a value."""
+    env = simpy.Environment()
+    machine = simpy.Resource(env, capacity=n)
+    seen = []
+
+    def holder():
+        with machine.request() as req:
+            yield req
+            yield env.timeout(5)
+
+    def child():
+        req = machine.request()
+        result = yield req | env.timeout(2)
+        if req not in result:
+            req.cancel()
+            return
+        yield env.timeout(1)
+        machine.release(req)
+        return "served"
+
+    def parent(name, start):
+        yield env.timeout(start)
+        value = yield env.process(child())
+        seen.append((name, "no value" if value is None else "value"))
+
+    for _ in range(n):
+        env.process(holder())
+    for i in range(n):
+        env.process(parent(f"early-{i}", 0))
+    for i in range(n):
+        env.process(parent(f"late-{i}", 6))
+    env.run(until=30)
+    return sorted(seen)
+
+
+CHILD_VALUE = """
+simulation: {sim_id: C7value, factor: 0}
+resources: {machine: {current_cap: %(n)d, max_cap: %(n)d}}
+services: {hold: {dist: constant, value: 5}, one: {dist: constant, value: 1}}
+arrivals:
+  holders: {replay: {path: holders.csv}, spawn: holder}
+  early: {replay: {path: early.csv}, spawn: early}
+  late: {replay: {path: late.csv}, spawn: late}
+tasks:
+  holder: {service: hold, resource: machine, payload: {event: held}}
+  early: &parent
+    wait: {task: line}
+    payload: {event: parent}
+    next:
+      when:
+        - {condition: "wait.line.ok and not wait.line.value", task: gave_up}
+      default: got_it
+  late: *parent
+  line: {service: one, resource: machine, patience: 2, payload: {event: served}}
+  gave_up: {payload: {event: no_value}}
+  got_it: {payload: {event: value}}
+run: {until: 30}
+"""
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+def test_child_that_reneged_reports_simpy_value(tmp_path, n):
+    """A child flow whose request reneged ends with `ok` true and no value, as a SimPy
+    child that returns without a value does, and a served child has a value
+    (register row I6, the `wait: {task: ...}` form)."""
+    expected = _child_value_reference(n)
+    assert [kind for _name, kind in expected] == ["no value"] * n + ["value"] * n
+
+    outcome = run_yaml_text(
+        tmp_path,
+        CHILD_VALUE % {"n": n},
+        {"holders": [0] * n, "early": [0] * n, "late": [6] * n},
+    )
+    assert outcome.error is None
+    ended = sorted(
+        r["value"]["event"]
+        for r in outcome.records
+        if r["stream_type"] == "event" and r["task"] in ("gave_up", "got_it")
+    )
+    assert ended == ["no_value"] * n + ["value"] * n
+
+
+def _reference_timeout_branch_at_a_tie(n):
+    """`n` waiters yield `(t | s) | patience` with the patience made first and both
+    ending at 5. The patience is processed first and triggers the condition, but `t`
+    is processed before the condition is, and a SimPy condition builds its value when
+    it is processed, so `t in result` is true: the waiter is not reneged."""
+    env = simpy.Environment()
+    outcome = []
+
+    def waiter():
+        signal = env.event()
+        patience = env.timeout(5)
+        limit = env.timeout(5)
+        result = yield (limit | signal) | patience
+        outcome.append("done" if limit in result else "reneged")
+
+    for _ in range(n):
+        env.process(waiter())
+    env.run(until=12)
+    return outcome
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+def test_patience_does_not_beat_a_timeout_branch_processed_first(tmp_path, n):
+    """A patience and a `timeout` branch of an `any` wait that end at one instant: the
+    timeout is processed before the wait's condition, so it is in the condition's value
+    and the wait is done, as in SimPy. It does not renege (register row I5)."""
+    assert _reference_timeout_branch_at_a_tie(n) == ["done"] * n
+
+    app = SimulationContext("C7leaf", factor=0.0)
+    app.add_signal("s")
+
+    @app.task(
+        wait={"any": {"t": {"timeout": 5}, "s": {"signal": "s"}}},
+        patience=5,
+        name="W",
+    )
+    def waiter(task_id):
+        return {"event": "done"}
+
+    def script(context):
+        for i in range(n):
+            context.spawn(waiter(0, entity=Entity(f"w-{i}", "w")))
+        yield context.env.timeout(0)
+
+    app.add_process(script)
+    records = run_builder(app, 12)
+    assert [r["value"].get("status") for r in records if r["task"] == "W"].count(
+        "reneged"
+    ) == 0
+    assert at(records, "reneged") == []
+
+    text = (
+        "simulation: {sim_id: C7leaf, factor: 0}\n"
+        "signals: {s: {}}\n"
+        "arrivals: {w: {replay: {path: w.csv}, spawn: W}}\n"
+        "tasks:\n"
+        "  W: {wait: {any: {t: {timeout: 5}, s: {signal: s}}}, patience: 5, "
+        "payload: {event: done}}\n"
+        "run: {until: 12}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"w": [0] * n})
+    assert outcome.error is None
+    assert at(outcome.records, "reneged") == []
+    assert len([r for r in outcome.records if r["value"].get("event") == "done"]) == n
+
+
+def _reference_get_at_a_tie(n):
+    """A putter made first puts `n` items at 3. `n` waiters ask for an item at 0 with a
+    patience of 3. The putter's step comes first, so the get is granted before the
+    waiter resumes, but after the condition was processed: `get in result` is false,
+    the waiter reneges and the item is lost."""
+    env = simpy.Environment()
+    box = simpy.Store(env)
+    outcome = []
+
+    def putter():
+        yield env.timeout(3)
+        for i in range(n):
+            yield box.put(i)
+
+    def waiter():
+        get = box.get()
+        result = yield get | env.timeout(3)
+        outcome.append("got" if get in result else "reneged")
+
+    env.process(putter())
+    for _ in range(n):
+        env.process(waiter())
+    env.run(until=12)
+    return outcome, len(box.items)
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+def test_patience_first_at_a_tie_reneges_a_get(tmp_path, n):
+    """A patience on a `get` that ends at the instant the item is put, with the put made
+    first, reneges when the get is granted after the patience's condition was
+    processed, as SimPy's `get in result` is false (register row I5)."""
+    outcome, items = _reference_get_at_a_tie(n)
+    assert outcome == ["reneged"] * n
+    text = (
+        "simulation: {sim_id: C7get, factor: 0}\n"
+        "stores: {s: {current_cap: 20, max_cap: 20}}\n"
+        "arrivals:\n"
+        "  putters: {replay: {path: putters.csv}, spawn: putter}\n"
+        "  waiters: {replay: {path: waiters.csv}, spawn: waiter}\n"
+        "tasks:\n"
+        "  putter: {put: {store: s}, payload: {event: put}}\n"
+        "  waiter: {get: {store: s}, patience: 3, payload: {event: got}}\n"
+        "run: {until: 12}\n"
+    )
+    outcome_yaml = run_yaml_text(
+        tmp_path, text, {"putters": [3] * n, "waiters": [0] * n}
+    )
+    assert outcome_yaml.error is None
+    assert [t for t, _k in at(outcome_yaml.records, "reneged")] == [3.0] * n
+    assert len(outcome_yaml.app_or_env.get_store("s").items) == items
+
+
+def _reference_rerequest_at_a_tie(n):
+    """`2n` units. `n` jobs of priority 1 serve 10 and `n` holders of priority 0 hold
+    their units until 5; the holders' timeouts were made at 0. `n` urgent jobs take the
+    jobs' units at 2 and keep them. A preempted job asks again with a patience of 3,
+    which ends at 5. The holders' release is processed before the patience's condition
+    resumes the job, and grants the request, but after the condition was processed:
+    `again in result` is false and the job reneges."""
+    env = simpy.Environment()
+    machine = simpy.PreemptiveResource(env, capacity=2 * n)
+    outcome = []
+
+    def job():
+        req = machine.request(priority=1)
+        yield req
+        try:
+            yield env.timeout(10)
+        except simpy.Interrupt:
+            again = machine.request(priority=1)
+            result = yield again | env.timeout(3)
+            outcome.append("reneged" if again not in result else "started")
+            if again not in result:
+                again.cancel()
+            return
+        machine.release(req)
+
+    def holder():
+        with machine.request(priority=0) as req:
+            yield req
+            yield env.timeout(5)
+
+    def urgent():
+        yield env.timeout(2)
+        with machine.request(priority=0) as req:
+            yield req
+            yield env.timeout(100)
+
+    for make in (holder, job, urgent):
+        for _ in range(n):
+            env.process(make())
+    env.run(until=30)
+    return outcome
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+def test_patience_first_at_a_tie_reneges_a_request_asked_again(tmp_path, n):
+    """A preempted `wait` request branch that asks again, with a patience that ends at
+    the instant a unit is given back, reneges when the patience's condition was
+    processed first, although the request is granted before the task resumes
+    (register row I5)."""
+    assert _reference_rerequest_at_a_tie(n) == ["reneged"] * n
+    text = (
+        "simulation: {sim_id: C7again, factor: 0}\n"
+        f"resources: {{machine: {{current_cap: {2 * n}, max_cap: {2 * n}, "
+        "queue: priority, preempt: true}}\n"
+        "services: {long: {dist: constant, value: 10}, five: {dist: constant, value: 5}, "
+        "huge: {dist: constant, value: 100}}\n"
+        "arrivals:\n"
+        "  holders: {replay: {path: holders.csv}, spawn: holder}\n"
+        "  jobs: {replay: {path: jobs.csv}, spawn: job}\n"
+        "  urgent: {replay: {path: urgent.csv}, spawn: rush}\n"
+        "tasks:\n"
+        "  holder: {resource: machine, service: five, priority: 0, payload: {event: held}}\n"
+        "  job: {wait: {request: machine}, service: long, priority: 1, patience: 3, "
+        "payload: {event: done}}\n"
+        "  rush: {resource: machine, service: huge, priority: 0, payload: {event: rush}}\n"
+        "run: {until: 30}\n"
+    )
+    outcome = run_yaml_text(
+        tmp_path, text, {"holders": [0] * n, "jobs": [0] * n, "urgent": [2] * n}
+    )
+    assert outcome.error is None
+    assert [t for t, _k in at(outcome.records, "reneged")] == [5.0] * n

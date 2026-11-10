@@ -1,0 +1,28 @@
+# case ST-R23: a PriorityStore of capacity 3, items 'b','c','a','d','e','f','g' compared
+# by value; getters at 1, 2, 3 get a, b, c.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+stores:
+  s: {current_cap: 3, priority: true}
+
+arrivals:
+  puts:
+    initial: 7
+    spawn: put_it
+    attributes:
+      i: {gen: sequence}
+      letter: {gen: expr, expr: "['b', 'c', 'a', 'd', 'e', 'f', 'g'][attr.i]"}
+  getters: {dist: constant, value: 1, spawn: get_it, max_events: 3, first_at: 1}
+
+tasks:
+  put_it:
+    put:
+      store: s
+      priority: "attr.letter"
+      item: {gen: expr, expr: "attr.letter"}
+    payload: {event_type: put}
+  get_it:
+    get: {store: s}
+    payload:
+      event_type: got
+      item: {gen: expr, expr: item}

@@ -1,0 +1,32 @@
+"""GD-M2: Record the count and queue length after each call.
+
+Builder form of `model.yaml`.
+"""
+
+from desflow import SimulationContext
+
+
+def build(size: int = 1) -> SimulationContext:
+    app = SimulationContext(sim_id="M", factor=0, random_seed=42)
+    app.with_stats(level="basic", on_change=True)
+    app.add_resource("res", current_cap=1)
+    app.add_initial_arrival("a", size, spawn="use")
+
+    @app.task(name="use", resource_id="res", service_time=1)
+    def use(task_id):
+        return {"event_type": "used"}
+
+    return app
+
+
+def run(app: SimulationContext):
+    """Runs the model to the end its `run` section sets."""
+    return app.run(until=5)
+
+
+if __name__ == "__main__":
+    from desflow import ConsoleEgress
+
+    APP = build()
+    APP.add_egress(ConsoleEgress(format="json"))
+    run(APP)

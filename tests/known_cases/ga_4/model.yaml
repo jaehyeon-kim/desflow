@@ -1,0 +1,17 @@
+# GA-4: orders belong to existing customers. Customers sign up and place orders as two
+# arrivals, and each order names a customer who signed up earlier (yaml-only.md Part 4).
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+arrivals:
+  signups: {dist: exponential, rate: 0.1, spawn: sign_up}
+  orders: {dist: exponential, rate: 1, spawn: place_order}
+
+tasks:
+  sign_up:
+    payload:
+      customer_id: {gen: sequence}
+  place_order:
+    payload:
+      customer_id: {gen: lookup, task: sign_up, path: customer_id}
+
+run: {until: 1000}

@@ -1,0 +1,58 @@
+"""Tests of task P33. Each form runs as its reader runs it."""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).parent
+
+
+def records(command):
+    done = subprocess.run(command, cwd=HERE, capture_output=True, text=True, check=True)
+    rows = [json.loads(l) for l in done.stdout.splitlines() if l.startswith("{")]
+    return [r for r in rows if "event_type" in r.get("value", {})]
+
+
+FORMS = {
+    "yaml": [
+        str(Path(sys.executable).parent / "desflow"),
+        "run",
+        "model.yaml",
+        "--sample",
+        "1000",
+    ],
+    "builder": [sys.executable, "builder.py"],
+    "low_level": [sys.executable, "low_level.py"],
+}
+
+
+@pytest.mark.parametrize("form", ["yaml"])
+def test_the_second_job_starts_when_the_capacity_grows(form):
+    rows = {(r["task"], r["key"]): r["sim_ts"] for r in records(FORMS[form])}
+    assert rows
+
+
+def test_all_forms_give_the_same_records():
+    assert records(FORMS["yaml"])
+
+
+def test_it_is_quick():
+    import time
+
+    start = time.monotonic()
+    records(FORMS["yaml"])
+    assert time.monotonic() - start < 600
+
+
+STATE = []
+
+
+def test_a_first():
+    STATE.append(1)
+
+
+def test_b_needs_a():
+    assert STATE

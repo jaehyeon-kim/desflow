@@ -1,0 +1,10 @@
+# case GD-E4: initial_time (environments.rst:108).
+simulation: {sim_id: E, factor: 0, random_seed: 42, initial_time: 100}
+
+arrivals:
+  a: {initial: 1, spawn: only}
+
+tasks:
+  only:
+    service_time: 1
+    payload: {v: 42}

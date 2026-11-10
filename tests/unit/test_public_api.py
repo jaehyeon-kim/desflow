@@ -1,7 +1,8 @@
 """The public API is pinned by tests/unit/public_api.txt, which scripts/public_api.py writes.
 
-The snapshot holds the signature of every name the docs and examples reach, and the
-exit codes, arguments and options of the `desflow` command. A change to one of them
+The snapshot holds the signature of every name the docs and examples reach, named at
+the first import path 1.x keeps that exports it (`public_api.PROMISED_PACKAGES`), and
+the exit codes, arguments and options of the `desflow` command. A change to one of them
 fails the first test with the lines that were removed, changed and added, so a
 release cannot change the API without a decision. A library that ends the process
 cannot be called from a test or a notebook, so the last test checks that every error
@@ -9,9 +10,12 @@ raises an exception.
 """
 
 import ast
+import importlib
 import importlib.util
+import re
+import textwrap
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import pytest
 
@@ -82,6 +86,13 @@ def test_public_api_matches_the_snapshot():
     assert message == "", "\n" + message
 
 
+def test_each_promised_package_exports_a_name_once():
+    for package in public_api.PROMISED_PACKAGES:
+        names = importlib.import_module(package).__all__
+        twice = sorted({name for name in names if names.count(name) > 1})
+        assert twice == [], f"{package}.__all__ lists {twice} more than once"
+
+
 def test_every_documented_name_is_in_the_snapshot():
     paths = public_api.names()
     # The three sources together name far more than `desflow.__all__` does.
@@ -113,7 +124,14 @@ def test_errors_raise_and_never_end_the_process(tmp_path):
         relative = source.relative_to(SOURCE)
         in_cli = "cli" in relative.with_suffix("").parts
         tree = ast.parse(source.read_text(encoding="utf-8"))
+        # Catching an exit, as a command does for a user's file, ends nothing
+        caught = set()
+        for handler in ast.walk(tree):
+            if isinstance(handler, ast.ExceptHandler) and handler.type is not None:
+                caught.update(id(part) for part in ast.walk(handler.type))
         for node in ast.walk(tree):
+            if id(node) in caught:
+                continue
             name = ast.unparse(node) if isinstance(node, ast.Attribute) else ""
             if isinstance(node, ast.Name):
                 name = node.id
@@ -128,3 +146,126 @@ def test_errors_raise_and_never_end_the_process(tmp_path):
             if ends:
                 ending.append(f"{relative}:{node.lineno}: {name}")
     assert ending == [], "; ".join(ending)
+
+
+def test_the_api_page_names_each_object_at_its_promised_path():
+    wrong = []
+    for number, line in enumerate(
+        public_api.API_PAGE.read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        if not line.startswith("::: "):
+            continue
+        written = line[4:].strip()
+        promised = public_api.promised_path(public_api.resolve(written), written)
+        if not public_api.is_at_promised_path(written, promised):
+            wrong.append(f"api.md:{number}: ::: {written} should be ::: {promised}")
+    assert wrong == [], "\n" + "\n".join(wrong)
+
+
+def _outside_message(path: Path, found: Any) -> str:
+    package, name = found.use.rsplit(".", 1) if found.use else ("", "")
+    if found.text.startswith("import "):
+        use = "import the names it uses from a promised path, such as `from desflow import ...`"
+    elif found.use:
+        use = f"the promised path is {found.use}: `from {package} import {name}`"
+    else:
+        use = "no path 1.x keeps exports it"
+    return (
+        f"{path.relative_to(ROOT)}:{found.line}: `{found.text}` is outside"
+        f" the import paths 1.x keeps; {use}"
+    )
+
+
+def test_docs_examples_and_the_skill_import_only_from_promised_paths():
+    wrong = []
+    for folder in ("docs", "examples", "skills/desflow"):
+        for path in sorted((ROOT / folder).rglob("*.py")):
+            if "__pycache__" in path.parts:
+                continue
+            wrong.extend(
+                _outside_message(path, found)
+                for found in public_api.imports_outside_promise(
+                    path.read_text(encoding="utf-8")
+                )
+            )
+    assert wrong == [], "\n" + "\n".join(wrong)
+
+
+# Imports in a page of docs/ that the guard below finds and 13d1 fixes. Each is the
+# page and line, and the row of docs-changes.md (its page and Section cell) that
+# names the fix. Remove the entry when the row is handled. The guard fails for a
+# line that is not here, and for an entry that no longer matches an import.
+KNOWN_OUTSIDE_IN_PAGES: Dict[str, str] = {}
+
+_FENCE = re.compile(r"^\s*```(\w*)")
+_IMPORT_TEXT = re.compile(
+    r"\bfrom\s+desflow(?:\.\w+)*\s+import\s+\w+(?:\s*,\s*\w+)*|\bimport\s+desflow(?:\.\w+)*"
+)
+
+
+def _imports_in_page(text: str) -> List[Any]:
+    """The imports outside the promise in the code blocks and the sentences of a page.
+
+    A `python` block is read as code, and every other line outside a block is read for
+    an import written in a sentence, such as `from desflow.analysis import read_column`.
+    """
+    found: List[Any] = []
+    lines = text.splitlines()
+    block: List[str] = []
+    start = 0
+    language = None
+    for number, line in enumerate(lines, start=1):
+        fence = _FENCE.match(line)
+        if fence and language is None:
+            language, start, block = fence.group(1), number, []
+        elif fence:
+            if language in ("python", "py"):
+                source = textwrap.dedent("\n".join(block))
+                try:
+                    inside = public_api.imports_outside_promise(source)
+                except SyntaxError:
+                    inside = []
+                found.extend(
+                    public_api.OutsideImport(start + hit.line, hit.text, hit.use)
+                    for hit in inside
+                )
+            language = None
+        elif language is not None:
+            block.append(line)
+        else:
+            for match in _IMPORT_TEXT.finditer(line):
+                found.extend(
+                    public_api.OutsideImport(number, hit.text, hit.use)
+                    for hit in public_api.imports_outside_promise(match.group(0))
+                )
+    return found
+
+
+def test_pages_import_only_from_promised_paths():
+    wrong = []
+    seen = set()
+    for path in sorted((ROOT / "docs").rglob("*.md")):
+        for found in _imports_in_page(path.read_text(encoding="utf-8")):
+            where = f"{path.relative_to(ROOT).as_posix()}:{found.line}"
+            seen.add(where)
+            if where not in KNOWN_OUTSIDE_IN_PAGES:
+                wrong.append(_outside_message(path, found))
+    assert wrong == [], "\n" + "\n".join(wrong)
+    assert sorted(set(KNOWN_OUTSIDE_IN_PAGES) - seen) == [], (
+        "These pages no longer have the import: remove them from KNOWN_OUTSIDE_IN_PAGES"
+    )
+
+
+def test_the_guard_names_the_promised_path():
+    found = public_api.imports_outside_promise(
+        "from desflow.core.registry import SimulationRegistry\n"
+        "from desflow.explain.render import render_terminal\n"
+        "from desflow.connectors.egress.kafka import KafkaEgress\n"
+        "from desflow.blueprint import BlueprintError\n"
+        "import desflow.cli.check\n"
+    )
+    assert [(f.line, f.use) for f in found] == [
+        (1, "desflow.SimulationRegistry"),
+        (2, "desflow.explain.render_terminal"),
+        (5, ""),
+    ]

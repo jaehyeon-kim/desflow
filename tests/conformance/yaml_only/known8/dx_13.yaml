@@ -1,0 +1,9 @@
+# case DX-13: simpy_forms.py wait_again (simpy_wait_again.yaml): a job waits for a timeout of 5 s, is interrupted at 2 and waits for the same timeout again. Same form as DS-I10.
+simulation: {sim_id: Shop, factor: 0}
+arrivals:
+  a: {initial: 1, spawn: job}
+  b: {dist: constant, value: 2, spawn: pause, max_events: 1}
+tasks:
+  job: {open: {limit: {timeout: 5}}, wait: {handle: limit}, on_interrupt: resume, payload: {job: job-1}}
+  pause: {payload: null, interrupt: {task: job, cause: pause}}
+run: {until: 20}

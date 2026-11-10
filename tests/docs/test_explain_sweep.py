@@ -9,6 +9,7 @@ value to settle within the 10 percent one run allows. A "differs" here is a valu
 the analysis gives where its formulas do not hold, or a defect in the run.
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,15 @@ from desflow.explain.pairs import pairs
 ROOT = Path(__file__).resolve().parents[2]
 GUIDES = ROOT / "docs" / "snippets" / "guides"
 UNTIL = 100_000
+# Snippets that need a service, a package or a setting a test run does not have. Their
+# guide tests run them with that part replaced.
+NEEDS_OUTSIDE = {
+    "call_python.yaml": "reads a Redis server",
+    "json_schema_and_protobuf_glue.yaml": "needs a broker address and the AWS Glue package",
+    "kafka_security_msk.yaml": "needs the AWS MSK signer package and a broker",
+    "kafka_security_mtls.yaml": "needs a broker address and certificate files",
+    "kafka_security_registry.yaml": "needs a broker address, a registry and certificate files",
+}
 
 
 def _blueprints():
@@ -33,7 +43,10 @@ def _blueprints():
         for f in files
         if any(line.startswith("simulation:") for line in f.read_text().splitlines())
         and not f.name.endswith("_error.yaml")
-        and not any(line.startswith("  before:") for line in f.read_text().splitlines())
+        and f.name not in NEEDS_OUTSIDE
+        and not any(
+            re.search(r"(^|[{ ,])before:", line) for line in f.read_text().splitlines()
+        )
     ]
 
 

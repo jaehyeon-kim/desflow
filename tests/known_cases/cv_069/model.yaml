@@ -1,0 +1,29 @@
+# case CV-069: yield res.release(req): H1's release, then a task that waits 0.
+# research/yaml-only/programs/X2.py: capacity 2, holders and others that wait 1 and then
+# 0.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+
+resources:
+  m: {current_cap: 2}
+
+arrivals:
+  h: {initial: 2, spawn: take}
+  o: {initial: 2, spawn: watch}
+
+tasks:
+  take:
+    seize: m
+    service_time: 1
+    payload: {event_type: held}
+    release: m
+    next: zero
+  zero:
+    wait: {timeout: 0}
+    payload: {event_type: after_release}
+  watch:
+    wait: {timeout: 1}
+    payload: {event_type: o}
+    next: again
+  again:
+    wait: {timeout: 0}
+    payload: {event_type: o_again}

@@ -1,0 +1,9 @@
+{"instance": 0, "key": "orders-1", "sim_ts": 3.5, "stream_type": "event", "task": "pack_order", "timestamp": "2026-11-07T11:12:33.391+00:00", "value": {"event_type": "order_packed"}}
+{"instance": 1, "key": "orders-2", "sim_ts": 5.5, "stream_type": "event", "task": "pack_order", "timestamp": "2026-11-07T11:12:35.391+00:00", "value": {"event_type": "order_packed"}}
+{"instance": 2, "key": "orders-3", "sim_ts": 7.5, "stream_type": "event", "task": "pack_order", "timestamp": "2026-11-07T11:12:37.391+00:00", "value": {"event_type": "order_packed"}}
+{"instance": 3, "key": "orders-4", "sim_ts": 9.5, "stream_type": "event", "task": "pack_order", "timestamp": "2026-11-07T11:12:39.391+00:00", "value": {"event_type": "order_packed"}}
+{"instance": 4, "key": "orders-5", "sim_ts": 11.5, "stream_type": "event", "task": "pack_order", "timestamp": "2026-11-07T11:12:41.391+00:00", "value": {"event_type": "order_packed"}}
+{"instance": 5, "key": "orders-6", "sim_ts": 13.5, "stream_type": "event", "task": "pack_order", "timestamp": "2026-11-07T11:12:43.391+00:00", "value": {"event_type": "order_packed"}}
+{"instance": 6, "key": "orders-7", "sim_ts": 15.5, "stream_type": "event", "task": "pack_order", "timestamp": "2026-11-07T11:12:45.391+00:00", "value": {"event_type": "order_packed"}}
+{"instance": 7, "key": "orders-8", "sim_ts": 17.5, "stream_type": "event", "task": "pack_order", "timestamp": "2026-11-07T11:12:47.391+00:00", "value": {"event_type": "order_packed"}}
+{"instance": 8, "key": "orders-9", "sim_ts": 19.5, "stream_type": "event", "task": "pack_order", "timestamp": "2026-11-07T11:12:49.391+00:00", "value": {"event_type": "order_packed"}}

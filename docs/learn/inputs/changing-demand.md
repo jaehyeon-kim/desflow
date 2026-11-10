@@ -164,10 +164,7 @@ A finite overload has an answer, but the answer depends on the schedule. A mean 
         # The Changing Demand tutorial: a 20-minute rush, with one packer or two.
         # Run it with: desflow run changing_demand.yaml
         # With a second packer for the rush: RUSH_PACKERS=2 desflow run changing_demand.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         resources:
           packers: {current_cap: 1, max_cap: 2}
@@ -196,10 +193,9 @@ A finite overload has an answer, but the answer depends on the schedule. A mean 
         stats: {level: typical, interval: 2 h}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"
@@ -352,11 +348,20 @@ A finite overload has an answer, but the answer depends on the schedule. A mean 
             def publish(value):
                 env.publish_event(key, value, task="pack_order", instance=task_id)
 
-            publish({"path_id": path_id, "status": "queued"})
+            publish(
+                {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+            )
             env.stats.task_queued("pack_order", task_id)
             with packers.request() as request:
                 yield request
-                publish({"path_id": path_id, "status": "started"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    }
+                )
                 env.stats.task_started("pack_order", task_id)
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 publish({"event_type": "order_packed"})

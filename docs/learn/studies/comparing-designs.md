@@ -4,7 +4,7 @@
 
 - **Decision:** three packers or four.
 - **Measures:** the mean wait and the packers' [utilisation](../concepts/queueing-basics.md#utilisation).
-- **Runs:** the busy hour after its 2-minute [warm-up](../concepts/output-analysis.md#one-run-starts-empty), 20 replications of each design with the same seeds, spawned from 42. The rest of the day is not modelled.
+- **Runs:** the busy hour after its 2-minute [warm-up](../concepts/output-analysis.md#one-run-starts-empty), 20 replications of each design with the same seeds, spawned from 42. Twenty are enough, because the decision rests on the difference between the two designs under the same seeds, which is far from 0, and not on the precision of each design's own mean. The rest of the day is not modelled.
 - **Assumptions:** those of Trusting Results: orders at random at 1.8 a second, and the 40 packing times measured at the bench.
 
 ## What You Will Learn
@@ -30,8 +30,11 @@ An experiment runs a model written in any of the three ways, for a number of rep
     ```yaml title="docs/snippets/yaml/comparing_designs_experiment.yaml:model"
     # The busy hour of Trusting Results, with its 2-minute warm-up
     model: trusting_results.yaml
+
     until: 1 h
+
     replications: 20
+
     seed: 42
     ```
 
@@ -73,10 +76,13 @@ Each variant names the registry values it changes before the clock starts. `thre
     ```yaml title="docs/snippets/yaml/comparing_designs_experiment.yaml:compare"
     # Every design runs with the same 20 seeds, so they are compared seed by seed
     pairing: common
+
     measures: [tasks.pack_order.wait_mean, resources.packers.utilization_avg]
+
     variants:
       three: {}
       four: {Shop.resources.packers.current_cap: 4}
+
     compare:
       - {baseline: three, variant: four}
     ```
@@ -115,14 +121,14 @@ Save the files from [Full Files](#full-files) in one folder and run the commands
     python comparing_designs_low_level.py
     ```
 
-The experiment runs 40 replications, 20 of each design, and writes what it found to `results/four-packers`. The command prints only where it wrote and the result of the check. Open `results/four-packers/report.md`: its Results and Comparisons sections hold the two tables below. Each design's results, with the 95% [half-width](../concepts/output-analysis.md#interval-and-half-width):
+The experiment runs 40 replications, 20 of each design, and writes what it found to `results/four-packers`. The YAML command prints only where it wrote and the result of the check. The two scripts print the difference of each measure and the result of the check. Open `results/four-packers/report.md`: its Results and Comparisons sections hold the two tables below. Each design's results, with the 95% [half-width](../concepts/output-analysis.md#interval-and-half-width):
 
 | Design | Mean wait (s) | Utilisation (%) |
 |---|---|---|
 | three | 2.48 ± 0.32 | 90.33 ± 0.63 |
 | four | 0.27 ± 0.01 | 67.70 ± 0.46 |
 
-The three-packer design ran with the first 20 of the seeds that Trusting Results used. Its row therefore equals that page's figure for 20 replications, not its mean of 2.32 seconds over 40. [Busy Hour Figures](../first-model/first-simulation.md#busy-hour-figures) lists both. The comparison gives the four-packer value minus the three-packer value, seed by seed:
+The three-packer design ran with the first 20 of the seeds that Trusting Results used. Its row therefore equals that page's figure for 20 replications, not its mean of 2.32 seconds over 40. [Busy Hour Figures](../concepts/output-analysis.md#busy-hour-figures) lists both. The comparison gives the four-packer value minus the three-packer value, seed by seed:
 
 | Measure | Difference | Half-width | Random streams |
 |---|---|---|---|
@@ -172,10 +178,12 @@ The experiment writes `report.md` beside its results. It states the question, th
 assumptions:
   - Orders arrive at random, at a steady 1.8 a second, through the busy hour.
   - The 40 packing times measured at the bench stand for every packer.
+
 inputs:
   Shop.service.packing: 40 packing times measured at the bench, in seconds
-limits:
-  - One busy hour only; the rest of the day is not modelled.
+
+limits: [One busy hour only; the rest of the day is not modelled.]
+
 output: results/four-packers
 ```
 
@@ -219,30 +227,43 @@ Two designs run with different seeds differ by the design and by chance, and the
         # Run it with: desflow experiment comparing_designs_experiment.yaml
         # Each design separately: change pairing to independent and remove compare.
         experiment: four-packers
+
         question: Does a fourth packer cut the mean wait of the busy hour, and by how much?
+
         # The busy hour of Trusting Results, with its 2-minute warm-up
         model: trusting_results.yaml
+
         until: 1 h
+
         replications: 20
+
         seed: 42
+
         # Every design runs with the same 20 seeds, so they are compared seed by seed
         pairing: common
+
         measures: [tasks.pack_order.wait_mean, resources.packers.utilization_avg]
+
         variants:
           three: {}
           four: {Shop.resources.packers.current_cap: 4}
+
         compare:
           - {baseline: three, variant: four}
+
         checks:
           # The upper end of the interval must be under half a second
           - {measure: tasks.pack_order.wait_mean, variant: four, max: 0.5}
+
         assumptions:
           - Orders arrive at random, at a steady 1.8 a second, through the busy hour.
           - The 40 packing times measured at the bench stand for every packer.
+
         inputs:
           Shop.service.packing: 40 packing times measured at the bench, in seconds
-        limits:
-          - One busy hour only; the rest of the day is not modelled.
+
+        limits: [One busy hour only; the rest of the day is not modelled.]
+
         output: results/four-packers
         ```
 
@@ -267,9 +288,8 @@ Two designs run with different seeds differ by the design and by chance, and the
           # The 40 packing times measured at the bench, in seconds
           packing:
             dist: empirical
-            values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
-                     2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
-                     1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+            values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7, 2.7, 1.4, 1.9, 1.4, 1.3,
+                     1.8, 2.0, 1.4, 1.4, 1.9, 1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
                      2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
 
         tasks:
@@ -282,10 +302,9 @@ Two designs run with different seeds differ by the design and by chance, and the
         stats: {level: typical, interval: 10}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"
@@ -603,12 +622,21 @@ Two designs run with different seeds differ by the design and by chance, and the
             def publish(value):
                 env.publish_event(key, value, task="pack_order", instance=task_id)
 
-            publish({"path_id": path_id, "status": "queued"})
+            publish(
+                {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+            )
             env.stats.flow_started("orders")  # the order enters the shop
             env.stats.task_queued("pack_order", task_id)
             with packers.request() as request:
                 yield request
-                publish({"path_id": path_id, "status": "started"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    }
+                )
                 env.stats.task_started("pack_order", task_id)
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 publish({"event_type": "order_packed"})

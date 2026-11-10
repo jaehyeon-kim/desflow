@@ -1,0 +1,63 @@
+"""The group-arrival model with the Low-level API (DynamicRealtimeEnvironment).
+
+Arrival `a` fires every 5 s from t=5, 40 times in all. Each firing starts a group
+whose size is drawn from Poisson(mean 2); a size of 0 starts nobody. Each entity runs
+`member`, which publishes {event_type: member}. Runs to 205 s and prints each record
+as one JSON line on stdout.
+
+The group sizes come from the same random stream the blueprint and builder use for
+`arrivals.a.group`: SeedSequence(seed, spawn_key=(crc32("arrivals.a.group"),)).
+"""
+
+import zlib
+from datetime import datetime, timezone
+
+import numpy as np
+
+from desflow import ConsoleEgress, DynamicRealtimeEnvironment
+
+GAP = 5.0  # seconds between firings
+FIRST_AT = 5.0  # time of the first firing
+MAX_EVENTS = 40  # firings in all
+GROUP_MEAN = 2.0  # mean of the Poisson group size
+UNTIL = 205
+
+
+def member(env, key, instance):
+    """Takes no time: publishes its finished event at once."""
+    env.publish_event(key, {"event_type": "member"}, task="member", instance=instance)
+    yield env.timeout(0)
+
+
+def arrival_a(env, rng):
+    """Fires at FIRST_AT, then every GAP, MAX_EVENTS times; each firing starts a
+    Poisson-sized group. An empty group uses no key number."""
+    key_number = 0
+    instance = 0
+    for firing in range(MAX_EVENTS):
+        yield env.timeout(FIRST_AT if firing == 0 else GAP)
+        size = int(rng.poisson(GROUP_MEAN))
+        for _ in range(size):
+            key_number += 1
+            env.process(member(env, f"a-{key_number}", instance))
+            instance += 1
+
+
+def run():
+    env = DynamicRealtimeEnvironment(
+        factor=0,  # unpaced
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    env.setup_egress([ConsoleEgress(format="json")])
+    rng = np.random.default_rng(
+        np.random.SeedSequence(42, spawn_key=(zlib.crc32(b"arrivals.a.group"),))
+    )
+    env.process(arrival_a(env, rng))
+    try:
+        env.run(until=UNTIL)
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

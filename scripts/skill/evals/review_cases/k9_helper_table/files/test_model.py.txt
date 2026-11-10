@@ -1,0 +1,35 @@
+"""Tests of the P33 model."""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).parent
+FORMS = {
+    "yaml": [str(Path(sys.executable).parent / "desflow"), "run", "model.yaml", "--stdout"],
+    "builder": [sys.executable, "builder.py"],
+    "low_level": [sys.executable, "low_level.py"],
+}
+
+
+def events(form):
+    """Returns the event records one form prints."""
+    done = subprocess.run(FORMS[form], cwd=HERE, capture_output=True, text=True, check=True)
+    rows = [json.loads(x) for x in done.stdout.splitlines() if x.startswith("{")]
+    return [r for r in rows if r["stream_type"] == "event" and r["task"] in ("job", "grow")
+            and r["value"].get("event_type") in ("done", "grow")]
+
+
+def test_grow_at_2():
+    assert [r["sim_ts"] for r in events("yaml") if r["task"] == "grow"] == [2]
+
+
+def test_jobs_done_at_5_and_7():
+    assert [r["sim_ts"] for r in events("yaml") if r["task"] == "job"] == [5, 7]
+
+
+def test_the_three_forms_give_the_same_records():
+    assert [(r["sim_ts"], r["key"]) for r in events("yaml")] == [
+        (r["sim_ts"], r["key"]) for r in events("builder")
+    ]

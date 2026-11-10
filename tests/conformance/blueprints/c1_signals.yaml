@@ -4,7 +4,7 @@
 simulation:
   sim_id: C1
   factor: 0
-signals: [restocked]
+signals: {restocked: {once: false}}
 arrivals:
   waiters: {dist: constant, value: 3, spawn: waiter}
   restocks: {dist: constant, value: 5, spawn: restock}

@@ -6,6 +6,8 @@ that returns a new `SimulationContext`), or a `LowLevelModel`: a function that b
 the model in a given environment with a given sampler, and the model's `sim_id`.
 `run_once` runs any of them unpaced, with no ingress and no egress, and returns the
 statistics it measured.
+`spawn_seeds` gives each run its seed, and `values_of` reads one measure from the
+results of the runs.
 """
 
 import copy
@@ -14,15 +16,31 @@ import pickle
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
+import numpy as np
 from simpy import Environment
-from simpy.events import URGENT
 
-from desflow.core.context import SimulationContext
-from desflow.core.environment import DynamicRealtimeEnvironment
+from desflow.core.context import SimulationContext, parts_of
+from desflow.core.environment import (
+    DynamicRealtimeEnvironment,
+    end_is_set,
+    schedule_urgent,
+)
 from desflow.core.sampler import Sampler
-from desflow.utils import time_to_seconds
+from desflow.core.statistics import published_value
+from desflow.utils import checked_seconds
 
 
 @dataclass(frozen=True)
@@ -68,18 +86,89 @@ class RunResult:
     parameters: Dict[str, Any] = field(default_factory=dict)
 
 
-def seconds(value: Union[float, str, None]) -> Optional[float]:
+def spawn_seeds(seed: int, n: int) -> List[int]:
+    """
+    Returns `n` plain integer seeds spawned from `seed`.
+
+    Each is a child of `numpy.random.SeedSequence(seed)`, turned into one integer
+    that `desflow run --seed` or `random_seed` takes, so any replication repeats on
+    its own.
+
+    Args:
+        seed: The seed of the whole set.
+        n: How many seeds.
+
+    Returns:
+        List[int]: The seeds, the same list for the same `seed` every time.
+    """
+    return [
+        int(child.generate_state(1)[0])
+        for child in np.random.SeedSequence(seed).spawn(n)
+    ]
+
+
+def values_of(
+    results: Sequence[RunResult], measure: str, seen: Optional[Set[str]] = None
+) -> List[float]:
+    """Returns one measure's value in each run.
+
+    A count the statistics leave out while it is 0, such as `reneged` or a flow's
+    `started`, is 0 in a run that did not publish it, when a run published another
+    statistic of its task or flow (`published_value`).
+
+    Args:
+        results: The runs.
+        measure: The statistic's name without the sim id.
+        seen: The names every run of the study published, such as the runs of the
+            other designs of an experiment; None for the names of `results`.
+
+    Returns:
+        List[float]: The values, in run order.
+
+    Raises:
+        ValueError: If another statistic is missing from a run, such as a mean wait
+            in a run where no task started.
+    """
+    values = []
+    if seen is None:
+        seen = {name for result in results for name in result.readings}
+    for i, result in enumerate(results, start=1):
+        value = published_value(
+            result.readings,
+            f"{result.sim_id}.stats.{measure}",
+            seen,
+            prefix=f"{result.sim_id}.stats.",
+        )
+        if value is None:
+            raise ValueError(
+                f"{measure} has no value in run {i}: nothing it measures happened "
+                f"in that run. Run longer, or choose another measure"
+            )
+        values.append(value)
+    return values
+
+
+def seconds(
+    value: Union[float, str, None], what: str = "until", *, ends: bool = True
+) -> Optional[float]:
     """Reads seconds, or a duration such as `"8 h"`; None stays None.
 
     Args:
         value: A number of seconds, a duration, or None.
+        what: The setting, such as `"warmup"`, for the refusal.
+        ends: Whether infinity is refused, as it is for the end of a run that is
+            not paced.
 
     Returns:
         Optional[float]: The seconds, or None.
+
+    Raises:
+        ValueError: If `value` is a bool, NaN, below 0 or, with `ends`, infinite,
+            naming `what`.
     """
     if value is None:
         return None
-    return time_to_seconds(value) if isinstance(value, str) else float(value)
+    return float(checked_seconds(value, what, ends=ends))
 
 
 def describe(model: Model) -> str:
@@ -163,20 +252,25 @@ def context_of(model: Model) -> Optional[SimulationContext]:
 
 
 def default_until(model: Model) -> Optional[float]:
-    """Returns the blueprint's `run.until` for a blueprint path.
+    """Returns the model's `run.until`: a blueprint's, or the one a factory's context
+    holds because the factory loads a blueprint.
 
     Args:
         model: A blueprint path, a builder factory or a `LowLevelModel`.
 
     Returns:
-        Optional[float]: The until in seconds, or None for another model or a
-            blueprint without one.
+        Optional[float]: The until in seconds, or None for a low-level model or a
+            model without one.
+
+    Raises:
+        TypeError: If a factory returns something other than a `SimulationContext`.
     """
     if isinstance(model, (str, Path)):
         from desflow.blueprint.build import build
 
         return build(model)[1].until
-    return None
+    context = context_of(model)
+    return None if context is None else parts_of(context).defaults.until
 
 
 def _build(
@@ -207,6 +301,7 @@ def _build(
     if context is not None:
         context.factor = 0.0
         context.go_live_at = None
+        context.strict = None
         if warmup is not None:
             context.warmup = warmup
         context.start(
@@ -380,10 +475,11 @@ def _run_low_level(
     else:
         # Urgent, as SimPy schedules its own `until`, so no event due at `until`
         # runs before the run ends there
-        horizon = env.internal_event()
-        horizon._ok, horizon._value = True, None
-        env.schedule(horizon, URGENT, until - env.now)
-        env.run(until=stop(env) | horizon)
+        horizon = schedule_urgent(env, env.internal_event(), until - env.now)
+        # The run has its own end at `until`, as a run of `SimulationContext` has, so
+        # the environment does not end it when no model event is left before it
+        with end_is_set(env):
+            env.run(until=stop(env) | horizon)
     if not drain or (stop is not None and env.now < until):
         return
     processes = list(arrivals or [])
@@ -396,7 +492,11 @@ def _run_low_level(
         if process.is_alive:
             process.interrupt("arrivals stopped")
             process.defused = True
-    limit = seconds(drain.get("limit")) if isinstance(drain, Mapping) else None
+    limit = (
+        seconds(drain.get("limit"), "run.drain.limit", ends=False)
+        if isinstance(drain, Mapping)
+        else None
+    )
     last = float("inf") if limit is None else until + limit
     while env.stats.in_system() > 0 and Environment.peek(env) < last:
         env._step_event()

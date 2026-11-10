@@ -1,0 +1,9 @@
+{
+  "fault": "S10: a run whose tests fail on its own model is never scored for K9",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K9": 3,
+    "BASE": 1
+  }
+}

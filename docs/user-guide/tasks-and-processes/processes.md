@@ -1,12 +1,12 @@
 # Processes
 
-A process runs alongside the [tasks](index.md). This page shows how to write one, and an example in which processes and tasks interact.
+A process runs alongside the [tasks](tasks.md). This page shows how to write one.
 
 ---
 
 ## What It Is
 
-A process is anything in the shop that runs over time but is not one entity's work: a break for the packers, a drift in a parameter, a delivery schedule. An arrival starts one task per entity, while a process starts once, when the run starts, and runs alongside the tasks.
+A process is anything in the shop that runs over time but is not one entity's work: a break for the packers, a drift in a parameter, a delivery schedule. An arrival starts one task per entity, while a process starts once, when the run starts, and runs alongside the tasks. A process can wait, change values in the registry, publish records or start tasks.
 
 ---
 
@@ -18,7 +18,33 @@ This process sends the packers on a 5-second break every 50 seconds:
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml/tasks.yaml:process"
+    A blueprint writes this without Python. One entity exists when the run starts, and two tasks hand it to each other: each waits, writes the capacity with an `on:` action, and names the other as its `next`.
+
+    ```yaml title="docs/snippets/yaml/tasks.yaml:break-arrival"
+    # One entity exists when the run starts and drives the breaks
+    shifts: {initial: 1, spawn: take_break}
+    ```
+
+    ```yaml title="docs/snippets/yaml/tasks.yaml:break"
+    # The packers go on a 5-second break every 50 seconds: wait, set the capacity with
+    # on:, and hand over to the other task, which sets it back
+    take_break:
+      wait: {timeout: 50 s}
+      on:
+        - {path: Shop.resources.packers.current_cap, value: 0}
+      payload: {event_type: break_started}
+      next: end_break
+    end_break:
+      wait: {timeout: 5 s}
+      on:
+        - {path: Shop.resources.packers.current_cap, value: 1}
+      payload: {event_type: break_ended}
+      next: take_break
+    ```
+
+    A `processes` entry names a Python function of your own, for work the keys cannot say:
+
+    ```yaml title="docs/snippets/yaml/tasks_process.yaml:process"
     processes:
       # Called as breaks(context, resource="packers", every=50, duration=5)
       - function: !python shop_logic.breaks
@@ -57,8 +83,6 @@ This process sends the packers on a 5-second break every 50 seconds:
             env.registry.update(path, normal)
     ```
 
-Setting `current_cap` to 0 stops new work but not the work in progress: [Resources](../resources/index.md) explains what happens to busy units when a capacity drops.
-
 ---
 
 ## How It Works
@@ -71,7 +95,8 @@ Setting `current_cap` to 0 stops new work but not the work in progress: [Resourc
 
 ## Stability and Limits
 
-The limits of this page are listed with those of the whole section, in [Stability and Limits](index.md#stability-and-limits) on the Tasks and Processes page.
+- **A process is not an entity.** It has no key, no `instance` and no records of its own unless it publishes them. Work that one entity does is a [task](tasks.md).
+- **A capacity of 0 stops new work only.** Setting `current_cap` to 0 does not stop the work in progress: [Units and Queues](../resources/units-and-queues.md#under-live-changes) explains what happens to busy units when a capacity drops.
 
 ---
 

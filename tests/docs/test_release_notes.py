@@ -59,7 +59,17 @@ def test_the_published_changelog_has_the_current_version():
         for line in (_SCRIPT.parents[1] / "pyproject.toml").read_text().splitlines()
         if line.startswith("version = ")
     )
-    assert release_notes.section(version, release_notes.CHANGELOG.read_text())
+    text = release_notes.CHANGELOG.read_text()
+    assert release_notes.section(release_notes.release(version), text)
+
+
+def test_a_release_candidate_has_the_notes_of_its_release():
+    tags = ["v0.20.0", "v0.21.0", "v1.0.0rc1"]
+    body = release_notes.notes("0.21.0rc2", CHANGELOG, tags)
+    assert body.startswith("New distributions.")
+    assert body.endswith(
+        "\n**Full Changelog**: https://github.com/jaehyeon-kim/desflow/compare/v0.20.0...v0.21.0rc2\n"
+    )
 
 
 def test_notes_end_with_the_full_changelog_link():

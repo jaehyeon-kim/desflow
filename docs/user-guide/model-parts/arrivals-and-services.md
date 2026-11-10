@@ -1,4 +1,4 @@
-# Arrivals and Services: `Sampler` and the Distributions
+# Arrivals and Services
 
 Two building blocks set the timing of every simulation. An **arrival** decides how often a new entity enters the model: an order, a visitor, a support call. A **service** decides how long a piece of work takes: packing an order, answering a call. Both are distributions of time, and each time one is needed, a value is drawn from the distribution with its current parameters.
 
@@ -19,7 +19,7 @@ An arrival draws each gap afresh from its distribution, so the gaps differ and e
 
 ## How to Use It
 
-Every distribution is a family, `dist`, and the parameters that family takes. There are ten families. A parameter outside its range, a missing one, or one the family does not take is refused when the model is built, with the YAML line when it comes from a blueprint. [Reference, Distributions](../../reference/distributions.md) lists every family with its parameters, rules, mean and variance. On this page, the table below names each family, the list under it gives each family's rules, and one example shows the form.
+Every distribution is a family, `dist`, and the parameters that family takes. There are twelve families: ten of times, and `poisson` and `geometric` for counts. A parameter outside its range, a missing one, or one the family does not take is refused when the model is built, with the YAML line when it comes from a blueprint. [Reference, Distributions](../../reference/distributions.md) lists every family with its parameters, rules, mean and variance. On this page, the table below names each family, the list under it gives each family's rules, and one example shows the form.
 
 | Family | Use it for | Parameters |
 |---|---|---|
@@ -33,21 +33,27 @@ Every distribution is a family, `dist`, and the parameters that family takes. Th
 | [`gamma`](../../reference/distributions.md#gamma) | Times less variable than exponential. A whole-number shape is the Erlang distribution: that many exponential steps in a row. | `shape`, `scale` |
 | [`weibull`](../../reference/distributions.md#weibull) | Time to failure: a shape below 1 fails early, a shape above 1 wears out. | `shape`, `scale` |
 | [`empirical`](../../reference/distributions.md#empirical) | Times taken from real data, when no family fits. | `values` with `weights`, or `edges` with `counts` |
+| [`poisson`](../../reference/distributions.md#poisson) | A count of events in a period, such as the orders in a minute: whole numbers from 0. | `mean` |
+| [`geometric`](../../reference/distributions.md#geometric) | The number of tries up to and including the first success: whole numbers from 1. | `p` |
 
 The rules for each family's parameters:
 
 - `exponential`: `rate` above 0, in events per second: 0.5 is one every 2 seconds on average, 2.0 is two a second. It is the one parameter that is not a time, so it takes no duration.
-- `normal`: `mean`, and `std` 0 or more (0 when left out). A `std` of 0 gives the mean every time. A draw can be negative, and every time is raised to at least 0.00001 seconds. In a wide normal, these raised draws raise the mean, so use `truncated_normal` instead.
+- `normal`: `mean`, and `std` 0 or more (0 when left out). A `std` of 0 gives the mean every time. A draw can be negative, and a draw below 0 is raised to 0. In a wide normal, these raised draws raise the mean, so use `truncated_normal` instead.
 - `truncated_normal`: `mean`, `std` 0 or more, and `low`, 0 when left out. With `std` 0, `mean` must be at least `low`. A draw below `low` is thrown away and drawn again, so no draws pile up at the limit. The mean is therefore the truncated distribution's own: 1.29 seconds for `mean: 1, std: 1, low: 0`. The higher `low` is above the mean, the fewer plain draws are kept. So when `low` is more than half a standard deviation above the mean, `truncated_normal` draws from an exponential proposal instead (Robert, 1995), which stays exact and fast for any `low`.
 - `lognormal`: `mean` above 0 and `std` 0 or more (0 when left out). Both describe the times you get, not the underlying normal. desflow converts them.
-- `constant`: `value` 0 or more. It uses no random number at all.
+- `constant`: `value` 0 or more. It uses no random number at all. A constant of 0 takes no time.
 - `uniform`: `low` and `high`, with `low < high`. The mean is halfway between them.
 - `triangular`: `low`, `mode` and `high`, all required, with `low <= mode <= high` and `low < high`. The mean is (low + mode + high) ÷ 3.
 - `gamma`: `shape` and `scale`, both above 0. The mean is shape × scale and the variance shape × scale². From a mean and a standard deviation: shape = (mean ÷ std)² and scale = std² ÷ mean, so a mean of 1.5 seconds with a std of 0.5 is shape 9 and scale 0.1667.
 - `weibull`: `shape` and `scale`, both above 0. The mean is scale × gamma(1 + 1 ÷ shape), where gamma is the gamma function.
 - `empirical`: either `values`, each equally likely unless the optional `weights` give one weight per value; or a histogram of `edges` and `counts`, with one count per bin. A histogram draw picks a bin in proportion to its count, then any time inside the bin, all equally likely. Weights and counts are 0 or more and add up to more than 0, and edges increase. The lists are taken when the model is loaded, so an `empirical` distribution has no registry path and does not change while the run goes on.
+- `poisson`: `mean` 0 or more. Every draw is a whole number from 0, and the mean and the variance are both `mean`.
+- `geometric`: `p` above 0 and at most 1. Every draw is a whole number from 1, with mean 1 ÷ `p`.
 
-`desflow dist` lists the families, and `desflow dist <family>` prints one family's parameters and rules. With `--mean` and `--std` it converts them to the family's parameters, so the gamma above needs no arithmetic:
+`poisson` and `geometric` give counts, not times. Use them where a count is read, such as the `group` and `max_events` of an arrival in [Start Entities](#start-entities). A service or a gap that draws from them takes the count as seconds.
+
+`desflow dist` lists the families, and `desflow dist <family>` prints one family's parameters and rules. With `--mean` and `--std` it converts them to the family's parameters, so the gamma above needs no arithmetic. `--p` sets the `p` of a `geometric`:
 
 ```bash
 desflow dist gamma --mean 1.5 --std 0.5
@@ -137,7 +143,7 @@ An arrival draws its gap from data in the same way. Here a batch arrives 1 secon
 
 ### Durations
 
-In a blueprint, every time-valued parameter takes a duration as well as a number of seconds: `mean`, `std`, `low`, `mode`, `high`, `scale` and `value`, and the `values` and `edges` of an `empirical`. A plain number is seconds. `rate` stays a number per second.
+In a blueprint, every time-valued parameter takes a duration as well as a number of seconds: `mean`, `std`, `low`, `mode`, `high`, `scale` and `value`, and the `values` and `edges` of an `empirical`. A plain number is seconds, and so is text that is only a number, such as `'1e-3'` or `'5'`. `rate` stays a number per second.
 
 === "YAML"
 
@@ -230,10 +236,14 @@ An arrival can take its times from recorded rows instead of a distribution. Each
     def replay(env, sampler, packers):
         """Starts one order at each row's time, carrying the row's fields."""
         rows = read_trace(TRACE, time="time", unit="s", fields=["order_id", "items"])
-        for number, row in enumerate(rows, start=1):
-            yield env.timeout(row.time - env.now)
-            key = f"orders-{number}"
-            env.process(pack(env, sampler, packers, key, number - 1, row.fields))
+        number = 0
+        # Rows with one time start in one step, as the blueprint starts them
+        for time, same_time in itertools.groupby(rows, key=lambda row: row.time):
+            yield env.timeout(time - env.now)
+            for row in same_time:
+                number += 1
+                key = f"orders-{number}"
+                env.process(pack(env, sampler, packers, key, number - 1, row.fields))
     ```
 
     `read_trace` reads and checks the rows, and returns each with its simulation `time`, row `number` and `fields`.
@@ -245,17 +255,154 @@ An arrival can take its times from recorded rows instead of a distribution. Each
 - A row without a valid time stops the run, unless `on_invalid` is `skip`, which leaves it out with a warning.
 - After the last row, the arrival stops and logs one INFO line.
 
-A Parquet file needs the `parquet` extra. A replayed arrival has no registry path. [Local Replay](../../learn/inputs/local-replay.md) compares a recorded morning with a model of it.
+A CSV field is a number only when it is a CSV number: `1_0`, `nan` and `0x1` stay text, and as a time they are refused. A Parquet file needs the `parquet` extra. A replayed arrival has no registry path. [Local Replay](../../learn/inputs/local-replay.md) compares a recorded morning with a model of it.
+
+### Start Entities
+
+An arrival starts a new entity after each gap. These keys change when it starts, how many it starts and what each carries. Each is a blueprint key, and the builder's `add_arrival` takes the same names, apart from `count`, `keys` and `stagger`:
+
+- `gap` replaces `dist` when the gap is not a distribution: a number of seconds, a duration, an expression or a generator, read at the start of each gap, so it can read `registry[...]`, `level.<name>` and `t`. An arrival takes exactly one of `dist`, `replay` and `gap`, and a boolean is refused in `gap` and `stagger`.
+- `first_at` is the simulation time of the first arrival, in place of a first gap. A time already past arrives at once.
+- `max_events` is how many times the arrival starts its task in all, read when the source starts. The last start draws no further gap.
+- `group` is how many entities one arrival starts, read once at each arrival, after the gap. A group of 0 or below starts nobody, draws no attributes and takes no key number, and the next gap still runs. It is not used with `count`, `keys` or `replay`.
+- `count` makes that many entities, each with a loop of its own that starts the task after each gap, and `stagger` is the time between the starts of two of them. `keys` lists the keys instead and gives the number, so it needs no `count`.
+- `key` is read once for each entity, for its key, and `vars` are named values read once for each entity before its attributes and key, which read them as bare names. The order at a start is `vars`, `attributes`, `key`. A start whose key belongs to a running entity of the arrival is skipped with a warning and counts as one. A constant `key` with a `count` above 1 is refused when the blueprint loads, because every entity would take the same key.
+- `initial` creates that many entities when the run is built, with the arrival's keys, before any gap passes. An arrival with `initial` alone needs no `dist`, `replay` or `gap`.
+- `active: false` starts a source off. A task's or an `on:` entry's `activate` and `deactivate` turn a source on and off, and each must name an arrival that has a `spawn`. Under `off_mode: drop`, the default, an arrival that falls while the source is off is lost and takes no key number. Under `restart`, the pending arrival is dropped when the source goes off, and `activate` starts a whole new gap.
+
+A second `add_arrival` of one name replaces the first entirely. `count`, `keys`, `max_events` and `stagger` need `spawn`, and `stagger` needs `count` or `keys`. `count`, `keys`, `first_at` and `stagger` do not apply to a replay. Every place here reads the run only: `attr`, `payload`, `item`, `wait`, `process` and a bare name are refused, and a `level`, a `signal`, a resource, a store and a registry name must exist.
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/arrival_options.yaml:options"
+    arrivals:
+      # A fixed gap, a first order at 5 s, and a number of orders drawn once: 4 on average
+      orders:
+        gap: 10 s
+        first_at: 5
+        max_events: {gen: sample, dist: geometric, p: 0.25}
+        # A var is drawn once for each order, and the attributes and the key read it
+        vars:
+          lane: {gen: integer, bounds: [1, 3]}
+        attributes:
+          lane: {gen: expr, expr: lane}
+        spawn: pack
+      # A party of orders at a time: its size is drawn at each arrival, and 0 starts nobody
+      parties:
+        dist: exponential
+        rate: 0.05
+        group: {gen: sample, dist: poisson, mean: 2}
+        spawn: pack
+      # Three scanners, each a loop of its own, starting 2 s apart, with their own keys
+      scanners:
+        dist: constant
+        value: 20 s
+        count: 3
+        stagger: 2 s
+        key: {gen: sequence, format: "scanner-{}"}
+        spawn: scan
+      # A source that starts off, and starts a whole new gap when it is turned on
+      rush: {dist: exponential, rate: 0.5, active: false, off_mode: restart, spawn: pack}
+      # One start at 60 s
+      bell: {gap: 1 s, first_at: 60, max_events: 1, spawn: open_rush}
+      # One start at 80 s
+      lull: {gap: 1 s, first_at: 80, max_events: 1, spawn: close_rush}
+      # Two orders that exist when the run starts
+      regulars: {initial: 2, spawn: pack}
+      # A gap of whole seconds, 4 on average
+      walkins: {dist: geometric, p: 0.25, spawn: pack}
+    ```
+
+    A service takes the same families. The count a `geometric` service draws is read as seconds:
+
+    ```yaml title="docs/snippets/yaml/arrival_options.yaml:services"
+    services:
+      packing: {dist: constant, value: 1.5 s}
+      # Whole seconds with a fixed chance of 0.5 of ending at each: 2 s on average
+      checking: {dist: geometric, p: 0.5}
+    ```
+
+    ```yaml title="docs/snippets/yaml/arrival_options.yaml:switch"
+    open_rush:
+      payload: {event_type: rush_opened}
+      # Turns the source of rush on as the task finishes
+      activate: rush
+    close_rush:
+      payload: {event_type: rush_closed}
+      # Turns the source of rush off again
+      deactivate: rush
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/arrival_options.py:options"
+    # A fixed gap, a first order at 5 s, and a number of orders drawn once: 4 on average
+    app.add_arrival(
+        "orders",
+        gap="10 s",
+        first_at=5,
+        max_events=generator({"gen": "sample", "dist": "geometric", "p": 0.25}),
+        # A var is drawn once for each order, and the attributes and the key read it
+        vars={"lane": generator({"gen": "integer", "bounds": [1, 3]})},
+        attributes={"lane": generator({"gen": "expr", "expr": "lane"})},
+        spawn="pack",
+    )
+    # A party of orders at a time: its size is drawn at each arrival, and 0 starts nobody
+    app.add_arrival(
+        "parties",
+        dist="exponential",
+        rate=0.05,
+        group=generator({"gen": "sample", "dist": "poisson", "mean": 2}),
+        spawn="pack",
+    )
+    # A source that starts off, and starts a whole new gap when it is turned on
+    app.add_arrival(
+        "rush",
+        dist="exponential",
+        rate=0.5,
+        active=False,
+        off_mode="restart",
+        spawn="pack",
+    )
+    # One start at 60 s
+    app.add_arrival("bell", gap="1 s", first_at=60, max_events=1, spawn="open_rush")
+    # One start at 80 s
+    app.add_arrival("lull", gap="1 s", first_at=80, max_events=1, spawn="close_rush")
+    # Two orders that exist when the run starts, then one every 50 s: the builder always
+    # takes a dist or a gap
+    app.add_arrival("regulars", dist="constant", value=50, initial=2, spawn="pack")
+    # A gap of whole seconds, 4 on average
+    app.add_arrival("walkins", dist="geometric", p=0.25, spawn="pack")
+    ```
+
+    ```python title="docs/snippets/pages/arrival_options.py:switch"
+    # Turns the source of rush on as the task finishes
+    @app.task(activate="rush")
+    def open_rush(task_id):
+        return {"event_type": "rush_opened"}
+
+
+    # Turns the source of rush off again
+    @app.task(deactivate="rush")
+    def close_rush(task_id):
+        return {"event_type": "rush_closed"}
+    ```
+
+    The builder's `add_arrival` has no `count`, `keys` or `stagger`. It always takes a `dist` or a `gap`, so the `regulars` above also arrive every 50 seconds.
+
+=== "Low-level"
+
+    An `@app.arrival_loop` starts entities itself: it waits with `context.wait_for_arrival("orders")`, which reads `gap`, `first_at`, `key` and `vars` as the page above describes, and starts a task for each entity.
 
 ---
 
 ## How It Works
 
-**One registry of distributions.** Every family is declared once, in `desflow.core.distributions.DISTRIBUTIONS`, with its parameters, its range rules, how to draw from it, its mean and variance, and what it gives with no random generator. The YAML models, the builder, `DistributionConfig`, the `Sampler` and the registry's live paths all read it, so they accept the same families and parameters. These are 200,000 draws from each family:
+**One registry of distributions.** Every family is declared once, in `desflow.models.distributions.DISTRIBUTIONS`, with its parameters, its range rules, how to draw from it, its mean and variance, and what it gives with no random generator. The YAML models, the builder, `DistributionConfig`, the `Sampler` and the registry's live paths all read it, so they accept the same families and parameters. These are 200,000 draws from each of the ten families of times:
 
-![Histograms of 200,000 draws from each of the ten families, with the mean marked. Exponential falls away from 0. Normal with mean 1 and std 1 has a pile at 0, where negative draws are raised; truncated normal has none. Lognormal has a long right tail, and constant is one value. Uniform is flat between 1 and 2, and triangular rises to 1.25 and falls to 2.25. Gamma and weibull are skewed to the right, and the empirical histogram has three flat bins](../../assets/charts/distribution-shapes.png)
+![Histograms of 200,000 draws from each of the ten families of times, with the mean marked. Exponential falls away from 0. Normal with mean 1 and std 1 has a pile at 0, where negative draws are raised; truncated normal has none. Lognormal has a long right tail, and constant is one value. Uniform is flat between 1 and 2, and triangular rises to 1.25 and falls to 2.25. Gamma and weibull are skewed to the right, and the empirical histogram has three flat bins](../../assets/charts/distribution-shapes.png)
 
-**A draw reads the live configuration.** A `DistributionConfig` holds the family and its parameters. `Sampler.sample(config)` reads the parameters at the moment it is called, so a change made while the run goes on applies from the next draw. A task draws its service time once it has its resource and has published `started`. The arrival loop draws the next gap when it starts waiting. Every value is raised to at least 0.00001 seconds, so a time is never 0 or negative.
+**A draw reads the live configuration.** A `DistributionConfig` holds the family and its parameters. `Sampler.sample(config)` reads the parameters at the moment it is called, so a change made while the run goes on applies from the next draw. A task draws its service time once it has its resource and has published `started`. The arrival loop draws the next gap when it starts waiting. A draw below 0 is raised to 0, so a time is never negative.
 
 **One random stream per distribution.** A seeded `Sampler` makes one generator for each name: NumPy's `SeedSequence(seed, spawn_key=(CRC32 of the name,))`. When the registry registers a distribution, it names it by its path without the sim id, such as `arrival.orders` or `service.packing`, and every draw from that distribution comes from that stream. Probability routing draws from `route.<task>` in the same way, as [Task Flow](task-flow.md) describes. Each stream depends only on the seed and the distribution's name. Adding a distribution therefore leaves every other one's draws unchanged. The name leaves out the sim id, so renaming the simulation does not change them either:
 
@@ -345,7 +492,7 @@ Invalid value for 'Shop.service.packing.std': normal std must be 0 or more, got 
 
 ## Stability and Limits
 
-- **Refused at build.** The same checks refuse a bad distribution when the model is built. These three are an out-of-range `std`, a parameter `normal` does not take, and a `mode` above `high`:
+- **Refused at build.** The same checks refuse a bad distribution when the model is built. A parameter that is NaN or infinity is refused with its name, at load and on a live update. `true` is refused at load, and a live update stores it as 1, as [Live Parameters](../live-runs-and-connectors/live-parameters.md) says. A negative `low` or `value` in a distribution of times (`uniform`, `triangular`, `truncated_normal` and `empirical`) is refused. So is a parameter whose draw would overflow: a `weibull` `shape`, a `lognormal` `mean` or a `poisson` `mean`. These three are an out-of-range `std`, a parameter `normal` does not take, and a `mode` above `high`:
 
     === "YAML"
 
@@ -378,6 +525,7 @@ Invalid value for 'Shop.service.packing.std': normal std must be 0 or more, got 
     ```
 
 - **A wide `normal`.** When `std` is half of `mean`, 2.3% of draws fall below 0 and are raised to the floor. When `std` equals `mean`, 15.9% are. The raised draws push the average time up: the 200,000 draws of the normal panel in the chart above, with mean 1 and std 1, average 1.08, not 1. Use `truncated_normal`.
+- **A gap of 0.** A constant gap of 0 starts entities at one instant without end, so the run never ends and `until` does not stop it, as in SimPy. A service of 0 takes no time and does not stop the run.
 - **Rate against mean.** `exponential` takes a `rate` per second, not a mean gap: an order every 30 seconds is `rate: 0.0333`, not `30`.
 - **A seed and the timestamps.** A seed fixes the draws and so the simulation times, but each record's `timestamp` also depends on when the run started, unless `logical_start_time` is set, as [Time and Pacing](../time-and-pacing/index.md) explains.
 - **Spread lengthens queues.** Two models with the same mean times but a different spread have different queues: more spread means longer waits, as [Queues and Capacity](../../learn/first-model/queues-and-capacity.md) and [Choosing Inputs](../../learn/inputs/choosing-inputs.md) measure.

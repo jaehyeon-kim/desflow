@@ -28,7 +28,8 @@ The [M/M/1](../../learn/concepts/queueing-basics.md#kendalls-notation) and M/M/c
       warmup: 2000  # seconds left out of every measure, while the queue fills
 
     arrivals:
-      # An order every 1.33 s on average (rate 0.75) with one packer; RATE=1.5 with PACKERS=2
+      # An order every 1.33 s on average (rate 0.75) with one packer; RATE=1.5 with
+      # PACKERS=2
       orders:
         dist: exponential
         rate: ${RATE:-0.75}
@@ -48,8 +49,7 @@ The [M/M/1](../../learn/concepts/queueing-basics.md#kendalls-notation) and M/M/c
         resource: packers
         payload: {event_type: order_packed}
 
-    run:
-      until: 20000
+    run: {until: 20000}
     ```
 
 === "Builder"
@@ -267,9 +267,7 @@ Agreement shows the program computes what the model on paper says. It says nothi
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/check_against_theory_constant.yaml:unsupported"
-    simulation:
-      sim_id: Shop
-      factor: 0
+    simulation: {sim_id: Shop, factor: 0}
 
     arrivals:
       orders: {dist: exponential, rate: 1.5, spawn: pack_order}
@@ -315,12 +313,17 @@ wait: no closed formula for c > 1 with non-exponential times; run --verify to me
 The utilisation is still known here, because it needs only the rates. The same rule applies to every model. The formulas hold in a plain network of queues: each task holds at most one resource, each queue serves first come, first served, and nothing blocks, removes, delays or reorders work. Anything else takes the formulas out of use, from the part of the model where it happens to the end of the flow:
 
 - a task's `patience`, `balk`, `fail`, `keep`, `get`, `put`, `signal`, `subscribe`, `interrupt` or `on` actions, preemption, or several resources held at once: that task and every task after it;
+- a task that an `interrupt` names (in the `interrupt` of a task, in an `on:` or `listen` entry of a task or a signal, or in a scenario step): that task and every task after it;
 - a `wait` other than a single `request`, such as a wait with two or more requests, or a request that a timeout of the same wait can end: that task and every task after it;
+- a spawn `count` other than 1, or a resource picked by `key` or `lowest`: that task and every task after it;
+- an arrival with a `group` other than 1 or with `active: false`: that arrival and every task after it;
 - a resource's `queue_limit`, custom type or breakdowns: the tasks that use it and every task after them;
+- an `on:` entry that sets a resource's capacity, or a resource family: the tasks that use the resource and every task after them;
 - an unstable resource: every task after its tasks, though the resource itself keeps its utilisation and status;
 - a priority queue whose tasks have different priorities: its wait, and every task after its tasks;
 - a scenario step that changes a parameter, live ingress, or an `add_process` function: every arrival and every task;
-- a replayed arrival, a hand-written arrival loop or a `next` function: every rate they could change.
+- a replayed arrival, a hand-written arrival loop or a `next` function: every rate they could change;
+- a task started by a `spawn` entry of a task's `on:` or `listen` list, by a `task` branch of a `wait`, `open` or `subscribe`, by a `spawn` entry in the `on:` list of a signal a task fires, or by `on_interrupt_next` or `on_interrupt_run`: it has no rate, because how often it starts is known only in a run.
 
 A task outside what the formulas cover has no rate, so each resource it uses has no utilisation, status or wait. Such a resource is not ranked as the [bottleneck](../../learn/concepts/queueing-basics.md#flow-balance-and-the-bottleneck). When no resource has a utilisation, `explain` says that no bottleneck can be named, and why. Each unknown value is printed under `Not estimated`, with the first reason found.
 
@@ -356,7 +359,8 @@ python check_against_theory.py
           warmup: 2000  # seconds left out of every measure, while the queue fills
 
         arrivals:
-          # An order every 1.33 s on average (rate 0.75) with one packer; RATE=1.5 with PACKERS=2
+          # An order every 1.33 s on average (rate 0.75) with one packer; RATE=1.5 with
+          # PACKERS=2
           orders:
             dist: exponential
             rate: ${RATE:-0.75}
@@ -376,20 +380,17 @@ python check_against_theory.py
             resource: packers
             payload: {event_type: order_packed}
 
-        run:
-          until: 20000
+        run: {until: 20000}
 
         egress:
-          - type: Console
+          - {type: Console}
         ```
 
         ```yaml title="docs/snippets/yaml/check_against_theory_constant.yaml"
         # Check Against Theory: two packers whose packing always takes 1 second, which no
         # closed formula describes.
         # Check it with: desflow explain check_against_theory_constant.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
+        simulation: {sim_id: Shop, factor: 0}
 
         arrivals:
           orders: {dist: exponential, rate: 1.5, spawn: pack_order}

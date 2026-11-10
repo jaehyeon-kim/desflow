@@ -4,19 +4,27 @@ from simpy import Container, Environment, Event
 from simpy.resources.base import BoundClass
 from simpy.resources.container import ContainerGet, ContainerPut
 
-from desflow.core.internal import internal_process
-from desflow.resources.base import BaseDynamicResource, _CancelReports, _Notifier
+from desflow.internal import internal_process
+from desflow.resources.base import (
+    _CancelReports,
+    _Notifier,
+    _Ranked,
+    _WrappedHolder,
+    check_ties,
+)
 
 
-class DynamicContainerPut(_CancelReports, ContainerPut):
+class DynamicContainerPut(_Ranked, _CancelReports, ContainerPut):
     """The put event of `ContainerBase`: SimPy's `ContainerPut`, whose `cancel()` also
-    reports the change of the queue length. Subclass it and set
+    reports the change of the queue length. Its `rank` keyword ranks it in a queue
+    that `DynamicContainer` was built to rank. Subclass it and set
     `put = BoundClass(MyPut)`."""
 
 
-class DynamicContainerGet(_CancelReports, ContainerGet):
+class DynamicContainerGet(_Ranked, _CancelReports, ContainerGet):
     """The get event of `ContainerBase`: SimPy's `ContainerGet`, whose `cancel()` also
-    reports the change of the queue length. Subclass it and set
+    reports the change of the queue length. Its `rank` keyword ranks it in a queue
+    that `DynamicContainer` was built to rank. Subclass it and set
     `get = BoundClass(MyGet)`."""
 
 
@@ -76,9 +84,13 @@ def check_container_type(container_type: Optional[Any]) -> None:
         )
 
 
-class DynamicContainer(BaseDynamicResource):
+class DynamicContainer(_WrappedHolder, Container):
     """
     A wrapper for SimPy Container with dynamic capacity updates.
+
+    It is also a SimPy `Container`, so `isinstance` holds. It runs none of SimPy's
+    constructor: `put_queue`, `get_queue`, `level` and `capacity` read the wrapped
+    container, and `put` and `get` call it.
 
     Useful for modeling continuous bulk materials (fluids, gases, battery charge) and
     stock. Unlike a standard `simpy.Container`, the capacity of this container listens
@@ -100,6 +112,10 @@ class DynamicContainer(BaseDynamicResource):
         env (Environment): The active SimPy simulation environment.
         sim_id (str): The parent simulation ID prefix.
         obj_id (str): The specific container name/identifier.
+        put_queue: The waiting puts, SimPy's queue.
+        get_queue: The waiting gets, SimPy's queue.
+        PutQueue: The type of `put_queue`, that of the wrapped container.
+        GetQueue: The type of `get_queue`, that of the wrapped container.
     """
 
     def __init__(
@@ -109,6 +125,8 @@ class DynamicContainer(BaseDynamicResource):
         container_id: str,
         init: Optional[float] = None,
         type: Optional[Type[ContainerBase]] = None,
+        get_ties: Optional[str] = None,
+        put_ties: Optional[str] = None,
     ):
         """
         Initializes the DynamicContainer and binds its capacity to the registry.
@@ -123,21 +141,28 @@ class DynamicContainer(BaseDynamicResource):
             type (Type[ContainerBase], optional): A subclass of `ContainerBase` to
                 build the container from, in place of the default; it is built as
                 `type(env, init=..., capacity=...)`. Defaults to None.
+            get_ties (str, optional): None, the default, keeps SimPy's queue of
+                waiting gets, first in, first out. `fifo` or `lifo` ranks them by the
+                `rank` each `get(rank=...)` is made with, lowest first, and serves
+                equal ranks oldest first or latest first. A get with no `rank` has
+                rank 0. Not allowed with `type`.
+            put_ties (str, optional): As `get_ties`, for the waiting puts.
 
         Raises:
-            ValueError: If `init` is above the capacity, or `type` is not a subclass
-                of `ContainerBase`.
+            ValueError: If `init` is above the capacity, `type` is not a subclass
+                of `ContainerBase`, or `get_ties` or `put_ties` is not `fifo` or
+                `lifo` or is given with `type`.
         """
         check_container_type(type)
+        check_ties(get_ties, put_ties, type)
         super().__init__(env, sim_id, container_id, "containers")
 
         self._level_val = env.registry.get(f"{sim_id}.containers.{container_id}.level")
-        max_cap = float(self._max_cap_val.value)
+        max_cap = self._max_cap_val.value
         # Prevent initialization out-of-bounds
-        initial_capacity = max(0.0, min(float(self._current_cap_val.value), max_cap))
+        initial_capacity = max(0, min(self._current_cap_val.value, max_cap))
         if init is None:
-            # The registry holds the level as a float, so later updates stay
-            # fractional; the configured level keeps the type it was given
+            # The configured level keeps the type it was given
             config = env.registry.get_config(f"{sim_id}.containers.{container_id}")
             init = getattr(config, "level", self._level_val.value)
         start = init
@@ -148,15 +173,16 @@ class DynamicContainer(BaseDynamicResource):
         if start > initial_capacity:
             # SimPy's own check, which the capacity of 1 below would not make
             raise ValueError('"init" must be <= "capacity".')
-        # SimPy refuses a capacity of 0, which desflow accepts because a capacity
-        # changes during a run; the container is built with 1 and held at 0, as a
-        # capacity change sets it
-        self._container = (type or ContainerBase)(
-            env, init=start, capacity=initial_capacity or 1.0
+        kind = type or ContainerBase
+        self._build_holder(
+            lambda capacity: kind(env, init=start, capacity=capacity),
+            initial_capacity,
+            smallest=1.0,
+            on_change=self._level_changed,
+            get_ties=get_ties,
+            put_ties=put_ties,
         )
-        self._container._on_change = self._level_changed
-        self._container._capacity = initial_capacity
-        self._level_val.track(self._container.level)
+        self._level_val.track(self._holder.level)
         internal_process(self.env, self._watch_level())
         self._register()
 
@@ -166,24 +192,24 @@ class DynamicContainer(BaseDynamicResource):
         float: The current active maximum capacity of the container.
         This value reflects the live state from the Registry.
         """
-        return self._container.capacity
+        return self._holder.capacity
 
     @property
     def level(self) -> float:
         """float: The current amount of bulk material stored inside the container."""
-        return self._container.level
+        return self._holder.level
 
     @property
     def getters_waiting(self) -> int:
         """int: Gets waiting for an amount. A get granted at once is not counted,
         although SimPy removes it from `get_queue` only after the grant."""
-        return sum(1 for event in self._container.get_queue if not event.triggered)
+        return self._waiting(self._holder.get_queue)
 
     @property
     def putters_waiting(self) -> int:
         """int: Puts waiting for room. A put granted at once is not counted,
         although SimPy removes it from `put_queue` only after the grant."""
-        return sum(1 for event in self._container.put_queue if not event.triggered)
+        return self._waiting(self._holder.put_queue)
 
     def put(self, *args: Any, **kwargs: Any) -> Event:
         """
@@ -197,7 +223,7 @@ class DynamicContainer(BaseDynamicResource):
         Returns:
             simpy.events.Event: A SimPy event that triggers when capacity is available.
         """
-        return self._container.put(*args, **kwargs)
+        return self._holder.put(*args, **kwargs)
 
     def get(self, *args: Any, **kwargs: Any) -> ContainerGet:
         """
@@ -212,24 +238,24 @@ class DynamicContainer(BaseDynamicResource):
             simpy.resources.container.ContainerGet: A SimPy event that triggers
                 when enough material is available.
         """
-        return self._container.get(*args, **kwargs)
+        return self._holder.get(*args, **kwargs)
 
     def _level_changed(self):
         """Keeps the registry's level and the statistics in step with the container."""
-        self._level_val.track(self._container.level)
+        self._level_val.track(self._holder.level)
         self._changed()
 
     def _watch_level(self):
         """Applies a live update to the level path, such as a restock."""
         while True:
             yield self._level_val.wait_for_change()
-            self._container._level = float(self._level_val.value)
+            self._holder._level = self._level_val.value
             self._changed()
             # A higher level can serve waiting gets, a lower one can make room for puts
-            if self._container.get_queue:
-                self._container._trigger_get(None)
-            if self._container.put_queue:
-                self._container._trigger_put(None)
+            if self._holder.get_queue:
+                self._holder._trigger_get(None)
+            if self._holder.put_queue:
+                self._holder._trigger_put(None)
 
     def _handle_capacity_change(self, new_target: float):
         """
@@ -240,12 +266,12 @@ class DynamicContainer(BaseDynamicResource):
             new_target (float): The new capacity limit dictated by the control plane.
         """
         # Safely bind the new target to absolute physical limits [0, max_cap]
-        max_cap = float(self._max_cap_val.value)
-        new_target = max(0.0, min(float(new_target), max_cap))
+        max_cap = self._max_cap_val.value
+        new_target = max(0, min(new_target, max_cap))
 
-        self._container._capacity = new_target
+        self._holder._capacity = new_target
 
         # If capacity grew, pending put requests might now have enough room to succeed.
         # We manually trigger SimPy's internal put processor to wake them up.
-        if self._container.put_queue:
-            self._container._trigger_put(None)
+        if self._holder.put_queue:
+            self._holder._trigger_put(None)

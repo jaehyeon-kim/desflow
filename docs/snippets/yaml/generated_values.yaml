@@ -1,0 +1,223 @@
+# Generated values: the kinds of generator a value place takes.
+#
+# An order record is built from generators: arithmetic, text, drawn numbers, choices,
+# a counter, a time, a row of a CSV file, and fields that are sometimes left out. A
+# generator is a mapping with a `gen` key, in any place that takes a value.
+#
+# Needs: the `fake` extra for the `fake` generator (pip install "desflow[fake]").
+# Run it with: desflow run docs/snippets/yaml/generated_values.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+variables:
+  tax_rate: 0.2
+  limits: {low: 1, high: 9}
+
+services:
+  packing: {dist: exponential, rate: 0.1}
+
+arrivals:
+  orders:
+    dist: constant
+    value: 60
+    spawn: order
+    attributes:
+      size: {gen: integer, bounds: [1, 50]}
+      delivery:
+        gen: object
+        fields:
+          slot: {gen: integer, bounds: [8, 17]}
+
+tasks:
+  order:
+    # --8<-- [start:vars]
+    # Named values, drawn in order once for each instance of the task when it starts,
+    # because on_start is given. A generator reads one as {gen: var, name: ...}
+    vars:
+      quantity: {gen: integer, bounds: [1, 6]}
+      unit_price: {gen: uniform, low: 5, high: 40, decimals: 2}
+      ship_to:
+        gen: object
+        fields:
+          city: {gen: one_of, choices: [Perth, Hobart]}
+          postcode: {gen: integer, bounds: [1000, 9999]}
+    # Drawn once for each entity and task, at its first use
+    vars_once:
+      region: {gen: one_of, choices: [north, south]}
+    # Published as one event record when the task starts
+    on_start:
+      opened_at: {gen: now}
+    # Drawn after the service, and may read the vars
+    finish_vars:
+      closed_at: {gen: now, offset: 1 min}
+    # The key of the task's records, drawn at the first record
+    key: {gen: sequence, start: 1, format: "order-{}"}
+    # Rows kept for a lookup or aggregate of this task by other tasks
+    history: 500
+    # --8<-- [end:vars]
+    payload:
+      # --8<-- [start:arithmetic]
+      total:
+        gen: add
+        args: [{gen: var, name: unit_price}, 10]
+        decimals: 1
+      discount:
+        gen: subtract
+        args: [100, {gen: var, name: quantity}]
+      weight:
+        gen: multiply
+        args: [{gen: var, name: quantity}, 2.5]
+        decimals: 1
+      share:
+        gen: divide
+        args: [{gen: var, name: quantity}, 4]
+        decimals: 2
+      least:
+        gen: min
+        args: [{gen: var, name: quantity}, 5]
+      most:
+        gen: max
+        args: [{gen: var, name: quantity}, 5]
+      # --8<-- [end:arithmetic]
+      # --8<-- [start:expression]
+      with_tax:
+        gen: expr
+        expr: "quantity * price * (1 + tax)"
+        names:
+          price: {gen: var, name: unit_price}
+          tax: {gen: param, path: Shop.variables.tax_rate}
+        decimals: 2
+      # --8<-- [end:expression]
+      # --8<-- [start:text]
+      region:
+        gen: upper
+        value: {gen: var, name: region}
+      source: {gen: lower, value: WEB}
+      note: {gen: literal, value: "n/a"}
+      # --8<-- [end:text]
+      # --8<-- [start:uniform]
+      price: {gen: uniform, low: 5, high: 40, decimals: 2}
+      # --8<-- [end:uniform]
+      # --8<-- [start:normal]
+      delivery_minutes: {gen: normal, mean: 120, std: 15, decimals: 1}
+      # --8<-- [end:normal]
+      # --8<-- [start:sample]
+      wait: {gen: sample, service: packing, decimals: 1}
+      retries: {gen: sample, dist: geometric, p: 0.5}
+      fixed: {gen: sample, dist: constant, value: 3}
+      # --8<-- [end:sample]
+      # --8<-- [start:one-of]
+      colour: {gen: one_of, choices: [red, green, blue]}
+      # --8<-- [end:one-of]
+      # --8<-- [start:pick]
+      extras: {gen: pick, choices: [card, ribbon, box, tag], count: 2}
+      # --8<-- [end:pick]
+      # --8<-- [start:weighted]
+      paid_by:
+        gen: weighted
+        options: {card: 60, cash: 40}
+      priority:
+        gen: weighted
+        choices:
+          - {value: normal, weight: 9}
+          - {value: rush, weight: 1}
+      # --8<-- [end:weighted]
+      # --8<-- [start:sequence]
+      number: {gen: sequence, start: 1000, step: 5, loop_after: 1000, format: "ord-{}"}
+      # --8<-- [end:sequence]
+      # --8<-- [start:uuid]
+      reference: {gen: uuid, version: 7}
+      # --8<-- [end:uuid]
+      # --8<-- [start:boolean]
+      gift: {gen: boolean, p: 0.1}
+      # --8<-- [end:boolean]
+      # --8<-- [start:time]
+      due_at: {gen: now, offset: 1 hour}
+      # --8<-- [end:time]
+      # --8<-- [start:format-time]
+      placed_at:
+        gen: format_time
+        time: {gen: now, offset: -1 h}
+        format: "%H:%M"
+        tz: Australia/Melbourne
+      # --8<-- [end:format-time]
+      # --8<-- [start:fake]
+      customer: {gen: fake, method: name, locale: en_AU}
+      phone: {gen: fake, method: numerify, args: ["04## ### ###"]}
+      email:
+        gen: fake
+        method: email
+        kwargs: {domain: example.com}
+      # --8<-- [end:fake]
+      # --8<-- [start:format]
+      code:
+        gen: format
+        template: "{region}-{n}"
+        names:
+          region: {gen: var, name: region}
+          n: {gen: integer, bounds: [10, 99]}
+      # --8<-- [end:format]
+      # --8<-- [start:switch]
+      band:
+        gen: switch
+        on: {gen: var, name: quantity}
+        cases:
+          - {max: 3, value: small}
+          - {min: 3, max: 5, value: medium}
+        default: large
+      # --8<-- [end:switch]
+      # --8<-- [start:when]
+      size_label: {gen: when, condition: "quantity > 3", then: large, else: small}
+      # --8<-- [end:when]
+      # --8<-- [start:repeat]
+      scores:
+        gen: repeat
+        times: 3
+        value: {gen: integer, bounds: [1, 5]}
+      # --8<-- [end:repeat]
+      # --8<-- [start:var-attr]
+      city: {gen: var, name: ship_to, path: city}
+      size: {gen: attr, name: size}
+      slot: {gen: attr, name: delivery, path: slot}
+      # --8<-- [end:var-attr]
+      # --8<-- [start:param]
+      tax_rate: {gen: param, path: Shop.variables.tax_rate}
+      high: {gen: param, path: Shop.variables.limits, field: high}
+      # --8<-- [end:param]
+      # --8<-- [start:object]
+      address:
+        gen: object
+        fields:
+          street: {gen: fake, method: street_name}
+          postcode: {gen: integer, bounds: [1000, 9999]}
+      # --8<-- [end:object]
+      # --8<-- [start:call]
+      gross:
+        gen: call
+        function: !python generated_values_logic.with_tax
+        kwargs:
+          price: {gen: var, name: unit_price}
+      # --8<-- [end:call]
+      # --8<-- [start:row]
+      stocked:
+        gen: row
+        file: generated_values_products.csv
+        where: stock > 0
+        weight: share
+        on_end: loop
+      # --8<-- [end:row]
+      # --8<-- [start:missing]
+      coupon: {gen: uuid, null_rate: 0.3}
+      gift_card: {gen: integer, bounds: [1000, 9999], omit_rate: 0.5}
+      rush_fee: {gen: integer, bounds: [1, 9], omit_when: "quantity < 4"}
+      ticket: {gen: integer, bounds: [1, 1000000], unique: true}
+      # --8<-- [end:missing]
+
+run: {until: 10 min}

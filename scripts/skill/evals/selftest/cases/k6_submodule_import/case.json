@@ -1,0 +1,13 @@
+{
+  "fault": "round 4 S3: `import desflow.connectors.egress.local as local`",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K6": 1
+  },
+  "evidence": {
+    "K6": [
+      "imports desflow.connectors.egress.local"
+    ]
+  }
+}

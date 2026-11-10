@@ -2,7 +2,7 @@
 
 The low-level version of multi_resource_handoffs.py: pick requests the picker and
 passes the granted request to pack, which releases it once the order is on the bench.
-python multi_resource_handoffs_low_level.py runs 30 seconds in real time.
+python multi_resource_handoffs_low_level.py runs 30 simulated seconds at once.
 """
 
 import itertools
@@ -39,23 +39,61 @@ PARAMS = SimParameter(
 def pick(env, shop, key):
     """Carries the order to the bench, and hands the picker to pack."""
     task_id, path_id = next(shop["ids"]["pick"]), "Shop.service.walking"
-    env.publish_event(key, {"path_id": path_id, "status": "queued"}, "pick", task_id)
+    env.publish_event(
+        key,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "walking",
+            "status": "queued",
+        },
+        "pick",
+        task_id,
+    )
     picker = shop["picker"].request()
     yield picker
-    env.publish_event(key, {"path_id": path_id, "status": "started"}, "pick", task_id)
+    env.publish_event(
+        key,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "walking",
+            "status": "started",
+        },
+        "pick",
+        task_id,
+    )
     yield env.timeout(shop["sampler"].sample(env.registry.get_config(path_id)))
     env.publish_event(key, {"event_type": "order_picked"}, "pick", task_id)
-    env.process(pack(env, shop, key, picker))  # the order still holds the picker
+    yield from pack(env, shop, key, picker)  # the order still holds the picker
 
 
 def pack(env, shop, key, picker):
     """Waits for the bench while holding the picker, then gives the picker back."""
     task_id, path_id = next(shop["ids"]["pack"]), "Shop.service.packing"
-    env.publish_event(key, {"path_id": path_id, "status": "queued"}, "pack", task_id)
+    env.publish_event(
+        key,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": "queued",
+        },
+        "pack",
+        task_id,
+    )
     with shop["bench"].request() as bench:
         yield bench
         env.publish_event(
-            key, {"path_id": path_id, "status": "started"}, "pack", task_id
+            key,
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            },
+            "pack",
+            task_id,
         )
         shop["picker"].release(picker)  # the order is on the bench
         yield env.timeout(shop["sampler"].sample(env.registry.get_config(path_id)))
@@ -71,7 +109,7 @@ def orders(env, shop):
         env.process(pick(env, shop, f"orders-{number}"))
 
 
-def run(until=30.0, factor=1.0, egress=None):
+def run(until=30.0, factor=0, egress=None):
     env = DynamicRealtimeEnvironment(factor=factor)
     env.registry.register_sim_parameter(PARAMS)
     env.setup_egress(egress or [ConsoleEgress()])

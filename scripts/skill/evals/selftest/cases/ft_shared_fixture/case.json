@@ -1,0 +1,16 @@
+{
+  "fault": "round 3 P1: a module-scoped fixture runs every form once; each test that gets its value counts the forms the fixture ran (the fixture rule of form_trace.py)",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K9": 0,
+    "BASE": 0
+  },
+  "forms": {
+    "test_model.py::test_the_second_job_starts_when_the_capacity_grows[yaml]": [
+      "builder",
+      "low_level",
+      "yaml"
+    ]
+  }
+}

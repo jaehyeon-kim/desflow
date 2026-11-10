@@ -1,0 +1,19 @@
+# case ST-U07: test_all_of (ten timeouts 0 to 9), over a list of events. The branches
+# are named; a computed list is design Y3.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  a:
+    initial: 1
+    spawn: pem
+    attributes: {delays: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}
+
+tasks:
+  pem:
+    wait:
+      each: "attr.delays"
+      group: all
+      branch: {timeout: "each.value"}
+    payload:
+      event_type: all_done
+      at: {gen: expr, expr: t}

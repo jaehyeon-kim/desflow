@@ -24,7 +24,7 @@ The shop of [First Simulation](first-model/first-simulation.md) has one packer, 
 - At 2.696 seconds order 2 arrives and joins the queue, because the packer is busy.
 - At 4.052 seconds, 1.5 seconds after it started, order 1 is packed, and order 2 starts in the same instant.
 
-Order 2 waited 4.052 − 2.696 = 1.356 seconds. Nothing in the model says so: the wait comes from when the events fell.
+Order 2 waited from 2.696 to 4.052 seconds, which is 1.357 seconds before rounding to three places. Nothing in the model says so: the wait comes from when the events fell. The two figures on this page use round times (0.0, 1.5, 2.6 and 4.1 seconds) to show the idea, so they differ from these records.
 
 ### Why It Matters
 
@@ -36,19 +36,13 @@ Because the clock jumps, a simulated week with a few thousand events takes only 
 
 ### How to Use It
 
-You do not write the event list. desflow runs on [SimPy](https://simpy.readthedocs.io/), which keeps the event list and the clock. You describe the arrivals, the work and the resources, and desflow adds the parts of a simulation study that you would otherwise write yourself:
-
-- **Statistics.** Waits, queue lengths and utilisation are collected for you, with a warm-up period left out. [Statistics](../user-guide/results/statistics.md) explains them.
-- **Replications.** `desflow run --replications` repeats a run with different seeds and gives each statistic with a 95% interval. [Replications](../user-guide/results/replications.md) explains it.
-- **Experiments.** `desflow experiment` compares designs with the same random numbers, checks them against bounds and observed values, and writes a report. [Experiments](../user-guide/results/experiments.md) explains it.
-- **Checks against queueing theory.** `desflow explain` works out each resource's utilisation and waits from the model alone, and `--verify` compares those figures with runs. [Command Line](../cli/index.md#check-it-before-a-long-run) shows it.
-- **Inputs from data.** `desflow fit` fits measured times to distributions, and `desflow dist` converts a distribution's parameters. [Input Fitting](../user-guide/model-parts/input-fitting.md) explains it.
+You do not write the event list. desflow runs on [SimPy](https://simpy.readthedocs.io/), which keeps the event list and the clock. You describe the arrivals, the work and the resources. desflow adds the parts of a simulation study that you would otherwise write yourself: statistics, repeated runs, comparisons of designs, checks against queueing theory and fits of measured times. The [User Guide](../user-guide/index.md) covers each one, and the tutorial introduces them when a question needs them.
 
 To see these events yourself, follow [First Simulation](first-model/first-simulation.md). It gives the shop's file in three forms, a YAML blueprint, a builder script and a low-level script, and how to install desflow and run each one. All three forms print the same records.
 
 ### What the Result Means
 
-Read `sim_ts`, the simulation time of each record. It jumps from 2.552 to 2.696, then to 3.737, 4.02 and 4.052, because nothing happens in between. A run unpaced, with `factor: 0`, gives the same records in a fraction of a second. A run paced to the wall clock gives them in real time, which is how desflow feeds live data to a system that reads it.
+Read `sim_ts`, the simulation time of each record. It jumps from 2.552 to 2.696 and then to 4.052, because nothing happens in between. A run unpaced, with `factor: 0`, gives the same records in a fraction of a second. A run paced to the wall clock gives them in real time, which is how desflow feeds live data to a system that reads it.
 
 ---
 
@@ -102,7 +96,7 @@ Each record carries the simulation time, the entity's key and what happened. A r
 
 ### In the Tutorial
 
-The shop opens empty in the morning and closes at the end of the day. A question about one day, such as how many orders are still waiting at closing time, has a natural end: the day. A question about the busy hour, such as the mean wait when the shop is running at 1.8 orders a second, is about the shop after its empty start has stopped mattering.
+The shop opens empty in the morning and closes at the end of the day. A question about one day, such as how many orders are still waiting at closing time, has a natural end: the day. A question about the busy hour, such as the mean wait in the busy hour, when orders arrive faster than the 2 seconds of the quiet shop, is about the shop after its empty start has stopped mattering.
 
 ### Why It Matters
 

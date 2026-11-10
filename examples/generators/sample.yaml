@@ -1,0 +1,24 @@
+# Sample: a draw from a distribution family.
+# A task `order` starts every 60 seconds, and the run lasts 200 seconds, so three orders
+# start.
+#
+# Run it with: desflow run examples/generators/sample.yaml
+
+simulation:
+  sim_id: Gen
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  orders: {dist: constant, value: 60, spawn: order}
+
+tasks:
+  order:
+    payload:
+      wait_s: {gen: sample, dist: exponential, rate: 0.5, decimals: 2}
+
+run: {until: 200}

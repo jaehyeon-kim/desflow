@@ -16,7 +16,8 @@ from desflow import (
 
 # --8<-- [start:builder-store]
 app = SimulationContext(sim_id="Shop", factor=0.0)
-# A courier takes the lowest priority value first, the oldest first among equals.
+# A courier takes the lowest priority value first; equal priorities leave in
+# SimPy's heap order.
 # Left from yesterday: (priority, item) pairs, held before the first put.
 app.add_store(
     "parcels",
@@ -56,7 +57,7 @@ parcels = DynamicStore(
     "Shop",
     "parcels",
     priority=True,
-    # Each pair is held as a PriorityItem, ranked by priority and then by order
+    # Each pair is held as a PriorityItem
     items=[(2, {"order": "standard-0"}), (1, {"order": "express-0"})],
 )
 
@@ -64,7 +65,7 @@ parcels = DynamicStore(
 def courier_process(env):
     first = yield parcels.get()  # a PriorityItem; .item is the parcel
     print(f"collected {first.item['order']}")
-    # A put of your own wraps the item the same way, so ties keep their order
+    # A put of your own wraps the item the same way
     yield parcels.put(parcels.wrap({"order": "express-1"}, 1))
 
 

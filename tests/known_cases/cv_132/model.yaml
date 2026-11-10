@@ -1,0 +1,31 @@
+# case CV-132: a process waited for by one that did not start it, and by two waiters: a
+# once signal that the task fires with the value 7, which both waiters read as
+# `wait.done.value`.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+
+signals:
+  done: {once: true}
+
+arrivals:
+  w: {initial: 1, spawn: worker}
+  a: {initial: 1, spawn: waiter_a}
+  b: {dist: constant, value: 5, spawn: waiter_b, max_events: 1}
+
+tasks:
+  worker:
+    service_time: 2
+    on:
+      - fire: {signal: done, value: 7}
+    payload: {event_type: worker_done}
+  waiter_a:
+    wait: {signal: done}
+    payload:
+      event_type: a_saw
+      at: {gen: expr, expr: t}
+      v: {gen: expr, expr: "wait.done.value"}
+  waiter_b:
+    wait: {signal: done}
+    payload:
+      event_type: b_saw_after
+      at: {gen: expr, expr: t}
+      v: {gen: expr, expr: "wait.done.value"}

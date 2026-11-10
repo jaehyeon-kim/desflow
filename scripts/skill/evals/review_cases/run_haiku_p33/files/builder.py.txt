@@ -1,0 +1,51 @@
+"""The model in model.yaml, with the Builder API.
+
+A task raises a resource's capacity: `job` holds one unit of `m` and `grow`
+sets `m` to 3 when it finishes at 2 seconds, which lets the waiting job start.
+
+Run with: python builder.py   (prints one JSON line per record)
+"""
+
+from desflow import ConsoleEgress, SimulationContext
+
+app = (
+    SimulationContext(sim_id="P", factor=0, random_seed=42)
+    .add_egress(ConsoleEgress(format="json"))
+    # One unit to start; room for 3, so grow can raise the capacity to 3.
+    .add_resource("m", current_cap=1, max_cap=3)
+    # One entity at 0 s, then one every 1 s.
+    .add_arrival("a", first_at=0, gap=1)
+    # One entity at 2 s.
+    .add_arrival("boss", first_at=2, gap=1)
+)
+
+
+@app.task(resource_id="m", service_time=5)
+def job(task_id, context):
+    """Holds one unit of m for 5 seconds, then publishes its done event."""
+    return {"event_type": "done"}
+
+
+@app.task(on=[{"path": "P.resources.m.current_cap", "value": 3}])
+def grow(task_id, context):
+    """Publishes its grow event, then raises the capacity of m to 3."""
+    return {"event_type": "grow"}
+
+
+@app.arrival_loop("a")
+def job_arrivals(context):
+    """Starts a job for each of the 2 entities of arrival a."""
+    for task_id in range(2):
+        entity = yield context.wait_for_arrival("a")
+        context.spawn(job(task_id, context, entity=entity))
+
+
+@app.arrival_loop("boss")
+def grow_arrivals(context):
+    """Starts the one grow task, for the entity of arrival boss."""
+    entity = yield context.wait_for_arrival("boss")
+    context.spawn(grow(0, context, entity=entity))
+
+
+if __name__ == "__main__":
+    app.run(until=20)

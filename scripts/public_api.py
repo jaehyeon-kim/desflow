@@ -1,12 +1,17 @@
 """Write the public API snapshot that tests/unit/test_public_api.py compares with.
 
 The public API is every name a user can reach from the docs or the package: the names
-in `desflow.__all__`, every `:::` path on the API page (`docs/reference/api.md`), and every name
-a script under `examples/` or `docs/snippets/` imports from desflow. For each one the
+in the `__all__` of every package of `PROMISED_PACKAGES`, every `:::` path on the API
+page (`docs/reference/api.md`), and every name a script under `examples/` or
+`docs/snippets/` imports from desflow. For each one the
 snapshot holds its signature, and for a class the signature of each public member that
-a desflow class defines. A name that is another path to the same object is one line
-that names the object's own path. The `desflow` command is listed after the objects:
-each command with its exit codes, and each argument and option.
+a desflow class defines. 1.x keeps the import paths of `PROMISED_PACKAGES` and of the
+connector modules under `desflow.connectors`, and no other. The snapshot names each
+object at the first of those paths that exports it, not at the module that defines it,
+so a module inside a package can move in 1.x without changing the snapshot. A name
+written at another path is one line that names the promised path. The `desflow` command
+is listed after the objects: each command with its exit codes, and each argument and
+option.
 
 The snapshot is the same on every Python the CI matrix runs, because annotations and
 defaults are written by this file, not by `repr`, which changes between versions.
@@ -16,14 +21,15 @@ Usage: uv run --all-extras python scripts/public_api.py
 
 import ast
 import importlib
+import importlib.util
 import inspect
 import re
 import sys
 import textwrap
 import types
 import typing
-from pathlib import Path
-from typing import Any, Dict, Iterator, List
+from pathlib import Path, PurePath
+from typing import Any, Dict, Iterator, List, NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
 API_PAGE = ROOT / "docs" / "reference/api.md"
@@ -31,9 +37,185 @@ SNAPSHOT = ROOT / "tests" / "unit" / "public_api.txt"
 HEADER = "# Written by scripts/public_api.py. Do not edit by hand."
 CLI_HEADER = "[cli]"
 
+# The packages whose names 1.x keeps, in the order a name is looked up: an object is
+# named at the first package that lists it in `__all__`. The connector modules under
+# `desflow.connectors` are promised too (`is_connector_module`), not the package
+# `desflow`, which lists a connector only when its extra is installed.
+PROMISED_PACKAGES = (
+    "desflow",
+    "desflow.values",
+    "desflow.blueprint",
+    "desflow.analysis",
+    "desflow.explain",
+    "desflow.models",
+    "desflow.resources",
+)
+_CONNECTORS = "desflow.connectors."
+
 _ADDRESS = re.compile(r" at 0x[0-9a-fA-F]+")
 _PATH = re.compile(r"[A-Za-z_][\w.]*")
 _SHORT_MODULES = ("builtins", "typing")
+
+
+def is_connector_module(module: str) -> bool:
+    """Whether a module is a connector module, such as `desflow.connectors.egress.kafka`.
+
+    Args:
+        module: A dotted module path.
+
+    Returns:
+        bool: True for a module under `desflow.connectors` with no private segment.
+    """
+    return module.startswith(_CONNECTORS) and not any(
+        part.startswith("_") for part in module.split(".")
+    )
+
+
+def is_promised_module(module: str) -> bool:
+    """Whether 1.x keeps the import path of this module.
+
+    Args:
+        module: A dotted module path.
+
+    Returns:
+        bool: True for a package of `PROMISED_PACKAGES` or a connector module.
+    """
+    return module in PROMISED_PACKAGES or is_connector_module(module)
+
+
+def promised_path(obj: Any, written: str = "") -> str:
+    """The path 1.x keeps for an object: a connector stays in its module, any other
+    object is at the first package of `PROMISED_PACKAGES` that lists it in `__all__`.
+
+    Args:
+        obj: A class, function or value.
+        written: The path the object was named by, used when no promised path
+            exports it and the object has no path of its own.
+
+    Returns:
+        str: The dotted path.
+    """
+    own = _own_path(obj)
+    if own and is_connector_module(obj.__module__):
+        return own
+    for package in PROMISED_PACKAGES:
+        module = importlib.import_module(package)
+        found = [n for n in getattr(module, "__all__", []) if getattr(module, n) is obj]
+        if found:
+            own_name = own.rsplit(".", 1)[-1]
+            return f"{package}.{own_name if own_name in found else found[0]}"
+    return own or written
+
+
+class OutsideImport(NamedTuple):
+    """One import of a desflow name from a path 1.x does not keep.
+
+    Attributes:
+        line: The line of the import.
+        text: The import, as written.
+        use: The promised path to import the name from, or "" when no promised path
+            exports it.
+    """
+
+    line: int
+    text: str
+    use: str
+
+
+def _promised_use(module: str, name: str) -> str:
+    """The promised path of `name` imported from `module`, or "" when none exports it."""
+    try:
+        obj = resolve(f"{module}.{name}")
+    except (ImportError, AttributeError):
+        return ""
+    found = promised_path(obj, "")
+    return found if found and is_promised_module(found.rsplit(".", 1)[0]) else ""
+
+
+def imports_outside_promise(source: str) -> List[OutsideImport]:
+    """The imports of desflow names in a source text that 1.x does not keep.
+
+    A name imported from a package of `PROMISED_PACKAGES` must be in its `__all__`.
+    A name imported from a connector module is kept. Any other desflow module is
+    outside the promise.
+
+    Args:
+        source: The text of a Python file.
+
+    Returns:
+        List[OutsideImport]: One entry for each import, in the order of the file.
+    """
+    found: List[OutsideImport] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                module = alias.name
+                if module.startswith("desflow.") and not is_promised_module(module):
+                    found.append(OutsideImport(node.lineno, f"import {module}", ""))
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module
+            and (node.module == "desflow" or node.module.startswith("desflow."))
+        ):
+            module = node.module
+            if is_connector_module(module):
+                continue
+            exported = (
+                getattr(importlib.import_module(module), "__all__", [])
+                if module in PROMISED_PACKAGES
+                else []
+            )
+            for alias in node.names:
+                if alias.name in exported:
+                    continue
+                found.append(
+                    OutsideImport(
+                        node.lineno,
+                        f"from {module} import {alias.name}",
+                        _promised_use(module, alias.name),
+                    )
+                )
+    return sorted(found)
+
+
+def shadows_a_module(path: str) -> bool:
+    """Whether a promised path is also the path of a module.
+
+    `desflow.blueprint.build` is the function `build` and also the module `build.py`,
+    and `desflow.explain.verify` is the function `verify` and also `verify.py`.
+    `import` finds the function, but mkdocstrings loads the module, so the API page
+    names such an object by its module and its name, as `desflow.blueprint.build.build`.
+
+    Args:
+        path: A dotted path.
+
+    Returns:
+        bool: True when a module has this path.
+    """
+    try:
+        return importlib.util.find_spec(path) is not None
+    except (ImportError, AttributeError, ValueError):
+        return False
+
+
+def is_at_promised_path(written: str, promised: str) -> bool:
+    """Whether the API page may name an object by `written`, given its promised path.
+
+    Args:
+        written: The path as written.
+        promised: The object's promised path.
+
+    Returns:
+        bool: True when they are equal, when the object is in a connector module, or
+            when the promised path is also a module's path and `written` is that
+            module and the object's name (`shadows_a_module`).
+    """
+    return (
+        written == promised
+        or is_connector_module(written.rsplit(".", 1)[0])
+        or (written.rsplit(".", 1)[0] == promised and shadows_a_module(promised))
+    )
 
 
 def scripts() -> Iterator[Path]:
@@ -57,10 +239,12 @@ def _imported_names(path: Path) -> Iterator[str]:
 
 
 def names() -> List[str]:
-    """Every public path, from `__all__`, the API page and the scripts."""
-    import desflow
-
-    found = {f"desflow.{name}" for name in desflow.__all__}
+    """Every public path, from the `__all__` of every promised package, the API page and
+    the scripts."""
+    found: set[str] = set()
+    for package in PROMISED_PACKAGES:
+        module = importlib.import_module(package)
+        found.update(f"{package}.{name}" for name in module.__all__)
     for line in API_PAGE.read_text(encoding="utf-8").splitlines():
         if line.startswith("::: "):
             found.add(line[4:].strip())
@@ -70,18 +254,33 @@ def names() -> List[str]:
 
 
 def resolve(path: str) -> Any:
-    """The object a dotted path names: the longest importable module, then attributes.
+    """The object a dotted path names, found as `import` finds it: each name is an
+    attribute of the one before it, else a submodule. An attribute wins, so
+    `desflow.blueprint.build` is the function that `desflow.blueprint` exports, not
+    its module `build.py`. A path that fails that way is read as a module and then
+    attributes, as `desflow.blueprint.build.build` is.
 
     Args:
-        path: A dotted path, such as `desflow.core.context.SimulationContext`.
+        path: A dotted path, such as `desflow.SimulationContext`.
 
     Returns:
         Any: The object.
 
     Raises:
         ImportError: When no prefix of the path is an importable module.
+        AttributeError: When a name is neither an attribute nor a submodule.
     """
     parts = path.split(".")
+    try:
+        obj = importlib.import_module(parts[0])
+        for index, part in enumerate(parts[1:], start=1):
+            if hasattr(obj, part):
+                obj = getattr(obj, part)
+            else:
+                obj = importlib.import_module(".".join(parts[: index + 1]))
+        return obj
+    except ImportError:
+        pass
     for cut in range(len(parts), 0, -1):
         try:
             obj = importlib.import_module(".".join(parts[:cut]))
@@ -144,11 +343,18 @@ def _annotation(value: Any) -> str:
     if isinstance(value, type):
         if value.__module__ in _SHORT_MODULES:
             return value.__qualname__
+        if value.__module__.startswith("desflow."):
+            promised = promised_path(value)
+            if promised != f"{value.__module__}.{value.__qualname__}":
+                return promised
         return f"{_public_module(value)}.{value.__qualname__}"
     return _ADDRESS.sub("", repr(value))
 
 
 def _default(value: Any) -> str:
+    if isinstance(value, PurePath):
+        # `repr` names the class of the running platform, PosixPath or WindowsPath
+        return f"PosixPath({value.as_posix()!r})"
     return _ADDRESS.sub("", repr(value))
 
 
@@ -246,7 +452,8 @@ def object_lines(paths: List[str]) -> List[str]:
     """One line per object and per public member, sorted.
 
     Args:
-        paths: The dotted paths of the public objects.
+        paths: The dotted paths of the public objects. An object written at a path
+            1.x does not keep gets a line `path = promised path`.
 
     Returns:
         List[str]: The lines of the snapshot that describe the objects.
@@ -254,10 +461,12 @@ def object_lines(paths: List[str]) -> List[str]:
     lines = set()
     for path in paths:
         obj = resolve(path)
-        own = _own_path(obj)
-        if own and own != path:
-            lines.add(f"{path} = {own}")
-            path = own
+        promised = promised_path(obj, path)
+        if is_connector_module(path.rsplit(".", 1)[0]):
+            promised = path
+        if promised != path:
+            lines.add(f"{path} = {promised}")
+            path = promised
         if inspect.isclass(obj):
             lines.add(path + signature(obj))
             lines.update(_members(obj, path))

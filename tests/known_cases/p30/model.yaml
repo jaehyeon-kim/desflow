@@ -1,0 +1,25 @@
+# Documents for patterns P30 to P37.
+# case P30, P31: hold a one-unit resource across two steps (a one-unit container taken
+# with get and given back with put in a later task; register P30-31).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+containers:
+  m: {current_cap: 1, max_cap: 1, level: 1}
+
+services:
+  s1: {dist: constant, value: 1}
+  s2: {dist: constant, value: 2}
+
+arrivals:
+  a: {dist: constant, value: 0.5, spawn: t1, max_events: 3, first_at: 0}
+
+tasks:
+  t1:
+    service: s1
+    get: {container: m, amount: 1}
+    payload: {event_type: t1}
+    next: t2
+  t2:
+    service: s2
+    put: {container: m, amount: 1}
+    payload: {event_type: t2}

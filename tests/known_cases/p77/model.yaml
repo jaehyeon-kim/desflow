@@ -1,0 +1,30 @@
+# case P77: simmer release_all: free every unit the flow holds (a loop of releases while
+# it still holds one).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+resources:
+  m: {current_cap: 3}
+
+arrivals:
+  a: {initial: 1, spawn: take_one}
+
+tasks:
+  take_one:
+    seize: m
+    payload: {event_type: one}
+    next: take_two
+  take_two:
+    seize: m
+    payload: {event_type: two}
+    next: work
+  work:
+    service_time: 1
+    payload: {event_type: worked}
+    next: release_all
+  release_all:
+    payload: {event_type: releasing}
+    release: m
+    next:
+      when:
+        - condition: "len([h for h in held(m) if h.entity == process.key]) > 0"
+          task: release_all

@@ -34,7 +34,7 @@ To see how long the distortion lasts, plot an output over time and look for wher
     stats: {level: typical, interval: 10}
 
     egress:
-      - type: Console
+      - {type: Console}
     ```
 
     `WARMUP=0` keeps the first minutes, and `--until` stops the run at 15 minutes. `head -4` keeps the first four lines, the queue and the mean wait at 10 and 20 seconds:
@@ -148,7 +148,7 @@ A `warmup` time leaves the start out of everything the run reports:
 
     In the low-level API the warm-up is an argument of `env.setup_egress`, as the `plot` step above shows, because the sinks are what leave the records out.
 
-A run has one warm-up, in simulation time. Every sink leaves out the records and telemetry stamped before the warm-up ends. The built-in statistics start again from zero when it ends, so they describe only the rest of the run. An order that queued before the warm-up ended and started after it counts with its whole wait. The warm-up differs from `go_live_at`, which sends early records to one sink and later ones to another, and drops nothing. [Time and Pacing](../../user-guide/time-and-pacing/index.md) compares the two.
+A run has one warm-up, in simulation time. Every sink leaves out the records and telemetry stamped before the warm-up ends. The built-in statistics start again from zero when it ends, so they describe only the rest of the run. An order that queued before the warm-up ended and started after it counts with its whole wait. The warm-up differs from `go_live_at`, a setting of `simulation` that names the time when records stop counting as history and count as live, so that one sink can take the earlier records and another the later ones. `go_live_at` drops nothing. [Time and Pacing](../../user-guide/time-and-pacing/index.md) compares the two.
 
 Run the hour without and with the warm-up. Each tab prints the mean wait without it, then with it:
 
@@ -284,7 +284,7 @@ The mean of the 40 values is the estimate. Its **[95% interval](../concepts/outp
 | 20 | 2.48 | 0.32 | 13.0% | 90.33 | 0.63 | 0.7% |
 | 40 | 2.32 | 0.20 | 8.4% | 90.03 | 0.45 | 0.5% |
 
-The mean waits of the 40 replications range from 1.45 to 4.39 seconds. The [single run with the seed 42](../first-model/first-simulation.md#busy-hour-figures) measured 1.38 seconds, lower than any of them.
+The mean waits of the 40 replications range from 1.45 to 4.39 seconds. The [single run with the seed 42](../concepts/output-analysis.md#busy-hour-figures) measured 1.38 seconds, lower than any of them.
 
 ---
 
@@ -467,9 +467,8 @@ Replications ([Output Analysis](../concepts/output-analysis.md#replications) exp
           # The 40 packing times measured at the bench, in seconds
           packing:
             dist: empirical
-            values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
-                     2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
-                     1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+            values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7, 2.7, 1.4, 1.9, 1.4, 1.3,
+                     1.8, 2.0, 1.4, 1.4, 1.9, 1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
                      2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
 
         tasks:
@@ -482,10 +481,9 @@ Replications ([Output Analysis](../concepts/output-analysis.md#replications) exp
         stats: {level: typical, interval: 10}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"
@@ -680,12 +678,21 @@ Replications ([Output Analysis](../concepts/output-analysis.md#replications) exp
             def publish(value):
                 env.publish_event(key, value, task="pack_order", instance=task_id)
 
-            publish({"path_id": path_id, "status": "queued"})
+            publish(
+                {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+            )
             env.stats.flow_started("orders")  # the order enters the shop
             env.stats.task_queued("pack_order", task_id)
             with packers.request() as request:
                 yield request
-                publish({"path_id": path_id, "status": "started"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    }
+                )
                 env.stats.task_started("pack_order", task_id)
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 publish({"event_type": "order_packed"})

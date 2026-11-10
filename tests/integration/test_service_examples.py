@@ -8,12 +8,13 @@ entries in the Redis stream, rows in the Iceberg table. The record content is ch
 by the twin tests in `tests/docs`, so a count above zero and one record that parses
 are enough here.
 
-The tests start nothing. The `service-examples` job in `pipeline.yml` starts the
-profile with `odctl up <profile>`, and a developer does the same before running one
-example: `pytest tests/integration/test_service_examples.py -m examples -k <example>`.
+The tests start nothing. The `services` jobs of `pull-request.yml` start
+the profiles with `odctl up <profile>`, and a developer does the same before running
+one example: `pytest tests/integration/test_service_examples.py -m examples -k
+<example>`.
 
-The Parquet example has no profile, and one test runs it against `storage`, in the
-`parquet-s3-example` job.
+The Parquet example has no profile, and one test runs it against `storage`, which the
+storage group of the `services` jobs starts.
 """
 
 import asyncio
@@ -346,9 +347,9 @@ READ_BACK_PAGES = {
 def _read_back_commands(page: str) -> list:
     """The `docker exec` commands of the page's Check the Result section, as the page
     writes them, one list of words for each command."""
-    text = (EXAMPLES_FOLDER.parent / "docs" / "how-to" / "examples" / page).read_text(
-        encoding="utf-8"
-    )
+    text = (
+        EXAMPLES_FOLDER.parent / "docs" / "gallery" / "simulation-models" / page
+    ).read_text(encoding="utf-8")
     section = text.split("## Check the Result", 1)[1].split("\n## ", 1)[0]
     commands = []
     for block in re.findall(r"^ *```bash\n(.*?)\n *```", section, re.S | re.M):
@@ -361,9 +362,9 @@ def _read_back_commands(page: str) -> list:
 def _python_read_back(page: str, marker: str) -> str:
     """The `python -c` command of the page's Check the Result section that holds
     `marker`, as the pip reader runs it."""
-    text = (EXAMPLES_FOLDER.parent / "docs" / "how-to" / "examples" / page).read_text(
-        encoding="utf-8"
-    )
+    text = (
+        EXAMPLES_FOLDER.parent / "docs" / "gallery" / "simulation-models" / page
+    ).read_text(encoding="utf-8")
     section = text.split("## Check the Result", 1)[1].split("\n## ", 1)[0]
     for block in re.findall(r"^ *```bash\n(.*?)\n *```", section, re.S | re.M):
         command = textwrap.dedent(block)
@@ -475,9 +476,9 @@ def test_the_page_read_back_commands_print_the_stated_answers(
     page = READ_BACK_PAGES[name]
     commands = _read_back_commands(page)
     assert commands, f"{page} gives no docker exec command to read the result back"
-    text = (EXAMPLES_FOLDER.parent / "docs" / "how-to" / "examples" / page).read_text(
-        encoding="utf-8"
-    )
+    text = (
+        EXAMPLES_FOLDER.parent / "docs" / "gallery" / "simulation-models" / page
+    ).read_text(encoding="utf-8")
     outputs = [
         subprocess.run(command, capture_output=True, text=True, timeout=120)
         for command in commands
@@ -495,13 +496,13 @@ def test_the_page_read_back_commands_print_the_stated_answers(
             ("orders-1", "started"),
             ("orders-2", "queued"),
         ]
-        assert records[0]["sim_ts"] == records[1]["sim_ts"] == 1.276
+        assert records[0]["sim_ts"] == records[1]["sim_ts"] == 1.2761899383482334
     elif name == "backfill-live":
         assert "Processed a total of 1 messages" in printed[0]
         first = json.loads(
             next(x for x in printed[0].splitlines() if x.startswith("{"))
         )
-        assert (first["key"], first["sim_ts"]) == ("orders-320", 600.111)
+        assert (first["key"], first["sim_ts"]) == ("orders-320", 600.1107008261746)
     elif name == "postgres":
         assert "(3 rows)" in text and "(3 rows)" in printed[0]
         rows = [x.split("|") for x in printed[0].splitlines() if "pending" in x]

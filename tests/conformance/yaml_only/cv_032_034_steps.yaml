@@ -1,0 +1,10 @@
+# CV-032 and CV-034: `run.steps` publishes one reading per model event, as a loop of
+# `env.peek()` and `env.step()` reads them. The replay file a.csv holds n rows at 1.
+# The smallest model of document GD-E3; the full document runs at Batch 6, as it
+# starts its entity with `initial`. See test_yaml_only.py.
+simulation: {sim_id: E, factor: 0, random_seed: 42}
+services: {one: {dist: constant, value: 1}}
+arrivals: {a: {replay: {path: a.csv}, spawn: ticking}}
+tasks:
+  ticking: {service: one, payload: {event_type: tick}}
+run: {until: 5, steps: true}

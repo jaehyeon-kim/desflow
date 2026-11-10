@@ -18,13 +18,23 @@ changes only the lines that hold the version.
 
 import importlib.util
 import json
+import re
+import subprocess
+import sys
 import tomllib
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "desflow"
 TEMPLATE = ROOT / "scripts" / "skill" / "SKILL.template.md"
+# Files written by hand under scripts/skill/ and copied into the skill as they are.
+# scripts/skill/evals/ is the skill's evaluation, which the skill does not ship
+COPIED = (
+    "references/testing.md",
+    "references/simpy.md",
+    "scripts/check_model.py",
+)
 
 
 def _load(name: str):
@@ -57,6 +67,7 @@ SECTIONS: Dict[str, str] = {
     "batching": "How records are grouped before they are sent.",
     "stats": "Which built-in statistics are published, and how often.",
     "run": "How long the run lasts, whether to drain at the end, and functions to call before it starts.",
+    "tests": "Named checks that `desflow test` runs: a seed, a run length and the measures expected.",
 }
 
 
@@ -90,6 +101,27 @@ def template() -> str:
     return text.replace("<!-- gen:sections -->", sections())
 
 
+def _slug(heading: str) -> str:
+    """The anchor a Markdown viewer gives a heading, as GitHub makes it."""
+    text = heading.replace("`", "").strip().lower()
+    return re.sub(r"[^a-z0-9 _-]", "", text).replace(" ", "-")
+
+
+def contents(text: str) -> str:
+    """A page with a list of its `##` headings after its first paragraph, as the
+    Agent Skills best practices ask of a reference over 100 lines."""
+    headings = []
+    fenced = False
+    for line in text.splitlines():
+        # A line of a code block that starts with "## " is not a heading
+        fenced = fenced != line.startswith("```")
+        if not fenced and line.startswith("## "):
+            headings.append(line[3:])
+    title, first, rest = text.split("\n\n", 2)
+    items = "\n".join(f"- [{heading}](#{_slug(heading)})" for heading in headings)
+    return f"{title}\n\n{first}\n\n{items}\n\n{rest}"
+
+
 def blueprint_keys() -> str:
     """`references/blueprint-keys.md`: the body of the YAML Keys page."""
     lines = [
@@ -102,12 +134,12 @@ def blueprint_keys() -> str:
         "a Duration is a number and a unit such as `5 min`.",
         "",
     ]
-    return "\n".join(lines + gen_pages.yaml_keys_body(2)).rstrip("\n") + "\n"
+    return contents("\n".join(lines + gen_pages.yaml_keys_body(2)).rstrip("\n") + "\n")
 
 
 def distributions() -> str:
     """`references/distributions.md`: the families, as on the Distributions page."""
-    from desflow.core.distributions import TIME_LIST_PARAMETERS, TIME_PARAMETERS
+    from desflow.models.distributions import TIME_LIST_PARAMETERS, TIME_PARAMETERS
 
     times = ", ".join(f"`{p}`" for p in TIME_PARAMETERS + TIME_LIST_PARAMETERS)
     lines = [
@@ -115,8 +147,8 @@ def distributions() -> str:
         "",
         "Every distribution family a `services` entry or an arrival can draw from. "
         f"In a blueprint, a time-valued parameter ({times}) also takes a duration such "
-        "as `5 min`. `rate` is a number per second. The builder and the low-level API "
-        "take seconds only.",
+        "as `5 min`. `rate` is a number per second. The Builder takes the same "
+        "durations. The Low-level `DistributionConfig` takes seconds only.",
         "",
     ]
     return "\n".join(lines + gen_pages.distribution_sections()) + "\n"
@@ -230,26 +262,113 @@ def cli() -> str:
     ]
     for path, text in gen_pages.commands(get_command(app), "desflow"):
         lines += ["", f"## `{path}`", "", "```text", text.rstrip("\n"), "```"]
-    return "\n".join(lines) + "\n"
+    return contents("\n".join(lines) + "\n")
+
+
+def extras() -> Dict[str, str]:
+    """The extra each name `from desflow import` gives needs, or "" for none.
+
+    A connector's extra comes from the connector tables. The Kafka admin connector
+    is no connector type, and imports the same client as the Kafka connectors.
+    """
+    import desflow
+    from desflow.blueprint.build import EGRESS_TYPES, INGRESS_TYPES
+
+    found = {
+        cls: extra
+        for table in (EGRESS_TYPES, INGRESS_TYPES)
+        for _module, cls, extra in table.values()
+    }
+    found["KafkaAdminConnector"] = found["KafkaEgress"]
+    return {name: found.get(name, "") for name in desflow.__all__}
+
+
+def without_extras() -> List[str]:
+    """The names with an extra that `from desflow import` gives with no connector
+    extra installed. desflow is imported in a new process with the packages of
+    those extras, as `pyproject.toml` lists them, hidden.
+    """
+    needed = extras()
+    optional = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))[
+        "project"
+    ]["optional-dependencies"]
+    hidden = set()
+    for extra in sorted(set(needed.values()) - {""}):
+        for requirement in optional[extra]:
+            name = re.split(r"[\[<>=!~ ;]", requirement, maxsplit=1)[0]
+            if name != "desflow":
+                hidden.add(name.replace("-", "_"))
+    code = (
+        "import json, sys\n"
+        f"for name in {sorted(hidden)!r}:\n"
+        "    sys.modules[name] = None\n"
+        "import desflow\n"
+        "print(json.dumps(desflow.__all__))"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    present = set(json.loads(done.stdout))
+    found = []
+    for name, extra in sorted(needed.items()):
+        if extra and name in present:
+            found.append(name)
+    return found
+
+
+def _summary(value: object) -> str:
+    """The first paragraph of a docstring, on one line, for a table cell."""
+    doc = (getattr(value, "__doc__", None) or "").strip().split("\n\n")[0]
+    return " ".join(doc.split()).replace("|", "\\|")
 
 
 def api() -> str:
-    """`references/api.md`: every name `desflow` exports, with its summary."""
-    import desflow
+    """`references/api.md`: every name `desflow` and `desflow.values` export, with
+    its summary, and for `desflow` the extra it needs.
 
+    `from desflow import` gives a name that needs an extra only when the extra is
+    installed. This runs with every extra installed, so the page lists them all.
+    The names of `desflow.values` are those the public API snapshot lists.
+    """
+    import desflow
+    import desflow.values
+
+    needed = extras()
+    always = without_extras()
+    names = ", ".join(f"`{name}`" for name in always[:-1]) + f" and `{always[-1]}`"
     lines = [
         "# Python API",
         "",
-        "Every name `from desflow import ...` gives, with the first line of its "
-        "docstring. https://jaehyeon.me/desflow/latest/reference/api/ has each one in full.",
+        "Every name `from desflow import ...` gives, with the extra it needs and the "
+        "first line of its docstring. A name with an extra is there only when the "
+        f'extra is installed, with `pip install "desflow[<extra>]"`, except {names}: '
+        "they are always there, and building one without its extra raises an "
+        "`ImportError` that names the extra. "
+        "https://jaehyeon.me/desflow/latest/reference/api/ has each one in full.",
+        "",
+        "| Name | Extra | What it is |",
+        "|---|---|---|",
+    ]
+    for name in sorted(desflow.__all__):
+        extra = f"`{needed[name]}`" if needed[name] else "none"
+        lines.append(f"| `{name}` | {extra} | {_summary(getattr(desflow, name))} |")
+    snapshot = (ROOT / "tests" / "unit" / "public_api.txt").read_text(encoding="utf-8")
+    values = sorted(
+        set(re.findall(r"^desflow\.values\.(\w+)(?:\(| = |:)", snapshot, flags=re.M))
+    )
+    lines += [
+        "",
+        "## Values",
+        "",
+        "`from desflow.values import ...` gives these. A Builder task whose payload "
+        "holds generators, such as `{gen: var, name: n}`, returns a `Template`.",
         "",
         "| Name | What it is |",
         "|---|---|",
     ]
-    for name in sorted(desflow.__all__):
-        doc = (getattr(desflow, name).__doc__ or "").strip().split("\n\n")[0]
-        summary = " ".join(doc.split()).replace("|", "\\|")
-        lines.append(f"| `{name}` | {summary} |")
+    lines += [
+        f"| `{name}` | {_summary(getattr(desflow.values, name))} |" for name in values
+    ]
     return "\n".join(lines) + "\n"
 
 
@@ -281,7 +400,7 @@ def apis() -> str:
             source,
             "```",
         ]
-    return "\n".join(lines) + "\n"
+    return contents("\n".join(lines) + "\n")
 
 
 def files() -> Dict[str, str]:
@@ -297,6 +416,10 @@ def files() -> Dict[str, str]:
         "references/cli.md": cli(),
         "references/api.md": api(),
         "assets/blueprint.schema.json": schema_text(),
+        **{
+            name: (ROOT / "scripts" / "skill" / name).read_text(encoding="utf-8")
+            for name in COPIED
+        },
     }
 
 

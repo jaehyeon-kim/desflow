@@ -68,3 +68,37 @@ async def test_redis_integration(redis_container):
         pass
 
     await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_a_null_stream_goes_to_the_default_stream_on_every_run(redis_container):
+    """A record whose `__stream__` is null or empty is added to the sink's own
+    stream, and the second run of one sink makes a client of its own event loop."""
+    url = redis_container
+    client = redis.from_url(url)
+    await client.delete("it_default_stream", "it_other_stream")
+    egress = RedisEgress(url=url, stream_name="it_default_stream")
+    batch = [
+        {"__stream__": None, "n": 1},
+        {"__stream__": "", "n": 2},
+        {"__stream__": "it_other_stream", "n": 3},
+    ]
+
+    async def one_run():
+        q = queue.Queue()
+        q.put(batch)
+        task = asyncio.create_task(egress.run(q))
+        await asyncio.sleep(1.5)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    await asyncio.to_thread(asyncio.run, one_run())
+    await asyncio.to_thread(asyncio.run, one_run())
+    default = await client.xrange("it_default_stream")
+    other = await client.xrange("it_other_stream")
+    await client.aclose()
+    assert len(default) == 4, len(default)
+    assert len(other) == 2, len(other)

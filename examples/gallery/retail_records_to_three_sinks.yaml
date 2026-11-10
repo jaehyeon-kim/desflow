@@ -1,0 +1,86 @@
+# Retail records go to PostgreSQL, Kafka and Parquet.
+#
+# A shop has 20 customers and 10 products at the start and takes about one order every
+# two seconds. Each order picks a customer and a product at random and is followed by
+# its invoice. The reference data goes to PostgreSQL tables, the orders to a Kafka
+# topic and the invoices to a Parquet file, each sink taking the records of its own
+# tasks (the `when` expression of the entry).
+#
+# Needs: a broker and a database, with odctl up kafka-lite and odctl up postgres, and
+# the kafka, postgres, parquet and fake extras. KAFKA_BOOTSTRAP_SERVERS sets the broker
+# address, and DEST_PATH the folder of the Parquet file (data by default).
+# Run it with: desflow run examples/gallery/retail_records_to_three_sinks.yaml
+
+simulation:
+  sim_id: Retail
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - type: Postgres
+    when: {expr: "record.task == 'customer'"}
+    config:
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
+      tables:
+        customers:
+          columns: {customer_id: INT, name: TEXT, country: TEXT}
+          primary_key: customer_id
+  - type: Postgres
+    when: {expr: "record.task == 'product'"}
+    config:
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
+      tables:
+        products:
+          columns: {product_id: INT, title: TEXT, price: REAL}
+          primary_key: product_id
+  - type: Kafka
+    when: {expr: "record.task == 'order'"}
+    config:
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+      event_topic: retail-orders
+  - type: Parquet
+    when: {expr: "record.task == 'invoice'"}
+    config: {default_path: "${DEST_PATH:-data}/invoices.parquet"}
+
+arrivals:
+  customers: {initial: 20, spawn: customer}
+  products: {initial: 10, spawn: product}
+  orders: {dist: exponential, rate: 0.5, spawn: order}
+
+tasks:
+  customer:
+    payload:
+      customer_id: {gen: sequence, start: 1}
+      name: {gen: fake, method: name}
+      country:
+        gen: weighted
+        options: {AU: 5, US: 3, GB: 2}
+
+  product:
+    payload:
+      product_id: {gen: sequence, start: 1}
+      title:
+        gen: one_of
+        choices: [Desk lamp, Notebook, Water bottle, Backpack, Headphones, Keyboard]
+      price: {gen: uniform, low: 2, high: 200, decimals: 2}
+
+  order:
+    vars:
+      product: {gen: lookup, task: product}
+      price: {gen: var, name: product, path: price}
+      quantity: {gen: integer, bounds: [1, 5]}
+    payload:
+      order_id: {gen: sequence, start: 1}
+      customer_id: {gen: lookup, task: customer, path: customer_id}
+      product_id: {gen: var, name: product, path: product_id}
+      quantity: {gen: var, name: quantity}
+      total: {gen: expr, expr: "round(price * quantity, 2)"}
+    next: invoice
+
+  invoice:
+    payload:
+      order_id: {gen: upstream, path: order_id}
+      amount: {gen: upstream, path: total}
+
+run: {until: 10 min}

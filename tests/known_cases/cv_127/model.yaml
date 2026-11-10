@@ -1,0 +1,17 @@
+# case CV-127: a computed capacity at the start: M4's initial entity, then a write.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+
+variables: {n: 4}
+
+resources:
+  m: {current_cap: 1, max_cap: 10}
+
+arrivals:
+  setup: {initial: 1, spawn: setup}
+
+tasks:
+  setup:
+    payload: {event_type: setup}
+    on:
+      - path: C.resources.m.current_cap
+        value: {gen: expr, expr: "registry['C.variables.n'] * 2"}

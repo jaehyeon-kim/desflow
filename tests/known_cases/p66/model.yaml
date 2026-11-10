@@ -1,0 +1,25 @@
+# case P66: stop after N departures (patterns/i_run.py I1).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+signals:
+  left: {once: false}
+
+resources:
+  m: {current_cap: 1}
+
+services:
+  s: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: constant, value: 1, spawn: t}
+
+tasks:
+  t:
+    service: s
+    resource: m
+    payload: {e: 1}
+    signal: left
+
+run:
+  until: 100
+  stop: {condition: "signal.left.count >= 3"}

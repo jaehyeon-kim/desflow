@@ -1,0 +1,34 @@
+# case P55: match by key with a filter (patterns/g_flow.py F3b).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+stores:
+  docs: {current_cap: 10}
+
+arrivals:
+  d7:
+    dist: constant
+    value: 1
+    spawn: file
+    max_events: 1
+    attributes: {order: 7}
+  d8:
+    dist: constant
+    value: 2
+    spawn: file
+    max_events: 1
+    attributes: {order: 8}
+  box:
+    initial: 1
+    spawn: match
+    attributes: {order: 8}
+
+tasks:
+  file:
+    payload: {}
+    attributes: [order]
+    put: {store: docs}
+  match:
+    get: {store: docs, filter: "item.order == attr.order"}
+    payload: {matched: 1}
+
+run: {until: 10}

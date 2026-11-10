@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-import bisect
 import itertools
 import math
-from typing import Any, ClassVar, List, Optional, Tuple, Union
+from typing import Any, Callable, ClassVar, List, Optional, Tuple, Union
 
 from simpy import Environment, Event
 from simpy.core import BoundClass
-from simpy.resources.resource import Preempted
+from simpy.resources.resource import Preempted, PriorityRequest
 
 from desflow.config import DEFAULT_QUEUE_ORDER, QUEUE_ORDERS
-from desflow.resources.base import BaseDynamicResource
+from desflow.internal import InternalEvent
+from desflow.resources.base import BaseDynamicResource, RankedQueue
 
 
 class QueueFull(RuntimeError):
@@ -25,13 +25,14 @@ def _whole(value: float) -> Union[int, float]:
     return value if math.isinf(value) else int(value)
 
 
-class DynamicResourceRequest(Event):
+class DynamicResourceRequest(PriorityRequest):
     """
     A request for one unit of a `DynamicResource`, and the event of its grant.
 
     It succeeds when a unit is granted. Used in a `with` block, leaving the block
     cancels it while it waits and releases the unit once it is granted, as a SimPy
-    `Request` does.
+    `Request` does. It is a SimPy `PriorityRequest`, so `isinstance` holds, and it
+    does not run SimPy's constructor: the resource ranks and queues the request.
 
     Attributes:
         resource (ResourceBase): The resource it asks.
@@ -42,12 +43,22 @@ class DynamicResourceRequest(Event):
         time (float): The simulation time the request was made.
         usage_since (Optional[float]): The simulation time of the grant, or None.
         proc: The process that made the request, the one an interrupt would reach.
+        preempted (bool): Whether a request of a higher rank took the unit.
+        freed (bool): Whether a `release: {resource, task}` of another flow gave the
+            unit back; its holder is not told and does not ask again.
+        attributes: The attributes of the entity that asked, which a `holder.attr`
+            read of a preemption rule reads; None for a request made in Low-level
+            code.
     """
+
+    preempted: bool = False
+    freed: bool = False
+    attributes: Any = None
 
     def __init__(
         self, resource: ResourceBase, priority: float = 0, preempt: bool = True
     ):
-        super().__init__(resource.env)
+        Event.__init__(self, resource.env)
         self.resource = resource
         self.priority = priority
         self.preempt = preempt
@@ -58,6 +69,7 @@ class DynamicResourceRequest(Event):
         self.usage_since: Optional[float] = None
         self.proc = resource.env.active_process
         resource._enqueue(self)
+        resource._called()
 
     def cancel(self) -> None:
         """Leaves the queue at once while waiting; does nothing once granted.
@@ -110,43 +122,37 @@ class DynamicRelease(Event):
         resource.get_queue.append(self)
         self.callbacks.append(resource._trigger_put)
         resource._trigger_get(None)
+        resource._called()
 
 
 def _default_put_queue(resource_class: Any) -> bool:
     """Whether a resource class keeps the default queue, the one `queue_limit` limits."""
     put_queue = resource_class.PutQueue
-    return isinstance(put_queue, type) and issubclass(put_queue, _RequestQueue)
+    return isinstance(put_queue, type) and issubclass(put_queue, RankedQueue)
 
 
-class _RequestQueue(list):
-    """The waiting requests of a resource, in service order.
+class PreemptRule:
+    """How a resource chooses the user a request preempts, and when it may.
 
-    It is a list, so `len(resource.queue)` is how many wait and `queue[0]` is the
-    next to be served. `append` inserts a request by the rank its resource gave it,
-    and raises `RuntimeError` when `maxlen` requests wait already, as SimPy's
-    `SortedQueue` does.
+    Each argument is a function of the new request and a holder, both
+    `DynamicResourceRequest`s. The resource gives the functions the request that
+    found no free unit, and the holders that use a unit.
 
     Args:
-        maxlen: The most requests that can wait, or None for no limit.
+        when: Returns whether `request` takes the unit of `holder`. None is SimPy's
+            rule: the holder's key sorts after the request's.
+        victim: Returns a value for each holder, and the holder with the highest value
+            is the one `when` is asked about; among equal values the holder granted
+            first. None ranks holders by their key, as SimPy does.
     """
 
-    def __init__(self, maxlen: Optional[int] = None) -> None:
-        super().__init__()
-        self.maxlen = maxlen
-
-    def append(self, request: DynamicResourceRequest) -> None:
-        """Inserts a request by its rank; raises `RuntimeError` if the queue is full."""
-        if self.maxlen is not None and len(self) >= self.maxlen:
-            raise RuntimeError("Cannot append event. Queue is full.")
-        bisect.insort(self, request, key=lambda waiting: waiting._rank)
-
-    def remove(self, request: DynamicResourceRequest) -> bool:  # type: ignore[override]
-        """Takes a request out; returns False, and does nothing, if it is not here."""
-        for index, waiting in enumerate(self):
-            if waiting is request:
-                del self[index]
-                return True
-        return False
+    def __init__(
+        self,
+        when: Optional[Callable[[Any, Any], Any]] = None,
+        victim: Optional[Callable[[Any, Any], Any]] = None,
+    ) -> None:
+        self.when = when
+        self.victim = victim
 
 
 class ResourceBase(BaseDynamicResource):
@@ -181,7 +187,7 @@ class ResourceBase(BaseDynamicResource):
         sim_id (str): The prefix ID (e.g., 'Shop').
         resource_id (str): The specific resource name (e.g., 'packers').
         queue_order (str): `fifo`, `lifo` or `priority`.
-        PutQueue: The type of `put_queue`, `_RequestQueue` by default.
+        PutQueue: The type of `put_queue`, `RankedQueue` by default.
         GetQueue: The type of `get_queue`, `list` by default.
         put_queue: The waiting requests in service order.
         queue: An alias of `put_queue`; `len(queue)` is how many wait.
@@ -192,8 +198,8 @@ class ResourceBase(BaseDynamicResource):
         release: Makes a `DynamicRelease`; a `BoundClass`.
     """
 
-    PutQueue: ClassVar[Any] = _RequestQueue
-    """The type of `put_queue`: `_RequestQueue`, a list ranked by queue order."""
+    PutQueue: ClassVar[Any] = RankedQueue
+    """The type of `put_queue`: `RankedQueue`, a list ranked by queue order."""
     GetQueue: ClassVar[Any] = list
     """The type of `get_queue`."""
     request = BoundClass(DynamicResourceRequest)
@@ -216,8 +222,9 @@ class ResourceBase(BaseDynamicResource):
         sim_id: str,
         resource_id: str,
         queue: str = DEFAULT_QUEUE_ORDER,
-        preempt: bool = False,
+        preempt: Union[bool, PreemptRule] = False,
         queue_limit: Optional[int] = None,
+        ties: str = "fifo",
     ):
         """
         Initializes the resource and binds it to the registry.
@@ -243,18 +250,12 @@ class ResourceBase(BaseDynamicResource):
                 without `queue="priority"`, or `queue_limit` is negative or is set on a
                 class whose `PutQueue` is not the default.
         """
-        if queue not in QUEUE_ORDERS:
-            raise ValueError(
-                f"queue must be one of {', '.join(QUEUE_ORDERS)}, got '{queue}'"
-            )
-        if preempt and queue != "priority":
-            raise ValueError(
-                "preempt ranks users by priority, so it needs queue='priority'"
-            )
+        check_resource_queue(queue, preempt, ties)
         check_resource_type(type(self), queue_limit)
-        self.preempt = preempt
+        self.preempt = bool(preempt)
+        self.preempt_rule = preempt if isinstance(preempt, PreemptRule) else None
         self.queue_order = queue
-        self.queue_limit = queue_limit
+        self.ties = ties
         # Counts requests, so equal ranks keep their arrival order
         self._sequence = itertools.count()
         self._env = env
@@ -272,12 +273,29 @@ class ResourceBase(BaseDynamicResource):
         self.has_breakdowns = False
         self._down_since: Optional[float] = None
         self._downtime = 0.0
+        # The events `when_busy` and `when_idle` made, woken when the resource changes
+        # between holding no unit and holding one
+        self._busy_waiters: List[Event] = []
+        self._idle_waiters: List[Event] = []
         # The registry values `_target` last read and its result, so a grant that
         # finds both values unchanged skips the conversion
         self._target_read: Tuple[Any, Any] = (None, None)
         self._target_value: Union[int, float] = 0
         super().__init__(env, sim_id, resource_id, "resources")
         BoundClass.bind_early(self)
+        # The live limit, a registry path; one given here is its value from the start.
+        # A class with its own PutQueue sets its own maxlen, so it has no path.
+        path = f"{sim_id}.resources.{resource_id}.queue_limit"
+        self._limit_val: Optional[Any] = None
+        if _default_put_queue(type(self)):
+            try:
+                self._limit_val = env.registry.get(path)
+            except KeyError:
+                pass
+        else:
+            env.registry._forget(path)
+        if self._limit_val is not None and queue_limit is not None:
+            self._limit_val.track(queue_limit)
 
         self._capacity = self._target()
         self._register()
@@ -291,6 +309,12 @@ class ResourceBase(BaseDynamicResource):
         during the simulation.
         """
         return self._capacity
+
+    @property
+    def queue_limit(self) -> Optional[int]:
+        """Optional[int]: The most requests that may wait now, or None for no limit.
+        It is the registry path `<sim_id>.resources.<resource_id>.queue_limit`."""
+        return None if self._limit_val is None else self._limit_val.value
 
     @property
     def in_use(self) -> int:
@@ -308,6 +332,16 @@ class ResourceBase(BaseDynamicResource):
         """Units busy above a lowered capacity, given back as their tasks finish."""
         return max(0, len(self.users) - self._capacity)
 
+    def put(self, *args: Any, **kwargs: Any) -> DynamicResourceRequest:
+        """Requests one unit, the same as `request`; SimPy's name for a put into a
+        resource. Takes the arguments of `request`."""
+        return self.request(*args, **kwargs)
+
+    def get(self, *args: Any, **kwargs: Any) -> DynamicRelease:
+        """Gives a unit back, the same as `release`; SimPy's name for a get from a
+        resource. Takes the arguments of `release`."""
+        return self.release(*args, **kwargs)
+
     def _rank(self, request: DynamicResourceRequest) -> Tuple[Any, ...]:
         """The sort key of a new request under this resource's queue order."""
         sequence = next(self._sequence)
@@ -315,14 +349,40 @@ class ResourceBase(BaseDynamicResource):
             # SimPy's PriorityResource and PreemptiveResource sort their queue by
             # the request's key, (priority, time, not preempt): among equal
             # priorities and times a request that may preempt goes first
+            if self.ties == "lifo":
+                # The latest request of a priority first; the key is unchanged
+                return (request.priority, -request.time, -sequence, not request.preempt)
             return (*request.key, sequence)
         if self.queue_order == "lifo":
             return (0, -sequence)
         return (0, sequence)
 
+    def _called(self) -> None:
+        """Publishes this resource's readings after a `request` or a `release` call
+        when the statistics have `on_change`. A grant that a release event makes
+        later, and a cancel, publish none of their own."""
+        stats = self._stats
+        if stats is not None and stats.on_change:
+            stats.publish_object(self._category, self.obj_id)
+
+    def _line_limit(self) -> Optional[int]:
+        """The most requests that may wait now, which the waiting line then keeps.
+
+        The limit is read from its registry path, so a change applies from the next
+        request and removes nobody who waits. A resource with a `PutQueue` of its own
+        keeps that queue's `maxlen`.
+
+        Returns:
+            Optional[int]: The limit, or None for no limit.
+        """
+        if self._limit_val is not None:
+            self.put_queue.maxlen = self._limit_val.value
+        return getattr(self.put_queue, "maxlen", None)
+
     def _enqueue(self, request: DynamicResourceRequest) -> None:
         """Queues a new request, then grants the head if a unit is free, as SimPy does."""
         request._rank = self._rank(request)
+        self._line_limit()
         try:
             self.put_queue.append(request)
         except RuntimeError as error:
@@ -382,21 +442,78 @@ class ResourceBase(BaseDynamicResource):
         On a resource built with `preempt=True`, a request that may preempt takes a
         unit from the user SimPy's `PreemptiveResource` would choose.
         """
+        was_busy = bool(self.users)
         if len(self.users) >= self._capacity and not self._preempt_for(request):
             return None
         self.users.append(request)
         request.usage_since = self.env.now
         request.succeed()
+        if not was_busy:
+            self._wake(self._busy_waiters)
         return None
 
     def _do_get(self, release: DynamicRelease) -> Optional[bool]:
         """Gives the released request's unit back, if it holds one."""
         request = release.request
+        emptied = False
         if request is not None and request in self.users:
             self.users.remove(request)
             self._changed()
+            emptied = not self.users
         release.succeed()
+        if emptied:
+            self._wake(self._idle_waiters)
         return None
+
+    def when_busy(self) -> Event:
+        """Returns an event that succeeds when the resource next holds a unit after
+        holding none: the step after the grant that ends an idle time.
+
+        A grant that takes the unit of a user it preempts does not end an idle time,
+        because the resource held a unit all along. The event is for desflow's own
+        use, so it does not count as a model step.
+
+        Returns:
+            Event: The event. It never fails.
+        """
+        event = InternalEvent(self.env)
+        self._busy_waiters.append(event)
+        return event
+
+    def when_idle(self) -> Event:
+        """Returns an event that succeeds when the resource next holds no unit after
+        holding one: the step after the release that gives the last unit back.
+
+        A resource that is down keeps the units its users hold, so it is not idle
+        until they are given back. The event is for desflow's own use, so it does
+        not count as a model step.
+
+        Returns:
+            Event: The event. It never fails.
+        """
+        event = InternalEvent(self.env)
+        self._idle_waiters.append(event)
+        return event
+
+    def _forget_waiter(self, event: Event) -> None:
+        """Takes an event `when_busy` or `when_idle` returned out of the waiting lists,
+        for a caller that no longer waits for it.
+
+        Args:
+            event: The event.
+        """
+        for waiters in (self._busy_waiters, self._idle_waiters):
+            if event in waiters:
+                waiters.remove(event)
+
+    @staticmethod
+    def _wake(waiters: List[Event]) -> None:
+        """Succeeds each waiting event once and forgets them."""
+        woken = list(waiters)
+        waiters.clear()
+        for event in woken:
+            if not event.triggered:
+                event.succeed()
 
     def _grant_all(self) -> None:
         """Grants waiting requests while a unit is free: a capacity rise or a repair
@@ -418,13 +535,23 @@ class ResourceBase(BaseDynamicResource):
         if not self.users or len(self.users) > self._capacity:
             # Busy units above a lowered capacity are owed, not preemptible
             return False
-        # SimPy 4.1.2 takes `max`, the first of equal keys in grant order; 4.1.1
-        # took the last, `sorted(...)[-1]`
-        victim = max(self.users, key=lambda user: user.key)
-        if not victim.key > request.key:
+        rule = self.preempt_rule
+        if rule is not None and rule.victim is not None:
+            victim = max(self.users, key=lambda user: rule.victim(request, user))  # type: ignore[misc]
+        else:
+            # SimPy 4.1.2 takes `max`, the first of equal keys in grant order; 4.1.1
+            # took the last, `sorted(...)[-1]`
+            victim = max(self.users, key=lambda user: user.key)
+        if rule is not None and rule.when is not None:
+            if not rule.when(request, victim):
+                return False
+        elif not victim.key > request.key:
             return False
         self.users.remove(victim)
-        if victim.proc is not None and victim.proc.is_alive:
+        victim.preempted = True
+        if victim.proc is not None:
+            # A process that has ended raises SimPy's RuntimeError, as SimPy's own
+            # PreemptiveResource does
             victim.proc.interrupt(
                 Preempted(
                     by=request.proc, usage_since=victim.usage_since, resource=self
@@ -495,6 +622,35 @@ class ResourceBase(BaseDynamicResource):
         # request is granted until the busy count is within it.
         self._grant_all()
         self._changed()
+
+
+def check_resource_queue(queue: str, preempt: Any, ties: str = "fifo") -> None:
+    """Checks the queue order, `preempt` and `ties` a resource is declared with.
+
+    Args:
+        queue: The queue order: `fifo`, `lifo` or `priority`.
+        preempt: Whether a request may take a unit from a user, or a preempt rule.
+        ties: How requests of one priority are ordered: `fifo` or `lifo`.
+
+    Raises:
+        ValueError: If `queue` is not one of the three orders, `preempt` is set
+            without `queue="priority"`, `ties` is not `fifo` or `lifo`, or `ties` is
+            `lifo` without `queue="priority"`.
+    """
+    if queue not in QUEUE_ORDERS:
+        raise ValueError(
+            f"queue must be one of {', '.join(QUEUE_ORDERS)}, got '{queue}'"
+        )
+    if preempt and queue != "priority":
+        raise ValueError(
+            "preempt ranks users by priority, so it needs queue='priority'"
+        )
+    if ties not in ("fifo", "lifo"):
+        raise ValueError(f"ties must be 'fifo' or 'lifo', got '{ties}'")
+    if ties == "lifo" and queue != "priority":
+        raise ValueError(
+            "ties orders requests of one priority, so it needs queue='priority'"
+        )
 
 
 def check_resource_type(

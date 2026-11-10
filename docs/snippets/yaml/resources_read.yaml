@@ -1,10 +1,7 @@
-# The Resources page: a resource declared with its defaults, a waiting line with a limit,
-# and conditions that read how many units are held and how many requests wait.
+# The Resources page: a resource declared with its defaults, a waiting line with a
+# limit, and conditions that read how many units are held and how many requests wait.
 # Run it with: desflow run resources_read.yaml
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 # --8<-- [start:declare]
 resources:
@@ -39,7 +36,6 @@ tasks:
 stats: {level: minimal, interval: 10 s}
 
 egress:
-  - type: Console
+  - {type: Console}
 
-run:
-  until: 1 min
+run: {until: 1 min}

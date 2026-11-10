@@ -37,6 +37,7 @@ A check whose measure is not in `measures` is refused. The experiment writes eve
 | `wait_*` of a task, recorded when an instance starts work | `s` | `started instances` |
 | `service_*` of a task, recorded when an instance finishes | `s` | `finished instances` |
 | `utilization` and `utilization_avg` | `percent` | `end of run` and `time average` |
+| `downtime` of a resource | `s` | `sum over the horizon` |
 | other `*_avg`, such as `queue_length_avg` | `count`, or `amount` for a container | `time average` |
 | task and flow counts, such as `finished` and `started` | `count` | `count over the horizon` |
 | `in_system` of a flow and `in_progress` of a task | `count` | `end of run` |

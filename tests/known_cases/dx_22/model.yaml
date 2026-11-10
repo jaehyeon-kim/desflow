@@ -1,0 +1,26 @@
+# DX-22: a catalog that a variable chooses. docs/snippets/yaml/iceberg_tables_catalog.py
+# picks a mapping by an environment variable; here `!include
+# catalogs/${ICEBERG_CATALOG:-sqlite}.yaml` loads the file the variable names. `check`
+# loads the model with the variable unset and set, and compares the catalog with what
+# the snippet returns.
+simulation: {sim_id: Shop, factor: 0}
+
+resources:
+  packers: {current_cap: 1, max_cap: 3}
+
+arrivals:
+  orders: {dist: constant, value: 5, spawn: pack}
+
+tasks:
+  pack:
+    service_time: 2
+    resource: packers
+    payload: {order_id: 1, amount: 19.99}
+
+egress:
+  - type: Iceberg
+    config:
+      catalog: !include catalogs/${ICEBERG_CATALOG:-sqlite}.yaml
+      default_table: shop.events
+
+run: {until: 20}

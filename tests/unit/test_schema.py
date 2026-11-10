@@ -11,13 +11,19 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Iterator, Optional, get_args
 
 import yaml
 from jsonschema import Draft202012Validator
 
 from desflow.blueprint import models
-from desflow.blueprint.loader import BlueprintLoader, _keep_on_keys, substitute
+from desflow.blueprint.build import _file_location
+from desflow.blueprint.loader import (
+    BlueprintLoader,
+    _keep_on_keys,
+    _keep_switch_on,
+    substitute,
+)
 from desflow.blueprint.schema import schema_text
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,6 +32,9 @@ SCHEMA = json.loads(schema_text())
 # Files in the blueprint folders that are not blueprints: experiment files, fitted
 # settings that a blueprint includes, and the settings `desflow fit` writes.
 NOT_BLUEPRINTS = {
+    "tests/known_cases/index.yaml",
+    "tests/known_cases/dx_22/catalogs/rest.yaml",
+    "tests/known_cases/dx_22/catalogs/sqlite.yaml",
     "examples/yaml/experiment.yaml",
     "examples/yaml/packing_fit.yaml",
     "docs/snippets/yaml/parameter_sweeps_experiment.yaml",
@@ -39,8 +48,25 @@ NOT_BLUEPRINTS = {
     "docs/snippets/yaml/fitted/complete_orders.yaml",
     "docs/snippets/yaml/fitted/complete_picking.yaml",
     "docs/snippets/yaml/fitted/complete_packing.yaml",
+    "docs/snippets/yaml/cloud_storage_stores/azure.yaml",
+    "docs/snippets/yaml/cloud_storage_stores/gcs.yaml",
+    "docs/snippets/yaml/cloud_storage_stores/local.yaml",
+    "docs/snippets/yaml/cloud_storage_stores/s3.yaml",
+    "docs/snippets/yaml/iceberg_tables_catalogs/glue.yaml",
+    "docs/snippets/yaml/iceberg_tables_catalogs/postgres.yaml",
+    "docs/snippets/yaml/iceberg_tables_catalogs/rest.yaml",
+    "docs/snippets/yaml/iceberg_tables_catalogs/sqlite.yaml",
+    "docs/snippets/yaml/test_a_model_tests.yaml",
 }
-FOLDERS = ("examples/yaml", "tests/conformance/blueprints", "docs/snippets/yaml")
+FOLDERS = (
+    "examples/yaml",
+    "examples/gallery",
+    "tests/conformance/blueprints",
+    "tests/conformance/yaml_only",
+    "tests/known_cases",
+    "docs/snippets/yaml",
+    "docs/snippets/generate-data",
+)
 
 
 def _generator():
@@ -96,6 +122,7 @@ def _read(path: Path, at: Optional[str] = None) -> Dict[str, Any]:
         assert node is not None
         includes: Dict[Any, str] = {}
         _keep_on_keys(node, includes, at)
+        _keep_switch_on(node)
         setattr(loader, "includes", includes)
         return loader.construct_document(node)
     finally:
@@ -173,24 +200,123 @@ def _at(data: Any, path: tuple) -> Any:
     return data
 
 
+def _untagged(loc: Any) -> tuple:
+    """A model error's location without the names pydantic adds for the members of a
+    union, such as `list[RunSegment]` or `SegmentEvery` for `run.segments`, and the
+    tags of a value (`<gen>`, `<map>` and the kind after `<gen>`)."""
+    return tuple(
+        step
+        for step in _file_location(tuple(loc))
+        if not (isinstance(step, str) and ("[" in step or step in UNION_MEMBERS))
+    )
+
+
+UNION_MEMBERS = {"SegmentEvery", "TimeoutAfter"} | {
+    member.__name__ for member in get_args(models.WaitBranch)
+}
+
+
 def _model_errors(data: Any) -> set:
     """What the models report for `data`, as (type, location) pairs."""
     try:
         models.Blueprint.model_validate(data)
     except ValueError as exc:
-        return {(item["type"], tuple(item["loc"])) for item in exc.errors()}  # type: ignore[attr-defined]
+        return {(item["type"], _untagged(item["loc"])) for item in exc.errors()}  # type: ignore[attr-defined]
     return set()
 
 
 def _same_place(loc: tuple, here: tuple) -> bool:
     """A model error is at the place of a new key when it is at or inside the place, or
-    at the `wait` or `subscribe` node above it, which the models parse as a whole."""
+    at the `wait`, `open` or `subscribe` node above it, which the models parse as a
+    whole."""
     if loc[: len(here)] == here:
         return True
-    return here[: len(loc)] == loc and loc[-1:] in (("wait",), ("subscribe",))
+    return here[: len(loc)] == loc and loc[-1:] in (
+        ("wait",),
+        ("open",),
+        ("subscribe",),
+    )
+
+
+def test_a_generator_nested_in_a_value_is_checked_by_the_schema():
+    """A mapping or list without `gen` is data, but a generator inside it is still a
+    generator, so an editor flags a kind that does not exist at any depth."""
+    validator = Draft202012Validator(SCHEMA)
+    base = {
+        "simulation": {"sim_id": "S", "factor": 0},
+        "arrivals": {"a": {"dist": "constant", "value": 1, "spawn": "t"}},
+        "tasks": {"t": {"payload": {}}},
+    }
+
+    def refused(payload: object) -> bool:
+        data = {**base, "tasks": {"t": {"payload": payload}}}
+        return bool(list(validator.iter_errors(data)))
+
+    assert not refused({"a": {"b": {"gen": "uniform", "low": 0, "high": 1}}})
+    assert not refused({"a": [1, {"gen": "uuid"}], "b": {"c": 2}})
+    assert refused({"a": {"b": {"gen": "nosuch"}}})
+    assert refused({"a": [1, {"gen": "nosuch"}]})
+
+
+# Keywords that can tie one place of a document to another
+_TYING_KEYWORDS = (
+    "if",
+    "then",
+    "else",
+    "allOf",
+    "anyOf",
+    "oneOf",
+    "dependentSchemas",
+    "dependentRequired",
+    "unevaluatedProperties",
+)
+
+
+def _sections_are_independent() -> None:
+    """The check of `_refusals` is right only while no keyword at the top of the schema
+    ties one section to another, and a section it narrows to one entry holds nothing
+    but its type and the schema of its entries."""
+    tied = [key for key in _TYING_KEYWORDS if key in SCHEMA]
+    assert not tied, f"the schema's top level has {tied}"
+    for name, section in SCHEMA["properties"].items():
+        if section.get("type") in ("object", "array"):
+            assert set(section) in (
+                {"type", "additionalProperties"},
+                {"type", "items"},
+            ), f"section {name} has {sorted(section)}"
+
+
+def _refusals(validator: Draft202012Validator, data: Any, where: tuple) -> list:
+    """The `additionalProperties` errors for `not_a_key` at `where`.
+
+    The sections of a blueprint validate on their own, and so do the entries of a
+    section that is a mapping of names or a list, so the schema is run over the one
+    entry that holds the place and not over the whole file. Checking the whole file for
+    each of its mappings would make the work grow with the square of the file's size."""
+    shown, place = data, where
+    if where:
+        section = SCHEMA["properties"][where[0]]
+        entries = section.get("type") == "object" and "additionalProperties" in section
+        items = section.get("type") == "array" and "items" in section
+        if entries and len(where) > 1:
+            shown = {where[0]: {where[1]: data[where[0]][where[1]]}}
+        elif items and len(where) > 1:
+            shown = {where[0]: [data[where[0]][where[1]]]}
+            place = (where[0], 0, *where[2:])
+        else:
+            shown = {where[0]: data[where[0]]}
+    return [
+        inner
+        for error in validator.iter_errors(shown)
+        for inner in _walk(error)
+        if inner.validator == "additionalProperties"
+        and tuple(inner.absolute_path) == place
+        and "not_a_key" in inner.message
+    ]
 
 
 def test_unknown_key_is_refused_at_every_level():
+    _sections_are_independent()
     validator = Draft202012Validator(SCHEMA)
     defs = SCHEMA["$defs"]
     modelled = {name for name, node in defs.items() if "properties" in node}
@@ -205,14 +331,7 @@ def test_unknown_key_is_refused_at_every_level():
                 continue
             node["not_a_key"] = 1
             try:
-                refusals = [
-                    inner
-                    for error in validator.iter_errors(data)
-                    for inner in _walk(error)
-                    if inner.validator == "additionalProperties"
-                    and tuple(inner.absolute_path) == where
-                    and "not_a_key" in inner.message
-                ]
+                refusals = _refusals(validator, data, where)
                 # The model reports a new error at that place or inside it: at the key
                 # for most nodes, and at the node itself for a `wait` or `subscribe`
                 # (`next: {when: [...]}` is read as `next.rules.when` by the model)

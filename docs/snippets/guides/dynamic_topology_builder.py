@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO)
 
 # --8<-- [start:shop]
 app = (
-    SimulationContext(sim_id="Shop", factor=1.0, strict=False)
+    SimulationContext(sim_id="Shop", factor=0)
     .add_egress(ConsoleEgress())
     .add_resource("packers", current_cap=1, max_cap=5)
     # Called as supervisor(context); it adds the wrappers during the run

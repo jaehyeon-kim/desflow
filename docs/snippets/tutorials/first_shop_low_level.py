@@ -39,10 +39,19 @@ def pack_order(env, sampler, packers, key, task_id):
     def publish(value):
         env.publish_event(key, value, task="pack_order", instance=task_id)
 
-    publish({"path_id": path_id, "status": "queued"})
+    publish(
+        {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+    )
     with packers.request() as request:
         yield request
-        publish({"path_id": path_id, "status": "started"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            }
+        )
         service = env.registry.get_config(path_id)
         yield env.timeout(sampler.sample(service))
         publish({"event_type": "order_packed"})

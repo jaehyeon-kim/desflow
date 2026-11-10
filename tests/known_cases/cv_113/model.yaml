@@ -1,0 +1,29 @@
+# case CV-113: finally: the normal edge, the failure edge and the interrupt edge name
+# one cleanup task.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+
+arrivals:
+  a:
+    dist: constant
+    value: 1
+    spawn: body
+    max_events: 3
+    attributes:
+      bad: {gen: boolean}
+  i: {dist: constant, value: 2.5, spawn: hit, max_events: 1}
+
+tasks:
+  body:
+    service_time: 2
+    fail: "attr.bad"
+    fail_reason: body failed
+    on_fail: cleanup
+    on_interrupt: abandon
+    on_interrupt_next: cleanup
+    payload: {event_type: body}
+    next: cleanup
+  cleanup:
+    payload: {event_type: cleanup}
+  hit:
+    payload: {event_type: hit}
+    interrupt: {task: body, cause: x}

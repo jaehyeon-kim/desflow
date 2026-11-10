@@ -50,7 +50,10 @@ def builder_form():
         .add_service("packing", dist="constant", value=1.5)
         .add_arrival("orders", dist="constant", value=1.0)
         .add_ingress(JsonlIngress("changes.jsonl"))
-        .add_egress(CsvEgress("events.csv", columns=["status", "event_type"]))
+        .add_egress(
+            CsvEgress("events.csv", columns=["status", "event_type"]),
+            when=lambda record: record["stream_type"] == "event",  # no telemetry
+        )
     )
 
     @app.task(service_id="packing", resource_id="packers")

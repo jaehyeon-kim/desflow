@@ -15,6 +15,13 @@ from desflow.connectors._schema_registry.errors import (  # noqa: F401
     SchemaRegistryError,
     SerializationError,
 )
+from desflow.connectors.admin.kafka import (
+    KafkaAdminConnector,
+    admin_settings,
+    apply_topic_policies,
+    with_security,
+)
+from desflow.connectors.admin.kafka import topic_policy as read_topic_policy
 from desflow.connectors.ingress.base import BaseIngress, parse_change
 
 logger = logging.getLogger(__name__)
@@ -94,7 +101,6 @@ class ConfluentAvroDeserializer:
         headers: Optional[Mapping[str, str]] = UNSET,
         proxy: Optional[str] = UNSET,
         max_retries: int = UNSET,
-        **registry_kwargs: Any,
     ):
         """
         Initializes the Confluent Avro deserializer. It makes no request to the registry.
@@ -122,14 +128,9 @@ class ConfluentAvroDeserializer:
             max_retries (int): How many times a request is repeated after a
                 transport error or a status of 408, 429, 500, 502, 503 or 504. The
                 default is 3.
-            **registry_kwargs: Deprecated confluent-kafka keys, such as
-                `{'basic.auth.user.info': 'user:pass'}`, which desflow accepts with a
-                `FutureWarning` and removes in 0.30.0. Use the named arguments.
 
         Raises:
             ImportError: If the 'fastavro' or 'httpx' package is not installed.
-            ValueError: If a deprecated key is not accepted, or is given together with
-                its named argument.
         """
         try:
             import fastavro  # noqa: F401
@@ -138,7 +139,7 @@ class ConfluentAvroDeserializer:
             from desflow.connectors._schema_registry import avro
             from desflow.connectors._schema_registry.confluent_client import (
                 ConfluentRegistryClient,
-                resolve_legacy_options,
+                given_arguments,
             )
             from desflow.connectors._schema_registry.rules import refuse_rules
             from desflow.connectors._schema_registry.wire import unframe_confluent
@@ -149,8 +150,7 @@ class ConfluentAvroDeserializer:
                 "Install them using: pip install desflow[confluent]"
             )
 
-        options = resolve_legacy_options(
-            registry_kwargs,
+        options = given_arguments(
             auth=auth,
             verify=verify,
             cert=cert,
@@ -379,7 +379,7 @@ class ConfluentJsonSchemaDeserializer:
             from desflow.connectors._schema_registry import json_schema
             from desflow.connectors._schema_registry.confluent_client import (
                 ConfluentRegistryClient,
-                resolve_legacy_options,
+                given_arguments,
             )
             from desflow.connectors._schema_registry.rules import refuse_rules
             from desflow.connectors._schema_registry.wire import unframe_confluent
@@ -390,8 +390,7 @@ class ConfluentJsonSchemaDeserializer:
                 "Install them using: pip install desflow[confluent]"
             )
 
-        options = resolve_legacy_options(
-            {},
+        options = given_arguments(
             auth=auth,
             verify=verify,
             cert=cert,
@@ -524,7 +523,7 @@ class ConfluentProtobufDeserializer:
             from desflow.connectors._schema_registry import protobuf
             from desflow.connectors._schema_registry.confluent_client import (
                 ConfluentRegistryClient,
-                resolve_legacy_options,
+                given_arguments,
             )
             from desflow.connectors._schema_registry.rules import refuse_rules
             from desflow.connectors._schema_registry.wire import unframe_confluent
@@ -535,8 +534,7 @@ class ConfluentProtobufDeserializer:
                 "Install them using: pip install desflow[confluent]"
             )
 
-        options = resolve_legacy_options(
-            {},
+        options = given_arguments(
             auth=auth,
             verify=verify,
             cert=cert,
@@ -802,6 +800,9 @@ class KafkaIngress(BaseIngress):
         bootstrap_servers: str,
         topic_deserializers: Optional[Dict[str, MessageDeserializer]] = None,
         default_deserializer: Optional[MessageDeserializer] = None,
+        topic_policy: Any = None,
+        ssl: Optional[Dict[str, Any]] = None,
+        sasl_oauth_token_provider: Any = None,
         **kwargs: Any,
     ):
         """
@@ -812,7 +813,26 @@ class KafkaIngress(BaseIngress):
             bootstrap_servers: Kafka broker address or list of addresses.
             topic_deserializers: Mapping of topics to their specific deserializers.
             default_deserializer: Fallback deserializer if the topic isn't explicitly mapped.
+            topic_policy: How the control topic is treated before the run: a mode word
+                (`create`, `drop_and_create` or `manual`) or a mapping of `mode`,
+                `partitions`, `replication_factor` and `topic_configs`. `create`,
+                the default, creates the topic when it is missing, so a consumer
+                started before any producer does not wait for a topic that is not
+                there. `drop_and_create` deletes it and creates it again, and
+                `manual` creates nothing.
+            ssl: The keys `cafile`, `certfile`, `keyfile` and `password`, passed to
+                `aiokafka.helpers.create_ssl_context`. The result is the consumer's
+                `ssl_context`; set `security_protocol` to `SSL` or `SASL_SSL` as well.
+            sasl_oauth_token_provider: `{type: aws_msk_iam, region: <region>}` builds
+                the token provider for Amazon MSK IAM, which needs the package
+                `aws-msk-iam-sasl-signer-python`; a token provider object is used as
+                it is.
             **kwargs: Arbitrary keyword arguments passed to the underlying AIOKafkaConsumer.
+
+        Raises:
+            ValueError: If `topic_policy`, `ssl` or the token provider is malformed.
+            ImportError: If `sasl_oauth_token_provider` asks for `aws_msk_iam` and
+                `aws-msk-iam-sasl-signer-python` is not installed.
         """
         self.topic = topic
         self.bootstrap_servers = bootstrap_servers
@@ -820,7 +840,27 @@ class KafkaIngress(BaseIngress):
         self.topic_deserializers = topic_deserializers or {}
         self.default_deserializer = default_deserializer or JsonDeserializer()
 
-        self.kwargs = kwargs
+        self.topic_policy = read_topic_policy(topic_policy)
+        self.kwargs = with_security(kwargs, ssl, sasl_oauth_token_provider)
+
+    def _create_topic(self) -> None:
+        """
+        Creates, recreates or leaves alone the control topic, as `topic_policy` says.
+
+        The consumer settings the admin client also understands, such as the security
+        settings, are passed on to it. A failure is logged rather than raised,
+        because the consumer loop that follows retries the connection itself.
+        """
+        try:
+            apply_topic_policies(
+                KafkaAdminConnector(
+                    bootstrap_servers=self.bootstrap_servers,
+                    **admin_settings(self.kwargs),
+                ),
+                {self.topic: self.topic_policy},
+            )
+        except Exception as e:
+            logger.warning(f"Could not create the topic {self.topic}: {e}")
 
     async def run(self, ingress_queue: queue.Queue) -> None:
         """Consumes parameter changes from Kafka and puts each on the ingress queue.
@@ -832,6 +872,7 @@ class KafkaIngress(BaseIngress):
             ingress_queue: The queue the environment applies changes from, as
                 `(path, value)` pairs.
         """
+        await asyncio.to_thread(self._create_topic)
         backoff = 1.0
         while True:
             try:

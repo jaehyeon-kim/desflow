@@ -3,10 +3,12 @@ import enum
 import logging
 import queue
 import time
+import types
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from datetime import time as dt_time
 from decimal import Decimal
+from unittest.mock import patch
 
 import numpy as np
 import orjson
@@ -76,6 +78,94 @@ class StalledEgress(BaseEgress):
             pass
 
 
+def test_providers_load_their_libraries_before_their_thread_starts():
+    """`setup_egress` calls each provider's `_load_libraries` in its own thread,
+    before the egress thread starts: a first import in the egress thread holds the
+    interpreter lock during a paced run and fails a strict one."""
+    import threading
+
+    seen = []
+
+    class Loading(StalledEgress):
+        def _load_libraries(self):
+            seen.append(("load", threading.current_thread().name))
+
+        async def run(self, egress_queue):
+            seen.append(("run", threading.current_thread().name))
+            await super().run(egress_queue)
+
+    env = DynamicRealtimeEnvironment(strict=False)
+    env.setup_egress(providers=[Loading(), StalledEgress()])
+    env.teardown()
+
+    assert seen[0] == ("load", threading.main_thread().name)
+    assert seen[1][0] == "run" and seen[1][1] != threading.main_thread().name
+
+
+def test_a_load_that_raises_leaves_no_egress_set():
+    """`setup_egress` loads the libraries before it sets any egress attribute, so
+    a `_load_libraries` that raises leaves no queue that a later `publish_event`
+    would fill with records no thread reads."""
+
+    class FailingLoad(StalledEgress):
+        def _load_libraries(self):
+            raise OSError("cannot load")
+
+    env = DynamicRealtimeEnvironment(strict=False)
+    with pytest.raises(OSError, match="cannot load"):
+        env.setup_egress(providers=[StalledEgress(), FailingLoad()])
+
+    assert not hasattr(env, "_egress_sinks")
+
+
+def test_a_strict_paced_run_does_not_count_the_load_as_lag(tmp_path):
+    """A Low-level program sets up its egress after the environment has read its
+    clock, and nothing syncs the clock afterwards. The load time is taken out of
+    the pacing by `setup_egress` itself, so the first step of a strict run at
+    `factor` 0.5 does not fail after a load of 1 second. Without that, the load
+    alone is twice the lag a strict run allows; with it, a stall of up to 0.5
+    seconds on a loaded worker still passes."""
+    from desflow.connectors.egress.storage import ParquetStorageEgress
+
+    class SlowLoading(ParquetStorageEgress):
+        def _load_libraries(self):
+            super()._load_libraries()
+            time.sleep(1.0)
+
+    env = DynamicRealtimeEnvironment(factor=0.5)
+    assert env.strict
+    env.setup_egress([SlowLoading(default_path=str(tmp_path / "x.parquet"))])
+
+    def tick():
+        while True:
+            yield env.timeout(1)
+
+    env.process(tick())
+    try:
+        env.run(until=1)
+    finally:
+        env.teardown()
+
+    assert env.now == 1
+
+
+def test_a_run_that_is_not_strict_keeps_the_load_in_its_lag():
+    """Only a strict environment moves `real_start` by the load time. A run with
+    `strict` False counts the load as lag and catches up, as in 0.28.0, so its
+    records stay on the wall clock."""
+
+    class SlowLoading(StalledEgress):
+        def _load_libraries(self):
+            time.sleep(0.2)
+
+    env = DynamicRealtimeEnvironment(factor=0.5, strict=False)
+    real_start = env.real_start
+    env.setup_egress(providers=[SlowLoading()])
+    env.teardown()
+
+    assert env.real_start == real_start
+
+
 def test_teardown_waits_for_a_slow_sink():
     """Teardown drains the queue rather than abandoning it on a deadline."""
     env = DynamicRealtimeEnvironment(strict=False)
@@ -121,6 +211,37 @@ def test_teardown_gives_up_when_the_queue_stops_shrinking():
     env.teardown()
 
     assert not env.egress_queue.empty()
+
+
+def test_teardown_reports_the_drain_and_names_the_sink_that_stopped(caplog):
+    """While the queues drain, teardown logs the batches left every five seconds,
+    and when they stop shrinking it names each sink that still holds batches. The
+    clock is a counter of one second per reading, so the test waits for no time."""
+    env = DynamicRealtimeEnvironment(strict=False)
+    env.setup_egress(providers=[StalledEgress()], batch_size=1, drain_stall_seconds=8)
+    env.egress_queue.put([{"stream_type": "telemetry"}])
+    seconds = iter(range(10_000))
+    clock = types.SimpleNamespace(
+        time=lambda: float(next(seconds)), sleep=lambda _: None
+    )
+    with patch("desflow.core.environment.time", clock), caplog.at_level("INFO"):
+        env.teardown()
+    messages = [record.getMessage() for record in caplog.records]
+    assert "Draining egress queues, 1 batches left." in messages
+    assert (
+        "Egress queues stopped draining with 1 batches left, so some final records "
+        "are lost. A sink is not keeping up: StalledEgress=1"
+    ) in messages
+
+
+def test_a_lag_interval_that_is_no_number_is_refused():
+    """`lag_monitor_interval` takes a number of seconds, None or `auto`."""
+    env = DynamicRealtimeEnvironment(strict=False)
+    with pytest.raises(ValueError) as refused:
+        env.setup_egress(providers=[StalledEgress()], lag_monitor_interval="often")
+    assert str(refused.value) == (
+        "lag_monitor_interval must be a number of seconds, None or 'auto', got 'often'"
+    )
 
 
 def test_flush_fails_loudly_when_the_sink_stops_consuming():
@@ -679,8 +800,21 @@ def test_sim_ts_is_a_plain_float_when_the_clock_is_a_numpy_float():
 
         record = env._event_buffer[-1]
         assert type(record["sim_ts"]) is float
-        assert record["sim_ts"] == 3.142
+        assert record["sim_ts"] == 3.14159
         assert orjson.dumps(record)  # a numpy float raises here
+    finally:
+        env.teardown()
+
+
+def test_sim_ts_is_not_rounded():
+    """`sim_ts` is the clock as it is, so a model in small time units keeps its times,
+    in an event and in a telemetry reading (T6)."""
+    env = _buffered_env()
+    try:
+        env._now = 0.0004
+        env.publish_event("task-001", {"status": "started"})
+        env.publish_telemetry("Shop.level", 1)
+        assert [record["sim_ts"] for record in env._event_buffer[-2:]] == [0.0004] * 2
     finally:
         env.teardown()
 
@@ -718,7 +852,7 @@ def test_a_value_the_serializer_cannot_handle_still_raises():
     env = _buffered_env()
     try:
         with pytest.raises(PydanticSerializationError):
-            env.publish_event("task-001", {"i": np.int64(7)})
+            env.publish_event("task-001", {"i": object()})
         with pytest.raises(PydanticSerializationError):
             env.publish_telemetry("metric", object())
     finally:
@@ -796,7 +930,7 @@ def test_two_providers_flush_at_their_own_sizes():
         env.publish_event(f"task-{index}", {"n": index})
 
     # The small sink flushed three batches of two; the large one is still buffering.
-    assert [len(batch) for batch in env._event_buffers] == [0, 6]
+    assert [len(run.buffer) for run in env._egress_sinks] == [0, 6]
     env.teardown_egress()
 
     assert [len(batch) for batch in small.received_batches] == [2, 2, 2]
@@ -821,6 +955,39 @@ def test_omitting_the_per_provider_values_reproduces_the_shared_cadence():
     assert [len(batch) for batch in second.received_batches] == [3]
 
 
+def test_setup_egress_leaves_each_per_provider_list_on_the_environment():
+    """The eight lists `setup_egress` set in 0.28.0 are still read by name, so a
+    subclass or a caller that read them goes on working."""
+    first, second = TrackingEgress(), TrackingEgress()
+
+    def keep(record):
+        return True
+
+    env = DynamicRealtimeEnvironment(strict=False)
+    env.setup_egress(
+        providers=[first, second],
+        predicates=[None, keep],
+        batch_sizes=[2, None],
+        flush_intervals=[None, 4.0],
+        labels=[False, True],
+        traces=[True, False],
+        envelopes=[True, False],
+        batch_size=3,
+        lag_monitor_interval=0,
+    )
+
+    assert env.egress_providers == [first, second]
+    assert env.egress_queues == [run.batches for run in env._egress_sinks]
+    assert env.egress_queues[0] is env.egress_queue
+    assert env.egress_predicates == [None, keep]
+    assert env.egress_batch_sizes == [2, 3]
+    assert env.egress_flush_intervals == [1.0, 4.0]
+    assert env.egress_labels == [False, True]
+    assert env.egress_traces == [True, False]
+    assert env.egress_envelopes == [True, False]
+    env.teardown_egress()
+
+
 def test_a_predicate_keeps_records_out_of_the_other_buffer():
     """The predicate moved from flush time to append time, so a record is tested once
     on the way in rather than against every predicate at fan-out. A buffer must then
@@ -840,7 +1007,7 @@ def test_a_predicate_keeps_records_out_of_the_other_buffer():
     for index in range(6):
         env.publish_event(f"task-{index}", {"n": index})
 
-    assert [len(buffer) for buffer in env._event_buffers] == [3, 3]
+    assert [len(run.buffer) for run in env._egress_sinks] == [3, 3]
     env.teardown_egress()
     assert [record["value"]["n"] for record in evens.received_batches[0]] == [0, 2, 4]
     assert [record["value"]["n"] for record in odds.received_batches[0]] == [1, 3, 5]
@@ -1243,3 +1410,41 @@ def test_a_source_queue_can_be_copied():
     copied.put(("Shop.variables.x", 1))
 
     assert shared.get_nowait() == ("Shop.variables.x", 1, "LocalIngress")
+
+
+def test_envelope_false_provider_skips_telemetry_and_lifecycle_records(caplog):
+    """A provider set up with `envelopes=[False]` receives only the events a task
+    finishes, with the key `key=` gives. A provider with the envelope receives
+    everything. A label record goes only to a labels provider, envelope or not."""
+    env = DynamicRealtimeEnvironment(strict=False)
+    full, plain, labels = TrackingEgress(), TrackingEgress(), TrackingEgress()
+    with caplog.at_level(logging.INFO, logger="desflow.core.environment"):
+        env.setup_egress(
+            providers=[full, plain, labels],
+            batch_size=100,
+            labels=[False, False, True],
+            envelopes=[True, False, False],
+        )
+
+    env.publish_telemetry("metric", 1.0)
+    env.publish_event("orders-1", {"status": "queued"}, "pack", 1, lifecycle=True)
+    env.publish_event("orders-1", {"packed": True}, "pack", 1, key="o-77")
+    env.publish_label({"fault": "slow"})
+    env.teardown()
+
+    def shown(provider):
+        return [
+            (r["stream_type"], r.get("key"))
+            for batch in provider.received_batches
+            for r in batch
+        ]
+
+    assert shown(full) == [
+        ("telemetry", None),
+        ("event", "orders-1"),
+        ("event", "o-77"),
+    ]
+    assert shown(plain) == [("event", "o-77")]
+    assert shown(labels) == [("label", None)]
+    assert plain.envelope is False and full.envelope is True
+    assert "TrackingEgress has envelope: false" in caplog.text

@@ -1,0 +1,27 @@
+# When: one of two values, by a condition.
+# A task `order` starts every 60 seconds, and the run lasts 200 seconds, so three orders
+# start.
+#
+# Run it with: desflow run examples/generators/when.yaml
+
+simulation:
+  sim_id: Gen
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  orders: {dist: constant, value: 60, spawn: order}
+
+tasks:
+  order:
+    vars:
+      quantity: {gen: integer, bounds: [1, 6]}
+    payload:
+      quantity: {gen: var, name: quantity}
+      size: {gen: when, condition: "quantity > 3", then: large, else: small}
+
+run: {until: 200}

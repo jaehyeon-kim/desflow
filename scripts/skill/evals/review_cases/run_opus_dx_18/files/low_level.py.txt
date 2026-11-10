@@ -1,0 +1,81 @@
+"""Shop, low-level API: the same model as model.yaml, on DynamicRealtimeEnvironment.
+
+One packer packs an order every 2 seconds from time 2, for 1.5 seconds each. Each
+task publishes its queued, started and finished records, as a blueprint task does.
+The one Console sink prints each record as a JSON line, and its predicate keeps only
+the records whose value.event_type is order_packed (`packed_only`).
+
+Run it with: python low_level.py
+"""
+
+import numpy as np
+
+from desflow import (
+    CapacityConfig,
+    ConsoleEgress,
+    DistributionConfig,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    Sampler,
+    SimParameter,
+)
+
+PARAMS = SimParameter(
+    sim_id="Shop",
+    service={"packing": DistributionConfig(dist="constant", value=1.5)},
+    resources={"packers": CapacityConfig(current_cap=1)},
+)
+
+FIRST_AT = 2.0  # the first order arrives at 2 s
+GAP = 2.0  # then one order every 2 s
+
+
+def packed_only(record: dict) -> bool:
+    """The sink's predicate: true for a record whose value.event_type is order_packed."""
+    value = record.get("value")
+    return isinstance(value, dict) and value.get("event_type") == "order_packed"
+
+
+def pack_order(env, sampler, packers, key, task_id):
+    """Queued, then started with a packer, then finished with its payload."""
+    path_id = "Shop.service.packing"
+
+    def publish(value):
+        env.publish_event(key, value, task="pack_order", instance=task_id)
+
+    publish({"path_id": path_id, "status": "queued"})
+    env.stats.task_queued("pack_order", task_id)
+    with packers.request() as req:
+        yield req
+        publish({"path_id": path_id, "status": "started"})
+        env.stats.task_started("pack_order", task_id)
+        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+        publish({"event_type": "order_packed"})
+        env.stats.task_finished("pack_order", task_id)
+
+
+def orders(env, sampler, packers):
+    """Starts one pack_order every GAP seconds from FIRST_AT, keyed orders-1, orders-2..."""
+    yield env.timeout(FIRST_AT)
+    task_id = 0
+    while True:
+        env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
+        task_id += 1
+        yield env.timeout(GAP)
+
+
+def run():
+    env = DynamicRealtimeEnvironment(factor=0, strict=False)
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress([ConsoleEgress(format="json")], predicates=[packed_only])
+    packers = DynamicResource(env, "Shop", "packers")
+    sampler = Sampler(rng=np.random.default_rng(42))
+    env.process(orders(env, sampler, packers))
+    try:
+        env.run(until=20)
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

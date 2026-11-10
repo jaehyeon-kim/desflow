@@ -1,0 +1,43 @@
+# case DX-2: examples/yaml/advanced/fuel_dock.yaml: the lane gives back the newest
+# truck. A store with `priority` and the priority `-t`, the time of the put with its
+# sign changed, gives the same order with no custom type.
+simulation: {sim_id: Dock, factor: 0, random_seed: 42}
+
+stores:
+  lane: {current_cap: 2, max_cap: 2, priority: true}
+
+containers:
+  tank: {current_cap: 100, max_cap: 100}
+
+arrivals:
+  diesel_trucks:
+    dist: constant
+    value: 3
+    spawn: park
+    attributes: {fuel: diesel}
+  petrol_trucks:
+    dist: constant
+    value: 5
+    spawn: park
+    attributes: {fuel: petrol}
+  crew: {dist: constant, value: 7, spawn: unload}
+  tankers: {dist: constant, value: 4, spawn: pump}
+  marshals: {dist: constant, value: 15, spawn: marshal}
+
+tasks:
+  park:
+    put: {store: lane, priority: "-t"}
+    payload: {event_type: truck_parked}
+    attributes: [fuel]
+  unload:
+    get: {store: lane}
+    item_field: truck
+    payload: {event_type: truck_unloaded}
+  pump:
+    put: {container: tank, amount: 40, wait: false}
+    payload: {event_type: pump_started}
+  marshal:
+    wait: {condition: "putters.lane >= 1"}
+    payload: {event_type: overflow_bay_called}
+
+run: {until: 40}

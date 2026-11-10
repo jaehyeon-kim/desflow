@@ -23,7 +23,7 @@ A path is the `sim_id`, the kind of parameter, its name and the field:
 | Declared with | Paths |
 |---|---|
 | an arrival or a service | `<sim_id>.arrival.<name>.<parameter>` and `<sim_id>.service.<name>.<parameter>`, one per scalar parameter of its family: `.rate` for an exponential, `.mean` and `.std` for a normal, `.low`, `.mode` and `.high` for a triangular, and so on; an `empirical` has none |
-| a resource | `<sim_id>.resources.<name>.current_cap` and `.max_cap` |
+| a resource | `<sim_id>.resources.<name>.current_cap`, `.max_cap` and `.queue_limit` (`None` while the resource has no limit) |
 | a container | `<sim_id>.containers.<name>.current_cap`, `.max_cap` and `.level` |
 | a store | `<sim_id>.stores.<name>.current_cap` and `.max_cap` |
 | a variable | `<sim_id>.variables.<name>` |
@@ -36,7 +36,7 @@ A path is the `sim_id`, the kind of parameter, its name and the field:
 
 === "Builder"
 
-    `compile_parameters()` returns the `SimParameter` a `SimulationContext` will register, which shows the names to use:
+    `compile_parameters()` returns the `SimParameter` a `SimulationContext` will register, which shows the names to use. A resource appears in it as a `ResourceConfig` with `current_cap`, `max_cap` and `queue_limit`:
 
     ```python title="docs/snippets/pages/live_parameters.py:compile"
     print(app.compile_parameters())
@@ -67,7 +67,7 @@ A path is the `sim_id`, the kind of parameter, its name and the field:
     # Registered paths include:
     #   Shop.arrival.orders.rate
     #   Shop.service.packing.mean, Shop.service.packing.std
-    #   Shop.resources.packers.current_cap, Shop.resources.packers.max_cap
+    #   Shop.resources.packers.current_cap, .max_cap and .queue_limit (None: no limit)
     #   Shop.containers.stock.current_cap, .max_cap and .level
     #   Shop.variables.conveyor_speed
     print(env.registry.get("Shop.resources.packers.current_cap").value)  # 2
@@ -106,6 +106,37 @@ Each source of a change suits a different job and lands at a different moment:
     env.registry.update("Shop.resources.lath.current_cap", 3)  # no such path: ignored
     env.registry.update("Shop.service.packing.rate", 2.0)  # normal has no rate: ignored
     env.registry.update("Shop.containers.stock.level", 150)  # stored as 100, the capacity
+    ```
+
+### Know What a Path Accepts
+
+Each path checks a value by its own rule before it stores it:
+
+- A resource's or a store's `max_cap`, and a resource's `queue_limit`, are whole numbers of 0 or more, and a `current_cap` is a whole number, stored clamped to 0 to `max_cap` with a warning. Text is accepted only if the whole text is such a number, so `"6"` is 6 and `"abc"` is refused. A store capacity with a fraction, such as 2.5, is refused and not rounded down. A `queue_limit` of `None` means no limit.
+- A container's `level` is a finite number. A level above the capacity is stored as the capacity.
+- A path that holds true or false takes `true`, `false` or that text. Any other text is refused. `true` written over a path that holds a number is stored as 1.
+
+A resource's limit changes through its path. `DynamicResource.queue_limit` is a read-only property that shows the value now, so assigning to it raises `AttributeError`.
+
+=== "YAML"
+
+    An `on:` entry with a `path` needs a `value`, and so does a scenario step with a `path`. A value that the path's rule refuses, such as `many` for a capacity, is refused when the blueprint loads, with the line of the entry. A path that is not in the registry is logged as a warning with the entry's line.
+
+=== "Builder"
+
+    `registry.change`, which a process calls, raises `ParamRejected` for a value that breaks these rules. The next section shows it.
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/registry.py:rules"
+    # Each path checks a value by its own rule; `change` raises where `update` logs
+    env.registry.update("Shop.resources.packers.max_cap", "6")  # text of a whole number: 6
+    env.registry.update(
+        "Shop.resources.packers.queue_limit", 4
+    )  # a limit: whole, 0 or more
+    env.registry.update("Shop.resources.packers.queue_limit", None)  # no limit again
+    env.registry.update("Shop.resources.packers.current_cap", 2.5)  # refused: not whole
+    env.registry.update("Shop.containers.stock.level", float("nan"))  # refused: not finite
     ```
 
 ### Know Whether a Change Was Refused
@@ -189,13 +220,10 @@ A blueprint's `scenario` lists changes, each with the simulation time it applies
     # From 1 min, orders arrive twice as fast: the average gap falls from 5 s to 2.5 s
     # (rate 0.2 to 0.4). The extra packer leaves at 2 min. Every change lands at
     # exactly that simulation time, on every run.
-    simulation:
-      sim_id: Shop
-      factor: 0
-      random_seed: 1
+    simulation: {sim_id: Shop, factor: 0, random_seed: 1}
 
     egress:
-      - type: Console
+      - {type: Console}
 
     resources:
       packers: {current_cap: 1, max_cap: 3}
@@ -221,8 +249,7 @@ A blueprint's `scenario` lists changes, each with the simulation time it applies
       - {at: 1 min, path: Shop.arrival.orders.rate, value: 0.4}
       - {at: 2 min, path: Shop.resources.packers.current_cap, value: 1}
 
-    run:
-      until: 3 min
+    run: {until: 3 min}
     ```
 
 === "Builder"
@@ -335,7 +362,7 @@ A container's level also changes with every put and get. The registry keeps that
 What follows a change:
 
 - **Distributions.** The next draw uses the new value. The arrival already being waited for keeps its gap, and a task that has drawn its service time keeps it.
-- **Resources, stores and containers.** The capacity follows at once, and a container's level follows its path, as [Resources](../resources/index.md#under-live-changes) and [Stores and Containers](../model-parts/stores-and-containers.md#under-live-changes) describe.
+- **Resources, stores and containers.** The capacity follows at once, and a container's level follows its path, as [Resources](../resources/units-and-queues.md#under-live-changes) and [Stores and Containers](../model-parts/stores-and-containers.md#under-live-changes) describe.
 - **Variables.** The new value is stored, and a process reads it with `env.registry.get(path).value`.
 
 A change is easiest to see in the telemetry. With `stats: minimal`, the scenario above shows the second packer land:

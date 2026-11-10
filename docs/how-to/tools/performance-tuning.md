@@ -1,6 +1,6 @@
 # Tune Performance
 
-Make a run that generates data go as fast as the machine allows, and measure how many records a second it publishes.
+Make a run that generates data go as fast as the machine allows, and measure how many records a second it publishes. To choose the size of a dataset and split a large job, see [Data at Scale](../records-and-kafka/data-at-scale.md).
 
 ---
 
@@ -47,8 +47,7 @@ This shop takes ten orders a second with 25 packers, and has no sink of its own:
     # minimal: readings every 10 s, not the costlier task statistics
     stats: {level: minimal, interval: 10}
 
-    run:
-      until: 1 h
+    run: {until: 1 h}
     ```
 
 === "Builder"
@@ -85,13 +84,29 @@ This shop takes ten orders a second with 25 packers, and has no sink of its own:
     def pack_order(env, packers, sampler, key, task_id):
         path_id, stats = "Shop.service.packing", env.stats
         env.publish_event(
-            key, {"path_id": path_id, "status": "queued"}, "pack_order", task_id
+            key,
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "queued",
+            },
+            "pack_order",
+            task_id,
         )
         stats.task_queued("pack_order", task_id)
         with packers.request() as unit:
             yield unit
             env.publish_event(
-                key, {"path_id": path_id, "status": "started"}, "pack_order", task_id
+                key,
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "started",
+                },
+                "pack_order",
+                task_id,
             )
             stats.task_started("pack_order", task_id)
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
@@ -198,16 +213,10 @@ For one simulated hour, each form prints **108,688** records, at about 100,000 r
 |---|---|---|---|
 | core only, nothing published | 0.248 | 0.248 | 0 |
 | as shipped, counting sink | 0.531 | 1.138 | 157,771 |
-| with 0.21.0's real-time step at `factor: 0` | 0.555 | 1.164 | 157,771 |
-| with 0.21.0's timestamp | 0.555 | 1.163 | 157,771 |
-| with a lag reading every second, 0.21.0's default | 0.535 | 1.144 | 162,771 |
-| 0.21.0: the three lines above together | 0.604 | 1.211 | 162,771 |
 | as shipped, with `gc.freeze()` after setup | 0.485 | 1.092 | 157,771 |
 | `ConsoleEgress`, to `/dev/null` | 0.648 | 1.251 | 157,771 |
-| 0.21.0's `ConsoleEgress`, one log call per record | 0.672 | 1.902 | 157,771 |
 
-- **0.22.0 against 0.21.0:** the run takes 0.531 seconds against 0.604, which is 1.14 times faster. The gain comes from three changes: SimPy's own step at `factor: 0`, a timestamp formatted once per second of the clock (300 against 580 nanoseconds a record), and no lag readings at `factor: 0`.
-- **Console:** in the total, which covers the run and the teardown, logging a batch with one call takes 0.11 seconds more than a counting sink. One call per record took 0.76 seconds more. A terminal is slower than `/dev/null`, so a run that prints to one costs more than this.
+- **Console:** in the total, which covers the run and the teardown, logging a batch with one call takes 0.11 seconds more than a counting sink. A terminal is slower than `/dev/null`, so a run that prints to one costs more than this.
 - **Teardown:** about 0.6 seconds of every total is the teardown. Once the queues are empty, it waits half a second for a file sink to close its last file, so a short run spends most of its time there.
 
 The table below shows where the time of the run "as shipped" goes. It comes from a sampling profile: a thread reads the main thread's stack every 0.2 milliseconds, as py-spy does from outside the process (py-spy needs root on macOS):
@@ -266,8 +275,7 @@ Run `uv run --all-extras python benchmarks/throughput.py configs` to measure you
         # minimal: readings every 10 s, not the costlier task statistics
         stats: {level: minimal, interval: 10}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"
@@ -389,13 +397,29 @@ Run `uv run --all-extras python benchmarks/throughput.py configs` to measure you
         def pack_order(env, packers, sampler, key, task_id):
             path_id, stats = "Shop.service.packing", env.stats
             env.publish_event(
-                key, {"path_id": path_id, "status": "queued"}, "pack_order", task_id
+                key,
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "queued",
+                },
+                "pack_order",
+                task_id,
             )
             stats.task_queued("pack_order", task_id)
             with packers.request() as unit:
                 yield unit
                 env.publish_event(
-                    key, {"path_id": path_id, "status": "started"}, "pack_order", task_id
+                    key,
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    },
+                    "pack_order",
+                    task_id,
                 )
                 stats.task_started("pack_order", task_id)
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))

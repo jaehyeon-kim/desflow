@@ -1,0 +1,22 @@
+"""Builder form of the paced tick model: two entities tick every second, run to 2 s then 4 s."""
+from desflow import ConsoleEgress, SimulationContext
+
+app = (
+    SimulationContext(sim_id="Sim", factor=0.1, random_seed=42)
+    .add_egress(ConsoleEgress(format="json"))
+    .add_initial_arrival("a", 2, spawn="pem")
+)
+
+
+@app.task(name="pem", wait={"timeout": 1}, next="pem")
+def pem(task_id, *args, **kwargs):
+    """Publishes one tick after waiting 1 second, then the task starts again."""
+    return {"event_type": "tick"}
+
+
+def run():
+    app.run(segments=[{"until": 2}, {"until": 4}])
+
+
+if __name__ == "__main__":
+    run()

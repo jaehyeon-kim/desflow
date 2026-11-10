@@ -24,8 +24,8 @@ def test_store_initialization(env, registry, sample_params):
     store = DynamicStore(env, "Shop", "buffer1")
 
     assert store.capacity == 5
-    assert isinstance(store._store, simpy.Store)
-    assert not isinstance(store._store, simpy.PriorityStore)
+    assert isinstance(store._holder, simpy.Store)
+    assert not isinstance(store._holder, simpy.PriorityStore)
 
 
 def test_store_priority_initialization(env, registry, sample_params):
@@ -34,7 +34,7 @@ def test_store_priority_initialization(env, registry, sample_params):
     store = DynamicStore(env, "Shop", "buffer1", priority=True)
 
     assert store.capacity == 5
-    assert isinstance(store._store, simpy.PriorityStore)
+    assert isinstance(store._holder, simpy.PriorityStore)
 
 
 def test_priority_sorting(env, registry, sample_params):
@@ -230,11 +230,3 @@ def test_a_store_and_a_container_start_at_capacity_0():
     env.run(until=20)
     env.teardown()
     assert done == [("box", 5), ("oil", 10)]
-
-
-def test_a_priority_store_gives_equal_priorities_in_put_order():
-    """Six items of one priority come out in put order. A `PriorityItem` compares
-    only its priority, so without the put order heapq returns them mixed."""
-    from tests.conformance.test_c5_priority_store import _builder_order
-
-    assert _builder_order([3] * 6) == [0, 1, 2, 3, 4, 5]

@@ -1,0 +1,30 @@
+# A small shop for the commands of the Command Line page that need a file with a
+# variable and a test. The packers come from PACKERS, 2 when it is not set.
+# Run it with: desflow run shop.yaml --sample 5
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+resources:
+  packers: {current_cap: "${PACKERS:-2}", max_cap: 5}
+
+services:
+  packing: {dist: gamma, shape: 4, scale: 1 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.4, spawn: pack}
+
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+stats: basic
+
+run: {until: 10 min}
+
+# desflow test runs the model once at the seed and compares these statistics
+tests:
+  - name: two packers
+    expect:
+      tasks.pack.finished: 254
+      tasks.pack.wait_mean: {value: 4.592, within: 0.001}

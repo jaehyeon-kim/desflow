@@ -1,0 +1,26 @@
+# Lower: the lower case of a text.
+# A task `order` starts every 60 seconds, and the run lasts 200 seconds, so three orders
+# start.
+#
+# Run it with: desflow run examples/generators/lower.yaml
+
+simulation:
+  sim_id: Gen
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  orders: {dist: constant, value: 60, spawn: order}
+
+tasks:
+  order:
+    payload:
+      code:
+        gen: lower
+        value: {gen: one_of, choices: [AB-1, CD-2]}
+
+run: {until: 200}

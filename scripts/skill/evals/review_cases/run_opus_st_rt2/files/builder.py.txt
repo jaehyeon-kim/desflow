@@ -1,0 +1,44 @@
+"""ST-RT2 with the Builder API: the same model as model.yaml.
+
+Paced at factor 0.1 (one simulation second takes 0.1 s of wall time). Arrival `a`
+starts two entities at time 0, each running `pem`, which publishes
+{event_type: tick} every second, for ever. The run is called twice: first to 2 s,
+then on to 4 s, as model.yaml's run.segments does.
+
+Run it with: python builder.py
+It prints each record to stdout as one JSON line.
+"""
+
+from datetime import datetime, timezone
+
+from desflow import ConsoleEgress, SimulationContext
+
+app = (
+    SimulationContext(
+        sim_id="RT2",
+        factor=0.1,
+        random_seed=42,
+        # A fixed start, so record timestamps are the same in every run and form.
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        # No lag readings: they describe the wall clock, not the model.
+        lag_interval=0,
+    )
+    .add_egress(ConsoleEgress(format="json"))
+    # Two entities at time 0, a-1 and a-2, each starting pem.
+    .add_initial_arrival("a", 2, spawn="pem")
+)
+
+
+@app.task(service_time=1, next="pem")
+def pem(task_id):
+    """One pass takes 1 s, publishes a tick, then starts pem again."""
+    return {"event_type": "tick"}
+
+
+def run():
+    # Called twice: to 2 s, then on to 4 s. The event at 4 s does not run.
+    app.run(until=4, segments=[{"until": 2}, {"until": 4}])
+
+
+if __name__ == "__main__":
+    run()

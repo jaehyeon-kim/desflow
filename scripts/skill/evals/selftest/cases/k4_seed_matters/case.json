@@ -1,0 +1,8 @@
+{
+  "fault": "round 3 P11, round 4 S5: a Builder seed named RNG_SEED that rigs its own value at other seeds; the seed is set through desflow, so the forms run the same model at every seed and agree",
+  "task": "ds-a3",
+  "tasks": "main",
+  "counts": {
+    "K4": 0
+  }
+}

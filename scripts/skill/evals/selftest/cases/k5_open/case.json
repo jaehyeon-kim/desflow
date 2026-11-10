@@ -1,0 +1,15 @@
+{
+  "fault": "round 3 P11: a test opens model.yaml in its own process and compares its run end with the Builder's records; only the open event shows the YAML form",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K9": 0,
+    "BASE": 0
+  },
+  "forms": {
+    "test_model.py::test_yaml_and_builder_end_at_20": [
+      "builder",
+      "yaml"
+    ]
+  }
+}

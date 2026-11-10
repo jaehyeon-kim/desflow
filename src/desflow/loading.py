@@ -12,10 +12,10 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Mapping, Optional, Union
 
-from desflow.blueprint.build import Preview
-from desflow.core.context import SimulationContext
+from desflow.blueprint.build import Preview, preview_builder
+from desflow.core.context import SimulationContext, parts_of
 
 _PYTHON_SUFFIX = ".py"
 # Each Python entry is imported under a new name, so two loads never share a module
@@ -23,7 +23,10 @@ _entry_numbers = itertools.count()
 
 
 def load_context(
-    folder: Union[str, Path], entry: str, preview: Optional[Preview] = None
+    folder: Union[str, Path],
+    entry: str,
+    preview: Optional[Preview] = None,
+    variables: Optional[Mapping[str, str]] = None,
 ) -> SimulationContext:
     """Builds the simulation that `entry` in `folder` defines.
 
@@ -41,30 +44,40 @@ def load_context(
             when the process ends, because `!python` references and Python imports
             resolve from the entry's folder.
         entry: The entry file's name inside `folder`.
-        preview: The preview `desflow run --sample` and `--stdout` make, for a
-            blueprint only.
+        preview: The preview `desflow run --sample` and `--stdout` make. A
+            builder file is imported first, and its sinks are then replaced as a
+            blueprint's are (`preview_builder`).
+        variables: Values for `${NAME}`, used before the environment, as `desflow
+            run --var NAME=VALUE` gives them, for a blueprint only.
 
     Returns:
         SimulationContext: The built context, not yet run.
 
     Raises:
-        ValueError: If a Python entry defines no context, or several with no
-            `DESFLOW_APP`, or `DESFLOW_APP` names no context; or a preview is
-            given with a Python entry.
+        NoContextError: If a Python entry defines no context. It is a
+            `ValueError`.
+        ValueError: If `folder` is a URI and `entry` is not a file in it; if a Python
+            entry defines several contexts with no `DESFLOW_APP`, or `DESFLOW_APP`
+            names no context; or variables are given with a Python entry.
         ImportError: If `folder` is a URI and pyarrow is not installed.
         BlueprintError: If a blueprint is invalid.
     """
     local = _local_folder(folder)
     path = local / entry
+    if isinstance(folder, str) and "://" in folder and not path.is_file():
+        raise ValueError(f"no file {folder}/{entry}")
     if path.suffix != _PYTHON_SUFFIX:
-        return SimulationContext.from_yaml(path, preview)
-    if preview is not None:
+        return SimulationContext.from_yaml(path, preview, variables)
+    if variables:
         raise ValueError(
-            f"a preview runs a YAML blueprint, and {entry} is a Python file"
+            f"variables fill ${{NAME}} in a YAML blueprint, and {entry} is a Python "
+            f"file, which reads its own settings"
         )
     context = _python_context(path)
+    if preview is not None:
+        preview_builder(context, preview)
     # analyze(verify=True) builds a new copy from the local file
-    context._source = functools.partial(load_context, local, entry)
+    parts_of(context).defaults.source = functools.partial(load_context, local, entry)
     return context
 
 
@@ -89,6 +102,11 @@ def _local_folder(folder: Union[str, Path]) -> Path:
         destination_filesystem=fs.LocalFileSystem(),
     )
     return local
+
+
+class NoContextError(ValueError):
+    """A Python file that defines no module-level `SimulationContext`, such as a
+    script that builds `DynamicRealtimeEnvironment` itself."""
 
 
 def _python_context(path: Path) -> SimulationContext:
@@ -126,7 +144,7 @@ def _python_context(path: Path) -> SimulationContext:
     if len(contexts) == 1:
         return contexts[0]
     if not contexts:
-        raise ValueError(
+        raise NoContextError(
             f"{path} defines no SimulationContext at module level. A builder file "
             "defines one, such as app = SimulationContext(...); a script that "
             "builds DynamicRealtimeEnvironment directly cannot be loaded"

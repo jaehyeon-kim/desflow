@@ -1,0 +1,19 @@
+# Three changes to the YAML an agent writes for task P51: a rate, a weight or share, a
+# capacity, or the nearest time or count, or, where no number the request names changes
+# the records, one step of the flow. Each change tries the keys of `keys` that exist in
+# model.yaml, in order, and keeps the first that alters the records (grade.py).
+
+task: P51
+
+mutations:
+  - name: capacity 1 to 2
+    changes:
+      - {keys: [resources.m.current_cap], new: 2, add: true}
+      - {keys: [resources.m.max_cap], new: 2, optional: true}
+  - name: gap 1 to 6
+    changes:
+      - {keys: [arrivals.a.value, arrivals.a.gap, arrivals.a.gap.value], new: 6}
+  - name: job time 3 to 4
+    changes:
+      - keys: [tasks.job.service_time, "services.{tasks.job.service}.value"]
+        new: 4

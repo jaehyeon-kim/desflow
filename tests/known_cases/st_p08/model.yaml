@@ -1,0 +1,47 @@
+# case ST-P08: test_error_and_interrupted_join: child_a interrupts the parent while it
+# joins child_b; child_b fails; nobody waits for it any more, so the failure raises out
+# of run(). `where` reads the target's scope and has no name for the caller, so each
+# child writes its parent's id to a registry value first and interrupts the join whose
+# id matches (research/yaml-only/README.md, Machine Shop). The child shares the parent's
+# attributes (`copy_attributes`).
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+variables: {target: -1}
+
+arrivals:
+  p:
+    initial: 1
+    spawn: parent
+    attributes:
+      id: {gen: sequence, start: 0}
+
+tasks:
+  parent:
+    payload: {event_type: parent}
+    spawn: {task: child_a, copy_attributes: true}
+    next: start_b
+  start_b:
+    payload: {event_type: start_b}
+    open:
+      b: {task: child_b}
+    next: join
+  join:
+    wait: {handle: b}
+    on_interrupt: abandon
+    on_interrupt_next: after
+    payload: {event_type: joined}
+  after:
+    service_time: 0
+    payload: {event_type: after}
+  child_a:
+    payload: {event_type: a}
+    on:
+      - path: T.variables.target
+        value: {gen: expr, expr: "attr.id"}
+      - interrupt: {task: join, where: "attr.id == registry['T.variables.target']"}
+  child_b:
+    fail: "True"
+    fail_reason: spam
+    payload: {event_type: b}
+
+run: {on_unhandled_failure: stop}

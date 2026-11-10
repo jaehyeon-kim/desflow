@@ -1,0 +1,22 @@
+# A service time computed from the car: half its litres. A process holds the pump
+# for that time, then calls the task `filled`, which publishes the car's record.
+simulation: {sim_id: Station, factor: 0}
+
+resources:
+  pump: {current_cap: 1}
+
+processes:
+  - function: !python simpy_forms.fill
+    kwargs: {car: car-1, start: 0, litres: 4}
+  - function: !python simpy_forms.fill
+    kwargs: {car: car-2, start: 1, litres: 6}
+  - function: !python simpy_forms.fill
+    kwargs: {car: car-3, start: 2, litres: 2}
+
+tasks:
+  filled: {payload: !python simpy_forms.filled}
+
+run: {until: 10}
+
+egress:
+  - {type: Console}

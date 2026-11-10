@@ -1,0 +1,38 @@
+# Readings of your own as expressions, and a reading at each change of a resource.
+# Run it with: desflow run statistics_readings.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console}
+
+resources:
+  packers: {current_cap: 2, max_cap: 5}
+
+services:
+  packing: {dist: gamma, shape: 4, scale: 0.75 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.6, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# --8<-- [start:on-change]
+# The readings of level minimal, and one more set after each request and release
+stats: {level: minimal, on_change: true}
+# --8<-- [end:on-change]
+
+# --8<-- [start:readings]
+telemetry:
+  # Readings of your own: two expressions, evaluated every 30 seconds
+  - interval: 30
+    readings:
+      waiting_per_packer: "queue.packers /
+        max(registry['Shop.resources.packers.current_cap'], 1)"
+      arrival_rate: "registry['Shop.arrival.orders.rate']"
+# --8<-- [end:readings]
+
+run: {until: 2 min}

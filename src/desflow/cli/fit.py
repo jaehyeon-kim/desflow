@@ -101,7 +101,9 @@ def _fit(
         result = fit_column(
             read_column(file, column),
             unit=unit,
-            candidates=candidates.split(",") if candidates else None,
+            candidates=(
+                [name.strip() for name in candidates.split(",")] if candidates else None
+            ),
             lower=lower,
             upper=upper,
             bins=bins,

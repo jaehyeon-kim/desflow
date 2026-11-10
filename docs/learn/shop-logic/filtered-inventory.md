@@ -53,13 +53,37 @@ The shirts and the orders arrive from six arrivals, one per size, each with a `s
 
     ```yaml title="docs/snippets/yaml/filtered_inventory.yaml:arrivals"
     # A shirt every 10 seconds on average: 3 in 10 small, 4 medium, 3 large
-    shirts_s: {dist: exponential, rate: 0.03, spawn: restock, attributes: {size: S}}
-    shirts_m: {dist: exponential, rate: 0.04, spawn: restock, attributes: {size: M}}
-    shirts_l: {dist: exponential, rate: 0.03, spawn: restock, attributes: {size: L}}
+    shirts_s:
+      dist: exponential
+      rate: 0.03
+      spawn: restock
+      attributes: {size: S}
+    shirts_m:
+      dist: exponential
+      rate: 0.04
+      spawn: restock
+      attributes: {size: M}
+    shirts_l:
+      dist: exponential
+      rate: 0.03
+      spawn: restock
+      attributes: {size: L}
     # An order every 10 seconds on average: a quarter small, half medium, a quarter large
-    orders_s: {dist: exponential, rate: 0.025, spawn: take_shirt, attributes: {size: S}}
-    orders_m: {dist: exponential, rate: 0.05, spawn: take_shirt, attributes: {size: M}}
-    orders_l: {dist: exponential, rate: 0.025, spawn: take_shirt, attributes: {size: L}}
+    orders_s:
+      dist: exponential
+      rate: 0.025
+      spawn: take_shirt
+      attributes: {size: S}
+    orders_m:
+      dist: exponential
+      rate: 0.05
+      spawn: take_shirt
+      attributes: {size: M}
+    orders_l:
+      dist: exponential
+      rate: 0.025
+      spawn: take_shirt
+      attributes: {size: L}
     ```
 
 === "Builder"
@@ -180,8 +204,8 @@ A plain `get` takes the oldest item, whatever it is. A `get` with a `filter` tak
         # Takes the oldest shirt of the order's own size; waits while there is none
         get = shelf.get(filter=lambda shirt: shirt["size"] == size)
         # A customer cancels an order not filled within 10 minutes
-        yield get | env.timeout(PATIENCE)
-        if not get.triggered:
+        result = yield get | env.timeout(PATIENCE)
+        if get not in result:
             get.cancel()  # out of the queue, so it never takes a shirt later
             publish({"status": "reneged"})
             env.stats.task_reneged("take_shirt", task_id)
@@ -296,6 +320,8 @@ A filtered store works like one shelf with a separate queue for each kind of ite
 
 Medium orders outnumber medium shirts all day: they ask for 0.05 shirts a second and get 0.04, a [utilisation](../concepts/queueing-basics.md#utilisation) of 1.25. So their queue would grow without end if customers did not cancel after 10 minutes. There are more small and large shirts than orders of those sizes, so every small and large order is filled before its customer cancels. The shirts left over, 248 at the end of the run, wait on the shelf, which has room for 1,000.
 
+The mix of sizes is therefore not right for the orders: the shop should stock more medium shirts, and fewer small and large ones, until medium shirts are as large a share of the deliveries as medium orders are of the orders.
+
 [SimPy and desflow](../../simpy/index.md#containers-and-stores) compares stores and containers with SimPy's. [Stores and Containers](../../user-guide/model-parts/stores-and-containers.md#take-and-add) describes filters and cancelled gets.
 
 ## Key Takeaways
@@ -315,10 +341,7 @@ Medium orders outnumber medium shirts all day: they ask for 0.05 shirts a second
         ```yaml title="docs/snippets/yaml/filtered_inventory.yaml"
         # The Filtered Inventory tutorial: each order waits for a shirt of its own size.
         # Run it with: desflow run filtered_inventory.yaml
-        simulation:
-          sim_id: Shop
-          factor: 0
-          random_seed: 42
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
         stores:
           # Shirts of every size on one shelf, each item a mapping such as {size: M}
@@ -326,13 +349,37 @@ Medium orders outnumber medium shirts all day: they ask for 0.05 shirts a second
 
         arrivals:
           # A shirt every 10 seconds on average: 3 in 10 small, 4 medium, 3 large
-          shirts_s: {dist: exponential, rate: 0.03, spawn: restock, attributes: {size: S}}
-          shirts_m: {dist: exponential, rate: 0.04, spawn: restock, attributes: {size: M}}
-          shirts_l: {dist: exponential, rate: 0.03, spawn: restock, attributes: {size: L}}
+          shirts_s:
+            dist: exponential
+            rate: 0.03
+            spawn: restock
+            attributes: {size: S}
+          shirts_m:
+            dist: exponential
+            rate: 0.04
+            spawn: restock
+            attributes: {size: M}
+          shirts_l:
+            dist: exponential
+            rate: 0.03
+            spawn: restock
+            attributes: {size: L}
           # An order every 10 seconds on average: a quarter small, half medium, a quarter large
-          orders_s: {dist: exponential, rate: 0.025, spawn: take_shirt, attributes: {size: S}}
-          orders_m: {dist: exponential, rate: 0.05, spawn: take_shirt, attributes: {size: M}}
-          orders_l: {dist: exponential, rate: 0.025, spawn: take_shirt, attributes: {size: L}}
+          orders_s:
+            dist: exponential
+            rate: 0.025
+            spawn: take_shirt
+            attributes: {size: S}
+          orders_m:
+            dist: exponential
+            rate: 0.05
+            spawn: take_shirt
+            attributes: {size: M}
+          orders_l:
+            dist: exponential
+            rate: 0.025
+            spawn: take_shirt
+            attributes: {size: L}
 
         tasks:
           restock:
@@ -353,10 +400,9 @@ Medium orders outnumber medium shirts all day: they ask for 0.05 shirts a second
         stats: {level: basic, interval: 8 h}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 8 h
+        run: {until: 8 h}
         ```
 
     === "Builder"
@@ -531,8 +577,8 @@ Medium orders outnumber medium shirts all day: they ask for 0.05 shirts a second
             # Takes the oldest shirt of the order's own size; waits while there is none
             get = shelf.get(filter=lambda shirt: shirt["size"] == size)
             # A customer cancels an order not filled within 10 minutes
-            yield get | env.timeout(PATIENCE)
-            if not get.triggered:
+            result = yield get | env.timeout(PATIENCE)
+            if get not in result:
                 get.cancel()  # out of the queue, so it never takes a shirt later
                 publish({"status": "reneged"})
                 env.stats.task_reneged("take_shirt", task_id)

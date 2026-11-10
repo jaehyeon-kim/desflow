@@ -1,0 +1,31 @@
+# Records of task P49, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: P49
+
+until: 40
+
+run_end: 40
+
+records:
+  - name: job a-1 done at 1.5
+    match: {task: job, key: a-1, value.event_type: done}
+    at: 1.5
+  - name: job a-3 done at 6.5, after the first repair
+    match: {task: job, key: a-3, value.event_type: done}
+    at: 6.5
+  - name: three jobs done
+    match: {task: job, value.event_type: done}
+    count: 3
+  - name: first failure at 3
+    match: {key: m, value.status: down}
+    at: 3
+  - name: second failure at 8
+    match: {key: m, value.status: down}
+    at: 8
+  - name: eight failures in all
+    match: {key: m, value.status: down}
+    count: 8
+  - name: seven repairs in all
+    match: {key: m, value.status: repaired}
+    count: 7

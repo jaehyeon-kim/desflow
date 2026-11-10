@@ -1,0 +1,28 @@
+# ST-R11: test_get_users. Three processes use one unit for 1 each; the users and the
+# queue are read after run(until=1) and after run(until=2). Each segment has `look`,
+# a task of a new entity that reads the model once the segment has stopped.
+# See test_yaml_only.py.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+resources:
+  res: {current_cap: 1}
+
+arrivals:
+  users: {initial: 3, spawn: pem}
+
+tasks:
+  pem:
+    resource: res
+    service_time: 1
+    payload: {event_type: used}
+  look:
+    payload:
+      event_type: look
+      users: {gen: expr, expr: "[h.entity for h in held(res)]"}
+      queue: {gen: expr, expr: "[w.entity for w in waiting(res)]"}
+
+run:
+  until: 2
+  segments:
+    - {until: 1, look: look}
+    - {until: 2, look: look}

@@ -9,6 +9,7 @@ network is needed. It also checks the numbers the page reads from the output.
 import json
 import re
 import shlex
+import shutil
 from pathlib import Path
 from unittest import mock
 
@@ -38,8 +39,23 @@ def _commands():
     ]
 
 
-def test_every_command_on_the_page_runs(tmp_path, monkeypatch):
+def _watch_once(*args, **kwargs):
+    """A stand-in for `watchfiles.watch` that sees no change, so `--watch` runs the
+    file once and ends, where the real one waits for an edit until Ctrl+C."""
+    return iter([])
+
+
+def test_every_command_on_the_page_runs(tmp_path, monkeypatch, caplog):
     monkeypatch.chdir(tmp_path)
+    # The page asks the reader to save its small shop as shop.yaml
+    assert 'title="docs/snippets/yaml/command_line_shop.yaml"' in PAGE.read_text(
+        "utf-8"
+    )
+    shutil.copy(ROOT / "docs/snippets/yaml/command_line_shop.yaml", "shop.yaml")
+    # The tuning example uses the shop of Queues and Capacity
+    shutil.copy(
+        ROOT / "docs/snippets/yaml/queues_and_capacity.yaml", "queues_and_capacity.yaml"
+    )
     outputs = {}
     commands = _commands()
     assert commands, "the page shows no commands"
@@ -50,7 +66,8 @@ def test_every_command_on_the_page_runs(tmp_path, monkeypatch):
             if ">" in words:
                 words, target = words[: words.index(">")], words[words.index(">") + 1]
             assert words[0] == "desflow", line
-            result = CliRunner().invoke(app, words[1:])
+            with mock.patch("watchfiles.watch", _watch_once):
+                result = CliRunner().invoke(app, words[1:])
             assert result.exit_code == 0, f"{line}\n{result.output}"
             if target:
                 Path(target).write_text(result.stdout, encoding="utf-8")
@@ -77,7 +94,7 @@ def test_every_command_on_the_page_runs(tmp_path, monkeypatch):
     assert re.search(r"tasks\.pack\.wait_mean\s+10\s+4\.505\s+0\.9314", measure)
     records = (tmp_path / "records.jsonl").read_text("utf-8").splitlines()
     last = json.loads(records[-1])
-    assert (last["sim_ts"], last["key"]) == (24.789, "orders-9")
+    assert (last["sim_ts"], last["key"]) == (24.789303362278915, "orders-9")
     assert last["value"] == {"event_type": "order_packed"}
     assert "checked 0.5919" in output("desflow experiment")
     fit = output("desflow fit")
@@ -92,3 +109,19 @@ def test_every_command_on_the_page_runs(tmp_path, monkeypatch):
     assert "mean 1.53, std 0.481785" in output("desflow dist triangular")
     schema = json.loads((tmp_path / "blueprint.schema.json").read_text("utf-8"))
     assert "simulation" in schema["properties"]
+    # Check a File Before You Run It
+    assert "ok shop.yaml (sim_id Shop)" in output("desflow check shop.yaml\n"[:-1])
+    two = output("desflow check shop.yaml experiment")
+    assert "ok shop.yaml (sim_id Shop)" in two
+    assert "ok experiment/yaml/experiment_shop.yaml (sim_id Shop)" in two
+    # The experiment's shop has no `until`, so check warns, and still says ok
+    caplog.clear()
+    with caplog.at_level("WARNING", logger="desflow.blueprint.build"):
+        warned = CliRunner().invoke(
+            app, ["check", "experiment/yaml/experiment_shop.yaml"]
+        )
+    assert warned.exit_code == 0
+    assert "the run has no end" in caplog.text
+    assert "ok shop.yaml: two packers" in output("desflow test shop.yaml\n"[:-1])
+    assert "ok shop.yaml: two packers" in output("desflow test shop.yaml --fix")
+    assert "mean 4, std 3.4641" in output("desflow dist geometric")

@@ -1,0 +1,8 @@
+# CV-099: `run.sync` calls `env.sync()` as the run starts, also when strict is off.
+# See test_yaml_only.py.
+simulation: {sim_id: E, factor: 1, strict: false, random_seed: 42}
+services: {one: {dist: constant, value: 1}}
+arrivals: {a: {replay: {path: a.csv}, spawn: ticking}}
+tasks:
+  ticking: {service: one, payload: {event_type: tick}}
+run: {until: 3, sync: true}

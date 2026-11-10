@@ -2,12 +2,13 @@
 
 A plain SimPy `PriorityStore` sets the order. The low-level `DynamicStore` takes
 `PriorityItem`s directly; the builder and YAML give a task's `put` a priority and
-wrap the payload, with a rising put order so equal priorities come out first in,
-first out and payloads are never compared.
+wrap the payload in a `PriorityItem`, so items of equal priority come out in the
+order SimPy's heap gives them and payloads are never compared.
 """
 
 import heapq
 
+import pytest
 import simpy
 
 from desflow import CapacityConfig, DynamicStore, Entity, SimParameter
@@ -106,15 +107,15 @@ TAKE_AT = 10
 
 
 def _reference_any(priorities):
-    """Plain SimPy: `PriorityItem((priority, sequence), n)`, the sequence breaking a
-    tie in put order. Returns the order of n a run takes them in."""
+    """Plain SimPy: `PriorityItem(priority, n)`, so a tie leaves in the heap's order.
+    Returns the order of n a run takes them in."""
     env = simpy.Environment()
     store = simpy.PriorityStore(env)
     out = []
 
     def flow():
         for n, priority in enumerate(priorities):
-            yield store.put(simpy.PriorityItem((priority, n), n))
+            yield store.put(simpy.PriorityItem(priority, n))
         for _ in priorities:
             out.append((yield store.get()).item)
 
@@ -224,7 +225,7 @@ def _folder(tmp_path, name):
 
 def test_c5_priority_item_storage_any_orderable_type(tmp_path):
     """A priority is kept as it is given, so strings and tuples order as they do in
-    SimPy, and equal priorities keep their put order."""
+    SimPy, and equal priorities leave in the heap's order."""
     cases = {
         "strings": (["P2", "P0", "P3", "P1"], [1, 3, 0, 2]),
         "equal strings": (["B", "A", "B", "A"], [1, 3, 0, 2]),
@@ -239,7 +240,7 @@ def test_c5_priority_item_storage_any_orderable_type(tmp_path):
 
 def test_c5_priority_yaml_list_literal(tmp_path):
     """A YAML list is a priority that orders as a tuple does: `[1, 2]` after `[1, 1]`,
-    equal lists in put order."""
+    and equal lists leave in the heap's order."""
     priorities = [(1, 2), (1, 1), (1, 1)]
     got, error = _yaml_any(tmp_path, priorities, literal=True)
     assert error is None
@@ -267,3 +268,37 @@ def test_c5_priority_mixed_types_raise_type_error(tmp_path):
     assert isinstance(error, TypeError)
     _got, error = _yaml_any(tmp_path, [1, "A"])
     assert isinstance(error, TypeError)
+
+
+def _low_level_equal(size):
+    out = []
+
+    def start(env):
+        store = DynamicStore(env, "C5", "buffer", priority=True)
+
+        def flow():
+            for n in range(size):
+                yield store.put(simpy.PriorityItem(1, n))
+            for _ in range(size):
+                out.append((yield store.get()).item)
+
+        env.process(flow())
+
+    params = SimParameter(
+        sim_id="C5", stores={"buffer": CapacityConfig(current_cap=20, max_cap=20)}
+    )
+    run_low_level(params, start, 5)
+    return out
+
+
+@pytest.mark.parametrize("size", [1, 3, 10])
+def test_equal_priorities_follow_the_heap(tmp_path, size):
+    """Items of one priority leave a priority store in SimPy's heap order, not first
+    in, first out: ten items come out 0, 2, 6, 9, 8, 5, 7, 4, 1, 3 (register row T9)."""
+    expected = _reference_any([1] * size)
+    if size == 10:
+        assert expected == [0, 2, 6, 9, 8, 5, 7, 4, 1, 3]
+    assert _low_level_equal(size) == expected
+    assert _builder_order([1] * size) == expected
+    assert _builder_any([1] * size) == (expected, None)
+    assert _yaml_any(tmp_path, [1] * size) == (expected, None)

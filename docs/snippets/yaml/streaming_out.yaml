@@ -1,10 +1,7 @@
 # The Streaming Out tutorial: the shop's records, to the terminal and to a file.
 # Run it with: desflow run streaming_out.yaml
 # Every record is printed; the finished orders are written to packed/.
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 resources:
   packers: {current_cap: 1, max_cap: 1}
@@ -27,12 +24,11 @@ stats: {level: minimal, interval: 10 min}
 # --8<-- [start:sinks]
 egress:
   # Every event and every telemetry record
-  - type: Console
+  - {type: Console}
   # The finished orders only, one flat row each
   - type: Jsonl
     config: {default_path: packed/orders.jsonl}
-    when: !python streaming_out_logic.packed_only
+    when: {expr: "record.value.event_type == 'order_packed'"}
 # --8<-- [end:sinks]
 
-run:
-  until: 1 h
+run: {until: 1 h}

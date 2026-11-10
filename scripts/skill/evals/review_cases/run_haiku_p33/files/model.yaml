@@ -1,0 +1,32 @@
+# A task raises a resource's capacity: `job` holds one unit of `m` and `grow`
+# sets `m` to 3 when it finishes at 2 seconds, which lets the waiting job start.
+#
+# Run with: desflow run model.yaml
+
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console, config: {format: json}}
+
+resources:
+  # One unit to start; room for 3, so grow can raise the capacity to 3.
+  m: {current_cap: 1, max_cap: 3}
+
+arrivals:
+  # One entity at 0 s, then one every 1 s: 2 entities in all.
+  a: {first_at: 0, gap: 1, max_events: 2, spawn: job}
+  # One entity at 2 s, once.
+  boss: {first_at: 2, gap: 1, max_events: 1, spawn: grow}
+
+tasks:
+  job:
+    resource: m
+    service_time: 5
+    payload: {event_type: done}
+
+  grow:
+    payload: {event_type: grow}
+    on:
+      - {path: P.resources.m.current_cap, value: 3}
+
+run: {until: 20}

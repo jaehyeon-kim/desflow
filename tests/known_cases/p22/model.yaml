@@ -1,0 +1,16 @@
+# case P22: a branch by fixed weights, 3 to 1: each arrival takes `a` or `b` by a draw
+# from the routing task's own random sequence.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+arrivals:
+  a: {dist: constant, value: 1, spawn: route, max_events: 8}
+
+tasks:
+  route:
+    payload: {event_type: route}
+    next:
+      weights: {a: 3, b: 1}
+  a:
+    payload: {event_type: a}
+  b:
+    payload: {event_type: b}

@@ -1,0 +1,85 @@
+"""set_capacity from a flow, with the Low-level API.
+
+The process `grow` raises the capacity of resource `m` from 1 to 3 at time 2,
+by updating the registry path P.resources.m.current_cap, which lets the job
+waiting for `m` start at once.
+
+Run with `python low_level.py`: prints each record as one JSON line.
+"""
+
+from datetime import datetime, timezone
+
+import numpy as np
+
+from desflow import (
+    CapacityConfig,
+    ConsoleEgress,
+    DistributionConfig,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    Sampler,
+    SimParameter,
+)
+
+PARAMS = SimParameter(
+    sim_id="P",
+    service={"hold": DistributionConfig(dist="constant", value=5)},
+    resources={"m": CapacityConfig(current_cap=1, max_cap=3)},
+)
+HOLD = "P.service.hold"
+
+
+def job(env, sampler, m, key, instance):
+    """Takes one unit of m, holds it for 5 seconds and publishes done."""
+
+    def publish(value, lifecycle=False):
+        env.publish_event(key, value, task="job", instance=instance, lifecycle=lifecycle)
+
+    publish({"path_id": HOLD, "status": "queued"}, lifecycle=True)
+    with m.request() as req:
+        yield req
+        publish({"path_id": HOLD, "status": "started"}, lifecycle=True)
+        yield env.timeout(sampler.sample(env.registry.get_config(HOLD)))
+        publish({"event_type": "done"})
+
+
+def grow(env, key, instance):
+    """Publishes grow, then raises the capacity of m to 3."""
+    env.publish_event(key, {"event_type": "grow"}, task="grow", instance=instance)
+    env.registry.update("P.resources.m.current_cap", 3)
+    yield from ()
+
+
+def arrivals_a(env, sampler, m):
+    """One job at 0, then one every 1 second, 2 in all."""
+    for i in range(2):
+        if i:
+            yield env.timeout(1)
+        env.process(job(env, sampler, m, f"a-{i + 1}", i))
+
+
+def arrivals_boss(env):
+    """One grow at 2, once."""
+    yield env.timeout(2)
+    env.process(grow(env, "boss-1", 0))
+
+
+def run():
+    env = DynamicRealtimeEnvironment(
+        factor=0,  # unpaced
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress([ConsoleEgress(format="json")])
+    m = DynamicResource(env, "P", "m")
+    sampler = Sampler(rng=np.random.default_rng(42))
+    env.process(arrivals_a(env, sampler, m))
+    env.process(arrivals_boss(env))
+    try:
+        env.run(until=20)
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

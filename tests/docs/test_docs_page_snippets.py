@@ -49,7 +49,7 @@ def test_storage_backends_make_their_filesystems(monkeypatch, tmp_path):
     namespace = runpy.run_path(str(ROOT / "docs/snippets/pages/storage_backends.py"))
     classes = [
         type(_build_filesystem(egress.filesystem, fs))
-        for egress in namespace["cloud"]._egress_providers
+        for egress in [sink.provider for sink in namespace["cloud"]._sinks.egress]
     ]
 
     assert classes == [fs.GcsFileSystem, fs.AzureFileSystem]
@@ -78,8 +78,8 @@ def test_backfill_live_sinks_batch_alike_in_every_form():
         ROOT / "docs/snippets/yaml_build/backfill_live_per_sink.yaml"
     )
     for app in (module["app"], blueprint):
-        assert app._egress_batch_sizes == [200_000, 500]
-        assert app._egress_flush_intervals == [None, 1.0]
+        assert [sink.batch_size for sink in app._sinks.egress] == [200_000, 500]
+        assert [sink.flush_interval for sink in app._sinks.egress] == [None, 1.0]
     env = DynamicRealtimeEnvironment(factor=0.0)
     # The sinks are stand-ins, so no broker is needed
     module["low_level_sinks"].__globals__.update(parquet=_Idle(), kafka=_Idle())

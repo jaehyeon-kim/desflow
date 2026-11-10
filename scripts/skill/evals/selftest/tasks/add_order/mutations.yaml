@@ -1,0 +1,8 @@
+# `first_at` is missing from the model and `value` exists, so `value` is set.
+
+task: P33
+
+mutations:
+  - name: grow at 1
+    changes:
+      - {keys: [arrivals.boss.first_at, arrivals.boss.value], new: 1, add: true}

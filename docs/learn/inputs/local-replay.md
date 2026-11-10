@@ -36,7 +36,7 @@ ordered_at,order_id,items
 
 ## Replay the Rows
 
-Each row becomes one arrival at its time, and the fields named in `fields` become the order's attributes. `unit` says what the time column holds. It is `ms`, `s`, `min` or `h` from the start of the run, or `timestamp`, a date and time. A timestamp is placed on the run's clock from its `logical_start_time`, here 09:00 on the recorded day:
+Each row becomes one arrival at its time, and the fields named in `fields` become the order's attributes. `unit` says what the time column holds. It is `ms`, `s`, `min` or `h` from the start of the run, or `timestamp`, a date and time. A field is read as a number only when it is a CSV number, so `1_0`, `nan` and `0x1` stay text, and a time written like that is refused. A timestamp is placed on the run's clock from its `logical_start_time`, here 09:00 on the recorded day:
 
 === "YAML"
 
@@ -224,10 +224,9 @@ A mean rate says how many orders come in an hour, not when they come. Exponentia
         stats: {level: typical, interval: 2 h}
 
         egress:
-          - type: Console
+          - {type: Console}
 
-        run:
-          until: 1 h
+        run: {until: 1 h}
         ```
 
     === "Builder"
@@ -377,11 +376,20 @@ A mean rate says how many orders come in an hour, not when they come. Exponentia
             def publish(value):
                 env.publish_event(key, value, task="pack_order", instance=task_id)
 
-            publish({"path_id": path_id, "status": "queued"})
+            publish(
+                {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+            )
             env.stats.task_queued("pack_order", task_id)
             with packers.request() as request:
                 yield request
-                publish({"path_id": path_id, "status": "started"})
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    }
+                )
                 env.stats.task_started("pack_order", task_id)
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 publish({"event_type": "order_packed"})

@@ -1,0 +1,38 @@
+# Each order carries the tier of the customer who placed it.
+#
+# Customers sign up with a tier, and each order reads one sign-up row, so its customer
+# id and tier agree. An order placed before any customer has signed up is dropped.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/orders_carry_the_customers_tier.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  signups: {dist: exponential, rate: 0.1, spawn: sign_up}
+  orders: {dist: exponential, rate: 1, spawn: place_order}
+
+tasks:
+  sign_up:
+    payload:
+      customer_id: {gen: sequence}
+      tier:
+        gen: weighted
+        options: {basic: 70, plus: 25, pro: 5}
+  place_order:
+    vars:
+      customer: {gen: lookup, task: sign_up}
+    payload:
+      order_id: {gen: sequence}
+      customer_id: {gen: var, name: customer, path: customer_id}
+      tier: {gen: var, name: customer, path: tier}
+      amount: {gen: uniform, low: 5, high: 200, decimals: 2}
+
+run: {until: 300}

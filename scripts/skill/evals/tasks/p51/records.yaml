@@ -1,0 +1,34 @@
+# Records of task P51, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: P51
+
+until: 60
+
+run_end: null
+
+records:
+  - name: job a-1 done at 6
+    match: {task: job, key: a-1, value.event_type: done}
+    at: 6
+  - name: job a-2 done at 9, no setup
+    match: {task: job, key: a-2, value.event_type: done}
+    at: 9
+  - name: job a-3 done at 14, setup
+    match: {task: job, key: a-3, value.event_type: done}
+    at: 14
+  - name: job a-4 done at 19, setup
+    match: {task: job, key: a-4, value.event_type: done}
+    at: 19
+  - name: job a-5 done at 22
+    match: {task: job, key: a-5, value.event_type: done}
+    at: 22
+  - name: job a-6 done at 25
+    match: {task: job, key: a-6, value.event_type: done}
+    at: 25
+  - name: job a-7 done at 30, setup
+    match: {task: job, key: a-7, value.event_type: done}
+    at: 30
+  - name: job a-8 done at 35, setup
+    match: {task: job, key: a-8, value.event_type: done}
+    at: 35

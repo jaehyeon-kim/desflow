@@ -2,13 +2,10 @@
 # From 1 min, orders arrive twice as fast: the average gap falls from 5 s to 2.5 s
 # (rate 0.2 to 0.4). The extra packer leaves at 2 min. Every change lands at
 # exactly that simulation time, on every run.
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 1
+simulation: {sim_id: Shop, factor: 0, random_seed: 1}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   packers: {current_cap: 1, max_cap: 3}
@@ -34,5 +31,4 @@ scenario:
   - {at: 1 min, path: Shop.arrival.orders.rate, value: 0.4}
   - {at: 2 min, path: Shop.resources.packers.current_cap, value: 1}
 
-run:
-  until: 3 min
+run: {until: 3 min}

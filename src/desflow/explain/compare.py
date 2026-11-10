@@ -1,5 +1,6 @@
 """How `--verify` decides whether a measured value differs from the analysis."""
 
+import math
 from typing import Any, List, Optional
 
 from desflow.explain.models import Comparison
@@ -41,7 +42,10 @@ def compare(pair: Pair, values: Optional[List[float]], interval: Any) -> Compari
         measured, half_width = result.mean, result.half_width
     analytical, differs = pair.analytical, None
     if analytical is not None:
-        if half_width is not None:
+        if math.isnan(measured) or math.isnan(analytical):
+            # A NaN never agrees: every comparison with it is False
+            differs = True
+        elif half_width is not None:
             differs = abs(analytical - measured) > max(
                 half_width, FLOOR * abs(analytical)
             )

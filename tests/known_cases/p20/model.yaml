@@ -1,0 +1,36 @@
+# Documents for patterns P20 to P29.
+# case P20, P21, P22: a branch by attribute (P20), by state (P21) and by fixed weights
+# (P22).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+variables: {open: 1}
+
+arrivals:
+  a:
+    dist: constant
+    value: 1
+    spawn: route
+    max_events: 6
+    attributes:
+      vip: {gen: boolean, p: 0.3}
+
+tasks:
+  route:
+    payload: {event_type: route}
+    next:
+      when:
+        - {condition: "attr.vip", task: fast}
+        - {condition: "registry['P.variables.open'] == 0", task: closed}
+      default: weighted
+  weighted:
+    payload: {event_type: weighted}
+    next:
+      weights: {a: 3, b: 1}
+  fast:
+    payload: {event_type: fast}
+  closed:
+    payload: {event_type: closed}
+  a:
+    payload: {event_type: a}
+  b:
+    payload: {event_type: b}

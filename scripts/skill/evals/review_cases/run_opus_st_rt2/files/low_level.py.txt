@@ -1,0 +1,70 @@
+"""ST-RT2 with the Low-level API: the same model as model.yaml and builder.py.
+
+Built on DynamicRealtimeEnvironment directly. Paced at factor 0.1 (one simulation
+second takes 0.1 s of wall time). Two entities, a-1 and a-2, start at time 0, and
+each runs `pem`, which publishes {event_type: tick} every second, for ever. The
+run is called twice, env.run(until=2) and then env.run(until=4), with a
+system.simulation.segment reading after each call, as run.segments publishes it.
+
+Run it with: python low_level.py
+It prints each record to stdout as one JSON line.
+"""
+
+import itertools
+import math
+from datetime import datetime, timezone
+
+import numpy as np
+
+from desflow import ConsoleEgress, DynamicRealtimeEnvironment, Sampler
+
+
+
+def pem(env, key, instances):
+    """Every pass is a new instance of pem: started, 1 s, then the tick."""
+    while True:
+        instance = next(instances)
+        env.publish_event(
+            key, {"status": "started"}, task="pem", instance=instance, lifecycle=True
+        )
+        env.stats.task_started("pem", instance)
+        yield env.timeout(1)
+        env.publish_event(key, {"event_type": "tick"}, task="pem", instance=instance)
+        env.stats.task_finished("pem", instance)
+
+
+def publish_segment(env, index):
+    """The reading run.segments publishes after each env.run call."""
+    head = env.peek()
+    env.publish_telemetry(
+        "system.simulation.segment",
+        {"index": index, "now": env.now, "peek": None if math.isinf(head) else head},
+    )
+
+
+def run():
+    env = DynamicRealtimeEnvironment(
+        factor=0.1,
+        # A fixed start, so record timestamps are the same in every run and form.
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    # No lag readings: they describe the wall clock, not the model.
+    env.setup_egress([ConsoleEgress(format="json")], lag_monitor_interval=0)
+    Sampler(rng=np.random.default_rng(42))  # unused: the model has no random draw
+
+    # Instance ids are shared by every pem instance, in the order they start.
+    instances = itertools.count()
+    for n in (1, 2):  # arrival a: two entities at time 0
+        env.process(pem(env, f"a-{n}", instances))
+
+    try:
+        # The run is called twice: to 2 s, then on to 4 s. An event at 4 s does not run.
+        for index, until in enumerate((2, 4)):
+            env.run(until=until)
+            publish_segment(env, index)
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

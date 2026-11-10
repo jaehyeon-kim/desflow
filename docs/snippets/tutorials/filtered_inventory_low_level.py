@@ -74,8 +74,8 @@ def take_shirt(env, shelf, key, size, task_id):
     # Takes the oldest shirt of the order's own size; waits while there is none
     get = shelf.get(filter=lambda shirt: shirt["size"] == size)
     # A customer cancels an order not filled within 10 minutes
-    yield get | env.timeout(PATIENCE)
-    if not get.triggered:
+    result = yield get | env.timeout(PATIENCE)
+    if get not in result:
         get.cancel()  # out of the queue, so it never takes a shirt later
         publish({"status": "reneged"})
         env.stats.task_reneged("take_shirt", task_id)

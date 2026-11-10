@@ -45,6 +45,7 @@ SHAPE_SECTIONS = {
     "Check the Result",
     # The four parts of each idea on a concept page
     "In the Tutorial",
+    "In the Shop",
     "Why It Matters",
     "How to Use It",
     "What the Result Means",
@@ -106,6 +107,8 @@ def _heading_ids(text):
             ids.add(slug if count == 0 else f"{slug}_{count}")
     if title is not None and seen[title] == 1:
         ids.add(title)
+    # mkdocstrings gives each `:::` entry the id of its path
+    ids.update(re.findall(r"^::: (\S+)$", text, re.M))
     return ids
 
 

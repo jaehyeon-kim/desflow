@@ -2,6 +2,10 @@
 
 The `local` example is a shop that packs orders. The three files give the same records. Download them with `desflow examples get local`.
 
+- [YAML blueprint](#yaml-blueprint)
+- [Builder API](#builder-api)
+- [Low-level API](#low-level-api)
+
 ## YAML blueprint
 
 `examples/yaml/local.yaml`
@@ -9,20 +13,17 @@ The `local` example is a shop that packs orders. The three files give the same r
 ```yaml
 # Local simulation in YAML, with no Python and no containers.
 #
-# The YAML version of local_example.py, which --api builder downloads. This simulation models a shop
-# packing orders. ConsoleEgress prints events and telemetry to the terminal.
-# A scenario adds packers at 10 seconds and removes one at 20 seconds.
+# The YAML version of local_example.py, which --api builder downloads. This simulation
+# models a shop packing orders. ConsoleEgress prints events and telemetry to the
+# terminal. A scenario adds packers at 10 seconds and removes one at 20 seconds.
 # The run ends on its own after 30 simulation seconds.
 #
 # Run it from its folder with: desflow run local.yaml
 
-simulation:
-  sim_id: Shop
-  factor: 1.0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 1.0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   packers: {current_cap: 1, max_cap: 5}
@@ -51,8 +52,7 @@ scenario:
   - {at: 10, path: Shop.resources.packers.current_cap, value: 3}
   - {at: 20, path: Shop.resources.packers.current_cap, value: 2}
 
-run:
-  until: 30
+run: {until: 30}
 ```
 
 ## Builder API
@@ -76,7 +76,8 @@ import logging
 from desflow import ConsoleEgress, SimulationContext
 
 # Logging is configured here rather than in a wrapper, because this script is run
-# directly. Without it the run produces no output at all.
+# directly. Without it the run prints no records, and a ConsoleEgress in the log
+# format prints one warning on stderr that says so and names the fix.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -199,11 +200,20 @@ def pack_order(env, sampler, packers, key, task_id):
     def publish(value):
         env.publish_event(key, value, task="pack_order", instance=task_id)
 
-    publish({"path_id": path_id, "status": "queued"})
+    publish(
+        {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+    )
     env.stats.task_queued("pack_order", task_id)  # counted as in progress
     with packers.request() as req:
         yield req
-        publish({"path_id": path_id, "status": "started"})
+        publish(
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            }
+        )
         env.stats.task_started("pack_order", task_id)
         # Late binding: the service time is read when the work starts
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))

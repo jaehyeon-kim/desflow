@@ -16,14 +16,14 @@ from desflow.examples import EXAMPLES, Example
 
 ROOT = Path(__file__).resolve().parents[2]
 PAGES = {
-    "local": "docs/how-to/examples/local.md",
-    "kafka": "docs/how-to/examples/kafka.md",
-    "parquet": "docs/how-to/examples/parquet.md",
-    "iceberg": "docs/how-to/examples/iceberg.md",
-    "postgres": "docs/how-to/examples/postgres.md",
-    "redis": "docs/how-to/examples/redis.md",
-    "backfill-live": "docs/how-to/examples/backfill-live.md",
-    "related-records": "docs/how-to/examples/advanced-postgres-orders.md",
+    "local": "docs/gallery/simulation-models/local.md",
+    "kafka": "docs/gallery/simulation-models/kafka.md",
+    "parquet": "docs/gallery/simulation-models/parquet.md",
+    "iceberg": "docs/gallery/simulation-models/iceberg.md",
+    "postgres": "docs/gallery/simulation-models/postgres.md",
+    "redis": "docs/gallery/simulation-models/redis.md",
+    "backfill-live": "docs/gallery/simulation-models/backfill-live.md",
+    "related-records": "docs/gallery/simulation-models/advanced-postgres-orders.md",
     # The shop examples of step 1 are shown on the User Guide page of their area.
     "stock": "docs/user-guide/model-parts/stores-and-containers.md",
     "flow": "docs/user-guide/model-parts/task-flow.md",
@@ -44,6 +44,14 @@ PAGES = {
     "replications": "docs/user-guide/results/replications.md",
     "experiment": "docs/user-guide/results/experiments.md",
     "fitting": "docs/user-guide/model-parts/input-fitting.md",
+    # SimPy's own examples, written in desflow
+    "simpy-bank-renege": "docs/simpy/examples/bank-renege.md",
+    "simpy-carwash": "docs/simpy/examples/carwash.md",
+    "simpy-machine-shop": "docs/simpy/examples/machine-shop.md",
+    "simpy-movie-renege": "docs/simpy/examples/movie-renege.md",
+    "simpy-gas-station-refuel": "docs/simpy/examples/gas-station-refuel.md",
+    "simpy-process-communication": "docs/simpy/examples/process-communication.md",
+    "simpy-latency": "docs/simpy/examples/latency.md",
 }
 TABS = {"yaml": "YAML", "builder": "Builder", "low-level": "Low-level"}
 ODCTL = '"odctl>=1.0,<2"'

@@ -44,17 +44,33 @@ def publish(env, key, task, task_id, value):
 
 def pack_order(env, sampler, shop, key, ids):
     task_id, path_id = next(ids["pack_order"]), "Shop.service.packing"
-    publish(env, key, "pack_order", task_id, {"path_id": path_id, "status": "queued"})
+    publish(
+        env,
+        key,
+        "pack_order",
+        task_id,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": "queued",
+        },
+    )
     env.stats.task_queued("pack_order", task_id)
     with shop["packers"].request() as request:
         yield request
-        started = {"path_id": path_id, "status": "started"}
+        started = {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": "started",
+        }
         publish(env, key, "pack_order", task_id, started)
         env.stats.task_started("pack_order", task_id)
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         publish(env, key, "pack_order", task_id, {"event_type": "order_packed"})
         env.stats.task_finished("pack_order", task_id)
-    env.process(dispatch(env, shop, key, ids))
+    yield from dispatch(env, shop, key, ids)
 
 
 # --8<-- [start:dispatch]
@@ -71,7 +87,7 @@ def dispatch(env, shop, key, ids):
     env.stats.task_finished("dispatch", task_id)
     # The courier came before the limit when its event is in the AnyOf's value
     task = "by_courier" if courier in done else "by_post"
-    env.process(send(env, key, task, ids))
+    yield from send(env, key, task, ids)
 
 
 # --8<-- [end:dispatch]
@@ -122,8 +138,9 @@ def run(limit=300, until=8 * 3600, factor=0.0):
     shop = {
         "packers": DynamicResource(env, "Shop", "packers"),
         # --8<-- [start:signal]
-        # Fired by the courier as it leaves with every order that waits for it
-        "courier_left": Signal(env, "courier_left"),
+        # Fired by the courier as it leaves with every order that waits for it,
+        # and again at each later courier, so it is not one-shot
+        "courier_left": Signal(env, "courier_left", once=False),
         # --8<-- [end:signal]
         "limit": limit,
     }

@@ -1,6 +1,8 @@
 """Input fitting: candidates, safeguards, the settings a model loads, and !include."""
 
+import importlib.util
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -15,7 +17,7 @@ from desflow import (
 )
 from desflow.cli import app as cli
 from desflow.blueprint.loader import BlueprintError
-from desflow.core.distributions import get_distribution
+from desflow.models.distributions import get_distribution
 from desflow.analysis import fit as fitting
 
 pytest.importorskip("scipy")
@@ -43,6 +45,17 @@ def test_every_family_is_tried_and_the_best_has_the_lowest_aic():
     assert _row(result, "constant")["status"] == "skipped"
     for row in fitted:
         assert 0 <= row["ks_p_value"] <= 1 and row["log_likelihood"] < 0
+
+
+def test_the_counting_families_are_not_tried_unless_named():
+    """`poisson` and `geometric` count events, so a fit of times leaves them out; named,
+    they are skipped with a reason and not reported as a failure to fit."""
+    families = [c.family for c in fit_column(PACKING, lower=0).candidates]
+    assert "poisson" not in families and "geometric" not in families
+    named = fit_column(PACKING, candidates=["poisson", "geometric", "normal"])
+    for family in ("poisson", "geometric"):
+        row = _row(named, family)
+        assert row["status"] == "skipped" and "counts whole numbers" in row["reason"]
 
 
 def test_parameters_are_desflow_s_and_match_the_data():
@@ -172,7 +185,7 @@ def test_bounds_flag_and_refuse():
 
 
 def test_unknown_candidates_and_units_are_refused():
-    with pytest.raises(ValueError, match="no family called beta"):
+    with pytest.raises(ValueError, match="no family called 'beta'"):
         fit_column(PACKING, candidates=["gamma", "beta"])
     with pytest.raises(ValueError, match="unit must be one of"):
         fit_column(PACKING, unit="days")
@@ -227,6 +240,34 @@ def test_fitted_settings_load_in_all_three_apis(tmp_path, kind):
     loaded = app.compile_parameters().service["packing"]
     assert builder.service["packing"] == written.service["packing"] == loaded
     assert from_yaml > 0
+
+
+_LAYOUT_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "blueprint_layout.py"
+_layout_spec = importlib.util.spec_from_file_location(
+    "blueprint_layout", _LAYOUT_SCRIPT
+)
+assert _layout_spec is not None and _layout_spec.loader is not None
+blueprint_layout = importlib.util.module_from_spec(_layout_spec)
+_layout_spec.loader.exec_module(blueprint_layout)
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["", "packing.csv, column packing_seconds", "observed_" * 8 + ".csv, column x"],
+)
+def test_the_fitted_settings_are_in_the_blueprint_layout(tmp_path, source):
+    # Every usable family, an empirical list of 40 values among them, and a header
+    # long enough to wrap: `blueprint_layout.py --check` leaves each file as written
+    result = fit_column(PACKING)
+    kinds = [c.family for c in result.candidates if c.usable]
+    assert "empirical" in kinds
+    files = []
+    for kind in kinds:
+        text = result.yaml(kind, source=source)
+        assert max(map(len, text.splitlines())) <= 88
+        files.append(tmp_path / f"{kind}.yaml")
+        files[-1].write_text(text)
+    assert blueprint_layout.main(["--check", *map(str, files)]) == 0
 
 
 def test_include_errors_name_the_file_and_line(tmp_path):
@@ -285,20 +326,20 @@ def test_cli_writes_the_settings_and_the_plot(tmp_path):
     unknown = CliRunner().invoke(
         cli, ["fit", str(data), "--column", "packing_seconds", "--candidates", "beta"]
     )
-    assert unknown.exit_code == 2 and "no family called beta" in unknown.output
+    assert unknown.exit_code == 2 and "no family called 'beta'" in unknown.output
     missing = CliRunner().invoke(cli, ["fit", str(data), "--column", "seconds"])
     assert missing.exit_code == 2 and "has no column 'seconds'" in missing.output
 
 
 def test_plotted_values_are_drawn_as_a_run_draws_them():
     """The plot's values come through a Sampler, so a run's smallest delay applies:
-    a normal centred on 0 gives no value below it."""
+    a normal centred on 0 gives no negative value."""
     settings = {"dist": "normal", "mean": 0.0, "std": 1.0}
     values = fitting._generate(settings, 2000)
     sampler = Sampler(seed=0)
     config = DistributionConfig(**settings)
     assert list(values) == [sampler.sample(config) for _ in range(2000)]
-    assert values.min() == 0.00001 and np.mean(values == 0.00001) > 0.4
+    assert values.min() == 0 and np.mean(values == 0) > 0.4
 
 
 def test_an_include_of_itself_is_refused(tmp_path):
@@ -334,3 +375,64 @@ def test_include_adds_keys_to_the_file(tmp_path):
     blueprint.write_text(blueprint.read_text().replace("file: gaps.yaml, ", ""))
     with pytest.raises(BlueprintError, match="a mapping with file and the keys to add"):
         SimulationContext.from_yaml(blueprint)
+
+
+NAN = float("nan")
+
+
+@pytest.mark.parametrize(
+    "options,name",
+    [
+        ({"tolerance": NAN}, "tolerance"),
+        ({"tolerance": -1}, "tolerance"),
+        ({"tolerance": float("inf")}, "tolerance"),
+        ({"tolerance": True}, "tolerance"),
+        ({"lower": NAN}, "lower"),
+        ({"upper": NAN}, "upper"),
+        ({"lower": 5, "upper": 1}, "lower must be below upper"),
+    ],
+)
+def test_fit_column_refuses_a_tolerance_or_bound_no_fit_can_use(options, name):
+    with pytest.raises(ValueError, match=name):
+        fit_column(PACKING, **options)
+
+
+@pytest.mark.parametrize(
+    "options,name",
+    [
+        (["--tolerance", "nan"], "tolerance"),
+        (["--tolerance", "-1"], "tolerance"),
+        (["--lower", "nan"], "lower"),
+        (["--lower", "5", "--upper", "1"], "lower must be below upper"),
+    ],
+)
+def test_the_fit_command_refuses_them_with_the_options_name(tmp_path, options, name):
+    data = tmp_path / "packing.csv"
+    data.write_text(
+        "order,packing_seconds\n" + "".join(f"{i},{v}\n" for i, v in enumerate(PACKING))
+    )
+    run = CliRunner().invoke(
+        cli, ["fit", str(data), "--column", "packing_seconds", *options]
+    )
+    assert run.exit_code == 2, run.output
+    assert name in run.output
+
+
+def test_candidates_are_stripped_of_spaces(tmp_path):
+    data = tmp_path / "packing.csv"
+    data.write_text(
+        "order,packing_seconds\n" + "".join(f"{i},{v}\n" for i, v in enumerate(PACKING))
+    )
+    run = CliRunner().invoke(
+        cli,
+        [
+            "fit",
+            str(data),
+            "--column",
+            "packing_seconds",
+            "--candidates",
+            "normal, gamma",
+        ],
+    )
+    assert run.exit_code == 0, run.output
+    assert "normal" in run.output and "gamma" in run.output

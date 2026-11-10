@@ -1,0 +1,19 @@
+# case CV-139: text built from values.
+simulation: {sim_id: C, factor: 0, random_seed: 42}
+
+arrivals:
+  a:
+    initial: 1
+    spawn: say
+    attributes: {n: 3}
+
+tasks:
+  say:
+    payload:
+      event_type: say
+      text:
+        gen: format
+        template: "item {n}"
+        names:
+          n: {gen: attr, name: n}
+      text2: {gen: expr, expr: "'count ' + str(attr.n)"}

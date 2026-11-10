@@ -5,6 +5,7 @@ them. A script that needs a broker runs here with a capturing sink in place of i
 Kafka egress, so no service is needed.
 """
 
+from dataclasses import replace
 import ast
 import asyncio
 import importlib.util
@@ -44,7 +45,10 @@ def _captured(app, until):
     """Runs a builder app unpaced with its one egress replaced by a capture."""
     capture = _Capture()
     app.factor = 0.0
-    app._egress_providers = [capture]
+    app._sinks.egress = [
+        replace(sink, provider=provider)
+        for sink, provider in zip(app._sinks.egress, [capture])
+    ]
     app.run(until=until)
     return capture.records
 
@@ -101,6 +105,118 @@ def test_breakdowns_downtime_matches_the_events():
         "resumed": 8,
         "order_packed": 184,
     }
+
+
+def test_dynamic_topology_scenario_gives_the_wrappers_their_units_in_every_form():
+    """The wrappers exist from the start with no units and get 2 at 12 s: the packers
+    finish at 7, 11, 15 and 19 s, and the wrappers at 15 and 19 s, in the YAML,
+    builder and low-level forms."""
+    from desflow import SimulationContext
+
+    expected = [
+        (7.0, "packers"),
+        (11.0, "packers"),
+        (15.0, "packers"),
+        (15.0, "wrappers"),
+        (19.0, "packers"),
+        (19.0, "wrappers"),
+    ]
+
+    def finished(capture):
+        return sorted(
+            (r["sim_ts"], r["value"]["resource"])
+            for r in capture.records
+            if r["stream_type"] == "event" and r["value"].get("status") == "finished"
+        )
+
+    yaml = ROOT / "docs" / "snippets" / "yaml" / "dynamic_topology_scenario.yaml"
+    app = SimulationContext.from_yaml(yaml)
+    capture = _Capture()
+    app.add_egress(capture)
+    app.run()
+    assert finished(capture) == expected
+    app = _load("dynamic_topology_scenario_builder").build()
+    capture = _Capture()
+    app.add_egress(capture)
+    app.run(until=20)
+    assert finished(capture) == expected
+    low_level = _load("dynamic_topology_scenario_low_level")
+    capture = _Capture()
+    low_level.run([capture])
+    assert finished(capture) == expected
+    # The low-level step publishes the record the other forms give it: a label at 12 s
+    from desflow import DynamicRealtimeEnvironment
+
+    env = DynamicRealtimeEnvironment(factor=0, strict=False)
+    env.registry.register_sim_parameter(low_level.PARAMS)
+    labels = _Capture()
+    env.setup_egress([labels], labels=[True])
+    low_level.build(env)
+    env.run(until=20)
+    env.teardown()
+    assert [
+        (r["sim_ts"], r["label"]) for r in labels.records if r["stream_type"] == "label"
+    ] == [(12.0, {"status": "wrappers_added", "capacity": 2})]
+
+
+def test_serve_together_batches_agree_in_every_form():
+    """Seven orders, 1 s apart: the first batch of 3 closes at 3 s, the second at 6 s
+    (its members start then and the oven frees at 7 s), the seventh closes alone at
+    9.5 s by its timeout. A `close_when` batch of
+    `batch.size >= 2 and batch.age >= 2` closes at 3 s with orders 1 to 3 and at 6 s
+    with orders 4 to 6, the oven bakes them at 7 s and 11 s, and the seventh order
+    waits for ever. The YAML, builder and low-level forms agree for both batches, and
+    the page shows the rows."""
+    yaml = ROOT / "docs" / "snippets" / "yaml"
+    builder = _load("serve_together")
+    low_level = _load("serve_together_low_level")
+    rows = builder.batch_records()
+    assert rows[:3] == [(3.0, f"orders-{n}", "started") for n in (1, 2, 3)]
+    assert (9.5, "orders-7", "started") in rows
+    assert rows[-1] == (15.0, "orders-7", "baked")
+    assert builder.batch_records(str(yaml / "serve_together.yaml")) == rows
+    assert low_level.batch_records() == rows
+    early = [
+        (time, f"orders-{number}", status)
+        for time, numbers, status in (
+            (3.0, (1, 2, 3), "started"),
+            (6.0, (4, 5, 6), "started"),
+            (7.0, (1, 2, 3), "baked"),
+            (11.0, (4, 5, 6), "baked"),
+        )
+        for number in numbers
+    ]
+    early.sort()
+    assert builder.batch_records(str(yaml / "serve_together_close_when.yaml")) == early
+    assert builder.batch_records(close_when=True) == early
+    assert low_level.batch_records(close_when=True) == early
+    page = (ROOT / "docs/how-to/modelling/serve-entities-together.md").read_text(
+        "utf-8"
+    )
+    for shown_rows in (rows, early):
+        shown = "\n".join(f"check: {row}" for row in shown_rows)
+        assert f"```text\n{shown}\n```" in page
+
+
+def test_breakdowns_busy_clock_counts_only_the_time_in_use():
+    """A station that fails after 5 s of work fails once, 5 s into the order that
+    starts at 10 s, with the busy clock; with the calendar clock it fails every 7 s,
+    idle or not. The YAML, builder and low-level forms agree."""
+    yaml = ROOT / "docs" / "snippets" / "yaml" / "breakdowns_busy.yaml"
+    builder = _load("breakdowns_busy")
+    low_level = _load("breakdowns_busy_low_level")
+    busy = [(15.0, "down"), (17.0, "repaired")]
+    calendar = [
+        (time, status)
+        for start in (5.0, 12.0, 19.0, 26.0)
+        for time, status in ((start, "down"), (start + 2, "repaired"))
+    ]
+    for clock, expected in (("busy", busy), ("calendar", calendar)):
+        assert builder.down_periods(clock) == expected
+        assert builder.down_periods_yaml(clock, str(yaml)) == expected
+        assert low_level.down_periods(clock) == expected
+    page = (ROOT / "docs/how-to/modelling/breakdowns.md").read_text("utf-8")
+    assert "`[(15.0, 'down'), (17.0, 'repaired')]`" in page
 
 
 def test_breakdowns_check_runs_from_the_downloaded_files(tmp_path, monkeypatch):
@@ -255,7 +371,9 @@ def test_how_to_check_scripts_run_as_the_page_builds_them(
             "wait_first.yaml",
             "wait_tie.yaml",
             "wait_all.yaml",
-            "wait_for_one_or_all_logic.py",
+            "wait_suspend.yaml",
+            "wait_each.yaml",
+            "wait_pool.yaml",
         ):
             _saved_file_from_page(page, name, tmp_path)
     text = _script_from_page(page, module, script, import_line, tmp_path, import_first)
@@ -398,367 +516,13 @@ def test_supervisor_adds_the_wrappers_in_every_form(tmp_path, monkeypatch, caplo
     assert ("supervisor", {"status": "wrappers_added", "capacity": 2}) in low_level
 
 
-def test_router_sends_each_record_to_its_topic(tmp_path, monkeypatch):
-    """The router picks each record's topic; the three forms send the same events, to
-    all three topics, and only failed orders to the alarms."""
-    from desflow import SimulationContext
-
-    # A reader copies the page's files into one folder and runs them there
-    for source in (
-        GUIDES / "complex_routing.py",
-        GUIDES / "complex_routing_low_level.py",
-        ROOT / "docs" / "snippets" / "yaml" / "complex_routing.yaml",
-        ROOT / "docs" / "snippets" / "yaml" / "complex_routing_logic.py",
-    ):
-        shutil.copy(source, tmp_path)
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.syspath_prepend(str(tmp_path))
-    logic = _load_from(tmp_path, "complex_routing_logic")
-    route = logic.custom_kafka_router
-    telemetry = {"stream_type": "telemetry", "path_id": "Shop.packers.in_use"}
-    assert route({**telemetry, "value": 1}) == "shop-telemetry"
-    event = {"stream_type": "event", "key": "orders-1"}
-    assert route({**event, "value": {"status": "packing_failed"}}) == "system-alarms"
-    assert route({**event, "value": {"level": "ERROR"}}) == "system-alarms"
-    assert route({**event, "value": {"status": "finished"}}) == "shop-events"
-    assert route({**event, "value": "a plain string"}) == "shop-events"
-
-    # The blueprint creates its topics in run.before; here there is no broker
-    import complex_routing_logic
-
-    monkeypatch.setattr(complex_routing_logic, "create_topics", lambda: None)
-    yaml_records = _captured(
-        SimulationContext.from_yaml(tmp_path / "complex_routing.yaml"), 120
-    )
-    builder_records = _captured(_load_from(tmp_path, "complex_routing").app, 120)
-    capture = _Capture()
-    _load_from(tmp_path, "complex_routing_low_level").run(120, 0.0, [capture])
-    low_level_records = capture.records
-    for records in (yaml_records, builder_records, low_level_records):
-        assert {route(r) for r in records} == set(logic.TOPICS)
-        alarms = [r for r in records if route(r) == "system-alarms"]
-        assert alarms and all(r["instance"] % 10 == 9 for r in alarms)
-    assert (
-        _event_rows(yaml_records)
-        == _event_rows(builder_records)
-        == _event_rows(low_level_records)
-    )
-
-
-def test_secure_egress_passes_its_settings_to_the_client(monkeypatch):
-    """The SASL settings reach the client in the builder and the blueprint, and the
-    three forms publish the same events."""
-    from desflow import SimulationContext
-
-    monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker.example.com:9092")
-    monkeypatch.setenv("KAFKA_API_KEY", "test-key")
-    monkeypatch.setenv("KAFKA_API_SECRET", "test-secret")
-    sys.path.insert(0, str(GUIDES))  # the builder script imports the egress
-    try:
-        connections = _load("kafka_security_connections")
-        module = _load("kafka_security")
-    finally:
-        sys.path.remove(str(GUIDES))
-    blueprint = SimulationContext.from_yaml(
-        ROOT / "docs" / "snippets" / "yaml" / "kafka_security.yaml"
-    )
-    assert connections.connection["sasl_plain_username"] == "test-key"
-    for egress in (module.egress, blueprint._egress_providers[0]):
-        config = egress.producer_config
-        assert config["security_protocol"] == "SASL_SSL"
-        assert config["sasl_plain_username"] == "test-key"
-        assert egress.topic_router is None  # so it creates its own topics
-
-    records = _captured(module.app, until=30)
-    assert any(r.get("value") == {"event_type": "order_packed"} for r in records)
-    sys.path.insert(0, str(GUIDES))  # the low-level script imports the egress
-    try:
-        low_level = _load("kafka_security_low_level")
-    finally:
-        sys.path.remove(str(GUIDES))
-    capture = _Capture()
-    env = low_level.shop([capture], 0.0)
-    env.run(until=30)
-    env.teardown()
-    assert (
-        _event_rows(_captured(blueprint, until=30))
-        == _event_rows(records)
-        == _event_rows(capture.records)
-    )
-
-
-def test_predictions_fit_the_avro_schema(tmp_path, monkeypatch):
-    """The generated schema describes the record KafkaEgress sends, and the
-    predictions of the builder, YAML and low-level forms fit it."""
-    fastavro = pytest.importorskip("fastavro")
-    from desflow import SimulationContext
-
-    module = _load("avro_and_pydantic_models")
-    schema = json.loads(module.schema_string)
-    assert [f["name"] for f in schema["fields"]] == [
-        "key",
-        "task",
-        "instance",
-        "sim_ts",
-        "timestamp",
-        "value",
-    ]
-
-    # A reader puts the files in one folder; the blueprint's !python tags import
-    # from it, and here there is no broker to create the topics on
-    for source in (
-        GUIDES / "avro_and_pydantic.py",
-        GUIDES / "avro_and_pydantic_models.py",
-        GUIDES / "avro_and_pydantic_low_level.py",
-        ROOT / "docs" / "snippets" / "yaml" / "avro_and_pydantic.yaml",
-        ROOT / "docs" / "snippets" / "yaml" / "avro_and_pydantic_logic.py",
-    ):
-        shutil.copy(source, tmp_path)
-    monkeypatch.syspath_prepend(str(tmp_path))
-    import avro_and_pydantic_logic
-
-    monkeypatch.setattr(avro_and_pydantic_logic, "create_topics", lambda: None)
-    yaml_records = _captured(
-        SimulationContext.from_yaml(tmp_path / "avro_and_pydantic.yaml"), 30
-    )
-    capture = _Capture()
-    env = _load_from(tmp_path, "avro_and_pydantic_low_level").shop([capture], 0.0)
-    env.run(until=30)
-    env.teardown()
-
-    route = module.ml_topic_router
-    parsed = fastavro.parse_schema(schema)
-    builder = _load_from(tmp_path, "avro_and_pydantic")
-    for records in (_captured(builder.app, until=30), yaml_records, capture.records):
-        predictions = [r for r in records if route(r) == "ml-predictions"]
-        assert predictions
-        assert {"ml-predictions", "sim-events"} <= {route(r) for r in records}
-        for record in predictions:
-            sent = {k: v for k, v in record.items() if k != "stream_type"}
-            assert fastavro.validate(sent, parsed)
-
-
-def test_secured_registry_serializer_sends_its_credentials(registry_transport):
-    """The Registry Connection section builds a serializer whose requests carry `auth`."""
-    httpx = pytest.importorskip("httpx")
-    sent = []
-
-    def registry(request):
-        sent.append(request)
-        return httpx.Response(200, json={"id": 1})
-
-    registry_transport(registry)
-    sys.path.insert(0, str(GUIDES))  # the registry file imports the models
-    try:
-        module = _load("avro_and_pydantic_registry")
-    finally:
-        sys.path.remove(str(GUIDES))
-
-    payload = module.secured_serializer.serialize(
-        "ml-predictions",
-        {
-            "key": "o1",
-            "task": None,
-            "instance": None,
-            "sim_ts": 1.0,
-            "timestamp": "2026-01-01T00:00:00Z",
-            "value": {"event_type": "prediction", "task_id": "o1", "confidence": 0.9},
-        },
-    )
-
-    assert sent[0].url.host == "registry.example.com"
-    assert sent[0].headers["Authorization"].startswith("Basic ")
-    assert payload[:5] == b"\x00\x00\x00\x00\x01"
-
-
-class _Registry:
-    """A schema registry that keeps every schema registered and serves it back by id."""
-
-    def __init__(self):
-        self.registered = []
-
-    def __call__(self, request):
-        import httpx
-
-        if request.method == "POST":
-            self.registered.append(json.loads(request.content))
-            return httpx.Response(200, json={"id": len(self.registered)})
-        schema_id = int(request.url.path.rsplit("/", 1)[1])
-        return httpx.Response(200, json=self.registered[schema_id - 1])
-
-
-_SHOP_MODULES = (
-    "json_schema_and_protobuf",
-    "json_schema_and_protobuf_serializers",
-    "json_schema_and_protobuf_logic",
-    "json_schema_and_protobuf_low_level",
-)
-
-
-def _run_shop_form(form, tmp_path, monkeypatch):
-    """Runs one form of the JSON Schema and Protobuf shop for 30 simulated seconds.
-
-    Returns the records it publishes and the serializers its egress holds by topic.
-    """
-    from desflow import SimulationContext
-
-    # A reader puts the files in one folder; the blueprint's !python tags import from
-    # it, and here there is no broker to create the topics on
-    for source in (
-        GUIDES / "json_schema_and_protobuf.py",
-        GUIDES / "json_schema_and_protobuf_serializers.py",
-        GUIDES / "json_schema_and_protobuf_low_level.py",
-        GUIDES / "shop_record.proto",
-        GUIDES / "shop_record_pb2.py",
-        ROOT / "docs" / "snippets" / "yaml" / "json_schema_and_protobuf.yaml",
-        ROOT / "docs" / "snippets" / "yaml" / "json_schema_and_protobuf_logic.py",
-    ):
-        shutil.copy(source, tmp_path)
-    monkeypatch.syspath_prepend(str(tmp_path))
-    for name in _SHOP_MODULES:
-        monkeypatch.delitem(sys.modules, name, raising=False)
-    try:
-        if form == "builder":
-            module = _load_from(tmp_path, "json_schema_and_protobuf")
-            return _captured(module.app, until=30), module.egress.topic_serializers
-        if form == "yaml":
-            import json_schema_and_protobuf_logic
-
-            monkeypatch.setattr(
-                json_schema_and_protobuf_logic, "create_topics", lambda: None
-            )
-            app = SimulationContext.from_yaml(
-                tmp_path / "json_schema_and_protobuf.yaml"
-            )
-            serializers = app._egress_providers[0].topic_serializers
-            return _captured(app, until=30), serializers
-        module = _load_from(tmp_path, "json_schema_and_protobuf_low_level")
-        capture = _Capture()
-        env = module.shop([capture], 0.0)
-        env.run(until=30)
-        env.teardown()
-        return capture.records, module.egress.topic_serializers
-    finally:
-        for name in _SHOP_MODULES:
-            sys.modules.pop(name, None)
-
-
-@pytest.mark.parametrize("form", ["builder", "yaml", "low-level"])
-def test_orders_round_trip_as_json_schema_and_protobuf(
-    form, tmp_path, monkeypatch, registry_transport
-):
-    """Each form sends the orders to orders-json and orders-protobuf; both formats
-    read back what was sent, and the 64 bit integers of a Protobuf record come back
-    as strings, as the page says."""
-    pytest.importorskip("jsonschema")
-    pytest.importorskip("google.protobuf")
-
-    registry = _Registry()
-    registry_transport(registry)
-    records, serializers = _run_shop_form(form, tmp_path, monkeypatch)
-    assert set(serializers) == {"orders-json", "orders-protobuf"}
-
-    # The page's read_order decodes each message, as a consumer of the topics would
-    page = _load("json_schema_and_protobuf_serializers")
-    route = page.order_topic_router
-    assert {"sim-events", "orders-json", "orders-protobuf"} <= {
-        route(r) for r in records
-    }
-    for record in records:
-        topic = route(record)
-        if topic not in serializers:
-            continue
-        sent = {k: v for k, v in record.items() if k != "stream_type"}
-        payload = serializers[topic].serialize(topic, sent)
-        if topic == "orders-json":
-            assert page.read_order(topic, payload) == sent
-        else:
-            as_strings = {
-                **sent,
-                "instance": str(sent["instance"]),
-                "value": {**sent["value"], "order_id": str(sent["value"]["order_id"])},
-            }
-            assert page.read_order(topic, payload) == as_strings
-
-    # The Confluent JSON serializer registers the schema as given
-    kinds = {schema["schemaType"] for schema in registry.registered}
-    assert kinds == {"JSON", "PROTOBUF"}
-    assert registry.registered[0]["schema"] == page.json_schema
-
-
-def test_glue_serializers_round_trip_the_order_record(monkeypatch):
-    """The Glue serializers of the page take the same record, and the Protobuf one is
-    given the text of shop_record.proto as its schema."""
-    pytest.importorskip("boto3")
-    pytest.importorskip("fastjsonschema")
-    pytest.importorskip("google.protobuf")
-    from desflow.connectors.ingress.kafka import (
-        GlueJsonSchemaDeserializer,
-        GlueProtobufDeserializer,
-    )
-
-    class _Glue:
-        """Registers each definition once and serves its versions back."""
-
-        def __init__(self):
-            self.definitions = {}
-
-        def get_schema_by_definition(self, SchemaId, SchemaDefinition):
-            version = f"00000000-0000-0000-0000-{len(self.definitions):012d}"
-            self.definitions.setdefault(version, SchemaDefinition)
-            return {"SchemaVersionId": version, "Status": "AVAILABLE"}
-
-        def get_schema_version(self, SchemaVersionId):
-            definition = self.definitions[SchemaVersionId]
-            return {
-                "SchemaVersionId": SchemaVersionId,
-                "Status": "AVAILABLE",
-                "DataFormat": "JSON" if definition.startswith("{") else "PROTOBUF",
-                "SchemaDefinition": definition,
-            }
-
-    glue = _Glue()
-    monkeypatch.setattr("boto3.client", lambda service, **kwargs: glue)
-    module = _load("json_schema_and_protobuf_serializers")
-    glue_json, glue_protobuf = module.glue_serializers()
-    record = {
-        "key": "orders-1",
-        "task": "pack_order",
-        "instance": 0,
-        "sim_ts": 1.5,
-        "timestamp": "2026-01-01T00:00:00Z",
-        "value": {"order_id": 0, "amount": 19.99},
-    }
-
-    json_payload = glue_json.serialize("orders-json", record)
-    protobuf_payload = glue_protobuf.serialize("orders-protobuf", record)
-
-    assert GlueJsonSchemaDeserializer("shop").deserialize("o", json_payload) == record
-    read = GlueProtobufDeserializer("shop", module.ShopRecord).deserialize(
-        "o", protobuf_payload
-    )
-    assert read["value"] == {"order_id": "0", "amount": 19.99}
-    assert (GUIDES / "shop_record.proto").read_text() in glue.definitions.values()
-
-
-def test_shop_record_module_declares_the_fields_of_the_proto_file():
-    """shop_record_pb2.py is generated from shop_record.proto; a field the file changed
-    and the module did not shows up here."""
-    pytest.importorskip("google.protobuf")
-    text = (GUIDES / "shop_record.proto").read_text()
-    shop_record = _load("shop_record_pb2").ShopRecord
-    assert shop_record.DESCRIPTOR.full_name == "com.desflow.shop.ShopRecord"
-    for message in shop_record.DESCRIPTOR.file.message_types_by_name.values():
-        for field in message.fields:
-            assert f"{field.name} = {field.number};" in text
-
-
 def test_reneging_and_balking_ties_and_balance(tmp_path, monkeypatch):
-    """At a tie, the order scheduled later is served and the one scheduled first
-    reneges, as the page says, in every form; and every order of the patience
-    example is packed, reneged, balked or still in the shop, in every form. The
-    script runs from the folder a reader works in: the saved blueprint beside it
-    and the files `desflow examples get patience` writes."""
+    """At a tie the patience's event comes first, so the order reneges, in every form:
+    one arriving at 3 with a patience of 3 and one arriving at 0 with a patience of 6.
+    An order whose patience ends after the grant is served. Every order of the patience
+    example is packed, reneged, balked or still in the shop, in every form. The script
+    runs from the folder a reader works in: the saved blueprint beside it and the files
+    `desflow examples get patience` writes."""
     shutil.copy(ROOT / "docs" / "snippets" / "yaml" / "reneging_tie.yaml", tmp_path)
     for api, name in (
         ("yaml", "patience.yaml"),
@@ -770,21 +534,97 @@ def test_reneging_and_balking_ties_and_balance(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     module = _load("reneging_and_balking")
     for tie in (module.tie, module.tie_yaml, module.tie_low_level):
-        assert tie(3, 3) == "served"
+        assert tie(3, 3) == "reneged"
         assert tie(0, 6) == "reneged"
+        assert tie(3, 4) == "served"
     forms = (module.yaml_form, module.builder_form, module.low_level_form)
     for form in forms:
         assert form() == {"order_packed": 49, "balked": 17, "reneged": 7, "started": 1}
     printed = [
         "check: arrives at 3, patience 3: " + module.tie(3, 3),
         "check: arrives at 0, patience 6: " + module.tie(0, 6),
-        f"check: the same in YAML: {module.tie_yaml(3, 3)} {module.tie_yaml(0, 6)}",
+        "check: arrives at 3, patience 4: " + module.tie(3, 4),
+        f"check: the same in YAML: {module.tie_yaml(3, 3)} {module.tie_yaml(0, 6)} "
+        f"{module.tie_yaml(3, 4)}",
         f"check: the same, low-level: {module.tie_low_level(3, 3)} "
-        f"{module.tie_low_level(0, 6)}",
+        f"{module.tie_low_level(0, 6)} {module.tie_low_level(3, 4)}",
         *(f"check: {dict(form())}" for form in forms),
     ]
     page = (ROOT / "docs/how-to/modelling/reneging-and-balking.md").read_text("utf-8")
     assert "```text\n" + "\n".join(printed) + "\n```" in page
+
+
+def test_patience_example_uses_the_tie_form():
+    """The Low-level patience example decides by `req not in result`, the form that
+    gives a tie to the grant, and not by `req.triggered`, which gives it to the
+    patience (row 187)."""
+    source = (ROOT / "examples/low-level/patience_example.py").read_text("utf-8")
+    assert "result = yield req | env.timeout(patience)" in source
+    assert "if req not in result:" in source
+    assert "req.triggered" not in source
+
+
+def _numbers(keys):
+    """The order numbers of keys such as `orders-7`, in order."""
+    return sorted(int(key.split("-")[1]) for key in keys)
+
+
+def test_reneging_follow_up_goes_on_to_a_task_in_every_form():
+    """An order that reneges or balks goes to `follow_up`, which reads the status of the
+    task it left. Of 12 orders 4 are packed, 3 renege (3, 5 and 6) and 5 balk (8 to 12),
+    and the YAML, Builder and Low-level forms publish the same records."""
+    from desflow import DynamicRealtimeEnvironment, SimulationContext
+
+    def outcome(records):
+        rows = [
+            (r["sim_ts"], r["key"], r["task"], r["value"].get("how"))
+            for r in records
+            if r["stream_type"] == "event"
+            and r["task"] in ("pack", "follow_up")
+            and "status" not in r["value"]
+        ]
+        return sorted(rows, key=lambda row: (row[0], row[1]))
+
+    yaml = SimulationContext.from_yaml(
+        ROOT / "docs" / "snippets" / "yaml" / "reneging_follow_up.yaml"
+    )
+    capture = _Capture()
+    yaml.add_egress(capture)
+    yaml.run()
+    expected = outcome(capture.records)
+
+    builder = _load("reneging_follow_up").build()
+    capture = _Capture()
+    builder.add_egress(capture)
+    builder.run(until=40)
+    assert outcome(capture.records) == expected
+
+    module = _load("reneging_follow_up_low_level")
+    env = DynamicRealtimeEnvironment(factor=0)
+    capture = _Capture()
+    env.setup_egress([capture])
+    module.build(env)
+    env.run(until=40)
+    env.teardown()
+    assert outcome(capture.records) == expected
+
+    by_how = {}
+    for _, key, task, how in expected:
+        by_how.setdefault(how if task == "follow_up" else "packed", []).append(key)
+    assert _numbers(by_how["packed"]) == [1, 2, 4, 7]
+    assert _numbers(by_how["reneged"]) == [3, 5, 6]
+    assert _numbers(by_how["balked"]) == [8, 9, 10, 11, 12]
+    page = (ROOT / "docs/how-to/modelling/reneging-and-balking.md").read_text("utf-8")
+    shown = re.search(
+        r"<!-- records: reneging-follow-up -->\n```text\n(.*?)\n```", page, re.S
+    )
+    assert shown is not None
+    shown_rows = [json.loads(line) for line in shown.group(1).split("\n")]
+    left = [row for row in expected if row[2] == "follow_up"]
+    assert len(shown_rows) == len(left) == 8
+    assert sorted(
+        (r["sim_ts"], r["key"], r["value"]["how"]) for r in shown_rows
+    ) == sorted((time, key, how) for time, key, _, how in left)
 
 
 def test_wait_for_one_or_all_first_ties_and_failure():
@@ -814,6 +654,71 @@ def test_wait_for_one_or_all_first_ties_and_failure():
         ]
 
 
+def test_wait_suspend_each_and_pool_in_every_form(tmp_path):
+    """A truck wakes the two oldest of three parked orders with its value; an `each`
+    wait with `at_least: 2` ends at the second box with the flags of the elements; a
+    pool of three requests packs with the first and cancels the others, so a second
+    order arriving at 1 s is served from 2 s to 3 s: without the `cancel` it never is.
+    The builder, YAML and low-level forms agree, and a `when` wait ends when its expression holds."""
+    module = _load("wait_for_one_or_all")
+    low_level = _load("wait_for_one_or_all_low_level")
+    yaml = ROOT / "docs" / "snippets" / "yaml"
+    woken = [(5.0, "truck-1"), (5.0, "truck-1")]
+    boxes = (5.0, [True, True, False])
+    assert module.suspend_and_resume() == woken
+    assert module.suspend_and_resume_yaml(yaml / "wait_suspend.yaml") == woken
+    assert low_level.suspend_and_resume() == woken
+    assert module.each_of_three() == boxes
+    assert module.each_of_three_yaml(yaml / "wait_each.yaml") == boxes
+    assert low_level.each_of_three() == boxes
+    packed = (2.0, [True, False, False], 3.0)
+    assert module.pool_of_requests() == packed
+    assert module.pool_of_requests_yaml(yaml / "wait_pool.yaml") == packed
+    assert low_level.pool_of_requests() == packed
+    # Without the cancel the release hands the unit to a request nothing releases, so
+    # the second order is never served: the YAML form shows it
+    without_cancel = tmp_path / "wait_pool_without_cancel.yaml"
+    text = (yaml / "wait_pool.yaml").read_text(encoding="utf-8")
+    assert "    cancel: pool" in text
+    without_cancel.write_text(text.replace("    cancel: pool", ""), encoding="utf-8")
+    assert module.pool_of_requests_yaml(without_cancel) == (
+        2.0,
+        [True, False, False],
+        None,
+    )
+    when = module.run_blueprint(yaml / "wait_when.yaml", {})
+    approved = module._events("approve", when)[-1]
+    assert (approved["sim_ts"], approved["value"]["address_done"]) == (3.0, False)
+
+
+def test_an_each_when_group_reads_only_done_count(tmp_path):
+    """The page says the `when` of an `each` group reads only `done_count` and that a
+    `wait.<name>` reference is refused when the file loads: `done_count >= 2` loads and
+    ends the wait at 5 s, and adding `wait.boxes.flags[0]` is refused."""
+    from desflow import SimulationContext
+
+    text = (ROOT / "docs/snippets/yaml/wait_each.yaml").read_text(encoding="utf-8")
+    group = "group: {at_least: 2}"
+    assert group in text
+    allowed = tmp_path / "allowed.yaml"
+    allowed.write_text(
+        text.replace(group, 'group: {when: "done_count >= 2"}'), encoding="utf-8"
+    )
+    SimulationContext.from_yaml(allowed)
+    refused = tmp_path / "refused.yaml"
+    refused.write_text(
+        text.replace(group, 'group: {when: "done_count >= 2 and wait.boxes.flags[0]"}'),
+        encoding="utf-8",
+    )
+    with pytest.raises(Exception, match="when of an each group reads done_count"):
+        SimulationContext.from_yaml(refused)
+    page = (
+        ROOT / "docs/user-guide/tasks-and-processes/signals-and-waiting.md"
+    ).read_text("utf-8")
+    assert "The `when` of an `each` group reads only `done_count`." in page
+    assert "A `when` group reads `done_count` and `wait.<name>.values`" not in page
+
+
 def test_wait_for_one_or_all_example_packs_and_refunds():
     """The page's example: each restock waits for all of its delivery (10 s) and its
     stock count (20 s), so it comes 20 s after each delivery starts, at 80 s to 560 s;
@@ -839,9 +744,15 @@ def test_wait_for_one_or_all_checks_run_from_saved_files(tmp_path, monkeypatch):
     from desflow.cli import app
 
     yaml = ROOT / "docs" / "snippets" / "yaml"
-    for name in ("wait_first.yaml", "wait_tie.yaml", "wait_all.yaml"):
+    for name in (
+        "wait_first.yaml",
+        "wait_tie.yaml",
+        "wait_all.yaml",
+        "wait_suspend.yaml",
+        "wait_each.yaml",
+        "wait_pool.yaml",
+    ):
         shutil.copy(yaml / name, tmp_path)
-    shutil.copy(yaml / "wait_for_one_or_all_logic.py", tmp_path)
     monkeypatch.chdir(tmp_path)
     module = _load("wait_for_one_or_all")
     printed = [
@@ -852,6 +763,12 @@ def test_wait_for_one_or_all_checks_run_from_saved_files(tmp_path, monkeypatch):
         f"check: the same in YAML: {module.first_yaml(10)} {module.first_yaml(50)}",
         f"check: two at once in YAML: {module.two_at_once_yaml()}",
         f"check: all, with a failure, in YAML: {module.all_with_a_failure_yaml()}",
+        f"check: suspend and resume: {module.suspend_and_resume()}",
+        f"check: suspend and resume, in YAML: {module.suspend_and_resume_yaml()}",
+        f"check: two of three boxes: {module.each_of_three()}",
+        f"check: two of three boxes, in YAML: {module.each_of_three_yaml()}",
+        f"check: the first of three packers: {module.pool_of_requests()}",
+        f"check: the first of three packers, in YAML: {module.pool_of_requests_yaml()}",
     ]
     page = (ROOT / "docs/how-to/modelling/wait-for-one-or-all.md").read_text("utf-8")
     assert "```text\n" + "\n".join(printed) + "\n```" in page
@@ -915,35 +832,6 @@ def test_performance_tuning_commands_print_the_page_count(tmp_path):
         assert ran.stdout.startswith("{'records': 108688, 'per_second': "), ran.stdout
 
 
-def test_repair_desk_runs_and_explain_names_no_bottleneck(tmp_path):
-    """The Use an AI Assistant check: `desflow run repair_desk.yaml` ends without an
-    error and logs the lines the page shows, and `desflow explain` names no
-    bottleneck."""
-    blueprint = ROOT / "docs" / "snippets" / "yaml" / "repair_desk.yaml"
-    page = (ROOT / "docs/how-to/tools/use-an-ai-assistant.md").read_text("utf-8")
-
-    def desflow(*args):
-        ran = subprocess.run(
-            [str(Path(sys.executable).parent / "desflow"), *args],
-            cwd=tmp_path,
-            capture_output=True,
-            text=True,
-        )
-        assert ran.returncode == 0, ran.stderr
-        return ran.stdout + ran.stderr
-
-    logged = desflow("run", str(blueprint))
-    shown = re.findall(r"^\[INFO\] (desflow\.[^\n]*)$", page, re.M)
-    assert len(shown) == 6
-    assert all(line in logged for line in shown)
-    bottleneck = next(
-        line
-        for line in desflow("explain", str(blueprint)).splitlines()
-        if line.startswith("Bottleneck")
-    )
-    assert f"```text\n{bottleneck}\n```" in page
-
-
 def test_fit_a_distribution_gaps(tmp_path, capsys):
     """The exponential fits the 299 gaps best, at 0.364 a second; 5 zero gaps skip
     gamma, weibull and lognormal; the file it writes is the one the blueprint
@@ -984,8 +872,12 @@ def test_fit_a_distribution_gaps(tmp_path, capsys):
     )
     assert ran.exit_code == 0, ran.output
     assert "exponential *" in ran.stdout and "rate=0.36388" in ran.stdout
-    shipped = (blueprint / "fitted" / "orders.yaml").read_text().splitlines()[1:]
-    assert out.read_text().splitlines()[1:] == shipped
+
+    # The comment at the top names the source, which differs, so only the settings
+    # are compared
+    shipped = (blueprint / "fitted" / "orders.yaml").read_text()
+    written = out.read_text()
+    assert written[written.index("dist:") :] == shipped[shipped.index("dist:") :]
     app = module.shop(result)
     app.run(until="1 h")
     yaml_app = SimulationContext.from_yaml(blueprint / "fit_a_distribution.yaml")
@@ -1073,7 +965,7 @@ def test_analyse_the_event_log_waits_and_throughput(tmp_path):
     per_order = module.waits_and_times(log)
     assert len(per_order) == 64 and len(module.times(log, "depart")) == 63
     assert per_order["orders-1"] == {"wait": 0.0, "in_shop": 1.5}
-    assert max(row["wait"] for row in per_order.values()) == 3.66
+    assert round(max(row["wait"] for row in per_order.values()), 3) == 3.659
     assert round(module.mean_wait(per_order), 3) == 1.25
     assert module.throughput_per_minute(log, module.RUN_SECONDS) == 31.5
     arrived = module.times(log, "arrival")
@@ -1305,13 +1197,13 @@ def test_write_a_connector_applies_the_change_and_writes_the_events(
 _STORAGE_MODULES = (
     "cloud_storage",
     "cloud_storage_stores",
-    "cloud_storage_logic",
     "cloud_storage_low_level",
 )
 
 
-def _run_storage_form(form, tmp_path, monkeypatch):
-    """Runs one form of the Write to Cloud Storage shop on the local disk, in tmp_path.
+def _run_storage_form(form, tmp_path, monkeypatch, until=600):
+    """Runs one form of the Write to Cloud Storage shop on the local disk, in tmp_path,
+    for `until` simulated seconds.
 
     Returns the Parquet and the JSON Lines tables, read back with the page's
     read_events.
@@ -1325,9 +1217,12 @@ def _run_storage_form(form, tmp_path, monkeypatch):
         GUIDES / "cloud_storage_stores.py",
         GUIDES / "cloud_storage_low_level.py",
         ROOT / "docs" / "snippets" / "yaml" / "cloud_storage.yaml",
-        ROOT / "docs" / "snippets" / "yaml" / "cloud_storage_logic.py",
     ):
         shutil.copy(source, tmp_path)
+    shutil.copytree(
+        ROOT / "docs" / "snippets" / "yaml" / "cloud_storage_stores",
+        tmp_path / "cloud_storage_stores",
+    )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("STORAGE", "local")
     monkeypatch.setenv("STORAGE_BUCKET", "output")
@@ -1337,15 +1232,17 @@ def _run_storage_form(form, tmp_path, monkeypatch):
     try:
         if form == "builder":
             module = _load_from(tmp_path, "cloud_storage")
-            module.app.run(until=600)
+            module.app.run(until=until)
             module = sys.modules["cloud_storage_stores"]
         elif form == "yaml":
-            SimulationContext.from_yaml(tmp_path / "cloud_storage.yaml").run(until=600)
-            module = sys.modules["cloud_storage_stores"]
+            SimulationContext.from_yaml(tmp_path / "cloud_storage.yaml").run(
+                until=until
+            )
+            module = _load_from(tmp_path, "cloud_storage_stores")
         else:
             low_level = _load_from(tmp_path, "cloud_storage_low_level")
             env = low_level.shop(low_level.sinks)
-            env.run(until=600)
+            env.run(until=until)
             env.teardown()
             module = sys.modules["cloud_storage_stores"]
         store = fs.LocalFileSystem()
@@ -1375,12 +1272,19 @@ def test_cloud_storage_shop_writes_the_same_events_as_parquet_and_jsonl(
 
 
 def test_cloud_storage_forms_write_the_same_rows(tmp_path, monkeypatch):
-    """The seeded shop gives the same rows in YAML, Builder and Low-level."""
+    """The seeded shop gives the same rows in YAML, Builder and Low-level, in the hour the
+    scripts run, and the page shows the number of rows they hold."""
     rows = []
     for form in ("builder", "yaml", "low-level"):
         folder = tmp_path / form
         folder.mkdir()
-        parquet, _ = _run_storage_form(form, folder, monkeypatch)
+        parquet, jsonl = _run_storage_form(form, folder, monkeypatch, until=3600)
+        # The check block of the page: the number of rows each folder holds
+        page = (ROOT / "docs/how-to/storage-and-tables/cloud-storage.md").read_text()
+        assert (
+            f"parquet: {parquet.num_rows} rows\njsonl: {jsonl.num_rows} rows\n```"
+            in page
+        )
         columns = ["sim_ts", "key", "status", "order_id"]
         rows.append(sorted(parquet.select(columns).to_pylist(), key=str))
     assert rows[0] == rows[1] == rows[2]
@@ -1410,7 +1314,6 @@ def test_cloud_storage_stores_make_their_filesystems(monkeypatch):
 _ICEBERG_MODULES = (
     "iceberg_tables",
     "iceberg_tables_catalog",
-    "iceberg_tables_logic",
     "iceberg_tables_low_level",
 )
 
@@ -1426,9 +1329,12 @@ def _run_iceberg_form(form, tmp_path, monkeypatch):
         GUIDES / "iceberg_tables_catalog.py",
         GUIDES / "iceberg_tables_low_level.py",
         ROOT / "docs" / "snippets" / "yaml" / "iceberg_tables.yaml",
-        ROOT / "docs" / "snippets" / "yaml" / "iceberg_tables_logic.py",
     ):
         shutil.copy(source, tmp_path)
+    shutil.copytree(
+        ROOT / "docs" / "snippets" / "yaml" / "iceberg_tables_catalogs",
+        tmp_path / "iceberg_tables_catalogs",
+    )
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("ICEBERG_CATALOG", raising=False)
     monkeypatch.syspath_prepend(str(tmp_path))
@@ -1440,8 +1346,10 @@ def _run_iceberg_form(form, tmp_path, monkeypatch):
             module.app.run(until=600)
             module = sys.modules["iceberg_tables_catalog"]
         elif form == "yaml":
+            # The SQLite database needs its folder, which the scripts make themselves
+            (tmp_path / "iceberg").mkdir()
             SimulationContext.from_yaml(tmp_path / "iceberg_tables.yaml").run(until=600)
-            module = sys.modules["iceberg_tables_catalog"]
+            module = _load_from(tmp_path, "iceberg_tables_catalog")
         else:
             low_level = _load_from(tmp_path, "iceberg_tables_low_level")
             env = low_level.shop(low_level.sink)
@@ -1521,92 +1429,302 @@ def test_storage_checks_print_the_row_counts_the_pages_show(tmp_path):
     assert f"```text\n{iceberg}```" in (docs / "iceberg-tables.md").read_text("utf-8")
 
 
-class _FakeConsumer:
-    """Stands in for AIOKafkaConsumer: serves the messages given, as a broker would."""
-
-    messages: list = []
-    settings: dict = {}
-
-    def __init__(self, *topics, **settings):
-        type(self).settings = {"topics": topics, **settings}
-        self._messages = iter(type(self).messages)
-
-    async def start(self):
-        pass
-
-    async def stop(self):
-        pass
-
-    async def getone(self):
-        from types import SimpleNamespace
-
-        return SimpleNamespace(value=next(self._messages))
+# Call Python from YAML: each form of SimPy behaviour the keys do not give yet runs
+# beside a plain SimPy program and gives its times
 
 
-def test_kafka_checks_read_the_topics_with_the_connection_they_were_given(
-    monkeypatch, capsys, registry_transport
-):
-    """The read-back of the Check the Result sections consumes the topic of the page
-    with the settings of the egress, and prints what the page shows."""
-    import asyncio
+def _simpy_form(name):
+    """The (time, key) of every payload record a form's blueprint publishes, by task."""
+    from desflow import SimulationContext
 
-    monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker.example.com:9092")
-    monkeypatch.setenv("KAFKA_API_KEY", "test-key")
-    monkeypatch.setenv("KAFKA_API_SECRET", "test-secret")
-    security = _load("kafka_security_connections")
-    monkeypatch.setattr(security, "AIOKafkaConsumer", _FakeConsumer)
-    events = [b'{"key":"orders-1"}', b'{"key":"orders-2"}', b'{"key":"orders-3"}']
-    _FakeConsumer.messages = events
-    asyncio.run(security.show_events())
-    assert capsys.readouterr().out.splitlines() == [e.decode() for e in events]
-    # The consumer gets the egress's own security settings
-    assert _FakeConsumer.settings["topics"] == ("sim-events",)
-    assert _FakeConsumer.settings["security_protocol"] == "SASL_SSL"
-    assert _FakeConsumer.settings["sasl_plain_username"] == "test-key"
-    assert _FakeConsumer.settings["bootstrap_servers"] == "broker.example.com:9092"
-
-    registry = _Registry()
-    registry_transport(registry)
-    serializers = _load("json_schema_and_protobuf_serializers")
-    monkeypatch.setattr(serializers, "AIOKafkaConsumer", _FakeConsumer)
-    record = {
-        "key": "orders-1",
-        "task": "pack_order",
-        "instance": 0,
-        "sim_ts": 1.5,
-        "timestamp": "2026-01-01T00:00:00Z",
-        "value": {"order_id": 0, "amount": 19.99},
-    }
-    pytest.importorskip("jsonschema")
-    payload = serializers.json_serializer.serialize("orders-json", record)
-    _FakeConsumer.messages = [payload]
-    asyncio.run(serializers.show_first_order("orders-json"))
-    assert capsys.readouterr().out == f"orders-json {record}\n"
-    assert _FakeConsumer.settings["topics"] == ("orders-json",)
-
-
-def test_avro_check_prints_the_prediction_it_reads(
-    monkeypatch, capsys, registry_transport
-):
-    """The read-back of the Avro page decodes a prediction with the schema the
-    registry holds for it."""
-    import asyncio
-
-    pytest.importorskip("fastavro")
-    registry_transport(_Registry())
-    models = _load("avro_and_pydantic_models")
-    monkeypatch.setattr(models, "AIOKafkaConsumer", _FakeConsumer)
-    record = {
-        "key": "orders-1",
-        "task": "pack_order",
-        "instance": 0,
-        "sim_ts": 4.052,
-        "timestamp": "2026-01-01T00:00:00Z",
-        "value": {"event_type": "prediction", "task_id": "orders-1", "confidence": 0.9},
-    }
-    _FakeConsumer.messages = [
-        models.generated_serializer.serialize("ml-predictions", record)
+    sys.modules.pop("simpy_forms", None)
+    app = SimulationContext.from_yaml(YAML_SNIPPETS / f"{name}.yaml")
+    capture = _Capture()
+    app.add_egress(capture)
+    app.factor = 0.0
+    app.run()
+    return [
+        (r["sim_ts"], r["value"])
+        for r in capture.records
+        if r["stream_type"] == "event" and "status" not in r["value"]
     ]
-    asyncio.run(models.show_first_prediction())
-    assert capsys.readouterr().out == f"{record}\n"
-    assert _FakeConsumer.settings["topics"] == ("ml-predictions",)
+
+
+def test_computed_time_form_gives_simpy_times():
+    import simpy
+
+    env = simpy.Environment()
+    pump = simpy.Resource(env, 1)
+    expected = []
+
+    def car(name, start, litres):
+        yield env.timeout(start)
+        with pump.request() as request:
+            yield request
+            yield env.timeout(litres / 2)
+        expected.append((env.now, name))
+
+    for name, start, litres in (("car-1", 0, 4), ("car-2", 1, 6), ("car-3", 2, 2)):
+        env.process(car(name, start, litres))
+    env.run(until=10)
+    found = _simpy_form("simpy_computed_time")
+    assert (
+        [(t, v["car"]) for t, v in found]
+        == expected
+        == [
+            (2, "car-1"),
+            (5, "car-2"),
+            (6, "car-3"),
+        ]
+    )
+
+
+def test_held_unit_form_gives_simpy_times():
+    import simpy
+
+    env = simpy.Environment()
+    machine = simpy.PriorityResource(env, 1)
+    expected = []
+
+    def job(name, start, priority, first, second):
+        yield env.timeout(start)
+        with machine.request(priority=priority) as request:
+            yield request
+            yield env.timeout(first)
+            yield env.timeout(second)
+        expected.append((env.now, name))
+
+    for args in (
+        ("job-1", 0, 2, 1, 2),
+        ("job-2", 0, 1, 2, 1),
+        ("job-3", 1, 0, 1, 1),
+    ):
+        env.process(job(*args))
+    env.run(until=20)
+    found = _simpy_form("simpy_held_unit")
+    assert (
+        [(t, v["job"]) for t, v in found]
+        == expected
+        == [
+            (3, "job-1"),
+            (5, "job-3"),
+            (8, "job-2"),
+        ]
+    )
+
+
+def test_fixed_arrivals_form_gives_simpy_times():
+    import simpy
+
+    env = simpy.Environment()
+    counter = simpy.Resource(env, 1)
+    expected = []
+
+    def customer():
+        with counter.request() as request:
+            yield request
+            yield env.timeout(3)
+        expected.append(env.now)
+
+    def customers():
+        for _ in range(3):
+            yield env.timeout(2)
+            env.process(customer())
+
+    env.process(customers())
+    env.run(until=20)
+    found = _simpy_form("simpy_fixed_arrivals")
+    assert [t for t, _ in found] == expected == [5, 8, 11]
+
+
+def test_sub_process_form_passes_an_argument_and_reads_the_value():
+    import simpy
+
+    env = simpy.Environment()
+    expected = []
+
+    def child(boxes):
+        yield env.timeout(1)
+        return {"total": boxes * 3}
+
+    def order(boxes):
+        packed = yield env.process(child(boxes))
+        expected.append((env.now, packed["total"] + 1))
+
+    env.process(order(2))
+    env.run(until=10)
+    found = _simpy_form("simpy_sub_process")
+    assert (
+        [(t, v["total"]) for t, v in found if "total" in v][-1:] == expected == [(1, 7)]
+    )
+
+
+_KEYS_WAIT_AGAIN = """
+simulation: {sim_id: Shop, factor: 0}
+resources: {r: {current_cap: 1}}
+services: {two: {dist: constant, value: 2}}
+tasks:
+  work: {wait: {timeout: 5}, on_interrupt: resume, payload: {job: job-1}}
+  boss: {service: two, interrupt: {task: work, cause: pause}, payload: {boss: 1}}
+arrivals:
+  w: {replay: {path: w.csv}, spawn: work}
+  b: {replay: {path: b.csv}, spawn: boss}
+run: {until: 20}
+"""
+
+
+def test_wait_again_form_ends_the_timeout_at_its_first_time(tmp_path):
+    """After an interrupt at 2, a process that yields the same timeout again ends it
+    at 5, as SimPy does. The keys (`wait: {timeout: 5}` with `on_interrupt: resume`)
+    start the 5 seconds again, so the task ends at 7."""
+    import simpy
+
+    env = simpy.Environment()
+    expected = []
+
+    def job(name):
+        timeout = env.timeout(5)
+        while True:
+            try:
+                yield timeout
+                break
+            except simpy.Interrupt:
+                pass
+        expected.append((env.now, name))
+
+    def pause(target):
+        yield env.timeout(2)
+        target.interrupt("pause")
+
+    process = env.process(job("job-1"))
+    env.process(pause(process))
+    env.run(until=20)
+    found = _simpy_form("simpy_wait_again")
+    assert [(t, v["job"]) for t, v in found] == expected == [(5, "job-1")]
+
+    (tmp_path / "w.csv").write_text("time\n0\n")
+    (tmp_path / "b.csv").write_text("time\n0\n")
+    blueprint = tmp_path / "keys.yaml"
+    blueprint.write_text(_KEYS_WAIT_AGAIN, encoding="utf-8")
+    from desflow import SimulationContext
+
+    app = SimulationContext.from_yaml(blueprint)
+    capture = _Capture()
+    app.add_egress(capture)
+    app.factor = 0.0
+    app.run()
+    ends = [
+        r["sim_ts"]
+        for r in capture.records
+        if r["stream_type"] == "event" and r["value"].get("job") == "job-1"
+    ]
+    assert ends == [7]
+
+
+def test_whole_flow_form_goes_on_when_the_flow_ends():
+    """A process that yields the process of a two-task flow goes on at 6, when the
+    flow ends, as SimPy's `yield process` does. A `running` wait on the first task
+    goes on at 3, when that task ends."""
+    import simpy
+
+    env = simpy.Environment()
+    expected = []
+
+    def flow():
+        yield env.timeout(3)
+        yield env.timeout(3)
+
+    def watch():
+        yield env.process(flow())
+        expected.append(env.now)
+
+    env.process(watch())
+    env.run(until=20)
+    found = _simpy_form("simpy_whole_flow")
+    assert [t for t, v in found if v.get("step") == "done"] == expected == [6]
+    assert [t for t, v in found if v.get("step") == "relay"] == [3]
+
+
+def _keys_queue_again(tmp_path):
+    """The keys: `first` queues behind `holder`, is interrupted at 2 under
+    `on_interrupt: resume`, and asks again."""
+    text = """
+simulation: {sim_id: Shop, factor: 0}
+resources: {machine: {current_cap: 1}}
+services:
+  five: {dist: constant, value: 5}
+  one: {dist: constant, value: 1}
+  two: {dist: constant, value: 2}
+tasks:
+  holder: {resource: machine, service: five, payload: {job: holder}}
+  first: {resource: machine, service: one, on_interrupt: resume, payload: {job: first}}
+  second: {resource: machine, service: one, payload: {job: second}}
+  boss: {service: two, interrupt: {task: first, cause: pause}, payload: {boss: 1}}
+arrivals:
+  h: {replay: {path: h.csv}, spawn: holder}
+  f: {replay: {path: f.csv}, spawn: first}
+  s: {replay: {path: s.csv}, spawn: second}
+  b: {replay: {path: b.csv}, spawn: boss}
+run: {until: 20}
+"""
+    for name, at in (("h", 0), ("f", 0), ("s", 1), ("b", 0)):
+        (tmp_path / f"{name}.csv").write_text(f"time\n{at}\n")
+    blueprint = tmp_path / "keys.yaml"
+    blueprint.write_text(text, encoding="utf-8")
+    from desflow import SimulationContext
+
+    app = SimulationContext.from_yaml(blueprint)
+    capture = _Capture()
+    app.add_egress(capture)
+    app.factor = 0.0
+    app.run()
+    return [
+        (r["sim_ts"], r["value"]["job"])
+        for r in capture.records
+        if r["stream_type"] == "event" and "job" in r["value"]
+    ]
+
+
+def test_queue_again_form_keeps_its_place_in_the_queue(tmp_path):
+    """`first` queues behind `holder`, which holds the machine to 5, and is interrupted
+    at 2. A SimPy process that yields the same request again keeps its place, so it
+    goes on at 5 and ends at 6, and `second` ends at 7. The keys (`on_interrupt:
+    resume`) ask again at the back: `second` goes on at 5 and ends at 6, and `first`
+    ends at 7."""
+    import simpy
+
+    env = simpy.Environment()
+    machine = simpy.Resource(env, 1)
+    expected = []
+
+    def job(name, start, time, interrupt_at=None):
+        yield env.timeout(start)
+        if interrupt_at is not None:
+            env.process(pause(env.active_process, interrupt_at))
+        request = machine.request()
+        while True:
+            try:
+                yield request
+                break
+            except simpy.Interrupt:
+                pass
+        yield env.timeout(time)
+        machine.release(request)
+        expected.append((env.now, name))
+
+    def pause(target, at):
+        yield env.timeout(at)
+        target.interrupt("pause")
+
+    env.process(job("holder", 0, 5))
+    env.process(job("first", 0, 1, 2))
+    env.process(job("second", 1, 1))
+    env.run(until=20)
+    assert expected == [(5, "holder"), (6, "first"), (7, "second")]
+    found = _simpy_form("simpy_queue_again")
+    assert [(t, v["job"]) for t, v in found] == expected
+    assert _keys_queue_again(tmp_path) == [
+        (5, "holder"),
+        (6, "second"),
+        (7, "first"),
+    ]

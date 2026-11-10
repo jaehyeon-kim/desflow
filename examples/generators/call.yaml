@@ -1,0 +1,28 @@
+# Call: what a Python function returns.
+# An order starts every 60 seconds, and the run lasts 200 seconds, so three orders
+# start. The function is in `call_helpers.py` in this folder.
+#
+# Run it with: desflow run examples/generators/call.yaml
+
+simulation:
+  sim_id: Gen
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  orders: {dist: constant, value: 60, spawn: order}
+
+tasks:
+  order:
+    payload:
+      total:
+        gen: call
+        function: !python call_helpers.with_tax
+        kwargs:
+          price: {gen: integer, bounds: [10, 50]}
+
+run: {until: 200}

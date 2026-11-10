@@ -1,0 +1,20 @@
+# Y9 to Y11: a listen on a signal and on a handle, a `when` on an entry, and a fire that fails, is defused or has a priority.
+simulation: {sim_id: Y11, factor: 0, random_seed: 42}
+variables: {heard: 0}
+signals: {go: {once: true}, bad: {once: true, defused: true}, again: {once: true}}
+arrivals: {a: {initial: 1, spawn: job, attributes: {i: 0}}}
+tasks:
+  job:
+    open: {kid: {timeout: {after: 2, value: v}}}
+    listen: {signal: go, on: [{when: "attr.i == 0", path: Y11.variables.heard, value: 1}]}
+    wait: {timeout: 1}
+    payload: {e: first}
+    next: later
+  later:
+    listen: {handle: kid, on: [{path: Y11.variables.heard, value: 2}]}
+    wait: {timeout: 1}
+    payload: {e: later}
+    fail: "False"
+    fail_reason: {gen: expr, expr: "'late-' + str(t)"}
+    on: [{fire: {signal: bad, fail: true, defused: true, value: oops}}, {fire: {signal: again, priority: 2}}, {fire: {signal: go, priority: 0}}]
+run: {until: 500}

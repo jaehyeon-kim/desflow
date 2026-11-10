@@ -1,0 +1,15 @@
+simulation: {sim_id: T, factor: 0.1, random_seed: 42}
+
+arrivals:
+  a: {initial: 2, spawn: pem}
+
+tasks:
+  pem:
+    service_time: 1 s
+    payload: {event_type: tick}
+    next: pem
+
+run:
+  segments:
+    - {until: 2 s}
+    - {until: 4 s}

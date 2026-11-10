@@ -1,0 +1,23 @@
+# Three changes to the YAML an agent writes for task ST-E05: a rate, a weight or share,
+# a capacity, or the nearest time or count, or, where no number the request names
+# changes the records, one step of the flow. Each change tries the keys of `keys` that
+# exist in model.yaml, in order, and keeps the first that alters the records (grade.py).
+
+task: ST-E05
+
+mutations:
+  - name: 4 consumers
+    changes:
+      - keys:
+          - arrivals.consumers.initial
+          - arrivals.consumers.count
+          - arrivals.consumers.max_events
+        new: 4
+  - name: tick every 2 seconds
+    changes:
+      - keys: [tasks.tick.service_time, "services.{tasks.tick.service}.value",
+               tasks.tick.wait.timeout]
+        new: 2
+  - name: consumers do not wait again
+    changes:
+      - {keys: [tasks.consume.next], new: null}

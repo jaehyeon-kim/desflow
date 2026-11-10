@@ -1,0 +1,7 @@
+{
+  "known": true,
+  "counts": {
+    "K10": 1
+  },
+  "reason": "grep -c prints the number of matching lines of each file, not the expect values --fix wrote; no other call shows them."
+}

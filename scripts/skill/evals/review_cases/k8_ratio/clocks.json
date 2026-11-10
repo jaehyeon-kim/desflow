@@ -1,0 +1,10 @@
+{
+  "asserts": [
+    {
+      "file": "test_model.py",
+      "line": 57,
+      "text": "assert (time.perf_counter() - start) / 0.4 >= 0.99"
+    }
+  ],
+  "paced_wall": 0.4
+}

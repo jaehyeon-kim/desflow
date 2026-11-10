@@ -1,0 +1,4 @@
+name: rest
+type: rest
+uri: http://127.0.0.1:8181
+warehouse: s3://warehouse/

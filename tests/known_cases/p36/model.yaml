@@ -1,0 +1,33 @@
+# case P36: a priority from an attribute, changed by set (register
+# audit2/patterns/mine/g_b.py P36, shape "ties" with 10 rows: priority 5, or 1 when i %
+# 3 == 0, and set to 0 when i % 4 == 0; one machine, service 1; the record is the
+# grant).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+resources:
+  m: {current_cap: 1, queue: priority}
+
+services:
+  s: {dist: constant, value: 1}
+
+arrivals:
+  o:
+    replay: {path: p36.csv, time: time, unit: s, fields: [i, pr]}
+    spawn: t
+
+tasks:
+  t:
+    payload: null
+    next:
+      when:
+        - {condition: "attr.i % 4 == 0", task: setp}
+      default: u
+  setp:
+    payload: null
+    set: {pr: 0}
+    next: u
+  u:
+    seize: {resource: m, priority: "attr.pr"}
+    payload: {event_type: started}
+    next: hold
+  hold: {service: s, release: m, payload: null}

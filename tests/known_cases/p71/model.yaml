@@ -1,0 +1,19 @@
+# case P71: event time precision: times of 0.00001 and 0.00002 stay different in
+# records.
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+arrivals:
+  a: {initial: 1, spawn: t}
+
+tasks:
+  t:
+    service_time: 0.00001
+    payload:
+      event_type: first
+      at: {gen: expr, expr: t}
+    next: u
+  u:
+    service_time: 0.00001
+    payload:
+      event_type: second
+      at: {gen: expr, expr: t}

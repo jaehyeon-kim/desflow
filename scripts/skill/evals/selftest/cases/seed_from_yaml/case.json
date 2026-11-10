@@ -1,0 +1,7 @@
+{
+  "fault": "S11: K4 counts a form whose seed is not a literal",
+  "task": "rand",
+  "counts": {
+    "K4": 0
+  }
+}

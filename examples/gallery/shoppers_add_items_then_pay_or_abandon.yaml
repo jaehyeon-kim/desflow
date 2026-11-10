@@ -1,0 +1,53 @@
+# A shopper keeps adding items to a cart, then pays or abandons it.
+#
+# A shopper adds an item every 5 to 30 seconds, and after each item 60 percent add
+# another, 25 percent pay and 15 percent leave. Two tills serve the payments, each for
+# about 25 seconds, so shoppers queue to pay when both are busy.
+#
+# Needs: nothing
+# Run it with: desflow run examples/gallery/shoppers_add_items_then_pay_or_abandon.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+resources:
+  tills: {current_cap: 2, max_cap: 2}
+
+services:
+  checkout: {dist: normal, mean: 25, std: 5}
+
+arrivals:
+  shoppers:
+    dist: exponential
+    rate: 0.1
+    attributes: {items: 0}
+    spawn: add_item
+
+tasks:
+  add_item:
+    service_time: {gen: uniform, low: 5, high: 30}
+    set:
+      items: {gen: expr, expr: attr.items + 1}
+    payload:
+      event_type: item_added
+      items: {gen: expr, expr: attr.items + 1}
+    next:
+      weights: {add_item: 60, pay: 25, abandon: 15}
+  pay:
+    service: checkout
+    resource: tills
+    payload:
+      event_type: paid
+      items: {gen: attr, name: items}
+  abandon:
+    payload:
+      event_type: abandoned
+      items: {gen: attr, name: items}
+
+run: {until: 1 hour}

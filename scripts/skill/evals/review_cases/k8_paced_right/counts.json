@@ -1,0 +1,7 @@
+{
+  "known": true,
+  "counts": {
+    "K8": 0
+  },
+  "reason": "assert wall >= 0.4 - 0.016 allows the 0.016 s clock step under the paced 0.4 s."
+}

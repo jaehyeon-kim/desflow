@@ -48,18 +48,37 @@ def low_level_form():
         )
     )
     env.setup_ingress([JsonlIngress("changes.jsonl")])
-    env.setup_egress([CsvEgress("events.csv", columns=["status", "event_type"])])
+    env.setup_egress(
+        [CsvEgress("events.csv", columns=["status", "event_type"])],
+        predicates=[lambda record: record["stream_type"] == "event"],  # no telemetry
+    )
     packers = DynamicResource(env, "Shop", "packers")
 
     def order(env, number):
         key, path_id = f"orders-{number}", "Shop.service.packing"
         env.publish_event(
-            key, {"path_id": path_id, "status": "queued"}, "pack_order", number - 1
+            key,
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "queued",
+            },
+            "pack_order",
+            number - 1,
         )
         with packers.request() as request:
             yield request
             env.publish_event(
-                key, {"path_id": path_id, "status": "started"}, "pack_order", number - 1
+                key,
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "started",
+                },
+                "pack_order",
+                number - 1,
             )
             yield env.timeout(1.5)
         env.publish_event(key, {"event_type": "order_packed"}, "pack_order", number - 1)

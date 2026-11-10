@@ -1,0 +1,18 @@
+# V1: a service time computed for each entity, on one unit. The program is
+# programs/v1_service_time.py. See test_yaml_only.py.
+simulation: {sim_id: V1, factor: 0, random_seed: 42}
+resources: {pump: {current_cap: 1}}
+arrivals:
+  cars: {replay: {path: cars.csv}, spawn: car}
+  cuts: {replay: {path: cuts.csv}, spawn: cut}
+tasks:
+  car:
+    resource: pump
+    service_time: "attr.fuel / 2"
+    on_interrupt: resume
+    payload: {event_type: done}
+  cut:
+    wait: {timeout: 1}
+    payload: {event_type: cut}
+    interrupt: {task: car, where: "attr.fuel == 6"}
+run: {until: 100}

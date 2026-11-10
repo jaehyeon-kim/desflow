@@ -1,0 +1,28 @@
+# Lookup: a value from a finished record of another task.
+# Three customers start at time 0, and an order starts every 60 seconds. The run lasts
+# 200 seconds, so three orders start.
+#
+# Run it with: desflow run examples/generators/lookup.yaml
+
+simulation:
+  sim_id: Gen
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  customers: {initial: 3, dist: constant, value: 3600, spawn: customer}
+  orders: {dist: constant, value: 60, spawn: order}
+
+tasks:
+  customer:
+    payload:
+      customer_id: {gen: sequence, start: 100}
+  order:
+    payload:
+      customer_id: {gen: lookup, task: customer, path: customer_id}
+
+run: {until: 200}

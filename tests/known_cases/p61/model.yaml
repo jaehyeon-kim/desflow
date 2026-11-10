@@ -1,0 +1,35 @@
+# Documents for patterns P61 to P79.
+# case P61: blocking with a finite buffer (patterns/g_flow.py G3).
+simulation: {sim_id: P, factor: 0, random_seed: 42}
+
+resources:
+  m1: {current_cap: 1}
+  m2: {current_cap: 1}
+
+stores:
+  buf: {current_cap: 1}
+
+services:
+  one: {dist: constant, value: 1}
+  five: {dist: constant, value: 5}
+
+arrivals:
+  orders: {initial: 4, spawn: s1}
+
+tasks:
+  s1:
+    service: one
+    resource: m1
+    payload: {}
+    put: {store: buf}
+    next: s2g
+  s2g:
+    get: {store: buf}
+    payload: {}
+    next: s2
+  s2:
+    service: five
+    resource: m2
+    payload: {done: 1}
+
+run: {until: 30}

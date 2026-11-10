@@ -1,0 +1,24 @@
+# case ST-C09: test_cond_with_uncaught_error: timeout(1) | process(explode(2)); the
+# child fails at 2, after the condition has fired, and nobody handles it, so the run
+# stops at 2.
+simulation: {sim_id: T, factor: 0, random_seed: 42}
+
+arrivals:
+  a: {initial: 1, spawn: pem}
+
+tasks:
+  pem:
+    wait:
+      any:
+        t: {timeout: 1}
+        x: {task: explode}
+    payload:
+      event_type: done
+      at: {gen: expr, expr: t}
+  explode:
+    service_time: 2
+    fail: "True"
+    fail_reason: "Onoes, failed after 2!"
+    payload: {event_type: child}
+
+run: {on_unhandled_failure: stop}

@@ -63,6 +63,60 @@ They are published every `interval` of simulation time, 10 seconds when it is no
     env.stats.flow_finished("orders")  # the order leaves the shop
     ```
 
+### Publish at Each Change
+
+The readings of a resource are published every `interval`. With `on_change`, a resource also publishes them right after each request and each release on it, so a change between two intervals is on record. It needs a level above `none`, because it publishes the readings that level selects. A grant that a release makes later, and a cancel, publish none of their own.
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/statistics_readings.yaml:on-change"
+    # The readings of level minimal, and one more set after each request and release
+    stats: {level: minimal, on_change: true}
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/statistics_options.py:on-change"
+    # The readings of level minimal, and one more set after each request and release
+    on_change.with_stats("minimal", on_change=True)
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/statistics_options.py:low-level-on-change"
+    env.stats.on_change = True  # a reading after each request and release
+    ```
+
+### Trace the Events
+
+`trace` publishes one record of the kind `trace` for each event the environment is about to process, with the value `{priority, event_id, event}`. Only a sink with `when: trace` receives it, and that sink receives nothing else. A `stats` mapping with only `trace` may leave out `level`, which is then `none`. A blueprint with a `when: trace` sink and no `stats.trace` is refused when it loads. [Records and Telemetry](../../reference/records-and-telemetry.md) shows the record.
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/statistics_trace.yaml:trace"
+    egress:
+      # Only a sink with when: trace receives the trace records
+      - {type: Console, when: trace}
+
+    # With only trace set, the level is none
+    stats: {trace: true}
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/statistics_options.py:trace"
+    # Only a sink with when="trace" receives the trace records
+    trace.add_egress(ConsoleEgress(), when="trace")
+    trace.with_stats("none", trace=True)
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/statistics_options.py:low-level-trace"
+    env.setup_egress([sink], traces=[True])  # a trace sink gets only the trace
+    env.trace_events()
+    ```
+
 ### Read the Names
 
 Every statistic is published as telemetry named `<sim_id>.stats.<kind>.<name>.<statistic>`, where the kind is `resources`, `stores`, `containers`, `tasks` or `flows`. A flow is named by the arrival that started its entities: `Shop.stats.flows.orders.finished` counts the orders that left the model. [Reference, Statistics](../../reference/statistics.md) lists every name with what it measures. Below are the statistics that [`statistics.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/statistics.yaml), the blueprint whose `levels` part is shown above, publishes at the end of its two-minute run:
@@ -123,15 +177,47 @@ Without a [warm-up](../../learn/concepts/output-analysis.md#one-run-starts-empty
 
 ### Add Readings of Your Own
 
-Anything else is a custom reading: a function called at an interval of simulation time, which publishes with `context.publish(name, value)` as `<sim_id>.<name>`. It can read resources, stores, containers or any registry value.
+Anything else is a custom reading: a value that is published at an interval of simulation time as `<sim_id>.<name>`. In YAML, a `telemetry` entry gives each reading as an expression. An expression can read a resource's queue, a registry value and the time `t`. It cannot read an entity or a task.
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/statistics_readings.yaml:readings"
+    telemetry:
+      # Readings of your own: two expressions, evaluated every 30 seconds
+      - interval: 30
+        readings:
+          waiting_per_packer: "queue.packers /
+            max(registry['Shop.resources.packers.current_cap'], 1)"
+          arrival_rate: "registry['Shop.arrival.orders.rate']"
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/statistics_options.py:readings"
+    # Readings of your own: two expressions, evaluated every 30 seconds
+    readings.add_readings(
+        30,
+        {
+            "waiting_per_packer": "queue.packers / max(registry['Shop.resources.packers.current_cap'], 1)",
+            "arrival_rate": "registry['Shop.arrival.orders.rate']",
+        },
+    )
+    ```
+
+=== "Low-level"
+
+    A process that loops, publishes with `env.publish_telemetry(name, value)` and waits with `env.timeout(interval)` does the same.
+
+Each reading is published at the start and then every `interval`, in the order given. The readings divide by the planned capacity, `registry['Shop.resources.packers.current_cap']`, because the expression language has no name for the live capacity. For a resource that breaks down, the planned and the live capacity differ while it is down.
+
+Keep a function for a reading that an expression cannot make. The function runs at an interval and publishes with `context.publish(name, value)`:
 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/statistics.yaml:custom"
     telemetry:
       # Readings of your own: called as packers_report(context) every 30 seconds
-      - interval: 30
-        function: !python shop_logic.packers_report
+      - {interval: 30, function: !python shop_logic.packers_report}
     ```
 
     The function is in `shop_logic.py`, beside the blueprint:
@@ -188,7 +274,7 @@ The environment keeps one `Statistics` object, `env.stats`, which collects nothi
 ## Stability and Limits
 
 - **Cost.** `minimal` reads a few values at each publication. `basic` adds a little work at every change of a resource, store or container. `typical` adds a little at every task step. `all` keeps every wait and service time in memory for the whole run. Use it for runs of thousands of tasks, not for a generator that runs for days.
-- **One way to get resource readings.** Before 0.21.0, a `telemetry` entry could publish `<resource>.<reading>` by name. That shortcut is gone: `stats: minimal` publishes the same readings, under `Shop.stats.resources.<name>.<reading>`. `telemetry` now takes only a function, for readings of your own.
+- **One way to get resource readings.** Before 0.21.0, a `telemetry` entry could publish `<resource>.<reading>` by name. That shortcut is gone: `stats: minimal` publishes the same readings, under `Shop.stats.resources.<name>.<reading>`. `telemetry` now takes only readings and functions, for values of your own.
 - **One run is one sample.** The statistics describe one run with one seed. Values from the same run are not independent of each other, and another seed gives other values. [Replications](../../learn/concepts/output-analysis.md#replications) give independent values. [Trusting Results](../../learn/studies/trusting-results.md) shows what that means for a result, and [Replications](replications.md) run a model with many seeds.
 - **A task appears once it has run.** At `typical` and `all`, a task's statistics are published from the first time it starts. At `basic`, they are published from the first time it finishes.
 

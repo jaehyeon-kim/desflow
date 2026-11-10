@@ -1,0 +1,24 @@
+# Boolean: true or false, with a chance of true.
+# A task `order` starts every 60 seconds, and the run lasts 200 seconds, so three orders
+# start.
+#
+# Run it with: desflow run examples/generators/boolean.yaml
+
+simulation:
+  sim_id: Gen
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  orders: {dist: constant, value: 60, spawn: order}
+
+tasks:
+  order:
+    payload:
+      gift: {gen: boolean, p: 0.5}
+
+run: {until: 200}

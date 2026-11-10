@@ -146,14 +146,13 @@ class GlueRegistryClient:
             if _SCHEMA_NOT_FOUND in cause:
                 return self._create_schema(schema_name, definition, data_format)
             raise
-        if response["SchemaVersionId"] is None or response["Status"] != _AVAILABLE:
+        if response["SchemaVersionId"] is None:
             raise SchemaRegistryError(
-                -1,
-                -1,
-                f"Schema version {response['SchemaVersionId']} was found but its "
-                f"status is {response['Status']}",
+                -1, -1, "Schema version was found but it has no id"
             )
-        return UUID(response["SchemaVersionId"])
+        # Another producer can have registered the version a moment before, so it is
+        # still PENDING; it is waited for as a version this client registers is
+        return self._available(response["SchemaVersionId"], response["Status"])
 
     def _register_version(self, schema_id: dict[str, str], definition: str) -> UUID:
         """Adds a version to an existing schema and waits until it is AVAILABLE."""

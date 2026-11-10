@@ -1,0 +1,75 @@
+"""Low-level API form of model.yaml. Prints each record as one JSON line."""
+
+import numpy as np
+
+from desflow import (
+    CapacityConfig,
+    ConsoleEgress,
+    DistributionConfig,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    Sampler,
+    SimParameter,
+)
+
+# max_cap is 3 so that grow can raise current_cap to 3
+PARAMS = SimParameter(
+    sim_id="P",
+    arrival={
+        "a": DistributionConfig(dist="constant", value=1),
+        "boss": DistributionConfig(dist="constant", value=1),
+    },
+    service={"hold": DistributionConfig(dist="constant", value=5)},
+    resources={"m": CapacityConfig(current_cap=1, max_cap=3)},
+)
+
+
+def job(env, sampler, m, key, task_id):
+    path_id = "P.service.hold"
+
+    def publish(value):
+        env.publish_event(key, value, task="job", instance=task_id)
+
+    publish({"path_id": path_id, "status": "queued"})
+    with m.request() as req:
+        yield req
+        publish({"path_id": path_id, "status": "started"})
+        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+        publish({"event_type": "done"})
+
+
+def grow(env, key, task_id):
+    env.publish_event(key, {"event_type": "grow"}, task="grow", instance=task_id)
+    env.registry.update("P.resources.m.current_cap", 3)
+    yield env.timeout(0)
+
+
+def arrival_a(env, sampler, m):
+    yield env.timeout(0)  # first_at 0
+    for i in range(2):
+        env.process(job(env, sampler, m, f"a-{i + 1}", i))
+        if i < 1:
+            yield env.timeout(1)
+
+
+def arrival_boss(env):
+    yield env.timeout(2)  # first_at 2, once
+    env.process(grow(env, "boss-1", 0))
+
+
+def run():
+    env = DynamicRealtimeEnvironment(factor=0, strict=False)
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress([ConsoleEgress(format="json")])
+    m = DynamicResource(env, "P", "m")
+    sampler = Sampler(rng=np.random.default_rng(42))
+    env.process(arrival_a(env, sampler, m))
+    env.process(arrival_boss(env))
+    try:
+        env.run(until=20)
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

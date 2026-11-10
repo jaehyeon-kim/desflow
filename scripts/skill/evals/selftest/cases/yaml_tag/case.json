@@ -1,0 +1,29 @@
+{
+  "fault": "round 4 S6: a `!python` tag in model.yaml; a change must keep it, so no test of the value fails under a change",
+  "task": "p33",
+  "tasks": "main",
+  "counts": {
+    "K1": 0,
+    "K2": 0,
+    "K4": 0,
+    "K6": 0,
+    "K7": 0,
+    "K9": 0,
+    "K11": 0,
+    "K12": 0,
+    "K13": 0,
+    "BASE": 0
+  },
+  "notes": {
+    "K9": [
+      "capacity 1 to 2: failed by",
+      "grow at 4 instead of 2: failed by",
+      "job takes 6 instead of 5: failed by"
+    ]
+  },
+  "notes_absent": {
+    "K9": [
+      "test_each_job_carries_pi"
+    ]
+  }
+}

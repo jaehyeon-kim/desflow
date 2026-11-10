@@ -1,0 +1,31 @@
+# case GD-P1: an EV drives and parks while its battery controller passivates and
+# reactivates (topical process_interaction.rst:36-76).
+simulation: {sim_id: EV, factor: 0, random_seed: 42}
+
+signals:
+  reactivate: {once: false}
+
+arrivals:
+  ev: {initial: 1, spawn: drive}
+  ctrl: {initial: 1, spawn: passivate}
+
+tasks:
+  drive:
+    service_time: {gen: integer, bounds: [20, 40]}
+    payload: {event_type: start_parking}
+    signal: reactivate
+    next: park
+  park:
+    service_time: {gen: integer, bounds: [60, 360]}
+    payload: {event_type: stop_parking}
+    next: drive
+  passivate:
+    wait: {signal: reactivate}
+    payload: {event_type: reactivated}
+    next: charge
+  charge:
+    service_time: {gen: integer, bounds: [30, 90]}
+    payload: {event_type: charged}
+    next: passivate
+
+run: {until: 150}

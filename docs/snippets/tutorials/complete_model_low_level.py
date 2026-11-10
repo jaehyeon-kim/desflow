@@ -96,9 +96,13 @@ EVENTS = {
 
 
 def task(env, sampler, shop, name, key, task_id, counters):
-    """Runs one task of an order, then starts the task after it."""
+    """Runs one task of an order, then the task after it, in the same process."""
     service, resource, following = TASKS[name]
-    status = {"path_id": f"Shop.service.{service}"} if service else {}
+    status = (
+        {"path_id": f"Shop.service.{service}", "sim_id": "Shop", "service": service}
+        if service
+        else {}
+    )
 
     def publish(value):
         env.publish_event(key, value, task=name, instance=task_id)
@@ -128,7 +132,7 @@ def task(env, sampler, shop, name, key, task_id, counters):
         env.stats.flow_finished("orders")  # the order leaves the shop
         return
     instance = next(counters[following])
-    env.process(task(env, sampler, shop, following, key, instance, counters))
+    yield from task(env, sampler, shop, following, key, instance, counters)
 
 
 def restock(env, shop, key, task_id):

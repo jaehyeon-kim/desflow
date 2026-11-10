@@ -1,20 +1,17 @@
 # Filtered inventory: couriers take only parcels for their own area, in YAML.
 #
-# The YAML version of filtered_inventory_example.py, which --api builder downloads. Packed orders go on
-# one shelf as parcels, each with the area it is going to. A courier for the north
-# or the south takes the oldest parcel for its own area, with a filter, and leaves
-# without one if none comes within 20 seconds.
+# The YAML version of filtered_inventory_example.py, which --api builder downloads.
+# Packed orders go on one shelf as parcels, each with the area it is going to. A courier
+# for the north or the south takes the oldest parcel for its own area, with a filter,
+# and leaves without one if none comes within 20 seconds.
 #
 # Needs no containers. Runs unpaced and ends after 120 simulation seconds.
 # Run it from its folder with: desflow run filtered_inventory.yaml
 
-simulation:
-  sim_id: Shop
-  factor: 0
-  random_seed: 42
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
 
 egress:
-  - type: Console
+  - {type: Console}
 
 resources:
   packers: {current_cap: 2, max_cap: 4}
@@ -27,10 +24,26 @@ services:
   packing: {dist: triangular, low: 1 s, mode: 2 s, high: 4 s}
 
 arrivals:
-  north_orders: {dist: exponential, rate: 0.3, spawn: pack, attributes: {area: north}}
-  south_orders: {dist: exponential, rate: 0.1, spawn: pack, attributes: {area: south}}
-  north_couriers: {dist: constant, value: 4, spawn: collect, attributes: {area: north}}
-  south_couriers: {dist: constant, value: 6, spawn: collect, attributes: {area: south}}
+  north_orders:
+    dist: exponential
+    rate: 0.3
+    spawn: pack
+    attributes: {area: north}
+  south_orders:
+    dist: exponential
+    rate: 0.1
+    spawn: pack
+    attributes: {area: south}
+  north_couriers:
+    dist: constant
+    value: 4
+    spawn: collect
+    attributes: {area: north}
+  south_couriers:
+    dist: constant
+    value: 6
+    spawn: collect
+    attributes: {area: south}
 
 # --8<-- [start:collect]
 tasks:
@@ -54,5 +67,4 @@ tasks:
 # Every 30 seconds, the shelf's readings and how many couriers left empty-handed.
 stats: {level: basic, interval: 30}
 
-run:
-  until: 120
+run: {until: 120}

@@ -4,6 +4,7 @@ and one random sequence per distribution."""
 import logging
 import math
 import re
+import shlex
 import zlib
 
 import numpy as np
@@ -11,7 +12,7 @@ import pytest
 
 from desflow import SimulationContext
 from desflow.blueprint.models import Distribution
-from desflow.core.distributions import DISTRIBUTIONS
+from desflow.models.distributions import DISTRIBUTIONS
 from desflow.core.environment import DynamicRealtimeEnvironment
 from desflow.core.sampler import Sampler
 from desflow.models.params import DistributionConfig, SimParameter, check_distribution
@@ -22,6 +23,8 @@ VALID = {
     "normal": {"mean": 3.0, "std": 0.5},
     "lognormal": {"mean": 3.0, "std": 0.5},
     "truncated_normal": {"mean": 1.0, "std": 1.0},
+    "poisson": {"mean": 3.5},
+    "geometric": {"p": 0.25},
     "constant": {"value": 2.0},
     "uniform": {"low": 1.0, "high": 3.0},
     "triangular": {"low": 1.0, "mode": 2.0, "high": 4.0},
@@ -38,12 +41,12 @@ def test_yaml_the_builder_and_check_distribution_accept_the_same_names(tmp_path)
         SimulationContext("Shop").add_service("s", name, **params)
         Distribution(dist=name, **params)
 
-    with pytest.raises(ValueError, match="Unsupported distribution 'poisson'"):
-        DistributionConfig(dist="poisson", rate=1.0)
-    with pytest.raises(ValueError, match="Unsupported distribution 'poisson'"):
-        SimulationContext("Shop").add_arrival("a", "poisson", rate=1.0)
-    with pytest.raises(ValueError, match="Unsupported distribution 'poisson'"):
-        Distribution(dist="poisson", rate=1.0)
+    with pytest.raises(ValueError, match="Unsupported distribution 'beta'"):
+        DistributionConfig(dist="beta", rate=1.0)
+    with pytest.raises(ValueError, match="Unsupported distribution 'beta'"):
+        SimulationContext("Shop").add_arrival("a", "beta", rate=1.0)
+    with pytest.raises(ValueError, match="Unsupported distribution 'beta'"):
+        Distribution(dist="beta", rate=1.0)
     # Keyword-only, so the order of the parameters never changes their meaning
     with pytest.raises(TypeError):
         SimulationContext("Shop").add_service("s", "uniform", 1.0, 3.0)  # type: ignore[misc]
@@ -57,6 +60,8 @@ def test_yaml_the_builder_and_check_distribution_accept_the_same_names(tmp_path)
         ({"dist": "gamma", "shape": 2, "scale": 1.5}, 3.0, 4.5),
         # A weibull with shape 1 is an exponential
         ({"dist": "weibull", "shape": 1, "scale": 2}, 2.0, 4.0),
+        ({"dist": "poisson", "mean": 3.5}, 3.5, 3.5),
+        ({"dist": "geometric", "p": 0.25}, 4.0, 12.0),
         (
             {"dist": "empirical", "values": [1, 2, 5], "weights": [1, 2, 1]},
             2.5,
@@ -68,7 +73,16 @@ def test_yaml_the_builder_and_check_distribution_accept_the_same_names(tmp_path)
             10 / 3 - 1.625**2,
         ),
     ],
-    ids=["uniform", "triangular", "gamma", "weibull", "values", "histogram"],
+    ids=[
+        "uniform",
+        "triangular",
+        "gamma",
+        "weibull",
+        "poisson",
+        "geometric",
+        "values",
+        "histogram",
+    ],
 )
 def test_each_new_family_draws_with_its_declared_mean_and_variance(
     params, mean, variance
@@ -84,6 +98,38 @@ def test_each_new_family_draws_with_its_declared_mean_and_variance(
     assert draws.var() == pytest.approx(variance, rel=0.05)
     # With no generator, each sample is the mean
     assert Sampler().sample(config) == pytest.approx(mean)
+
+
+@pytest.mark.parametrize(
+    "params,lowest",
+    [({"dist": "poisson", "mean": 0}, 0), ({"dist": "geometric", "p": 1}, 1)],
+)
+def test_poisson_and_geometric_draw_whole_numbers_from_their_lowest(params, lowest):
+    config = DistributionConfig(**params)
+    draws = [Sampler(seed=3).sample(config) for _ in range(5)]
+    assert draws == [lowest] * 5 and all(type(d) is int for d in draws)
+    sampler = Sampler(seed=3)
+    wide = DistributionConfig(
+        dist=config.dist, **{"mean": 4.0} if config.mean is not None else {"p": 0.3}
+    )
+    assert all(
+        type(d) is int and d >= lowest
+        for d in (sampler.sample(wide) for _ in range(200))
+    )
+
+
+@pytest.mark.parametrize(
+    "params,message",
+    [
+        ({"dist": "poisson", "mean": -1}, "poisson mean must be 0 or more"),
+        ({"dist": "geometric", "p": 0}, "geometric p must be above 0 and at most 1"),
+        ({"dist": "geometric", "p": 1.5}, "geometric p must be above 0 and at most 1"),
+        ({"dist": "geometric"}, "geometric needs p"),
+    ],
+)
+def test_poisson_and_geometric_refuse_out_of_range_parameters(params, message):
+    with pytest.raises(ValueError, match=message):
+        DistributionConfig(**params)
 
 
 @pytest.mark.parametrize("name", sorted(VALID))
@@ -199,7 +245,8 @@ def test_cli_seed_overrides_the_file_and_an_unseeded_run_names_the_command(
         result = CliRunner().invoke(cli, ["run", str(path)])
     assert result.exit_code == 0, result.output
     match = re.search(
-        rf"Repeat it with: desflow run {re.escape(str(path))} --seed (\d+)", caplog.text
+        rf"Repeat it with: desflow run {re.escape(shlex.quote(str(path)))} --seed (\d+)",
+        caplog.text,
     )
     assert match, caplog.text
 
@@ -234,7 +281,7 @@ def test_the_repeat_command_keeps_the_options_that_change_the_run(tmp_path, capl
         )
     assert result.exit_code == 0, result.output
     assert re.search(
-        rf"Repeat it with: desflow run {re.escape(str(path))} --seed \d+ "
+        rf"Repeat it with: desflow run {re.escape(shlex.quote(str(path)))} --seed \d+ "
         r"--until '1 min' --drain",
         caplog.text,
     ), caplog.text

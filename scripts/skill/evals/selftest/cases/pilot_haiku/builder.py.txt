@@ -1,0 +1,40 @@
+"""Set_capacity from a flow, Builder API.
+
+The same model as model.yaml. Two jobs share resource m, which has capacity 1.
+At 2 seconds the boss task raises the capacity of m to 3 through a registry path.
+The run ends at 20 simulation seconds. ConsoleEgress in json format prints each
+record as one JSON line on standard output.
+
+Run it with: python builder.py
+"""
+
+from desflow import ConsoleEgress, SimulationContext
+
+app = (
+    SimulationContext(sim_id="P", factor=0, random_seed=42)
+    .add_egress(ConsoleEgress(format="json"))
+    .add_resource("m", current_cap=1, max_cap=3)
+    # One entity at 0 s, then one each second: two entities in all, each running job.
+    .add_arrival("a", gap=1, first_at=0, max_events=2, spawn="job")
+    # One entity at 2 s, once, running grow.
+    .add_arrival("boss", gap=1, first_at=2, max_events=1, spawn="grow")
+)
+
+
+@app.task(resource_id="m", service_time=5, name="job")
+def job(task_id):
+    """Holds one unit of m for 5 seconds, then publishes done."""
+    return {"event_type": "done"}
+
+
+@app.task(
+    name="grow",
+    on=[{"path": "P.resources.m.current_cap", "value": 3}],
+)
+def grow(task_id):
+    """Publishes grow. Its on entry raises the capacity of m to 3."""
+    return {"event_type": "grow"}
+
+
+if __name__ == "__main__":
+    app.run(until=20)

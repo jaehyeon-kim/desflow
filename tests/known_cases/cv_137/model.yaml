@@ -1,0 +1,9 @@
+# case CV-137: random.seed: the same seed gives the same run.
+simulation: {sim_id: C, factor: 0, random_seed: 7}
+
+arrivals:
+  a: {dist: exponential, rate: 1, spawn: t, max_events: 5}
+
+tasks:
+  t:
+    payload: {event_type: arrived}

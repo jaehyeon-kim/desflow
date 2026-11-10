@@ -1,0 +1,29 @@
+# Attr: an attribute of the entity.
+# An entity `orders-N` starts every 60 seconds with a `size`, and the run lasts 200
+# seconds, so three orders start.
+#
+# Run it with: desflow run examples/generators/attr.yaml
+
+simulation:
+  sim_id: Gen
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+arrivals:
+  orders:
+    dist: constant
+    value: 60
+    spawn: order
+    attributes:
+      size: {gen: integer, bounds: [1, 50]}
+
+tasks:
+  order:
+    payload:
+      size: {gen: attr, name: size}
+
+run: {until: 200}

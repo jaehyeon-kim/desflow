@@ -1,0 +1,60 @@
+"""Low-level API form of model M."""
+import numpy as np
+
+from desflow import (
+    CapacityConfig,
+    ConsoleEgress,
+    DistributionConfig,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    Sampler,
+    SimParameter,
+)
+
+PARAMS = SimParameter(
+    sim_id="M",
+    service={"hold": DistributionConfig(dist="constant", value=1)},
+    resources={"res": CapacityConfig(current_cap=1, max_cap=1)},
+)
+
+
+def use(env, sampler, res, key, task_id):
+    path_id = "M.service.hold"
+
+    def publish(value):
+        env.publish_event(key, value, task="use", instance=task_id)
+
+    publish({"path_id": path_id, "status": "queued"})
+    env.stats.task_queued("use", task_id)
+    with res.request() as req:
+        yield req
+        publish({"path_id": path_id, "status": "started"})
+        env.stats.task_started("use", task_id)
+        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+        publish({"event_type": "used"})
+        env.stats.task_finished("use", task_id)
+
+
+def arrival(env, sampler, res):
+    # arrival `a`: one entity at time 0
+    env.process(use(env, sampler, res, "a-1", 0))
+    yield env.timeout(0)
+
+
+def run():
+    env = DynamicRealtimeEnvironment(factor=0, strict=False)
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress([ConsoleEgress(format="json")])
+    env.setup_stats("M", "minimal", interval=100)
+    env.stats.on_change = True  # publish after each request and release
+    res = DynamicResource(env, "M", "res")
+    sampler = Sampler(rng=np.random.default_rng(42))
+    env.process(arrival(env, sampler, res))
+    try:
+        env.run(until=5)
+    finally:
+        env.teardown()
+
+
+if __name__ == "__main__":
+    run()

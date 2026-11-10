@@ -27,13 +27,14 @@ from desflow import (
     SimParameter,
 )
 from desflow.core.context import SimulationContext
-from desflow.core.internal import is_internal
+from desflow.internal import is_internal
 from tests.conformance.batch5_scripts import pinger
 from tests.conformance.harness import (
     BLUEPRINTS,
     RecordingEgress,
     periodic,
     run_yaml,
+    run_yaml_text,
     times,
 )
 
@@ -1202,7 +1203,7 @@ def test_c6_advance_to_events_adds_one_internal_event_to_the_queue():
     the event that ended the second, `peek()` is the next model event, not `until`,
     and the queue holds one event at `until`."""
     app = SimulationContext("C6", factor=0.0, logical_start_time=START)
-    app.add_signal("gate")
+    app.add_signal("gate", once=False)
     app.add_egress(RecordingEgress())
 
     def opener(context):
@@ -1222,7 +1223,7 @@ def test_c6_advance_to_events_adds_one_internal_event_to_the_queue():
     app.step()
     assert app.peek() == 34
     at_until = [event for t, _p, _i, event in app.env._queue if t == 20]
-    assert at_until == [app._limit_event]
+    assert at_until == [app._run.limit_event]
     app.close()
 
 
@@ -1310,3 +1311,116 @@ def test_c6_advance_to_an_event_and_on():
     builder, _ = _builder_app()
     builder.add_signal("gate")
     assert drive(builder) == expected
+
+
+# ------------------------------------------------------ a run with no until
+
+
+def _reference_no_until():
+    """SimPy's `run()` with no `until` returns when no event is left."""
+    env = simpy.Environment()
+
+    def work():
+        yield env.timeout(1)
+
+    env.process(work())
+    assert env.run() is None
+    return env.now
+
+
+def _no_until_app(factor, **options):
+    """A builder model whose only work ends at 1, run with no `until`."""
+    app = SimulationContext("C6", factor=factor, **options)
+
+    def work(context):
+        yield context.env.timeout(1)
+
+    app.add_process(work)
+    return app
+
+
+def test_no_until_ends_with_statistics(tmp_path):
+    """Statistics read the model every `interval`, but they are not model events, so
+    the run ends at the last model event (T4). Builder and YAML."""
+    assert _reference_no_until() == 1
+    app = _no_until_app(0.0).with_stats("basic")
+    app.add_egress(RecordingEgress())
+    assert app.run() is None
+    assert app.env.now == 1
+
+    text = (
+        "simulation: {sim_id: C6, factor: 0}\n"
+        "stats: basic\n"
+        "arrivals: {a: {replay: {path: a.csv}, spawn: t}}\n"
+        "tasks: {t: {payload: {e: x}}}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"a": [1]})
+    assert outcome.error is None and outcome.value is None
+    assert outcome.app_or_env.env.now == 1
+    assert times(outcome.records, "t") == [1.0]
+
+
+def test_no_until_ends_with_a_sink():
+    """A sink at a factor above 0 has flush timers of desflow's own, which do not
+    hold the run open (T13), and the last records reach the sink at the end."""
+    assert _reference_no_until() == 1
+    app = _no_until_app(0.01, strict=False)  # about the sink, not about pacing
+    sink = RecordingEgress()
+    app.add_egress(sink)
+
+    @app.task(name="note")
+    def note(task_id):
+        return {"event": "noted"}
+
+    def late(context):
+        yield context.env.timeout(1)
+        context.spawn(note(0))
+
+    app.add_process(late)
+    assert app.run() is None
+    assert app.env.now == 1
+    assert times(sink.records, "note") == [1.0]
+
+
+def test_no_until_ends_with_ingress():
+    """An ingress connector's monitor keeps events of desflow's own in the queue, which
+    do not hold the run open (T13)."""
+    assert _reference_no_until() == 1
+    app = _no_until_app(0.0)
+    app.add_ingress(LocalIngress([]))
+    assert app.run() is None
+    assert app.env.now == 1
+
+
+def test_no_until_with_a_stop_that_never_fires():
+    """A `stop` that can no longer happen raises SimPy's `RuntimeError`, as
+    `env.run(until=event)` does when the queue empties (T4)."""
+    env = simpy.Environment()
+    never = env.event()
+    with pytest.raises(RuntimeError, match="No scheduled events left"):
+        env.run(until=never)
+
+    app = _no_until_app(0.0).with_stats("basic")
+    app.add_signal("never")
+    with pytest.raises(RuntimeError, match="No scheduled events left"):
+        app.run(stop="never")
+    assert not app.started  # the run closed, so the sinks have their records
+
+    app = _no_until_app(0.0)
+    with pytest.raises(RuntimeError, match="No scheduled events left"):
+        app.run(stop=lambda context: context.env.event())
+
+
+def test_no_until_with_a_stop_that_fires_at_the_last_event():
+    """A stop that fires at the last model event ends the run with its value: the
+    event that ends the run is one of desflow's own, and it is still processed."""
+    app = SimulationContext("C6", factor=0.0).with_stats("basic")
+    app.add_signal("done")
+
+    def work(context):
+        yield context.env.timeout(2)
+        context.signal("done").fire("finished")
+
+    app.add_process(work)
+    assert app.run(stop="done") == "finished"
+    assert app.env.now == 2

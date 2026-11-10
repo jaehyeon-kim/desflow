@@ -18,7 +18,8 @@ Each is published as telemetry named `<sim_id>.stats.<category>.<name>.<statisti
 where the category is `resources`, `stores`, `containers`, `tasks` or `flows`.
 """
 
-from typing import Any, Dict, Hashable, List, Optional, Set, Tuple
+import itertools
+from typing import Any, Dict, Hashable, Iterable, List, Mapping, Optional, Set, Tuple
 
 import numpy as np
 
@@ -28,6 +29,70 @@ _MINIMAL, _BASIC, _TYPICAL, _ALL = (
     STATS_LEVELS.index(level) for level in STATS_LEVELS[1:]
 )
 _PERCENTILES = (50, 95, 99)
+# The counts `readings` publishes for a task or a flow, by the names it publishes them
+# under. Each is published from the first time its task or flow is seen, and the
+# outcomes of `PUBLISHED_ABOVE_ZERO` and a flow's `failed` only once they are above 0:
+# a task with no patience or balk condition publishes neither `reneged` nor `balked`.
+_IN_PROGRESS, _FINISHED, _STARTED, _IN_SYSTEM, _FAILED = (
+    "in_progress",
+    "finished",
+    "started",
+    "in_system",
+    "failed",
+)
+PUBLISHED_ABOVE_ZERO = (
+    "balked",
+    "reneged",
+    _FAILED,
+    "interrupted",
+    "preempted",
+    "resumed",
+)
+# Every count `readings` leaves out while it is 0, by category, made from the names
+# above, so `published_value` reads 0 for exactly the counts `readings` leaves out
+LEFT_OUT_AT_ZERO: Dict[str, Tuple[str, ...]] = {
+    "tasks": (_IN_PROGRESS, _FINISHED, *PUBLISHED_ABOVE_ZERO),
+    "flows": (_FINISHED, _STARTED, _IN_SYSTEM, _FAILED),
+}
+
+
+def published_value(
+    readings: Mapping[str, Any], name: str, seen: Iterable[str] = (), prefix: str = ""
+) -> Any:
+    """
+    Returns the value of a statistic in a run's published statistics.
+
+    A count that `readings` leaves out while it is 0 (`LEFT_OUT_AT_ZERO`) is 0 when it
+    is missing, once a published name, in `readings` or in `seen`, names its task or
+    flow. So a name that no run publishes anything of, such as a misspelt task, stays
+    missing.
+
+    Args:
+        readings: One run's statistics by published name, or by the same names
+            without a common prefix such as `<sim_id>.stats.`.
+        name: The statistic's name, in the same form as the names of `readings`.
+        seen: More names in that form that show a task or flow is in the model, such
+            as the names other replications of the model published.
+        prefix: The common prefix the names carry, such as `<sim_id>.stats.`; ""
+            for names without one. The kind is read after it and the count is the
+            last part, so a task or flow whose name holds a dot reads as any other.
+
+    Returns:
+        Any: The value; 0 for such a count; None for any other missing name.
+    """
+    if name in readings:
+        return readings[name]
+    if not name.startswith(prefix):
+        return None
+    kind, _, rest = name[len(prefix) :].partition(".")
+    owner, dot, stat = rest.rpartition(".")
+    if not dot or not owner or stat not in LEFT_OUT_AT_ZERO.get(kind, ()):
+        return None
+    head = f"{prefix}{kind}."
+    for other in itertools.chain(readings, seen):
+        if other.startswith(head) and other[len(head) :].rpartition(".")[0] == owner:
+            return 0
+    return None
 
 
 class _TimeAverage:
@@ -153,6 +218,8 @@ class Statistics:
         sim_id (Optional[str]): The first part of every published name.
         level (str): `none`, `minimal`, `basic`, `typical` or `all`.
         interval (float): Simulation seconds between two publications.
+        on_change (bool): Whether a request or a release of a resource also publishes
+            that resource's readings, as well as the publication at each interval.
     """
 
     def __init__(self, env: Any):
@@ -167,6 +234,7 @@ class Statistics:
         self.sim_id: Optional[str] = None
         self.level = "none"
         self.interval = DEFAULT_STATS_INTERVAL
+        self.on_change = False
         self._rank = 0
         # The time of the last publication and the values published at it, so a
         # second publication at the same time publishes only what changed
@@ -208,7 +276,7 @@ class Statistics:
             raise ValueError(f"stats interval must be greater than 0, got {interval}")
         self.sim_id = sim_id
         self.level = level
-        self.interval = float(interval)
+        self.interval = interval
         self._rank = STATS_LEVELS.index(level)
         for key, obj in self._objects.items():
             self._start_averages(key, obj)
@@ -324,9 +392,11 @@ class Statistics:
             flight.queued = now
 
     def task_dropped(self, task: str, instance: Hashable) -> None:
-        """Clears the waiting record of an instance that an interrupt ended.
+        """Clears the waiting record of an instance that an interrupt ended, or that a
+        `Template` lookup dropped after it had queued and started.
 
-        `task_interrupted` has counted it already; this adds no wait or service time.
+        `task_interrupted` has counted an interrupted one already; this adds no wait or
+        service time and counts nothing.
 
         Args:
             task: The task's name.
@@ -509,6 +579,13 @@ class Statistics:
         for averages in self._averages.values():
             for average in averages.values():
                 average.reset(now)
+        # The downtime and failures a resource counted before now stay out of its
+        # readings, as the warm-up leaves every other statistic out
+        self._breakdown_base = {
+            key: (obj.downtime, obj.failures)
+            for key, obj in self._objects.items()
+            if getattr(obj, "has_breakdowns", False)
+        }
         keep = self._rank >= _ALL
         self._tasks = {name: _Task(keep) for name in self._tasks}
         self._flows = {name: 0 for name in self._flows}
@@ -530,35 +607,14 @@ class Statistics:
             return values
         now = self.env.now
         prefix = f"{self.sim_id}.stats"
-        for (category, name), obj in self._objects.items():
-            base = f"{prefix}.{category}.{name}"
-            current = (
-                _resource_readings(obj)
-                if category == "resources"
-                else _holder_readings(obj)
-            )
-            for stat, value in current.items():
-                values[f"{base}.{stat}"] = value
-            for stat, average in self._averages.get((category, name), {}).items():
-                values[f"{base}.{stat}"] = average.average(now)
-            if self._rank >= _BASIC and getattr(obj, "has_breakdowns", False):
-                values[f"{base}.downtime"] = obj.downtime
-                values[f"{base}.failures"] = obj.failures
+        for category, name in self._objects:
+            values.update(self._object_readings(category, name, now))
         for name, count in self._in_progress.items():
-            values[f"{prefix}.tasks.{name}.in_progress"] = count
+            values[f"{prefix}.tasks.{name}.{_IN_PROGRESS}"] = count
         for name, task in self._tasks.items():
             base = f"{prefix}.tasks.{name}"
-            values[f"{base}.finished"] = task.finished
-            # Published once one happens, so a task without patience or a balk
-            # condition publishes neither
-            for outcome in (
-                "balked",
-                "reneged",
-                "failed",
-                "interrupted",
-                "preempted",
-                "resumed",
-            ):
+            values[f"{base}.{_FINISHED}"] = task.finished
+            for outcome in PUBLISHED_ABOVE_ZERO:
                 if getattr(task, outcome):
                     values[f"{base}.{outcome}"] = getattr(task, outcome)
             for kind, observed in (("wait", task.wait), ("service", task.service)):
@@ -571,14 +627,54 @@ class Statistics:
                     for percent, point in zip(_PERCENTILES, points):
                         values[f"{base}.{kind}_p{percent}"] = float(point)
         for flow, finished in self._flows.items():
-            values[f"{prefix}.flows.{flow}.finished"] = finished
+            values[f"{prefix}.flows.{flow}.{_FINISHED}"] = finished
         for flow, started in self._started_flows.items():
-            values[f"{prefix}.flows.{flow}.started"] = started
-            values[f"{prefix}.flows.{flow}.in_system"] = self._in_system[flow]
+            values[f"{prefix}.flows.{flow}.{_STARTED}"] = started
+            values[f"{prefix}.flows.{flow}.{_IN_SYSTEM}"] = self._in_system[flow]
         for flow, failed in self._failed_flows.items():
             if failed:
-                values[f"{prefix}.flows.{flow}.failed"] = failed
+                values[f"{prefix}.flows.{flow}.{_FAILED}"] = failed
         return values
+
+    def _object_readings(self, category: str, name: str, now: float) -> Dict[str, Any]:
+        """The readings of one resource, store or container, by published name: its
+        current values, its time averages and, from `basic`, a breakdown's downtime
+        and failures."""
+        obj = self._objects[(category, name)]
+        base = f"{self.sim_id}.stats.{category}.{name}"
+        values: Dict[str, Any] = {}
+        current = (
+            _resource_readings(obj)
+            if category == "resources"
+            else _holder_readings(obj)
+        )
+        for stat, value in current.items():
+            values[f"{base}.{stat}"] = value
+        for stat, average in self._averages.get((category, name), {}).items():
+            values[f"{base}.{stat}"] = average.average(now)
+        if self._rank >= _BASIC and getattr(obj, "has_breakdowns", False):
+            down, failed = getattr(self, "_breakdown_base", {}).get(
+                (category, name), (0, 0)
+            )
+            values[f"{base}.downtime"] = obj.downtime - down
+            values[f"{base}.failures"] = obj.failures - failed
+        return values
+
+    def publish_object(self, category: str, name: str) -> None:
+        """
+        Publishes one resource's readings now, as a request or a release of it does
+        when `on_change` is set.
+
+        It publishes what `publish` publishes for that object. A value that equals the
+        one published at this same time is not published again.
+
+        Args:
+            category: `resources`, `stores` or `containers`.
+            name: Its name.
+        """
+        if not self.enabled or (category, name) not in self._objects:
+            return
+        self._send(self._object_readings(category, name, self.env.now))
 
     def publish(self) -> None:
         """
@@ -588,7 +684,11 @@ class Statistics:
         statistics whose value changed since, so a run that ends at an interval time
         repeats no value and its last values are the state at the end.
         """
-        readings = self.readings()
+        self._send(self.readings())
+
+    def _send(self, readings: Dict[str, Any]) -> None:
+        """Publishes the readings that differ from what this same time already
+        published."""
         if self._published_at != self.env.now:
             self._published_at = self.env.now
             self._published = {}

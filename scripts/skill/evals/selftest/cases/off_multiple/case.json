@@ -1,0 +1,13 @@
+{
+  "fault": "N10: K2's `every_multiple_of`: ds_a3 with the groups at 7, 12, 17 and so on, off the multiples of 5",
+  "task": "ds-a3",
+  "tasks": "main",
+  "counts": {
+    "K2": 1
+  },
+  "evidence": {
+    "K2": [
+      "model.yaml: 'about 80 members in 40 groups': records at [7.0"
+    ]
+  }
+}

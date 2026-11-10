@@ -1,0 +1,50 @@
+# Look up other records: an order names a customer, a payment reads its order, and a
+# report summarises the recent orders.
+#
+# Customers are written at the start and about every 10 seconds. `lookup` gives each
+# order the id of a customer already written. `next` routes each order to a payment, and
+# `upstream` gives the payment the order's id and total. A report every 10 seconds uses
+# `aggregate` to give the mean and the largest total of the last 10 orders.
+#
+# Needs: nothing.
+# Run it with: desflow run docs/snippets/generate-data/look_up_other_records.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  logical_start_time: 2026-01-01T00:00:00
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:arrivals]
+arrivals:
+  customers: {initial: 5, dist: exponential, rate: 0.1, spawn: customer}
+  orders: {dist: exponential, rate: 1, spawn: order}
+  reports: {dist: constant, value: 10, spawn: report}
+# --8<-- [end:arrivals]
+
+# --8<-- [start:tasks]
+tasks:
+  customer:
+    payload:
+      customer_id: {gen: sequence, start: 1}
+      country: {gen: one_of, choices: [AU, NZ, SG]}
+  order:
+    payload:
+      order_id: {gen: sequence, start: 1}
+      customer_id: {gen: lookup, task: customer, path: customer_id}
+      total: {gen: uniform, low: 5, high: 200, decimals: 2}
+    next: payment
+  payment:
+    payload:
+      order_id: {gen: upstream, path: order_id}
+      amount: {gen: upstream, path: total}
+  report:
+    payload:
+      mean_total: {gen: aggregate, task: order, path: total, last: 10, function: mean}
+      largest_total: {gen: aggregate, task: order, path: total, last: 10, function: max}
+# --8<-- [end:tasks]
+
+run: {until: 60}

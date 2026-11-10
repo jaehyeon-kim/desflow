@@ -151,6 +151,8 @@ def live(out: Path) -> SimulationContext:
     """The same jam sent live, half a second of wall-clock time after the start."""
     app = shop(out, jam=False)
     app.factor = 0.005
+    # A paced run raises when it falls behind the wall clock, unless strict is off
+    app.strict = False
     # --8<-- [start:live]
     # Half a wall-clock second after the start, set packing to 3 seconds
     app.add_ingress(LocalIngress(schedule=[(0.5, "Shop.service.packing.value", 3.0)]))
