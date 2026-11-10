@@ -29,7 +29,7 @@ from desflow.utils import suggestion
 from desflow.core.families import SECTIONS, Reference
 from desflow.core.task import TaskSpec
 from desflow.values.check import generators_in, task_value_places
-from desflow.values.models import Expr, When, _Gen
+from desflow.values.models import Expr, Gen, When
 
 if TYPE_CHECKING:
     from desflow.core.holders import Holders
@@ -808,7 +808,7 @@ def _task_expressions(spec: TaskSpec) -> Iterator[Tuple[str, Expression]]:
     for key, _where, _after, place in task_value_places(
         lambda key: builder_value(spec, key)
     ):
-        for _where, generator in generators_in(place, (_Gen,)):
+        for _where, generator in generators_in(place, (Gen,)):
             for text in generator_expressions(generator):
                 try:
                     read = Expression(text, names=ANY_NAME)
@@ -858,7 +858,7 @@ def rule_expressions(
                         ("signals", name, "on", index, "when"),
                     )
                 )
-            for where, generator in generators_in(action, (_Gen,)):
+            for where, generator in generators_in(action, (Gen,)):
                 for text in generator_expressions(generator):
                     try:
                         read = Expression(text, names=ANY_NAME)

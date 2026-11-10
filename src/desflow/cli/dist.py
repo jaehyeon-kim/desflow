@@ -76,7 +76,8 @@ def _dist(
 
     Exits 1 for a family with no formula from a mean and std.
     """
-    from desflow.models.distributions import DISTRIBUTIONS, parameters_from_moments
+    from desflow.models.distributions import DISTRIBUTIONS
+    from desflow.models.params import parameters_from_moments
     from desflow.utils import suggestion
 
     if family is None:

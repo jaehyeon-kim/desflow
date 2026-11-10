@@ -1,6 +1,6 @@
 """The files for contributors and assistants name only files that exist.
 
-`README.md`, `CLAUDE.md` and `CONTRIBUTING.md` name files in backticks, often as a bare
+`README.md`, `CLAUDE.md`, `CONTRIBUTING.md` and `ARCHITECTURE.md` name files in backticks, often as a bare
 name inside a folder's row of the code map. A file moved or renamed without these docs
 leaves the name stale, so every name that looks like a path must be the end of a
 tracked path.
@@ -11,9 +11,9 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-_DOCS = ["README.md", "CLAUDE.md", "CONTRIBUTING.md"]
+_DOCS = ["README.md", "CLAUDE.md", "CONTRIBUTING.md", "ARCHITECTURE.md"]
 # Names of files a reader or a command creates, not files in the repository.
-_NOT_FILES = {"report.md", "first_shop.yaml"}
+_NOT_FILES = {"report.md", "first_shop.yaml", "experiment.json"}
 _SUFFIXES = (
     ".py",
     ".md",

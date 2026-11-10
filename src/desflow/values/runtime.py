@@ -40,7 +40,7 @@ from desflow.values.models import (
     Previous,
     Row,
     ValueGenerationError,
-    _Gen,
+    Gen,
     _is_number,
     part_of,
 )
@@ -188,7 +188,7 @@ class ValueRuntime:
 
     # ----------------------------------------------------------------- random
 
-    def rng(self, node: _Gen, suffix: str = "") -> np.random.Generator:
+    def rng(self, node: Gen, suffix: str = "") -> np.random.Generator:
         """The random sequence of a generator, made from the seed and the place of
         the generator in the file: `SeedSequence(seed, spawn_key=(crc32(place),))`.
         Adding or removing another field of a mapping leaves it unchanged; inserting a
@@ -208,7 +208,7 @@ class ValueRuntime:
             self._streams[name] = generator
         return generator
 
-    def count(self, node: _Gen) -> int:
+    def count(self, node: Gen) -> int:
         """How many times `node` has been asked for a count; the call counts.
 
         Args:
@@ -254,7 +254,7 @@ class ValueRuntime:
         """
         return copy.deepcopy(value) if isinstance(value, (dict, list)) else value
 
-    def condition(self, node: _Gen, text: str, scope: Scope) -> bool:
+    def condition(self, node: Gen, text: str, scope: Scope) -> bool:
         """Whether an expression written in a generator holds.
 
         Args:
@@ -278,7 +278,7 @@ class ValueRuntime:
             node: The generator, or the value, to act on.
             scope: What the expressions here read.
         """
-        if not isinstance(node, _Gen):
+        if not isinstance(node, Gen):
             return False
         if node.omit_rate is not None:
             if self.rng(node, "#omit").random() < node.omit_rate:
@@ -299,7 +299,7 @@ class ValueRuntime:
             ValueGenerationError: If a generator cannot give a value. The message
                 names the file, the line and the generator.
         """
-        if isinstance(node, _Gen):
+        if isinstance(node, Gen):
             return self._generate(node, scope)
         if isinstance(node, dict):
             out: Dict[Any, Any] = {}
@@ -311,13 +311,13 @@ class ValueRuntime:
             return [self.evaluate(item, scope) for item in node]
         return node
 
-    def _draw(self, node: _Gen, scope: Scope) -> Any:
+    def _draw(self, node: Gen, scope: Scope) -> Any:
         try:
             return node.evaluate(self, scope)
         except ArithmeticError as exc:
             raise node.fail(f"the result cannot be computed: {exc}") from None
 
-    def _generate(self, node: _Gen, scope: Scope) -> Any:
+    def _generate(self, node: Gen, scope: Scope) -> Any:
         if node.null_rate is not None:
             if self.rng(node, "#null").random() < node.null_rate:
                 return None
@@ -335,7 +335,7 @@ class ValueRuntime:
             f"{len(seen)} different values"
         )
 
-    def draw_service(self, node: _Gen, service: str) -> Any:
+    def draw_service(self, node: Gen, service: str) -> Any:
         """One draw from a service's live distribution.
 
         Args:

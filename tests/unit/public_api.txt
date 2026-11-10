@@ -538,11 +538,11 @@ desflow.values.Template.render(context: Any, entity: Any = None) -> dict[str, An
 desflow.values.ValueGenerationError(...)
 desflow.values.ValueRuntime(seed: int | None, env: Any, sampler: Any = None, context: Any = None, live_scope: LiveScope | None = None, stop: collections.abc.Callable[[], None] | None = None)
 desflow.values.ValueRuntime.aggregate(node: desflow.values.Aggregate, scope: desflow.Scope) -> Any
-desflow.values.ValueRuntime.condition(node: desflow.values.models._Gen, text: str, scope: desflow.Scope) -> bool
+desflow.values.ValueRuntime.condition(node: desflow.values.models.Gen, text: str, scope: desflow.Scope) -> bool
 desflow.values.ValueRuntime.copy(value: Any) -> Any
-desflow.values.ValueRuntime.count(node: desflow.values.models._Gen) -> int
+desflow.values.ValueRuntime.count(node: desflow.values.models.Gen) -> int
 desflow.values.ValueRuntime.distinct_frame() -> collections.abc.Iterator[None]
-desflow.values.ValueRuntime.draw_service(node: desflow.values.models._Gen, service: str) -> Any
+desflow.values.ValueRuntime.draw_service(node: desflow.values.models.Gen, service: str) -> Any
 desflow.values.ValueRuntime.evaluate(node: Any, scope: desflow.Scope) -> Any
 desflow.values.ValueRuntime.evaluate_vars(specs: dict[str, Any], scope: desflow.Scope, known: dict[str, Any] | None = None) -> dict[str, Any]
 desflow.values.ValueRuntime.faker(node: desflow.values.Fake, locale: str) -> Any
@@ -563,7 +563,7 @@ desflow.values.ValueRuntime.record(task: str, payload: Any, entity: Any) -> None
 desflow.values.ValueRuntime.refuse_start(task: str, waiting_for: Any, consumed_item: bool = False) -> None
 desflow.values.ValueRuntime.render(template: Any, entity: Any = None, scope: desflow.Scope | None = None, extras: dict[str, Any] | None = None, attributes: list[str] | None = None) -> dict[str, Any] | None
 desflow.values.ValueRuntime.report_refused() -> None
-desflow.values.ValueRuntime.rng(node: desflow.values.models._Gen, suffix: str = '') -> numpy.random.Generator
+desflow.values.ValueRuntime.rng(node: desflow.values.models.Gen, suffix: str = '') -> numpy.random.Generator
 desflow.values.ValueRuntime.scope_of(entity: Any = None, names: dict[str, Any] | None = None, keyed: bool = False) -> desflow.Scope
 desflow.values.ValueRuntime.time_text(moment: datetime.datetime) -> str
 desflow.values.ValueRuntime.value(spec: Any, entity: Any = None) -> Any

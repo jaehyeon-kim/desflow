@@ -413,45 +413,6 @@ def _gamma_from(m: float, s: float) -> Dict[str, float]:
     return {"shape": (m / s) ** 2, "scale": s * s / m}
 
 
-def parameters_from_moments(
-    family: "Distribution", mean: float, std: float
-) -> Dict[str, float]:
-    """Returns the parameters of `family` that give this mean and standard deviation.
-
-    The mean must be above 0, except for `constant`, whose value 0 gives a time
-    of 0 on every draw. The result is checked against the family's rules, so a pair the family cannot have is
-    refused.
-
-    Args:
-        family: The distribution family.
-        mean: The mean, in seconds.
-        std: The standard deviation, in seconds.
-
-    Returns:
-        Dict[str, float]: The family's parameters.
-
-    Raises:
-        ValueError: If no simple formula gives the family's parameters (the
-            message is the family's `no_formula`), the std is negative, the mean
-            is not above 0 for a family other than `constant`, or the family
-            cannot have this pair.
-    """
-    if family.from_moments is None:
-        raise ValueError(f"{family.name}: {family.no_formula}")
-    if not std >= 0:
-        raise ValueError(f"std must be 0 or more, got {std:g}")
-    if family.name != "constant" and not mean > 0:
-        raise ValueError(
-            f"mean must be above 0 for {family.name}, got {mean:g}; for a time of 0 "
-            "on every draw, use constant with value 0"
-        )
-    parameters = family.from_moments(mean, std)
-    from desflow.models.params import DistributionConfig
-
-    DistributionConfig(dist=family.name, **parameters)  # type: ignore[arg-type]
-    return parameters
-
-
 def clamped_normal_moments(
     mean: float, std: float, floor: float = MIN_DELAY
 ) -> Tuple[float, float]:

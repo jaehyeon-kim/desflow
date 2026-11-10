@@ -19,7 +19,6 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Iterable,
     List,
     Literal,
     Mapping,
@@ -33,7 +32,6 @@ from typing import (
 
 from pydantic import (
     BaseModel,
-    ConfigDict,
     Discriminator,
     Field,
     StrictFloat,
@@ -75,12 +73,24 @@ from desflow.core.environment import (
 )
 from desflow.core.families import Reference
 from desflow.core.flow import Open, Release, Router, Transfer, Wait, check_batch_size
+from desflow.core.rules import (
+    PLAIN_NUMBER,
+    Ref,
+    RunSegment,
+    SegmentEvery,
+    StrictModel,
+    check_count_place,
+    check_run_text,
+    check_stop,
+    check_var_names,
+    duration_text,
+)
 from desflow.models.params import DistributionConfig
 from desflow.resources.base import check_ties
 from desflow.resources.container import ContainerBase, check_container_type
 from desflow.resources.resource import ResourceBase, check_resource_type
 from desflow.resources.store import StoreBase, check_store_type
-from desflow.values.models import GENERATORS, Generator, Payload, Value, _Gen
+from desflow.values.models import GENERATORS, Gen, Generator, Payload, Value
 from desflow.utils import (
     _seconds,
     checked_count,
@@ -97,9 +107,9 @@ WHEN_NAMES = ("history", "live", "events", "telemetry", LABELS, TRACE)
 
 
 def _place_kind(value: Any) -> str:
-    """Which branch of a time or count place a value is: a generator (a `_Gen` or a
+    """Which branch of a time or count place a value is: a generator (a `Gen` or a
     mapping with `gen`), or a plain number or text."""
-    if isinstance(value, _Gen) or (isinstance(value, Mapping) and "gen" in value):
+    if isinstance(value, Gen) or (isinstance(value, Mapping) and "gen" in value):
         return "<gen>"
     return "<plain>"
 
@@ -139,23 +149,6 @@ CountPlace = Annotated[
 ]
 
 
-# Text that is only a number, so a name such as `inf` stays an expression
-_PLAIN_NUMBER = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
-
-
-def _duration_text(value: Any) -> Any:
-    """A time place as the runtime reads it: a duration in text becomes seconds, and
-    other text stays an expression, checked here so a mistake is reported at load."""
-    if isinstance(value, str):
-        try:
-            return time_to_seconds(value)
-        except ValueError:
-            pass
-        if _PLAIN_NUMBER.fullmatch(value.strip()):
-            return float(value)  # a number in text, such as '-1'
-    return value
-
-
 def _refuse_boolean(value: Any, what: Optional[str]) -> None:
     """Refuses true and false in a time place, which pydantic would read as 1 and 0."""
     if isinstance(value, bool):
@@ -179,87 +172,6 @@ def _check_time_place(value: Any, what: str, run_scope: bool = False) -> None:
         if not isinstance(value, bool) and value < 0:
             raise ValueError(f"{what} must be 0 or more, got {value!r}")
         checked_seconds(value, what)
-
-
-def check_run_text(text: str, what: str, run_scope: bool) -> None:
-    """Refuses text that is not an expression, or that reads the entity or a task
-    where the place reads the run only.
-
-    A blueprint's places and the `add_arrival` arguments that mirror them both check
-    through this.
-
-    Args:
-        text: The expression.
-        what: The key, for the message.
-        run_scope: Whether the place reads the run only, so `attr` is refused.
-
-    Raises:
-        ValueError: If the text does not parse, or reads outside the run where
-            `run_scope` is True.
-    """
-    try:
-        parsed = Expression(text, names=ANY_NAME)
-    except ValueError as exc:
-        raise ValueError(f"{what}: {exc}") from None
-    outside = parsed.outside_run() if run_scope else None
-    if outside:
-        raise ValueError(
-            f"{what} '{text}' reads {outside}, but this place reads the run (level, "
-            f"users, queue, signal, registry and t), not the entity or a task"
-        )
-
-
-def check_var_names(names: Iterable[str], what: str) -> None:
-    """Refuses a variable name that an expression cannot read, or that it already uses.
-
-    An arrival's `vars` in a blueprint and in `add_arrival` both check through this.
-
-    Args:
-        names: The names.
-        what: The key they are under, for the message.
-
-    Raises:
-        ValueError: If a name is not an identifier, is a keyword, or is one of the
-            names an expression already reads.
-    """
-    for name in names:
-        if not name.isidentifier() or keyword.iskeyword(name):
-            raise ValueError(
-                f"{what}: '{name}' is not a name an expression can read; use "
-                "letters, digits and _, not starting with a digit"
-            )
-        if name in RESERVED_NAMES:
-            raise ValueError(
-                f"{what}: '{name}' is a name an expression already uses; pick another"
-            )
-
-
-def check_count_place(value: Any, what: str) -> None:
-    """Refuses what a count place does not take: text that is not an expression of the
-    run, a bool, a number that is not whole, and a number below 0.
-
-    A count place is an arrival's `count`, `max_events` or `group`. The `Arrival`
-    validator and `add_arrival` both check through this; a generator, an
-    `Expression` and None pass.
-
-    Args:
-        value: The place as given.
-        what: The key, for the message.
-
-    Raises:
-        ValueError: If the value is one of those the place refuses.
-    """
-    if isinstance(value, str):
-        check_run_text(value, what, True)
-    elif isinstance(value, bool) or (
-        isinstance(value, numbers.Real) and not float(value).is_integer()
-    ):
-        raise ValueError(
-            f"{what} is a whole number of 0 or more, an expression or a generator, "
-            f"got {value!r}"
-        )
-    elif isinstance(value, numbers.Real) and value < 0:
-        raise ValueError(f"{what} must be 0 or more, got {value!r}")
 
 
 _DATETIME = TypeAdapter(datetime)
@@ -301,11 +213,7 @@ def _generator_function(value: Any) -> Any:
     return value
 
 
-class _Model(BaseModel):
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-
-
-class Simulation(_Model):
+class Simulation(StrictModel):
     """The `simulation` section: the arguments of `SimulationContext`.
 
     `logical_start_time` and `go_live_at` take `now`, a signed duration from now such
@@ -397,7 +305,7 @@ class Simulation(_Model):
         )
 
 
-class Distribution(_Model):
+class Distribution(StrictModel):
     """A `services` entry: a distribution family and its parameters.
 
     Time-valued parameters (`mean`, `std`, `low`, `mode`, `high`, `scale`, `value`,
@@ -484,7 +392,7 @@ class Distribution(_Model):
         }
 
 
-class Replay(_Model):
+class Replay(StrictModel):
     """An arrival's `replay`: the rows of a local file, each one arrival at its time.
 
     `path` is a CSV or Parquet file, relative to the blueprint; `time` its column of
@@ -573,7 +481,7 @@ class Arrival(Distribution):
     @classmethod
     def _place_duration(cls, value: Any, info: ValidationInfo) -> Any:
         _refuse_boolean(value, info.field_name)
-        return _duration_text(value)
+        return duration_text(value)
 
     @field_validator("first_at", mode="before")
     @classmethod
@@ -703,7 +611,7 @@ class Arrival(Distribution):
         return self
 
 
-class Breakdown(_Model):
+class Breakdown(StrictModel):
     """A resource's `breakdown`: the time to each failure, the repair time, whether
     the tasks being served are interrupted or finish, and which time the time to
     failure counts. `clock: calendar` (the default) counts it from the start or the
@@ -716,7 +624,7 @@ class Breakdown(_Model):
     clock: Literal["calendar", "busy"] = "calendar"
 
 
-class QueueRule(_Model):
+class QueueRule(StrictModel):
     """A `queue` of a resource, or a `get_queue` or `put_queue` of a store or container,
     written as a rank: `rank` is an expression read once as each request, get or put
     is made, in the scope of the task that makes it, and the lowest rank is served
@@ -736,7 +644,7 @@ class QueueRule(_Model):
         return value
 
 
-class PreemptRule(_Model):
+class PreemptRule(StrictModel):
     """A `preempt` of a resource written as a rule. `when` is tested when a request
     finds no free unit, and the request takes the unit if it holds. `victim` gives each
     holder a value, and the holder with the highest value is the one `when` is tested
@@ -771,52 +679,10 @@ def _capacity_text(value: Any) -> Any:
         raise ValueError(
             f"a capacity is a whole number of 0 or more, or infinity, got {value!r}"
         )
-    if isinstance(value, str) and _PLAIN_NUMBER.fullmatch(value.strip()):
+    if isinstance(value, str) and PLAIN_NUMBER.fullmatch(value.strip()):
         number = float(value)
         return int(number) if number.is_integer() and "." not in value else number
     return value
-
-
-class Ref(_Model):
-    """A name a task computes, where a task names a resource, a store, a container or a
-    signal: `{of: <family>, key: <expression>}` is the member of a family that `key`
-    gives, made when it is first used, and `{of: <family>, lowest: <expression>}` is
-    the member whose value is the lowest, `lowest` being read once for each member as
-    `member.key`, `member.users`, `member.queue`, `member.level`, `member.count`,
-    `member.putters` and `member.getters`. `of` may be a list of declared names, and
-    `key` then gives one of them. A reference takes `key` or `lowest`, not both.
-    """
-
-    of: Union[str, List[str]]
-    key: Optional[Union[str, int]] = None
-    lowest: Optional[str] = None
-
-    @model_validator(mode="after")
-    def _form(self) -> "Ref":
-        self.name()
-        return self
-
-    def name(self) -> Reference:
-        """The `Reference` the builder and the run take."""
-        return Reference(self.of, self.key, self.lowest)
-
-    def _first(self) -> str:
-        return self.of if isinstance(self.of, str) else self.of[0]
-
-    def __str__(self) -> str:
-        return self._first()
-
-    def __hash__(self) -> int:
-        return hash(self._first())
-
-    def __eq__(self, other: object) -> bool:
-        """A reference equals the name it starts with, so a check that looks a name up
-        in a section finds the declared entry, as it does for a `Reference`."""
-        if isinstance(other, str):
-            return other == self._first()
-        if isinstance(other, Ref):
-            return self.model_dump() == other.model_dump()
-        return NotImplemented
 
 
 def _name(value: Any) -> Any:
@@ -844,7 +710,7 @@ PreemptSetting = Annotated[
 ]
 
 
-class Resource(_Model):
+class Resource(StrictModel):
     """A `resources` entry: its capacity, the order its queue is served in, whether
     a request of a lower priority value preempts a user, how many requests may wait,
     the class it is built from, and how it breaks down.
@@ -987,7 +853,7 @@ def _room(current_cap: Any, max_cap: Any) -> float:
     return min(current_cap, max_cap)
 
 
-class Store(_Model):
+class Store(StrictModel):
     """A `stores` entry: how many items it holds, whether it serves by priority, the
     items it holds when the run starts, and the class it is built from.
 
@@ -1038,14 +904,14 @@ class Store(_Model):
                 f"items"
             )
         if self.priority and not all(
-            (isinstance(item, list) and len(item) == 2) or isinstance(item, _Gen)
+            (isinstance(item, list) and len(item) == 2) or isinstance(item, Gen)
             for item in self.items
         ):
             raise ValueError("a priority store starts with [priority, item] pairs")
         return self
 
 
-class Container(_Model):
+class Container(StrictModel):
     """A `containers` entry: its capacity, the largest level, its starting level and
     the class it is built from.
 
@@ -1096,7 +962,7 @@ def _generator_or_data(value: Any, handler: Any) -> Any:
     return handler(value)
 
 
-class TransferStep(_Model):
+class TransferStep(StrictModel):
     """A task's `get` or `put`: one `container` with an `amount`, or one `store`.
 
     `amount` is a number or an expression such as `payload.quantity`, and 1 when it
@@ -1156,7 +1022,7 @@ class TransferStep(_Model):
         )
 
 
-class Rule(_Model):
+class Rule(StrictModel):
     """A `next.when` entry: a condition and the task it leads to."""
 
     condition: str
@@ -1169,7 +1035,7 @@ class Rule(_Model):
         return value
 
 
-class Next(_Model):
+class Next(StrictModel):
     """A task's `next`: `when` rules with an optional `default`, or `weights`."""
 
     when: List[Rule] = Field(default_factory=list)
@@ -1219,7 +1085,7 @@ def _next_form(value: Any) -> str:
     return "name" if isinstance(value, str) else "rules"
 
 
-class InterruptAction(_Model):
+class InterruptAction(StrictModel):
     """An `interrupt` on a task or a scenario step: interrupt every running instance
     of `task` whose `where` condition holds, with `cause`, a constant or a
     `{gen: ...}` generator evaluated at the moment of the interrupt. A task's own
@@ -1267,7 +1133,7 @@ class InterruptAction(_Model):
         return found
 
 
-class ResumeSpec(_Model):
+class ResumeSpec(StrictModel):
     """A `resume`, a task key and an `on:` entry: wakes the instances of `task` that are
     suspended in a `wait: {suspend: true}`, in the order they suspended, as
     `event.succeed(value)` wakes the process that waits for the event. `where` keeps the
@@ -1307,7 +1173,7 @@ class ResumeSpec(_Model):
         }
 
 
-class BatchSpec(_Model):
+class BatchSpec(StrictModel):
     """A task's `batch`: its members wait together and one run of the task's `resource`
     and service serves them all.
 
@@ -1340,7 +1206,7 @@ class BatchSpec(_Model):
     @classmethod
     def _timeout_duration(cls, value: Any) -> Any:
         _refuse_boolean(value, "batch timeout")
-        return _duration_text(value)
+        return duration_text(value)
 
     @field_validator("name")
     @classmethod
@@ -1372,7 +1238,7 @@ class BatchSpec(_Model):
         return {key: value for key, value in given.items() if value is not None}
 
 
-class SpawnAction(_Model):
+class SpawnAction(StrictModel):
     """A `spawn:` key or an `on:` spawn action: start `task` as a new entity, after
     an optional delay. `count` is how many entities one spawn starts: a whole number,
     an expression or a generator, read once in the parent's step (0 or less starts
@@ -1427,7 +1293,7 @@ def _names(value: Union[str, List[str]]) -> List[str]:
     return [value] if isinstance(value, str) else list(value)
 
 
-class FireAction(_Model):
+class FireAction(StrictModel):
     """An `on:` fire action: fire `signal` with a `value` (a constant, or a
     `{gen: ...}` generator evaluated when the action runs; a mapping with no `gen`
     key is data, and a generator nested in it is stored as written), or with the
@@ -1485,7 +1351,7 @@ class FireAction(_Model):
         return self
 
 
-class OnEntry(_Model):
+class OnEntry(StrictModel):
     """One entry of an `on:` list: exactly one of a fire, spawn, interrupt or resume
     action, or a `path` with a `value` as a scenario step sets a registry value. A `value` is a
     constant or a `{gen: ...}` generator evaluated when the entry runs; a mapping with no
@@ -1578,7 +1444,7 @@ class OnEntry(_Model):
         return {"path": self.path, "value": self.value}
 
 
-class RunningTarget(_Model):
+class RunningTarget(StrictModel):
     """A `running` wait branch target: the task whose running instances to wait for,
     narrowed by an optional `where` condition read in each instance's scope. The
     wait is for the end of the instance's task, or, with `whole_flow: true`, for the
@@ -1599,20 +1465,20 @@ class RunningTarget(_Model):
         return value
 
 
-class RunningWait(_Model):
+class RunningWait(StrictModel):
     """A `wait` branch for the running instances of a task: done when they all end."""
 
     running: RunningTarget
 
 
-class SignalWait(_Model):
+class SignalWait(StrictModel):
     """A `wait` branch for a signal's next firing, or for a member of a family of
     signals, `{signal: {of: <family>, key: <expression>}}`."""
 
     signal: Union[str, Ref]
 
 
-class TaskWait(_Model):
+class TaskWait(StrictModel):
     """A `wait` branch for a child flow: it starts `task` for the same entity. `args`
     are value places read in the parent's scope when the child starts, and the child
     flow reads them as `arg.<name>`; each child has its own, as a SimPy process has its
@@ -1622,7 +1488,7 @@ class TaskWait(_Model):
     args: Optional[Dict[str, Value]] = None
 
 
-class TimeoutAfter(_Model):
+class TimeoutAfter(StrictModel):
     """A `wait` timeout with a value: `{after: 40 s, value: ...}`, as SimPy's
     `env.timeout(delay, value)` carries a value the waiter receives. The value is a
     constant or a `{gen: ...}` generator evaluated when the wait starts, so it may read
@@ -1641,7 +1507,7 @@ def _timeout_kind(value: Any) -> str:
     return _place_kind(value)
 
 
-class TimeoutWait(_Model):
+class TimeoutWait(StrictModel):
     """A `wait` branch of a time place: a number of seconds, a duration such as
     `30 s`, an expression, a `{gen: ...}` generator, or `{after, value}` with a value
     the waiter receives. An expression or a generator is read when the wait starts."""
@@ -1656,32 +1522,32 @@ class TimeoutWait(_Model):
     ]
 
 
-class ConditionWait(_Model):
+class ConditionWait(StrictModel):
     """A `wait` branch for a condition, checked again after each change."""
 
     condition: str
 
 
-class AnyWait(_Model):
+class AnyWait(StrictModel):
     """A `wait` done when the first of its named branches is."""
 
     any: "Dict[str, WaitBranch]"
 
 
-class AllWait(_Model):
+class AllWait(StrictModel):
     """A `wait` done when every one of its named branches is."""
 
     all: "Dict[str, WaitBranch]"
 
 
-class AtLeastWait(_Model):
+class AtLeastWait(StrictModel):
     """A `wait` done when at least `at_least` of its named branches are."""
 
     at_least: int
     of: "Dict[str, WaitBranch]"
 
 
-class WhenWait(_Model):
+class WhenWait(StrictModel):
     """A `wait` done when the expression `when` holds. It is read each time a branch of
     `of` is processed, and once at the start for a branch already processed, as SimPy's
     `Condition(env, evaluate, events)` does. It reads `wait.<branch>.done`, `.ok` and
@@ -1692,7 +1558,7 @@ class WhenWait(_Model):
     of: "Dict[str, WaitBranch]"
 
 
-class RequestSpec(_Model):
+class RequestSpec(StrictModel):
     """A `request` of a `wait` or an `open` with options: the `resource`, a `priority`
     (a number or an expression read as the request is made) and a `preempt` flag (true
     or false, or an expression). With a mapping, the task's `priority` and `preempt` do
@@ -1717,13 +1583,13 @@ class RequestSpec(_Model):
         return self
 
 
-class RequestWait(_Model):
+class RequestWait(StrictModel):
     """A `wait` branch for a resource unit: the task holds it if it wins."""
 
     request: Union[str, Ref, RequestSpec]
 
 
-class HandleWait(_Model):
+class HandleWait(StrictModel):
     """A `wait` branch for an event that `open` made: `handle` is the name it was
     opened under. A handle already processed gives its value at once, and a handle
     waited for through an interrupt under `resume` or `restart` is the same event
@@ -1741,7 +1607,7 @@ class HandleWait(_Model):
         return value
 
 
-class SuspendWait(_Model):
+class SuspendWait(StrictModel):
     """A `wait` branch that suspends the instance until a `resume` of another task
     wakes it (`suspend: true`). The branch's value is the `value` of that `resume`, so
     `wait.suspend.value` reads it. An interrupt that reaches a suspended instance
@@ -1752,19 +1618,19 @@ class SuspendWait(_Model):
     suspend: Literal[True]
 
 
-class GetWait(_Model):
+class GetWait(StrictModel):
     """A `wait` branch for a store or container get."""
 
     get: TransferStep
 
 
-class PutWait(_Model):
+class PutWait(StrictModel):
     """A `wait` branch for a store or container put."""
 
     put: TransferStep
 
 
-class AtLeastGroup(_Model):
+class AtLeastGroup(StrictModel):
     """The `group` of an `each` wait done when at least `at_least` elements are, a
     whole number or an expression read when the wait starts."""
 
@@ -1780,7 +1646,7 @@ class AtLeastGroup(_Model):
         return value
 
 
-class WhenGroup(_Model):
+class WhenGroup(StrictModel):
     """The `group` of an `each` wait done when the expression `when` holds, read as
     for a `when` wait, with `done_count` and `wait.<name>.values` and `.flags`."""
 
@@ -1803,7 +1669,7 @@ EachPlace = Annotated[
 ]
 
 
-class EachWait(_Model):
+class EachWait(StrictModel):
     """A `wait` on a computed number of events: `branch` is made once for each element
     of `each`, in order, when the wait starts. `each` is a whole number, a list, an
     expression or a generator, read once. Inside `branch`, `each.index` is the place
@@ -1936,7 +1802,7 @@ def _with_typed_values(raw: Any, typed: Any) -> Any:
         after = raw["timeout"].get("after")
         typed_after = typed.timeout.after
         out = dict(raw["timeout"])
-        if isinstance(after, Mapping) and isinstance(typed_after, _Gen):
+        if isinstance(after, Mapping) and isinstance(typed_after, Gen):
             out["after"] = typed_after
         if "value" in out:
             out["value"] = typed.timeout.value
@@ -1973,7 +1839,7 @@ def _with_typed_values(raw: Any, typed: Any) -> Any:
 _boolean_words = boolean_word
 
 
-class SeizeSpec(_Model):
+class SeizeSpec(StrictModel):
     """A `seize` with options: the `resource`, a `priority` (a number or an expression
     read as the request is made), a `preempt` flag (true or false, or an expression),
     and a `patience`, which is the task's patience for the time it waits for the unit.
@@ -1993,7 +1859,7 @@ class SeizeSpec(_Model):
     @field_validator("patience", mode="before")
     @classmethod
     def _patience_duration(cls, value: Any) -> Any:
-        return _duration_text(value)
+        return duration_text(value)
 
     @model_validator(mode="after")
     def _expressions_parse(self) -> "SeizeSpec":
@@ -2005,7 +1871,7 @@ class SeizeSpec(_Model):
         return self
 
 
-class ReleaseSpec(_Model):
+class ReleaseSpec(StrictModel):
     """A `release` with options: `{handle: <name>}` frees the unit of that opened
     request, and `{resource, task, where}` frees the units of `resource` that the
     instances of `task` hold, however they asked (`resource`, `seize`, `open` or a
@@ -2040,7 +1906,7 @@ class ReleaseSpec(_Model):
         return found
 
 
-class HandleRef(_Model):
+class HandleRef(StrictModel):
     """The name of an opened event, as `{handle: <name>}`, or one element of an opened
     `each` group, as `{handle: <name>, index: <expression>}`."""
 
@@ -2055,7 +1921,7 @@ class HandleRef(_Model):
         return value
 
 
-class ListenSpec(_Model):
+class ListenSpec(StrictModel):
     """A task's `listen`: callbacks added to an event, as `event.callbacks.append(f)`
     does, when the task starts, after its `open` and before it waits.
 
@@ -2104,7 +1970,7 @@ class ListenSpec(_Model):
 
 def _payload_form(value: Any) -> str:
     """Which payload form a value is: `<python>` for a function, else a value."""
-    if callable(value) and not isinstance(value, (dict, list, _Gen)):
+    if callable(value) and not isinstance(value, (dict, list, Gen)):
         return "<python>"
     return "<value>"
 
@@ -2156,7 +2022,7 @@ ResourcePlace = Annotated[
 ]
 
 
-class Task(_Model):
+class Task(StrictModel):
     """A `tasks` entry, built with `SimulationContext.task`.
 
     Text in a value place stays text. A time place reads a number as seconds, text
@@ -2532,7 +2398,7 @@ class Task(_Model):
         """Reads a duration such as `30 s`; any other text is an expression. A boolean
         is refused for `service_time`; a `patience` of `true` loaded before."""
         _refuse_boolean(value, info.field_name)
-        read = _duration_text(value)
+        read = duration_text(value)
         if isinstance(read, (int, float)):
             _check_time_place(read, info.field_name)
         return read
@@ -2709,7 +2575,7 @@ class Task(_Model):
 
     @model_validator(mode="after")
     def _attributes_need_a_mapping(self) -> "Task":
-        if self.attributes and not isinstance(self.payload, (dict, _Gen)):
+        if self.attributes and not isinstance(self.payload, (dict, Gen)):
             raise ValueError("attributes applies only to a mapping payload")
         return self
 
@@ -2719,14 +2585,14 @@ class Task(_Model):
 
     @model_validator(mode="after")
     def _id_field_needs_a_mapping(self) -> "Task":
-        if self.id_field is not None and not isinstance(self.payload, (dict, _Gen)):
+        if self.id_field is not None and not isinstance(self.payload, (dict, Gen)):
             raise ValueError("id_field applies only to a mapping payload")
-        if self.item_field is not None and not isinstance(self.payload, (dict, _Gen)):
+        if self.item_field is not None and not isinstance(self.payload, (dict, Gen)):
             raise ValueError("item_field applies only to a mapping payload")
         return self
 
 
-class Process(_Model):
+class Process(StrictModel):
     """A `processes` entry: a generator function and extra keyword arguments.
 
     The function is called as `function(context, **kwargs)` when the run starts. The
@@ -2739,7 +2605,7 @@ class Process(_Model):
     _check_function = field_validator("function")(_generator_function)
 
 
-class Connector(_Model):
+class Connector(StrictModel):
     """An `ingress` entry: a connector type and its constructor arguments.
 
     `type` is a short name such as `Kafka`, or a `!python` class for a connector
@@ -2750,7 +2616,7 @@ class Connector(_Model):
     config: Dict[str, Any] = Field(default_factory=dict)
 
 
-class WhenExpr(_Model):
+class WhenExpr(StrictModel):
     """An egress `when` written as an expression: `when: {expr: <expression>}`.
 
     The expression reads the record the sink is offered: `record.stream_type`
@@ -2828,7 +2694,7 @@ class EgressConnector(Connector):
         return value
 
 
-class Batching(_Model):
+class Batching(StrictModel):
     """The `batching` section: the arguments of `with_batching`."""
 
     batch_size: int = Field(gt=0)
@@ -2847,7 +2713,7 @@ class Batching(_Model):
         return None if value is None else checked_interval(value, info.field_name)
 
 
-class Telemetry(_Model):
+class Telemetry(StrictModel):
     """A `telemetry` entry: custom readings published every `interval` seconds.
 
     It takes exactly one of `function` and `readings`. `function` is a `!python`
@@ -2883,7 +2749,7 @@ class Telemetry(_Model):
         return self
 
 
-class Stats(_Model):
+class Stats(StrictModel):
     """The `stats` section: the built-in statistics level and how often to publish.
 
     Written as a level alone (`stats: basic`) or as a mapping
@@ -2930,7 +2796,7 @@ class Stats(_Model):
         return self
 
 
-class ScenarioStep(_Model):
+class ScenarioStep(StrictModel):
     """A `scenario` entry: at simulation time `at`, set `path` to `value`, publish a
     ground-truth record of `record`, or both.
 
@@ -2972,7 +2838,7 @@ class ScenarioStep(_Model):
         return self
 
 
-class Drain(_Model):
+class Drain(StrictModel):
     """A `run.drain` mapping: the longest a drain may run after `until`."""
 
     limit: Optional[float] = Field(default=None, gt=0)
@@ -2987,67 +2853,6 @@ class Drain(_Model):
             if value is None
             else checked_seconds(value, info.field_name, below_zero=True)
         )
-
-
-def _check_stop(value: Any) -> Any:
-    """Checks a `stop` is one signal or one condition, whose text parses."""
-    if value is None:
-        return value
-    if len(value) != 1 or not set(value) <= {"signal", "condition"}:
-        raise ValueError("stop takes {signal: name} or {condition: ...}")
-    if "condition" in value:
-        Expression(value["condition"])
-    if isinstance(value.get("signal"), Mapping):
-        name_of_stop = Ref.model_validate(value["signal"])
-        value = {**value, "signal": name_of_stop.name().mapping()}
-    return value
-
-
-class RunSegment(_Model):
-    """A `run.segments` entry: the run goes on to `until` or to `stop`, then waits for
-    the next entry.
-
-    An entry has at most one of `until` and `stop`; `{}` runs to the end. After the
-    segment stops, `look` names a task whose new entity reads the model before any
-    event at the stop time runs, and `sync` re-anchors the wall clock at the start of
-    the segment. A record at `system.simulation.segment` reports `index`, `now` and
-    `peek` (null when no model event is left) as the segment ends.
-    """
-
-    until: Optional[Union[int, float, str]] = None
-    stop: Optional[Dict[str, Any]] = None
-    look: Optional[str] = None
-    sync: bool = False
-
-    @field_validator("until", mode="before")
-    @classmethod
-    def _parse_until(cls, value: Any, info: Any) -> Any:
-        return None if value is None else checked_seconds(value, "a segment until")
-
-    @field_validator("stop")
-    @classmethod
-    def _one_stop(cls, value: Any) -> Any:
-        return _check_stop(value)
-
-    @model_validator(mode="after")
-    def _one_end(self) -> "RunSegment":
-        if self.until is not None and self.stop is not None:
-            raise ValueError("a segment takes until or stop, not both")
-        return self
-
-
-class SegmentEvery(_Model):
-    """`run.segments: {every: 10 s}`: a segment every `every` seconds up to `run.until`."""
-
-    every: Union[int, float, str]
-
-    @field_validator("every", mode="before")
-    @classmethod
-    def _parse_every(cls, value: Any, info: Any) -> Any:
-        number = checked_seconds(value, "every", ends=True)
-        if number <= 0:
-            raise ValueError("every must be above 0")
-        return number
 
 
 DrainSetting = Annotated[
@@ -3074,7 +2879,7 @@ SegmentsSetting = Annotated[
 ]
 
 
-class Run(_Model):
+class Run(StrictModel):
     """The `run` section.
 
     `before` lists `!python` functions called with no arguments before the run
@@ -3106,7 +2911,7 @@ class Run(_Model):
     @field_validator("stop")
     @classmethod
     def _one_stop(cls, value: Any) -> Any:
-        return _check_stop(value)
+        return check_stop(value)
 
     @model_validator(mode="after")
     def _drain_needs_until(self) -> "Run":
@@ -3131,7 +2936,7 @@ class Run(_Model):
         )
 
 
-class SignalSpec(_Model):
+class SignalSpec(StrictModel):
     """A `signals` entry in the mapping form: `{closing: {once: true, on: [...]}}`.
 
     A signal fires once, as SimPy's `Event` does, unless it says `once: false`, which
@@ -3156,7 +2961,7 @@ class SignalSpec(_Model):
         return self
 
 
-class ExpectedWithin(_Model):
+class ExpectedWithin(StrictModel):
     """An `expect` value with a tolerance: the measured statistic passes when it is
     within `within` of `value`, in absolute terms. Use it for a value whose last
     digits change with the platform's floating point."""
@@ -3165,7 +2970,7 @@ class ExpectedWithin(_Model):
     within: Union[StrictInt, StrictFloat] = Field(ge=0)
 
 
-class BlueprintTest(_Model):
+class BlueprintTest(StrictModel):
     """A `tests` entry: the statistics a model must give at one seed, checked by
     `desflow test`.
 
@@ -3209,7 +3014,7 @@ def _distinct_test_names(tests: List[BlueprintTest]) -> List[BlueprintTest]:
     return tests
 
 
-class TestsFile(_Model):
+class TestsFile(StrictModel):
     """The `tests.yaml` that `desflow test` reads beside a builder file, which has
     no `tests` key of its own: a mapping with the same `tests` list a blueprint
     holds."""
@@ -3224,7 +3029,7 @@ class TestsFile(_Model):
         return _distinct_test_names(value)
 
 
-class Blueprint(_Model):
+class Blueprint(StrictModel):
     """A whole blueprint file.
 
     File order is creation order: the arrivals are made in the order they are

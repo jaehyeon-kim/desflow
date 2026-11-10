@@ -1234,9 +1234,9 @@ def _timeout_delay(delay: Any, written: Any) -> Any:
         ValueError: If the delay is none of these, or is a negative number.
     """
     from desflow.utils import time_to_seconds
-    from desflow.values.models import _Gen
+    from desflow.values.models import Gen
 
-    if isinstance(delay, _Gen):
+    if isinstance(delay, Gen):
         return delay
     if isinstance(delay, str):
         try:
@@ -1371,7 +1371,7 @@ def article(word: str) -> str:
 
 def _each_elements(value: Any) -> Any:
     """The `each` of a wait: a number, a list, an expression text or a generator."""
-    from desflow.values.models import _Gen
+    from desflow.values.models import Gen
 
     if isinstance(value, bool):
         raise ValueError(f"each is a count, a list or an expression, got {value!r}")
@@ -1386,7 +1386,7 @@ def _each_elements(value: Any) -> Any:
         return Expression(value)
     if isinstance(value, (list, tuple)):
         return list(value)
-    if isinstance(value, _Gen) or callable(value):
+    if isinstance(value, Gen) or callable(value):
         return value
     raise ValueError(
         f"each is a count, a list, an expression or a generator, got {value!r}"

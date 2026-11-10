@@ -40,7 +40,7 @@ from desflow.values.models import (
     Upstream,
     Var,
     When,
-    _Gen,
+    Gen,
 )
 
 Problem = Tuple[Tuple[Any, ...], str]
@@ -226,7 +226,7 @@ def check_value(
     """
     found: List[Problem] = []
     names = set(visible) | set(local)
-    if isinstance(node, _Gen):
+    if isinstance(node, Gen):
         if not mapping_field and (
             node.omit_rate is not None or node.omit_when is not None
         ):
@@ -277,7 +277,7 @@ def names_read(place: Any) -> Set[str]:
     if isinstance(place, Expression):
         return set(place.references["name"])
     found: Set[str] = set()
-    if isinstance(place, _Gen):
+    if isinstance(place, Gen):
         own: Set[str] = set()
         texts: List[str] = []
         if place.omit_when is not None:
@@ -347,7 +347,7 @@ def _unknown_name(name: str, known: Collection[str]) -> str:
 
 
 def _kind_problems(
-    node: _Gen,
+    node: Gen,
     path: Tuple[Any, ...],
     names: Collection[str],
     local: Collection[str],

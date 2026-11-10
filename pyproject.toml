@@ -231,50 +231,65 @@ root_package = "desflow"
 # An import that only an annotation needs is not a dependency at run time.
 exclude_type_checking_imports = true
 
+# ARCHITECTURE.md draws the layers of these two contracts and their allowed imports,
+# and tests/docs/test_architecture.py fails when the drawing and a contract differ.
 [[tool.importlinter.contracts]]
-name = "connectors import no other desflow package"
-type = "forbidden"
-source_modules = ["desflow.connectors"]
-forbidden_modules = [
-    "desflow.analysis",
-    "desflow.blueprint",
+name = "packages import only the packages below them"
+type = "layers"
+layers = [
     "desflow.cli",
-    "desflow.config",
-    "desflow.core",
-    "desflow.examples",
-    "desflow.explain",
-    "desflow.internal",
     "desflow.loading",
-    "desflow.models",
-    "desflow.resources",
-    "desflow.utils",
+    "desflow.analysis",
+    "desflow.blueprint | desflow.explain",
+    "desflow.core.arrivals : desflow.core.breakdowns : desflow.core.context : desflow.core.flow : desflow.core.holders : desflow.core.runs : desflow.core.scenario : desflow.core.signals : desflow.core.task : desflow.core.task_checks : desflow.core.tasks",
     "desflow.values",
+    "desflow.core.environment : desflow.core.expressions : desflow.core.families : desflow.core.registry : desflow.core.replay : desflow.core.rules : desflow.core.sampler : desflow.core.sinks : desflow.core.statistics",
+    "desflow.resources",
+    "desflow.models",
+    "desflow.config | desflow.examples | desflow.internal | desflow.utils",
+    "desflow.connectors",
+]
+ignore_imports = [
+    # Convenience method: SimulationContext.from_yaml builds the context from a
+    # blueprint, importing inside the method
+    "desflow.core.context -> desflow.blueprint.build",
+    # Convenience method: SimulationContext.analyze explains the model, importing
+    # inside the method
+    "desflow.core.context -> desflow.explain.analysis",
+    "desflow.core.context -> desflow.explain.graph",
+    "desflow.core.context -> desflow.explain.verify",
+    # Convenience function: `explain --verify` runs the model to check the formulas
+    "desflow.explain.verify -> desflow.analysis.intervals",
+    "desflow.explain.verify -> desflow.analysis.models",
+    "desflow.explain.verify -> desflow.analysis.runner",
+    # Convenience function: check_model, the Agent Skill's entry, checks a file as
+    # `desflow check` does, importing inside the function
+    "desflow.blueprint.model_check -> desflow.cli.check",
+    # Top-package import: analysis.runner imports desflow inside a function for
+    # __version__, and desflow imports loading, which is above analysis
+    "desflow.analysis.runner -> desflow",
+    # Imports from the run layer of core to its model layer, which the split of core
+    # into its two layers removes: families imports arrivals at the top of the
+    # module, and registry imports holders inside a function
+    "desflow.core.families -> desflow.core.arrivals",
+    "desflow.core.registry -> desflow.core.holders",
 ]
 
 [[tool.importlinter.contracts]]
-name = "resources import neither core nor blueprint"
-type = "forbidden"
-source_modules = ["desflow.resources"]
-forbidden_modules = ["desflow.core", "desflow.blueprint"]
-
-[[tool.importlinter.contracts]]
-name = "models import no core"
-type = "forbidden"
-source_modules = ["desflow.models"]
-forbidden_modules = ["desflow.core"]
-
-[[tool.importlinter.contracts]]
-name = "values import no module of core that runs a model"
-type = "forbidden"
-# Only the imports of values itself: core also holds the layer below values
-# (expressions, environment, replay), whose function-level imports reach these.
-allow_indirect_imports = true
-source_modules = ["desflow.values"]
-forbidden_modules = [
-    "desflow.core.context",
-    "desflow.core.task",
-    "desflow.core.flow",
-    "desflow.core.scenario",
+name = "the model layer of core imports the run layer, not the other way"
+type = "layers"
+containers = ["desflow.core"]
+exhaustive = true
+layers = [
+    "arrivals : breakdowns : context : flow : holders : runs : scenario : signals : task : task_checks : tasks",
+    "environment : expressions : families : registry : replay : rules : sampler : sinks : statistics",
+]
+ignore_imports = [
+    # Imports from the run layer of core to its model layer, which the split of core
+    # into its two layers removes: families imports arrivals at the top of the
+    # module, and registry imports holders inside a function
+    "desflow.core.families -> desflow.core.arrivals",
+    "desflow.core.registry -> desflow.core.holders",
 ]
 
 [tool.pytest.ini_options]

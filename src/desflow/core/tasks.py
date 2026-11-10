@@ -30,7 +30,7 @@ from desflow.core.families import Reference
 from desflow.core.scenario import apply_step
 from desflow.core.task import TaskRun, TaskSpec
 from desflow.models.flow import Entity, Upstream
-from desflow.values.models import _Gen, has_generator
+from desflow.values.models import Gen, has_generator
 
 if TYPE_CHECKING:
     from desflow.core.context import SimulationContext
@@ -231,7 +231,7 @@ class Tasks:
             count = count(parent)
         elif isinstance(count, Expression):
             count = count.evaluate(scope)
-        elif isinstance(count, _Gen):
+        elif isinstance(count, Gen):
             count = context.values.evaluate(count, scope)
         if isinstance(count, bool):
             count = int(count)

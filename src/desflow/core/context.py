@@ -112,7 +112,7 @@ from desflow.models.flow import Entity, Upstream
 from desflow.core.replay import read_trace
 from desflow.core.scenario import check_step, run_scenario, walk_steps
 from desflow.values.models import (
-    _Gen,
+    Gen,
     values_adapter,
 )
 from desflow.values.runtime import DEFAULT_HISTORY, RunStopped, ValueRuntime
@@ -1015,7 +1015,7 @@ class SimulationContext:
             )
         if priority and not all(
             (isinstance(item, (tuple, list)) and len(item) == 2)
-            or isinstance(item, _Gen)
+            or isinstance(item, Gen)
             for item in start
         ):
             raise ValueError(
@@ -4134,7 +4134,7 @@ class SimulationContext:
             for key, _where, _after, place in task_value_places(
                 lambda key: builder_value(spec, key)
             ):
-                for _where, generator in generators_in(place, (_Gen,)):
+                for _where, generator in generators_in(place, (Gen,)):
                     for text in generator_expressions(generator):
                         try:
                             read = Expression(text, names=ANY_NAME)
@@ -4764,10 +4764,10 @@ def _family_fields(
     if members is not None:
         if not family:
             raise ValueError(f"{where}.members needs family: true")
-        from desflow.values.models import _Gen
+        from desflow.values.models import Gen
 
         if isinstance(members, bool) or not (
-            isinstance(members, (numbers.Integral, str, _Gen)) or callable(members)
+            isinstance(members, (numbers.Integral, str, Gen)) or callable(members)
         ):
             raise ValueError(
                 f"{where}.members is a whole number, an expression or a generator, "
@@ -4812,7 +4812,7 @@ def _segments_arg(segments: Any) -> Any:
         ValueError: If it is not a list of segment mappings or an `every` mapping, or
             an entry takes a key a segment does not.
     """
-    from desflow.blueprint.models import RunSegment, SegmentEvery
+    from desflow.core.rules import RunSegment, SegmentEvery
 
     if isinstance(segments, Mapping):
         try:
@@ -5219,7 +5219,7 @@ def _task_fields(
     if isinstance(service_time, numbers.Real):
         service_time = checked_seconds(service_time, f"task '{name}' service_time")
     if service_time is not None and not (
-        isinstance(service_time, (str, _Gen))
+        isinstance(service_time, (str, Gen))
         or callable(service_time)
         or (
             isinstance(service_time, numbers.Real)
@@ -5425,7 +5425,7 @@ def _parse_spawn(spec: Mapping[str, Any]) -> Dict[str, Any]:
     count = spec.get("count", 1)
     if isinstance(count, str):
         count = Expression(count)
-    elif not callable(count) and not isinstance(count, _Gen):
+    elif not callable(count) and not isinstance(count, Gen):
         if isinstance(count, bool) or not isinstance(count, int):
             raise ValueError(
                 f"a spawn count is a whole number, an expression, a generator or a "
@@ -5651,7 +5651,7 @@ def _parse_resume(spec: Mapping[str, Any]) -> Dict[str, Any]:
     if isinstance(limit, str):
         limit = Expression(limit)
     elif isinstance(limit, bool) or not (
-        limit is None or isinstance(limit, (numbers.Integral, _Gen, Expression))
+        limit is None or isinstance(limit, (numbers.Integral, Gen, Expression))
     ):
         raise ValueError(
             f"a resume limit is a whole number, an expression or a generator, "

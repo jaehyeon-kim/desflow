@@ -2,7 +2,8 @@
 
 The schema describes a blueprint file in the form it is written in YAML, so an editor
 can complete and check keys as you type. It is made from the Pydantic `Blueprint` model
-in `src/desflow/blueprint/models.py` and committed as
+in `src/desflow/blueprint/models.py`, with the models it shares with the builder from
+`src/desflow/core/rules.py`, and committed as
 `src/desflow/blueprint/blueprint.schema.json`. The package only reads that file; it
 never calls `model_json_schema`, so it does not depend on the Pydantic version that
 wrote it.
@@ -41,7 +42,8 @@ from pydantic import BaseModel
 from pydantic.json_schema import GenerateJsonSchema
 
 from desflow.blueprint.build import EGRESS_TYPES, INGRESS_TYPES
-from desflow.blueprint.models import Blueprint, _Model
+from desflow.blueprint.models import Blueprint
+from desflow.core import rules
 from desflow.config import INTERRUPT_POLICIES, STATS_LEVELS
 from desflow.explain.models import Explanation
 from desflow.utils import MULTIPLIERS
@@ -209,13 +211,17 @@ class _Schema(GenerateJsonSchema):
 
 
 def model_classes() -> Dict[str, Type[BaseModel]]:
-    """Every blueprint model, by class name: the subclasses of `_Model` and `_Model`'s
-    own subclasses in turn, with `Blueprint`."""
+    """Every blueprint model, by class name: the subclasses of `StrictModel` and `StrictModel`'s
+    own subclasses in turn, with `Blueprint`, from `blueprint.models` and from
+    `core.rules`, which holds the models the builder shares."""
     found: Dict[str, Type[BaseModel]] = {}
-    pending: List[Type[BaseModel]] = [_Model]
+    pending: List[Type[BaseModel]] = [rules.StrictModel]
     while pending:
         for sub in pending.pop().__subclasses__():
-            if sub.__module__ == Blueprint.__module__ and sub.__name__ not in found:
+            if (
+                sub.__module__ in (Blueprint.__module__, rules.__name__)
+                and sub.__name__ not in found
+            ):
                 found[sub.__name__] = sub
                 pending.append(sub)
     return found

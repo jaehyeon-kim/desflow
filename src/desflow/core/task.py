@@ -56,7 +56,7 @@ from desflow.utils import checked_seconds, suggestion
 from desflow.values.check import names_read
 from desflow.core.arrivals import whole
 from desflow.core.families import Reference, name_of, references
-from desflow.values.models import _Gen, has_generator
+from desflow.values.models import Gen, has_generator
 from desflow.values.runtime import RunStopped, stream_of
 from desflow.values.template import BoundPayload, Template
 
@@ -300,7 +300,7 @@ class Batch:
             ValueError: If a value is not of the kind the key takes.
         """
         if isinstance(size, bool) or not (
-            isinstance(size, (numbers.Real, str, _Gen)) or callable(size)
+            isinstance(size, (numbers.Real, str, Gen)) or callable(size)
         ):
             raise ValueError(f"batch size is a number or an expression, got {size!r}")
         if isinstance(timeout, bool):
@@ -1948,7 +1948,7 @@ class TaskRun:
         value: Any = batch.size
         if batch.size_of is not None:
             value = batch.size_of.evaluate(self.scope())
-        elif isinstance(value, _Gen):
+        elif isinstance(value, Gen):
             value = self.context.values.evaluate(value, self.scope())
         elif callable(value):
             value = value(self.entity)
@@ -2154,7 +2154,7 @@ class TaskRun:
         if has_generator(value):
             value = self.context.values.evaluate(value, scope)
         limit = spec.get("limit")
-        if isinstance(limit, _Gen):
+        if isinstance(limit, Gen):
             limit = self.context.values.evaluate(limit, scope)
         self.parts.run.resume(spec["task"], spec.get("where"), value, limit, scope)
 
@@ -2632,7 +2632,7 @@ class TaskRun:
         place = node.each
         if isinstance(place, Expression):
             place = place.evaluate(scope)
-        elif isinstance(place, _Gen) or callable(place):
+        elif isinstance(place, Gen) or callable(place):
             self._ensure_once()
             place = self._generated(place)
         if isinstance(place, (list, tuple, range)):
@@ -3136,7 +3136,7 @@ class TaskRun:
         """
         if isinstance(value, Expression):
             value = value.evaluate(self.scope())
-        elif isinstance(value, _Gen):
+        elif isinstance(value, Gen):
             value = self.context.values.evaluate(value, self.scope())
         elif callable(value):
             value = value(self.entity)
@@ -3149,7 +3149,7 @@ class TaskRun:
 
     def _patience(self) -> Union[int, float]:
         spec = self.spec
-        if isinstance(spec.patience, _Gen):
+        if isinstance(spec.patience, Gen):
             return self._place(spec.patience, "patience")
         if spec.patience_of is not None:
             given = as_given(spec.patience_of.evaluate(self.scope()))

@@ -97,7 +97,7 @@ from desflow.values.models import (
     Row,
     Upstream,
     When,
-    _Gen,
+    Gen,
     has_generator,
 )
 from desflow.values.template import BoundPayload, Template, bind as bind_values
@@ -1290,7 +1290,7 @@ def _file_generator_reads(
         for key, where, _after, value in task_value_places(
             lambda key: _task_value(task, key)
         ):
-            for _where, generator in generators_in(value, (_Gen,)):
+            for _where, generator in generators_in(value, (Gen,)):
                 for text in generator_expressions(generator):
                     try:
                         read = Expression(text, names=ANY_NAME)
@@ -1656,7 +1656,7 @@ def _generator_texts(
 ) -> Iterator[Tuple[str, Tuple[Any, ...]]]:
     """The `expr` and `when` texts of every generator in a value, and their
     `omit_when`, with where each is written."""
-    if isinstance(value, _Gen):
+    if isinstance(value, Gen):
         if value.omit_when is not None:
             yield value.omit_when, path + ("omit_when",)
         if isinstance(value, Expr):
@@ -2743,7 +2743,7 @@ def _task_sites(blueprint: Blueprint) -> Iterator[Tuple[Tuple[Any, ...], Any, st
         ):
             if value is None:
                 continue
-            if not callable(value) or isinstance(value, (_Gen, dict, list)):
+            if not callable(value) or isinstance(value, (Gen, dict, list)):
                 yield ("tasks", name) + where, value, name
 
 
@@ -2941,10 +2941,10 @@ def _timeout_values(
     if not isinstance(wait, Mapping):
         return
     timeout = wait.get("timeout")
-    if isinstance(timeout, _Gen):
+    if isinstance(timeout, Gen):
         yield path + ("timeout",), timeout
     elif isinstance(timeout, Mapping):
-        if isinstance(timeout.get("after"), _Gen):
+        if isinstance(timeout.get("after"), Gen):
             yield path + ("timeout", "after"), timeout["after"]
         if "value" in timeout:
             yield path + ("timeout", "value"), timeout["value"]
