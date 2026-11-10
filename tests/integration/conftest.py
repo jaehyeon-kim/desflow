@@ -125,7 +125,7 @@ def _run_container(image: str, port: int, *arguments: str):
 def profile_running():
     """Returns a function that stops a test when a profile is not ready.
 
-    The `service-examples` job starts the odctl profile itself, so its tests start
+    The `services` jobs start the odctl profiles themselves, so their tests start
     nothing. Locally the test is skipped when the profile is down, and in CI it fails.
     odctl waits for the health checks of postgres and valkey, but catalog and the
     Kafka brokers have none, so `odctl up` returns before their servers answer. For

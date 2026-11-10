@@ -1,9 +1,10 @@
 name: Manual tests
 
 # The long tests, which pipeline.yml does not run: every test, with the tests marked
-# every_model and the known cases, on Python 3.12 on Ubuntu, Windows and macOS; the
-# paced cases; the lowest Pydantic and the newest SimPy; the core install on Windows;
-# and the integration and service example jobs. Every day at 17:00 UTC (03:00 or 04:00
+# every_model and the known cases, on Python 3.12 on Ubuntu and Windows; the paced
+# cases; the conformance tests at the lowest and newest SimPy; the lowest Pydantic;
+# the core install on Windows; and the integration and service example jobs. macOS
+# is not run: development is on a Mac, whose local pipeline runs the tests. Every day at 17:00 UTC (03:00 or 04:00
 # in Melbourne), and by hand before a release: gh workflow run manual.yaml --ref
 # <branch>. GitHub starts a workflow by hand only when its file is on the default
 # branch, so a pull request starts it from its own branch with the label
@@ -88,7 +89,6 @@ jobs:
         include:
           - { os: ubuntu-latest, python: "3.12" }
           - { os: windows-latest, python: "3.13" }
-          - { os: macos-latest, python: "3.12" }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
@@ -105,9 +105,11 @@ jobs:
       - name: Run the paced known cases
         run: uv run --python ${{ matrix.python }} --all-extras pytest tests/known_cases -m paced -q --tb=short
 
-  # The conformance tests at the newest SimPy release, which may be newer than uv.lock
-  # until Dependabot updates it. pipeline.yml runs them at the floor. Only SimPy
-  # moves; every other package stays at its locked version.
+  # The conformance tests, with those marked every_model, at both ends of the `simpy`
+  # requirement: the floor in pyproject.toml, and the newest release, which may be
+  # newer than uv.lock until Dependabot updates it. pipeline.yml runs them at the floor
+  # without the tests marked every_model. Only SimPy moves; every other package stays
+  # at its locked version.
   simpy-range:
     name: Conformance at the ${{ matrix.bound }} SimPy
     if: github.event_name != 'pull_request' || github.event.label.name == 'manual tests'
@@ -116,7 +118,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        bound: [newest]
+        bound: [lowest, newest]
     steps:
       - uses: actions/checkout@v7
 
@@ -198,23 +200,40 @@ jobs:
       - name: Resolve a time zone
         run: uv run --no-project --python core-venv python -c "from desflow.core.environment import resolve_zone; print(resolve_zone('Australia/Sydney'))"
 
-  # One job per test group, named by its pytest mark: services (the odctl
-  # kafka-lite, postgres and valkey profiles), storage (the odctl storage and
-  # catalog profiles, and the SQL catalog test on the PostgreSQL that the catalog
-  # profile starts), floci (the Floci AWS emulator), azure (Azurite) and gcp
-  # (fake-gcs-server). The odctl tests are split in two so that neither job holds
-  # up the stage. The emulators are containers that the tests start with
-  # `docker run`.
-  # pipeline.yml runs them only when a change touches what they cover.
-  integration-test:
-    name: Integration tests, ${{ matrix.group }}
+  # The integration tests and the service examples, in four jobs grouped by the
+  # services they start. The integration tests are chosen by their pytest marks:
+  # services (the odctl kafka-lite, postgres and valkey profiles), storage (the odctl
+  # storage and catalog profiles, and the SQL catalog test on the PostgreSQL that the
+  # catalog profile starts), and floci, azure and gcp (emulators that the tests start
+  # with `docker run`). The integration conftest starts and stops the odctl profiles
+  # it needs. The examples (`EXAMPLES` in src/desflow/examples.py) run their three
+  # versions against their profiles, which the job reads from EXAMPLES and starts;
+  # tests/unit/test_service_examples_matrix.py fails when the examples listed here
+  # differ from those with a profile. The Parquet example has no profile, because it
+  # needs a service only with its S3 variables, so its group starts the storage
+  # profile for its S3 read-back command. CI is set, so a test whose infrastructure is
+  # missing fails, and pytest exits with code 5 when a selection finds no test, so a
+  # job cannot pass by testing nothing.
+  services:
+    name: ${{ matrix.name }}
+    needs: plan
     if: github.event_name != 'pull_request' || github.event.label.name == 'manual tests'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        group: [services, storage, floci, azure, gcp]
+        include:
+          - name: Integration tests, services and emulators
+            marks: services or floci or azure or gcp
+          - name: Service examples, Kafka
+            examples: [kafka, backfill-live]
+          - name: Service examples, PostgreSQL and Redis
+            examples: [postgres, related-records, redis]
+          - name: Integration tests and service examples, storage and catalog
+            marks: storage
+            examples: [iceberg]
+            parquet: true
     steps:
       - uses: actions/checkout@v7
 
@@ -227,95 +246,51 @@ jobs:
       - name: Fetch Python 3.11
         run: uv python install 3.11
 
-      # Example and test infrastructure comes from odctl, which the conftest
-      # drives with `odctl up` and `odctl down`. odctl is in the dev dependency
-      # group, so `uv run` installs it into .venv and puts it on PATH. Without
-      # it on PATH the odctl tests fail, so fail here with a clearer message.
-      - name: Verify odctl is on PATH
-        if: matrix.group == 'services' || matrix.group == 'storage'
-        run: |
-          uv run --python 3.11 --all-extras python -c "import shutil, sys; path = shutil.which('odctl'); print(path or 'odctl not found on PATH'); sys.exit(0 if path else 1)"
-
-      - name: Run the ${{ matrix.group }} integration tests
-        # Run the group on a single baseline version. A test whose infrastructure is
-        # missing fails when CI is set, and pytest exits with code 5 when the mark
-        # selects no test, so a job cannot pass by testing nothing. -ra lists every
-        # skipped test.
-        run: uv run --python 3.11 --all-extras pytest tests/integration/ -m ${{ matrix.group }} -ra
-
-  # One job per example with an odctl profile (`EXAMPLES` in src/desflow/examples.py;
-  # tests/unit/test_service_examples_matrix.py fails when this list, or the one in
-  # pipeline.yml, differs from it).
-  # Each job starts the example's profile, runs the example's three versions against
-  # it for a set simulation time, and reads their records back from the service.
-  service-examples:
-    name: Service example, ${{ matrix.example }}
-    if: github.event_name != 'pull_request' || github.event.label.name == 'manual tests'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        example: [kafka, iceberg, postgres, redis, backfill-live, related-records]
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-
-      - name: Fetch Python 3.11
-        run: uv python install 3.11
-
-      # odctl is in the dev dependency group, so `uv run` puts it on PATH.
+      # odctl is in the dev dependency group, so `uv run` installs it into .venv and
+      # puts it on PATH. Without it the tests fail, so fail here with a clearer message.
       - name: Verify odctl is on PATH
         run: |
           uv run --python 3.11 --all-extras python -c "import shutil, sys; path = shutil.which('odctl'); print(path or 'odctl not found on PATH'); sys.exit(0 if path else 1)"
 
-      # The profile is read from EXAMPLES, so it is written down once.
-      - name: Find the profile of the ${{ matrix.example }} example
-        id: profile
+      - name: Run the integration tests
+        if: matrix.marks
+        run: uv run --python 3.11 --all-extras pytest tests/integration/ -m "${{ matrix.marks }}" -ra
+
+      # The profiles come from EXAMPLES, so each is written down once
+      - name: Find the profiles and tests of the examples
+        if: matrix.examples || matrix.parquet
+        id: examples
+        env:
+          NAMES: ${{ toJSON(matrix.examples) }}
+          PARQUET: ${{ matrix.parquet }}
         run: |
-          profile=$(uv run --python 3.11 --all-extras python -c "from desflow.examples import EXAMPLES; print(EXAMPLES['${{ matrix.example }}'].profile)")
-          echo "profile=$profile" >> "$GITHUB_OUTPUT"
+          uv run --python 3.11 --all-extras python - >> "$GITHUB_OUTPUT" <<'PY'
+          import json, os
+          from desflow.examples import EXAMPLES
+          names = json.loads(os.environ["NAMES"]) or []
+          profiles = list(dict.fromkeys(EXAMPLES[name].profile for name in names))
+          keys = list(names)
+          if os.environ["PARQUET"] == "true":
+              profiles.append("storage")
+              keys.append("parquet_page_s3")
+          print("profiles=" + " ".join(dict.fromkeys(profiles)))
+          print("keys=" + " or ".join(keys))
+          PY
 
-      - name: Start the ${{ steps.profile.outputs.profile }} profile
-        run: uv run --python 3.11 --all-extras odctl up ${{ steps.profile.outputs.profile }}
+      - name: Start the profiles
+        if: steps.examples.outputs.profiles
+        run: |
+          for profile in ${{ steps.examples.outputs.profiles }}; do
+            uv run --python 3.11 --all-extras odctl up "$profile"
+          done
 
-      # CI is set, so a profile that is not listening fails the test. pytest exits
-      # with code 5 when -k selects no test, so a job cannot pass by testing nothing.
-      - name: Run the ${{ matrix.example }} example
-        run: uv run --python 3.11 --all-extras pytest tests/integration/test_service_examples.py -m examples -k ${{ matrix.example }} -ra
+      - name: Run the examples
+        if: steps.examples.outputs.keys
+        run: uv run --python 3.11 --all-extras pytest tests/integration/test_service_examples.py -m examples -k "${{ steps.examples.outputs.keys }}" -ra
 
-      - name: Stop the profile
-        if: always()
-        run: uv run --python 3.11 --all-extras odctl down ${{ steps.profile.outputs.profile }} --volumes
-
-  # The Parquet example has no profile, because it needs a service only with its S3
-  # variables, so service-examples does not cover its S3 read-back command.
-  parquet-s3-example:
-    name: Run the Parquet example against the storage profile
-    if: github.event_name != 'pull_request' || github.event.label.name == 'manual tests'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-
-      - name: Fetch Python 3.11
-        run: uv python install 3.11
-
-      - name: Start the storage profile
-        run: uv run --python 3.11 --all-extras odctl up storage
-
-      - name: Run the Parquet example and its read-back command
-        run: uv run --python 3.11 --all-extras pytest tests/integration/test_service_examples.py -m examples -k parquet_page_s3
-
-      - name: Stop the profile
-        if: always()
-        run: uv run --python 3.11 --all-extras odctl down storage --volumes
+      - name: Stop the profiles
+        if: always() && steps.examples.outputs.profiles
+        run: |
+          for profile in ${{ steps.examples.outputs.profiles }}; do
+            uv run --python 3.11 --all-extras odctl down "$profile" --volumes
+          done

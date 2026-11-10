@@ -1,9 +1,9 @@
-"""The `service-examples` jobs run every example that has an odctl profile.
+"""The `services` jobs run every example that has an odctl profile, each once.
 
-The job's matrix in `pipeline.yml` and in `manual.yaml` is written by hand, and
-`EXAMPLES` is the list of examples. An example registered with a profile and left out
-of a matrix would never run in that workflow, and a name left in a matrix after its
-example goes would select no test.
+The job's matrix in `pipeline.yml` and in `manual.yaml` lists the examples of each
+group by hand, and `EXAMPLES` is the list of examples. An example registered with a
+profile and left out of a matrix would never run in that workflow, and a name left in
+a matrix after its example goes would select no test.
 """
 
 from pathlib import Path
@@ -19,12 +19,16 @@ WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 @pytest.mark.parametrize("workflow", ["pipeline.yml", "manual.yaml"])
 def test_matrix_lists_the_examples_with_a_profile(workflow):
     job = yaml.safe_load((WORKFLOWS / workflow).read_text(encoding="utf-8"))["jobs"][
-        "service-examples"
+        "services"
     ]
-    listed = job["strategy"]["matrix"]["example"]
+    listed = [
+        name
+        for group in job["strategy"]["matrix"]["include"]
+        for name in group.get("examples", [])
+    ]
     registered = sorted(name for name, e in EXAMPLES.items() if e.profile)
     assert sorted(listed) == registered, (
-        f"The service-examples matrix in {workflow} and the examples with a profile "
+        f"The services matrix in {workflow} and the examples with a profile "
         f"in EXAMPLES differ: matrix {sorted(listed)}, EXAMPLES {registered}."
     )
 

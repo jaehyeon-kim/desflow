@@ -3,14 +3,15 @@
 There are three sets (issue #90):
 
 - `pr`, a pull request: the unit and conformance tests on Python 3.11 and 3.15.
-- `main`, a push to `main`: the same on every Python from 3.11 to 3.15.
+- `main`, a push to `main`: the same on every Python from 3.11 to 3.15, with no docs
+  tests and no service jobs, which the pull request ran on the same change.
 - `manual`, a run of `manual.yaml` (the daily schedule, by hand, or the label
   `manual tests` on a pull request): every test, with the tests marked `every_model`
-  and the known cases, on Python 3.12 on Ubuntu, Windows and macOS. `manual.yaml`
-  holds its other long jobs itself.
+  and the known cases, on Python 3.12 on Ubuntu and Windows. `manual.yaml` holds its
+  other long jobs itself.
 
-In `pr` and `main`, the docs tests run only when the files they read change, and the
-service jobs only when the connectors, the examples or the dependencies change.
+In `pr`, the docs tests run only when the files they read change, and the service
+jobs only when the connectors, the examples or the dependencies change.
 
     python scripts/ci_plan.py manual < /dev/null
     git diff --name-only <base>...HEAD | python scripts/ci_plan.py pull_request
@@ -21,7 +22,8 @@ The parts of a test job are dealt by the times in `tests/durations.json`, measur
 the runners: the unit, conformance and benchtop tests without those marked
 `every_model` take about 41 minutes of test time for one Python version, and about
 21 minutes of test time run in about 11 minutes on a runner. So each version runs in
-4 parts of about 6 minutes. With the tests marked `every_model` and the known cases, a
+3 parts of about 8 minutes, which keeps a push to `main` (5 versions) within the 20
+jobs a run may have at once. With the tests marked `every_model` and the known cases, a
 version takes about 145 minutes of test time, which `manual` runs in 7 parts.
 """
 
@@ -33,7 +35,7 @@ from typing import Dict, List
 ALL = "tests/unit tests/conformance tests/benchtop tests/known_cases"
 UNIT = "tests/unit tests/conformance tests/benchtop"
 VERSIONS = ["3.11", "3.12", "3.13", "3.14", "3.15"]
-UNIT_PARTS = 4
+UNIT_PARTS = 3
 ALL_PARTS = 7
 
 # Files whose change alone runs only the docs jobs
@@ -69,7 +71,6 @@ SERVICES = [
 SYSTEMS = {
     "ubuntu-latest": "Ubuntu",
     "windows-latest": "Windows",
-    "macos-latest": "macOS",
 }
 
 
@@ -114,9 +115,10 @@ def plan(event: str, changed: List[str]) -> Dict[str, str]:
     tier = {"pull_request": "pr", "push": "main"}.get(event, "manual")
     full = tier == "manual"
     known = bool(changed)
+    pr = tier == "pr"
     code = full or not known or not all(_matches(p, DOCS_ONLY) for p in changed)
-    docs = full or not known or any(_matches(p, DOCS) for p in changed)
-    services = full or not known or any(_matches(p, SERVICES) for p in changed)
+    docs = pr and (not known or any(_matches(p, DOCS) for p in changed))
+    services = pr and (not known or any(_matches(p, SERVICES) for p in changed))
     return {
         "code": json.dumps(code),
         "docs": json.dumps(docs),
