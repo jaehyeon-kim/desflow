@@ -169,8 +169,8 @@ jobs:
           name: junit-${{ runner.os }}-${{ matrix.python }}-${{ strategy.job-index }}
           path: junit.xml
 
-  # The integration tests and the service examples, in two jobs of about the length of
-  # a part of the unit tests. The integration tests are chosen by their pytest marks:
+  # The integration tests and the service examples, in three jobs of about the length
+  # of a part of the unit tests. The integration tests are chosen by their pytest marks:
   # services (the odctl kafka-lite, postgres and valkey profiles), storage (the odctl
   # storage and catalog profiles, and the SQL catalog test on the PostgreSQL that the
   # catalog profile starts), and floci, azure and gcp (emulators that the tests start
@@ -193,13 +193,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Integration tests, and the PostgreSQL and Redis examples
+          - name: Integration tests, services and emulators
             marks: services or floci or azure or gcp
-            examples: [postgres, related-records, redis]
-          - name: Integration tests on storage, and the Kafka, Iceberg and Parquet examples
+          - name: Integration tests on storage, and the Iceberg and Parquet examples
             marks: storage
-            examples: [kafka, backfill-live, iceberg]
+            examples: [iceberg]
             parquet: true
+          - name: Service examples, Kafka, PostgreSQL and Redis
+            examples: [kafka, backfill-live, postgres, related-records, redis]
     steps:
       - uses: actions/checkout@v7
 

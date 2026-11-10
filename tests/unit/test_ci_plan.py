@@ -92,9 +92,9 @@ def test_unknown_changes_run_every_job_of_the_set():
 
 def test_a_run_has_at_most_20_jobs_at_once():
     """The plan's limit. A pull request runs Lint, the install checks, its unit parts,
-    3 regression parts, 2 service jobs and 5 docs parts together; a push to main its
+    3 regression parts, 3 service jobs and 5 docs parts together; a push to main its
     unit parts and the strict docs build."""
-    assert 1 + 1 + len(_plan("pull_request", SRC)["unit"]["include"]) + 3 + 2 + 5 <= 20
+    assert 1 + 1 + len(_plan("pull_request", SRC)["unit"]["include"]) + 3 + 3 + 5 <= 20
     assert len(_plan("push", SRC)["unit"]["include"]) + 1 <= 20
 
 
