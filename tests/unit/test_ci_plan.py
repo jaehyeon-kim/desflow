@@ -1,7 +1,7 @@
-"""scripts/ci_plan.py picks the test jobs of pipeline.yml and manual.yaml.
+"""scripts/ci_plan.py picks the test jobs of the workflows.
 
-A pull request tests Python 3.11 and 3.15, a push to main every Python from 3.11 to
-3.15, and manual.yaml every test on Python 3.12 on Ubuntu and Windows. A pull request
+A pull request tests Python 3.11, a push to main Python 3.12 to 3.15, and manual.yml
+every test on Python 3.12 on Ubuntu and Windows. A pull request
 or a push skips the code jobs when it changes only docs. A pull request runs the docs
 and service jobs only when it changes what they cover, and a push to main runs
 neither. Each job's parts cover every part number once, so no test is left out.
@@ -29,18 +29,18 @@ def _versions(plan, os="ubuntu-latest"):
     return {leg["python"] for leg in plan["unit"]["include"] if leg["os"] == os}
 
 
-def test_a_pull_request_tests_the_lowest_and_highest_python():
+def test_a_pull_request_tests_the_lowest_python():
     plan = _plan("pull_request", SRC)
     assert plan["code"] and not plan["services"]
     assert {leg["os"] for leg in plan["unit"]["include"]} == {"ubuntu-latest"}
-    assert _versions(plan) == {"3.11", "3.15"}
+    assert _versions(plan) == {"3.11"}
 
 
-def test_a_push_to_main_tests_every_python_on_ubuntu():
+def test_a_push_to_main_tests_the_versions_the_pull_request_did_not():
     plan = _plan("push", SRC)
     assert plan["code"] and not plan["docs"] and not plan["services"]
     assert {leg["os"] for leg in plan["unit"]["include"]} == {"ubuntu-latest"}
-    assert _versions(plan) == {"3.11", "3.12", "3.13", "3.14", "3.15"}
+    assert _versions(plan) == {"3.12", "3.13", "3.14", "3.15"}
 
 
 def test_the_short_sets_leave_out_the_every_model_tests_and_known_cases():
@@ -90,10 +90,12 @@ def test_unknown_changes_run_every_job_of_the_set():
     assert plan["code"] and not plan["docs"] and not plan["services"]
 
 
-def test_a_push_to_main_has_at_most_20_jobs_at_once():
-    """The plan's limit: lint, the install checks, the unit parts and the 3 regression
-    parts run together."""
-    assert 1 + 1 + len(_plan("push", SRC)["unit"]["include"]) + 3 <= 20
+def test_a_run_has_at_most_20_jobs_at_once():
+    """The plan's limit. A pull request runs Lint, the install checks, its unit parts,
+    3 regression parts, 2 service jobs and 5 docs parts together; a push to main its
+    unit parts and the strict docs build."""
+    assert 1 + 1 + len(_plan("pull_request", SRC)["unit"]["include"]) + 3 + 2 + 5 <= 20
+    assert len(_plan("push", SRC)["unit"]["include"]) + 1 <= 20
 
 
 def test_every_job_runs_each_of_its_parts_once():

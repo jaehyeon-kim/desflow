@@ -1,14 +1,13 @@
 """The `services` jobs run every example that has an odctl profile, each once.
 
-The job's matrix in `pipeline.yml` and in `manual.yaml` lists the examples of each
-group by hand, and `EXAMPLES` is the list of examples. An example registered with a
-profile and left out of a matrix would never run in that workflow, and a name left in
-a matrix after its example goes would select no test.
+The job's matrix in `pull-request.yml` lists the examples of each group by hand, and
+`EXAMPLES` is the list of examples. An example registered with a profile and left out
+of the matrix would never run in CI, and a name left in the matrix after its example
+goes would select no test.
 """
 
 from pathlib import Path
 
-import pytest
 import yaml
 
 from desflow.examples import EXAMPLES
@@ -16,11 +15,10 @@ from desflow.examples import EXAMPLES
 WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 
 
-@pytest.mark.parametrize("workflow", ["pipeline.yml", "manual.yaml"])
-def test_matrix_lists_the_examples_with_a_profile(workflow):
-    job = yaml.safe_load((WORKFLOWS / workflow).read_text(encoding="utf-8"))["jobs"][
-        "services"
-    ]
+def test_matrix_lists_the_examples_with_a_profile():
+    job = yaml.safe_load((WORKFLOWS / "pull-request.yml").read_text(encoding="utf-8"))[
+        "jobs"
+    ]["services"]
     listed = [
         name
         for group in job["strategy"]["matrix"]["include"]
@@ -28,7 +26,7 @@ def test_matrix_lists_the_examples_with_a_profile(workflow):
     ]
     registered = sorted(name for name, e in EXAMPLES.items() if e.profile)
     assert sorted(listed) == registered, (
-        f"The services matrix in {workflow} and the examples with a profile "
+        "The services matrix in pull-request.yml and the examples with a profile "
         f"in EXAMPLES differ: matrix {sorted(listed)}, EXAMPLES {registered}."
     )
 

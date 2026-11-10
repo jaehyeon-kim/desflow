@@ -1,13 +1,15 @@
-"""Decides the test jobs of `pipeline.yml` and `manual.yaml`, for their `plan` jobs.
+"""Decides the test jobs of the workflows, for their `plan` jobs.
 
 There are three sets (issue #90):
 
-- `pr`, a pull request: the unit and conformance tests on Python 3.11 and 3.15.
-- `main`, a push to `main`: the same on every Python from 3.11 to 3.15, with no docs
-  tests and no service jobs, which the pull request ran on the same change.
-- `manual`, a run of `manual.yaml` (the daily schedule, by hand, or the label
+- `pr`, a pull request (`pull-request.yml`): the unit and conformance tests on Python
+  3.11, the lowest version desflow supports.
+- `main`, a push to `main` (`pipeline.yml`): the same on Python 3.12 to 3.15, which the
+  pull request did not run. A pull request is up to date with `main` when it merges, so
+  `main` holds the code it tested.
+- `manual`, a run of `manual.yml` (the daily schedule, by hand, or the label
   `manual tests` on a pull request): every test, with the tests marked `every_model`
-  and the known cases, on Python 3.12 on Ubuntu and Windows. `manual.yaml` holds its
+  and the known cases, on Python 3.12 on Ubuntu and Windows. `manual.yml` holds its
   other long jobs itself.
 
 In `pr`, the docs tests run only when the files they read change, and the service
@@ -22,8 +24,8 @@ The parts of a test job are dealt by the times in `tests/durations.json`, measur
 the runners: the unit, conformance and benchtop tests without those marked
 `every_model` take about 41 minutes of test time for one Python version, and about
 21 minutes of test time run in about 11 minutes on a runner. So each version runs in
-3 parts of about 8 minutes, which keeps a push to `main` (5 versions) within the 20
-jobs a run may have at once. With the tests marked `every_model` and the known cases, a
+3 parts of about 8 minutes, so a push to `main` (4 versions) has 12 test jobs, within
+the 20 jobs a run may have at once. With the tests marked `every_model` and the known cases, a
 version takes about 145 minutes of test time, which `manual` runs in 7 parts.
 """
 
@@ -34,7 +36,9 @@ from typing import Dict, List
 
 ALL = "tests/unit tests/conformance tests/benchtop tests/known_cases"
 UNIT = "tests/unit tests/conformance tests/benchtop"
-VERSIONS = ["3.11", "3.12", "3.13", "3.14", "3.15"]
+# The pull request tests the lowest version, and a push to main the others
+PR_VERSION = "3.11"
+MAIN_VERSIONS = ["3.12", "3.13", "3.14", "3.15"]
 UNIT_PARTS = 3
 ALL_PARTS = 7
 
@@ -52,7 +56,7 @@ DOCS = DOCS_ONLY + [
     "tests/docs/*",
     "pyproject.toml",
     "uv.lock",
-    ".github/workflows/pipeline.yml",
+    ".github/workflows/pull-request.yml",
 ]
 
 # Files the integration and service example jobs cover
@@ -64,7 +68,7 @@ SERVICES = [
     "tests/integration/*",
     "pyproject.toml",
     "uv.lock",
-    ".github/workflows/pipeline.yml",
+    ".github/workflows/pull-request.yml",
     "scripts/ci_plan.py",
 ]
 
@@ -96,13 +100,13 @@ def _leg(os: str, python: str, everything: bool) -> List[Dict]:
 
 def unit_legs(tier: str) -> List[Dict]:
     if tier == "pr":
-        return _leg("ubuntu-latest", "3.11", False) + _leg(
-            "ubuntu-latest", "3.15", False
-        )
+        return _leg("ubuntu-latest", PR_VERSION, False)
     if tier == "manual":
         # Python 3.12, the version in .python-version, with every test
         return [leg for os in SYSTEMS for leg in _leg(os, "3.12", True)]
-    return [leg for python in VERSIONS for leg in _leg("ubuntu-latest", python, False)]
+    return [
+        leg for python in MAIN_VERSIONS for leg in _leg("ubuntu-latest", python, False)
+    ]
 
 
 def _matches(path: str, patterns: List[str]) -> bool:
