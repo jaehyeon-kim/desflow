@@ -11,6 +11,7 @@ tests/known_cases/index.yaml: "a list of data, not a blueprint (it has no `simul
 tests/regression/expected.yaml: "a list of data, not a blueprint (it has no `simulation` section)"
 tests/regression/left_out.yaml: "a list of data, not a blueprint (it has no `simulation` section)"
 
+docs/snippets/ai/drafted_shop_experiment.yaml: "an experiment file of `desflow experiment`, which names a blueprint, not a blueprint"
 docs/snippets/yaml/checking_a_model_experiment.yaml: "an experiment file of `desflow experiment`, which names a blueprint, not a blueprint"
 docs/snippets/yaml/comparing_designs_experiment.yaml: "an experiment file of `desflow experiment`, which names a blueprint, not a blueprint"
 docs/snippets/yaml/complete_model_experiment.yaml: "an experiment file of `desflow experiment`, which names a blueprint, not a blueprint"

@@ -23,8 +23,6 @@ _spec.loader.exec_module(gen_pages)
 
 # gen_pages puts scripts/ on the path, where the page modules are
 from reference_pages import generators  # noqa: E402
-from reference_pages import known_cases as catalogue  # noqa: E402
-from tests.known_cases import harness  # noqa: E402
 
 
 def test_every_family_has_an_example_and_a_section():
@@ -216,18 +214,24 @@ AREAS = [
 ]
 
 
-def test_the_page_has_one_section_for_each_area_and_one_row_for_each_feature():
-    """One table for each SimPy area, in SimPy's order, with a row for each of the
-    98 features and the columns SimPy, YAML, Builder, Low-level and Status."""
+def test_the_page_has_one_section_for_each_area_and_one_entry_for_each_feature():
+    """One section for each SimPy area, in SimPy's order, then a section for the
+    features that are not native. Each of the 98 features has a sentence in bold saying
+    what it does in SimPy, then its SimPy, YAML, Builder and Low-level forms as a list."""
     page = gen_pages.compatibility_page()
     data = gen_pages.constructs()
-    assert [line[3:] for line in page.splitlines() if line.startswith("## ")] == AREAS
+    headings = [line[3:] for line in page.splitlines() if line.startswith("## ")]
+    assert headings == [*AREAS, "Where desflow Differs"]
     assert sorted(c["id"] for c in data["constructs"]) == sorted(INVENTORY)
-    assert page.count("| SimPy | YAML | Builder | Low-level | Status |") == len(AREAS)
-    rows = [line for line in page.splitlines() if line.startswith("| ")]
-    assert len(rows) == len(INVENTORY) + len(AREAS) * 1  # a row each, and a header
-    for row in rows:
-        assert row.count(" | ") == 4 or "\\|" in row, row
+    for construct in data["constructs"]:
+        assert construct["description"].endswith("."), construct["id"]
+        lead = f"\n**{construct['description']}**"
+        form = f"\n\n- SimPy: {construct['simpy']}\n- YAML: "
+        assert lead in page and form in page, construct["id"]
+        assert page.index(form, page.index(lead)) > page.index(lead), construct["id"]
+    areas = page[: page.index("\n## Where desflow Differs\n")]
+    for label in ("SimPy", "YAML", "Builder", "Low-level"):
+        assert areas.count(f"\n- {label}: ") == len(INVENTORY), label
 
 
 def test_every_gap_is_used_defined_and_linked_to_a_form():
@@ -327,89 +331,3 @@ def test_a_row_shown_native_has_no_gap_that_says_otherwise():
     ):
         assert rows[construct] == [], construct
     assert rows["SP-B2"] == []
-
-
-def _known_case_rows():
-    import yaml
-
-    folder = Path(__file__).resolve().parents[1] / "known_cases"
-    return yaml.safe_load((folder / "index.yaml").read_text(encoding="utf-8"))
-
-
-def test_known_cases_has_every_row_under_its_topic_in_the_order_of_the_index():
-    assert catalogue.TOPICS == harness.TOPICS
-    pages = gen_pages.known_cases_files()
-    assert set(pages) == {
-        "reference/known-cases/index.md",
-        *(
-            f"reference/known-cases/{catalogue.topic_slug(t)}.md"
-            for t in harness.TOPICS
-        ),
-    }
-    rows = _known_case_rows()
-    for topic in harness.TOPICS:
-        page = pages[f"reference/known-cases/{catalogue.topic_slug(topic)}.md"]
-        headings = re.findall(r"^### (\S+): .* \{#(\S+)\}$", page, re.M)
-        expected = [r["id"] for r in rows if r["topic"] == topic]
-        assert [h[0] for h in headings] == expected
-        assert [h[1] for h in headings] == [i.lower() for i in expected]
-    index = pages["reference/known-cases/index.md"]
-    assert f"The list holds {len(rows)} cases." in index
-
-
-def test_known_cases_shows_the_three_forms_of_a_case_as_the_files_hold_them():
-    own = [r for r in _known_case_rows() if "runs_in" not in r and "reason" not in r]
-    pages = gen_pages.known_cases_files()
-    root = Path(__file__).resolve().parents[2]
-    for row in own:
-        case = catalogue.Case(**row)
-        files = catalogue.form_files(case)
-        # the same files as the known-case test runs, including a registered or gallery example
-        assert files == {
-            "YAML": harness.form_paths(row["id"])["model.yaml"],
-            "Builder": harness.form_paths(row["id"])["builder.py"],
-            "Low-level": harness.form_paths(row["id"])["low_level.py"],
-        }, row["id"]
-        page = pages[f"reference/known-cases/{catalogue.topic_slug(case.topic)}.md"]
-        entry = page.split(f"{{#{case.anchor}}}\n", 1)[1].split("\n### ", 1)[0]
-        tabs = re.findall(r'^=== "([^"]+)"$', entry, re.M)
-        assert tabs == ["YAML", "Builder", "Low-level"], row["id"]
-        for tab, path in files.items():
-            relative = path.relative_to(root).as_posix()
-            body = path.read_text(encoding="utf-8").rstrip("\n")
-            indented = "\n".join(f"    {x}" if x else "" for x in body.split("\n"))
-            assert f'title="{relative}"\n{indented}\n    ```' in entry, (row["id"], tab)
-
-
-def test_known_cases_shows_a_shared_row_with_its_case_and_a_left_out_row_with_its_reason():
-    pages = gen_pages.known_cases_files()
-    rows = _known_case_rows()
-    by_id = {r["id"]: r for r in rows}
-    shared = [r for r in rows if "runs_in" in r]
-    left_out = [r for r in rows if "reason" in r]
-    assert shared and left_out
-    for row in shared + left_out:
-        page = pages[f"reference/known-cases/{catalogue.topic_slug(row['topic'])}.md"]
-        entry = page.split(f"{{#{row['id'].lower()}}}\n", 1)[1].split("\n### ", 1)[0]
-        assert "=== " not in entry
-        if "runs_in" in row:
-            target = by_id[row["runs_in"]]
-            same = target["topic"] == row["topic"]
-            slug = catalogue.topic_slug(target["topic"])
-            link = (
-                f"#{target['id'].lower()}"
-                if same
-                else f"{slug}.md#{target['id'].lower()}"
-            )
-            assert f"[{target['id']}: {target['title']}]({link})" in entry
-        else:
-            assert f"Left out of the tests: {row['reason']}." in entry
-
-
-def test_known_cases_pages_are_in_the_sidebar(mkdocs_nav):
-    reference = next(i["Reference"] for i in mkdocs_nav if "Reference" in i)
-    section = next(i["Known Cases"] for i in reference if "Known Cases" in i)
-    pages = [
-        item if isinstance(item, str) else next(iter(item.values())) for item in section
-    ]
-    assert pages == list(gen_pages.known_cases_files())

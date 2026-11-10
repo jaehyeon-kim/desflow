@@ -6,7 +6,7 @@ Each release, newest first: what changed, then under Upgrading what to change in
 
 desflow 1.0 is the first stable release. From 1.0, the YAML blueprint format, the `desflow` command, the public Python API and the record format stay compatible across 1.x, as the [Compatibility Policy](compatibility.md) sets out. 1.0 also follows SimPy's rules for time, ties and failures, so results and some YAML forms change from 0.28.0, and [Upgrading to 1.0](upgrading-to-1.0.md) lists each change.
 
-- A blueprint needs no Python for any case of the [Known Cases](../reference/known-cases/index.md) catalogue, which shows each in YAML, the Builder API and the low-level API, and SimPy's seven examples are written in desflow in [SimPy Examples](../simpy/examples/index.md). [SimPy Compatibility](../simpy/compatibility.md) shows each SimPy construct in the three forms, with its status.
+- A blueprint needs no Python for any of the known cases that the tests run in YAML, the Builder API and the low-level API, and SimPy's seven examples are written in desflow in [SimPy Examples](../simpy/examples/index.md). [SimPy Compatibility](../simpy/compatibility.md) shows each SimPy construct in the three forms, with its status.
 - `run.segments`, `run.steps` and `run.sync` stop a run at several points, publish a reading after each model event and re-anchor the wall clock, as stepping a SimPy environment does. See [Run in Segments](../user-guide/time-and-pacing/run-length.md#run-in-segments).
 - Generators, a mapping with a `gen` key, make each value of a record: random numbers, choices, Faker text, identifiers, times, sums, conditions and the model's state, and a task draws named values with `vars`, `vars_once`, `on_start` and `finish_vars`. See [Generators](../generators/index.md) and [Generated Values](../user-guide/writing-a-model/blueprints.md#generated-values).
 - `lookup`, `previous`, `upstream` and `aggregate` read the records that tasks published earlier, with `history` setting how many a task keeps. See [Read Earlier Records](../user-guide/model-parts/task-flow.md#read-earlier-records) and [Look Up Other Records](../how-to/generate-data/look-up-other-records.md).
@@ -42,7 +42,7 @@ desflow 1.0 is the first stable release. From 1.0, the YAML blueprint format, th
 - `update`, `set_exactly` and `start()` take `source`, `actor` and `reason`, which each `ParamChange` carries.
 - `SimulationContext.registry_paths()` returns the paths and starting values of a run without running it. See [Find the Path](../user-guide/live-runs-and-connectors/live-parameters.md#find-the-path).
 - `FileIngress`, `type: File` in YAML, changes parameters during a run when you edit a local YAML file, with no service. See [File](../user-guide/live-runs-and-connectors/ingress.md#file) and the [File Steering example](../user-guide/live-runs-and-connectors/ingress.md#example-file-steering).
-- The AI skill and [Use an AI Assistant](../ai/build-a-model.md#draft-from-a-description) teach how to draft a model from a description of a process.
+- The AI skill and [Draft a Model](../ai/draft-a-model.md) teach how to draft a model from a description of a process.
 
 ### Upgrading
 

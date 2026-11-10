@@ -478,8 +478,8 @@ def generator_page(kind: str) -> str:
                 nested_lines += [paragraph, ""]
             nested_lines += _keys_table(nested, defs, ()) + [""]
     accepts = (
-        "Every kind also accepts the four keys that "
-        "[Generators](../index.md#keys-every-kind-accepts) lists."
+        "Every kind also accepts `null_rate`, `unique`, `omit_rate` and `omit_when`, "
+        "which [Generators](../index.md#keys-every-kind-accepts) describes."
     )
     # A page explains `Value` only when one of its tables uses the word
     if any(re.search(r"\bValue\b", row) for row in table + nested_lines):

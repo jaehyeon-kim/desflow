@@ -20,13 +20,13 @@ Use `!python` for one of these two things:
 Everything else is a key. Look there first:
 
 - Field values with logic, such as random or weighted choices, fields that depend on other fields and values that change from one event to the next, are the [generators](../../generators/index.md) and the expressions of [Task Flow](../../user-guide/model-parts/task-flow.md).
-- **Keys of a task** that SimPy programs wrote as functions and processes. Each is shown by a case of a Known Cases page, and [YAML Keys](../../reference/yaml-keys.md) lists them all:
-    - `service_time`, a time computed for each entity, such as `"attr.litres / 2"`, and `next: {weights: {fast: "attr.w", slow: "1 - attr.w"}}`, routing weights from an expression: [Generated Values](../../reference/known-cases/generated-values.md).
-    - `seize` and `release`, a unit held across several steps: [Resources](../../reference/known-cases/resources.md).
-    - `wait: {task: child, args: {...}}` and `set_args`, a sub-process with arguments: [Processes and Tasks](../../reference/known-cases/processes-and-tasks.md).
-    - `wait: {timeout: "attr.limit"}`, a timeout computed for each entity, `wait: {when: ..., of: {...}}`, a wait with its own rule, and `running: {task, whole_flow: true}`, a wait for a whole flow: [Conditions and Waits](../../reference/known-cases/conditions-and-waits.md).
-    - `open` with `{handle}`, a wait that goes on after an interrupt: [Interrupts and Failures](../../reference/known-cases/interrupts-and-failures.md).
-- **Keys of an arrival**, shown on [Arrivals and Sources](../../reference/known-cases/arrivals-and-sources.md): `max_events`, a fixed number of arrivals, `gap: "1 + t / 4"`, a gap that depends on the time, `group`, `active`, `activate` and `off_mode`, `count` and `copy_attributes` of a spawn, and `initial`.
+- **Keys of a task** that SimPy programs wrote as functions and processes, which [YAML Keys](../../reference/yaml-keys.md) lists:
+    - `service_time`, a time computed for each entity, such as `"attr.litres / 2"`, and `next: {weights: {fast: "attr.w", slow: "1 - attr.w"}}`, routing weights from an expression.
+    - `seize` and `release`, a unit held across several steps.
+    - `wait: {task: child, args: {...}}` and `set_args`, a sub-process with arguments.
+    - `wait: {timeout: "attr.limit"}`, a timeout computed for each entity, `wait: {when: ..., of: {...}}`, a wait with its own rule, and `running: {task, whole_flow: true}`, a wait for a whole flow.
+    - `open` with `{handle}`, a wait that goes on after an interrupt.
+- **Keys of an arrival**: `max_events`, a fixed number of arrivals, `gap: "1 + t / 4"`, a gap that depends on the time, `group`, `active`, `activate` and `off_mode`, `count` and `copy_attributes` of a spawn, and `initial`.
 - [Processes](../../user-guide/tasks-and-processes/processes.md) and [Signals and Waiting](../../user-guide/tasks-and-processes/signals-and-waiting.md) explain the flow these keys sit in.
 - Routing, priorities, preemption, breakdowns, several resources, stores and containers are keys too, as [Resources](../../user-guide/resources/index.md) and [Stores and Containers](../../user-guide/model-parts/stores-and-containers.md) show.
 - Readings other than the built-in statistics are described in [Built-in Statistics](../../user-guide/results/statistics.md).

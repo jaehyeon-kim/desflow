@@ -975,7 +975,9 @@ A value place takes a constant or a generator: a mapping with a `gen` key that n
 
 ### Fake
 
-`fake`: `getattr(faker, method)(*args, **kwargs)` for a Faker of `locale` (`en_US` by default). It needs the `fake` extra. Each `fake` generator has a Faker of its own, seeded from the run's seed, so adding one changes no other. A date, a time or a decimal result is written as text or a float.
+`fake`: a value from the Faker library. `method` names any method of Faker's providers, such as `name`, `email`, `isbn13` or `credit_card_number`, and `args` and `kwargs` are passed to it. `locale` picks the language and country, `en_US` by default. It needs the `fake` extra.
+
+Each `fake` generator has a Faker of its own, seeded from the run's seed and its place in the file, so the same seed gives the same values and adding a field changes no other. With no seed, the values change on every run. A date, a time or a decimal result is written as text or a float.
 
 | Key | Type | Default |
 |---|---|---|

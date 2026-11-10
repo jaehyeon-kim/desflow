@@ -832,35 +832,6 @@ def test_performance_tuning_commands_print_the_page_count(tmp_path):
         assert ran.stdout.startswith("{'records': 108688, 'per_second': "), ran.stdout
 
 
-def test_repair_desk_runs_and_explain_names_no_bottleneck(tmp_path):
-    """The Use an AI Assistant check: `desflow run repair_desk.yaml` ends without an
-    error and logs the lines the page shows, and `desflow explain` names no
-    bottleneck."""
-    blueprint = ROOT / "docs" / "snippets" / "yaml" / "repair_desk.yaml"
-    page = (ROOT / "docs/ai/build-a-model.md").read_text("utf-8")
-
-    def desflow(*args):
-        ran = subprocess.run(
-            [str(Path(sys.executable).parent / "desflow"), *args],
-            cwd=tmp_path,
-            capture_output=True,
-            text=True,
-        )
-        assert ran.returncode == 0, ran.stderr
-        return ran.stdout + ran.stderr
-
-    logged = desflow("run", str(blueprint))
-    shown = re.findall(r"^\[INFO\] (desflow\.[^\n]*)$", page, re.M)
-    assert len(shown) == 6
-    assert all(line in logged for line in shown)
-    bottleneck = next(
-        line
-        for line in desflow("explain", str(blueprint)).splitlines()
-        if line.startswith("Bottleneck")
-    )
-    assert f"```text\n{bottleneck}\n```" in page
-
-
 def test_fit_a_distribution_gaps(tmp_path, capsys):
     """The exponential fits the 299 gaps best, at 0.364 a second; 5 zero gaps skip
     gamma, weibull and lognormal; the file it writes is the one the blueprint

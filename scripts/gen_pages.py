@@ -18,8 +18,6 @@ pages:
   tests, its page and its gaps.
 - Generators: an overview page and one page for each `gen` kind of the JSON Schema,
   with its keys, its example in YAML, Builder and Low-level, and its JSON Schema.
-- Known Cases: every known case of `tests/known_cases/index.yaml` in the 14 topics, each
-  with its YAML, Builder and Low-level form, from the case folders.
 - CLI: one page per command and sub-command of `desflow`, each its help as Click
   prints it, and an index page for `desflow` itself.
 """
@@ -30,6 +28,11 @@ from pathlib import Path
 # The page modules are a package beside this file; mkdocs-gen-files and the tests run
 # this file by its path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+# `mkdocs serve` runs this file again in the same process on each rebuild, and Python
+# keeps a module it has imported, so the page modules are dropped first: an edited
+# module is then read again and the page shows the edit
+for _name in [m for m in sys.modules if m.split(".")[0] == "reference_pages"]:
+    del sys.modules[_name]
 
 from reference_pages.cli import cli_overview, cli_pages, commands  # noqa: E402
 from reference_pages.compatibility import (  # noqa: E402
@@ -49,7 +52,6 @@ from reference_pages.generators import (  # noqa: E402
     generator_pages,
     record_outputs,
 )
-from reference_pages.known_cases import known_cases_files  # noqa: E402
 from reference_pages.statistics import statistic_names, statistics_page  # noqa: E402
 from reference_pages.yaml_keys import (  # noqa: E402
     paragraphs,
@@ -70,7 +72,6 @@ __all__ = [
     "distribution_sections",
     "distributions_page",
     "generator_pages",
-    "known_cases_files",
     "paragraphs",
     "register",
     "simpy_version",
@@ -95,7 +96,6 @@ def write() -> None:
         ("simpy/compatibility.md", compatibility_page()),
         *cli_pages().items(),
         *generator_pages().items(),
-        *known_cases_files().items(),
     ):
         with mkdocs_gen_files.open(path, "w") as file:
             file.write(page)

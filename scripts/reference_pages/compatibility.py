@@ -2,6 +2,7 @@
 `tests/conformance/simpy_constructs.yaml`."""
 
 import tomllib
+from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -12,6 +13,8 @@ CONSTRUCTS = ROOT / "tests" / "conformance" / "simpy_constructs.yaml"
 LOCK = ROOT / "uv.lock"
 SOURCE_URL = "https://github.com/jaehyeon-kim/desflow/blob/main/"
 ISSUE_URL = "https://github.com/jaehyeon-kim/desflow/issues/105"
+# The section that explains each feature that is not native
+EXCEPTIONS = "Where desflow Differs"
 # The forms on Call Python from YAML, by the `form` of a gap
 PYTHON_PAGE = "../how-to/tools/yaml-advanced.md"
 PYTHON_FORMS: Dict[str, str] = {
@@ -49,14 +52,20 @@ def _anchor(area: str) -> str:
     return "-".join(area.lower().split())
 
 
-def _cell(text: str) -> str:
-    """Text for a table cell: a bar in it would start a new cell."""
-    return text.replace("|", "\\|")
-
-
-def _check_link(check: str) -> str:
-    path, name = check.split("::")
-    return f"[`{name}`]({SOURCE_URL}{path})"
+def _checks(checks: List[str]) -> str:
+    """The checks of a construct: how many tests, and a link to each file that holds
+    them, in the order the register first names each file."""
+    files = Counter(check.split("::")[0] for check in checks)
+    # The file's name without `test_` and `.py`, so the cell does not break inside it
+    links = [
+        f"[`{Path(path).stem.removeprefix('test_')}`]({SOURCE_URL}{path})"
+        + (f" ({count})" if len(files) > 1 else "")
+        for path, count in files.items()
+    ]
+    tests = "1 test" if len(checks) == 1 else f"{len(checks)} tests"
+    if len(links) > 1:
+        links = [", ".join(links[:-1]) + " and " + links[-1]]
+    return f"Checked by {tests} in {links[0]}."
 
 
 def simpy_version() -> str:
@@ -95,23 +104,32 @@ def status(
     return "difference" if entry.get("status") == "difference" else "native"
 
 
-def _status_cell(
+def _item(
     construct: Dict[str, Any], entry: Dict[str, Any], gaps: Dict[str, Any]
-) -> str:
+) -> List[str]:
+    """The entry for a SimPy feature: what it does in bold, with the page that explains
+    it, then its form in SimPy and in each API as a list, then its checks."""
     kind = status(construct, entry, gaps)
-    parts: List[str] = []
-    if kind == "gap":
-        parts += _gap_lines(construct["gaps"], gaps)
-    elif kind == "difference":
-        parts.append(f"**Difference kept by design:** {entry['differences']}")
-    else:
-        parts.append("**Native**")
-    if entry.get("checks"):
-        checks = ", ".join(_check_link(check) for check in entry["checks"])
-        parts.append(f"Checks: {checks}.")
+    lead = f"**{construct['description']}**"
     if entry.get("page"):
-        parts.append(f"Taught on [{entry['operation']}](../{entry['page']}).")
-    return _cell("<br>".join(parts))
+        lead += f" Explained in [{entry['operation']}](../{entry['page']})."
+    see = f"see [{EXCEPTIONS}](#{_anchor(EXCEPTIONS)})"
+    if kind == "gap":
+        lead += f" Gap {', '.join(construct['gaps'])}: {see}."
+    elif kind == "difference":
+        lead += f" Difference kept by design: {see}."
+    lines = ["", lead, "", f"- SimPy: {construct['simpy']}"]
+    lines += [
+        f"- {label}: {entry[key]}"
+        for label, key in (
+            ("YAML", "yaml"),
+            ("Builder", "builder"),
+            ("Low-level", "low_level"),
+        )
+    ]
+    if entry.get("checks"):
+        lines += ["", _checks(entry["checks"])]
+    return lines
 
 
 def compatibility_page() -> str:
@@ -122,68 +140,54 @@ def compatibility_page() -> str:
     rows = data["constructs"]
     kinds = [status(c, by_id[c["id"]], gaps) for c in rows]
     version = simpy_version()
+    native, gap, difference = (
+        kinds.count("native"),
+        kinds.count("gap"),
+        kinds.count("difference"),
+    )
     lines: List[str] = [
         "# SimPy Compatibility",
         "",
-        f"Every modelling feature of SimPy {version}, {len(rows)} in all, grouped by "
-        "the part of SimPy it belongs to, with its form in YAML, the builder and the "
-        "low-level API, and its status. The page is generated from "
-        f"[`tests/conformance/register.yaml`]({SOURCE_URL}tests/conformance/register.yaml) "
-        "and "
-        f"[`tests/conformance/simpy_constructs.yaml`]({SOURCE_URL}tests/conformance/simpy_constructs.yaml), "
-        "so a feature is native here only with its checks.",
+        f"This page lists every modelling feature of SimPy {version}, {len(rows)} in "
+        "all, and how to write each one in desflow. The features are grouped by the "
+        "part of SimPy they belong to.",
         "",
-        f"**{kinds.count('native')}** features are native. Each is checked by "
-        f"conformance tests that run a plain SimPy {version} model and the same model "
-        "in YAML, the builder or the low-level API, and compare "
-        "event times, outcomes and balances.",
+        "Each feature starts with what it does in SimPy, in bold, and a link to the "
+        "page that explains it. Below that are its form in SimPy, in YAML, in the "
+        "Builder API and in the low-level API, and the tests that check it.",
         "",
-        f"**{kinds.count('gap')}** features have a gap: a key, a default or the "
-        "engine gives other times, order or values than SimPy, or there is no key "
-        "for the feature. Each gap has an id and is tracked in "
-        f"[issue #105]({ISSUE_URL}). Where a SimPy process written under "
-        "`processes:` gives SimPy's behaviour, the gap links its form on "
-        "[Call Python from YAML](../how-to/tools/yaml-advanced.md). Where a setting "
-        "gives it, the gap names the setting. Where a release is planned to remove the "
-        "whole gap, it names the release.",
+        f"- **Native: {native}.** A conformance test runs a plain SimPy {version} model "
+        "and the same model in desflow, and compares the event times, outcomes and "
+        "balances.",
+        f"- **{'Gap' if gap == 1 else 'Gaps'}: {gap}.** desflow gives other times, order "
+        "or values than SimPy, or has no key for the feature. Each gap has an id, is "
+        f"tracked in [issue #105]({ISSUE_URL}), and says how to get SimPy's behaviour.",
+        f"- **{'Difference' if difference == 1 else 'Differences'} kept by design: "
+        f"{difference}.** desflow behaves differently on purpose, for the reason given.",
         "",
-        f"**{kinds.count('difference')}** "
-        + (
-            "feature is a difference kept by design, with its reason."
-            if kinds.count("difference") == 1
-            else "features are differences kept by design, each with its reason."
-        ),
-        "",
-        "The low-level API is SimPy with a few classes added, so most SimPy features "
-        "work in it; "
-        "[SimPy and desflow](index.md) explains how the two fit together. "
-        "The register also holds checks of desflow's own features and of variants of "
-        "a SimPy feature, such as breakdowns, schedules, replay and cancelling a put; "
-        "this page lists only SimPy's features.",
+        f"[{EXCEPTIONS}](#{_anchor(EXCEPTIONS)}), at the end of the page, explains each "
+        "gap and difference.",
     ]
     for area in areas():
+        lines += ["", f"## {area}"]
+        for construct in rows:
+            if construct["area"] == area:
+                lines += _item(construct, by_id[construct["id"]], gaps)
+    lines += ["", f"## {EXCEPTIONS}"]
+    for construct in rows:
+        entry = by_id[construct["id"]]
+        kind = status(construct, entry, gaps)
+        if kind == "native":
+            continue
+        area = construct["area"]
         lines += [
             "",
-            f"## {area}",
+            f"**{construct['description']}** In [{area}](#{_anchor(area)}).",
             "",
-            "| SimPy | YAML | Builder | Low-level | Status |",
-            "|---|---|---|---|---|",
+            f"- SimPy: {construct['simpy']}",
         ]
-        for construct in rows:
-            if construct["area"] != area:
-                continue
-            entry = by_id[construct["id"]]
-            lines.append(
-                "| "
-                + " | ".join(
-                    [
-                        _cell(construct["simpy"]),
-                        _cell(entry["yaml"]),
-                        _cell(entry["builder"]),
-                        _cell(entry["low_level"]),
-                        _status_cell(construct, entry, gaps),
-                    ]
-                )
-                + " |"
-            )
+        if kind == "gap":
+            lines += [f"- {line}" for line in _gap_lines(construct["gaps"], gaps)]
+        else:
+            lines.append(f"- **Difference kept by design:** {entry['differences']}")
     return "\n".join(lines) + "\n"

@@ -1,0 +1,52 @@
+# Drafted from a description of the packing shop. Each value says where it came from:
+# "said" means the description gives it, and "assumed" means the user has not confirmed
+# it.
+# Run it with: desflow run drafted_shop.yaml
+# --8<-- [start:draft]
+simulation:
+  sim_id: Shop
+  factor: 0  # no pacing: the run ends as soon as it is done
+  random_seed: 42
+  # a fixed date, so two runs give the same records
+  logical_start_time: '2026-01-05T09:00:00Z'
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}  # said: one packer
+
+services:
+  # said: 1.5 seconds; assumed: every order takes the same time
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  # said: an order every 2 seconds on average; assumed: orders arrive at random
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+# --8<-- [end:draft]
+
+egress:
+  - {type: Console}
+
+run: {until: 1 hour}  # assumed: one hour answers the question
+
+# --8<-- [start:tests]
+tests:
+  # From the request: an order every 2 seconds is 18,000 orders in 10 hours. The
+  # count varies by about 134 between seeds (the square root of 18,000), so 540 is
+  # four standard deviations, and an arrival rate 10% higher, 19,800, fails
+  - name: orders_packed_in_10_hours
+    until: 10 hours  # long enough that a 10% change is more than the spread
+    expect:
+      tasks.pack_order.finished: {value: 18000, within: 540}
+  # From the request: 1.5 seconds of packing for every 2 seconds is 75% of the
+  # packer's time. Over 10 hours it varies by about 0.5 between seeds, so 2 is four
+  # standard deviations, and the same 10% higher rate, 82.5%, fails
+  - name: packer_busy_three_quarters
+    until: 10 hours
+    expect:
+      resources.packers.utilization_avg: {value: 75, within: 2}
+# --8<-- [end:tests]

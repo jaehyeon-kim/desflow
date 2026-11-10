@@ -16,6 +16,8 @@ test that runs its files:
   compares what it prints with its `.out` file.
 - `docs/snippets/generate-data/`: test_generate_data_snippets.py runs the three forms of
   each snippet and asserts what its page shows.
+- `docs/snippets/ai/`: test_docs_ai.py runs the three forms of the drafted shop with
+  the skill's check, and its tests and experiment, and asserts what the pages show.
 - `docs/snippets/yaml/` and `yaml_build/`: test_docs_snippets.py runs or builds each
   blueprint that test_docs_tutorials.py and test_docs_guides.py do not run.
 """
@@ -75,6 +77,7 @@ def test_snippet_folders_are_all_run():
         "editor",
         "simpy",
         "generate-data",
+        "ai",
     }
     folders = {
         p.name for p in SNIPPETS.iterdir() if p.is_dir() and p.name != "__pycache__"

@@ -45,7 +45,7 @@ plugins:
   - search
   - mike:
       canonical_version: latest
-  # Distributions, Statistic Names, SimPy Compatibility, Generators, Known Cases and CLI
+  # Distributions, Statistic Names, SimPy Compatibility, Generators and CLI
   # reference pages, generated from the code by scripts/gen_pages.py during the build.
   # Listed before redirects, which must see a generated page that a redirect points to.
   - gen-files:
@@ -196,7 +196,7 @@ plugins:
         guides/animate-a-run.md: how-to/analysis/animate-a-run.md
         guides/yaml-advanced.md: how-to/tools/yaml-advanced.md
         guides/set-up-your-editor.md: how-to/tools/set-up-your-editor.md
-        guides/use-an-ai-assistant.md: ai/build-a-model.md
+        guides/use-an-ai-assistant.md: ai/index.md
         guides/performance-tuning.md: how-to/tools/performance-tuning.md
         reference/cli/run.md: cli/run.md
         reference/cli/explain.md: cli/explain.md
@@ -227,7 +227,7 @@ plugins:
         how-to/examples/backfill-live.md: gallery/simulation-models/backfill-live.md
         how-to/examples/advanced-postgres-orders.md: gallery/simulation-models/advanced-postgres-orders.md
         how-to/projects.md: gallery/projects.md
-        how-to/tools/use-an-ai-assistant.md: ai/build-a-model.md
+        how-to/tools/use-an-ai-assistant.md: ai/index.md
   # llms.txt and llms-full.txt for AI assistants (#41): an index of the pages with
   # their links, and the pages themselves as Markdown. hooks/llmstxt_sections.py
   # builds the sections from the nav.
@@ -273,6 +273,12 @@ validation:
 # Files the documentation shows and the tests build. They are not pages.
 exclude_docs: |
   snippets/
+
+# `mkdocs serve` rebuilds when a file here changes, as it does for docs/: the scripts
+# write the generated pages, and the examples are included in pages
+watch:
+  - scripts
+  - examples
 
 hooks:
   - hooks/llmstxt_sections.py
@@ -365,6 +371,51 @@ nav:
           - Live Parameters: user-guide/live-runs-and-connectors/live-parameters.md
           - Ingress: user-guide/live-runs-and-connectors/ingress.md
           - Egress: user-guide/live-runs-and-connectors/egress.md
+  - How-To:
+      - how-to/index.md
+      - Modelling:
+          - Vary Arrivals by Time: how-to/modelling/time-varying-arrivals.md
+          - Add Reneging and Balking: how-to/modelling/reneging-and-balking.md
+          - Wait for One or All: how-to/modelling/wait-for-one-or-all.md
+          - Hand Off to a Resource: how-to/modelling/multi-resource-handoffs.md
+          - Share Work by Weight: how-to/modelling/share-by-weight.md
+          - Model Breakdowns: how-to/modelling/breakdowns.md
+          - Add Resources Mid-run: how-to/modelling/dynamic-topology.md
+          - Serve Entities Together: how-to/modelling/serve-entities-together.md
+      - Generate Data:
+          - Send Data to a Sink: how-to/generate-data/send-data-to-a-sink.md
+          - Realistic Fields: how-to/generate-data/realistic-fields.md
+          - Choices and Numbers: how-to/generate-data/choices-and-numbers.md
+          - Timestamps and Gaps: how-to/generate-data/timestamps-and-gaps.md
+          - Stop After a Count: how-to/generate-data/stop-after-a-count.md
+          - Many Entities: how-to/generate-data/many-entities.md
+          - Build on the Last Value: how-to/generate-data/build-on-the-last-value.md
+          - Skewed Keys: how-to/generate-data/skewed-keys.md
+          - Change State Over Time: how-to/generate-data/change-state-over-time.md
+          - Look Up Other Records: how-to/generate-data/look-up-other-records.md
+          - Join Across Sinks: how-to/generate-data/join-across-sinks.md
+          - Change the Schema: how-to/generate-data/change-the-schema.md
+      - Records and Kafka:
+          - Route Records to Topics: how-to/records-and-kafka/complex-routing.md
+          - Use Avro and Pydantic: how-to/records-and-kafka/avro-and-pydantic.md
+          - Use Schema Serializers: how-to/records-and-kafka/json-schema-and-protobuf.md
+          - Connect to Secure Kafka: how-to/records-and-kafka/kafka-security.md
+          - Write a Connector: how-to/records-and-kafka/write-a-connector.md
+          - Data at Scale: how-to/records-and-kafka/data-at-scale.md
+      - Storage and Tables:
+          - Write to Cloud Storage: how-to/storage-and-tables/cloud-storage.md
+          - Write to Iceberg Tables: how-to/storage-and-tables/iceberg-tables.md
+      - Analysis:
+          - Fit a Distribution: how-to/analysis/fit-a-distribution.md
+          - Check Against Theory: how-to/analysis/check-against-theory.md
+          - Test a Model: how-to/analysis/test-a-model.md
+          - Analyse the Event Log: how-to/analysis/analyse-the-event-log.md
+          - Animate a Run: how-to/analysis/animate-a-run.md
+          - Test a Pipeline: how-to/analysis/test-a-pipeline.md
+      - Tools:
+          - Call Python from YAML: how-to/tools/yaml-advanced.md
+          - Set Up Your Editor: how-to/tools/set-up-your-editor.md
+          - Tune Performance: how-to/tools/performance-tuning.md
   # The generated page of each command, after the overview that uses them on one shop.
   - Command Line:
       - cli/index.md
@@ -382,9 +433,12 @@ nav:
       - desflow examples get: cli/examples-get.md
   - Agent Skill:
       - ai/index.md
-      - Build a Model: ai/build-a-model.md
-      - Port from SimPy: ai/from-simpy.md
-      - Evaluation: ai/evaluation.md
+      - Draft a Model: ai/draft-a-model.md
+      - Port a SimPy Program: ai/port-a-simpy-program.md
+      - Write Another Form: ai/write-another-form.md
+      - Write Tests: ai/write-tests.md
+      - Run a Study: ai/run-a-study.md
+      - Fit a Distribution: ai/fit-a-distribution.md
   # Generated by scripts/gen_pages.py: an overview and one page for each `gen` kind,
   # in the groups of GROUPS in scripts/reference_pages/generators.py.
   - Generators:
@@ -437,51 +491,6 @@ nav:
           - row: generators/related-records/row.md
       - Python:
           - call: generators/python/call.md
-  - How-To:
-      - how-to/index.md
-      - Modelling:
-          - Vary Arrivals by Time: how-to/modelling/time-varying-arrivals.md
-          - Add Reneging and Balking: how-to/modelling/reneging-and-balking.md
-          - Wait for One or All: how-to/modelling/wait-for-one-or-all.md
-          - Hand Off to a Resource: how-to/modelling/multi-resource-handoffs.md
-          - Share Work by Weight: how-to/modelling/share-by-weight.md
-          - Model Breakdowns: how-to/modelling/breakdowns.md
-          - Add Resources Mid-run: how-to/modelling/dynamic-topology.md
-          - Serve Entities Together: how-to/modelling/serve-entities-together.md
-      - Generate Data:
-          - Send Data to a Sink: how-to/generate-data/send-data-to-a-sink.md
-          - Realistic Fields: how-to/generate-data/realistic-fields.md
-          - Choices and Numbers: how-to/generate-data/choices-and-numbers.md
-          - Timestamps and Gaps: how-to/generate-data/timestamps-and-gaps.md
-          - Stop After a Count: how-to/generate-data/stop-after-a-count.md
-          - Many Entities: how-to/generate-data/many-entities.md
-          - Build on the Last Value: how-to/generate-data/build-on-the-last-value.md
-          - Skewed Keys: how-to/generate-data/skewed-keys.md
-          - Change State Over Time: how-to/generate-data/change-state-over-time.md
-          - Look Up Other Records: how-to/generate-data/look-up-other-records.md
-          - Join Across Sinks: how-to/generate-data/join-across-sinks.md
-          - Change the Schema: how-to/generate-data/change-the-schema.md
-      - Records and Kafka:
-          - Route Records to Topics: how-to/records-and-kafka/complex-routing.md
-          - Use Avro and Pydantic: how-to/records-and-kafka/avro-and-pydantic.md
-          - Use Schema Serializers: how-to/records-and-kafka/json-schema-and-protobuf.md
-          - Connect to Secure Kafka: how-to/records-and-kafka/kafka-security.md
-          - Write a Connector: how-to/records-and-kafka/write-a-connector.md
-          - Data at Scale: how-to/records-and-kafka/data-at-scale.md
-      - Storage and Tables:
-          - Write to Cloud Storage: how-to/storage-and-tables/cloud-storage.md
-          - Write to Iceberg Tables: how-to/storage-and-tables/iceberg-tables.md
-      - Analysis:
-          - Fit a Distribution: how-to/analysis/fit-a-distribution.md
-          - Check Against Theory: how-to/analysis/check-against-theory.md
-          - Test a Model: how-to/analysis/test-a-model.md
-          - Analyse the Event Log: how-to/analysis/analyse-the-event-log.md
-          - Animate a Run: how-to/analysis/animate-a-run.md
-          - Test a Pipeline: how-to/analysis/test-a-pipeline.md
-      - Tools:
-          - Call Python from YAML: how-to/tools/yaml-advanced.md
-          - Set Up Your Editor: how-to/tools/set-up-your-editor.md
-          - Tune Performance: how-to/tools/performance-tuning.md
   - Gallery:
       - Overview: gallery/index.md
       - Data Generation:
@@ -517,22 +526,6 @@ nav:
       - Distributions: reference/distributions.md
       - Statistic Names: reference/statistics.md
       - Records and Telemetry: reference/records-and-telemetry.md
-      - Known Cases:
-          - reference/known-cases/index.md
-          - Environment and Time: reference/known-cases/environment-and-time.md
-          - Events and Signals: reference/known-cases/events-and-signals.md
-          - Processes and Tasks: reference/known-cases/processes-and-tasks.md
-          - Conditions and Waits: reference/known-cases/conditions-and-waits.md
-          - Interrupts and Failures: reference/known-cases/interrupts-and-failures.md
-          - Resources: reference/known-cases/resources.md
-          - Containers: reference/known-cases/containers.md
-          - Stores: reference/known-cases/stores.md
-          - Real Time: reference/known-cases/real-time.md
-          - Generated Values: reference/known-cases/generated-values.md
-          - Related Records: reference/known-cases/related-records.md
-          - Arrivals and Sources: reference/known-cases/arrivals-and-sources.md
-          - Stats and Monitoring: reference/known-cases/statistics-and-monitoring.md
-          - Sinks and Connectors: reference/known-cases/sinks-and-connectors.md
   - About:
       - Why desflow: about/why-desflow.md
       - Roadmap: about/roadmap.md
