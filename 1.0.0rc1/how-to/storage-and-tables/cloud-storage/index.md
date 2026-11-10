@@ -1,0 +1,820 @@
+# Write to Cloud Storage
+
+`ParquetStorageEgress` and `JsonlStorageEgress` write each batch of records as a file. The same two sinks write to the local disk, Amazon S3, Google Cloud Storage or Azure Blob Storage: only their `filesystem` mapping changes. This page writes an hour of a shop's orders to a store you pick, then reads the files back as one table.
+
+______________________________________________________________________
+
+## Before You Start
+
+- [Egress](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/egress/#parquet-and-json-lines) explains the two sinks, their file names and their columns.
+- Install the extra: `pip install "desflow[parquet]"`.
+- To write to a cloud, set up its credentials first, as [Choose the Store](#choose-the-store) describes, and create the bucket or container the files go to.
+
+______________________________________________________________________
+
+## Steps
+
+### Choose the Store
+
+A `filesystem` mapping names the store with `type`, and its other keys are the arguments of the PyArrow filesystem class of that store. Without credentials in the mapping, each cloud uses its standard settings:
+
+- `s3`: the AWS settings, from environment variables such as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, the files in `~/.aws`, or the role the machine runs as.
+- `gcs`: Google's default credentials, such as those `gcloud auth application-default login` saves.
+- `azure`: Azure's default credentials for the storage account that `account_name` names. The script takes the account name from the environment variable `AZURE_STORAGE_ACCOUNT`.
+
+The script keeps one mapping for each store. `STORAGE` picks one, and `STORAGE_BUCKET` names the bucket, the container or, for `local`, the folder:
+
+```python
+import os
+
+# One filesystem mapping for each store; desflow builds it into a PyArrow filesystem
+STORES: dict[str, dict] = {
+    # The local disk, for a first run
+    "local": {"type": "local"},
+    # Amazon S3, with the standard AWS settings: environment variables, ~/.aws or a role
+    "s3": {"type": "s3", "region": os.getenv("AWS_REGION", "us-east-1")},
+    # Google Cloud Storage, with Google's default credentials
+    "gcs": {"type": "gcs"},
+    # Azure Blob Storage, with Azure's default credentials for the storage account
+    "azure": {"type": "azure", "account_name": os.getenv("AZURE_STORAGE_ACCOUNT")},
+}
+
+filesystem = STORES[os.getenv("STORAGE", "local")]
+bucket = os.getenv("STORAGE_BUCKET", "output")
+```
+
+The [Egress](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/egress/#parquet-and-json-lines) table lists the keys each store takes, such as `access_key` and `secret_key` for S3, `access_token` for GCS and `account_key` or `sas_token` for Azure. `endpoint_override` points `s3` or `gcs` at another service, such as SeaweedFS or MinIO.
+
+### Write the Files
+
+Both sinks take the same mapping. Each writes into its own folder of the bucket, so a reader of one folder reads one format:
+
+```python
+from desflow import JsonlStorageEgress, ParquetStorageEgress
+
+
+def storage_sinks(filesystem: dict, bucket: str) -> list:
+    """Every event as Parquet and as JSON Lines, in two folders of the bucket."""
+    return [
+        ParquetStorageEgress(
+            default_path=f"{bucket}/parquet/events.parquet", filesystem=filesystem
+        ),
+        JsonlStorageEgress(
+            default_path=f"{bucket}/jsonl/events.jsonl", filesystem=filesystem
+        ),
+    ]
+
+
+sinks = storage_sinks(filesystem, bucket)
+```
+
+Each form runs the shop for an hour of simulated time at `factor=0.0`, so the run takes a few seconds:
+
+```yaml
+egress:
+  # Every event as Parquet and as JSON Lines, in two folders of the bucket
+  - type: Parquet
+    config:
+      default_path: ${STORAGE_BUCKET:-output}/parquet/events.parquet
+      filesystem: !include cloud_storage_stores/${STORAGE:-local}.yaml
+  - type: Jsonl
+    config:
+      default_path: ${STORAGE_BUCKET:-output}/jsonl/events.jsonl
+      filesystem: !include cloud_storage_stores/${STORAGE:-local}.yaml
+```
+
+The YAML form keeps the same four mappings in the files `local.yaml`, `s3.yaml`, `gcs.yaml` and `azure.yaml` of the folder `cloud_storage_stores`. `!include cloud_storage_stores/${STORAGE:-local}.yaml` reads the one that `STORAGE` names, so the variable picks the store in every form. `${STORAGE_BUCKET:-output}` reads the bucket from its variable in the same way.
+
+```python
+import logging
+
+from cloud_storage_stores import sinks
+
+from desflow import SimulationContext
+
+
+def build_shop(sinks: list) -> SimulationContext:
+    """The shop, writing to the sinks given, as fast as the machine allows."""
+    app = (
+        SimulationContext(sim_id="Shop", factor=0.0, random_seed=42)
+        .add_resource("packers", current_cap=1, max_cap=1)
+        .add_service("packing", dist="constant", value=1.5)
+        .add_arrival("orders", dist="exponential", rate=0.5)
+    )
+    for sink in sinks:
+        app.add_egress(sink)
+
+    @app.task(service_id="packing", resource_id="packers")
+    def pack_order(task_id: int, entity):
+        # The finished event is the order record
+        return {"order_id": task_id, "amount": 19.99}
+
+    @app.arrival_loop("orders")
+    def orders(context: SimulationContext):
+        while True:
+            order = yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(context.next_instance("pack_order"), entity=order))
+
+    return app
+
+
+app = build_shop(sinks)
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+    )
+    app.run(until="1 hour")
+```
+
+`shop` takes the sinks as an argument, and the script passes it `sinks` from `cloud_storage_stores.py`:
+
+```python
+def pack_order(env, packers, sampler, key, task_id):
+    path_id = "Shop.service.packing"
+    env.publish_event(
+        key,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": "queued",
+        },
+        "pack_order",
+        task_id,
+    )
+    with packers.request() as unit:
+        yield unit
+        env.publish_event(
+            key,
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            },
+            "pack_order",
+            task_id,
+        )
+        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+        # The finished event is the order record
+        order = {"order_id": task_id, "amount": 19.99}
+        env.publish_event(key, order, "pack_order", task_id)
+
+
+def orders(env, packers, sampler):
+    gap = env.registry.get_config("Shop.arrival.orders")
+    for number in itertools.count(1):
+        yield env.timeout(sampler.sample(gap))
+        env.process(pack_order(env, packers, sampler, f"orders-{number}", number - 1))
+
+
+def shop(sinks: list, factor: float = 0.0) -> DynamicRealtimeEnvironment:
+    """The shop, writing to the sinks given, as fast as the machine allows."""
+    env = DynamicRealtimeEnvironment(factor=factor)
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress(sinks)
+    packers = DynamicResource(env, "Shop", "packers")
+    env.process(orders(env, packers, Sampler(seed=42)))
+    return env
+```
+
+### Write a File for Each Day
+
+A record whose `__path__` key holds a file path is written to that file, and the key is removed from the row. `{gen: format_time, format: ...}` builds the path from the simulated time, so each day goes to a file of its own. The shop below packs an order every hour for two days from 1 January 2026:
+
+```yaml
+payload:
+  order_id: {gen: sequence}
+  amount: 19.99
+  # The file of the order: the day it was packed, in the simulated calendar
+  __path__:
+    gen: format_time
+    format: "${STORAGE_BUCKET:-output}/daily/%Y-%m-%d.jsonl"
+```
+
+The same file gives the sink a `default_path` and `!include`s the store, as the first shop does.
+
+```python
+import logging
+from datetime import datetime, timezone
+
+from cloud_storage_stores import bucket, filesystem
+
+from desflow import JsonlStorageEgress, SimulationContext
+from desflow.values import Template
+
+
+def build_shop() -> SimulationContext:
+    """The shop, writing each order to the file of its day."""
+    app = SimulationContext(
+        sim_id="Shop",
+        factor=0.0,
+        random_seed=42,
+        timezone="UTC",
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    app.add_arrival("orders", dist="constant", value=3600, spawn="pack_order")
+    app.add_egress(
+        # The file of a record with no __path__
+        JsonlStorageEgress(
+            default_path=f"{bucket}/daily/other.jsonl", filesystem=filesystem
+        )
+    )
+    order = Template(
+        {
+            "order_id": {"gen": "sequence"},
+            "amount": 19.99,
+            # The file of the order: the day it was packed, in the simulated calendar
+            "__path__": {
+                "gen": "format_time",
+                "format": f"{bucket}/daily/%Y-%m-%d.jsonl",
+            },
+        },
+        name="tasks.pack_order",
+    )
+
+    @app.task(name="pack_order")
+    def pack_order(task_id):
+        return order
+
+    return app
+
+
+app = build_shop()
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    app.run(until="2 days")
+```
+
+```python
+import itertools
+import logging
+from datetime import datetime, timedelta, timezone
+
+from cloud_storage_stores import bucket, filesystem
+
+from desflow import DynamicRealtimeEnvironment, JsonlStorageEgress
+
+START = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+def orders(env):
+    for number in itertools.count():
+        yield env.timeout(3600)
+        # The file of the order: the day it was packed, in the simulated calendar
+        day = env.start_datetime + timedelta(seconds=env.now)
+        order = {
+            "order_id": number,
+            "amount": 19.99,
+            "__path__": day.strftime(f"{bucket}/daily/%Y-%m-%d.jsonl"),
+        }
+        env.publish_event(f"orders-{number + 1}", order, "pack_order", number)
+
+
+def shop() -> DynamicRealtimeEnvironment:
+    """The shop, writing each order to the file of its day."""
+    env = DynamicRealtimeEnvironment(
+        factor=0.0, logical_start_time=START, timezone="UTC"
+    )
+    env.setup_egress(
+        # The file of a record with no __path__
+        [
+            JsonlStorageEgress(
+                default_path=f"{bucket}/daily/other.jsonl", filesystem=filesystem
+            )
+        ]
+    )
+    env.process(orders(env))
+    return env
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    env = shop()
+    try:
+        env.run(until=2 * 24 * 3600)
+    finally:
+        env.teardown()
+```
+
+The sink writes one file for each flush and adds an identifier to its name: the orders of 1 January go to `output/daily/2026-01-01_<id>.jsonl`. A record whose `__path__` is missing, null or empty goes to `default_path`. A `path_router` wins over `__path__`. A sink with neither `default_path` nor `path_router` writes only the records that carry a `__path__`, and each flush logs a warning with the number of records it skipped. `ParquetStorageEgress` takes `__path__` in the same way.
+
+### Read the Files Back
+
+`read_events` reads every file in a folder as one table, through a PyArrow filesystem of the same store:
+
+```python
+def read_events(store, folder: str, format: str = "parquet"):
+    """Every file a sink wrote under `folder`, as one table.
+
+    `store` is a PyArrow filesystem, such as pyarrow.fs.S3FileSystem(region="us-east-1").
+    """
+    import pyarrow.dataset as ds
+
+    # format="json" reads the files of the JSON Lines sink
+    return ds.dataset(folder, format=format, filesystem=store).to_table()
+```
+
+Give each run a folder of its own, or clear the folder before a run, because a second run adds its files beside the first run's.
+
+______________________________________________________________________
+
+## Check the Result
+
+Run `python cloud_storage.py`, `python cloud_storage_low_level.py` or `desflow run cloud_storage.yaml`. With no variables set, the files go to the folder `output` on the local disk:
+
+```bash
+STORAGE=s3 STORAGE_BUCKET=my-bucket python cloud_storage.py
+```
+
+writes them to the bucket `my-bucket` on S3 instead. In every form, `output/parquet` and `output/jsonl` hold one file for each batch, with the same events: the `queued` and `started` events of each order, with `path_id` and `status`, and its finished event, with `order_id` and `amount`. A seeded run writes the same events in every form. Only `timestamp` differs, because it is the clock time at the start of the run plus the simulation time.
+
+To count the rows, run the stores file with the same variables. Its last lines build the PyArrow filesystem of the store from the mapping, call `read_events` on each folder and print the rows:
+
+```python
+if __name__ == "__main__":
+    from pyarrow import fs
+
+    # The PyArrow class of the store takes the keys of its mapping. It is looked up
+    # by name, because some pyarrow builds lack the classes of the other clouds.
+    classes = {
+        "local": "LocalFileSystem",
+        "s3": "S3FileSystem",
+        "gcs": "GcsFileSystem",
+        "azure": "AzureFileSystem",
+    }
+    options = {
+        key: value for key, value in filesystem.items() if key != "type" and value
+    }
+    store = getattr(fs, classes[filesystem["type"]])(**options)
+    for folder, format in (("parquet", "parquet"), ("jsonl", "json")):
+        events = read_events(store, f"{bucket}/{folder}", format)
+        print(f"{folder}: {events.num_rows} rows")
+```
+
+```bash
+python cloud_storage_stores.py
+```
+
+```text
+parquet: 5291 rows
+jsonl: 5291 rows
+```
+
+Both folders hold the same number of rows. For a cloud, run the script with the same `STORAGE` and `STORAGE_BUCKET` as the shop.
+
+The daily shop is run as `python cloud_storage_daily.py`, `python cloud_storage_daily_low_level.py` or `desflow run cloud_storage_daily.yaml`. Each form writes 47 orders to `output/daily`: 23 in the file of 1 January and 24 in the file of 2 January. The packing at midnight belongs to the new day.
+
+______________________________________________________________________
+
+## Full Files
+
+The Builder and Low-level forms use the store and the sinks of `cloud_storage_stores.py`, which builds no shop. The YAML form uses the folder `cloud_storage_stores` instead. Keep the files of the form you run in one folder.
+
+Full files
+
+```python
+"""The stores, sinks and reader of the Write to Cloud Storage page.
+
+The builder and low-level forms of the shop import the store and the sinks from this file:
+cloud_storage.py and cloud_storage_low_level.py, and the daily shops. cloud_storage.yaml
+reads the same mappings from the folder cloud_storage_stores. It builds no simulation.
+STORAGE picks the store: local (the default), s3, gcs or azure. STORAGE_BUCKET names the
+bucket or container, or the folder on the local disk, with the credentials of that cloud
+set up as the page describes.
+"""
+
+# Each section carries its own imports, as the page shows it.
+# ruff: noqa: E402
+
+import os
+
+# One filesystem mapping for each store; desflow builds it into a PyArrow filesystem
+STORES: dict[str, dict] = {
+    # The local disk, for a first run
+    "local": {"type": "local"},
+    # Amazon S3, with the standard AWS settings: environment variables, ~/.aws or a role
+    "s3": {"type": "s3", "region": os.getenv("AWS_REGION", "us-east-1")},
+    # Google Cloud Storage, with Google's default credentials
+    "gcs": {"type": "gcs"},
+    # Azure Blob Storage, with Azure's default credentials for the storage account
+    "azure": {"type": "azure", "account_name": os.getenv("AZURE_STORAGE_ACCOUNT")},
+}
+
+filesystem = STORES[os.getenv("STORAGE", "local")]
+bucket = os.getenv("STORAGE_BUCKET", "output")
+
+
+from desflow import JsonlStorageEgress, ParquetStorageEgress
+
+
+def storage_sinks(filesystem: dict, bucket: str) -> list:
+    """Every event as Parquet and as JSON Lines, in two folders of the bucket."""
+    return [
+        ParquetStorageEgress(
+            default_path=f"{bucket}/parquet/events.parquet", filesystem=filesystem
+        ),
+        JsonlStorageEgress(
+            default_path=f"{bucket}/jsonl/events.jsonl", filesystem=filesystem
+        ),
+    ]
+
+
+sinks = storage_sinks(filesystem, bucket)
+
+
+def read_events(store, folder: str, format: str = "parquet"):
+    """Every file a sink wrote under `folder`, as one table.
+
+    `store` is a PyArrow filesystem, such as pyarrow.fs.S3FileSystem(region="us-east-1").
+    """
+    import pyarrow.dataset as ds
+
+    # format="json" reads the files of the JSON Lines sink
+    return ds.dataset(folder, format=format, filesystem=store).to_table()
+
+
+if __name__ == "__main__":
+    from pyarrow import fs
+
+    # The PyArrow class of the store takes the keys of its mapping. It is looked up
+    # by name, because some pyarrow builds lack the classes of the other clouds.
+    classes = {
+        "local": "LocalFileSystem",
+        "s3": "S3FileSystem",
+        "gcs": "GcsFileSystem",
+        "azure": "AzureFileSystem",
+    }
+    options = {
+        key: value for key, value in filesystem.items() if key != "type" and value
+    }
+    store = getattr(fs, classes[filesystem["type"]])(**options)
+    for folder, format in (("parquet", "parquet"), ("jsonl", "json")):
+        events = read_events(store, f"{bucket}/{folder}", format)
+        print(f"{folder}: {events.num_rows} rows")
+```
+
+```yaml
+# The Write to Cloud Storage guide: the shop writes an hour of orders as Parquet and
+# JSON Lines files, as fast as the machine allows. STORAGE picks the store (local, the
+# default, s3, gcs or azure) and STORAGE_BUCKET the bucket, container or local folder.
+# Needs the folder cloud_storage_stores beside it. Run it with:
+# desflow run cloud_storage.yaml
+simulation: {sim_id: Shop, factor: 0.0, random_seed: 42}
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    # The finished event is the order record
+    payload:
+      order_id: {gen: sequence}
+      amount: 19.99
+
+egress:
+  # Every event as Parquet and as JSON Lines, in two folders of the bucket
+  - type: Parquet
+    config:
+      default_path: ${STORAGE_BUCKET:-output}/parquet/events.parquet
+      filesystem: !include cloud_storage_stores/${STORAGE:-local}.yaml
+  - type: Jsonl
+    config:
+      default_path: ${STORAGE_BUCKET:-output}/jsonl/events.jsonl
+      filesystem: !include cloud_storage_stores/${STORAGE:-local}.yaml
+
+run: {until: 1 hour}
+```
+
+```yaml
+# The local disk, for a first run
+type: local
+```
+
+```yaml
+# Amazon S3, with the standard AWS settings: environment variables, ~/.aws or a role
+type: s3
+
+region: ${AWS_REGION:-us-east-1}
+```
+
+```yaml
+# Google Cloud Storage, with Google's default credentials
+type: gcs
+```
+
+```yaml
+# Azure Blob Storage, with Azure's default credentials for the storage account
+type: azure
+
+account_name: ${AZURE_STORAGE_ACCOUNT}
+```
+
+```yaml
+# The Write to Cloud Storage guide, "Write a File for Each Day": two days of orders,
+# each day in a file of its own. STORAGE picks the store and STORAGE_BUCKET the bucket,
+# as in cloud_storage.yaml. Needs the folder cloud_storage_stores beside it. Run it
+# with: desflow run cloud_storage_daily.yaml
+simulation:
+  sim_id: Shop
+  factor: 0.0
+  random_seed: 42
+  timezone: UTC
+  logical_start_time: "2026-01-01T00:00:00+00:00"
+
+arrivals:
+  orders: {dist: constant, value: 3600, spawn: pack_order}
+
+tasks:
+  pack_order:
+    payload:
+      order_id: {gen: sequence}
+      amount: 19.99
+      # The file of the order: the day it was packed, in the simulated calendar
+      __path__:
+        gen: format_time
+        format: "${STORAGE_BUCKET:-output}/daily/%Y-%m-%d.jsonl"
+
+egress:
+  - type: Jsonl
+    config:
+      # The file of a record with no __path__
+      default_path: ${STORAGE_BUCKET:-output}/daily/other.jsonl
+      filesystem: !include cloud_storage_stores/${STORAGE:-local}.yaml
+
+run: {until: 2 days}
+```
+
+```python
+"""The shop of the Write to Cloud Storage page, built with the builder API.
+
+The shop writes an hour of orders as Parquet and JSON Lines files, as fast as the machine
+allows. Run it with `STORAGE=s3 STORAGE_BUCKET=my-bucket python cloud_storage.py`, with the
+credentials of that cloud set up as the page describes. cloud_storage.yaml and
+cloud_storage_low_level.py are the same shop in YAML and the low-level API. All three
+import the store and the sinks of cloud_storage_stores.py, which must be beside them.
+"""
+
+# ruff: noqa: E402
+
+import logging
+
+from cloud_storage_stores import sinks
+
+from desflow import SimulationContext
+
+
+def build_shop(sinks: list) -> SimulationContext:
+    """The shop, writing to the sinks given, as fast as the machine allows."""
+    app = (
+        SimulationContext(sim_id="Shop", factor=0.0, random_seed=42)
+        .add_resource("packers", current_cap=1, max_cap=1)
+        .add_service("packing", dist="constant", value=1.5)
+        .add_arrival("orders", dist="exponential", rate=0.5)
+    )
+    for sink in sinks:
+        app.add_egress(sink)
+
+    @app.task(service_id="packing", resource_id="packers")
+    def pack_order(task_id: int, entity):
+        # The finished event is the order record
+        return {"order_id": task_id, "amount": 19.99}
+
+    @app.arrival_loop("orders")
+    def orders(context: SimulationContext):
+        while True:
+            order = yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(context.next_instance("pack_order"), entity=order))
+
+    return app
+
+
+app = build_shop(sinks)
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+    )
+    app.run(until="1 hour")
+```
+
+```python
+"""The "Write a File for Each Day" step of the Write to Cloud Storage page, built with the
+builder API.
+
+The shop packs an order every hour for two days, and each order goes to the file of its
+day. STORAGE and STORAGE_BUCKET pick the store as in cloud_storage.py. Needs
+cloud_storage_stores.py beside it. Run it with `python cloud_storage_daily.py`.
+"""
+
+import logging
+from datetime import datetime, timezone
+
+from cloud_storage_stores import bucket, filesystem
+
+from desflow import JsonlStorageEgress, SimulationContext
+from desflow.values import Template
+
+
+def build_shop() -> SimulationContext:
+    """The shop, writing each order to the file of its day."""
+    app = SimulationContext(
+        sim_id="Shop",
+        factor=0.0,
+        random_seed=42,
+        timezone="UTC",
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    app.add_arrival("orders", dist="constant", value=3600, spawn="pack_order")
+    app.add_egress(
+        # The file of a record with no __path__
+        JsonlStorageEgress(
+            default_path=f"{bucket}/daily/other.jsonl", filesystem=filesystem
+        )
+    )
+    order = Template(
+        {
+            "order_id": {"gen": "sequence"},
+            "amount": 19.99,
+            # The file of the order: the day it was packed, in the simulated calendar
+            "__path__": {
+                "gen": "format_time",
+                "format": f"{bucket}/daily/%Y-%m-%d.jsonl",
+            },
+        },
+        name="tasks.pack_order",
+    )
+
+    @app.task(name="pack_order")
+    def pack_order(task_id):
+        return order
+
+    return app
+
+
+app = build_shop()
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    app.run(until="2 days")
+```
+
+```python
+"""The Write to Cloud Storage guide, low-level API: the shop writes an hour of orders as
+Parquet and JSON Lines files, as fast as the machine allows.
+
+The store and the sinks are those of cloud_storage_stores.py, which must be beside this script.
+STORAGE picks the store (local, the default, s3, gcs or azure) and STORAGE_BUCKET the
+bucket, container or local folder. Run it with `python cloud_storage_low_level.py`.
+"""
+
+import itertools
+import logging
+
+from cloud_storage_stores import sinks
+
+from desflow import (
+    CapacityConfig,
+    DistributionConfig,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    Sampler,
+    SimParameter,
+)
+
+PARAMS = SimParameter(
+    sim_id="Shop",
+    arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
+    service={"packing": DistributionConfig(dist="constant", value=1.5)},
+    resources={"packers": CapacityConfig(current_cap=1, max_cap=1)},
+)
+
+
+def pack_order(env, packers, sampler, key, task_id):
+    path_id = "Shop.service.packing"
+    env.publish_event(
+        key,
+        {
+            "path_id": path_id,
+            "sim_id": "Shop",
+            "service": "packing",
+            "status": "queued",
+        },
+        "pack_order",
+        task_id,
+    )
+    with packers.request() as unit:
+        yield unit
+        env.publish_event(
+            key,
+            {
+                "path_id": path_id,
+                "sim_id": "Shop",
+                "service": "packing",
+                "status": "started",
+            },
+            "pack_order",
+            task_id,
+        )
+        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+        # The finished event is the order record
+        order = {"order_id": task_id, "amount": 19.99}
+        env.publish_event(key, order, "pack_order", task_id)
+
+
+def orders(env, packers, sampler):
+    gap = env.registry.get_config("Shop.arrival.orders")
+    for number in itertools.count(1):
+        yield env.timeout(sampler.sample(gap))
+        env.process(pack_order(env, packers, sampler, f"orders-{number}", number - 1))
+
+
+def shop(sinks: list, factor: float = 0.0) -> DynamicRealtimeEnvironment:
+    """The shop, writing to the sinks given, as fast as the machine allows."""
+    env = DynamicRealtimeEnvironment(factor=factor)
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress(sinks)
+    packers = DynamicResource(env, "Shop", "packers")
+    env.process(orders(env, packers, Sampler(seed=42)))
+    return env
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+    )
+    env = shop(sinks)  # Parquet and JSON Lines files in the store STORAGE names
+    try:
+        env.run(until=3600)
+    finally:
+        env.teardown()
+```
+
+```python
+"""The "Write a File for Each Day" step of the Write to Cloud Storage page, low-level API.
+
+The shop packs an order every hour for two days, and each order goes to the file of its
+day. The path is built from the start time of the environment plus the simulation time,
+as the blueprint's `format_time` builds it. Needs cloud_storage_stores.py beside it. Run
+it with `python cloud_storage_daily_low_level.py`.
+"""
+
+import itertools
+import logging
+from datetime import datetime, timedelta, timezone
+
+from cloud_storage_stores import bucket, filesystem
+
+from desflow import DynamicRealtimeEnvironment, JsonlStorageEgress
+
+START = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+def orders(env):
+    for number in itertools.count():
+        yield env.timeout(3600)
+        # The file of the order: the day it was packed, in the simulated calendar
+        day = env.start_datetime + timedelta(seconds=env.now)
+        order = {
+            "order_id": number,
+            "amount": 19.99,
+            "__path__": day.strftime(f"{bucket}/daily/%Y-%m-%d.jsonl"),
+        }
+        env.publish_event(f"orders-{number + 1}", order, "pack_order", number)
+
+
+def shop() -> DynamicRealtimeEnvironment:
+    """The shop, writing each order to the file of its day."""
+    env = DynamicRealtimeEnvironment(
+        factor=0.0, logical_start_time=START, timezone="UTC"
+    )
+    env.setup_egress(
+        # The file of a record with no __path__
+        [
+            JsonlStorageEgress(
+                default_path=f"{bucket}/daily/other.jsonl", filesystem=filesystem
+            )
+        ]
+    )
+    env.process(orders(env))
+    return env
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    env = shop()
+    try:
+        env.run(until=2 * 24 * 3600)
+    finally:
+        env.teardown()
+```
