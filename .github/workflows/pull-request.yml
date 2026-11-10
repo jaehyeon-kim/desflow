@@ -6,8 +6,9 @@ name: Pull request
 # change, and the integration and service example jobs when what they cover changes.
 # The jobs are sized so a run has at most 20 at once, the limit of the plan, and so no
 # job takes much longer than a part of the unit tests. The plan job reads the changed
-# files, and scripts/ci_plan.py decides. Every other job starts as soon as the plan is
-# read, and checks-passed collects their results.
+# files, and scripts/ci_plan.py decides. Lint runs beside the plan job, and every
+# other job starts only when the plan is read and Lint has passed, so a lint failure
+# stops the run in about a minute. checks-passed collects their results.
 on:
   pull_request:
     branches: [main]
@@ -93,7 +94,7 @@ jobs:
   # at its locked version.
   install-checks:
     name: Install the core and each extra alone, and conformance at the lowest SimPy
-    needs: plan
+    needs: [plan, lint]
     if: needs.plan.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -138,7 +139,7 @@ jobs:
   # The tests run in parallel worker processes (pytest-xdist, one per CPU).
   unit-test:
     name: ${{ matrix.name }}
-    needs: plan
+    needs: [plan, lint]
     if: needs.plan.outputs.code == 'true'
     strategy:
       fail-fast: false
@@ -185,7 +186,7 @@ jobs:
   # job cannot pass by testing nothing.
   services:
     name: ${{ matrix.name }}
-    needs: plan
+    needs: [plan, lint]
     if: needs.plan.outputs.services == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -269,7 +270,7 @@ jobs:
   # 2 CPUs.
   docs-build:
     name: Docs tests, part ${{ matrix.group }} of 5
-    needs: plan
+    needs: [plan, lint]
     if: needs.plan.outputs.docs == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -302,7 +303,7 @@ jobs:
   # them. The steps from "Check out v1.0.0" on pin 1.0 once the tag v1.0.0 exists.
   regression-capture:
     name: Regression capture, part ${{ matrix.part }} of 3
-    needs: plan
+    needs: [plan, lint]
     if: needs.plan.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20

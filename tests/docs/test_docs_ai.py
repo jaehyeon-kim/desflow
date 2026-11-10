@@ -38,7 +38,9 @@ def test_explain_gives_what_draft_a_model_shows():
 
 
 def test_replications_give_what_draft_a_model_shows():
-    command = 'desflow run drafted_shop.yaml --replications 20 | grep -E "^measure|wait_mean"'
+    command = (
+        'desflow run drafted_shop.yaml --replications 20 | grep -E "^measure|wait_mean"'
+    )
     shown = _block_after("draft-a-model.md", command)
     out = _run([DESFLOW, "run", "drafted_shop.yaml", "--replications", "20"])
     lines = [line for line in out.splitlines() if re.search("^measure|wait_mean", line)]
@@ -46,7 +48,11 @@ def test_replications_give_what_draft_a_model_shows():
 
 
 def test_the_skill_check_passes_on_the_three_forms():
-    files = ["drafted_shop.yaml", "drafted_shop_builder.py", "drafted_shop_low_level.py"]
+    files = [
+        "drafted_shop.yaml",
+        "drafted_shop_builder.py",
+        "drafted_shop_low_level.py",
+    ]
     command = (
         "python <skill folder>/scripts/check_model.py drafted_shop.yaml "
         "drafted_shop_builder.py drafted_shop_low_level.py"
@@ -60,7 +66,9 @@ def test_desflow_test_passes_and_fails_on_a_faster_arrival(tmp_path):
     assert _run([DESFLOW, "test", "drafted_shop.yaml"]).rstrip("\n") == shown
     faster = tmp_path / "drafted_shop.yaml"
     faster.write_text(
-        (SNIPPETS / "drafted_shop.yaml").read_text().replace("rate: 0.5,", "rate: 0.55,")
+        (SNIPPETS / "drafted_shop.yaml")
+        .read_text()
+        .replace("rate: 0.5,", "rate: 0.55,")
     )
     done = subprocess.run(
         [DESFLOW, "test", str(faster)], capture_output=True, text=True, check=False
@@ -77,6 +85,8 @@ def test_the_experiment_gives_the_comparison_run_a_study_shows(tmp_path):
     out = tmp_path / "study"
     _run([DESFLOW, "experiment", "drafted_shop_experiment.yaml", "--output", str(out)])
     report = (out / "report.md").read_text(encoding="utf-8")
-    shown = _block_after("run-a-study.md", "desflow experiment drafted_shop_experiment.yaml")
+    shown = _block_after(
+        "run-a-study.md", "desflow experiment drafted_shop_experiment.yaml"
+    )
     for line in shown.splitlines():
         assert line in report, line
