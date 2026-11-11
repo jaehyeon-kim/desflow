@@ -861,8 +861,9 @@ def _node_tree(text: str) -> Any:
     root = pyyaml.compose(text, Loader=pyyaml.SafeLoader)
     anchors = []
     for event in pyyaml.parse(text, Loader=pyyaml.SafeLoader):
-        if getattr(event, "anchor", None):
-            anchors.append((type(event).__name__, event.anchor))
+        anchor = getattr(event, "anchor", None)
+        if anchor:
+            anchors.append((type(event).__name__, anchor))
     return _reduce(root, {}), anchors
 
 

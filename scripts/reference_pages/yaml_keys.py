@@ -134,5 +134,11 @@ def yaml_keys_page() -> str:
         "accepted, and a duration such as `5 min` is accepted where the type says "
         "Duration.",
         "",
+        "A key typed `Value` takes a constant or a generator, and `Generator` is the "
+        "generator part of a type: a mapping with a `gen` key that names its kind, "
+        "such as `{gen: integer, bounds: [1, 6]}`. "
+        "[What a Generator Is](../generators/index.md#what-a-generator-is) explains "
+        "both.",
+        "",
     ]
     return "\n".join(lines + yaml_keys_body(2, kinds=False)).rstrip("\n") + "\n"

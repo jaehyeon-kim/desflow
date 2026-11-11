@@ -30,10 +30,10 @@ def job(env, sampler, m, key, task_id):
     def publish(value):
         env.publish_event(key, value, task="job", instance=task_id)
 
-    publish({"path_id": path_id, "status": "queued"})
+    publish({"path_id": path_id, "sim_id": "P", "service": "hold", "status": "queued"})
     with m.request() as req:
         yield req
-        publish({"path_id": path_id, "status": "started"})
+        publish({"path_id": path_id, "sim_id": "P", "service": "hold", "status": "started"})
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         publish({"event_type": "done"})
 

@@ -151,3 +151,52 @@ def test_a_route_weight_that_is_infinite_or_true_is_refused_in_both(
             lambda task_id: {}
         )
         app.start(until=3)
+
+
+@pytest.mark.parametrize("size, written", [(True, "true"), (float("inf"), ".inf")])
+def test_a_batch_size_that_is_true_or_infinite_is_refused_in_both(
+    tmp_path, size, written
+):
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        HEAD + f"tasks: {{job: {{payload: {{}}, batch: {{size: {written}}}}}}}\n"
+        "run: {until: 3}\n"
+    )
+    text = f"batch size gave {size!r}, which is not a finite number"
+    with pytest.raises(Exception, match=text):
+        SimulationContext.from_yaml(path)
+    with pytest.raises(ValueError, match=text):
+        _job(_app(), batch={"size": size}).start(until=3)
+
+
+@pytest.mark.parametrize(
+    "place, yaml_task, builder_task",
+    [
+        (
+            "batch close_when 'nosuch > 1' uses the name 'nosuch'",
+            "batch: {size: 3, close_when: 'nosuch > 1'}",
+            {"batch": {"size": 3, "close_when": "nosuch > 1"}},
+        ),
+        (
+            "batch size 'n' uses the name 'n', a var, which batch size cannot read",
+            "vars: {n: 1}, batch: {size: n}",
+            {"vars": {"n": 1}, "batch": {"size": "n"}},
+        ),
+        (
+            "service_time 'done' uses the name 'done', a finish_vars name",
+            "finish_vars: {done: 1}, service_time: done",
+            {"finish_vars": {"done": 1}, "service_time": "done"},
+        ),
+    ],
+    ids=["unknown", "var", "finish_vars"],
+)
+def test_a_bare_name_a_place_cannot_read_is_refused_in_both_with_one_text(
+    tmp_path, place, yaml_task, builder_task
+):
+    yaml = _yaml_refusal(tmp_path, f"tasks: {{job: {{payload: {{}}, {yaml_task}}}}}\n")
+    app = _app()
+    app.task(name="job", **{"service_time": 0, **builder_task})(lambda task_id: {})
+    built = _builder_refusal(app)
+    assert "m.yaml:" in yaml
+    assert place in yaml
+    assert yaml.split(": ", 1)[1] == built.split("task 'job' ", 1)[1]

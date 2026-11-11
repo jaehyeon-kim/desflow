@@ -1,4 +1,4 @@
-"""Tests of task ST-RT2: each test runs each form as its reader runs it."""
+"""Tests of task ST-RT2."""
 
 import json
 import subprocess

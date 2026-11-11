@@ -152,14 +152,11 @@ desflow run local.yaml
 
 Six public projects generate their data with desflow: four data engineering and MLOps demos in [benchtop](https://github.com/jaehyeon-kim/benchtop), the [Agentic Analytics System](https://github.com/jaehyeon-kim/agentic-analytics-system) and a [hot strip mill digital twin](https://github.com/jaehyeon-kim/oml-digital-twin-hotrolling). [Projects Using desflow](https://jaehyeon.me/desflow/latest/gallery/projects/) says what desflow simulates in each.
 
-## Roadmap
-
-desflow writes SimPy's features in YAML, the builder and the low-level API, and tests check each one against plain SimPy. [SimPy Compatibility](https://jaehyeon.me/desflow/latest/simpy/compatibility/) lists the gaps that remain, and they are removed before 1.0. Before 1.0, it adds JSON Schema and Protobuf for the schema registries, hooks for a simulation server, and a record format that 1.0 keeps stable. After 1.0, a simulation server with tools for AI agents follows. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows each step in order.
-
 ## Learn More
 
 - The [documentation](https://jaehyeon.me/desflow/) covers every part of desflow.
 - [Learn](https://jaehyeon.me/desflow/latest/learn/) teaches discrete-event simulation from the start, then builds one shop through a whole study.
+- The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows what each release adds and what comes next.
 - Blog posts about desflow are tagged [desflow](https://jaehyeon.me/tags/desflow/) on jaehyeon.me.
 
 ## Contributing

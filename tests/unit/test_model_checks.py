@@ -98,8 +98,9 @@ def test_a_transfer_to_a_holder_not_added_is_refused(transfer, message):
         ),
         (
             "foo + 1",
-            "task 't' reads the name 'foo' in 'foo + 1', which is not one of the vars "
-            "a service time reads (vars_once and vars)",
+            "task 't' service_time 'foo + 1' uses the name 'foo', which is not one of "
+            "the task's vars; write payload.<field>, attr.<name>, level.<store> or "
+            "another source for anything else",
         ),
     ],
     ids=["scope", "bare-name"],

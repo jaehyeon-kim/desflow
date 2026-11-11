@@ -11,7 +11,7 @@
 #     source and documentation; the page shows it in bold above the forms
 #   gaps: ids from `gaps`, for a construct where a key or the engine does not give
 #     SimPy's behaviour. A construct with no gap shows the status of its register row
-# gaps: what differs from SimPy for the gap ids, which issue #105 tracks.
+# gaps: what differs from SimPy for the gap ids.
 #   text: one sentence saying what differs
 #   form: where the page links the SimPy process that gives SimPy's behaviour in
 #     YAML (`computed`, `held`, `arrivals` or `sub-process`, the forms on Call Python

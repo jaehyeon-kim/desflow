@@ -1,4 +1,4 @@
-"""Tests of task P33: each test runs each form as its reader runs it."""
+"""Tests of task P33."""
 
 import json
 import subprocess

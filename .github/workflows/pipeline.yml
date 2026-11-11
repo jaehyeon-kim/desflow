@@ -107,7 +107,9 @@ jobs:
     permissions:
       contents: write
       pages: write
-    # A push that changes only docs skips the unit tests, and the docs still deploy
+    # A push that changes only files no code job reads (the site's styles and scripts,
+    # mkdocs.yml, the top-level Markdown files) skips the unit tests, and the docs still
+    # deploy
     if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -145,8 +147,13 @@ jobs:
           # point at latest/, so the copy works from there.
           cp "$RUNNER_TEMP/gh-pages/$VERSION/llms.txt" "$RUNNER_TEMP/gh-pages/llms.txt"
           cp "$RUNNER_TEMP/gh-pages/$VERSION/llms-full.txt" "$RUNNER_TEMP/gh-pages/llms-full.txt"
-          git -C "$RUNNER_TEMP/gh-pages" add 404.html llms.txt llms-full.txt
-          git -C "$RUNNER_TEMP/gh-pages" diff --cached --quiet || git -C "$RUNNER_TEMP/gh-pages" commit -m "Root 404 page and llms.txt from $VERSION"
+          # Each version folder holds its own copy of every image. Store the images of
+          # the versions other than latest once, in a folder they share, so the site
+          # stays under the 1 GB that Pages publishes, and shrink their PNGs.
+          sudo apt-get update -q && sudo apt-get install -y --no-install-recommends pngquant
+          uv run python scripts/pages_images.py "$RUNNER_TEMP/gh-pages" --compress
+          git -C "$RUNNER_TEMP/gh-pages" add -A
+          git -C "$RUNNER_TEMP/gh-pages" diff --cached --quiet || git -C "$RUNNER_TEMP/gh-pages" commit -m "Root 404 page and llms.txt from $VERSION, and shared images of the older versions"
           # mike commits to the local gh-pages branch (after updating it from the remote),
           # so everything above goes out in one push and starts one Pages build.
           git -C "$RUNNER_TEMP/gh-pages" push origin gh-pages

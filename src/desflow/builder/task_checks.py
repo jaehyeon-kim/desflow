@@ -274,6 +274,57 @@ def scope_problem(
     return None
 
 
+def bare_name_problem(
+    expression: Expression,
+    place: str,
+    key: str,
+    var_names: Iterable[str],
+    early_vars: Iterable[str],
+) -> Optional[str]:
+    """The refusal for the first bare name, in sorted order, that a place cannot
+    read, or None. One text for the YAML load and the Builder.
+
+    Vars get a value after the service, so `put`, `fail` and `next` read any var,
+    a `service_time` reads `vars_once` and `vars`, and every other place reads none.
+
+    Args:
+        expression: The expression.
+        place: The place as the refusal names it, such as `patience` or
+            `batch close_when`.
+        key: The task key the place is under, which sets the vars it reads.
+        var_names: Every var of the task.
+        early_vars: The task's `vars_once` and `vars`.
+
+    Returns:
+        Optional[str]: The message, or None when every bare name is readable.
+    """
+    var_names = set(var_names)
+    for bare in sorted(expression.references["name"]):
+        if bare in var_names and key in ("put", "fail", "next"):
+            continue
+        if bare in early_vars and key == "service_time":
+            continue
+        if bare not in var_names:
+            reason = "which is not one of the task's vars" + (
+                suggestion(bare, var_names) or ""
+            )
+        elif key == "service_time":
+            reason = (
+                "a finish_vars name, which a service_time cannot read: it gets its "
+                "value after the service"
+            )
+        else:
+            reason = (
+                f"a var, which {place} cannot read: vars get a value after the service"
+            )
+        return (
+            f"{place} '{expression.text}' uses the name '{bare}', {reason}; write "
+            "payload.<field>, attr.<name>, level.<store> or another source for "
+            "anything else"
+        )
+    return None
+
+
 def check_acquisition_order(
     resources: Dict[str, List[str]],
     handoffs: Dict[str, Tuple[List[str], Any]],

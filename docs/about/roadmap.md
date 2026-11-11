@@ -5,14 +5,10 @@ Releases come in the order shown, without dates: a release ships when it is read
 ## Before 1.0
 
 ::timeline::
-- title: '1.0.0rc3: The last candidate'
-  content: 'The fixes found in the checks and in a review of the reorganised code, published before the two weeks end. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
-  icon: ':material-play:'
-  key: now
 - title: '1.0.0: Stable'
   content: '1.0.0 sets the version number and the Production/Stable classifier, with only the fixes of the two weeks of checks. From here the format, the command, the public API and the record format stay compatible across 1.x, as the [Compatibility Policy](compatibility.md) sets out. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
-  icon: ':material-clock-outline:'
-  key: planned
+  icon: ':material-play:'
+  key: now
 ::/timeline::
 
 ## What 1.0 means
@@ -31,7 +27,7 @@ From 1.0, the YAML blueprint format, the `desflow` command, the public Python AP
 
 - **Maintenance, schedules and incidents:** planned maintenance, schedules that repeat by time of day, and incidents that change several parameters at once. 0.22.0 ships random breakdowns with repair and finite schedules, and 1.0 ships a failure clock that runs only while a resource works (`clock: busy`).
 - **More flow and resource features:** matching and splitting, setup times, and resources chosen by skill. 1.0 ships batching.
-- **Reuse, costs and continuous flow:** parts of a model defined once and used several times, costs and energy per resource state, and levels that rise and fall continuously.
+- **Costs and continuous flow:** costs and energy per resource state, and levels that rise and fall continuously.
 - **Transport on maps:** vehicles that move between locations on real roads and publish their positions.
 - **Data-driven inputs:** arrivals replayed from a database, or taken live from a Kafka topic.
 - **Models read from a store:** a value that a model reads from a store during a run, such as the trained model of a recommender, with a key of its own. In 1.0 this is a `!python` function, as [Call Python from YAML](../how-to/tools/yaml-advanced.md) shows.
@@ -55,6 +51,7 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 
 ### Writing simulations
 
+- **Payloads from your data:** record fields generated from a schema or a few sample records, so the records have the real field names, types and value ranges.
 - **Visual builder.**
 - **Conversion:** turn a YAML blueprint into builder code, and builder code into YAML with no Python, with an error that names each part that cannot be converted and how to rewrite it.
 
@@ -78,6 +75,11 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 - **More speed:** cheaper record publishing, which takes about 40 percent of a run's time, with the same published records ([#69](https://github.com/jaehyeon-kim/desflow/issues/69)), and a faster runtime for YAML-only blueprints if measurements show the need.
 
 ## Released
+
+??? note "1.0.0rc3: The last candidate"
+
+    - **Fixes from the checks:** an interrupt with `on_interrupt: resume`, or a batch closing, at the instant a task's patience ran out no longer stops the run. A YAML file and the Builder refuse a name a place cannot read, and a batch size of `true`, with one text, and a refusal names the first unknown name in sorted order on every run. No format, command or record changes. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)
+    - **Docs:** SimPy Compatibility says where desflow differs in a detail for a native feature, YAML Keys says what `Value` and `Generator` mean, and Upgrading to 1.0 lists the new logger names.
 
 ??? note "1.0.0rc2: A cleaner internal structure"
 

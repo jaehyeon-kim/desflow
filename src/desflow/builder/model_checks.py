@@ -36,6 +36,7 @@ from desflow.builder.signals import Signals, timing_problem
 from desflow.builder.task import TaskSpec
 from desflow.builder.task_checks import (
     Holding,
+    bare_name_problem,
     batch_mismatch,
     batch_mismatch_text,
     builder_value,
@@ -291,13 +292,13 @@ class ModelChecks:
         for name, spec in self._tasks.specs.items():
             owner = f"task '{name}'"
             if spec.subscribe is not None:
-                for target in spec.subscribe.targets("task"):
+                for target in sorted(spec.subscribe.targets("task")):
                     if target not in self._tasks.specs:
                         raise ValueError(
                             f"task '{name}' subscribes to task '{target}', "
                             + not_added(target, self._tasks.specs, "@app.task()")
                         )
-                for target in spec.subscribe.targets("signal"):
+                for target in sorted(spec.subscribe.targets("signal")):
                     if target not in self._signals.entries:
                         raise ValueError(
                             f"task '{name}' subscribes to signal '{target}', "
@@ -674,7 +675,7 @@ class ModelChecks:
             handle
             for spec in self._tasks.specs.values()
             if spec.wait is not None
-            for handle in spec.wait.targets("handle")
+            for handle in sorted(spec.wait.targets("handle"))
         }
         for message in whole_flow_problems(
             {
@@ -683,7 +684,7 @@ class ModelChecks:
                 name: {
                     *routes[name],
                     *([spec.on_interrupt_run] if spec.on_interrupt_run else ()),
-                    *(spec.wait.targets("task") if spec.wait else ()),
+                    *(sorted(spec.wait.targets("task")) if spec.wait else ()),
                     *(
                         node.target
                         for handle, node in (
@@ -873,8 +874,8 @@ class ModelChecks:
             spec.on_interrupt_run,
             spec.resume["task"] if spec.resume else None,
             spec.interrupt["task"] if spec.interrupt else None,
-            *(spec.wait.targets("task") if spec.wait else ()),
-            *(spec.open.targets("task") if spec.open is not None else ()),
+            *(sorted(spec.wait.targets("task")) if spec.wait else ()),
+            *(sorted(spec.open.targets("task")) if spec.open is not None else ()),
             spec.release.task if spec.release is not None else None,
         ):
             if target is not None and target not in self._tasks.specs:
@@ -896,7 +897,7 @@ class ModelChecks:
         expressions = [found.expression for found in spec.expressions]
         for expression in expressions:
             signals |= expression.references["signal"]
-        for signal in signals:
+        for signal in sorted(signals):
             if signal not in self._signals.entries:
                 raise ValueError(
                     f"task '{name}' uses signal '{signal}', which is not added; "
@@ -971,32 +972,32 @@ class ModelChecks:
                     f"task '{name}' reads item.<field> in '{expression.text}', "
                     f"but it has no store get before it"
                 )
+        batch_parts = (
+            {}
+            if spec.batch is None
+            else {
+                id(spec.batch.size_of): "size",
+                id(spec.batch.timeout_of): "timeout",
+                id(spec.batch.close_when_of): "close_when",
+            }
+        )
         for key, expression, _place in spec.expressions:
-            # vars get a value at step 14, after the service: put, fail and
-            # next read them, and nothing evaluated earlier can
-            bare = expression.references["name"]
-            allowed = (
-                set(spec.var_names)
-                if key in ("put", "fail", "next")
-                else {*spec.vars_once, *spec.vars}
-                if key == "service_time"
-                else set()
+            place = (
+                f"batch {batch_parts[id(expression)]}"
+                if key == "batch"
+                else "wait"
+                if key.startswith("wait_")
+                else key
             )
-            if bare - allowed:
-                var = sorted(bare - allowed)[0]
-                raise ValueError(
-                    f"task '{name}' reads the name '{var}' in "
-                    f"'{expression.text}', which is "
-                    + (
-                        "not one of its vars"
-                        if key in ("put", "fail", "next")
-                        else "not one of the vars a service time reads "
-                        "(vars_once and vars)"
-                        if key == "service_time"
-                        else f"not available in {key}, which is evaluated before "
-                        "the vars have a value"
-                    )
-                )
+            problem = bare_name_problem(
+                expression,
+                place,
+                key,
+                spec.var_names,
+                {*spec.vars_once, *spec.vars},
+            )
+            if problem:
+                raise ValueError(f"task '{name}' {problem}")
 
     def _check_task_values(
         self,
@@ -1184,7 +1185,7 @@ class ModelChecks:
             sim_id: The model's `sim_id`, the first part of each registry path.
         """
         for kind in kinds:
-            for name in expression.references[kind]:
+            for name in sorted(expression.references[kind]):
                 if kind in _RESOURCE_REFERENCES:
                     known = name in self._holders.resources_config
                 elif kind in _HOLDER_REFERENCES:

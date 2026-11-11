@@ -326,6 +326,8 @@ At `factor: 1.0` one simulated second takes one real second. The run stops at si
 
 Read `sim_ts`, the simulation time of each record. It does not count up in small steps: it jumps from 2.552 to 2.696, then to 3.737, 4.02 and 4.052. The simulation clock moves straight to the time of the next event, because nothing changes between two events. At `factor: 0` the same run takes a fraction of a second, with the same records.
 
+`timestamp` is the date and time of the record: it counts from the moment the simulation is created, so it differs on every run, and this page shows it as `...`. [Logical Start Time](../../user-guide/time-and-pacing/clocks-and-pacing.md#logical-start-time) sets a fixed date instead.
+
 `--sample 5` shows the first records without waiting and without changing the file. It runs the blueprint unpaced, as fast as it can, prints its first 5 events to stdout as JSON lines (one record per line), and stops:
 
 ```bash

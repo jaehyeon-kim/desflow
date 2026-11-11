@@ -3,9 +3,14 @@
 
 task: ST-E05
 
-until: 10
+until: null
 
 run_end: null
+
+# The model ends when no event is left, at 3, and its last segment record says `now: 3`.
+# A run with `--until 10` reports `now: 10.0`, and one with `--sample` stops before that
+# record, so the YAML form runs as it is written.
+via: stdout
 
 records:
   - name: tick at 1

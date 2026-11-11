@@ -1,6 +1,6 @@
 [project]
 name = "desflow"
-version = "1.0.0rc2"
+version = "1.0.0rc3"
 description = "Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg."
 readme = "README.md"
 authors = [
@@ -284,6 +284,6 @@ markers = [
     "azure: integration tests that start an Azurite container (Azure Blob Storage emulator)",
     "gcp: integration tests that start a fake-gcs-server container (Google Cloud Storage emulator)",
     "paced: known cases that run against the wall clock (factor above 0); CI runs them in a step without -n auto (deselect with '-m \"not paced\"')",
-    "every_model: tests that run every model the regression capture runs; manual.yml runs them every day, on one Python version on each system (deselect with '-m \"not every_model\"')",
+    "every_model: tests that run every model the regression capture runs; manual.yml runs them every day, on Python 3.11, 3.12 and 3.15 on Ubuntu and 3.12 on Windows (deselect with '-m \"not every_model\"')",
     "examples: integration tests that run the examples with an odctl profile against the profile the CI jobs `services` or the developer started",
 ]

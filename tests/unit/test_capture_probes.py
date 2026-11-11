@@ -429,6 +429,14 @@ def _weights(bad: Any) -> Change:
 
 
 F = Callable[[Path], Change]
+UNKNOWN = ["zz_noe", "zz_nod", "zz_noc", "zz_nob", "zz_noa"]
+
+
+def _wait_on(kind: str) -> Dict[str, Any]:
+    """A wait on any of the five unknown names, as signals or as tasks."""
+    return {"any": {f"b{n}": {kind: name} for n, name in enumerate(UNKNOWN)}}
+
+
 # The place, how it is changed, and what the refusal says
 REFUSED: List[Tuple[str, Any, str]] = [
     ("a sum of 1,000 terms", _expression(SUM), "nested too deeply"),
@@ -473,6 +481,19 @@ REFUSED: List[Tuple[str, Any, str]] = [
     ("a constant key with a count of 2", _key_count, "same key"),
     ("route weights of infinity", _weights(math.inf), "zz_t"),
     ("route weights of true", _weights(True), "zz_t"),
+    # Five unknown names of one kind: the refusal names the first in sorted order on
+    # every run, not the first a set gives, which changes with the hash seed
+    (
+        "five unknown resources in a payload",
+        _expression(" + ".join(f"users.{name}" for name in UNKNOWN)),
+        "zz_noa",
+    ),
+    (
+        "five unknown signals in a wait",
+        _where({"wait": _wait_on("signal")}),
+        "'zz_noa'",
+    ),
+    ("five unknown tasks in a wait", _where({"wait": _wait_on("task")}), "'zz_noa'"),
 ]
 _COUNT_PLACES: List[Tuple[str, Callable[[Any], Dict[str, Any]]]] = [
     ("a spawn count", lambda v: {"next": {"task": "zz_t", "count": v}}),
@@ -484,7 +505,8 @@ for _label, _bad in _COUNT_PLACES:
     for _value in (-1, math.nan, math.inf, True):
         if _label == "a batch size" and _value == -1:
             continue  # a size below 0 is read when the batch closes, not at load
-        REFUSED.append((f"{_label} {_value!r}", _count(_bad, _value), ""))
+        _needle = "batch size gave" if _label == "a batch size" else ""
+        REFUSED.append((f"{_label} {_value!r}", _count(_bad, _value), _needle))
 REPLAYS = {
     f"a replay time of {bad!r}": (["1,a", f"{bad},b", "3,c"], "row 2 has no valid time")
     for bad in ("nan", "inf", "-inf", "1_0", "0x1", "Infinity", "")

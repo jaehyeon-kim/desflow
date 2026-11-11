@@ -42,6 +42,9 @@ def main(folder: str) -> None:
         raise SystemExit(f"no JUnit file under {folder}")
     for file in files:
         for case in ET.parse(file).iter("testcase"):
+            # A module-level skip or a collection error has no class name and no test
+            if not case.get("classname"):
+                continue
             node = nodeid(case.get("classname", ""), case.get("name", ""))
             times[node] = max(
                 times.get(node, 0.0), round(float(case.get("time") or 0), 3)
