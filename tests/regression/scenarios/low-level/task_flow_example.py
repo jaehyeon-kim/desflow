@@ -27,7 +27,6 @@ from desflow import (
     Upstream,
     run_scenario,
 )
-from desflow.builder.flow import make_scope
 
 PARAMS = SimParameter(
     sim_id="Shop",
@@ -127,33 +126,17 @@ def named(service):
 
 
 def routes():
-    """A Router per task, with the rules of the builder's `next`."""
+    """A Router per task, with the rules of the builder's `next`. The rules of
+    `check_order` and `dispatch` read the stock, the attributes and the waits, which a
+    Router is not given through the public API, so `Shop.leave` applies them in Python
+    and their entry is None."""
     return {
-        "check_order": Router(
-            {
-                "when": [
-                    {"condition": "level.stock == 0", "task": "backorder"},
-                    {
-                        "condition": "payload.total >= 100 or attr.gift == 1",
-                        "task": "wrap_gift",
-                    },
-                ],
-                "default": "pack_order",
-            }
-        ),
+        "check_order": None,
         "backorder": Router("check_order"),
         "wrap_gift": Router("pack_order"),
         "pack_order": Router({"weights": {"settle": 9, "pack_order": 1}}),
         "settle": Router("dispatch"),
-        "dispatch": Router(
-            {
-                "when": [
-                    {"condition": "wait.courier.done", "task": "by_courier"},
-                    {"condition": "wait.truck.done", "task": "by_truck"},
-                ],
-                "default": "by_post",
-            }
-        ),
+        "dispatch": None,
     }
 
 
@@ -204,15 +187,19 @@ class Shop:
         attributes = TASKS.get(task, {}).get("set", {})
         entity.attributes.update(attributes)
         handed = Upstream(task_id, entity.key, entity.attributes, payload)
-        scope = make_scope(
-            handed,
-            entity.attributes,
-            self.env,
-            {"stock": self.stock},
-            waits=waits,
-            signals=self.signals,
-        )
-        return handed, self.routes[task].choose(handed, self.env, scope=scope)
+        if task == "check_order":
+            if self.stock.level == 0:
+                return handed, "backorder"
+            if payload["total"] >= 100 or entity.attributes["gift"] == 1:
+                return handed, "wrap_gift"
+            return handed, "pack_order"
+        if task == "dispatch":
+            if waits["courier"]["done"]:
+                return handed, "by_courier"
+            if waits["truck"]["done"]:
+                return handed, "by_truck"
+            return handed, "by_post"
+        return handed, self.routes[task].choose(handed)
 
 
 def timed(shop, task, entity, task_id, child):

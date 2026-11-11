@@ -60,6 +60,7 @@ import argparse
 import contextlib
 import importlib.util
 import json
+import re
 import signal
 import sys
 import zlib
@@ -392,9 +393,32 @@ def merge(parts: List[str], out: str) -> None:
     print(f"joined {len(joined)} runs from {len(parts)} parts to {out}")
 
 
-def _version(text: str) -> Tuple[int, ...]:
-    """A release number such as `0.23.0` as a tuple that orders correctly."""
-    return tuple(int(part) for part in str(text).split("."))
+# A release number, with an optional prerelease such as `rc1` (PEP 440's short form)
+_RELEASE = re.compile(r"(\d+(?:\.\d+)*)(?:(a|b|rc)(\d+))?")
+# A prerelease orders before its release: alpha, beta, release candidate, release
+_STAGES = {"a": 0, "b": 1, "rc": 2, None: 3}
+
+
+def _version(text: str) -> Tuple[Tuple[int, ...], int, int]:
+    """A release number such as `0.23.0` or `1.0.0rc1` as a tuple that orders
+    correctly, a prerelease before its release.
+
+    Args:
+        text: The release number.
+
+    Returns:
+        Tuple[Tuple[int, ...], int, int]: The release's numbers, its stage and the
+        prerelease's number.
+
+    Raises:
+        ValueError: If the text is not a release number.
+    """
+    match = _RELEASE.fullmatch(str(text))
+    if match is None:
+        raise ValueError(f"not a release number: {text!r}")
+    release, stage, number = match.groups()
+    numbers = tuple(int(part) for part in release.split("."))
+    return numbers, _STAGES[stage], int(number or 0)
 
 
 def _expected(path: Path, baseline: str) -> Dict[str, Dict[str, Any]]:
