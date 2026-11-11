@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -4403,7 +4403,7 @@
 <hr />
 <h2 id="one-run-starts-empty">One Run Starts Empty</h2>
 <p>A run starts with an empty shop, and the first orders find every packer free. Their waits are shorter than the waits of the hour as a whole, so the mean wait of a run is biased low by its start. Look at the diagram for the two parts of a run: in the warm-up the shop fills from empty and the queue has not settled, so it is left out of the statistics, and the measured period, once the queue has settled, is what the statistics cover.</p>
-<p><img alt="One run from an empty shop: a warm-up (left out of the statistics), then the measured period, then the end of the run at until" src="../../assets/diagrams/run-phases.png" /></p>
+<p><img alt="One run from an empty shop: a warm-up (left out of the statistics), then the measured period, then the end of the run at until" src="../../../shared-images/3efb94b104458d1d.png" /></p>
 <p>A <strong>warm-up</strong> is a time at the start of a run whose observations are discarded. In desflow the run's <code>warmup</code> resets every statistic once at that time, as <a href="../../user-guide/time-and-pacing/run-length/">Run Length</a> and <a href="../../user-guide/statistics/">Statistics</a> describe.</p>
 <p>Choose the warm-up from evidence, not from habit. Plot a running statistic from the start of the run, such as the queue length or the mean wait so far, for several seeds, and pick a time after which they all move up and down with no trend. Law's paper shows a plot made with Welch's method for this, in which the warm-up is the time after which the average has levelled off, and advises choosing it conservatively. Compare a few candidate cutoffs as well: run the replications with each, and take the shortest after which a longer warm-up no longer moves the mean by more than its half-width. <a href="../../tutorials/trusting-results/">Trusting Results</a> does it for the shop: the mean wait so far climbs for about a minute and a half and then wanders, so the warm-up is 2 minutes. For the busy hour it moves the mean wait of one run only from 1.382 to 1.381 seconds, because an hour is long enough that its first minutes hardly count. A shorter run, or one that starts far from the usual state, needs the warm-up much more.</p>
 <p>A warm-up is not a fix for a model that never settles. If utilisation is 1 or more, there is no steady state, and no warm-up will find one, as <a href="../queueing-basics/">Queueing Basics</a> explains.</p>
@@ -4411,7 +4411,7 @@
 <h2 id="replications">Replications</h2>
 <p>The waits of orders in one run follow each other: after a busy period, many orders in a row wait long. They are not independent samples, so the usual formula for the spread of an average, which assumes independent samples, gives an interval that is too narrow. Law lists this as a pitfall, along with treating one run as the truth.</p>
 <p><strong>Replications</strong> avoid the problem. Each replication is the same run with its own random stream, so it has its own mean wait, and gives one independent value of each statistic. The mean of those values is the estimate, and a 95% interval is the mean plus or minus t × s ÷ √n, where s is the standard deviation of the n values and t is the Student t quantile for n − 1 degrees of freedom. Look at the diagram for the flow from runs to one interval.</p>
-<p><img alt="Four runs, each with its own stream, combine into one mean wait with a 95% interval" src="../../assets/diagrams/replication-interval.png" /></p>
+<p><img alt="Four runs, each with its own stream, combine into one mean wait with a 95% interval" src="../../../shared-images/c1b835409f077f68.png" /></p>
 <p>In the busy hour of the shop, 40 replications give a mean wait of 2.32 ± 0.20 seconds, and the run with the seed 42 alone measured 1.38 seconds, lower than any of the 40. One run would have given a confident and wrong answer. <a href="../../tutorials/trusting-results/">Trusting Results</a> shows these runs, <a href="../../user-guide/replications/">Replications</a> describes the commands and the seeds, which are spawned from one seed so that the set repeats exactly, and <a href="../../tutorials/randomness-and-seeds/">Randomness and Seeds</a> explains the streams.</p>
 <hr />
 <h2 id="how-many-replications">How Many Replications</h2>

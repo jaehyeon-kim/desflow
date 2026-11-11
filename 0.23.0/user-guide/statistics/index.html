@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -4294,7 +4294,7 @@
 <p><strong>Readings now.</strong> <code>capacity</code>, <code>in_use</code>, <code>queue_length</code> and <code>level</code> are read from the object at the moment of publishing. <code>in_use</code> counts the units held by tasks, so after a capacity drop it can be above <code>capacity</code>, and <code>utilization</code>, <code>in_use ÷ capacity × 100</code>, above 100. A resource with no limit (<code>current_cap: .inf</code>) publishes <code>capacity</code> as <code>null</code> and a <code>utilization</code> of 0. A store or container with no limit publishes its <code>capacity</code> as <code>null</code> too.</p>
 <p><strong>Breakdowns.</strong> A resource with a <code>breakdown</code> reads <code>down</code> now: 1 while it is down, 0 otherwise. <code>downtime</code> adds the length of each down period, and of one still going on, and <code>failures</code> adds one at each failure; <a href="../../guides/breakdowns/">Breakdowns</a> checks both against the events.</p>
 <p><strong>Averages over time.</strong> <code>utilization_avg</code>, <code>queue_length_avg</code> and <code>level_avg</code> weigh each value by how long it lasted. Each resource, store and container reports every change, and the statistics add the area under the value since the last change, so the average is exact at any moment rather than sampled:</p>
-<p><img alt="Busy packers over 10 seconds: 1 for 2 seconds, 3 for 4 seconds, 2 for 4 seconds; the areas 2, 12 and 8 add up to 22, so the time-weighted average is 2.2 busy packers, while a reading at 10 seconds sees 2" src="../../assets/diagrams/stats-time-weighted.png" /></p>
+<p><img alt="Busy packers over 10 seconds: 1 for 2 seconds, 3 for 4 seconds, 2 for 4 seconds; the areas 2, 12 and 8 add up to 22, so the time-weighted average is 2.2 busy packers, while a reading at 10 seconds sees 2" src="../../../shared-images/0dcaa0ebcde02c04.png" /></p>
 <p><strong>Counts.</strong> <code>finished</code> adds one when a task instance finishes, and a flow's <code>finished</code> adds one when an entity's last task has no next task. A flow's <code>started</code> adds one when an entity's first task instance begins, before its balk check and its queue, whether or not it is then served; for an entity the <code>spawn</code> key or an <code>on:</code> spawn action starts it adds one at the spawn when the spawn has no <code>after</code>, and when the spawned task starts after the delay when it has one. <code>in_system</code> is the number of its entities in the model now, started and not yet finished, failed or gone; so <code>started</code> is <code>finished</code> plus <code>in_system</code> plus the entities that balked, reneged, failed or were abandoned. A task's <code>in_progress</code> is the number of its instances queued or started and not yet ended, now. A low-level process reports entities with <code>env.stats.flow_started(arrival)</code> and, for one that leaves without finishing or failing, <code>env.stats.flow_ended(arrival)</code>. A task's <code>balked</code> adds one when an instance refuses to join its queue, <code>reneged</code> when one leaves the queue after its patience, and <code>failed</code> when one fails (<a href="../tasks-and-processes/failures/#failures">Failures</a>); a flow's <code>failed</code> adds one when an entity's flow ends in a failure no <code>on_fail</code> handles. <code>interrupted</code> and <code>preempted</code> add one for each interrupt or preemption an instance receives, and <code>resumed</code> when it is served again. Each is published once it is above 0. A balked, reneged or failed instance adds no wait or service time. An interrupted instance that resumes adds one wait, the sum of all its waits, and one service time, the time it was served. A low-level process counts them with <code>env.stats.task_balked(task, instance)</code>, <code>env.stats.task_reneged(task, instance)</code>, <code>env.stats.task_failed(task, instance)</code>, <code>env.stats.flow_failed(arrival)</code>, <code>env.stats.task_interrupted(task, instance, preempted=...)</code> and <code>env.stats.task_resumed(task, instance)</code>.</p>
 <p><strong>Wait and service.</strong> The wait of a task instance runs from its <code>queued</code> step to its <code>started</code> step, and its service from <code>started</code> to finished; a task that never queues, such as a timed step, waits 0. <code>typical</code> keeps a count, a total and a maximum of each, so their cost does not grow with the run. <code>all</code> keeps every observation and computes the percentiles exactly with NumPy's <code>percentile</code> at each publication, so its memory grows with the number of tasks.</p>
 <p><strong>Warm-up.</strong> A run's <code>warmup</code> resets every statistic once, at that time: the averages start again from zero area, and the counts and observations from zero. An instance that was queued before the reset and starts after it counts with its whole wait. <a href="../time-and-pacing/">Time and Pacing</a> describes the warm-up.</p>

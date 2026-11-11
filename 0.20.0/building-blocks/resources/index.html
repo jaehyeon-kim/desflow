@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2456,7 +2456,7 @@
 <h2 id="discrete-resources-dynamicresource">Discrete Resources (<code>DynamicResource</code>)</h2>
 <p><code>DynamicResource</code> is built from a SimPy <code>PriorityStore</code> request queue and a <code>Container</code> token pool, and represents discrete assets that process individual tasks (such as packers, packing benches or loading bays).</p>
 <p>A task's request waits in the queue. The dispatcher takes the next request by priority, waits for a token from the pool, and grants it; the registry decides how many tokens the pool may hold:</p>
-<p><img alt="A task requests the resource; the request waits in a PriorityStore queue, and a dispatcher process gives it a token from the pool, whose size follows the registry" src="../../assets/diagrams/resource-dispatch.png" /></p>
+<p><img alt="A task requests the resource; the request waits in a PriorityStore queue, and a dispatcher process gives it a token from the pool, whose size follows the registry" src="../../../shared-images/9f1c4d4759389345.png" /></p>
 <div class="language-python highlight"><span class="filename">docs/snippets/pages/resources.py:resource</span><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">packers</span> <span class="o">=</span> <span class="n">DynamicResource</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="s2">&quot;Shop&quot;</span><span class="p">,</span> <span class="s2">&quot;packers&quot;</span><span class="p">)</span>  <span class="c1"># capacity from the registry: 2</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
@@ -2473,7 +2473,7 @@
 * No waiting task starts until the busy units are within the new capacity (2). <code>in_use</code> counts the busy units, so it can be above <code>capacity</code> until they finish.
 * A capacity raised again before the owed tokens arrive first cancels them, then adds any remaining difference to the pool.</p>
 <p>The animation steps through a drop from 5 to 2 with 4 units busy:</p>
-<p><img alt="Capacity drops from 5 to 2 with 4 units busy: the idle token leaves, two tokens are owed and discarded as tasks finish, and only then does a waiting task start" src="../../assets/diagrams/resource-shrink.gif" /></p>
+<p><img alt="Capacity drops from 5 to 2 with 4 units busy: the idle token leaves, two tokens are owed and discarded as tasks finish, and only then does a waiting task start" src="../../../shared-images/ec90821ed9641031.gif" /></p>
 <div class="language-python highlight"><span class="filename">docs/snippets/pages/resources.py:shrink</span><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">breakdown</span><span class="p">(</span><span class="n">env</span><span class="p">):</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Takes 3 of 5 packers off the floor at t=5 s. Orders being packed are not stopped.&quot;&quot;&quot;</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">&quot;Shop.resources.packers.max_cap&quot;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
@@ -2504,7 +2504,7 @@
 <h2 id="dynamic-stores-dynamicstore">Dynamic Stores (<code>DynamicStore</code>)</h2>
 <p><code>DynamicStore</code> wraps a SimPy <code>Store</code>, or a <code>PriorityStore</code> when priorities are needed, and represents item-based collections (such as warehouses, buffer areas, or order books).</p>
 <p>A container holds a quantity up to its capacity, and a store holds items up to its capacity. Both capacities follow the registry:</p>
-<p><img alt="A DynamicContainer has a capacity from the registry and a level changed by put and get; a DynamicStore has a capacity in items from the registry" src="../../assets/diagrams/containers-and-stores.png" /></p>
+<p><img alt="A DynamicContainer has a capacity from the registry and a level changed by put and get; a DynamicStore has a capacity in items from the registry" src="../../../shared-images/4b440d1d3d5b1748.png" /></p>
 <div class="language-python highlight"><span class="filename">docs/snippets/pages/resources.py:store</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">goods</span> <span class="o">=</span> <span class="n">DynamicStore</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="s2">&quot;Shop&quot;</span><span class="p">,</span> <span class="s2">&quot;dispatch&quot;</span><span class="p">)</span>  <span class="c1"># at most 50 items</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>

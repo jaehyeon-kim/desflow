@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2356,7 +2356,7 @@
 <hr />
 <h2 id="writing-a-custom-router">Writing a Custom Router</h2>
 <p>A topic router is a Python function that receives one record, as a dictionary with its <code>stream_type</code>, <code>key</code> or <code>path_id</code>, and <code>value</code>, and returns the topic name as a string. <code>KafkaEgress</code> sends every record it receives, so the router must always return a topic. To drop records, give the provider a <code>when</code> predicate on <code>add_egress</code>, which filters them before they reach the router.</p>
-<p><img alt="custom_kafka_router sends telemetry to shop-telemetry, events with status packing_failed or level ERROR to system-alarms, and any other event to shop-events" src="../../assets/diagrams/record-router.png" /></p>
+<p><img alt="custom_kafka_router sends telemetry to shop-telemetry, events with status packing_failed or level ERROR to system-alarms, and any other event to shop-events" src="../../../shared-images/ac6e423f43cf55d3.png" /></p>
 <p>This router sends telemetry, alarms and other events to three topics:</p>
 <div class="language-python highlight"><span class="filename">docs/snippets/pages/complex_routing.py:router</span><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">custom_kafka_router</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Picks a topic for each record by its kind and its value.&quot;&quot;&quot;</span>

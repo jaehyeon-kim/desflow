@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.7">
     
     
@@ -122,7 +122,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -257,7 +257,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -5569,7 +5569,7 @@
 <h1 id="builder-api">Builder API</h1>
 <p>This page writes a whole simulation as one Python file with the builder, <code>SimulationContext</code>: a shop that packs orders with boxes from stock, prints a label, and leaves the parcel for a courier. It builds on <a href="../ways-to-write/">Ways to Write</a>, which places the builder between a blueprint and the low-level API, and on <a href="../tasks-and-processes/">Tasks and Processes</a>, which describes what a task does.</p>
 <p>The builder works in two phases. You describe the simulation with its methods and decorators, and nothing runs. <code>run()</code> then builds the environment and the connectors and starts the clock:</p>
-<p><img alt="You call add_resource, add_service, add_arrival, @app.task, add_process, add_ingress and add_egress; run() then creates the DynamicRealtimeEnvironment, starts the ingress and egress threads, and starts the processes and runs the clock" src="../../assets/diagrams/builder-then-run.png" /></p>
+<p><img alt="You call add_resource, add_service, add_arrival, @app.task, add_process, add_ingress and add_egress; run() then creates the DynamicRealtimeEnvironment, starts the ingress and egress threads, and starts the processes and runs the clock" src="../../../shared-images/a8f9ce668e3fc745.png" /></p>
 <p>Until <code>run()</code> builds the environment, the runtime helpers <code>context.spawn</code>, <code>context.call</code>, <code>context.signal</code>, <code>context.get_resource</code>, <code>context.get_store</code>, <code>context.get_container</code> and <code>context.env</code> raise <code>RuntimeError</code>. Loops, tasks and processes run only after that, so the helpers belong inside them.</p>
 <hr />
 <h2 id="build-the-model">Build the Model</h2>

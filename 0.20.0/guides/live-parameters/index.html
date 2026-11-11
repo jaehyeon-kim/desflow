@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2475,7 +2475,7 @@
 <h1 id="change-parameters-while-a-simulation-runs">Change Parameters While a Simulation Runs</h1>
 <p>Every parameter of a run has a path in the registry, and a new value sent to that path takes effect without restarting the run. This guide shows how to find the path, and how to send a value from each source. <a href="../../architecture/registry/">Live Parameters</a> explains what happens to the value once it arrives.</p>
 <p>Changing a parameter takes three steps:</p>
-<p><img alt="Find the registry path, send the new value from a scenario, LocalIngress, Kafka, Redis or PostgreSQL, and see it in the telemetry" src="../../assets/diagrams/live-change-steps.png" /></p>
+<p><img alt="Find the registry path, send the new value from a scenario, LocalIngress, Kafka, Redis or PostgreSQL, and see it in the telemetry" src="../../../shared-images/06289235c57fa6d0.png" /></p>
 <hr />
 <h2 id="find-the-path">Find the path</h2>
 <p>A path is the <code>sim_id</code>, the kind of parameter, its name and the field, such as <code>Shop.resources.packers.current_cap</code> or <code>Shop.arrival.orders.rate</code>. <a href="../../architecture/registry/#registry-paths">Registry paths</a> lists every form.</p>

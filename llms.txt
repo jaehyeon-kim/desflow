@@ -91,6 +91,7 @@
 - [Share Work by Weight](https://jaehyeon.me/desflow/latest/how-to/modelling/share-by-weight/index.md)
 - [Model Breakdowns](https://jaehyeon.me/desflow/latest/how-to/modelling/breakdowns/index.md)
 - [Add Resources Mid-run](https://jaehyeon.me/desflow/latest/how-to/modelling/dynamic-topology/index.md)
+- [Switch a Task On Mid-run](https://jaehyeon.me/desflow/latest/how-to/modelling/switch-a-task-on/index.md)
 - [Serve Entities Together](https://jaehyeon.me/desflow/latest/how-to/modelling/serve-entities-together/index.md)
 - [Send Data to a Sink](https://jaehyeon.me/desflow/latest/how-to/generate-data/send-data-to-a-sink/index.md)
 - [Realistic Fields](https://jaehyeon.me/desflow/latest/how-to/generate-data/realistic-fields/index.md)

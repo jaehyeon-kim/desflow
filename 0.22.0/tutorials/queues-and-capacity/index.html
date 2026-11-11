@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -3406,7 +3406,7 @@
 <h2 id="waits-near-full-use">Waits Near Full Use</h2>
 <p>With 2 packers, utilisation is 1.35. The queue grows all hour, so the mean wait says only how long the run was: run two hours and it roughly doubles. With 3 packers, utilisation is 0.9 and the wait settles. With 4 it is 0.675, and almost nobody waits.</p>
 <p>A stable model can still wait a long time. Waits grow sharply as utilisation approaches 1, and more variable times make it worse. These are measured mean waits in the queue for one packer with a mean service of 1.5 seconds, each over 200,000 simulated seconds:</p>
-<p><img alt="Measured mean wait in the queue for one packer with mean service 1.5 s: at utilisation 0.5, 1.5 s with exponential service and 0.8 s with constant service; at 0.75, 4.4 and 2.3 s; at 0.9, 13.0 and 7.0 s; at 0.95, 31.3 and 14.8 s" src="../../assets/diagrams/wait-vs-utilization.png" /></p>
+<p><img alt="Measured mean wait in the queue for one packer with mean service 1.5 s: at utilisation 0.5, 1.5 s with exponential service and 0.8 s with constant service; at 0.75, 4.4 and 2.3 s; at 0.9, 13.0 and 7.0 s; at 0.95, 31.3 and 14.8 s" src="../../../shared-images/ceb39252c5790ff2.png" /></p>
 <ul>
 <li><strong>With exponential service times</strong>, the mean wait for one unit is <code>utilisation ÷ (1 − utilisation) × mean service time</code>. At 0.75 that is 3 × 1.5 = 4.5 seconds. Going from 0.9 to 0.95 more than doubles it.</li>
 <li><strong>With constant service times</strong>, as in this shop, the wait is half of that, because no unusually long job holds up the queue. Spread in the service time, or in the gaps between arrivals, always lengthens waits; <a href="../choosing-inputs/">Choosing Inputs</a> measures it.</li>
@@ -3414,7 +3414,7 @@
 <hr />
 <h2 id="result">Result</h2>
 <p>How many packers keep the mean wait under 10 seconds? <strong>3 packers</strong>, as the mean wait for 1 to 4 packers shows:</p>
-<p><img alt="Mean wait in the busy hour for 1 to 4 packers on a log scale: 1127 seconds with 1, 426 with 2, 1.27 with 3 and 0.20 with 4; the 10-second line separates 2 from 3" src="../../assets/charts/queues-wait.png" /></p>
+<p><img alt="Mean wait in the busy hour for 1 to 4 packers on a log scale: 1127 seconds with 1, 426 with 2, 1.27 with 3 and 0.20 with 4; the 10-second line separates 2 from 3" src="../../../shared-images/fdcc1196f8002d7f.png" /></p>
 <p>With 3 packers the mean wait is 1.27 seconds. With 2 packers it is over 400 seconds and still growing when the hour ends. The answer is the first number of packers that brings utilisation below 1, because the shop's packing time is constant and 0.9 is not yet close enough to 1 for the wait to pass 10 seconds.</p>
 <h2 id="why-it-works">Why It Works</h2>
 <p>Three packers serving one queue is the M/M/c model of queueing theory when both the gaps and the service times are exponential, and M/D/c when the service time is constant, as here. For both, the wait, measured in service times, depends on utilisation alone once c is fixed, and grows without limit as utilisation reaches 1, which is what the table shows. To bring a resource below 1, change any term of the utilisation: add units (<code>current_cap</code>), work faster (a shorter service time) or take fewer arrivals (a lower <code>rate</code>). Each is a live parameter, so a running model can be relieved, or overloaded on purpose, as <a href="../../user-guide/live-parameters/">Live Parameters</a> shows. <a href="../../user-guide/statistics/">Statistics</a> describes how the mean wait is measured.</p>

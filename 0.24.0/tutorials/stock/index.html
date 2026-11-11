@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -4426,7 +4426,7 @@
 </div>
 </div>
 <p>The run builds the container, as it builds the packers. Look at what can wait on it:</p>
-<p><img alt="A DynamicContainer called stock holds a level up to its current_cap. Getters wait below it until the level covers their amount, putters until there is room; a live update of the level from the registry, clamped to between 0 and current_cap, wakes both" src="../../assets/diagrams/container-level.png" /></p>
+<p><img alt="A DynamicContainer called stock holds a level up to its current_cap. Getters wait below it until the level covers their amount, putters until there is room; a live update of the level from the registry, clamped to between 0 and current_cap, wakes both" src="../../../shared-images/e6d8a2c993bc3610.png" /></p>
 <hr />
 <h2 id="take-and-restock">Take and Restock</h2>
 <p>Packing an order takes one box. The task gets its packer first and then its box, so an order that finds the shelf empty waits for stock while it holds the packer:</p>
@@ -4621,7 +4621,7 @@
 <hr />
 <h2 id="result">Result</h2>
 <p>What happens when stock runs out? Orders wait for boxes, and when deliveries cannot keep up, the wait grows all hour. The level over the first 30 minutes, for both delivery sizes:</p>
-<p><img alt="With deliveries of 60 every 100 seconds, the level climbs in a saw-tooth from 50 to about 200 over 30 minutes; with deliveries of 40, it falls to 0 before each delivery and stays there for about 40 seconds, while orders wait" src="../../assets/charts/stock-level.png" /></p>
+<p><img alt="With deliveries of 60 every 100 seconds, the level climbs in a saw-tooth from 50 to about 200 over 30 minutes; with deliveries of 40, it falls to 0 before each delivery and stays there for about 40 seconds, while orders wait" src="../../../shared-images/6bf37c08f8e79405.png" /></p>
 <p>With deliveries of 60, the mean wait for packing is <strong>1.93 seconds</strong>, and stock runs out only once, just before the first delivery. With deliveries of 40, it is <strong>341.89 seconds</strong>, and the shelf is empty for about 40 of every 100 seconds. Deliveries of 40 boxes every 100 seconds support packing at most 0.4 orders a second while 0.5 arrive, so the packer queue grows all hour, as with too few packers on <a href="../queues-and-capacity/">Queues and Capacity</a>. The Builder and Low-level scripts print both:</p>
 <!-- records: stock-table -->
 <div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-14-1">1</a></span>

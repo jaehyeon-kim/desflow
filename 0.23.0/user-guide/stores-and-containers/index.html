@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -5160,9 +5160,9 @@
 <hr />
 <h2 id="how-it-works">How It Works</h2>
 <p>A container keeps a level between 0 and its capacity, with a queue of getters and a queue of putters. A <code>get</code> succeeds as soon as the level covers its amount, and a <code>put</code> as soon as there is room for all of it; until then each waits in its queue, in the order it arrived:</p>
-<p><img alt="A DynamicContainer called stock holds a level up to its current_cap. Getters wait below it until the level covers their amount, putters until there is room; a live update of the level from the registry, clamped to between 0 and current_cap, wakes both" src="../../assets/diagrams/container-level.png" /></p>
+<p><img alt="A DynamicContainer called stock holds a level up to its current_cap. Getters wait below it until the level covers their amount, putters until there is room; a live update of the level from the registry, clamped to between 0 and current_cap, wakes both" src="../../../shared-images/e6d8a2c993bc3610.png" /></p>
 <p>A store keeps a list of items, up to its capacity. A <code>put</code> adds an item at the end, and a <code>get</code> takes the first, so items leave in the order they came; a <code>get</code> with a filter takes the first item its filter accepts:</p>
-<p><img alt="A DynamicStore called parcels holds items, each a finished payload, up to its current_cap. Putters wait until there is room; getters wait until there is an item, and take the oldest" src="../../assets/diagrams/store-items.png" /></p>
+<p><img alt="A DynamicStore called parcels holds items, each a finished payload, up to its current_cap. Putters wait until there is room; getters wait until there is an item, and take the oldest" src="../../../shared-images/ae6a467f3020034d.png" /></p>
 <p><strong>SimPy and desflow.</strong> Underneath are SimPy's <code>Container</code>; a <code>FilterStore</code> for a store, which serves its gets as <code>Store</code> does while no waiting get has a filter; and a <code>PriorityStore</code> for a priority store, which hands out the lowest item first. A full put that waits for room and an empty get that waits for an item or an amount are checked against plain SimPy in all three APIs; <a href="../../reference/simpy-compatibility/">SimPy Compatibility</a> lists the checks. SimPy's capacities are fixed when they are created; desflow's follow the registry, keep the registry's <code>level</code> in step with every put and get, and report each change to the statistics. <a href="../../des/simpy-and-desflow/">SimPy and desflow</a> compares the two.</p>
 <hr />
 <h2 id="under-live-changes">Under Live Changes</h2>

@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -3132,13 +3132,13 @@
 <h2 id="simulation-in-everyday-terms">Simulation in Everyday Terms</h2>
 <p>Think of a coffee shop. Customers come in about once a minute, and the barista takes about 50 seconds per coffee. Will there be a queue at 9 in the morning? What if a second barista starts at 9:30, or a bus drops off twenty people at once?</p>
 <p>You could answer by watching the shop with a notebook. You would not write something down every second, because most seconds nothing changes. You would write only the moments when something happens: a customer arrives, an order starts, a coffee is ready. Each of those moments is an <strong>event</strong>, and the notebook is enough to tell you who waited and for how long.</p>
-<p><img alt="A coffee shop: customers arrive about one a minute, queue, are served by a barista in about 50 seconds and leave; the notebook lists only the moments when something changes: Anna arrives at 9:00:00 and orders at once, Ben arrives at 9:00:40 and queues, Anna's coffee is ready at 9:00:50 and Ben orders, Ben's coffee is ready at 9:01:45" src="../../assets/diagrams/coffee-shop.png" /></p>
+<p><img alt="A coffee shop: customers arrive about one a minute, queue, are served by a barista in about 50 seconds and leave; the notebook lists only the moments when something changes: Anna arrives at 9:00:00 and orders at once, Ben arrives at 9:00:40 and queues, Anna's coffee is ready at 9:00:50 and Ben orders, Ben's coffee is ready at 9:01:45" src="../../../shared-images/e06e28a8f90bd731.png" /></p>
 <p>A <strong>discrete-event simulation</strong> (DES) is that notebook, written by a computer. You describe the shop: how often customers come, how long a coffee takes, how many baristas there are. The computer then plays out the events one after another, with random variation like in real life, and writes down what happens. Because it skips the quiet seconds, it can play out a day, or a year, in moments. Change the description, add a barista or double the customers, and run it again to see the difference.</p>
 <p>desflow does this for any system with arrivals, work and limited capacity: a factory, a warehouse, a shop, a support desk, a network. What it adds is that every event is also sent out as a record, to Kafka, a database or files, so the simulation becomes a source of realistic data. <a href="../../user-guide/building-blocks/">Building Blocks</a> shows the parts you describe a model with, and <a href="../../tutorials/queues-and-capacity/">Queues and Capacity</a> explains why a queue grows the way it does.</p>
 <hr />
 <h2 id="events-and-the-event-list">Events and the Event List</h2>
 <p>This section is the same idea in the terms the rest of the docs use. A discrete-event simulation models a system as a series of <strong>events</strong>: an order arrives, a packer starts on it, the packer finishes. Each event happens at an instant, and between two events nothing changes. So the simulation keeps a list of what happens next, in time order, takes the earliest, moves its clock straight to that instant, and carries it out. Carrying out an event usually schedules more: an order that a packer starts on schedules its own finish 1.5 seconds later.</p>
-<p><img alt="The simulation clock jumps from event to event: order 1 arrives and starts at 0.0 s and finishes at 1.5 s, order 2 arrives and starts at 2.6 s and finishes at 4.1 s. Just after 0.0 s the event list holds order 1 finishing at 1.5 s and order 2 arriving at 2.6 s, so the clock jumps to 1.5 s" src="../../assets/diagrams/event-clock.png" /></p>
+<p><img alt="The simulation clock jumps from event to event: order 1 arrives and starts at 0.0 s and finishes at 1.5 s, order 2 arrives and starts at 2.6 s and finishes at 4.1 s. Just after 0.0 s the event list holds order 1 finishing at 1.5 s and order 2 arriving at 2.6 s, so the clock jumps to 1.5 s" src="../../../shared-images/6305e98040ba228f.png" /></p>
 <p>The clock jumps, so a simulated week with a few thousand events takes as long to compute as those events need, not a week. desflow runs on <a href="https://simpy.readthedocs.io/">SimPy</a>, which provides the event list and the clock. On top of SimPy it adds:</p>
 <ul>
 <li><strong>Pacing.</strong> <code>factor</code> makes the clock follow the wall clock (<code>1.0</code>), run faster or slower, or not wait at all (<code>0.0</code>), so the same model can drive a live dashboard or write a month of history in seconds. <a href="../../user-guide/time-and-pacing/">Time and Pacing</a> explains it.</li>

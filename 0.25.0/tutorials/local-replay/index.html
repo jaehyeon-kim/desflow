@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.7">
     
     
@@ -122,7 +122,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -257,7 +257,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -5512,7 +5512,7 @@
 <hr />
 <h2 id="result">Result</h2>
 <p>What does the shop do with the orders of the real morning? The replay shows something the model does not. Replayed, the orders wait <strong>91.31 seconds</strong> on average and up to <strong>295.40 seconds</strong>. In one run of the model, with exponential gaps at the same mean rate and the seed 42, orders wait <strong>2.57 seconds</strong> on average and at most <strong>14.34</strong>. The recorded morning holds two bursts of three minutes each, at 09:15 and 09:40. The packer clears the queue of the first burst only at about 09:32, and the queue of the second at about 09:54:</p>
-<p><img alt="Waits by the time packing started: the recorded orders wait up to 295 s after the bursts at 15 and 40 minutes; the exponential model stays near 0 all hour" src="../../assets/charts/replay-waits.png" /></p>
+<p><img alt="Waits by the time packing started: the recorded orders wait up to 295 s after the bursts at 15 and 40 minutes; the exponential model stays near 0 all hour" src="../../../shared-images/14b3363bc58bba17.png" /></p>
 <p>The replay packs 1,962 of the 1,963 recorded orders: the last is still being packed when the hour ends, and <code>flows.orders.in_system</code> is 1. The Builder and Low-level scripts print both runs:</p>
 <div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-7-1">1</a></span>
 <span class="normal"><a href="#__codelineno-7-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1"></a>recorded: 1962 packed, mean wait 91.31 s, longest 295.40 s

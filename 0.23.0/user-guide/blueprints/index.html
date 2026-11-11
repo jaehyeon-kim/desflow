@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -3926,7 +3926,7 @@
 <hr />
 <h2 id="what-it-does-for-you">What It Does for You</h2>
 <p><code>from_yaml</code> makes the builder calls for you, so a blueprint gets everything <a href="../builder-api/#what-it-does-for-you">the builder does</a>, and it checks the whole file before anything runs. A file is read and checked in five steps, and any step that fails stops the load with a <code>BlueprintError</code> before anything runs:</p>
-<p><img alt="from_yaml and desflow run read the file, check every field, check the names, build the context and check the paths, in that order, and return a SimulationContext; any step that fails raises BlueprintError with the file and line" src="../../assets/diagrams/blueprint-loading.png" /></p>
+<p><img alt="from_yaml and desflow run read the file, check every field, check the names, build the context and check the paths, in that order, and return a SimulationContext; any step that fails raises BlueprintError with the file and line" src="../../../shared-images/f6dcc8bcca9ae1fb.png" /></p>
 <ol>
 <li><strong>Read the file.</strong> <code>read_document</code> reads it with a subclass of <code>yaml.SafeLoader</code>. <code>${VAR}</code> is replaced while each scalar is read, <code>!python module.attribute</code> imports the module and returns the attribute, <code>!include path</code> reads a mapping from another YAML file relative to this one, and every key's line is kept in a source map. Every other node is built as <code>yaml.safe_load</code> would build it.</li>
 <li><strong>Check every field.</strong> The document is validated against the <code>Blueprint</code> model. Unknown keys are refused, so a misspelt key is reported rather than ignored, and every distribution is built as the builder would build it, so a parameter out of range or one the family does not take is refused here. Every relative time is read against one <code>now</code>, a <code>spawn</code> <code>after</code> and a <code>fire</code> <code>after</code> must be above 0, and <code>simulation.environment</code> must be a subclass of <code>DynamicRealtimeEnvironment</code>. All validation errors are reported at once.</li>

@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -118,7 +118,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -253,7 +253,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2696,7 +2696,7 @@
 <p>The environment keeps one <code>Statistics</code> object, <code>env.stats</code>, which collects nothing until a level above <code>none</code> is set. Its timer publishes every value at each interval, and the teardown publishes them once more.</p>
 <p><strong>Readings now.</strong> <code>capacity</code>, <code>in_use</code>, <code>queue_length</code> and <code>level</code> are read from the object at the moment of publishing. <code>in_use</code> counts the units held by tasks, so after a capacity drop it can be above <code>capacity</code>, and <code>utilization</code>, <code>in_use ÷ capacity × 100</code>, above 100.</p>
 <p><strong>Averages over time.</strong> <code>utilization_avg</code>, <code>queue_length_avg</code> and <code>level_avg</code> weigh each value by how long it lasted. Each resource, store and container reports every change, and the statistics add the area under the value since the last change, so the average is exact at any moment rather than sampled:</p>
-<p><img alt="Busy packers over 10 seconds: 1 for 2 seconds, 3 for 4 seconds, 2 for 4 seconds; the areas 2, 12 and 8 add up to 22, so the time-weighted average is 2.2 busy packers, while a reading at 10 seconds sees 2" src="../../assets/diagrams/stats-time-weighted.png" /></p>
+<p><img alt="Busy packers over 10 seconds: 1 for 2 seconds, 3 for 4 seconds, 2 for 4 seconds; the areas 2, 12 and 8 add up to 22, so the time-weighted average is 2.2 busy packers, while a reading at 10 seconds sees 2" src="../../../shared-images/0dcaa0ebcde02c04.png" /></p>
 <p><strong>Counts.</strong> <code>finished</code> adds one when a task instance finishes, and a flow's <code>finished</code> adds one when an entity's last task has no next task.</p>
 <p><strong>Wait and service.</strong> The wait of a task instance runs from its <code>queued</code> step to its <code>started</code> step, and its service from <code>started</code> to finished; a task that never queues, such as a timed step, waits 0. <code>typical</code> keeps a count, a total and a maximum of each, so their cost does not grow with the run. <code>all</code> keeps every observation and computes the percentiles exactly with NumPy's <code>percentile</code> at each publication, so its memory grows with the number of tasks.</p>
 <p><strong>Warm-up.</strong> A run's <code>warmup</code> resets every statistic once, at that time: the averages start again from zero area, and the counts and observations from zero. An instance that was queued before the reset and starts after it counts with its whole wait. <a href="../time-and-pacing/">Time and Pacing</a> describes the warm-up.</p>

@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.7">
     
     
@@ -122,7 +122,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -257,7 +257,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -5622,7 +5622,7 @@
 <p>Every key a blueprint accepts, section by section. <a href="../../user-guide/blueprints/">YAML Blueprints</a> describes how a file is read and where an error points, and each User Guide page shows its keys in use.</p>
 <p>Every section is optional except <code>simulation</code>. Unknown keys are refused, so a misspelt key is reported with its line rather than ignored. A time is a number of seconds or a duration such as <code>10 min</code>. An instant is <code>now</code>, a signed duration such as <code>-1d</code>, or an ISO datetime. <code>${VAR}</code> and <code>${VAR:-default}</code> read environment variables anywhere in the file. <a href="../yaml-keys/">YAML Keys</a> lists the same keys with their types and defaults. It is generated from the JSON Schema at <code>https://jaehyeon.me/desflow/latest/schema/blueprint.schema.json</code>, which <a href="../../guides/set-up-your-editor/">Set Up Your Editor</a> uses.</p>
 <p>Each section becomes one builder call:</p>
-<p><img alt="simulation becomes SimulationContext, resources add_resource, stores and containers add_store and add_container, services add_service, arrivals add_arrival and spawn, tasks @app.task with get, put, next and set, stats with_stats, ingress and egress add_ingress and add_egress, scenario registry updates and labels at set times, and run run(until)" src="../../assets/diagrams/blueprint-sections.png" /></p>
+<p><img alt="simulation becomes SimulationContext, resources add_resource, stores and containers add_store and add_container, services add_service, arrivals add_arrival and spawn, tasks @app.task with get, put, next and set, stats with_stats, ingress and egress add_ingress and add_egress, scenario registry updates and labels at set times, and run run(until)" src="../../../shared-images/af21597320032cef.png" /></p>
 <p>A blueprint with logic in Python beside it, which the sections below refer to:</p>
 <div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/hybrid.yaml</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1"> 1</a></span>
 <span class="normal"><a href="#__codelineno-0-2"> 2</a></span>

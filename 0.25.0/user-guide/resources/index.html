@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.7">
     
     
@@ -122,7 +122,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -257,7 +257,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -5510,7 +5510,7 @@
 </span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4"></a>capacity 2, in use 4
 </span></code></pre></div></td></tr></table></div>
 <p>The last line is a capacity drop, which <a href="#under-live-changes">Under Live Changes</a> describes below. The same four requests, drawn:</p>
-<p><img alt="Four requests join in the order orders-1, express-1, orders-2, express-2. fifo serves them in that order; lifo serves express-2, orders-2, express-1, orders-1; priority serves express-1 and express-2 first, then orders-1 and orders-2" src="../../assets/diagrams/queue-order.png" /></p>
+<p><img alt="Four requests join in the order orders-1, express-1, orders-2, express-2. fifo serves them in that order; lifo serves express-2, orders-2, express-1, orders-1; priority serves express-1 and express-2 first, then orders-1 and orders-2" src="../../../shared-images/29dfebba68f407c4.png" /></p>
 <h3 id="queue-limit">Queue Limit</h3>
 <p><code>queue_limit</code> sets the most requests that may wait for a resource. With a limit of 5, a request made while five requests wait already is refused, as SimPy's <code>SortedQueue(maxlen=5)</code> does. Set it with <code>queue_limit: 5</code> in a blueprint, <code>add_resource(..., queue_limit=5)</code> in the builder, or the same argument of <code>DynamicResource</code>. The refusal comes before a grant or a preemption, so a limit of 0 refuses every request.</p>
 <p>A task that is refused <strong>balks</strong>: it leaves without being served. It gives back the units it holds, publishes <code>balked</code> with the name of the resource, counts as balked and ends its flow. When it balks depends on how it asked:</p>
@@ -5642,7 +5642,7 @@
 <hr />
 <h2 id="how-it-works">How It Works</h2>
 <p>A <code>DynamicResource</code> grants units the way SimPy's <code>Resource</code> does, with two lists. <code>queue</code> holds the waiting requests, ranked by the queue order and then by a sequence number, so requests that rank the same are served in the order they arrived. <code>users</code> holds the granted requests. A request is granted when it is made if a unit is free and nothing waits ahead of it. Otherwise it waits, and each release grants the head of the queue when its release event is processed, one event later, as SimPy's <code>Release</code> does:</p>
-<p><img alt="A task's request joins the queue, ranked by queue order and a sequence number; it is granted, moving to users, when a unit is free and it is at the head. A release creates a release event, which grants the head of the queue when it is processed. The registry's current_cap and max_cap set how many users there can be" src="../../assets/diagrams/resource-grant.png" /></p>
+<p><img alt="A task's request joins the queue, ranked by queue order and a sequence number; it is granted, moving to users, when a unit is free and it is at the head. A release creates a release event, which grants the head of the queue when it is processed. The registry's current_cap and max_cap set how many users there can be" src="../../../shared-images/1f091f9bf44a5eb4.png" /></p>
 <p>Because each step is the one SimPy takes, two events at the same simulation time are granted in SimPy's order: a waiting order whose patience runs out at the instant a unit is released reneges or is served exactly as it would in plain SimPy. <code>in_use</code> counts <code>users</code>: it goes up when a request is granted and down when a unit is released.</p>
 <p>A waiting request leaves the queue at once when it is cancelled. A <code>with</code> block cancels it when the block is left before the grant, and <code>request.cancel()</code> does the same by hand. <code>packers.release(request)</code> gives a granted unit back. Cancelling a granted request releases nothing, and releasing a request twice, or one never granted, gives nothing back, as in SimPy. Every release still tries the head of the queue when its release event is processed, as SimPy's does: when a request that reneged was the head, the request behind it may then be granted or preempt a user.</p>
 <p><strong>SimPy and desflow.</strong> SimPy's <code>Resource</code> serves requests in the order they arrive, and <code>PriorityResource</code> by priority. Both take their capacity when they are created and keep it: <code>capacity</code> has no setter, so assigning a new one raises <code>AttributeError</code> (SimPy 4.1). desflow builds its own resource, so that the capacity can follow the registry and the queue order can be chosen. The <code>request()</code> call and the <code>with</code> block are SimPy's, so code written for SimPy works unchanged. <a href="../../des/simpy-and-desflow/">SimPy and desflow</a> compares the two.</p>
@@ -5658,7 +5658,7 @@
 <li><strong>During a repair</strong> the capacity is 0 and <code>current_cap</code> keeps the planned value. A change to it sets the capacity the resource returns to and does not end the repair.</li>
 </ul>
 <p>The example below takes three of five packers off the floor while four orders are being packed: the capacity is 2 at once, and <code>in_use</code> stays 4 until two orders finish. The animation steps through it:</p>
-<p><img alt="Capacity drops from 5 to 2 with 4 units busy: the free unit is gone, two units are owed and are not handed on as tasks finish, and only then does a waiting task start" src="../../assets/diagrams/resource-shrink.gif" /></p>
+<p><img alt="Capacity drops from 5 to 2 with 4 units busy: the free unit is gone, two units are owed and are not handed on as tasks finish, and only then does a waiting task start" src="../../../shared-images/27fb76b7c2974dbd.gif" /></p>
 <div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/resources.py:shrink</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-10-1">1</a></span>
 <span class="normal"><a href="#__codelineno-10-2">2</a></span>
 <span class="normal"><a href="#__codelineno-10-3">3</a></span>

@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -118,7 +118,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -253,7 +253,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2422,7 +2422,7 @@
 <hr />
 <h2 id="how-a-reference-is-resolved">How a Reference Is Resolved</h2>
 <p><code>!python module.attribute</code> imports <code>module</code> and returns its <code>attribute</code>. The reference can name anything: a function, a class, a dictionary or a constant.</p>
-<p><img alt="A !python value such as shop_logic.choose_delivery imports the longest prefix that is a module and returns the rest, which the blueprint uses as a payload, process, router, serializer or connector class; a missing module or attribute raises BlueprintError" src="../../assets/diagrams/python-reference.png" /></p>
+<p><img alt="A !python value such as shop_logic.choose_delivery imports the longest prefix that is a module and returns the rest, which the blueprint uses as a payload, process, router, serializer or connector class; a missing module or attribute raises BlueprintError" src="../../../shared-images/a559249d90d5a2f5.png" /></p>
 <p>The longest prefix that is a module is imported, and the rest is read as attributes, so <code>pkg.module.func</code> and <code>module.Class.attribute</code> both work. The folder of the YAML file is added to the front of <code>sys.path</code>, unless it is already on it, before anything is resolved, so a module beside the blueprint is found from any working directory. Other modules are found on the normal <code>sys.path</code>, which includes installed packages. <code>${VAR}</code> is replaced inside a reference too, so <code>!python ${LOGIC}.ticker</code> picks the module from the environment.</p>
 <p>Every reference is resolved and checked when the file is loaded, so a wrong reference fails before the run starts, with the file and line.</p>
 <table>

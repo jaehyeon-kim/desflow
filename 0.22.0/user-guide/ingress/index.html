@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -3231,7 +3231,7 @@
 <hr />
 <h2 id="what-it-is">What It Is</h2>
 <p>An ingress connector listens to a source while the run goes on. Every message it reads is one change: a registry <code>path</code> and its new <code>value</code>, the same two names a scenario step uses. The change reaches the registry, and the simulation follows it, as <a href="../live-parameters/">Live Parameters</a> describes. Four ingress connectors bring changes in. The seven connectors described on <a href="../egress/">Egress</a> write records out:</p>
-<p><img alt="Parameter changes from outside reach the registry through LocalIngress, KafkaIngress, RedisIngress or PostgresIngress; records from tasks and processes leave through ConsoleEgress, KafkaEgress, ParquetStorageEgress, JsonlStorageEgress, RedisEgress, PostgresEgress or IcebergStorageEgress" src="../../assets/diagrams/connectors-overview.png" /></p>
+<p><img alt="Parameter changes from outside reach the registry through LocalIngress, KafkaIngress, RedisIngress or PostgresIngress; records from tasks and processes leave through ConsoleEgress, KafkaEgress, ParquetStorageEgress, JsonlStorageEgress, RedisEgress, PostgresEgress or IcebergStorageEgress" src="../../../shared-images/dac6551be337d6b1.png" /></p>
 <hr />
 <h2 id="how-to-use-it">How to Use It</h2>
 <p>Each connector is attached with <code>add_ingress</code> in the builder, passed to <code>env.setup_ingress</code> in the low-level API, or listed under <code>ingress</code> in a blueprint with its <code>type</code> and <code>config</code>, as <a href="../../reference/yaml-format/#ingress-and-egress">YAML Format</a> shows.</p>
@@ -3428,7 +3428,7 @@
 <hr />
 <h2 id="how-it-works">How It Works</h2>
 <p>The connectors run on the ingress thread, apart from the simulation. Each reads its source, turns every message into a <code>(path, value)</code> pair with one shared check, and puts it on a queue. A SimPy process, the ingress monitor, applies everything queued every 0.1 simulation seconds:</p>
-<p><img alt="A JSON message on the Kafka topic sim-config is decoded by KafkaIngress on the ingress thread, which puts the path and value on the ingress queue; on the SimPy thread, the ingress monitor applies what is queued every 0.1 simulation seconds with registry.update" src="../../assets/diagrams/ingress-message.png" /></p>
+<p><img alt="A JSON message on the Kafka topic sim-config is decoded by KafkaIngress on the ingress thread, which puts the path and value on the ingress queue; on the SimPy thread, the ingress monitor applies what is queued every 0.1 simulation seconds with registry.update" src="../../../shared-images/8e2c2e95193fd523.png" /></p>
 <p>At <code>factor: 1.0</code> a change therefore lands within 0.1 seconds of arriving. The simulation time it lands at depends on when it arrives, so two runs with the same seed and the same messages can differ; a change that must land at an exact simulation time is a scenario step.</p>
 <hr />
 <h2 id="stability-and-limits">Stability and Limits</h2>

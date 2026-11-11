@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2598,7 +2598,7 @@
 <p>Connectors are the integration gateways of desflow. They handle the communication flow between the internal simulation registry/event queue and external systems.</p>
 <p>Each snippet below attaches a connector to a <code>SimulationContext</code> called <code>app</code> with <code>add_ingress</code> or <code>add_egress</code>. The low-level API passes the same objects to <code>env.setup_ingress</code> and <code>env.setup_egress</code>, and a YAML blueprint lists them under <code>ingress</code> and <code>egress</code>.</p>
 <p>Four ingress connectors bring parameter changes into the registry, and seven egress connectors write records out:</p>
-<p><img alt="Parameter changes from outside reach the registry through LocalIngress, KafkaIngress, RedisIngress or PostgresIngress; records from tasks and processes leave through ConsoleEgress, KafkaEgress, ParquetStorageEgress, JsonlStorageEgress, RedisEgress, PostgresEgress or IcebergStorageEgress" src="../../assets/diagrams/connectors-overview.png" /></p>
+<p><img alt="Parameter changes from outside reach the registry through LocalIngress, KafkaIngress, RedisIngress or PostgresIngress; records from tasks and processes leave through ConsoleEgress, KafkaEgress, ParquetStorageEgress, JsonlStorageEgress, RedisEgress, PostgresEgress or IcebergStorageEgress" src="../../../shared-images/92bdb8e0607a3269.png" /></p>
 <hr />
 <h2 id="ingress-connectors-inputs">Ingress Connectors (Inputs)</h2>
 <p>Ingress connectors listen to external sources and dynamically apply modifications to the simulation registry during runtime. <a href="../registry/">Live Parameters</a> explains how an update reaches the simulation.</p>

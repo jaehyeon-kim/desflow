@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.7">
     
     
@@ -122,7 +122,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -257,7 +257,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -6496,7 +6496,7 @@
 </tbody>
 </table>
 <p>They are independent. <code>go_live_at</code> changes pacing only. It never routes a record. <code>when</code> routes records only. It never changes pacing. Used together, they produce a tiered dataset. The two instants have to agree: pass the same instant to <code>go_live_at</code> and to the predicates. Otherwise the records switch sinks at a different instant from the one where the pacing switches.</p>
-<p><img alt="From logical_start_time to go_live_at the run writes the backdated history to Parquet without waiting; from go_live_at to the end it streams records to Kafka in real time" src="../../assets/diagrams/backfill-timeline.png" /></p>
+<p><img alt="From logical_start_time to go_live_at the run writes the backdated history to Parquet without waiting; from go_live_at to the end it streams records to Kafka in real time" src="../../../shared-images/03ceec5edd78b9c5.png" /></p>
 <p>The Builder tab above sets all three in the <code>SimulationContext</code> and its two <code>add_egress</code> calls. <a href="../../user-guide/time-and-pacing/#how-it-works">Time and Pacing</a> describes how the switch is applied, and the cases where <code>go_live_at</code> is before the start or after the end of the run.</p>
 <hr />
 <h2 id="two-details-to-get-right">Two Details to Get Right</h2>

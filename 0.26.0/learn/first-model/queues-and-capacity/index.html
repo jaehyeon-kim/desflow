@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../../assets/favicon.png">
+      <link rel="icon" href="../../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.7">
     
     
@@ -122,7 +122,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -257,7 +257,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -5747,7 +5747,7 @@
 <h2 id="waits-near-full-use">Waits Near Full Use</h2>
 <p>With 2 packers, utilisation is 1.35. The queue grows all hour, so the mean wait depends mainly on how long the run was: run two hours and it roughly doubles. With 3 packers, utilisation is 0.9 and the wait settles. With 4 it is 0.675, and almost nobody waits.</p>
 <p>A stable model can still wait a long time, because the wait grows much faster than utilisation near 1. Take one packer with exponential gaps and exponential service times: an M/M/1 queue, in the notation that <a href="../../concepts/queueing-basics/#kendalls-notation">Queueing Basics</a> explains. Its mean wait in the queue is ρ ÷ (1 − ρ) × the mean service time, where ρ is the utilisation. At utilisation 0.95 the factor is 0.95 ÷ 0.05 = 19, and at 0.8 it is 0.8 ÷ 0.2 = 4, so the wait at 0.95 is about 5 times the wait at 0.8. The chart draws the formula for the shop's 1.5-second packing, with the function <code>desflow explain</code> uses:</p>
-<p><img alt="The M/M/1 mean wait against utilisation for a mean service of 1.5 seconds: 6.0 seconds at 0.8 and 28.5 seconds at 0.95, rising steeply towards 1" src="../../../assets/charts/queues-mm1.png" /></p>
+<p><img alt="The M/M/1 mean wait against utilisation for a mean service of 1.5 seconds: 6.0 seconds at 0.8 and 28.5 seconds at 0.95, rising steeply towards 1" src="../../../../shared-images/019580f8c2707095.png" /></p>
 <p>Variable times make the wait longer still. Bursts of arrivals, or packing times that vary a lot, fill the queue while the average load is moderate, and the queue takes a long time to empty again. <a href="../../concepts/queueing-basics/#variation-lengthens-waits">Kingman's formula</a> gives the size of the effect for one server: it multiplies the M/M/1 wait by a factor for the spread of the gaps and of the service times. With exponential gaps and constant packing the factor is 0.5, so the shop's constant packing halves the wait. <code>desflow explain</code> uses Kingman's formula for a resource with one unit, and <a href="../../inputs/choosing-inputs/">Choosing Inputs</a> measures the wait with constant, triangular, empirical and exponential packing times.</p>
 <p>Little's Law checks a run's output. In a model that settles, the mean number of orders waiting is the arrival rate times the mean wait, Lq = λ × Wq, and the number in the shop is L = λ × (Wq + mean service time). <code>desflow explain</code> prints L beside Wq, and <a href="../../concepts/queueing-basics/#littles-law">Queueing Basics</a> checks the law against runs of the shop.</p>
 <hr />
@@ -6071,7 +6071,7 @@
 <hr />
 <h2 id="what-you-get-and-why">What You Get and Why</h2>
 <p>How many packers keep the mean wait under 10 seconds? <strong>3 packers</strong>, as the mean wait for 1 to 4 packers shows:</p>
-<p><img alt="Mean wait in the busy hour for 1 to 4 packers on a log scale: 1127 seconds with 1, 426 with 2, 1.27 with 3 and 0.20 with 4; the 10-second line separates 2 from 3" src="../../../assets/charts/queues-wait.png" /></p>
+<p><img alt="Mean wait in the busy hour for 1 to 4 packers on a log scale: 1127 seconds with 1, 426 with 2, 1.27 with 3 and 0.20 with 4; the 10-second line separates 2 from 3" src="../../../../shared-images/7152d28f57e7f4cb.png" /></p>
 <p>With 3 packers the mean wait is 1.27 seconds, from <a href="../first-simulation/#busy-hour-figures">one run of the hour</a> with constant packing and the seed 42. With 2 packers it is over 400 seconds and still growing when the hour ends. The answer is the fewest packers that bring utilisation below 1. At utilisation 0.9 the wait stays under 10 seconds, because the shop's packing time is constant and 0.9 is not yet close enough to 1.</p>
 <p><a href="../../concepts/queueing-basics/">Queueing Basics</a> explains why the wait grows without limit as utilisation reaches 1, as the table shows for 1 and 2 packers. It also gives the formula for several packers sharing one queue. Each term of the utilisation is a live parameter, so a running model can be relieved, or overloaded on purpose, as <a href="../../../user-guide/live-runs-and-connectors/live-parameters/">Live Parameters</a> shows. <a href="../../../user-guide/results/statistics/">Statistics</a> describes how the mean wait is measured.</p>
 <p>The formulas describe a queue that has settled. A run starts with no orders in the shop, so its early waits are shorter than the settled waits. A live change, such as a rush, makes the waits rise, and they take time to settle again. <a href="../../studies/trusting-results/">Trusting Results</a> shows how to leave out a <a href="../../concepts/output-analysis/#one-run-starts-empty">warm-up</a> and how long to run.</p>

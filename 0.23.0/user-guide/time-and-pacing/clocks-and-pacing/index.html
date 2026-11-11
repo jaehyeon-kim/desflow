@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../../assets/favicon.png">
+      <link rel="icon" href="../../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -3894,7 +3894,7 @@
 </span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7"></a><span class="p">)</span>
 </span></code></pre></div></td></tr></table></div>
 <p>A sink with <code>when: history</code> receives the records stamped before <code>go_live_at</code>, and one with <code>when: live</code> the rest, so the two halves can go to different places:</p>
-<p><img alt="From logical_start_time to go_live_at the run writes history at factor 0 to Parquet; from go_live_at to the end it runs at one simulation second per real second and writes to Kafka" src="../../../assets/diagrams/backfill-timeline.png" /></p>
+<p><img alt="From logical_start_time to go_live_at the run writes history at factor 0 to Parquet; from go_live_at to the end it runs at one simulation second per real second and writes to Kafka" src="../../../../shared-images/03ceec5edd78b9c5.png" /></p>
 <p><a href="../../../examples/backfill-live/">Parquet History, Kafka Live</a> builds such a run.</p>
 <h3 id="lag">Lag</h3>
 <p>At a <code>factor</code> above 0 the run follows the wall clock, and <code>system.simulation.lag_seconds</code> says how many seconds it is behind, as telemetry. <code>lag_interval</code> sets how often, in simulation seconds or a duration. By default it is every simulation second at a <code>factor</code> above 0, and off at <code>factor: 0</code>, where the run is meant to be ahead of the wall clock; a run at <code>factor: 0</code> that goes live starts it at the go-live instant. 0 turns it off:</p>

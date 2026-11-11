@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2496,7 +2496,7 @@
 
 <h1 id="batching-and-delivery">Batching and Delivery</h1>
 <p>A published record does not go straight to a sink. It is added to a buffer for each egress, the buffer is handed to that egress's queue as one batch, and the egress thread writes the batch. This page covers which egress receives a record, when a batch is handed over, and what happens when a sink cannot keep up.</p>
-<p><img alt="Each record is offered to every egress. ParquetStorageEgress with when=is_history and KafkaEgress with when=is_live each keep the records they want in their own buffer, move a batch to their own queue when batch_size is reached or flush_interval passes, and write it on the egress thread" src="../../assets/diagrams/egress-path.png" /></p>
+<p><img alt="Each record is offered to every egress. ParquetStorageEgress with when=is_history and KafkaEgress with when=is_live each keep the records they want in their own buffer, move a batch to their own queue when batch_size is reached or flush_interval passes, and write it on the egress thread" src="../../../shared-images/1d4280e97f041e7b.png" /></p>
 <hr />
 <h2 id="delivery-to-several-sinks">Delivery to Several Sinks</h2>
 <p>Every attached provider receives every record. Each has its own queue, so attaching a stream sink and a lake sink writes the same dataset to both in a single run, rather than needing one run per sink with a matching seed.</p>

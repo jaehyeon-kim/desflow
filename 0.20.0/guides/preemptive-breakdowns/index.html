@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2352,7 +2352,7 @@
 
 <h1 id="preemptive-breakdowns">Preemptive Breakdowns</h1>
 <p>A preemptive breakdown stops a machine in the middle of a job. Here a label printer jams while it prints an order's shipping label. The order stays on the printer while it is repaired, then the rest of its work continues. No other order can start while the printer is down.</p>
-<p><img alt="worker_task publishes queued and started; every 12 s chaos_monkey interrupts the order on the printer, which publishes interrupted with the cause, keeps the printer for 10 s of repair, publishes printer_repaired and labels the rest, then publishes finished; with no jam it finishes after 5 s of labelling" src="../../assets/diagrams/breakdown-interrupt.png" /></p>
+<p><img alt="worker_task publishes queued and started; every 12 s chaos_monkey interrupts the order on the printer, which publishes interrupted with the cause, keeps the printer for 10 s of repair, publishes printer_repaired and labels the rest, then publishes finished; with no jam it finishes after 5 s of labelling" src="../../../shared-images/b55e7d4bc848f739.png" /></p>
 <p><code>@app.task</code> waits out the service time inside its own generator, so your code cannot catch a <code>simpy.Interrupt</code> there. A breakdown needs a task written as a generator that you start with <code>context.spawn</code>, and a process that interrupts it.</p>
 <hr />
 <h2 id="example">Example</h2>

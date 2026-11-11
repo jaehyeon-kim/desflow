@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -4606,7 +4606,7 @@
 <hr />
 <h2 id="result">Result</h2>
 <p>How many packers keep the mean wait under 10 seconds? <strong>3 packers</strong>, as the mean wait for 1 to 4 packers shows:</p>
-<p><img alt="Mean wait in the busy hour for 1 to 4 packers on a log scale: 1127 seconds with 1, 426 with 2, 1.27 with 3 and 0.20 with 4; the 10-second line separates 2 from 3" src="../../assets/charts/queues-wait.png" /></p>
+<p><img alt="Mean wait in the busy hour for 1 to 4 packers on a log scale: 1127 seconds with 1, 426 with 2, 1.27 with 3 and 0.20 with 4; the 10-second line separates 2 from 3" src="../../../shared-images/fdcc1196f8002d7f.png" /></p>
 <p>With 3 packers the mean wait is 1.27 seconds. With 2 packers it is over 400 seconds and still growing when the hour ends. The answer is the first number of packers that brings utilisation below 1, because the shop's packing time is constant and 0.9 is not yet close enough to 1 for the wait to pass 10 seconds.</p>
 <h2 id="why-it-works">Why It Works</h2>
 <p><a href="../../des/queueing-basics/">Queueing Basics</a> explains why the wait grows without limit as utilisation reaches 1, which is what the table shows, and gives the formula for several packers sharing one queue. To bring a resource below 1, change any term of the utilisation: add units (<code>current_cap</code>), work faster (a shorter service time) or take fewer arrivals (a lower <code>rate</code>). Each is a live parameter, so a running model can be relieved, or overloaded on purpose, as <a href="../../user-guide/live-parameters/">Live Parameters</a> shows. <a href="../../user-guide/statistics/">Statistics</a> describes how the mean wait is measured.</p>

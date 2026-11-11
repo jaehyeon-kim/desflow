@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../../assets/favicon.png">
+      <link rel="icon" href="../../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
     
     
@@ -132,7 +132,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -267,7 +267,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -8809,7 +8809,7 @@
 <hr />
 <h2 id="what-it-is">What It Is</h2>
 <p>A blueprint holds, as data, the builder calls that a Python script would make. Each section becomes the builder call of the same name: <code>resources</code> is <code>add_resource</code>, <code>tasks</code> is <code>@app.task</code>, <code>stats</code> is <code>with_stats</code>, and so on. There is no second way of building: <code>SimulationContext.from_yaml</code> makes those calls, in the order a script would, and returns an ordinary <code>SimulationContext</code>. A blueprint and a script that make the same calls produce the same simulation, and the tests check that the YAML, builder and low-level versions of every example publish the same records.</p>
-<p><img alt="simulation becomes SimulationContext, resources add_resource, stores and containers add_store and add_container, services add_service, arrivals add_arrival and spawn, tasks @app.task with get, put, next and set, stats with_stats, ingress and egress add_ingress and add_egress, scenario registry updates and labels at set times, and run run(until)" src="../../../assets/diagrams/blueprint-sections.png" /></p>
+<p><img alt="simulation becomes SimulationContext, resources add_resource, stores and containers add_store and add_container, services add_service, arrivals add_arrival and spawn, tasks @app.task with get, put, next and set, stats with_stats, ingress and egress add_ingress and add_egress, scenario registry updates and labels at set times, and run run(until)" src="../../../../shared-images/af21597320032cef.png" /></p>
 <p>Use Python for logic that YAML cannot express. Reference it with <code>!python</code>, as <a href="../../../how-to/tools/yaml-advanced/">Call Python from YAML</a> shows. An editor completes keys and marks a misspelt key or a value of the wrong kind as you type, from the JSON Schema that <code>desflow schema</code> prints and this site publishes. <a href="../../../how-to/tools/set-up-your-editor/">Set Up Your Editor</a> shows the setting.</p>
 <hr />
 <h2 id="how-to-use-it">How to Use It</h2>
@@ -9300,7 +9300,7 @@
 <hr />
 <h2 id="how-it-works">How It Works</h2>
 <p><code>from_yaml</code> makes the builder calls for you, so a blueprint gets everything <a href="../builder-api/#how-it-works">the builder does</a>, and it checks the whole file before anything runs. A file is read and checked in five steps, and any step that fails stops the load with a <code>BlueprintError</code> before anything runs:</p>
-<p><img alt="from_yaml and desflow run read the file, check every field, check the names, build the context and check the paths, in that order, and return a SimulationContext; any step that fails raises BlueprintError with the file and line" src="../../../assets/diagrams/blueprint-loading.png" /></p>
+<p><img alt="from_yaml and desflow run read the file, check every field, check the names, build the context and check the paths, in that order, and return a SimulationContext; any step that fails raises BlueprintError with the file and line" src="../../../../shared-images/9642c91bf8592332.png" /></p>
 <ol>
 <li><strong>Read the file.</strong> <code>read_document</code> reads it with a subclass of <code>yaml.SafeLoader</code>. <code>${VAR}</code> is replaced while each scalar is read, <code>!python module.attribute</code> imports the module and returns the attribute, <code>!include path</code> reads a mapping from another YAML file relative to this one, and every key's line is kept in a source map. Every other node is built as <code>yaml.safe_load</code> would build it. A key written twice in one mapping is refused at its second line, and the error names both lines.</li>
 <li><strong>Check every field.</strong> The document is validated against the <code>Blueprint</code> model. Unknown keys are refused, so a misspelt key is reported rather than ignored. Every distribution is built as the builder would build it, so a parameter out of range, <code>true</code>, NaN, or one the family does not take, is refused here. Every expression place is checked at its line, a capacity below 0 is refused, and a refusal under a field that takes a name or a mapping reports only the member that matches, with no type or class name. Every relative time is read against one <code>now</code>. A <code>spawn</code> <code>after</code> and a <code>fire</code> <code>after</code> must be above 0. <code>simulation.environment</code> must be a subclass of <code>DynamicRealtimeEnvironment</code>. All validation errors are reported at once.</li>
@@ -9325,7 +9325,7 @@
 <li><strong>Check the paths.</strong> The parameters are registered into a scratch registry, with the code that the run uses. Every scenario <code>path</code>, and every <code>registry["..."]</code> that an expression reads, is then checked against the paths the run will have. Every scenario <code>value</code> must convert to the type its path holds.</li>
 </ol>
 <p><code>!python module.attribute</code> imports <code>module</code> and returns its <code>attribute</code>: a function, a class, a dictionary or a constant. The longest prefix that is a module is imported, and the rest is read as attributes. The folder of the YAML file is added to the front of <code>sys.path</code>, so a module beside the blueprint is found from any working directory. <code>${VAR}</code> is replaced inside a reference too. Every reference is resolved when the file is loaded, so a wrong one fails before the run starts, with the file and line:</p>
-<p><img alt="A !python value such as call_python_ranking.top_products imports the longest prefix that is a module and returns the rest, which the blueprint uses as a gen: call function or a class built from type; a missing module or attribute raises BlueprintError" src="../../../assets/diagrams/python-reference.png" /></p>
+<p><img alt="A !python value such as call_python_ranking.top_products imports the longest prefix that is a module and returns the rest, which the blueprint uses as a gen: call function or a class built from type; a missing module or attribute raises BlueprintError" src="../../../../shared-images/b5ac9d1c086505f5.png" /></p>
 <hr />
 <h2 id="stability-and-limits">Stability and Limits</h2>
 <p>An error at any step is mapped back to its line through the source map. A time in a message reads <code>5</code> for a whole number, and a number in <code>{now:g}</code> form has six significant digits, so 1000000 reads <code>1e+06</code>:</p>

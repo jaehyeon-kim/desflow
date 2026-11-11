@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../../assets/favicon.png">
+      <link rel="icon" href="../../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.0">
     
     
@@ -122,7 +122,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -257,7 +257,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -5557,7 +5557,7 @@
 <p>A <code>priority</code> on a task whose resource does not have <code>queue: priority</code> is refused when the blueprint loads, or when <code>run()</code> starts. <a href="../../../learn/shop-logic/priorities/">Priorities</a> shows what priority does to waits.</p>
 <h3 id="preemption">Preemption</h3>
 <p>On a resource with <code>preempt: true</code>, which needs <code>queue: priority</code>, a request does not always wait for a unit to come free. When every unit is busy, it takes a unit from a task with a higher <code>priority</code> value, as SimPy's <code>PreemptiveResource</code> does. That task is <strong>preempted</strong>: it loses the unit before its service ends. The task with the highest <code>priority</code> value loses it, and only when that value is higher than the new request's. Among tasks with equal values, the one that asked last loses it. A task with the same priority as the new request keeps its unit. A task with <code>preempt: false</code> never takes a unit this way. Look at an express request that arrives while both packers serve regular orders:</p>
-<p><img alt="express-1, priority 1, takes the unit of orders-2, the regular order of priority 2 that asked last; orders-1, which asked first, keeps its unit; orders-2 publishes preempted and follows its on_interrupt: resume, restart or abandon" src="../../../assets/diagrams/preemption.png" /></p>
+<p><img alt="express-1, priority 1, takes the unit of orders-2, the regular order of priority 2 that asked last; orders-1, which asked first, keeps its unit; orders-2 publishes preempted and follows its on_interrupt: resume, restart or abandon" src="../../../../shared-images/0df9ec285ee52eb4.png" /></p>
 <p>The preempted task publishes <code>preempted</code> with the resource's name, the key of the entity that took the unit (<code>preempted_by</code>) and the time the task was granted the unit (<code>usage_since</code>). It then follows its <code>on_interrupt</code>, as it would for an interrupt (<a href="../../../learn/shop-logic/interruptions/">Interruptions</a>). The <code>interruptions</code> example lets express orders preempt regular ones:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="2:3"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><input id="__tabbed_2_3" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">YAML</label><label for="__tabbed_2_2">Builder</label><label for="__tabbed_2_3">Low-level</label></div>
 <div class="tabbed-content">

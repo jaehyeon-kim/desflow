@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
     
     
@@ -132,7 +132,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -267,7 +267,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -8545,7 +8545,7 @@
 <h2 id="how-it-works">How It Works</h2>
 <p><code>run()</code> builds the environment, registers the parameters, builds the resources, stores and containers, and starts the arrivals and processes. <a href="tasks/#what-run-does">What run() Does</a> lists the steps in order, and <a href="tasks/#what-apptask-does">What @app.task Does</a> lists the steps of one task.</p>
 <p>The diagram follows one task instance through its eight steps. Watch the box with the thick outline move along the steps, and the records it has published grow underneath.</p>
-<p><img alt="One task instance in eight steps. 1 arrives: balk, then the queued record. 2 waits: open, cancel, seize and wait. 3 joins a batch: batch. 4 takes its units: resource and get, then the started record. 5 is served: the function and the service time. 6 ends: put and fail, then the finished or failed record. 7 acts: signal, interrupt, set and release. 8 goes on: next or on_fail" src="../../assets/diagrams/task-steps.gif" /></p>
+<p><img alt="One task instance in eight steps. 1 arrives: balk, then the queued record. 2 waits: open, cancel, seize and wait. 3 joins a batch: batch. 4 takes its units: resource and get, then the started record. 5 is served: the function and the service time. 6 ends: put and fail, then the finished or failed record. 7 acts: signal, interrupt, set and release. 8 goes on: next or on_fail" src="../../../shared-images/23b370ce95977593.gif" /></p>
 <p>Each box names the keys that act at that step. A step whose keys the task does not set passes at once: a task with no <code>wait</code> does not wait, and a task with no <code>batch</code> joins no batch. The instance publishes <code>queued</code> when it has something to wait for: a resource, a <code>get</code>, a <code>wait</code>, a <code>seize</code> or a <code>batch</code>. It publishes <code>started</code> before its work, and <code>finished</code> or <code>failed</code> when it ends. A balk ends it at the first step with <code>balked</code>, and a renege ends it while it waits with <code>reneged</code>. The last step starts the next task as a new instance for the same entity, in the same SimPy process.</p>
 
 

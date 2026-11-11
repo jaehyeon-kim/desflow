@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.7">
     
     
@@ -122,7 +122,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -257,7 +257,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -5361,7 +5361,7 @@
 <p>Think of a packing shop. Orders arrive about every 2 seconds, and a packer takes 1.5 seconds to pack one. Will orders queue in the busy hour? What if a second packer starts at 9:30, or a delivery brings twenty orders at once?</p>
 <p>You could answer by watching the shop with a notebook. You would not write something down every second, because most seconds nothing changes. You would write only the moments when something happens: an order arrives, a packer starts on it, the order is packed. Each of those moments is an <strong>event</strong>, and the notebook is enough to tell you who waited and for how long.</p>
 <p>The diagram shows the shop and the notebook. The shop is orders, a queue and packers. The notebook lists only the moments when something changes.</p>
-<p><img alt="The packing shop: orders arrive, wait in a queue, are packed by the packers and leave; the notebook lists order 1 arriving and starting at 0.0 s, packed at 1.5 s, and order 2 arriving and starting at 2.6 s, packed at 4.1 s" src="../../assets/diagrams/packing-shop.png" /></p>
+<p><img alt="The packing shop: orders arrive, wait in a queue, are packed by the packers and leave; the notebook lists order 1 arriving and starting at 0.0 s, packed at 1.5 s, and order 2 arriving and starting at 2.6 s, packed at 4.1 s" src="../../../shared-images/dbbce956c91a41e4.png" /></p>
 <p>A <strong>discrete-event simulation</strong> (DES) is that notebook, written by a computer. You describe the shop: how often orders come, how long packing takes, how many packers there are. The computer then plays out the events one after another, with random variation like in real life, and writes down what happens. Because it skips the quiet seconds, it can play out a day, or a year, in moments. Change the description, add a packer or double the orders, and run it again to see the difference.</p>
 <p>desflow does this for any system with arrivals, work and limited capacity: a factory, a warehouse, a shop, a support desk, a network. What it adds is that every event is also sent out as a record, to Kafka, a database or files, so the simulation becomes a source of realistic data. <a href="../../user-guide/building-blocks/">Building Blocks</a> shows the parts you describe a model with, and <a href="../../tutorials/queues-and-capacity/">Queues and Capacity</a> explains why a queue grows the way it does.</p>
 <p>Running a model is one step of a study. The question comes first, and the checking and the analysis of the runs come after. <a href="../a-simulation-study/">A Simulation Study</a> walks through all of it.</p>
@@ -5369,7 +5369,7 @@
 <h2 id="events-and-the-event-list">Events and the Event List</h2>
 <p>This section is the same idea in the terms the rest of the docs use. The terms follow two sources. One is chapter 3, General Principles, of Banks, Carson, Nelson and Nicol, <em>Discrete-Event System Simulation</em>, read through <a href="https://eg.bucknell.edu/~xmeng/Course/CS6337/Note/master/node15.html">lecture notes on that chapter</a>. The other is Ingalls, "Introduction to Simulation" (Winter Simulation Conference, 2001), read through <a href="https://www.informs-sim.org/wsc01papers/002.PDF">its published text</a>. The explanations are our own.</p>
 <p>A discrete-event simulation models a system as a series of <strong>events</strong>: an order arrives, a packer starts on it, the packer finishes. Each event happens at an instant, and between two events nothing changes. The simulation therefore only needs to visit the instants when events happen. It keeps a list of the events to come, in time order. It takes the earliest, moves its clock straight to that instant, and carries the event out. Carrying out an event usually schedules more: when a packer starts on an order, the simulation schedules the end of packing 1.5 seconds later.</p>
-<p><img alt="The simulation clock jumps from event to event: order 1 arrives and starts at 0.0 s and finishes at 1.5 s, order 2 arrives and starts at 2.6 s and finishes at 4.1 s. Just after 0.0 s the event list holds order 1 finishing at 1.5 s and order 2 arriving at 2.6 s, so the clock jumps to 1.5 s" src="../../assets/diagrams/event-clock.png" /></p>
+<p><img alt="The simulation clock jumps from event to event: order 1 arrives and starts at 0.0 s and finishes at 1.5 s, order 2 arrives and starts at 2.6 s and finishes at 4.1 s. Just after 0.0 s the event list holds order 1 finishing at 1.5 s and order 2 arriving at 2.6 s, so the clock jumps to 1.5 s" src="../../../shared-images/53f845497aa8ee3a.png" /></p>
 <p>The clock jumps from one event to the next. A simulated week with a few thousand events therefore takes only the time needed to compute those events, not a week. desflow runs on <a href="https://simpy.readthedocs.io/">SimPy</a>, which provides the event list and the clock. On top of SimPy it adds:</p>
 <ul>
 <li><strong>Pacing.</strong> <code>factor</code> makes the clock follow the wall clock (<code>1.0</code>), run faster or slower, or not wait at all (<code>0.0</code>), so the same model can drive a live dashboard or write a month of history in seconds. <a href="../../user-guide/time-and-pacing/">Time and Pacing</a> explains it.</li>

@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../../assets/favicon.png">
+      <link rel="icon" href="../../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.7">
     
     
@@ -122,7 +122,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -257,7 +257,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -5583,7 +5583,7 @@
 <hr />
 <h2 id="check-the-result">Check the Result</h2>
 <p>Look at the tags the queue gives the orders, on a line from 1 to 3:</p>
-<p><img alt="Finish tags on a line: the first order, tier 2, gets tag 1 and is granted at once; tier 1, of weight 3, then gets tags 4/3, 5/3, 2, 7/3, 8/3 and 3; tier 2, of weight 1, gets 2 and 3; smallest tag first, tier 1 first on a tie, grants 1, 1, 1, 2, 1, 1, 1, 2" src="../../../assets/diagrams/finish-tags.png" /></p>
+<p><img alt="Finish tags on a line: the first order, tier 2, gets tag 1 and is granted at once; tier 1, of weight 3, then gets tags 4/3, 5/3, 2, 7/3, 8/3 and 3; tier 2, of weight 1, gets 2 and 3; smallest tag first, tier 1 first on a tie, grants 1, 1, 1, 2, 1, 1, 1, 2" src="../../../../shared-images/b75ef2f87f4941f7.png" /></p>
 <p>The first order is tier 2. It takes the packer at once, with tag 1, and the clock becomes 1. The six orders of tier 1 then get tags 4/3, 5/3, 2, 7/3, 8/3 and 3, and the two of tier 2 get 2 and 3. The smallest tag goes first, and where two tags are equal, tier 1 arrived first. So after the first order the packer grants <strong>1, 1, 1, 2, 1, 1, 1, 2</strong>: three of tier 1 for each of tier 2. First in, first out would grant 1, 1, 1, 1, 1, 1, 2, 2. The resource keeps the tier of each grant in <code>granted</code>. <code>python share_by_weight.py</code> prints it for the YAML and builder forms, and <code>python share_by_weight_low_level.py</code> for the low-level form. All three grant the order worked out here.</p>
 <p>The queue leaves out three things. A request that leaves the queue before it is granted keeps the tag it took, so its class does not get that share back. A class not in <code>WEIGHTS</code> raises <code>KeyError</code> when its first request joins. Do not set <code>preempt</code>: preemption ranks users by priority, here the tier, so a tier 1 order would take the packer from tier 2 whatever the weights.</p>
 <hr />

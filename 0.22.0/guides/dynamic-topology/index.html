@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -3084,7 +3084,7 @@
 
 <h1 id="dynamic-topology-resources-changed-mid-run">Dynamic Topology: Resources Changed Mid-run</h1>
 <p>Sometimes the layout itself changes during a run: a dock opens a new bay, or a shop adds a gift wrapping station. Here a supervisor process adds gift wrappers at 12 seconds, and from then on new jobs go to the wrappers as well as the packers.</p>
-<p><img alt="A supervisor process registers the new wrappers paths in the registry, creates a DynamicResource for them, and new workers request the wrappers" src="../../assets/diagrams/topology-change.png" /></p>
+<p><img alt="A supervisor process registers the new wrappers paths in the registry, creates a DynamicResource for them, and new workers request the wrappers" src="../../../shared-images/1302776130908a0b.png" /></p>
 <p>The builder (<code>SimulationContext</code>) creates every resource before the clock starts and has no call to add one later. A resource added during the run is written with the <a href="../../user-guide/low-level-api/">low-level API</a>: register its parameters, then create the <code>DynamicResource</code> that reads them.</p>
 <hr />
 <h2 id="example">Example</h2>

@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -4418,7 +4418,7 @@
 <p>This tutorial models a shop that receives and packs customer orders: one packer, orders arriving about every 2 seconds, and 1.5 seconds of packing per order. It answers one question: <strong>how long does an order wait with one packer?</strong> The following pages extend the same model, one idea per page.</p>
 <p>Each step shows the code three ways, in tabs: a <strong>YAML</strong> blueprint, the <strong>Builder</strong> (<code>SimulationContext</code>) and the <strong>Low-level</strong> API (<code>DynamicRealtimeEnvironment</code> and SimPy processes). Choose the tab for your preferred API; all code tabs on the site switch to that API. The three build the same simulation and print the same records. <a href="../../user-guide/ways-to-write/">Ways to Write</a> explains how they relate.</p>
 <p>Look at the order of the parts: orders arrive, wait in the packer queue, take the packer for 1.5 seconds, and send their records to the console. The arrival loop and the task read their values from the registry.</p>
-<p><img alt="Orders arrive about every 2 seconds, wait in the packer queue, take the packer for 1.5 seconds of packing, and their records go to the console; the arrival loop and the task read their values from the registry" src="../../assets/diagrams/first-shop.png" /></p>
+<p><img alt="Orders arrive about every 2 seconds, wait in the packer queue, take the packer for 1.5 seconds of packing, and their records go to the console; the arrival loop and the task read their values from the registry" src="../../../shared-images/8f3bc1c847168407.png" /></p>
 <hr />
 <h2 id="install">Install</h2>
 <p>The core package includes the <code>desflow</code> command:</p>
@@ -4729,7 +4729,7 @@
 <hr />
 <h2 id="result">Result</h2>
 <p>How long does an order wait with one packer? It depends on how many orders are ahead of it, as the same records on a timeline show: each order waits (yellow) until the packer is free, then holds it for 1.5 seconds of packing (blue).</p>
-<p><img alt="orders-1 arrives at 2.552 and is packed at once; orders-2 arrives at 2.696 and waits 1.356 seconds until orders-1 finishes at 4.052; orders-3 arrives at 3.737 and waits until 5.552" src="../../assets/diagrams/first-trace.png" /></p>
+<p><img alt="orders-1 arrives at 2.552 and is packed at once; orders-2 arrives at 2.696 and waits 1.356 seconds until orders-1 finishes at 4.052; orders-3 arrives at 3.737 and waits until 5.552" src="../../../shared-images/354353364f27f9a3.png" /></p>
 <p><code>orders-1</code> finds the packer free, so its <code>queued</code> and <code>started</code> events have the same time. <code>orders-2</code> is the first order that has to wait: it is <code>queued</code> at 2.696 and <code>started</code> at 4.052, when <code>orders-1</code> finishes. <strong>It waits 1.356 seconds.</strong> <code>orders-3</code> arrives while <code>orders-2</code> is waiting and waits longer, 1.815 seconds, because two orders are ahead of it.</p>
 <p>So with one packer, an order that arrives while the packer is busy waits until every order ahead of it has been packed. The wait depends on when orders happen to arrive, which is why the next pages measure it over many orders.</p>
 <h2 id="why-it-works">Why It Works</h2>

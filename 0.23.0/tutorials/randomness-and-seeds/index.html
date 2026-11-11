@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -3953,7 +3953,7 @@
 </div>
 <p>A task with no service and no resource, such as <code>receive_return</code>, takes no time: it publishes its payload as soon as the arrival starts it.</p>
 <p>Run it with the seed 42. <code>orders-12</code> has the same three events as before, at the same times. Adding an arrival changed nothing for the orders, because of how desflow hands out random numbers: each distribution draws from a stream of its own, named by its registry path without the sim id. The orders draw from <code>arrival.orders</code>, packing from <code>service.packing</code>, and the new returns from <code>arrival.returns</code>. Look at the two runs side by side:</p>
-<p><img alt="With the seed 42, the first run draws arrival.orders and service.packing; the second run, with returns added, draws the same numbers from those two streams and adds a stream of its own, arrival.returns" src="../../assets/diagrams/seed-sequences.png" /></p>
+<p><img alt="With the seed 42, the first run draws arrival.orders and service.packing; the second run, with returns added, draws the same numbers from those two streams and adds a stream of its own, arrival.returns" src="../../../shared-images/8b98a2747d30ca08.png" /></p>
 <p>With one shared stream, the returns would take some of the numbers the orders and packing used to get, and every later time would shift.</p>
 <hr />
 <h2 id="result">Result</h2>

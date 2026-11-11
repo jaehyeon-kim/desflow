@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2932,7 +2932,7 @@
 <hr />
 <h2 id="errors">Errors</h2>
 <p>A file is read in five steps. A step that fails stops the load with a <code>BlueprintError</code> naming the file and the line, before anything runs:</p>
-<p><img alt="from_yaml and desflow run read the file, check every field, check the names, build the context and check the scenario, in that order, and return a SimulationContext; any step that fails raises BlueprintError with the file and line" src="../../assets/diagrams/blueprint-loading.png" /></p>
+<p><img alt="from_yaml and desflow run read the file, check every field, check the names, build the context and check the scenario, in that order, and return a SimulationContext; any step that fails raises BlueprintError with the file and line" src="../../../shared-images/6786a74394f769aa.png" /></p>
 <p>Every error names the file and the line, and <code>desflow run</code> prints it after <code>Error:</code>. Validation errors are all reported at once:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>Error: err.yaml:3: simulation.speed: Extra inputs are not permitted
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>err.yaml:9: arrivals.orders.dist: Input should be &#39;exponential&#39;, &#39;normal&#39;, &#39;lognormal&#39;, &#39;truncated_normal&#39; or &#39;constant&#39;

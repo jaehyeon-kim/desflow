@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -3341,7 +3341,7 @@
 <hr />
 <h2 id="what-it-is">What It Is</h2>
 <p>A run publishes three kinds of record: <strong>events</strong>, such as a task's <code>queued</code>, <code>started</code> and finished; <strong>telemetry</strong>, single values such as the statistics; and <strong>labels</strong>, the ground-truth records of what a scenario changed. Every sink receives every event and every telemetry record, unless its <code>when</code> says otherwise, and labels go only to sinks that ask for them. <a href="../../reference/records-and-telemetry/">Records and Telemetry</a> shows each record's shape and what each sink writes.</p>
-<p><img alt="Parameter changes from outside reach the registry through LocalIngress, KafkaIngress, RedisIngress or PostgresIngress; records from tasks and processes leave through ConsoleEgress, KafkaEgress, ParquetStorageEgress, JsonlStorageEgress, RedisEgress, PostgresEgress or IcebergStorageEgress" src="../../assets/diagrams/connectors-overview.png" /></p>
+<p><img alt="Parameter changes from outside reach the registry through LocalIngress, KafkaIngress, RedisIngress or PostgresIngress; records from tasks and processes leave through ConsoleEgress, KafkaEgress, ParquetStorageEgress, JsonlStorageEgress, RedisEgress, PostgresEgress or IcebergStorageEgress" src="../../../shared-images/dac6551be337d6b1.png" /></p>
 <hr />
 <h2 id="how-to-use-it">How to Use It</h2>
 <p>Each sink is attached with <code>add_egress</code> in the builder, passed to <code>env.setup_egress</code> in the low-level API, or listed under <code>egress</code> in a blueprint with its <code>type</code> and <code>config</code>. In the builder snippets below, <code>app</code> is a <code>SimulationContext</code>.</p>
@@ -3732,7 +3732,7 @@
 <hr />
 <h2 id="how-it-works">How It Works</h2>
 <p>A published record goes through the same steps for each sink:</p>
-<p><img alt="A record from publish_event, publish_telemetry or publish_label is offered to every egress. Each checks whether it takes it: events and telemetry for the data sinks and labels only for a labels sink, after the warm-up, and its when. A record it takes goes into its buffer until batch_size or flush_interval, then into its queue of at most max_queued_batches, and the egress thread writes it" src="../../assets/diagrams/egress-path.png" /></p>
+<p><img alt="A record from publish_event, publish_telemetry or publish_label is offered to every egress. Each checks whether it takes it: events and telemetry for the data sinks and labels only for a labels sink, after the warm-up, and its when. A record it takes goes into its buffer until batch_size or flush_interval, then into its queue of at most max_queued_batches, and the egress thread writes it" src="../../../shared-images/367273f5570b5cc2.png" /></p>
 <ol>
 <li><code>publish_event</code>, <code>publish_telemetry</code> or <code>publish_label</code> builds the record as a plain dictionary.</li>
 <li>Each sink tests it once: a label only for a labels sink, and nothing else for one; nothing stamped before the warm-up; then its <code>when</code>.</li>

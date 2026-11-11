@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../../assets/favicon.png">
+      <link rel="icon" href="../../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
     
     
@@ -132,7 +132,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -267,7 +267,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -8775,7 +8775,7 @@
 <hr />
 <h2 id="what-it-is">What It Is</h2>
 <p>Every run has one <code>SimulationRegistry</code>, at <code>env.registry</code>. It maps dot-notation paths, such as <code>Shop.resources.packers.current_cap</code>, to the values the simulation reads. A scenario, an ingress connector or a process changes a parameter by updating its path, and the simulation follows the change without restarting. Changing a parameter takes three steps:</p>
-<p><img alt="Find the registry path, send the new value from a scenario, LocalIngress, FileIngress, Kafka, Redis or PostgreSQL, and see it in the telemetry" src="../../../assets/diagrams/live-change-steps.png" /></p>
+<p><img alt="Find the registry path, send the new value from a scenario, LocalIngress, FileIngress, Kafka, Redis or PostgreSQL, and see it in the telemetry" src="../../../../shared-images/21f644a20b00a3a7.png" /></p>
 <p>The tutorial page <a href="../../../learn/running-live/live-changes/">Live Changes</a> teaches these features step by step.</p>
 <hr />
 <h2 id="how-to-use-it">How to Use It</h2>
@@ -8904,7 +8904,7 @@
 </tr>
 </tbody>
 </table>
-<p><img alt="A YAML scenario lands at the exact simulation time, LocalIngress after a wall-clock delay, FileIngress when you save a file, the Kafka, Redis and PostgreSQL connectors when a message arrives, and a process when it runs" src="../../../assets/diagrams/change-sources.png" /></p>
+<p><img alt="A YAML scenario lands at the exact simulation time, LocalIngress after a wall-clock delay, FileIngress when you save a file, the Kafka, Redis and PostgreSQL connectors when a message arrives, and a process when it runs" src="../../../../shared-images/9a54e697bd629741.png" /></p>
 <p><a href="../ingress/">Ingress</a> gives the message each connector reads. A process changes a value directly:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="2:3"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><input id="__tabbed_2_3" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">YAML</label><label for="__tabbed_2_2">Builder</label><label for="__tabbed_2_3">Low-level</label></div>
 <div class="tabbed-content">
@@ -9171,7 +9171,7 @@
 </div>
 </div>
 <p>Labels go only to sinks with <code>when: labels</code>, and those sinks receive nothing else. The labels therefore never reach the pipeline under test, and a scorer reads them apart from the data. <a href="../egress/#choose-what-each-sink-gets">Choose What Each Sink Gets</a> shows the sinks of this blueprint.</p>
-<p><img alt="A scenario step at 30 seconds updates the registry, which raises the order rate the data sink sees, and publishes a label with path, old, new and label to the when: labels sink only" src="../../../assets/diagrams/ground-truth.png" /></p>
+<p><img alt="A scenario step at 30 seconds updates the registry, which raises the order rate the data sink sees, and publishes a label with path, old, new and label to the when: labels sink only" src="../../../../shared-images/64db87ed8b3b8f22.png" /></p>
 <p>The labels sink writes one file per batch under <code>labels/</code>, such as <code>labels/labels_1a2b3c4d.jsonl</code>, with one line per label:</p>
 <!-- records: label-records -->
 <div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-9-1">1</a></span>
@@ -9183,7 +9183,7 @@
 <h2 id="how-it-works">How It Works</h2>
 <p><strong>Registration.</strong> <code>run()</code>, or <code>register_sim_parameter</code> in the low-level API, flattens the <code>SimParameter</code> into the registry. The registry holds one <code>DynamicValue</code> per path, with the value and a change signal. Beside them, it keeps the configuration objects that the paths belong to, such as each <code>DistributionConfig</code>.</p>
 <p><strong>An update.</strong> <code>registry.update(path, value)</code> and <code>registry.change(path, value)</code> apply one change by the same checks. <code>update</code> logs a refused value, and <code>change</code> raises <code>ParamRejected</code>. The checks run in order, and an accepted value reaches the parts that read it:</p>
-<p><img alt="An update from an ingress connector, a scenario or a process passes the checks in order, then the registry stores the value and updates the parameter's config; the sampler, the resources, stores and containers, waiting processes and the on_change callbacks follow" src="../../../assets/diagrams/registry-update.png" /></p>
+<p><img alt="An update from an ingress connector, a scenario or a process passes the checks in order, then the registry stores the value and updates the parameter's config; the sampler, the resources, stores and containers, waiting processes and the on_change callbacks follow" src="../../../../shared-images/0296439e78f542e4.png" /></p>
 <ul>
 <li>A path that does not exist is logged as a warning, and the update is ignored.</li>
 <li>A value of another type is converted to the type the path holds, so the string <code>"5"</code> sent to an integer path becomes 5. Python's conversion is used, so 2.5 sent to an integer path becomes 2. A value that cannot be converted is logged as an error and ignored.</li>

@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2419,7 +2419,7 @@
 <h1 id="records-and-telemetry">Records and Telemetry</h1>
 <p>Everything a simulation publishes is a record: a telemetry record for a metric, or an event record for something that happened to a task. The records have the shape of the <code>TelemetryPayload</code> and <code>EventPayload</code> models, and they are the same whichever way the simulation was written.</p>
 <p>Both shapes share <code>stream_type</code>, <code>sim_ts</code> and <code>timestamp</code>. Telemetry names its metric in <code>path_id</code>, and an event names its entity in <code>key</code>:</p>
-<p><img alt="A telemetry record has stream_type, sim_ts, timestamp, path_id and value; an event record has stream_type, sim_ts, timestamp, key and value" src="../../assets/diagrams/record-shapes.png" /></p>
+<p><img alt="A telemetry record has stream_type, sim_ts, timestamp, path_id and value; an event record has stream_type, sim_ts, timestamp, key and value" src="../../../shared-images/d334554b0b4f8e97.png" /></p>
 <hr />
 <h2 id="record-shape">Record Shape</h2>
 <p>Every egress provider, router and <code>when</code> predicate receives records of two shapes. Telemetry, from <code>context.publish</code> or <code>publish_telemetry</code>, is used for scalar metrics like resource utilization, queue lengths, or simulation lag:</p>
@@ -2455,7 +2455,7 @@
 <h2 id="task-events">Task Events</h2>
 <p><code>@app.task</code>, and a YAML task, publish three events for each task, all with the key <code>task-&lt;task id&gt;</code>:</p>
 <p>A task's three events follow its life through the resource:</p>
-<p><img alt="A task publishes queued when it joins the resource queue, started when it gets a unit, and finished after its service time, all with the key task and its id" src="../../assets/diagrams/task-events.png" /></p>
+<p><img alt="A task publishes queued when it joins the resource queue, started when it gets a unit, and finished after its service time, all with the key task and its id" src="../../../shared-images/318c969cf2689c1b.png" /></p>
 <table>
 <thead>
 <tr>

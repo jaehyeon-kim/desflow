@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -118,7 +118,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -253,7 +253,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2443,7 +2443,7 @@
 <hr />
 <h2 id="what-it-is">What It Is</h2>
 <p>Every run has one <code>SimulationRegistry</code>, at <code>env.registry</code>. It maps dot-notation paths, such as <code>Shop.resources.packers.current_cap</code>, to the values the simulation reads. A scenario, an ingress connector or a process changes a parameter by updating its path, and the simulation follows the change without restarting. Changing a parameter takes three steps:</p>
-<p><img alt="Find the registry path, send the new value from a scenario, LocalIngress, Kafka, Redis or PostgreSQL, and see it in the telemetry" src="../../assets/diagrams/live-change-steps.png" /></p>
+<p><img alt="Find the registry path, send the new value from a scenario, LocalIngress, Kafka, Redis or PostgreSQL, and see it in the telemetry" src="../../../shared-images/192e3f55a2095985.png" /></p>
 <hr />
 <h2 id="how-to-use-it">How to Use It</h2>
 <h3 id="find-the-path">Find the Path</h3>
@@ -2533,7 +2533,7 @@
 </tr>
 </tbody>
 </table>
-<p><img alt="A YAML scenario lands at the exact simulation time, LocalIngress after a wall-clock delay, the Kafka, Redis and PostgreSQL connectors when a message arrives, and a process when it runs" src="../../assets/diagrams/change-sources.png" /></p>
+<p><img alt="A YAML scenario lands at the exact simulation time, LocalIngress after a wall-clock delay, the Kafka, Redis and PostgreSQL connectors when a message arrives, and a process when it runs" src="../../../shared-images/cea7ccd0d866e07c.png" /></p>
 <p><a href="../ingress/">Ingress</a> gives the message each connector reads. A process changes a value directly:</p>
 <div class="language-python highlight"><span class="filename">docs/snippets/pages/registry.py:update</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">&quot;Shop.resources.packers.current_cap&quot;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>  <span class="c1"># applied</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">&quot;Shop.resources.packers.current_cap&quot;</span><span class="p">,</span> <span class="mi">9</span><span class="p">)</span>  <span class="c1"># stored as 5, the max_cap</span>
@@ -2603,7 +2603,7 @@
 </span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">default_path</span><span class="p">:</span><span class="w"> </span><span class="nv">labels/labels.jsonl</span><span class="p p-Indicator">}</span>
 </span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="nt">when</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">labels</span>
 </span></code></pre></div>
-<p><img alt="A scenario step at 30 seconds updates the registry, which raises the order rate the data sink sees, and publishes a label with path, old, new and label to the when: labels sink only" src="../../assets/diagrams/ground-truth.png" /></p>
+<p><img alt="A scenario step at 30 seconds updates the registry, which raises the order rate the data sink sees, and publishes a label with path, old, new and label to the when: labels sink only" src="../../../shared-images/eebdcbcebfedc2d4.png" /></p>
 <p>The labels sink writes one line per label:</p>
 <!-- records: label-records -->
 <div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>{&quot;stream_type&quot;:&quot;label&quot;,&quot;sim_ts&quot;:30.0,&quot;timestamp&quot;:&quot;...&quot;,&quot;path&quot;:&quot;Shop.arrival.orders.rate&quot;,&quot;old&quot;:0.5,&quot;new&quot;:1.5,&quot;label&quot;:{&quot;fault&quot;:&quot;order_surge&quot;,&quot;cause&quot;:&quot;flash sale&quot;}}
@@ -2614,7 +2614,7 @@
 <h2 id="how-it-works">How It Works</h2>
 <p><strong>Registration.</strong> <code>run()</code>, or <code>register_sim_parameter</code> in the low-level API, flattens the <code>SimParameter</code> into the registry: one <code>DynamicValue</code> per path, holding the value and a change signal, and beside them the configuration objects the paths belong to, such as each <code>DistributionConfig</code>.</p>
 <p><strong>An update.</strong> <code>registry.update(path, value)</code> applies one change. The checks run in order, and an accepted value reaches the parts that read it:</p>
-<p><img alt="An update from an ingress connector, a scenario or a process passes the checks in order, then the registry stores the value and updates the parameter's config; the sampler, the resources, stores and containers, and waiting processes follow" src="../../assets/diagrams/registry-update.png" /></p>
+<p><img alt="An update from an ingress connector, a scenario or a process passes the checks in order, then the registry stores the value and updates the parameter's config; the sampler, the resources, stores and containers, and waiting processes follow" src="../../../shared-images/0ca1b7500768da90.png" /></p>
 <ul>
 <li>A path that does not exist is logged as a warning, and the update is ignored.</li>
 <li>A value of another type is converted to the type the path holds, so the string <code>"5"</code> sent to an integer path becomes 5; Python's conversion is used, so 2.5 sent to an integer path becomes 2. A value that cannot be converted is logged as an error and ignored.</li>

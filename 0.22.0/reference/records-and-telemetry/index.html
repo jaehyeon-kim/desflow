@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -3173,7 +3173,7 @@
 <h1 id="records-and-telemetry">Records and Telemetry</h1>
 <p>Everything a simulation publishes is a record of one of three kinds: a <strong>telemetry</strong> record for a single value, an <strong>event</strong> record for something that happened to an entity, and a <strong>label</strong> record for the ground truth of a scenario step. The records have the shape of the <code>TelemetryPayload</code>, <code>EventPayload</code> and <code>LabelPayload</code> models, and they are the same whichever way the simulation was written.</p>
 <p>All three share <code>stream_type</code>, <code>sim_ts</code> and <code>timestamp</code>. Telemetry names its value in <code>path_id</code>; an event names its entity in <code>key</code> and its task in <code>task</code> and <code>instance</code>; a label carries what a step changed:</p>
-<p><img alt="A telemetry record has stream_type, sim_ts, timestamp, path_id and value; an event record has stream_type, sim_ts, timestamp, key, task, instance and value; a label record has stream_type, sim_ts, timestamp, path, old, new and label" src="../../assets/diagrams/record-shapes.png" /></p>
+<p><img alt="A telemetry record has stream_type, sim_ts, timestamp, path_id and value; an event record has stream_type, sim_ts, timestamp, key, task, instance and value; a label record has stream_type, sim_ts, timestamp, path, old, new and label" src="../../../shared-images/9d1514beb0c07141.png" /></p>
 <hr />
 <h2 id="record-shape">Record Shape</h2>
 <p>Every sink, router and <code>when</code> predicate receives records as plain dictionaries, with these keys in this order. The type is the Python type a sink receives, and the JSON type a JSON sink writes:</p>
@@ -3330,7 +3330,7 @@
 <hr />
 <h2 id="task-events">Task Events</h2>
 <p><code>@app.task</code> and a YAML task publish three events for each run that is served, all with the entity's key, the task's name and its instance id:</p>
-<p><img alt="A task publishes queued when it joins the resource queue, started when it gets a unit, and finished after its service time, all with key orders-1, task pack_order and instance 0" src="../../assets/diagrams/task-events.png" /></p>
+<p><img alt="A task publishes queued when it joins the resource queue, started when it gets a unit, and finished after its service time, all with key orders-1, task pack_order and instance 0" src="../../../shared-images/f55d8d958f47a73d.png" /></p>
 <table>
 <thead>
 <tr>

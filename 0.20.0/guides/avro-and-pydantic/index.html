@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2398,7 +2398,7 @@
 <hr />
 <h2 id="avro-for-some-topics">Avro for Some Topics</h2>
 <p>A topic router picks the topic of each record, and <code>topic_serializers</code> names the serializer of each topic. A topic with no serializer in the mapping uses the default, <code>JsonSerializer</code>.</p>
-<p><img alt="A Pydantic model published with publish_event becomes a record whose value is a dict; the KafkaEgress topic_router picks a topic, which is written as Avro if it is in topic_serializers and as JSON otherwise" src="../../assets/diagrams/serializer-routing.png" /></p>
+<p><img alt="A Pydantic model published with publish_event becomes a record whose value is a dict; the KafkaEgress topic_router picks a topic, which is written as Avro if it is in topic_serializers and as JSON otherwise" src="../../../shared-images/7644a0708323a837.png" /></p>
 <p><code>KafkaEgress</code> serializes the whole record, not only its <code>value</code>: <code>key</code>, <code>sim_ts</code>, <code>timestamp</code> and <code>value</code>, without <code>stream_type</code>. An Avro schema therefore describes that record, with your payload as the <code>value</code> field. <code>ConfluentAvroSerializer</code> uses a Confluent Schema Registry, and <code>GlueAvroSerializer</code> uses an AWS Glue Schema Registry.</p>
 <div class="language-python highlight"><span class="filename">docs/snippets/pages/avro_pydantic.py:router</span><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">KafkaEgress</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow.connectors.egress.kafka</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConfluentAvroSerializer</span>

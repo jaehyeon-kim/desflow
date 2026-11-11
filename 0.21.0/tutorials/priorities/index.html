@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -118,7 +118,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -253,7 +253,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2391,7 +2391,7 @@
 <hr />
 <h2 id="order-the-queue">Order the Queue</h2>
 <p>Which waiting entity a resource serves next is its <strong>queue discipline</strong>. The usual one is first in, first out (FIFO); others are last in, first out (LIFO), and by priority. Look at four requests that join a queue while the packer is busy, and the order each discipline serves them in:</p>
-<p><img alt="Four requests join in the order orders-1, express-1, orders-2, express-2. fifo serves them in that order; lifo serves express-2, orders-2, express-1, orders-1; priority serves express-1 and express-2 first, then orders-1 and orders-2" src="../../assets/diagrams/queue-order.png" /></p>
+<p><img alt="Four requests join in the order orders-1, express-1, orders-2, express-2. fifo serves them in that order; lifo serves express-2, orders-2, express-1, orders-1; priority serves express-1 and express-2 first, then orders-1 and orders-2" src="../../../shared-images/29dfebba68f407c4.png" /></p>
 <p>SimPy has a <code>PriorityResource</code> for the priority discipline, and a <code>PriorityStore</code> for items. In desflow every resource has a <code>queue</code>: <code>fifo</code> (the default), <code>lifo</code> or <code>priority</code>. Under <code>priority</code> the lowest number goes first, and requests with the same priority are served first in, first out:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">YAML</label><label for="__tabbed_1_2">Builder</label><label for="__tabbed_1_3">Low-level</label></div>
 <div class="tabbed-content">
@@ -2469,7 +2469,7 @@
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>priority pack_express mean wait  0.84 s
 </span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>priority pack_order   mean wait  6.94 s
 </span></code></pre></div>
-<p><img alt="Mean waits under fifo: express 5.84 s, regular 5.32 s; under priority: express 0.84 s, regular 6.94 s" src="../../assets/charts/priorities-wait.png" /></p>
+<p><img alt="Mean waits under fifo: express 5.84 s, regular 5.32 s; under priority: express 0.84 s, regular 6.94 s" src="../../../shared-images/a9bb2db2e2222f6a.png" /></p>
 <p>Under <code>priority</code>, express orders wait <strong>0.84 seconds</strong> on average instead of <strong>5.84</strong>. Regular orders pay for it: <strong>6.94 seconds</strong> instead of <strong>5.32</strong>.</p>
 <h2 id="why-it-works">Why It Works</h2>
 <p>Priority does not make the packer faster, so it cannot remove waiting; it only decides who waits. Weighted by how many orders of each kind arrive, the mean wait is 0.75 × 5.32 + 0.25 × 5.84 = 5.45 seconds under <code>fifo</code> and 0.75 × 6.94 + 0.25 × 0.84 = 5.41 seconds under <code>priority</code>: almost the same total, shared out differently. <a href="../../user-guide/resources/">Resources</a> describes how the queue orders requests.</p>

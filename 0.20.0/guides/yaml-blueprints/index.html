@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2481,7 +2481,7 @@
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>desflow<span class="w"> </span>run<span class="w"> </span>first.yaml
 </span></code></pre></div>
 <p>Every section of a blueprint becomes a builder call:</p>
-<p><img alt="simulation becomes SimulationContext, resources add_resource, services add_service, arrivals add_arrival, tasks @app.task, ingress and egress add_ingress and add_egress, scenario timed registry updates, and run run(until)" src="../../assets/diagrams/blueprint-sections.png" /></p>
+<p><img alt="simulation becomes SimulationContext, resources add_resource, services add_service, arrivals add_arrival, tasks @app.task, ingress and egress add_ingress and add_egress, scenario timed registry updates, and run run(until)" src="../../../shared-images/72b5144471958b0a.png" /></p>
 <p>Each section maps to one builder call. <code>resources</code> is <code>add_resource</code>, <code>services</code> is <code>add_service</code>, and <code>arrivals</code> is <code>add_arrival</code>. <code>spawn: pack_order</code> starts the <code>pack_order</code> task on every arrival, which is the arrival loop a Python script writes by hand. The task requests a packer, waits a sampled packing time and publishes its <code>payload</code>:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[EVT] {&#39;sim_ts&#39;: 5.365, &#39;timestamp&#39;: &#39;...&#39;, &#39;key&#39;: &#39;task-0&#39;, &#39;value&#39;: {&#39;path_id&#39;: &#39;Shop.service.packing&#39;, &#39;status&#39;: &#39;queued&#39;}}
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[EVT] {&#39;sim_ts&#39;: 5.365, &#39;timestamp&#39;: &#39;...&#39;, &#39;key&#39;: &#39;task-0&#39;, &#39;value&#39;: {&#39;path_id&#39;: &#39;Shop.service.packing&#39;, &#39;status&#39;: &#39;started&#39;}}

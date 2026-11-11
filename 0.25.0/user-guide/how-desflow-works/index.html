@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.7">
     
     
@@ -122,7 +122,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -257,7 +257,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -5551,7 +5551,7 @@
 </table>
 <p><a href="../../des/coming-from-simpy/#what-desflow-changes">Coming from SimPy</a> compares each change with plain SimPy.</p>
 <p>Look at how one run moves through these parts:</p>
-<p><img alt="The three ways to write a simulation build one DynamicRealtimeEnvironment. Its registry holds every live parameter; ingress connectors on background threads update it from Kafka, Redis, PostgreSQL or a local schedule, and the resources follow it. Telemetry and events go to egress connectors on their own thread, which write them to Kafka, Redis, PostgreSQL, Parquet or JSONL files, Iceberg or the console" src="../../assets/diagrams/architecture.png" /></p>
+<p><img alt="The three ways to write a simulation build one DynamicRealtimeEnvironment. Its registry holds every live parameter; ingress connectors on background threads update it from Kafka, Redis, PostgreSQL or a local schedule, and the resources follow it. Telemetry and events go to egress connectors on their own thread, which write them to Kafka, Redis, PostgreSQL, Parquet or JSONL files, Iceberg or the console" src="../../../shared-images/8523c8e3e27d5632.png" /></p>
 <p>Whichever way a model is written, it builds one environment, and one run goes the same way from there. The environment holds the registry of live parameters, and the resources, stores and containers follow it. Ingress connectors change registry values from outside while the run goes on. Tasks and other processes publish events and telemetry, and egress connectors write them to their sinks on a thread of their own. The registry paths, the <a href="../../reference/records-and-telemetry/">records</a>, the batching and the connectors are therefore the same in all three ways.</p>
 <hr />
 <h2 id="how-it-works">How It Works</h2>
@@ -5569,7 +5569,7 @@
 <p>A run uses three threads. The SimPy thread runs the model. The ingress thread runs the sources, such as Kafka or PostgreSQL, and each source puts <code>(path, value)</code> pairs on a queue. The egress thread runs the sinks, which write batches of records. Each connector has one method, <code>async run(queue)</code>, which runs on its thread's asyncio loop, so a network wait never stalls a simulation step. <a href="../time-and-pacing/#how-it-works">Time and Pacing</a> shows the threads, <a href="../ingress/#how-it-works">Ingress</a> how a change reaches the registry, and <a href="../egress/#how-it-works">Egress</a> how a record reaches a sink. <a href="../../guides/write-a-connector/">Write a Connector</a> writes one of your own.</p>
 <h3 id="two-kinds-of-queue">Two Kinds of Queue</h3>
 <p>The word queue means two different things in desflow. Look at the two side by side:</p>
-<p><img alt="Left: waiting lines in the model. Orders wait in resource.queue, in fifo, lifo or priority order, until they are granted a packer in resource.users; a request past queue_limit raises QueueFull. They are part of the model, and their length and waits are in the records. Right: hand-off queues between threads. The ingress queue has no limit and is applied to the registry every 0.1 simulation seconds; each sink has a buffer on the SimPy thread, then a queue of at most max_queued_batches that the egress thread writes from. They are not part of the model" src="../../assets/diagrams/two-queues.png" /></p>
+<p><img alt="Left: waiting lines in the model. Orders wait in resource.queue, in fifo, lifo or priority order, until they are granted a packer in resource.users; a request past queue_limit raises QueueFull. They are part of the model, and their length and waits are in the records. Right: hand-off queues between threads. The ingress queue has no limit and is applied to the registry every 0.1 simulation seconds; each sink has a buffer on the SimPy thread, then a queue of at most max_queued_batches that the egress thread writes from. They are not part of the model" src="../../../shared-images/1ff82b1f47bf31f6.png" /></p>
 <p>A waiting line in the model holds entities, such as orders waiting for a packer. A resource keeps its line in <code>queue</code>, ordered <code>fifo</code>, <code>lifo</code> or by <code>priority</code>, and a request past its <code>queue_limit</code> raises <code>QueueFull</code>. Stores and containers have lines of puts and gets that wait. These lines are what a study measures: their lengths and waits are in the records and the statistics.</p>
 <p>A hand-off queue holds data on its way between threads. The ingress queue has no limit, and the ingress monitor applies what it holds every 0.1 simulation seconds. Each sink has its own queue of at most <code>max_queued_batches</code> batches. When a sink's queue is full, the simulation waits, so a slow sink slows the run instead of building a backlog. When it stays full for <code>drain_stall_seconds</code>, the run stops rather than lose records. These queues change how fast the records arrive, never what they hold.</p>
 <h3 id="measurement-and-explain">Measurement and Explain</h3>

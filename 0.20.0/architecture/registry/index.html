@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2498,7 +2498,7 @@
 <hr />
 <h2 id="how-an-update-is-applied">How an Update Is Applied</h2>
 <p><code>env.registry.update(path, value)</code> applies one change. The checks run in order, and an accepted value reaches the parts that read it:</p>
-<p><img alt="An update from an ingress connector, a scenario or a process passes five checks, then the registry stores the value and updates the parameter's config; the sampler, the resource and waiting processes follow" src="../../assets/diagrams/registry-update.png" /></p>
+<p><img alt="An update from an ingress connector, a scenario or a process passes five checks, then the registry stores the value and updates the parameter's config; the sampler, the resource and waiting processes follow" src="../../../shared-images/b53c06b4e05da5a9.png" /></p>
 <ul>
 <li>A path that does not exist is logged as a warning, and the update is ignored.</li>
 <li>A value of a different type is converted to the type the path holds, so the string <code>"5"</code> sent to an integer path becomes <code>5</code>. The conversion is Python's own, so <code>2.5</code> sent to an integer path becomes <code>2</code>. A value that cannot be converted is logged as an error, and the update is ignored.</li>
@@ -2529,7 +2529,7 @@
 <hr />
 <h2 id="sources-of-updates">Sources of Updates</h2>
 <p>Each source lands its change at a different moment:</p>
-<p><img alt="A YAML scenario lands at the exact simulation time, LocalIngress after a wall-clock delay, the Kafka, Redis and PostgreSQL connectors when a message arrives, and a process when it runs" src="../../assets/diagrams/change-sources.png" /></p>
+<p><img alt="A YAML scenario lands at the exact simulation time, LocalIngress after a wall-clock delay, the Kafka, Redis and PostgreSQL connectors when a message arrives, and a process when it runs" src="../../../shared-images/cf647140e7669bae.png" /></p>
 <ul>
 <li><strong>Ingress connectors</strong>: Kafka, Redis, PostgreSQL and <code>LocalIngress</code>. <a href="../connectors/#ingress-connectors-inputs">Connectors</a> gives the message each one expects.</li>
 <li><strong>A scenario</strong> in a YAML blueprint, compared with <code>LocalIngress</code> below.</li>

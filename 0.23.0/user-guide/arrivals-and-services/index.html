@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -3874,7 +3874,7 @@
 </tbody>
 </table>
 <p>An arrival draws one gap after another, so entities arrive at uneven times. Look at the first five orders of the shop in <a href="../../tutorials/first-simulation/">First Simulation</a>:</p>
-<p><img alt="The first five orders arrive at 2.552, 2.696, 3.737, 4.020 and 6.196 seconds; each gap, from 0.14 to 2.55 seconds, is a new draw from an exponential distribution with rate 0.5" src="../../assets/diagrams/arrival-timeline.png" /></p>
+<p><img alt="The first five orders arrive at 2.552, 2.696, 3.737, 4.020 and 6.196 seconds; each gap, from 0.14 to 2.55 seconds, is a new draw from an exponential distribution with rate 0.5" src="../../../shared-images/6989ff5226a29fdd.png" /></p>
 <hr />
 <h2 id="how-to-use-it">How to Use It</h2>
 <p>Every distribution is a family, <code>dist</code>, and the parameters that family takes. There are ten families. A parameter outside its range, a missing one, or one the family does not take is refused when the model is built, with the YAML line when it comes from a blueprint. <a href="../../reference/distributions/">Reference, Distributions</a> lists every family with its parameters, rules, mean and variance; the table names each family, the list under it gives each family's rules, and one example shows the form.</p>
@@ -4217,10 +4217,10 @@
 <hr />
 <h2 id="how-it-works">How It Works</h2>
 <p><strong>One registry of distributions.</strong> Every family is declared once, in <code>desflow.core.distributions.DISTRIBUTIONS</code>, with its parameters, its range rules, how to draw from it, its mean and variance, and what it gives with no random generator. The YAML models, the builder, <code>DistributionConfig</code>, the <code>Sampler</code> and the registry's live paths all read it, so they accept the same families and parameters. These are 200,000 draws from each family:</p>
-<p><img alt="Histograms of 200,000 draws from each of the ten families, with the mean marked: exponential falls away from 0; normal with mean 1 and std 1 has a pile at 0 where negative draws are raised; truncated normal has none; lognormal has a long right tail; constant is one value; uniform is flat between 1 and 2; triangular rises to 1.25 and falls to 2.25; gamma and weibull are skewed to the right; the empirical histogram has three flat bins" src="../../assets/charts/distribution-shapes.png" /></p>
+<p><img alt="Histograms of 200,000 draws from each of the ten families, with the mean marked: exponential falls away from 0; normal with mean 1 and std 1 has a pile at 0 where negative draws are raised; truncated normal has none; lognormal has a long right tail; constant is one value; uniform is flat between 1 and 2; triangular rises to 1.25 and falls to 2.25; gamma and weibull are skewed to the right; the empirical histogram has three flat bins" src="../../../shared-images/fd3b28153e5b7d6d.png" /></p>
 <p><strong>A draw reads the live configuration.</strong> A <code>DistributionConfig</code> holds the family and its parameters. <code>Sampler.sample(config)</code> reads the parameters at the moment it is called, so a change made while the run goes on applies from the next draw. A task draws its service time once it has its resource and has published <code>started</code>; the arrival loop draws the next gap when it starts waiting. Every value is raised to at least 0.00001 seconds, so a time is never 0 or negative.</p>
 <p><strong>One random stream per distribution.</strong> A seeded <code>Sampler</code> makes one generator for each name: NumPy's <code>SeedSequence(seed, spawn_key=(CRC32 of the name,))</code>. When the registry registers a distribution, it names it by its path without the sim id, such as <code>arrival.orders</code> or <code>service.packing</code>, and every draw from that distribution comes from that stream. Probability routing draws from <code>route.&lt;task&gt;</code> in the same way, as <a href="../task-flow/">Task Flow</a> describes. Adding a distribution therefore leaves every other one's draws unchanged, and renaming the simulation does not change them either:</p>
-<p><img alt="With the seed 42, the first run draws arrival.orders and service.packing; the second run, with returns added, draws the same numbers from those two streams and adds a stream of its own, arrival.returns" src="../../assets/diagrams/seed-sequences.png" /></p>
+<p><img alt="With the seed 42, the first run draws arrival.orders and service.packing; the second run, with returns added, draws the same numbers from those two streams and adds a stream of its own, arrival.returns" src="../../../shared-images/8b98a2747d30ca08.png" /></p>
 <p>In the low-level API, a <code>DistributionConfig</code> that was never registered draws from the <code>Sampler</code>'s main generator instead. Your own code can take a stream of its own with <code>sampler.generator("&lt;name&gt;")</code>:</p>
 <div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/arrivals_services.py:streams</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-18-1">1</a></span>
 <span class="normal"><a href="#__codelineno-18-2">2</a></span>

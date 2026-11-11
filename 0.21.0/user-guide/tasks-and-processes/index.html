@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -118,7 +118,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -253,7 +253,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2714,11 +2714,11 @@
 <h2 id="how-it-works">How It Works</h2>
 <h3 id="what-run-does">What <code>run()</code> Does</h3>
 <p><code>run()</code> builds everything the context describes and runs it, in this order:</p>
-<p><img alt="The steps of run(), top to bottom: check the tasks; call run.before; build the environment; make the Sampler from random_seed or a seed drawn and logged; switch on statistics; register the parameters; start ingress, then egress with its warm-up; build resources, stores and containers; start loops and processes; env.run(until); and in finally, the teardown" src="../../assets/diagrams/run-sequence.png" /></p>
+<p><img alt="The steps of run(), top to bottom: check the tasks; call run.before; build the environment; make the Sampler from random_seed or a seed drawn and logged; switch on statistics; register the parameters; start ingress, then egress with its warm-up; build resources, stores and containers; start loops and processes; env.run(until); and in finally, the teardown" src="../../../shared-images/33fec6d43618cac7.png" /></p>
 <p>Until <code>run()</code> is called nothing exists but the description: <code>context.env</code>, <code>context.spawn</code> and <code>context.get_resource</code> raise <code>RuntimeError</code> before it. Teardown runs in a <code>finally</code> block, so the last statistics are published and every sink is flushed even when the run stops with an error or Ctrl+C.</p>
 <h3 id="what-apptask-does">What <code>@app.task</code> Does</h3>
 <p><code>@app.task</code> turns your function into a SimPy process that does these steps, publishing a record at three of them:</p>
-<p><img alt="pack_order in three steps. queued: orders-1 joins the packers queue, and the record has status queued. started: it gets a packer and the function returns the payload, and the record has status started. finished: after the packing time the payload is published and the packer released" src="../../assets/diagrams/task-life.gif" /></p>
+<p><img alt="pack_order in three steps. queued: orders-1 joins the packers queue, and the record has status queued. started: it gets a packer and the function returns the payload, and the record has status started. finished: after the packing time the payload is published and the packer released" src="../../../shared-images/6b0dd13d3cda2758.gif" /></p>
 <ol>
 <li>If it has a resource or a <code>get</code>, it publishes <code>queued</code> and asks for the resource, in the resource's queue order.</li>
 <li>Once it has the resource, it takes its <code>get</code> from a store or container, waiting while there is not enough.</li>

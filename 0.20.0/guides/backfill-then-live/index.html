@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2476,7 +2476,7 @@
 </tbody>
 </table>
 <p>They are independent. <code>go_live_at</code> changes pacing only; it never routes a record. <code>when</code> routes records only; it never changes pacing. Using them together is what produces a tiered dataset, and the two instants have to agree: pass the same instant to <code>go_live_at</code> and to the predicates, or the seam in the data will not match the seam in the pacing.</p>
-<p><img alt="From logical_start_time to go_live_at the run writes the backdated history to Parquet without waiting; from go_live_at to the end it streams records to Kafka in real time" src="../../assets/diagrams/backfill-timeline.png" /></p>
+<p><img alt="From logical_start_time to go_live_at the run writes the backdated history to Parquet without waiting; from go_live_at to the end it streams records to Kafka in real time" src="../../../shared-images/53e560febd9b5261.png" /></p>
 <hr />
 <h2 id="worked-example">Worked example</h2>
 <p><a href="https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/backfill_live_example.py"><code>examples/builder/backfill_live_example.py</code></a> backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. <code>HISTORY_MINUTES</code> and <code>LIVE_SECONDS</code> set the two halves; a day of history (about 130,000 records) still generates in about two seconds.</p>

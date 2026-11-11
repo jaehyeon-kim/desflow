@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.7">
     
     
@@ -122,7 +122,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -257,7 +257,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -5373,7 +5373,7 @@
 <hr />
 <h2 id="what-it-is">What It Is</h2>
 <p>The three are layers, not alternatives. Each layer writes the one below it for you:</p>
-<p><img alt="A YAML blueprint makes the builder calls a script would make; the builder's run() compiles a SimParameter, builds the DynamicRealtimeEnvironment and starts the SimPy processes, which is what a low-level script writes by hand" src="../../assets/diagrams/ways-to-write.png" /></p>
+<p><img alt="A YAML blueprint makes the builder calls a script would make; the builder's run() compiles a SimParameter, builds the DynamicRealtimeEnvironment and starts the SimPy processes, which is what a low-level script writes by hand" src="../../../shared-images/49b9421428dcd2ec.png" /></p>
 <ul>
 <li><strong>YAML blueprint:</strong> a file. <code>SimulationContext.from_yaml</code>, which <code>desflow run</code> calls, reads it and makes the same builder calls a Python script would make, so the result is an ordinary <code>SimulationContext</code>.</li>
 <li><strong>Builder API:</strong> <code>SimulationContext</code> collects resources, distributions, tasks and connectors through its methods and decorators. Its <code>run()</code> compiles them into a <code>SimParameter</code>, builds the environment, registers the parameters and starts the processes.</li>

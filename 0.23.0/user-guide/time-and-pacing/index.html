@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -3667,7 +3667,7 @@
 <hr />
 <h2 id="what-it-is">What It Is</h2>
 <p><strong>Simulation time</strong> is the number of seconds SimPy has advanced, starting at <code>initial_time</code>, 0 by default; every record carries it as <code>sim_ts</code>. <strong>Logical time</strong> is the date and time a record carries as <code>timestamp</code>: <code>logical_start_time</code> plus the simulation time. <code>factor</code> sets how simulation time relates to the wall clock, and <code>go_live_at</code> switches that relation once during a run. One hour of simulation time is one hour of logical time, and takes as long on the wall clock as <code>factor</code> says:</p>
-<p><img alt="Simulation time 0 to 3,600 seconds maps to logical time 09:00 to 10:00; on the wall clock it takes an hour at factor 1.0, 30 minutes at 0.5, and no waiting at 0.0" src="../../assets/diagrams/two-clocks.png" /></p>
+<p><img alt="Simulation time 0 to 3,600 seconds maps to logical time 09:00 to 10:00; on the wall clock it takes an hour at factor 1.0, 30 minutes at 0.5, and no waiting at 0.0" src="../../../shared-images/546b26ba82f30769.png" /></p>
 <p>The settings are the same on <code>DynamicRealtimeEnvironment</code>, on <code>SimulationContext</code> and in the <code>simulation</code> section of a blueprint.</p>
 <hr />
 <h2 id="pages-in-this-section">Pages in This Section</h2>
@@ -3683,7 +3683,7 @@
 <h2 id="how-it-works">How It Works</h2>
 <p><strong>What the environment holds.</strong> A <code>DynamicRealtimeEnvironment</code> is SimPy's <code>RealtimeEnvironment</code> with four additions: the registry at <code>env.registry</code>, the ingress connectors, the egress connectors with their buffers, and the statistics at <code>env.stats</code>.</p>
 <p><strong>Threads.</strong> A run uses three threads, with queues between them. Records flow from the processes to the sinks, and parameter changes flow from the sources to the registry:</p>
-<p><img alt="The SimPy thread buffers records and hands full batches to a queue per egress, which the egress thread writes to the sinks; the ingress thread puts parameter changes on a queue that the ingress monitor applies to the registry" src="../../assets/diagrams/runtime-threads.png" /></p>
+<p><img alt="The SimPy thread buffers records and hands full batches to a queue per egress, which the egress thread writes to the sinks; the ingress thread puts parameter changes on a queue that the ingress monitor applies to the registry" src="../../../shared-images/1050c723f3d4473f.png" /></p>
 <ul>
 <li><strong>SimPy thread:</strong> runs the model. When a process publishes a record, the record goes into a buffer for each sink, and a full buffer is handed to that sink's queue.</li>
 <li><strong>Egress thread:</strong> runs the sinks' asyncio code, which drains the queues and writes to Kafka, files or databases, so network waits never stall a simulation step.</li>

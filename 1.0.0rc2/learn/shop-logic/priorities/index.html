@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../../assets/favicon.png">
+      <link rel="icon" href="../../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
     
     
@@ -132,7 +132,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -267,7 +267,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -8690,7 +8690,7 @@
 <hr />
 <h2 id="order-the-queue">Order the Queue</h2>
 <p>Which waiting entity a resource serves next is its <strong>queue discipline</strong>. The usual one is first in, first out (FIFO). Others are last in, first out (LIFO), and service by priority. Look at four requests that join a queue while the packer is busy, and the order each discipline serves them in:</p>
-<p><img alt="Four requests join in the order orders-1, express-1, orders-2, express-2. fifo serves them in that order; lifo serves express-2, orders-2, express-1, orders-1; priority serves express-1 and express-2 first, then orders-1 and orders-2" src="../../../assets/diagrams/queue-order.png" /></p>
+<p><img alt="Four requests join in the order orders-1, express-1, orders-2, express-2. fifo serves them in that order; lifo serves express-2, orders-2, express-1, orders-1; priority serves express-1 and express-2 first, then orders-1 and orders-2" src="../../../../shared-images/29dfebba68f407c4.png" /></p>
 <p>SimPy has a <code>PriorityResource</code> for the priority discipline, and a <code>PriorityStore</code> for items. In desflow every resource has a <code>queue</code>: <code>fifo</code> (the default), <code>lifo</code> or <code>priority</code>. Under <code>priority</code> the lowest number goes first, and requests with the same priority are served first in, first out. Save the files from <a href="#full-files">Full Files</a> in one folder and run the commands there:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">YAML</label><label for="__tabbed_1_2">Builder</label><label for="__tabbed_1_3">Low-level</label></div>
 <div class="tabbed-content">
@@ -8906,7 +8906,7 @@
 </div>
 </div>
 </div>
-<p><img alt="Mean waits under fifo: express 5.84 s, regular 5.32 s; under priority: express 0.84 s, regular 6.94 s" src="../../../assets/charts/priorities-wait.png" /></p>
+<p><img alt="Mean waits under fifo: express 5.84 s, regular 5.32 s; under priority: express 0.84 s, regular 6.94 s" src="../../../../shared-images/efa20d445ed9a62c.png" /></p>
 <p>In one run of the hour with the seed 42, under <code>priority</code>, express orders wait <strong>0.84 seconds</strong> on average instead of <strong>5.84</strong>. Regular orders pay for it: <strong>6.94 seconds</strong> instead of <strong>5.32</strong>.</p>
 <p>Priority does not make the packer faster, so it cannot remove waiting. It only decides who waits. Weighted by how many orders of each kind arrive, the mean wait is 0.75 × 5.32 + 0.25 × 5.84 = 5.45 seconds under <code>fifo</code> and 0.75 × 6.94 + 0.25 × 0.84 = 5.41 seconds under <code>priority</code>: almost the same total, shared out differently. Both queue orders keep the packer busy the same share of the time, 0.6 × 1.5 = 0.9 (<a href="../../concepts/queueing-basics/#utilisation">utilisation</a>). Every order takes the same time, so the queue holds the same number of orders on average under both, and <a href="../../concepts/queueing-basics/#littles-law">Little's Law</a> turns that number into the same mean wait over all orders. <a href="../../../user-guide/resources/">Resources</a> describes how the queue orders requests. Plain SimPy's <code>PriorityResource</code>, which <a href="../../../simpy/#resources">SimPy and desflow</a> shows, serves these requests in the same order, ties included. The tests check the order in all three APIs (<a href="../../../simpy/compatibility/">SimPy Compatibility</a>).</p>
 <p>Items can be ranked too: a priority store returns the parcel with the lowest priority first, as <a href="../../../user-guide/model-parts/stores-and-containers/#start-with-items-and-serve-by-priority">Stores and Containers</a> describes. A resource's priority decides which request is served, and a store's priority decides which item is taken.</p>

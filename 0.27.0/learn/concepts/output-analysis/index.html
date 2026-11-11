@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../../assets/favicon.png">
+      <link rel="icon" href="../../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.0">
     
     
@@ -122,7 +122,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -257,7 +257,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -6241,7 +6241,7 @@
 <h2 id="one-run-starts-empty">One Run Starts Empty</h2>
 <h3 id="in-the-tutorial_1">In the Tutorial</h3>
 <p>Trusting Results plots the busy hour from its start. The mean wait so far climbs from 0.46 seconds to about 1.5 seconds in the first two minutes, because the first orders found free packers. After that it moves up and down with no trend.</p>
-<p><img alt="One run from an empty shop: a warm-up (left out of the statistics), then the measured period, then the end of the run at until" src="../../../assets/diagrams/run-phases.png" /></p>
+<p><img alt="One run from an empty shop: a warm-up (left out of the statistics), then the measured period, then the end of the run at until" src="../../../../shared-images/691e3bc5908f5ccf.png" /></p>
 <h3 id="why-it-matters_1">Why It Matters</h3>
 <p>The first orders of a run find every packer free, so their waits are shorter than the waits of the hour as a whole. The mean wait of a run is therefore biased low by its start. When the question is the long run, as for the busy hour, this distortion is called <strong>initialisation bias</strong>. A <strong>warm-up</strong> is a time at the start of a run whose observations are left out.</p>
 <h3 id="how-to-use-it_1">How to Use It</h3>
@@ -6281,7 +6281,7 @@
 <h2 id="replications">Replications</h2>
 <h3 id="in-the-tutorial_2">In the Tutorial</h3>
 <p>In the busy hour, with the measured packing times and a 2-minute warm-up, 40 replications give a mean wait of 2.32 ± 0.20 seconds: the mean of the 40 values, with the half-width of its 95% interval. The mean waits of the 40 replications range from 1.45 to 4.39 seconds. The <a href="../../first-model/first-simulation/#busy-hour-figures">one run with the seed 42</a> measured 1.38 seconds, lower than any of them.</p>
-<p><img alt="Four runs, each with its own stream, combine into one mean wait with a 95% interval" src="../../../assets/diagrams/replication-interval.png" /></p>
+<p><img alt="Four runs, each with its own stream, combine into one mean wait with a 95% interval" src="../../../../shared-images/c1b835409f077f68.png" /></p>
 <h3 id="why-it-matters_2">Why It Matters</h3>
 <p>The waits of orders in one run follow each other: after a busy period, many orders in a row wait long. They are not independent samples, so the usual formula for the spread of an average, which assumes independent samples, gives an interval that is too narrow. Law lists this as a pitfall, along with treating one run as the truth.</p>
 <h3 id="how-to-use-it_2">How to Use It</h3>

@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../../assets/favicon.png">
+      <link rel="icon" href="../../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
     
     
@@ -132,7 +132,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -267,7 +267,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -8901,7 +8901,7 @@
 </div>
 <h3 id="pick-the-topic-with-a-function">Pick the Topic With a Function</h3>
 <p>Use a function when the topic depends on more than a payload can say. A <code>topic_router</code> receives one record, as a dictionary with its <code>stream_type</code>, <code>key</code> or <code>path_id</code>, <code>task</code>, <code>instance</code> and <code>value</code>, and returns the topic name. It sees telemetry too, so it must always return a topic. It wins over <code>__topic__</code>, and the sink then creates only the topics in <code>topics</code>. To drop records, give the sink a <code>when</code> on its entry: it filters them before the router sees them. <a href="../../../user-guide/live-runs-and-connectors/egress/#choose-what-each-sink-gets">Egress</a> shows the forms of <code>when</code>.</p>
-<p><img alt="custom_kafka_router sends telemetry to shop-telemetry, events with status packing_failed or level ERROR to system-alarms, and any other event to shop-events" src="../../../assets/diagrams/record-router.png" /></p>
+<p><img alt="custom_kafka_router sends telemetry to shop-telemetry, events with status packing_failed or level ERROR to system-alarms, and any other event to shop-events" src="../../../../shared-images/7b6346929ddf93a7.png" /></p>
 <p>This router sends the shop's records to the same three topics. Every form uses it unchanged, from <code>complex_routing_logic.py</code>:</p>
 <div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/complex_routing_logic.py:router</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-6-1"> 1</a></span>
 <span class="normal"><a href="#__codelineno-6-2"> 2</a></span>

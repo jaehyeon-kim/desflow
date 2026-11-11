@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2431,7 +2431,7 @@
 <hr />
 <h2 id="waits-grow-before-you-reach-1">Waits Grow Before You Reach 1</h2>
 <p>A stable model can still wait a long time. Waits grow sharply as utilisation approaches 1, and more variable times make it worse. These are measured mean waits in the queue for one packer with a mean service of 1.5 seconds, each over 200,000 simulated seconds:</p>
-<p><img alt="Measured mean wait in the queue for one packer with mean service 1.5 s: at utilisation 0.5, 1.5 s with exponential service and 0.8 s with constant service; at 0.75, 4.4 and 2.3 s; at 0.9, 13.0 and 7.0 s; at 0.95, 31.3 and 14.8 s" src="../../assets/diagrams/wait-vs-utilization.png" /></p>
+<p><img alt="Measured mean wait in the queue for one packer with mean service 1.5 s: at utilisation 0.5, 1.5 s with exponential service and 0.8 s with constant service; at 0.75, 4.4 and 2.3 s; at 0.9, 13.0 and 7.0 s; at 0.95, 31.3 and 14.8 s" src="../../../shared-images/b6e68b4349a30f24.png" /></p>
 <p>Two rules follow, and the measurements match both:</p>
 <ul>
 <li><strong>With exponential service times</strong>, the mean wait for one unit is <code>utilisation ÷ (1 − utilisation) × mean service time</code>. At 0.75 that is 3 × 1.5 = 4.5 seconds; the run measured 4.42. Going from 0.9 to 0.95 more than doubles it.</li>

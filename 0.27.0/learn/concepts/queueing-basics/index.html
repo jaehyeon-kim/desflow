@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../../assets/favicon.png">
+      <link rel="icon" href="../../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.0">
     
     
@@ -122,7 +122,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -257,7 +257,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -6349,7 +6349,7 @@
 <h2 id="kendalls-notation">Kendall's Notation</h2>
 <h3 id="in-the-tutorial">In the Tutorial</h3>
 <p>A queueing model has three parts: the arrivals, the queue, and the servers that serve them. In the shop, the arrivals are the orders, the queue is the line in front of the packers, and the servers are the packers. In desflow a server is one unit of a resource, so the <code>packers</code> resource with <code>current_cap: 3</code> has three servers. The diagram shows the three things a model must say: how far apart orders arrive, how long a packer takes, and how many packers there are.</p>
-<p><img alt="The parts of a queueing model: orders arrive with gaps between them, wait in a queue, and are served by c packers, here three; M/D/3 means exponential gaps, constant service times and three packers" src="../../../assets/diagrams/queue-parts.png" /></p>
+<p><img alt="The parts of a queueing model: orders arrive with gaps between them, wait in a queue, and are served by c packers, here three; M/D/3 means exponential gaps, constant service times and three packers" src="../../../../shared-images/6a5bdf99b2628461.png" /></p>
 <p><strong>Kendall's notation</strong> writes these three things as arrivals/service/servers. The letter <code>c</code> stands for the number of servers. The busy hour of <a href="../../first-model/queues-and-capacity/">Queues and Capacity</a> is M/D/3: exponential gaps between orders, a constant packing time of 1.5 seconds, and three packers. Each letter names a distribution:</p>
 <ul>
 <li><code>M</code> is an exponential distribution. Gaps between orders placed independently of each other are exponential, and such arrivals are called a <strong>Poisson</strong> flow.</li>
@@ -6533,7 +6533,7 @@
 <p><a href="../../studies/parameter-sweeps/">Parameter Sweeps</a> runs the busy hour with three packers and the measured packing times at four arrival rates, 20 replications each. At 1.6 orders a second (utilisation 0.8) the mean wait is 0.97 seconds. At 1.8 (utilisation 0.9) it is 2.48 seconds. At 1.9 (utilisation 0.95) it is 5.55 seconds. A rise of 6% in the rate more than doubles the wait.</p>
 <h3 id="why-it-matters_3">Why It Matters</h3>
 <p>For one server with exponential gaps and service times (M/M/1), the mean wait in the queue has a closed form: utilisation ÷ (1 − utilisation) × the mean service time. With constant service times (M/D/1) it is exactly half. The first part, utilisation ÷ (1 − utilisation), grows faster and faster as utilisation nears 1: it is 1 at 0.5, 9 at 0.9 and 19 at 0.95. The bars show this for one packer with a mean packing time of 1.5 seconds:</p>
-<p><img alt="Mean wait in the queue for one packer with mean service 1.5 s, from the formulas: at utilisation 0.5, 1.5 s with exponential service and 0.75 s with constant service; at 0.75, 4.5 and 2.25 s; at 0.9, 13.5 and 6.75 s; at 0.95, 28.5 and 14.25 s" src="../../../assets/diagrams/wait-vs-utilization.png" /></p>
+<p><img alt="Mean wait in the queue for one packer with mean service 1.5 s, from the formulas: at utilisation 0.5, 1.5 s with exponential service and 0.75 s with constant service; at 0.75, 4.5 and 2.25 s; at 0.9, 13.5 and 6.75 s; at 0.95, 28.5 and 14.25 s" src="../../../../shared-images/b98aafbb6f9a8792.png" /></p>
 <p>So a design that only keeps utilisation below 1 is not enough. A shop that is stable can still make orders wait a long time, and a small change in demand changes the wait a great deal.</p>
 <h3 id="how-to-use-it_3">How to Use It</h3>
 <p>The formulas are short enough to compute. These functions are the ones the rest of the page uses:</p>

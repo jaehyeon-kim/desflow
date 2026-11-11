@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2334,7 +2334,7 @@
 <h2 id="threading-and-asynchronous-io">Threading and Asynchronous I/O</h2>
 <p>Standard SimPy environments are single-threaded and synchronous. Performing heavy network operations (like writing to a Kafka broker or reading from S3) directly inside a SimPy process would block the entire simulation loop.</p>
 <p>To resolve this, the <code>DynamicRealtimeEnvironment</code> runs the simulation on one thread and the connectors on two others, with queues between them. Records flow left to right from the processes to the sinks, and parameter changes flow right to left from the sources to the registry:</p>
-<p><img alt="The SimPy thread buffers records and hands full batches to a queue per egress, which the egress thread writes to the sinks; the ingress thread puts parameter changes on a queue that the ingress monitor applies to the registry" src="../../assets/diagrams/runtime-threads.png" /></p>
+<p><img alt="The SimPy thread buffers records and hands full batches to a queue per egress, which the egress thread writes to the sinks; the ingress thread puts parameter changes on a queue that the ingress monitor applies to the registry" src="../../../shared-images/2bd6eea670766027.png" /></p>
 <ul>
 <li><strong>SimPy thread</strong>: Executes SimPy processes and yields timeouts. When a process publishes an event or telemetry, the record is appended to a buffer for each egress provider. A buffer is handed to that provider's thread-safe queue when it reaches <code>batch_size</code>, or when <code>flush_interval</code> passes on a paced run.</li>
 <li><strong>Background asyncio thread</strong>: Automatically spawned on simulation startup. It drains the queues, and handles socket-level communication asynchronously, so socket latency does not stall each simulation step. Ingress providers run on a second background thread of their own. The egress queues are bounded by <code>max_queued_batches</code>, so a sink that cannot keep up slows the simulation rather than building a backlog, and a sink that stops consuming raises an error once the queue has been full for <code>drain_stall_seconds</code>.</li>

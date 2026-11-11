@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../../assets/favicon.png">
+      <link rel="icon" href="../../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.7">
     
     
@@ -122,7 +122,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -257,7 +257,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -5363,7 +5363,7 @@
 <li>Picking time is <code>uniform</code> from 1 to 3 seconds only to keep the example short. <a href="../../concepts/common-mistakes/#choosing-a-normal-or-uniform-by-habit">Common Mistakes</a> explains why a real study fits a distribution to measured times instead, as <a href="../../inputs/choosing-inputs/">Choosing Inputs</a> does.</li>
 </ul>
 <p>Look at the flow first:</p>
-<p><img alt="Arrivals spawn pick_order. When level.stock is 0 it leads to backorder, a timed step of 1 minute that sets backordered and leads back to pick_order. Otherwise it leads to pack_order, which takes a box from stock. pack_order leads to ship_order with weight 95, and back to itself with weight 5. ship_order ends the flow" src="../../../assets/diagrams/shop-flow.png" /></p>
+<p><img alt="Arrivals spawn pick_order. When level.stock is 0 it leads to backorder, a timed step of 1 minute that sets backordered and leads back to pick_order. Otherwise it leads to pack_order, which takes a box from stock. pack_order leads to ship_order with weight 95, and back to itself with weight 5. ship_order ends the flow" src="../../../../shared-images/1ad4c350e333037a.png" /></p>
 <hr />
 <h2 id="chain-the-tasks">Chain the Tasks</h2>
 <p>Choosing where an entity goes next is called <strong>routing</strong>. In desflow a task names what follows it with <code>next</code>. <a href="../../../user-guide/tasks-and-processes/">Tasks and Processes</a> describes tasks. <code>next</code> takes one of three forms:</p>
@@ -5620,7 +5620,7 @@
 </span><span id="__span-14-14"><a id="__codelineno-14-14" name="__codelineno-14-14"></a>[EVT] {&#39;sim_ts&#39;: 466.376, &#39;timestamp&#39;: &#39;...&#39;, &#39;key&#39;: &#39;orders-172&#39;, &#39;task&#39;: &#39;pack_order&#39;, &#39;instance&#39;: 245, &#39;value&#39;: {&#39;event_type&#39;: &#39;order_packed&#39;}}
 </span><span id="__span-14-15"><a id="__codelineno-14-15" name="__codelineno-14-15"></a>[EVT] {&#39;sim_ts&#39;: 466.376, &#39;timestamp&#39;: &#39;...&#39;, &#39;key&#39;: &#39;orders-172&#39;, &#39;task&#39;: &#39;ship_order&#39;, &#39;instance&#39;: 233, &#39;value&#39;: {&#39;event_type&#39;: &#39;order_shipped&#39;, &#39;express&#39;: 0, &#39;backordered&#39;: 1}}
 </span></code></pre></div></td></tr></table></div>
-<p><img alt="The events of orders-172 in order: pick_order, backorder, pick_order again, pack_order twice, and ship_order with express 0 and backordered 1, all under the key orders-172" src="../../../assets/diagrams/entity-key-timeline.png" /></p>
+<p><img alt="The events of orders-172 in order: pick_order, backorder, pick_order again, pack_order twice, and ship_order with express 0 and backordered 1, all under the key orders-172" src="../../../../shared-images/a4e592c4e989f9cc.png" /></p>
 <hr />
 <h2 id="what-you-get-and-why">What You Get and Why</h2>
 <p>How do orders move through pick, pack and ship? Most go straight through, and a few go to backorder or are packed again. The run publishes the finished count of every task at the end, with <code>stats: basic</code>:</p>

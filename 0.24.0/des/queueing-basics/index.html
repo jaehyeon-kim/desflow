@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -120,7 +120,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -255,7 +255,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -4394,7 +4394,7 @@
 <hr />
 <h2 id="parts-of-a-queue">Parts of a Queue</h2>
 <p>A queueing model has arrivals, a queue, and one or more servers. In the shop these are the orders, the queue in front of the packers, and the packers. Look at the diagram for the three things a model must say: how far apart orders arrive, how long a packer takes, and how many packers there are.</p>
-<p><img alt="The parts of a queueing model: orders arrive with gaps between them, wait in a queue, and are served by c packers, here three; M/D/3 means exponential gaps, constant service times and three packers" src="../../assets/diagrams/queue-parts.png" /></p>
+<p><img alt="The parts of a queueing model: orders arrive with gaps between them, wait in a queue, and are served by c packers, here three; M/D/3 means exponential gaps, constant service times and three packers" src="../../../shared-images/92e3d305b205ce28.png" /></p>
 <p><strong>Kendall's notation</strong> writes these as arrivals/service/servers. <code>M</code> is an exponential distribution, <code>D</code> a constant one and <code>G</code> any distribution, and the last number is the count of servers. The shop's busy hour in <a href="../../tutorials/queues-and-capacity/">Queues and Capacity</a> is M/D/3. When a model leaves out the further terms, they have their defaults: the queue has room for any number of orders, the population that orders come from is unlimited, and orders are served in the order they arrive.</p>
 <p>The measure that decides everything is <strong>utilisation</strong>, the share of time a server is busy: the arrival rate times the mean service time, divided by the number of servers. Below 1 a queue is stable and its length settles. At 1 or above, when the gaps or the service times vary, the queue grows without limit. Above 1 it grows in every case, even when the gaps and service times are constant. <a href="../../tutorials/queues-and-capacity/">Queues and Capacity</a> works this out for the shop.</p>
 <hr />
@@ -4524,7 +4524,7 @@
 <hr />
 <h2 id="waits-near-full-use">Waits Near Full Use</h2>
 <p>For an M/M/1 queue, which has exponential gaps and service times and one server, the mean wait in the queue has a closed form: utilisation ÷ (1 − utilisation) × the mean service time. With constant service times (M/D/1) it is exactly half. Look at how the bars grow faster than the utilisation: from 0.9 to 0.95 the wait more than doubles.</p>
-<p><img alt="Mean wait in the queue for one packer with mean service 1.5 s, from the formulas: at utilisation 0.5, 1.5 s with exponential service and 0.75 s with constant service; at 0.75, 4.5 and 2.25 s; at 0.9, 13.5 and 6.75 s; at 0.95, 28.5 and 14.25 s" src="../../assets/diagrams/wait-vs-utilization.png" /></p>
+<p><img alt="Mean wait in the queue for one packer with mean service 1.5 s, from the formulas: at utilisation 0.5, 1.5 s with exponential service and 0.75 s with constant service; at 0.75, 4.5 and 2.25 s; at 0.9, 13.5 and 6.75 s; at 0.95, 28.5 and 14.25 s" src="../../../shared-images/b98aafbb6f9a8792.png" /></p>
 <p>The formulas are short enough to write down and compute:</p>
 <div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/queueing_basics.py:theory</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-6-1"> 1</a></span>
 <span class="normal"><a href="#__codelineno-6-2"> 2</a></span>

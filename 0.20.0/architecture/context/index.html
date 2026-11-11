@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
@@ -116,7 +116,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -251,7 +251,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -2520,7 +2520,7 @@
 <p>The <code>SimulationContext</code> acts as the entry point and configuration builder for standard desflow simulations. It implements the <strong>Builder Pattern</strong> to construct the simulation environment and register resources, statistical samplers, and ingress/egress connectors. <a href="../../tutorials/first-simulation/">First Simulation</a> builds a first shop this way, in its Builder tabs; this page lists every builder call, with an example of each.</p>
 <h2 id="builder-lifecycle">Builder Lifecycle</h2>
 <p>Creating a simulation with <code>SimulationContext</code> follows a strict two-phase lifecycle to guarantee <strong>thread safety</strong> and <strong>determinism</strong>:</p>
-<p><img alt="You call add_resource, add_service, add_arrival, @app.task, @app.process, add_ingress and add_egress; run() then creates the DynamicRealtimeEnvironment, starts the ingress and egress threads, and starts the processes and runs the clock" src="../../assets/diagrams/builder-then-run.png" /></p>
+<p><img alt="You call add_resource, add_service, add_arrival, @app.task, @app.process, add_ingress and add_egress; run() then creates the DynamicRealtimeEnvironment, starts the ingress and egress threads, and starts the processes and runs the clock" src="../../../shared-images/d20a53c1d9d67850.png" /></p>
 <ol>
 <li><strong>Builder Phase (Pre-Compilation)</strong>: You register resources, services, and connectors. Everything is held as passive configuration data structures (<code>SimParameter</code>, <code>DistributionConfig</code>, etc.) in memory.</li>
 <li><strong>Compilation &amp; Execution Phase (Post-Compilation)</strong>: The moment you call <code>app.run(...)</code>, the builder compiles the configuration. It instantiates the <code>DynamicRealtimeEnvironment</code>, boots background network connector threads, and starts the SimPy event loop.</li>
