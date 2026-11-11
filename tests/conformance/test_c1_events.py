@@ -14,7 +14,7 @@ import simpy
 from simpy.events import NORMAL, URGENT
 
 from desflow import Entity, Signal, SignalFailed
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance.harness import (
     event_trace,
     run_builder,

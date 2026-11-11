@@ -252,7 +252,7 @@ def _run_once(path: str, options: _RunOptions) -> None:
     """
     from desflow.blueprint.build import Preview
     from desflow.blueprint.loader import BlueprintError
-    from desflow.core.context import parts_of
+    from desflow.builder.context import parts_of
     from desflow.loading import load_context
 
     file = Path(path)
@@ -270,7 +270,8 @@ def _run_once(path: str, options: _RunOptions) -> None:
             handler.setFormatter(_RecordFormatter(LOG_FORMAT, LOG_DATEFMT))
     if replications is not None:
         # Each replication would log its build and teardown; the sinks still log
-        logging.getLogger("desflow.core").setLevel(logging.WARNING)
+        for name in ("desflow.builder", "desflow.core"):
+            logging.getLogger(name).setLevel(logging.WARNING)
 
     try:
         context = load_context(file.parent, file.name, preview, options.variables)
@@ -316,7 +317,7 @@ _EMPTY_SCHEDULE = "No scheduled events left"
 
 def _report_short_sample(context: Any, sample: int, no_events: bool = False) -> None:
     """Says on stderr that the run ended before it printed `sample` events."""
-    from desflow.core.context import parts_of
+    from desflow.builder.context import parts_of
 
     run = parts_of(context).run
     seen = run.sample_seen
@@ -345,7 +346,7 @@ def _replicate(
         options: What `desflow run` was given besides the file.
     """
     from desflow.analysis.runner import replicate
-    from desflow.core.context import SimulationContext, parts_of
+    from desflow.builder.context import SimulationContext, parts_of
 
     seed = context.random_seed
     if seed is None:

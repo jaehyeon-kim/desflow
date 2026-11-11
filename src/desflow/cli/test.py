@@ -98,7 +98,7 @@ def _test_file(file: Path, fix: bool, variables: Mapping[str, str]) -> bool:
     """
     from desflow.blueprint.build import load_blueprint, read_tests_file
     from desflow.blueprint.expectations import fix_expectations
-    from desflow.core.context import SimulationContext, parts_of
+    from desflow.builder.context import SimulationContext, parts_of
     from desflow.core.statistics import published_value
     from desflow.loading import load_context
 

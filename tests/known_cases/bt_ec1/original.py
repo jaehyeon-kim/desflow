@@ -348,7 +348,7 @@ def generate(config: dict[str, Any]) -> types.SimpleNamespace:
 
     with (
         mock.patch.object(DynamicRealtimeEnvironment, "publish_event", record),
-        mock.patch("desflow.core.context.Sampler", _Sampler),
+        mock.patch("desflow.builder.context.Sampler", _Sampler),
         mock.patch.object(project.run, "Faker", _FixedFake),
         mock.patch.object(project.run, "_chance", chance),
         mock.patch.object(project.shop, "moved", moving),

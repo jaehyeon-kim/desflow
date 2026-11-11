@@ -12,6 +12,7 @@ from simpy.resources.store import StoreGet
 from desflow.models.distributions import get_distribution
 from desflow.internal import InternalStore
 from desflow.utils import suggestion
+from desflow.core.rules import check_capacity
 from desflow.models.params import (
     CapacityConfig,
     DistributionConfig,
@@ -154,8 +155,6 @@ def _capacity_value(path: str, registered: _PathKind, value: Any) -> Any:
             0 or more or infinity (a container's: a number of 0 or more). A negative
             `current_cap` passes, because the registry clamps it to 0.
     """
-    from desflow.core.holders import check_capacity  # a circular import at module level
-
     whole = registered.kind != "containers"
     number = _read_number(value)
     holder = registered.config.rsplit(".", 1)[-1]

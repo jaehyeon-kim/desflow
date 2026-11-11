@@ -2,7 +2,7 @@
 
 import pytest
 
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 
 BAD = {"nan": "1e999 - 1e999", "text": "'x'"}
 

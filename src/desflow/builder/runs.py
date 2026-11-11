@@ -24,24 +24,24 @@ from typing import (
 import numpy as np
 import simpy
 
-from desflow.core.arrivals import ArrivalRun, whole
+from desflow.builder.arrivals import ArrivalRun
 from desflow.core.expressions import Expression, Scope
-from desflow.core.families import FamilyRun
-from desflow.core.holders import HolderRun
-from desflow.core.signals import SignalRun
+from desflow.core.families import FamilyRun, whole
+from desflow.builder.holders import HolderRun
+from desflow.builder.signals import SignalRun
 from desflow.models.flow import Entity
 
 if TYPE_CHECKING:
-    from desflow.core.arrivals import Arrivals
-    from desflow.core.context import RunDefaults
+    from desflow.builder.arrivals import Arrivals
+    from desflow.builder.context import RunDefaults
     from desflow.core.environment import DynamicRealtimeEnvironment
     from desflow.core.families import Families
-    from desflow.core.flow import LiveScope
-    from desflow.core.holders import Holders
-    from desflow.core.signals import Signals
+    from desflow.builder.flow import LiveScope
+    from desflow.builder.holders import Holders
+    from desflow.builder.signals import Signals
     from desflow.core.sinks import Sinks
-    from desflow.core.task import TaskRun
-    from desflow.core.tasks import Tasks
+    from desflow.builder.task import TaskRun
+    from desflow.builder.tasks import Tasks
     from desflow.values.runtime import ValueRuntime
 
 # The length at which a task's list of held requests is first pruned
@@ -335,7 +335,7 @@ class Parts:
     code is given in place of reading the context's private names.
 
     The context's build makes one for each run and gives it to every task instance;
-    `parts_of` in `core/context.py` makes one from a context's current attributes.
+    `parts_of` in `builder/context.py` makes one from a context's current attributes.
 
     Attributes:
         tasks: The tasks (`Tasks`).

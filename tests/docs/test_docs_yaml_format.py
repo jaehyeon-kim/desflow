@@ -13,9 +13,9 @@ from feature_lists import generator_only, keys_pages
 
 
 def _models_in(annotation: object) -> list:
-    """Every `_Model` subclass reachable from a type annotation."""
+    """Every `StrictModel` subclass reachable from a type annotation."""
     found: list = []
-    if isinstance(annotation, type) and issubclass(annotation, models._Model):
+    if isinstance(annotation, type) and issubclass(annotation, models.StrictModel):
         found.append(annotation)
     for arg in typing.get_args(annotation):
         found.extend(_models_in(arg))

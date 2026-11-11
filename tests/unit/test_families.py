@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance.harness import run_yaml_text
 
 
@@ -740,6 +740,19 @@ def test_a_member_name_reads_its_family_by_the_whole_name():
     assert family_of("desk['x[1]']", families) == "desk"
     assert family_of("a[0]", families) is None
     assert family_of("desk", families) is None
+
+
+def test_a_count_place_gives_a_whole_number_and_a_boolean_counts_as_one():
+    """`whole` reads a count place's result as `range` takes it: a boolean is 1 or 0,
+    and a value that is not an integer, even `2.0`, is refused with the place's name."""
+    from desflow.core.families import whole
+
+    assert whole(True, "members") == 1
+    assert whole(3, "members") == 3
+    with pytest.raises(
+        TypeError, match=r"^members gave 2\.0, which is not a whole number$"
+    ):
+        whole(2.0, "members")
 
 
 @pytest.mark.parametrize(

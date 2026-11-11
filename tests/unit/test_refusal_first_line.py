@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from desflow.blueprint.loader import BlueprintError
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 
 KEY_WITH_VARIABLE = """\
 simulation: {sim_id: V, factor: 0, random_seed: 1}

@@ -128,7 +128,7 @@ In the low-level API, `pick` passes its granted request to `pack`, which release
 
 ### Acquire the Resources in the Same Order
 
-Acquire the two resources in the same order everywhere. A task that takes the bench first and the picker second does not stop the model from loading: the model logs one WARNING, from the logger `desflow.core.context`, because two orders could then wait for each other for ever. A resource held with `seize` counts as held for this check.
+Acquire the two resources in the same order everywhere. A task that takes the bench first and the picker second does not stop the model from loading: the model logs one WARNING, from the logger `desflow.builder.context`, because two orders could then wait for each other for ever. A resource held with `seize` counts as held for this check.
 
 ### Know When the Kept Unit Goes Back
 

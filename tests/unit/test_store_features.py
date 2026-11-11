@@ -217,7 +217,7 @@ def test_a_filter_needs_a_filter_store_type():
 
 
 def test_wait_false_is_refused_in_a_wait_branch_and_for_item_field(tmp_path):
-    from desflow.core.flow import Wait
+    from desflow.builder.flow import Wait
 
     with pytest.raises(ValueError, match="wait: false"):
         Wait({"get": {"store": "s", "wait": False}})

@@ -108,6 +108,14 @@ def test_an_entry_whose_since_is_not_above_the_baseline_does_not_apply(tmp_path)
     assert _compare(tmp_path, old, new, [_entry("example:a:yaml", "0.22.1")]) == 0
 
 
+def test_a_prerelease_baseline_orders_before_its_release(tmp_path):
+    old, new = {"example:a:yaml": SAME}, {"example:a:yaml": OTHER}
+    entry = _entry("example:a:yaml", "1.0.0rc1")
+    assert _compare(tmp_path, old, new, [entry], baseline="1.0.0rc1") == 1
+    entry = _entry("example:a:yaml", "1.0.0")
+    assert _compare(tmp_path, old, new, [entry], baseline="1.0.0rc1") == 0
+
+
 def test_an_entry_that_matches_no_difference_fails_as_stale(tmp_path, capsys):
     captures = {"example:a:yaml": SAME}
     assert _compare(tmp_path, captures, captures, [_entry("example:a:yaml")]) == 1

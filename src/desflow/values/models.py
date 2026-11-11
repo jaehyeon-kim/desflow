@@ -130,7 +130,7 @@ def seconds_of(value: Any) -> Union[int, float]:
     return value
 
 
-class _Gen(BaseModel):
+class Gen(BaseModel):
     """A generator: the `gen` key names its kind, and the modifiers apply to any."""
 
     model_config = ConfigDict(
@@ -159,7 +159,7 @@ class _Gen(BaseModel):
     _number_arguments: ClassVar[Tuple[str, ...]] = ()
 
     @model_validator(mode="after")
-    def _finite_arguments(self) -> "_Gen":
+    def _finite_arguments(self) -> "Gen":
         # A literal NaN or infinity in a number argument is refused at load, by the
         # check every distribution parameter uses; a value an expression gives is
         # checked by `number` when it is read
@@ -179,7 +179,14 @@ class _Gen(BaseModel):
         return [(name, value)]
 
     def fail(self, message: str) -> ValueGenerationError:
-        """The error for this generator, with its place in the file."""
+        """The error for this generator, with its place in the file.
+
+        Args:
+            message: What is wrong.
+
+        Returns:
+            ValueGenerationError: The error, for the caller to raise.
+        """
         gen = getattr(self, "gen", "?")
         return ValueGenerationError(
             f"{self._where or self._path or 'a template'}: gen {gen}: {message}"
@@ -187,7 +194,18 @@ class _Gen(BaseModel):
 
     def number(self, value: Any, what: str) -> Union[int, float]:
         """A number argument, as given; a boolean, NaN, infinity or other type is
-        refused."""
+        refused.
+
+        Args:
+            value: The argument's value.
+            what: The argument's name, for the message.
+
+        Returns:
+            Union[int, float]: The value as given.
+
+        Raises:
+            ValueGenerationError: If the value is not a finite number.
+        """
         if not _is_number(value):
             raise self.fail(f"{what} must be a number, got {value!r}")
         try:
@@ -197,20 +215,39 @@ class _Gen(BaseModel):
         return value
 
     def whole(self, value: Any, what: str) -> int:
-        """A whole-number argument; a whole float such as 3.0 is refused."""
+        """A whole-number argument; a whole float such as 3.0 is refused.
+
+        Args:
+            value: The argument's value.
+            what: The argument's name, for the message.
+
+        Returns:
+            int: The value.
+
+        Raises:
+            ValueGenerationError: If the value is not an integer.
+        """
         if isinstance(value, bool) or not isinstance(value, numbers.Integral):
             raise self.fail(f"{what} must be a whole number, got {value!r}")
         return int(value)
 
     def evaluate(self, run: "ValueRuntime", scope: Scope) -> Any:  # pragma: no cover
-        """The generator's value; each kind defines it."""
+        """The generator's value; each kind defines it.
+
+        Args:
+            run: The state the generators of the run share.
+            scope: What an expression in an argument reads.
+
+        Returns:
+            Any: The value.
+        """
         raise NotImplementedError
 
 
 # --- numbers ----------------------------------------------------------------
 
 
-class Uniform(_Gen):
+class Uniform(Gen):
     """`uniform`: a float in [low, high), from `low + (high - low) * random()`;
     `decimals` rounds it, and 0 gives an integer."""
 
@@ -239,7 +276,7 @@ class Uniform(_Gen):
         return rounded(float(low + (high - low) * draw), self.decimals)
 
 
-class Integer(_Gen):
+class Integer(Gen):
     """`integer`: a whole number between `bounds[0]` and `bounds[1]`, both included."""
 
     gen: Literal["integer"]
@@ -262,7 +299,7 @@ class Integer(_Gen):
         return int(run.rng(self).integers(low, high + 1))
 
 
-class Normal(_Gen):
+class Normal(Gen):
     """`normal`: a float from a normal distribution with `mean` and `std`."""
 
     _number_arguments: ClassVar[Tuple[str, ...]] = ("mean", "std")
@@ -289,7 +326,7 @@ class Normal(_Gen):
         return rounded(float(run.rng(self).normal(mean, std)), self.decimals)
 
 
-class Sample(_Gen):
+class Sample(Gen):
     """`sample`: one draw from a distribution family with its parameters, or from
     the live distribution of a service."""
 
@@ -402,7 +439,7 @@ class Sample(_Gen):
         return rounded(value, self.decimals)
 
 
-class Boolean(_Gen):
+class Boolean(Gen):
     """`boolean`: true with probability `p` (0.5 when not given)."""
 
     _number_arguments: ClassVar[Tuple[str, ...]] = ("p",)
@@ -429,7 +466,7 @@ class Boolean(_Gen):
 # --- choices ----------------------------------------------------------------
 
 
-class OneOf(_Gen):
+class OneOf(Gen):
     """`one_of`: one of `choices`, each equally likely. Only the choice picked is
     evaluated."""
 
@@ -459,7 +496,7 @@ class WeightedChoice(BaseModel):
     weight: "Value"
 
 
-class Weighted(_Gen):
+class Weighted(Gen):
     """`weighted`: one choice, by weight. `options` maps each value to its weight, or
     `choices` lists `{value, weight}` for values that are mappings or generators. Each
     weight is 0 or more and at least one is above 0; weights are divided by their
@@ -517,7 +554,7 @@ class Weighted(_Gen):
         return run.evaluate(values[picked], scope)
 
 
-class Pick(_Gen):
+class Pick(Gen):
     """`pick`: a list of `count` different `choices`, drawn without replacement, in
     the order drawn. Only the choices picked are evaluated."""
 
@@ -556,7 +593,7 @@ class SwitchRange(BaseModel):
     value: "Value"
 
 
-class Switch(_Gen):
+class Switch(Gen):
     """`switch`: the value of the first case that matches `on`, evaluated only when
     picked. `cases` is a mapping from a value to its result, or a list of ranges;
     `default` is used when none matches (null when it is left out)."""
@@ -591,7 +628,7 @@ class Switch(_Gen):
         return run.evaluate(self.default, scope)
 
 
-class When(_Gen):
+class When(Gen):
     """`when`: `then` when the `condition` (an expression) holds, else `else`.
     Only the branch taken is evaluated."""
 
@@ -623,7 +660,7 @@ class When(_Gen):
 # --- identifiers, counters and text -------------------------------------------
 
 
-class Uuid(_Gen):
+class Uuid(Gen):
     """`uuid`: a version 4 UUID from the generator's random sequence, so it repeats
     with the seed, or a version 7 UUID whose 48-bit millisecond field comes from the
     logical time."""
@@ -656,7 +693,7 @@ class Uuid(_Gen):
         return str(uuid.UUID(int=value))
 
 
-class Sequence(_Gen):
+class Sequence(Gen):
     """`sequence`: the next integer of a counter, `start` plus `step` times the
     count of calls so far, restarting after `loop_after` calls. With `format`, the
     text `format.format(n)`, such as `"sensor-{}"`. There is one counter for the run,
@@ -695,7 +732,7 @@ class Sequence(_Gen):
         return number if self.format is None else self.format.format(number)
 
 
-class Now(_Gen):
+class Now(Gen):
     """`now`: the logical time plus `offset` (seconds or a duration, signed), as the
     ISO text a record's `timestamp` uses. It reads the simulation clock, never the
     wall clock."""
@@ -729,7 +766,7 @@ class Now(_Gen):
         return run.iso_time(offset)
 
 
-class FormatTime(_Gen):
+class FormatTime(Gen):
     """`format_time`: a time as text or a number. `time` is the text `{gen: now}`
     gives, or seconds of simulation time (default: now). `format` is a `strftime`
     pattern, `iso`, `iso_utc` (milliseconds and a `Z`), `epoch_s` or `epoch_ms`
@@ -788,7 +825,7 @@ class FormatTime(_Gen):
             raise self.fail(f"format {self.format!r}: {exc}") from None
 
 
-class Format(_Gen):
+class Format(Gen):
     """`format`: `template.format_map(...)` over `names`, then the vars of the task.
     A name in the template is a var, or an entry of `names`, which wins."""
 
@@ -813,7 +850,7 @@ class Format(_Gen):
             raise self.fail(f"template {self.template!r}: {exc!r}") from None
 
 
-class Lower(_Gen):
+class Lower(Gen):
     """`lower`: the text of `value` in lower case."""
 
     gen: Literal["lower"]
@@ -832,7 +869,7 @@ class Lower(_Gen):
         return str(run.evaluate(self.value, scope)).lower()
 
 
-class Upper(_Gen):
+class Upper(Gen):
     """`upper`: the text of `value` in upper case."""
 
     gen: Literal["upper"]
@@ -851,7 +888,7 @@ class Upper(_Gen):
         return str(run.evaluate(self.value, scope)).upper()
 
 
-class Fake(_Gen):
+class Fake(Gen):
     """`fake`: a value from the Faker library. `method` names any method of Faker's
     providers, such as `name`, `email`, `isbn13` or `credit_card_number`, and `args`
     and `kwargs` are passed to it. `locale` picks the language and country, `en_US`
@@ -887,7 +924,7 @@ class Fake(_Gen):
 # --- arithmetic and expressions ------------------------------------------------
 
 
-class _Arithmetic(_Gen):
+class _Arithmetic(Gen):
     """The arithmetic kinds: `args` has at least two entries, and `decimals` rounds
     the result."""
 
@@ -1064,7 +1101,7 @@ class Max(_Arithmetic):
         return rounded(max(self.numbers_of(run, scope)), self.decimals)
 
 
-class Expr(_Gen):
+class Expr(Gen):
     """`expr`: the value of an expression, with the names of the language, the vars of
     the task and the entries of `names` (evaluated first) as bare names, and `t` for
     the simulation time. It can give any type; a number is rounded to `decimals`."""
@@ -1125,7 +1162,7 @@ class Expr(_Gen):
 # --- reading the model ---------------------------------------------------------
 
 
-class Var(_Gen):
+class Var(Gen):
     """`var`: a var of the task, or the part of it at `path` (dotted; an integer part
     indexes a list). Every reference to a var in one event gives the same value."""
 
@@ -1151,7 +1188,7 @@ class Var(_Gen):
             raise self.fail(f"var '{self.name}': {exc.args[0]}") from None
 
 
-class Attr(_Gen):
+class Attr(Gen):
     """`attr`: the entity's attribute `name`, or the part of it at `path`."""
 
     gen: Literal["attr"]
@@ -1176,7 +1213,7 @@ class Attr(_Gen):
             raise self.fail(f"attribute '{self.name}': {exc.args[0]}") from None
 
 
-class Entity(_Gen):
+class Entity(Gen):
     """`entity`: the key of the entity the task runs for, such as `sensor-1`. It is
     given only inside a task, so an arrival's `attributes`, `vars` and `key` refuse it."""
 
@@ -1197,7 +1234,7 @@ class Entity(_Gen):
         return scope.entity
 
 
-class Param(_Gen):
+class Param(Gen):
     """`param`: the live registry value at `path` (a full registry path, such as
     `Shop.variables.error_rate`) at the moment of the call, or the `field` key of a
     mapping value. A scenario step or an ingress update shows in the next call."""
@@ -1234,7 +1271,7 @@ class Param(_Gen):
 # --- structure -------------------------------------------------------------------
 
 
-class Repeat(_Gen):
+class Repeat(Gen):
     """`repeat`: a list of `times` values, each evaluated on its own."""
 
     gen: Literal["repeat"]
@@ -1258,7 +1295,7 @@ class Repeat(_Gen):
             return [run.evaluate(self.value, scope) for _ in range(times)]
 
 
-class Literal_(_Gen):
+class Literal_(Gen):
     """`literal`: `value` as written, not evaluated, so a mapping that has a `gen`
     key can be a payload field."""
 
@@ -1278,7 +1315,7 @@ class Literal_(_Gen):
         return run.copy(self.value)
 
 
-class Object(_Gen):
+class Object(Gen):
     """`object`: the mapping `fields`, each evaluated as a plain mapping is. It lets
     a modifier such as `null_rate` or `omit_rate` apply to the whole mapping."""
 
@@ -1298,7 +1335,7 @@ class Object(_Gen):
         return run.evaluate(self.fields, scope)
 
 
-class Call(_Gen):
+class Call(Gen):
     """`call`: what a `!python` function returns, called as `function(context,
     **kwargs)` with the kwargs evaluated first."""
 
@@ -1320,7 +1357,7 @@ class Call(_Gen):
         return self.function(run.context, **kwargs)
 
 
-class Row(_Gen):
+class Row(Gen):
     """`row`: one row of a CSV or Parquet file as a mapping, read once at load. A cell
     of digits is read as a number, so a postal code with leading zeros loses them;
     write them with `{gen: format, template: "{n:05d}"}`. `where` is an expression over
@@ -1382,7 +1419,7 @@ class HistogramBin(BaseModel):
     frequency: float = Field(ge=0, allow_inf_nan=False)
 
 
-class Lookup(_Gen):
+class Lookup(Gen):
     """`lookup`: a row of the finished payloads of the task `task`, or the part of it
     at `path` (dotted; an integer part indexes a list).
 
@@ -1439,7 +1476,7 @@ class Lookup(_Gen):
         return run.lookup(self, scope)
 
 
-class Previous(_Gen):
+class Previous(Gen):
     """`previous`: the last finished payload of the same task for the same stream, or
     the part of it at `path`. The stream is the arrival, so all the entities it starts
     share one, except for an arrival with `count` or `keys`, where each entity has its
@@ -1463,7 +1500,7 @@ class Previous(_Gen):
         return run.previous(self, scope)
 
 
-class Upstream(_Gen):
+class Upstream(Gen):
     """`upstream`: the finished payload of the task that routed to this one with
     `next`, or the part of it at `path`. A start by an arrival has no upstream, and a
     task that `on_fail` or `on_interrupt_next` reaches is handed a failure or an
@@ -1493,7 +1530,7 @@ class Upstream(_Gen):
             raise self.fail(f"upstream: {exc.args[0]}") from None
 
 
-class Aggregate(_Gen):
+class Aggregate(Gen):
     """`aggregate`: `mean`, `sum`, `min`, `max` or `count` over the last `last` rows of
     the task `task` that `where` keeps. `where` is an expression over the row's own
     fields, such as `lead_days == 3 and precipitation > 0`; without it every row counts.
@@ -1623,7 +1660,7 @@ Generator = Annotated[
 
 
 def _kind(value: Any) -> str:
-    if isinstance(value, _Gen):
+    if isinstance(value, Gen):
         return "<gen>"
     if isinstance(value, dict):
         return "<gen>" if "gen" in value else "<map>"
@@ -1690,7 +1727,7 @@ def has_generator(value: Any) -> bool:
     Args:
         value: The value.
     """
-    if isinstance(value, _Gen):
+    if isinstance(value, Gen):
         return True
     if isinstance(value, dict):
         return any(has_generator(v) for v in value.values())

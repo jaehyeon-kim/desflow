@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "conformance"))
 from harness import RecordingEgress, event_trace  # noqa: E402
 
-from desflow.core.context import SimulationContext  # noqa: E402
+from desflow.builder.context import SimulationContext  # noqa: E402
 
 MODEL = """\
 simulation: {{sim_id: P, factor: 0, random_seed: 42}}

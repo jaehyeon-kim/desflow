@@ -154,7 +154,7 @@ A task can also hand a unit to the next task of its flow with `keep`: the next t
 
 ## How It Works
 
-**One order of acquisition.** Two tasks that acquire the same two resources in opposite orders can each hold one and wait for ever for the other. desflow loads such a model and logs one WARNING, from the logger `desflow.core.context`, that names both tasks. A unit held with `seize` counts as held. Every task should acquire shared resources in one order. The rule also covers `keep` handoffs and the `request` branches of a wait, and a `keep` for a request branch of a wait is still refused when the model is built ([Wait for a Unit, an Item or Room](../../how-to/modelling/wait-for-one-or-all.md#wait-for-a-unit-an-item-or-room)). [Competing Resources](../../learn/shop-logic/competing-resources.md) shows what a partial holding costs.
+**One order of acquisition.** Two tasks that acquire the same two resources in opposite orders can each hold one and wait for ever for the other. desflow loads such a model and logs one WARNING, from the logger `desflow.builder.context`, that names both tasks. A unit held with `seize` counts as held. Every task should acquire shared resources in one order. The rule also covers `keep` handoffs and the `request` branches of a wait, and a `keep` for a request branch of a wait is still refused when the model is built ([Wait for a Unit, an Item or Room](../../how-to/modelling/wait-for-one-or-all.md#wait-for-a-unit-an-item-or-room)). [Competing Resources](../../learn/shop-logic/competing-resources.md) shows what a partial holding costs.
 
 ---
 

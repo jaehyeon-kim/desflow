@@ -39,7 +39,7 @@ from pathlib import Path
 from typing import Any
 
 from desflow.blueprint.loader import BlueprintError
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance.harness import Outcome, RecordingEgress
 from tests.conformance.harness import run_low_level as low_level_run
 

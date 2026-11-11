@@ -159,8 +159,8 @@ _BROKEN = {
         "builder.py",
         "from desflow import ConsoleEgress, SimulationContext\n",
         "from desflow import ConsoleEgress, SimulationContext\n"
-        "from desflow.core.task import NO_RECORD  # noqa: F401\n",
-        "desflow.core.task.NO_RECORD is not in desflow's documented API",
+        "from desflow.builder.task import NO_RECORD  # noqa: F401\n",
+        "desflow.builder.task.NO_RECORD is not in desflow's documented API",
     ),
     "hand-built distribution": (
         "low_level.py",

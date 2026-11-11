@@ -25,7 +25,7 @@ The public Python API is every name exported at these import paths:
 - `desflow.resources`
 - the connector modules under `desflow.connectors`, such as `desflow.connectors.egress.kafka` and `desflow.connectors.ingress.file`
 
-The [API Reference](../reference/api.md) shows each name at its path. A name imported from a module inside a package, such as `desflow.core.context` or `desflow.blueprint.build`, works in 1.0 and may stop working in a later 1.x release, so import it from the path the API Reference shows.
+The [API Reference](../reference/api.md) shows each name at its path. A name imported from a module inside a package, such as `desflow.builder.context` or `desflow.blueprint.build`, works in 1.0 and may stop working in a later 1.x release, so import it from the path the API Reference shows.
 
 ## What Is Not Covered
 

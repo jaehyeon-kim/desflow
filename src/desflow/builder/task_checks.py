@@ -1,7 +1,7 @@
 """The checks of a model's tasks, families and rules, made before a run.
 
 Each function reads the declared tasks and returns the problems it finds, or raises,
-before the clock starts; `core/task.py` holds the life of one task instance.
+before the clock starts; `builder/task.py` holds the life of one task instance.
 """
 
 from __future__ import annotations
@@ -21,19 +21,19 @@ from typing import (
 )
 from pydantic import BaseModel
 from desflow.core.expressions import ANY_NAME, Expression
-from desflow.core.flow import (
+from desflow.builder.flow import (
     Wait,
     article,
 )
 from desflow.utils import suggestion
 from desflow.core.families import SECTIONS, Reference
-from desflow.core.task import TaskSpec
+from desflow.builder.task import TaskSpec
 from desflow.values.check import generators_in, task_value_places
-from desflow.values.models import Expr, When, _Gen
+from desflow.values.models import Expr, Gen, When
 
 if TYPE_CHECKING:
-    from desflow.core.holders import Holders
-    from desflow.core.signals import Signals
+    from desflow.builder.holders import Holders
+    from desflow.builder.signals import Signals
 
 
 # The keys of a shared batch that are compared by `_same_form`
@@ -808,7 +808,7 @@ def _task_expressions(spec: TaskSpec) -> Iterator[Tuple[str, Expression]]:
     for key, _where, _after, place in task_value_places(
         lambda key: builder_value(spec, key)
     ):
-        for _where, generator in generators_in(place, (_Gen,)):
+        for _where, generator in generators_in(place, (Gen,)):
             for text in generator_expressions(generator):
                 try:
                     read = Expression(text, names=ANY_NAME)
@@ -858,7 +858,7 @@ def rule_expressions(
                         ("signals", name, "on", index, "when"),
                     )
                 )
-            for where, generator in generators_in(action, (_Gen,)):
+            for where, generator in generators_in(action, (Gen,)):
                 for text in generator_expressions(generator):
                     try:
                         read = Expression(text, names=ANY_NAME)

@@ -13,7 +13,7 @@ from desflow import (
     DynamicContainer,
     SimParameter,
 )
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance.harness import (
     probe,
     probe_env,

@@ -276,7 +276,7 @@ def test_a_file_sink_with_no_default_writes_routed_records_and_warns_for_the_res
 
 def test_a_blueprint_iceberg_egress_with_only_its_type_is_refused_at_load(tmp_path):
     kind = "Iceberg"
-    from desflow.core.context import SimulationContext
+    from desflow.builder.context import SimulationContext
 
     path = tmp_path / "m.yaml"
     path.write_text(

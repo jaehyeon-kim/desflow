@@ -36,7 +36,8 @@ from simpy.events import Condition, Event
 from simpy.resources.resource import Preempted
 
 from desflow.core.expressions import ANY_NAME, Expression, Scope, boolean_word
-from desflow.core.flow import (
+from desflow.builder.batches import BatchSeat
+from desflow.builder.flow import (
     Listen,
     Open,
     Release,
@@ -54,15 +55,14 @@ from desflow.resources.resource import QueueFull
 from desflow.models.flow import Entity, Upstream, payload_of
 from desflow.utils import checked_seconds, suggestion
 from desflow.values.check import names_read
-from desflow.core.arrivals import whole
-from desflow.core.families import Reference, name_of, references
-from desflow.values.models import _Gen, has_generator
+from desflow.core.families import Reference, name_of, references, whole
+from desflow.values.models import Gen, has_generator
 from desflow.values.runtime import RunStopped, stream_of
 from desflow.values.template import BoundPayload, Template
 
 if TYPE_CHECKING:
-    from desflow.core.context import SimulationContext
-    from desflow.core.runs import Parts
+    from desflow.builder.context import SimulationContext
+    from desflow.builder.runs import Parts
 
 
 class TaskFailed(Exception):
@@ -300,7 +300,7 @@ class Batch:
             ValueError: If a value is not of the kind the key takes.
         """
         if isinstance(size, bool) or not (
-            isinstance(size, (numbers.Real, str, _Gen)) or callable(size)
+            isinstance(size, (numbers.Real, str, Gen)) or callable(size)
         ):
             raise ValueError(f"batch size is a number or an expression, got {size!r}")
         if isinstance(timeout, bool):
@@ -327,20 +327,6 @@ class Batch:
     def expressions(self) -> List[Expression]:
         """Every expression the batch holds."""
         return [e for e in (self.size_of, self.timeout_of, self.close_when_of) if e]
-
-
-class _OpenBatch:
-    """The members that wait to be served together, and what they wait for."""
-
-    def __init__(self, key: str, size: Union[int, float], since: float):
-        self.key = key
-        self.size = size
-        self.since = since
-        self.members: List["TaskRun"] = []
-        self.closed = False
-        self.finished = False
-        self.dead = False
-        self.leader: Optional["TaskRun"] = None
 
 
 class TaskExpression(NamedTuple):
@@ -780,16 +766,8 @@ class TaskRun:
         self._finish: Dict[str, Any] = {}
         self._once_made = self._vars_made = False
         self._instance_key: Optional[str] = None
-        # The batch this instance joined, the event it waits on there, whether the
-        # batch has already published its `started`, and whether another member's
-        # run of the resource and service served it
-        self._batch: Optional[_OpenBatch] = None
-        self._batch_event: Any = None
-        self._batch_started = False
-        # Interrupted after `started` was published at a batch's close, so the next
-        # grant is a resume
-        self._owes_resume = False
-        self._batch_served = False
+        # The instance's place in a batch of its task
+        self._seat = BatchSeat(self)
         # An instance whose task needs an end event (for `running`, `subscribe`, a
         # `fire from`, or its own `on:` actions) gets one, defused so its failure
         # stops the run only through the task process.
@@ -1251,7 +1229,7 @@ class TaskRun:
         finally:
             self._target = None
             self._stop_running()
-            self._leave_batch()
+            self._seat.leave()
         # A balk or a renege returns with the end event not yet triggered: it
         # succeeds with None, so a `running` waiter resumes with no value.
         self._end_default(ok=True, actions=not self._dropped)
@@ -1440,7 +1418,7 @@ class TaskRun:
         may_preempt = self._preempt() if self.spec.resources else False
         remaining: Optional[float] = None  # service still owed, when interrupted
         started = got_item = put_done = no_time_left = False
-        served = self._batch_served  # a member another member's service served
+        served = self._seat.served  # a member another member's service served
         values_done = False
         # The requests the task holds, and the position in `spec.resources` each one
         # asked for. Kept across a resume, as a SimPy process keeps its request
@@ -1500,7 +1478,7 @@ class TaskRun:
                                 self._renege()
                                 return None
                 for at, resource in enumerate(spec.resources):
-                    if at in slots or no_time_left or self._batch_served:
+                    if at in slots or no_time_left or self._seat.served:
                         continue
                     if at == 0 and self._first_resource is not None:
                         resource = self._first_resource
@@ -1549,13 +1527,13 @@ class TaskRun:
                     self.flow.item_priority = self._taken_priority
                 if not started:
                     started = True
-                    if spec.timed and not self._batch_started:
+                    if spec.timed and not self._seat.started:
                         self.publish(self.status("started"), lifecycle=True)
                         stats.task_started(spec.name, self.task_id)
-                    elif self._owes_resume:
+                    elif self._seat.owes_resume:
                         # `started` came at the batch's close and the task was
                         # interrupted since: this grant is a resume
-                        self._owes_resume = False
+                        self._seat.owes_resume = False
                         self.publish(self.status("resumed"))
                         stats.task_resumed(spec.name, self.task_id)
                     # Units the task before kept for this one go back once it starts.
@@ -1599,9 +1577,9 @@ class TaskRun:
                         self._target = "service"
                         yield env.timeout(remaining)
                         remaining, service_from, served = 0.0, None, True
-                    if self._batch is not None and not self._batch_served:
+                    if self._seat.batch is not None and not self._seat.served:
                         # The members wait for the one run that serves them all
-                        yield from self._batch_finish()
+                        yield from self._seat.finish()
                     if not values_done and (
                         self._has_values
                         or isinstance(payload, (Template, BoundPayload))
@@ -1833,7 +1811,7 @@ class TaskRun:
                 stats.task_failed(spec.name, self.task_id)
             break
 
-        while spec.batch is not None and failure is None and not self._batch_served:
+        while spec.batch is not None and failure is None and not self._seat.served:
             try:
                 outcome = yield from self._batch_phase()
             except _HandlerFailed as stopped:
@@ -1948,7 +1926,7 @@ class TaskRun:
         value: Any = batch.size
         if batch.size_of is not None:
             value = batch.size_of.evaluate(self.scope())
-        elif isinstance(value, _Gen):
+        elif isinstance(value, Gen):
             value = self.context.values.evaluate(value, self.scope())
         elif callable(value):
             value = value(self.entity)
@@ -1963,19 +1941,13 @@ class TaskRun:
             )
         return value
 
-    def _batch_key(self) -> str:
-        """The name of the batch this task joins: its `name`, or the task's name. Tasks
-        with the same name share one open batch."""
-        assert self.spec.batch is not None
-        return self.spec.batch.name or self.spec.name
-
     def _batch_join(self) -> None:
         """Adds this instance to the open batch of its task, opening one when there is
-        none, and closes the batch when it is now full or its `close_when` holds."""
-        spec, env, context = self.spec, self.env, self.context
+        none, with the size and the timeout read in this member's scope. The batch
+        closes when it is now full or its `close_when` holds."""
+        spec = self.spec
         assert spec.batch is not None
-        key = self._batch_key()
-        batch = self.parts.run.open_batches.get(key)
+        batch = self._seat.open_batch()
         if batch is None:
             size = self._batch_size()
             limit = None
@@ -1983,58 +1955,8 @@ class TaskRun:
                 limit = self._place(
                     spec.batch.timeout_of or spec.batch.timeout, "batch timeout"
                 )
-            batch = _OpenBatch(key, size, env.now)
-            self.parts.run.open_batches[key] = batch
-            if limit is not None:
-                timer = env.timeout(limit)
-                timer.callbacks.append(
-                    functools.partial(self._batch_timer, batch, context)
-                )
-        batch.members.append(self)
-        self._batch = batch
-        if len(batch.members) >= batch.size:
-            self._batch_close(batch)
-            return
-        when = spec.batch.close_when_of
-        if when is not None:
-            scope = replace(
-                self.scope(),
-                batch={"size": len(batch.members), "age": env.now - batch.since},
-            )
-            if when.evaluate(scope):
-                self._batch_close(batch)
-
-    def _batch_timer(self, batch: _OpenBatch, context: Any, _event: Any) -> None:
-        """Closes the batch the timeout belongs to, if it is still open; a batch with
-        no member left runs nothing."""
-        if batch.closed or batch.dead:
-            return
-        if not batch.members:
-            batch.dead = True
-            if self.parts.run.open_batches.get(batch.key) is batch:
-                del self.parts.run.open_batches[batch.key]
-            return
-        batch.members[0]._batch_close(batch)
-
-    def _batch_close(self, batch: _OpenBatch) -> None:
-        """Closes the batch: publishes `started` for every member in join order, and
-        wakes the first member, which runs the resource and service."""
-        batch.closed = True
-        batch.leader = batch.members[0]
-        if self.parts.run.open_batches.get(batch.key) is batch:
-            del self.parts.run.open_batches[batch.key]
-        for member in batch.members:
-            member._batch_started = True
-            member.publish(member.status("started"), lifecycle=True)
-            member.env.stats.task_started(member.spec.name, member.task_id)
-        # Only the first member runs now; the others wait until it has served them
-        batch.leader._batch_notify("closed")
-
-    def _batch_notify(self, value: str) -> None:
-        """Wakes this member if it waits for the batch."""
-        event, self._batch_event = self._batch_event, None
-        if event is not None and not event.triggered:
-            event.succeed(value)
+            batch = self._seat.open(size, limit)
+        self._seat.join(batch)
 
     def _batch_phase(self):
         """Joins the batch and waits until this member serves it (the first member of
@@ -2048,22 +1970,16 @@ class TaskRun:
         Raises:
             _HandlerFailed: If an `on_interrupt_run` task failed.
         """
-        env, spec = self.env, self.spec
-        if self._batch is None:
+        spec, seat = self.spec, self._seat
+        if seat.batch is None:
             self._target = "batch"
             self._batch_join()
         event: Any = None
         while True:
-            batch = self._batch
-            assert batch is not None
-            if batch.finished:
-                self._batch_served = True
+            if seat.ready():
                 return None
-            if batch.closed and batch.leader is self:
-                return None
-            if event is None or event.triggered:
-                event = self._batch_event = env.event()
-            deadline = None if batch.closed else self._deadline()
+            event = seat.wait_event(event)
+            deadline = None if seat.closed() else self._deadline()
             try:
                 if deadline is None:
                     yield event
@@ -2071,22 +1987,21 @@ class TaskRun:
                     yield event | deadline
                     self._waited()
                     if not _won(event):
-                        if batch.closed:
+                        if seat.closed():
                             # The patience counts until the batch closes: a member
                             # served later waits on without it
                             self._patience_left = None
                             continue
-                        self._batch_event = None
-                        self._leave_batch()
+                        seat.leave()
                         return _RENEGED
             except Interrupt as interrupt:
                 self._waited()
-                self._batch_event = event = None
-                closed = batch.closed
+                seat.event = event = None
+                closed = seat.closed()
                 if not closed:
                     # An interrupted member leaves the batch, and `size` counts the
                     # members left
-                    self._leave_batch()
+                    seat.leave()
                 if not self._interrupted(interrupt):
                     return interrupt
                 yield from self._interrupt_flow(interrupt, None)
@@ -2099,46 +2014,9 @@ class TaskRun:
                     # A member of a closed batch has started and is served by the
                     # leader's service, so there is nothing to restart: it resumes
                     # and goes on waiting to be served
-                    self._owes_resume = False
+                    seat.owes_resume = False
                     self.publish(self.status("resumed"))
                     self.env.stats.task_resumed(spec.name, self.task_id)
-
-    def _batch_finish(self):
-        """Wakes every member of the batch in join order once its resource and service
-        are done, this one included."""
-        batch = self._batch
-        assert batch is not None
-        if batch.finished:
-            return
-        batch.finished = True
-        mine = self._batch_event = self.env.event()
-        for member in list(batch.members):
-            if member is self:
-                mine.succeed("done")
-            else:
-                member._batch_notify("done")
-        yield mine
-        self._batch_event = None
-
-    def _leave_batch(self) -> None:
-        """Takes this instance out of its batch. When it was the member serving a
-        closed batch, the next member serves it."""
-        batch, self._batch = self._batch, None
-        self._batch_event = None
-        if batch is None:
-            return
-        if self in batch.members:
-            batch.members.remove(self)
-        if batch.finished or batch.dead:
-            return
-        if batch.closed:
-            if batch.leader is self and batch.members:
-                batch.leader = batch.members[0]
-                batch.leader._batch_notify("lead")
-        elif not batch.members:
-            batch.dead = True
-            if self.parts.run.open_batches.get(batch.key) is batch:
-                del self.parts.run.open_batches[batch.key]
 
     # ------------------------------------------------- holding: seize, open, release
 
@@ -2154,7 +2032,7 @@ class TaskRun:
         if has_generator(value):
             value = self.context.values.evaluate(value, scope)
         limit = spec.get("limit")
-        if isinstance(limit, _Gen):
+        if isinstance(limit, Gen):
             limit = self.context.values.evaluate(limit, scope)
         self.parts.run.resume(spec["task"], spec.get("where"), value, limit, scope)
 
@@ -2632,7 +2510,7 @@ class TaskRun:
         place = node.each
         if isinstance(place, Expression):
             place = place.evaluate(scope)
-        elif isinstance(place, _Gen) or callable(place):
+        elif isinstance(place, Gen) or callable(place):
             self._ensure_once()
             place = self._generated(place)
         if isinstance(place, (list, tuple, range)):
@@ -2980,7 +2858,7 @@ class TaskRun:
             value = self.status("interrupted", cause=cause)
         self.publish(value)
         stats.task_interrupted(spec.name, self.task_id, preempted=preempted)
-        self._owes_resume = self._batch_started
+        self._seat.owes_resume = self._seat.started
         return spec.on_interrupt != "abandon"
 
     def _abandon(self, interrupt: Interrupt, left: Optional[float] = None) -> None:
@@ -3136,7 +3014,7 @@ class TaskRun:
         """
         if isinstance(value, Expression):
             value = value.evaluate(self.scope())
-        elif isinstance(value, _Gen):
+        elif isinstance(value, Gen):
             value = self.context.values.evaluate(value, self.scope())
         elif callable(value):
             value = value(self.entity)
@@ -3149,7 +3027,7 @@ class TaskRun:
 
     def _patience(self) -> Union[int, float]:
         spec = self.spec
-        if isinstance(spec.patience, _Gen):
+        if isinstance(spec.patience, Gen):
             return self._place(spec.patience, "patience")
         if spec.patience_of is not None:
             given = as_given(spec.patience_of.evaluate(self.scope()))

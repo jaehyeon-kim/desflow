@@ -29,7 +29,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from desflow.core.context import SimulationContext, scratch_registry
+from desflow.builder.context import SimulationContext, scratch_registry
 
 # It runs every model the regression capture runs, so CI runs it on one Python
 # version on each system (scripts/ci_plan.py).
@@ -152,13 +152,13 @@ def _outcome(app: Any, until: Any, run: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _made_by_each_run() -> Set[str]:
-    """The attributes `start`, `_build` and `_build_end_sets` assign: the state each
+    """The attributes `start`, `_build` and `_check_tasks` assign: the state each
     run makes again."""
     found: Set[str] = set()
     for method in (
         SimulationContext.start,
         SimulationContext._build,
-        SimulationContext._build_end_sets,
+        SimulationContext._check_tasks,
     ):
         tree = ast.parse(textwrap.dedent(inspect.getsource(method)))
         for node in ast.walk(tree):

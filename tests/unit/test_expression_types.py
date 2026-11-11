@@ -3,7 +3,7 @@ number."""
 
 import pytest
 
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 
 HEAD = """\
 simulation: {sim_id: P, factor: 0, random_seed: 42}

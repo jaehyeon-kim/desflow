@@ -5,14 +5,10 @@ Releases come in the order shown, without dates: a release ships when it is read
 ## Before 1.0
 
 ::timeline::
-- title: '1.0.0rc2: A cleaner internal structure'
-  content: 'The code is reorganised with no change of behaviour, and published within the two weeks of checks. No format, command or record changes. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
-  icon: ':material-play:'
-  key: now
 - title: '1.0.0rc3: The last candidate'
   content: 'The fixes found in the checks and in a review of the reorganised code, published before the two weeks end. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
-  icon: ':material-clock-outline:'
-  key: planned
+  icon: ':material-play:'
+  key: now
 - title: '1.0.0: Stable'
   content: '1.0.0 sets the version number and the Production/Stable classifier, with only the fixes of the two weeks of checks. From here the format, the command, the public API and the record format stay compatible across 1.x, as the [Compatibility Policy](compatibility.md) sets out. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
   icon: ':material-clock-outline:'
@@ -82,6 +78,11 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 - **More speed:** cheaper record publishing, which takes about 40 percent of a run's time, with the same published records ([#69](https://github.com/jaehyeon-kim/desflow/issues/69)), and a faster runtime for YAML-only blueprints if measurements show the need.
 
 ## Released
+
+??? note "1.0.0rc2: A cleaner internal structure"
+
+    - **Reorganised code:** the packages sit in layers that an import contract checks, the code that declares and runs a model moves to its own package, and the largest classes are split by their groups, with no change of behaviour. No format, command or record changes. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)
+    - **How desflow Works:** diagrams of the core, builder and blueprint packages, and one task instance's steps on Tasks and Processes.
 
 ??? note "1.0.0rc1: What 1.0 brings"
 

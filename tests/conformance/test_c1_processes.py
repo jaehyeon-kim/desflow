@@ -10,7 +10,7 @@ the builder and YAML use the `spawn`, `subscribe` and `running` keys.
 import simpy
 import simpy.util
 
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance.harness import run_builder, run_low_level, run_yaml, times
 
 

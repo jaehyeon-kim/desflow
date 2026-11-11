@@ -14,12 +14,12 @@ from desflow.core.families import Reference
 from desflow.explain.edges import used_resources
 from desflow.values.models import Sequence, Uuid
 
-from desflow.core.context import parts_of
+from desflow.builder.context import parts_of
 
 if TYPE_CHECKING:
-    from desflow.core.context import SimulationContext
-    from desflow.core.flow import Wait
-    from desflow.core.task import TaskSpec
+    from desflow.builder.context import SimulationContext
+    from desflow.builder.flow import Wait
+    from desflow.builder.task import TaskSpec
 
 KEEP = "keep (a unit held across tasks)"
 # A request that a timeout of the same wait can end before the unit is granted

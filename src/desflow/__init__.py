@@ -43,10 +43,10 @@ from importlib.metadata import PackageNotFoundError, version
 from desflow.connectors.egress.local import ConsoleEgress
 from desflow.connectors.ingress.file import FileIngress
 from desflow.connectors.ingress.local import LocalIngress
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from desflow.core.environment import DynamicRealtimeEnvironment
 from desflow.core.expressions import Expression, Scope
-from desflow.core.flow import Router, Transfer
+from desflow.builder.flow import Router, Transfer
 from desflow.core.registry import (
     DynamicValue,
     ParamChange,
@@ -54,12 +54,12 @@ from desflow.core.registry import (
     SimulationRegistry,
 )
 from desflow.core.sampler import Sampler
-from desflow.core.signals import Signal, SignalFailed
-from desflow.core.task import NO_RECORD, TaskFailed
+from desflow.builder.signals import Signal, SignalFailed
+from desflow.builder.task import NO_RECORD, TaskFailed
 from desflow.models.flow import Entity, Upstream
-from desflow.core.breakdowns import run_breakdowns
+from desflow.builder.breakdowns import run_breakdowns
 from desflow.core.replay import Row, read_trace
-from desflow.core.scenario import run_scenario
+from desflow.builder.scenario import run_scenario
 from desflow.models.params import (
     BreakdownConfig,
     CapacityConfig,

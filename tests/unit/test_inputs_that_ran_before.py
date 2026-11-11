@@ -15,8 +15,8 @@ import yaml
 from typer.testing import CliRunner
 
 from desflow.cli import app
-from desflow.core.arrivals import _fresh
-from desflow.core.context import SimulationContext
+from desflow.builder.arrivals import _fresh
+from desflow.builder.context import SimulationContext
 from desflow.core.registry import SimulationRegistry
 from desflow.models.params import ContainerConfig, ResourceConfig, SimParameter
 

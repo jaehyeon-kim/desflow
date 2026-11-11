@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from desflow import DynamicRealtimeEnvironment, SimParameter
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 
 # One captured event: simulation time rounded to 3 decimals, entity key, task
 # name, and the status the task published (started, finished and so on).

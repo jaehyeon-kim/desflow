@@ -12,10 +12,9 @@ from desflow.cli import app
 from desflow.models.distributions import (
     DISTRIBUTIONS,
     clamped_normal_moments,
-    parameters_from_moments,
     variability,
 )
-from desflow.models.params import DistributionConfig
+from desflow.models.params import DistributionConfig, parameters_from_moments
 
 
 @pytest.mark.parametrize(

@@ -6,7 +6,7 @@ or a space, is refused with the same text in the Builder and in YAML."""
 
 import pytest
 
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 
 
 def _app():

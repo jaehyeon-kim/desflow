@@ -25,9 +25,10 @@ from typing import (
     Union,
 )
 
-from desflow.core.breakdowns import run_breakdowns
+from desflow.builder.breakdowns import run_breakdowns
 from desflow.core.expressions import Expression, Scope
 from desflow.core.families import SECTIONS
+from desflow.core.rules import check_capacity
 from desflow.models.params import BreakdownConfig, CapacityConfig, ResourceConfig
 from desflow.resources.container import ContainerBase, DynamicContainer
 from desflow.resources.resource import (
@@ -45,7 +46,7 @@ if TYPE_CHECKING:
     from desflow.core.sampler import Sampler
     from desflow.values.runtime import ValueRuntime
 
-logger = logging.getLogger("desflow.core.context")
+logger = logging.getLogger("desflow.builder.context")
 
 
 def _within_max(
@@ -66,41 +67,6 @@ def _within_max(
             f"[0, max_cap {max_cap}]. Using {clamped}."
         )
     return clamped
-
-
-def check_capacity(
-    kind: str, name: str, field: str, value: Any, whole: bool = True
-) -> None:
-    """Refuses a capacity that is not a whole number of 0 or more, or infinity.
-
-    One check for `add_resource`, `add_store` and `add_container`, which the YAML
-    build reaches too, and for a live write. A family's expression is not passed here
-    as text: the member's value is checked when the member is made.
-
-    Args:
-        kind: The holder's kind, as the message names it.
-        name: The holder's name.
-        field: The capacity field, such as `current_cap` or `max_cap`.
-        value: The value given.
-        whole: Whether the value must be a whole number.
-
-    Raises:
-        ValueError: Naming the holder, the field and the value.
-    """
-    if value is None:
-        return
-    bad = (
-        isinstance(value, bool)
-        or not isinstance(value, numbers.Real)
-        or math.isnan(value)
-        or value < 0
-        or (whole and not (math.isinf(value) or float(value).is_integer()))
-    )
-    if bad:
-        raise ValueError(
-            f"{kind} '{name}' needs a {'whole ' if whole else ''}number of 0 or "
-            f"more for {field}, got {value!r}"
-        )
 
 
 def check_queue_limit(kind: str, name: str, value: Any) -> None:

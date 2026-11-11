@@ -46,7 +46,7 @@ from desflow.analysis.models import (
 )
 from desflow.analysis.report import build_report
 from desflow.analysis.spec import ExperimentSpec, load_experiment
-from desflow.core.context import parts_of
+from desflow.builder.context import parts_of
 from desflow.core.registry import ParamRejected
 from desflow.core.statistics import published_value
 from desflow.utils import checked_whole, suggestion

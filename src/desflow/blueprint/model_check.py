@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Mapping, NamedTuple, Optional
 
 from desflow.blueprint.models import Run
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 
 
 class ModelCheck(NamedTuple):

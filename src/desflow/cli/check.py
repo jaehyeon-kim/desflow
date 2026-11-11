@@ -10,7 +10,7 @@ import typer
 from desflow.cli._common import parse_variables, setup_logging
 
 if TYPE_CHECKING:
-    from desflow.core.context import SimulationContext
+    from desflow.builder.context import SimulationContext
 
 # The examples --help prints after the options, as odctl's help does
 _EPILOG = """

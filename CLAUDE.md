@@ -2,7 +2,7 @@
 
 Real-time SimPy simulations whose parameters change while they run, writing events and telemetry to Kafka, Redis, PostgreSQL, Parquet and JSONL files, and Iceberg tables. The public roadmap is `docs/about/roadmap.md`.
 
-`CONTRIBUTING.md` holds the set-up, the code map, the test commands, the rules for code and docs, how to add a connector or a distribution, and the release steps. Read it before a change. This file holds only what applies to an agent.
+`CONTRIBUTING.md` holds the set-up, the test commands, the rules for code and docs, how to add a connector or a distribution, and the release steps. `ARCHITECTURE.md` holds the code map and which package may import which. Read both before a change. This file holds only what applies to an agent.
 
 ## Running the Tests
 

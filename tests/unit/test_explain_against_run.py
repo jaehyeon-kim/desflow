@@ -19,8 +19,8 @@ import scipy.stats  # noqa: F401
 
 from desflow import SimulationContext
 from desflow.analysis.models import run_once
-from desflow.core.arrivals import ArrivalPlan
-from desflow.core.context import parts_of
+from desflow.builder.arrivals import ArrivalPlan
+from desflow.builder.context import parts_of
 from desflow.explain import analyze, build_graph, verify
 from desflow.explain.pairs import pairs
 

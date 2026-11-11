@@ -16,7 +16,7 @@ from desflow import (
     SimParameter,
     run_scenario,
 )
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance.harness import run_builder, run_low_level, run_yaml
 
 STEPS = [

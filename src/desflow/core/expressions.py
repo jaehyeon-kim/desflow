@@ -59,6 +59,7 @@ from typing import (
     Optional,
     Set,
     Tuple,
+    Union,
 )
 
 _PREFIXES = (
@@ -374,6 +375,44 @@ def boolean_word(value: Any) -> Any:
         except ValidationError:
             return value
     return value
+
+
+def normal_key(key: Any) -> Union[int, str]:
+    """The key a family member is made for.
+
+    `true` and `false` are 1 and 0, because a Python `dict` holds `True` and `1` as one
+    key. A NumPy integer is an integer.
+
+    Args:
+        key: The value a reference computed.
+
+    Returns:
+        Union[int, str]: The key.
+
+    Raises:
+        TypeError: If the key is neither an integer, a boolean nor text.
+    """
+    if isinstance(key, bool):
+        return int(key)
+    if isinstance(key, _Integral):
+        return int(key)
+    if isinstance(key, str):
+        return key
+    raise TypeError(f"a family key is an integer or text, got {key!r}")
+
+
+def member_name(family: str, key: Any) -> str:
+    """The name of a family's member: the family's name and Python's `repr` of the key
+    in brackets, so `3` and `'3'` are two members, and every key has one name.
+
+    Args:
+        family: The family's name.
+        key: The member's key.
+
+    Returns:
+        str: The name, such as `desk[3]` or `desk['a.b']`.
+    """
+    return f"{family}[{normal_key(key)!r}]"
 
 
 def rank_problem(expression: "Expression") -> Optional[str]:
@@ -1448,8 +1487,6 @@ class Expression:
     ) -> Any:
         """`signal.<family>[<key>].<part>`: the member's value, or what a signal that
         has not fired gives when the member is not made yet."""
-        from desflow.core.families import member_name
-
         full = member_name(name, key)
         signal = scope.signals.get(full)
         if signal is None:
@@ -1470,8 +1507,6 @@ class Expression:
     def _target(self, node: ast.AST, scope: Scope) -> str:
         """The name a bare or indexed argument of a call reads: `q`, or the member
         `q['k']` of a family `q[<key>]` makes."""
-        from desflow.core.families import member_name
-
         if isinstance(node, ast.Subscript):
             return member_name(
                 node.value.id,  # type: ignore[attr-defined]
@@ -1490,8 +1525,6 @@ class Expression:
     def _read_member(self, source: str, name: str, key: Any, scope: Scope) -> Any:
         """`users.<name>[<key>]` and the other reads of one member of a family: the
         member's value, or what a new member gives when it is not made yet."""
-        from desflow.core.families import member_name
-
         full = member_name(name, key)
         if source in ("users", "queue"):
             where, what = scope.resources, "resource"

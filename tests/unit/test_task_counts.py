@@ -2,8 +2,8 @@
 
 import pytest
 
-from desflow.core.context import SimulationContext
-from desflow.core.flow import Router
+from desflow.builder.context import SimulationContext
+from desflow.builder.flow import Router
 
 HEAD = """\
 simulation: {sim_id: S, factor: 0, random_seed: 1}

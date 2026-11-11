@@ -5,7 +5,7 @@ the file and line) and in the Builder."""
 
 import pytest
 
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 
 nan = float("nan")
 

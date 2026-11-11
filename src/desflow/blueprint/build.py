@@ -47,13 +47,14 @@ from desflow.blueprint.models import (
 from desflow.config import LABELS, TRACE
 from desflow.connectors.egress.local import ConsoleEgress
 from desflow.core.expressions import ANY_NAME, Expression, Scope
-from desflow.core.arrivals import ArrivalPlan
+from desflow.builder.arrivals import ArrivalPlan
 from desflow.core.families import member_path, name_of, name_problem, references
-from desflow.core.flow import Open, Release, Wait
-from desflow.core.holders import check_capacity, check_level, check_queue_limit
+from desflow.builder.flow import Open, Release, Wait
+from desflow.builder.holders import check_level, check_queue_limit
 from desflow.core.registry import ParamRejected
-from desflow.core.task import NO_RECORD
-from desflow.core.task_checks import (
+from desflow.core.rules import check_capacity
+from desflow.builder.task import NO_RECORD
+from desflow.builder.task_checks import (
     Holding,
     batch_mismatch,
     batch_mismatch_text,
@@ -64,7 +65,7 @@ from desflow.core.task_checks import (
     handle_problem,
     scope_problem,
 )
-from desflow.core.context import (
+from desflow.builder.context import (
     SimulationContext,
     parts_of,
     scratch_registry,
@@ -72,10 +73,10 @@ from desflow.core.context import (
     reading_problem,
     stop_condition,
     stop_family_problem,
-    written_paths,
 )
-from desflow.core.scenario import walk_steps
-from desflow.core.signals import timing_problem
+from desflow.builder.model_checks import written_paths
+from desflow.builder.scenario import walk_steps
+from desflow.builder.signals import timing_problem
 from desflow.core.environment import in_zone, resolve_zone
 from desflow.utils import suggestion
 from desflow.values.check import (
@@ -97,7 +98,7 @@ from desflow.values.models import (
     Row,
     Upstream,
     When,
-    _Gen,
+    Gen,
     has_generator,
 )
 from desflow.values.template import BoundPayload, Template, bind as bind_values
@@ -1290,7 +1291,7 @@ def _file_generator_reads(
         for key, where, _after, value in task_value_places(
             lambda key: _task_value(task, key)
         ):
-            for _where, generator in generators_in(value, (_Gen,)):
+            for _where, generator in generators_in(value, (Gen,)):
                 for text in generator_expressions(generator):
                     try:
                         read = Expression(text, names=ANY_NAME)
@@ -1656,7 +1657,7 @@ def _generator_texts(
 ) -> Iterator[Tuple[str, Tuple[Any, ...]]]:
     """The `expr` and `when` texts of every generator in a value, and their
     `omit_when`, with where each is written."""
-    if isinstance(value, _Gen):
+    if isinstance(value, Gen):
         if value.omit_when is not None:
             yield value.omit_when, path + ("omit_when",)
         if isinstance(value, Expr):
@@ -2626,7 +2627,8 @@ def _check_values(
     registry = scratch_registry(context)
     services = set(blueprint.services)
     base_dir = source.path.parent
-    written = written_paths(parts_of(context))
+    parts = parts_of(context)
+    written = written_paths(parts.scenario_steps, parts.tasks, parts.signals)
     problems: List[Tuple[Tuple[Any, ...], str]] = []
     for name, task in blueprint.tasks.items():
         found = task_value_problems(
@@ -2743,7 +2745,7 @@ def _task_sites(blueprint: Blueprint) -> Iterator[Tuple[Tuple[Any, ...], Any, st
         ):
             if value is None:
                 continue
-            if not callable(value) or isinstance(value, (_Gen, dict, list)):
+            if not callable(value) or isinstance(value, (Gen, dict, list)):
                 yield ("tasks", name) + where, value, name
 
 
@@ -2941,10 +2943,10 @@ def _timeout_values(
     if not isinstance(wait, Mapping):
         return
     timeout = wait.get("timeout")
-    if isinstance(timeout, _Gen):
+    if isinstance(timeout, Gen):
         yield path + ("timeout",), timeout
     elif isinstance(timeout, Mapping):
-        if isinstance(timeout.get("after"), _Gen):
+        if isinstance(timeout.get("after"), Gen):
             yield path + ("timeout", "after"), timeout["after"]
         if "value" in timeout:
             yield path + ("timeout", "value"), timeout["value"]

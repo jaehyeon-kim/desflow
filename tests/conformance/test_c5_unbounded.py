@@ -15,7 +15,7 @@ from desflow import (
     DynamicStore,
     SimParameter,
 )
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance import test_c5_bounded as bounded
 from tests.conformance.harness import run_builder, run_low_level, run_yaml
 

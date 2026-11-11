@@ -17,7 +17,8 @@ logging.basicConfig(
     level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
 )
 # Each replication would log its build and teardown; the sink still logs
-logging.getLogger("desflow.core").setLevel(logging.WARNING)
+for name in ("desflow.builder", "desflow.core"):
+    logging.getLogger(name).setLevel(logging.WARNING)
 
 MEASURES = ["tasks.pack.wait_mean", "resources.packers.utilization_avg"]
 

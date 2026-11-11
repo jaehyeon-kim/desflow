@@ -15,7 +15,7 @@ import simpy
 import yaml
 
 from desflow import CapacityConfig, DynamicResource, Entity, SimParameter
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance import harness
 
 Trace = List[Tuple[float, str, str]]

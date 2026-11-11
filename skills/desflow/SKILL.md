@@ -2,9 +2,9 @@
 name: desflow
 description: Write, check, test and run desflow discrete-event simulation models in YAML, the builder API or the low-level API, and port SimPy programs to them. Use when a task mentions desflow, a blueprint, a test of a simulation model, or a SimPy model that streams records.
 license: MIT
-compatibility: desflow 1.0.0rc1 or later, Python 3.11 or later, the `desflow` command installed
+compatibility: desflow 1.0.0rc2 or later, Python 3.11 or later, the `desflow` command installed
 metadata:
-  desflow-version: "1.0.0rc1"
+  desflow-version: "1.0.0rc2"
 ---
 
 # desflow
@@ -110,7 +110,7 @@ A seed is found where it is given to `random.Random`, `random.seed`, `numpy.rand
 ## Rules assistants get wrong
 
 - A time in YAML and in the Builder takes a unit: write `mean: 4 min`, not `mean: 240`. The Low-level `DistributionConfig` takes seconds only, so give the unit in a comment: `DistributionConfig(dist="normal", mean=240, std=60)  # 4 min, 1 min`. `rate` is a number per second. A SimPy program that counts minutes is ported with each time converted, or says once that one SimPy minute is one second here. [references/simpy.md](references/simpy.md) lists the other differences from SimPy.
-- Builder and Low-level code use only the names `from desflow import ...` and `from desflow.values import ...` give ([references/api.md](references/api.md)) and the documented serializer classes. Wrong: `resource._capacity = 3` or `from desflow.core.task import NO_RECORD`. Right: `env.registry.update("Shop.resources.packers.current_cap", 3)` and `from desflow import NO_RECORD`.
+- Builder and Low-level code use only the names `from desflow import ...` and `from desflow.values import ...` give ([references/api.md](references/api.md)) and the documented serializer classes. Wrong: `resource._capacity = 3` or `from desflow.builder.task import NO_RECORD`. Right: `env.registry.update("Shop.resources.packers.current_cap", 3)` and `from desflow import NO_RECORD`.
 - A Low-level form gives the YAML's records when it draws as the YAML does: each distribution with `sampler.sample(env.registry.get_config("<sim_id>.<path>"))`, which draws from the path's own sequence, and each generated value from `sampler.generator("<place>")`, such as `sampler.generator("tasks.audit.payload.merchant")`, with the same seed. Use the generator's methods: `rng.uniform(-1, 1)`, not `-1 + 2 * rng.random()`. A `DistributionConfig` built by hand and never registered draws from the main generator and gives other numbers.
 - A Builder or Low-level file runs with `python <file>`: use `ConsoleEgress(format="json")`, or call `logging.basicConfig(level=logging.INFO)` before the run, because the default `log` format writes at INFO. Import a connector that needs an extra only in a file whose header names that extra.
 - Both forms keep 1,000,000 rows of a task that a `lookup` or `aggregate` reads; give the same `history` in both or none. A Builder task read only from a `Template` keeps none: give it `history=`.

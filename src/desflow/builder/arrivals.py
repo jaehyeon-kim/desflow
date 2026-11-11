@@ -36,11 +36,12 @@ import simpy
 from desflow.models.distributions import TIME_LIST_PARAMETERS, TIME_PARAMETERS
 from desflow.core.environment import trigger
 from desflow.core.expressions import Expression
+from desflow.core.families import read_place, whole
 from desflow.core.replay import UNITS, Row, check_fields
 from desflow.models.flow import Entity
 from desflow.models.params import DistributionConfig
 from desflow.utils import _seconds, checked_seconds, suggestion
-from desflow.values.models import _Gen, has_generator
+from desflow.values.models import Gen, has_generator
 from desflow.values.runtime import RunStopped
 
 if TYPE_CHECKING:
@@ -49,8 +50,8 @@ if TYPE_CHECKING:
     from desflow.values.runtime import ValueRuntime
 
 # The messages of the arrival methods keep the logger they had in the context, so a
-# filter or a level set on `desflow.core.context` still reaches them
-logger = logging.getLogger("desflow.core.context")
+# filter or a level set on `desflow.builder.context` still reaches them
+logger = logging.getLogger("desflow.builder.context")
 
 ARRIVALS_STOPPED = "arrivals stopped"
 
@@ -174,24 +175,6 @@ def _holds_key(state: "EntityLoop") -> Callable[[], bool]:
     return lambda: state.running
 
 
-def whole(value: Any, what: str) -> int:
-    """A count place's result: a whole number, a boolean counting as 1, as `range`
-    takes it.
-
-    Args:
-        value: The result of the place.
-        what: Where it was written, for the message.
-
-    Raises:
-        TypeError: If it is not a whole number, as `range(2.0)` raises.
-    """
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, numbers.Integral):
-        return int(value)
-    raise TypeError(f"{what} gave {value!r}, which is not a whole number")
-
-
 def defuse_stopped(event: Any) -> None:
     """Marks an arrival loop ended by `stop_arrivals` as handled, and nothing else.
 
@@ -223,23 +206,6 @@ class _Counter:
     def give_back(self) -> None:
         """Frees the number taken last."""
         self.last -= 1
-
-
-def read_place(
-    values: "ValueRuntime", place: Any, names: Optional[Dict[str, Any]] = None
-) -> Any:
-    """Reads a place over the run: a number as it is, an expression or a generator,
-    with `names` as its bare names.
-
-    Args:
-        values: The run's values, which give the run scope and evaluate a generator.
-        place: The place: a number, an expression or a generator.
-        names: The bare names the place reads; None for none.
-    """
-    scope = values.scope_of(names=names)
-    if isinstance(place, Expression):
-        return place.evaluate(scope)
-    return values.evaluate(place, scope)
 
 
 class Arrivals:
@@ -377,13 +343,13 @@ class Arrivals:
                     f"parameter: {', '.join(given)}"
                 )
             if isinstance(gap, str):
-                from desflow.blueprint.models import _duration_text
+                from desflow.core.rules import duration_text
 
-                gap = _duration_text(gap)  # a duration or a plain number in text
+                gap = duration_text(gap)  # a duration or a plain number in text
                 if isinstance(gap, str):  # not a number, so an expression
                     gap = _run_expression(name, "gap", gap)
             if isinstance(gap, bool) or not isinstance(
-                gap, (numbers.Real, _Gen, Expression)
+                gap, (numbers.Real, Gen, Expression)
             ):
                 raise ValueError(
                     f"arrival '{name}': gap is a number of seconds, a duration, "
@@ -404,7 +370,7 @@ class Arrivals:
                 or not first_at >= 0
             ):
                 raise ValueError(f"first_at is a time of 0 or more, got {first_at!r}")
-        from desflow.blueprint.models import check_count_place
+        from desflow.core.rules import check_count_place
 
         for what, count in (("group", group), ("max_events", max_events)):
             try:
@@ -430,7 +396,7 @@ class Arrivals:
                 raise ValueError(f"arrival '{name}': max_events needs a spawn")
             if isinstance(max_events, str):
                 max_events = Expression(max_events)
-            elif not isinstance(max_events, (numbers.Integral, _Gen, Expression)):
+            elif not isinstance(max_events, (numbers.Integral, Gen, Expression)):
                 raise ValueError(
                     f"arrival '{name}': max_events is a whole number of 0 or more, "
                     f"an expression or a generator, got {max_events!r}"
@@ -473,7 +439,7 @@ class Arrivals:
             value_key, key = key, None  # a value place, as the blueprint's key
             bind(value_key, ("arrivals", name, "key"), overwrite=False)
         if vars is not None:
-            from desflow.blueprint.models import check_var_names
+            from desflow.core.rules import check_var_names
 
             if not isinstance(vars, Mapping) or not all(
                 isinstance(k, str) for k in vars
@@ -1185,7 +1151,7 @@ def _run_expression(arrival: str, what: str, text: str) -> Expression:
     Raises:
         ValueError: If the text is not an expression, or reads the entity or a task.
     """
-    from desflow.blueprint.models import check_run_text
+    from desflow.core.rules import check_run_text
 
     try:
         check_run_text(text, what, True)
@@ -1211,7 +1177,7 @@ def _source_plan(
         group = Expression(group)
     elif isinstance(group, numbers.Integral) and not isinstance(group, bool):
         group = int(group)  # a NumPy integer too, as `max_events` takes it
-    elif isinstance(group, bool) or not (isinstance(group, _Gen) or callable(group)):
+    elif isinstance(group, bool) or not (isinstance(group, Gen) or callable(group)):
         raise ValueError(
             f"group is a whole number, an expression or a generator, got {group!r}"
         )

@@ -719,7 +719,7 @@ def test_a_whole_flow_wait_that_can_wait_for_its_own_flow_is_warned_of(
     )
     path = tmp_path / "model.yaml"
     path.write_text(text)
-    with caplog.at_level("WARNING", logger="desflow.core.context"):
+    with caplog.at_level("WARNING", logger="desflow.builder.context"):
         app = SimulationContext.from_yaml(path)
         app.run(until=3)
     found = [r.getMessage() for r in caplog.records if "whole flow" in r.getMessage()]
@@ -737,7 +737,7 @@ def test_the_builder_warns_of_a_whole_flow_wait_for_its_own_flow(caplog):
         t={"next": "u"},
         u={"wait": {"running": {"task": "t", "whole_flow": True}}},
     )
-    with caplog.at_level("WARNING", logger="desflow.core.context"):
+    with caplog.at_level("WARNING", logger="desflow.builder.context"):
         app.run(until=3)
     assert any(
         "task 'u' waits for the whole flow of task 't', and 't' leads to 'u'"

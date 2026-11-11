@@ -26,7 +26,7 @@ from desflow.values.models import (
     Aggregate,
     Lookup,
     Previous,
-    _Gen,
+    Gen,
     generator_adapter,
     payload_adapter,
     values_adapter,
@@ -55,7 +55,7 @@ def bind(
         overwrite: Whether a generator that already has a place gets a new one.
     """
     if isinstance(node, BaseModel):
-        if isinstance(node, _Gen) and (overwrite or not node._path):
+        if isinstance(node, Gen) and (overwrite or not node._path):
             node._path = ".".join(str(part) for part in path)
             node._where = locate(path) if locate else node._path
         for name, field in type(node).model_fields.items():

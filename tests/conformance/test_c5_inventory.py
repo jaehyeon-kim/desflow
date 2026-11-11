@@ -23,7 +23,7 @@ from desflow import (
     Entity,
     SimParameter,
 )
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance.harness import (
     run_builder,
     run_low_level,

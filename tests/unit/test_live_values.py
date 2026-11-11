@@ -9,7 +9,7 @@ import logging
 import pytest
 import simpy
 
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from desflow.core.registry import SimulationRegistry
 from desflow.models.params import (
     ContainerConfig,

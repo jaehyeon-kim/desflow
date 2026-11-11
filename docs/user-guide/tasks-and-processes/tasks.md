@@ -442,7 +442,7 @@ Until `run()` is called nothing exists but the description, and the runtime help
 9. It fires its `signal` (or fails it) and sends its `interrupt` action to the tasks it names. It applies `set` to the entity's attributes and `set_args` to the process's local names, and runs the `on:` actions. It frees the units named by `release`. A unit still held when the flow ends stays held, as in SimPy, so a flow that used `seize` writes `release` before it ends.
 10. It starts the next task that its `next` chooses, or its `on_fail`, `on_renege` or `on_balk` task, as a new instance for the same entity.
 
-A YAML task and its `spawn` make the same task and arrival loop that the builder code above makes. The code that runs these steps is `TaskRun` in `desflow/core/task.py`. In SimPy terms each flow of tasks is one process started with `env.process`, and each arrival loop is another. [SimPy and desflow](../../simpy/index.md) describes processes.
+A YAML task and its `spawn` make the same task and arrival loop that the builder code above makes. The code that runs these steps is `TaskRun` in `desflow/builder/task.py`. In SimPy terms each flow of tasks is one process started with `env.process`, and each arrival loop is another. [SimPy and desflow](../../simpy/index.md) describes processes.
 
 A process outside a task runs as [Processes](processes.md#how-it-works) describes.
 

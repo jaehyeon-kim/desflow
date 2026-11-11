@@ -3,7 +3,7 @@ one is read names the file, the line and the place (the task in the Builder)."""
 
 import pytest
 
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 
 BASE = """simulation: {{sim_id: S, factor: 0, random_seed: 1}}
 resources: {{desk: {{current_cap: 1}}}}

@@ -5,7 +5,7 @@ Builder form of `model.yaml`.
 
 from desflow import SimulationContext
 from desflow.values import Template, generator
-from desflow.core.task import NO_RECORD
+from desflow.builder.task import NO_RECORD
 
 
 def build() -> SimulationContext:
