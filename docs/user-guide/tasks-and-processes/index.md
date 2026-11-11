@@ -37,3 +37,9 @@ Pick the page by the job:
 ## How It Works
 
 `run()` builds the environment, registers the parameters, builds the resources, stores and containers, and starts the arrivals and processes. [What run() Does](tasks.md#what-run-does) lists the steps in order, and [What @app.task Does](tasks.md#what-apptask-does) lists the steps of one task.
+
+The diagram follows one task instance through its eight steps. Watch the box with the thick outline move along the steps, and the records it has published grow underneath.
+
+![One task instance in eight steps. 1 arrives: balk, then the queued record. 2 waits: open, cancel, seize and wait. 3 joins a batch: batch. 4 takes its units: resource and get, then the started record. 5 is served: the function and the service time. 6 ends: put and fail, then the finished or failed record. 7 acts: signal, interrupt, set and release. 8 goes on: next or on_fail](../../assets/diagrams/task-steps.gif)
+
+Each box names the keys that act at that step. A step whose keys the task does not set passes at once: a task with no `wait` does not wait, and a task with no `batch` joins no batch. The instance publishes `queued` when it has something to wait for: a resource, a `get`, a `wait`, a `seize` or a `batch`. It publishes `started` before its work, and `finished` or `failed` when it ends. A balk ends it at the first step with `balked`, and a renege ends it while it waits with `reneged`. The last step starts the next task as a new instance for the same entity, in the same SimPy process.

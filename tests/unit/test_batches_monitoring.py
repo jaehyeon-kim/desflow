@@ -531,6 +531,34 @@ stats: basic
     assert usage[-1] == 0  # no unit is left held
 
 
+def test_a_member_interrupted_as_its_service_ends_has_already_served_the_batch(
+    tmp_path,
+):
+    """a-1 serves the batch of 2 from 1 to 3. `kick` ends at 3 after a-1's service
+    and interrupts it while it wakes the members: a-2 is done, and a-1 resumes and is
+    done at 3 without serving the batch again."""
+    text = """\
+simulation: {sim_id: S, factor: 0}
+resources: {m: {current_cap: 1}}
+arrivals:
+  a: {dist: constant, value: 1, spawn: job, max_events: 2, first_at: 0}
+  k: {dist: constant, value: 1, spawn: kick, max_events: 1, first_at: 1.5}
+tasks:
+  kick: {service_time: 1.5, interrupt: {task: job, where: "process.instance == 0", cause: cut}, payload: {e: kicked}}
+  job: {batch: {size: 2}, resource: m, service_time: 2, payload: {e: done}, on_interrupt: resume}
+run: {until: 30}
+"""
+    found = records(run_yaml_text(tmp_path, text, {}))
+    assert [(t, st) for t, k, _, st in found if k == "a-1"] == [
+        (0.0, "queued"),
+        (1.0, "started"),
+        (3.0, "interrupted"),
+        (3.0, "resumed"),
+        (3.0, "done"),
+    ]
+    assert by_member(found, "done") == [(3.0, "a-1"), (3.0, "a-2")]
+
+
 def test_patience_counts_until_the_batch_closes_and_a_renege_leaves_the_batch(tmp_path):
     """Patience 1.5 with a size of 3 and a member a second: no batch closes, and each
     member reneges 1.5 after it joined. In a batch of 2 that closes at 1, the members
