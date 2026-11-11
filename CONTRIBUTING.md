@@ -47,7 +47,7 @@ Each layer checks one thing:
 - `tests/integration` checks each connector against a real service.
 - The regression CI jobs run every example and scenario with this branch and with the last release, and fail on a difference that `tests/regression/expected.yaml` does not list.
 
-Run the unit suite in full once before each commit. While fixing, run only the failed tests (`pytest --lf`) and the tests of the files you changed. `tests/docs` is slow. While working, run the docs tests for the pages, snippets and examples you changed (`pytest tests/docs -k <name>`), plus `test_docs_record_blocks.py` and `test_example_twins.py` when a change alters behaviour. Run the strict build when `docs/`, `mkdocs.yml`, a docstring or an input of `scripts/gen_pages.py` changed: `tests/conformance/register.yaml`, `uv.lock`, the distribution list or the statistic names. CI runs everything on every pull request and every push to `main`.
+Run the unit suite in full once before you push or open a pull request, not before each commit. While fixing, run only the failed tests (`pytest --lf`) and the tests of the files you changed. `tests/docs` is slow. While working, run the docs tests for the pages, snippets and examples you changed (`pytest tests/docs -k <name>`), plus `test_docs_record_blocks.py` and `test_example_twins.py` when a change alters behaviour. Run the strict build when `docs/`, `mkdocs.yml`, a docstring or an input of `scripts/gen_pages.py` changed: `tests/conformance/register.yaml`, `uv.lock`, the distribution list or the statistic names. CI runs everything on every pull request and every push to `main`.
 
 ## Rules
 
