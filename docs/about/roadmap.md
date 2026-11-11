@@ -31,7 +31,7 @@ From 1.0, the YAML blueprint format, the `desflow` command, the public Python AP
 
 - **Maintenance, schedules and incidents:** planned maintenance, schedules that repeat by time of day, and incidents that change several parameters at once. 0.22.0 ships random breakdowns with repair and finite schedules, and 1.0 ships a failure clock that runs only while a resource works (`clock: busy`).
 - **More flow and resource features:** matching and splitting, setup times, and resources chosen by skill. 1.0 ships batching.
-- **Reuse, costs and continuous flow:** parts of a model defined once and used several times, costs and energy per resource state, and levels that rise and fall continuously.
+- **Costs and continuous flow:** costs and energy per resource state, and levels that rise and fall continuously.
 - **Transport on maps:** vehicles that move between locations on real roads and publish their positions.
 - **Data-driven inputs:** arrivals replayed from a database, or taken live from a Kafka topic.
 - **Models read from a store:** a value that a model reads from a store during a run, such as the trained model of a recommender, with a key of its own. In 1.0 this is a `!python` function, as [Call Python from YAML](../how-to/tools/yaml-advanced.md) shows.
@@ -55,6 +55,7 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 
 ### Writing simulations
 
+- **Payloads from your data:** record fields generated from a schema or a few sample records, so the records have the real field names, types and value ranges.
 - **Visual builder.**
 - **Conversion:** turn a YAML blueprint into builder code, and builder code into YAML with no Python, with an error that names each part that cannot be converted and how to rewrite it.
 
