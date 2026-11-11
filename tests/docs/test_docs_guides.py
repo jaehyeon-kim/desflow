@@ -159,6 +159,60 @@ def test_dynamic_topology_scenario_gives_the_wrappers_their_units_in_every_form(
     ] == [(12.0, {"status": "wrappers_added", "capacity": 2})]
 
 
+def test_switch_a_task_on_wraps_the_same_orders_in_every_form():
+    """No order is wrapped before the step at 1 minute. From then on the weight read
+    from the registry sends some orders to wrap_gift, the same 8 of the 48 packed in
+    the YAML, builder and low-level forms. The step publishes its record at 1 minute."""
+    from desflow import DynamicRealtimeEnvironment, SimulationContext
+
+    expected = [
+        (65.0, "orders-12"),
+        (95.0, "orders-18"),
+        (105.0, "orders-20"),
+        (185.0, "orders-36"),
+        (200.0, "orders-39"),
+        (210.0, "orders-41"),
+        (245.0, "orders-48"),
+        (275.0, "orders-54"),
+    ]
+
+    def done(capture, task):
+        return [
+            (r["sim_ts"], r["key"])
+            for r in capture.records
+            if r["stream_type"] == "event"
+            and r["task"] == task
+            and "event_type" in r["value"]
+        ]
+
+    yaml = ROOT / "docs" / "snippets" / "yaml" / "switch_a_task_on.yaml"
+    app = SimulationContext.from_yaml(yaml)
+    yaml_capture = _Capture()
+    app.add_egress(yaml_capture)
+    app.run()
+    app = _load("switch_a_task_on_builder").build()
+    builder_capture = _Capture()
+    app.add_egress(builder_capture)
+    app.run(until=300)
+    low_level = _load("switch_a_task_on_low_level")
+    low_level_capture = _Capture()
+    low_level.run([low_level_capture])
+    for capture in (yaml_capture, builder_capture, low_level_capture):
+        assert done(capture, "wrap_gift") == expected
+        packed = done(capture, "pack_order")
+        assert len([time for time, _ in packed if time >= 60]) == 48
+    env = DynamicRealtimeEnvironment(factor=0, strict=False)
+    env.registry.register_sim_parameter(low_level.PARAMS)
+    labels = _Capture()
+    env.setup_egress([labels], labels=[True])
+    low_level.build(env)
+    env.run(until=low_level.UNTIL)
+    env.teardown()
+    assert [
+        (r["sim_ts"], r["label"]) for r in labels.records if r["stream_type"] == "label"
+    ] == [(60.0, {"intervention": "gift_wrapping_on"})]
+
+
 def test_serve_together_batches_agree_in_every_form():
     """Seven orders, 1 s apart: the first batch of 3 closes at 3 s, the second at 6 s
     (its members start then and the oven frees at 7 s), the seventh closes alone at

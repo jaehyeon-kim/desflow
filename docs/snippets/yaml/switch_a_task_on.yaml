@@ -1,0 +1,52 @@
+# The Switch a Task On Mid-run guide: from 1 minute, one order in four is gift wrapped.
+# Run it with: desflow run switch_a_task_on.yaml
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+egress:
+  - {type: Console}
+
+# --8<-- [start:declare]
+# The switch: a weight of 0 sends no order to wrap_gift
+variables: {wrap_weight: 0}
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+  # The new task's resource exists from the start, unused until the switch
+  wrappers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 2 s}
+  wrapping: {dist: constant, value: 3 s}
+# --8<-- [end:declare]
+
+arrivals:
+  orders: {dist: constant, value: 5 s, spawn: pack_order}
+
+tasks:
+  # --8<-- [start:route]
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+    next:
+      # Read when each order is packed: 3 to 0 before the switch, 3 to 1 after it
+      weights: {ship_order: 3, wrap_gift: 'registry["Shop.variables.wrap_weight"]'}
+  wrap_gift:
+    service: wrapping
+    resource: wrappers
+    payload: {event_type: gift_wrapped}
+    next: ship_order
+  # --8<-- [end:route]
+  ship_order:
+    payload: {event_type: order_shipped}
+
+# --8<-- [start:scenario]
+# At 1 minute wrapping starts, and the step records what it did
+scenario:
+  - at: 1 min
+    path: Shop.variables.wrap_weight
+    value: 1
+    record: {intervention: gift_wrapping_on}
+# --8<-- [end:scenario]
+
+run: {until: 5 min}

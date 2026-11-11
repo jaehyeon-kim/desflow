@@ -13,6 +13,7 @@ Each page here does one task, step by step, with code that you can run. To see w
 | [Share Work by Weight](modelling/share-by-weight.md) | share one resource between classes of work by weight |
 | [Model Breakdowns](modelling/breakdowns.md) | make a resource fail at random, count only its busy time, and check its downtime |
 | [Add Resources Mid-run](modelling/dynamic-topology.md) | add a resource during a run, or give a resource with no units its units at a set time |
+| [Switch a Task On Mid-run](modelling/switch-a-task-on.md) | send work to a task declared from the start once a scenario step changes its route's weight |
 | [Serve Entities Together](modelling/serve-entities-together.md) | serve several entities with one run of a resource, in a batch |
 
 ## Generate Data

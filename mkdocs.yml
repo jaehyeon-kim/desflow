@@ -381,6 +381,7 @@ nav:
           - Share Work by Weight: how-to/modelling/share-by-weight.md
           - Model Breakdowns: how-to/modelling/breakdowns.md
           - Add Resources Mid-run: how-to/modelling/dynamic-topology.md
+          - Switch a Task On Mid-run: how-to/modelling/switch-a-task-on.md
           - Serve Entities Together: how-to/modelling/serve-entities-together.md
       - Generate Data:
           - Send Data to a Sink: how-to/generate-data/send-data-to-a-sink.md
