@@ -1,0 +1,35 @@
+<mxfile>
+  <diagram name="stats-time-weighted" id="stats-time-weighted">
+    <mxGraphModel grid="0" page="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="A time-weighted average of busy packers" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="c1" value="busy packers between two changes, and the area each adds" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="0" y="34" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="c2" value="1 × 2 s = 2" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="90" y="220" width="120" height="50" as="geometry"/></mxCell>
+        <mxCell id="c3" value="3 × 4 s = 12" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="210" y="120" width="240" height="150" as="geometry"/></mxCell>
+        <mxCell id="c4" value="2 × 4 s = 8" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="450" y="170" width="240" height="100" as="geometry"/></mxCell>
+        <mxCell id="c5" value="" style="text;html=1;strokeColor=none;fillColor=none;" vertex="1" parent="1"><mxGeometry x="90" y="270" width="1" height="1" as="geometry"/></mxCell>
+        <mxCell id="c6" value="" style="text;html=1;strokeColor=none;fillColor=none;" vertex="1" parent="1"><mxGeometry x="722" y="270" width="1" height="1" as="geometry"/></mxCell>
+        <mxCell id="c7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=2;endArrow=block;strokeColor=#666666;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;edgeStyle=none;" edge="1" parent="1" source="c5" target="c6"><mxGeometry relative="1" as="geometry"></mxGeometry></mxCell>
+        <mxCell id="c8" value="" style="text;html=1;strokeColor=none;fillColor=none;" vertex="1" parent="1"><mxGeometry x="90" y="270" width="1" height="1" as="geometry"/></mxCell>
+        <mxCell id="c9" value="" style="text;html=1;strokeColor=none;fillColor=none;" vertex="1" parent="1"><mxGeometry x="90" y="90" width="1" height="1" as="geometry"/></mxCell>
+        <mxCell id="c10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=2;endArrow=block;strokeColor=#666666;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;edgeStyle=none;" edge="1" parent="1" source="c8" target="c9"><mxGeometry relative="1" as="geometry"></mxGeometry></mxCell>
+        <mxCell id="c11" value="0 s" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="70" y="274" width="40" height="22" as="geometry"/></mxCell>
+        <mxCell id="c12" value="2 s" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="190" y="274" width="40" height="22" as="geometry"/></mxCell>
+        <mxCell id="c13" value="6 s" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="430" y="274" width="40" height="22" as="geometry"/></mxCell>
+        <mxCell id="c14" value="10 s" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="670" y="274" width="40" height="22" as="geometry"/></mxCell>
+        <mxCell id="c15" value="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="60" y="209" width="24" height="22" as="geometry"/></mxCell>
+        <mxCell id="c16" value="2" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="60" y="159" width="24" height="22" as="geometry"/></mxCell>
+        <mxCell id="c17" value="3" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="60" y="109" width="24" height="22" as="geometry"/></mxCell>
+        <mxCell id="c18" value="busy" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="0" y="86" width="80" height="22" as="geometry"/></mxCell>
+        <mxCell id="c19" value="" style="text;html=1;strokeColor=none;fillColor=none;" vertex="1" parent="1"><mxGeometry x="90" y="160" width="1" height="1" as="geometry"/></mxCell>
+        <mxCell id="c20" value="" style="text;html=1;strokeColor=none;fillColor=none;" vertex="1" parent="1"><mxGeometry x="690" y="160" width="1" height="1" as="geometry"/></mxCell>
+        <mxCell id="c21" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=none;strokeColor=#d79b00;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;dashed=1;edgeStyle=none;" edge="1" parent="1" source="c19" target="c20"><mxGeometry relative="1" as="geometry"></mxGeometry></mxCell>
+        <mxCell id="c22" value="2.2" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1;fontColor=#d79b00;" vertex="1" parent="1"><mxGeometry x="696" y="149" width="40" height="22" as="geometry"/></mxCell>
+        <mxCell id="c23" value="time-weighted average&lt;br&gt;(2 + 12 + 8) ÷ 10 s = 2.2 busy packers" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=14;fontColor=#d79b00;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="320" width="330" height="64" as="geometry"/></mxCell>
+        <mxCell id="c24" value="a reading at 10 s sees 2;&lt;br&gt;a count of finished orders adds 1 per order" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="400" y="320" width="330" height="64" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

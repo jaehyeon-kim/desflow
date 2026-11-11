@@ -1,0 +1,10 @@
+/* Tables sit in the middle of the page. Material wraps each table in a scrolling
+   container and shows it as an inline block, so centring the container's content
+   centres a narrow table, while a wide one still fills the width and scrolls.
+   Cell text stays left-aligned. */
+.md-typeset__scrollwrap {
+  text-align: center;
+}
+.md-typeset__scrollwrap table:not([class]) {
+  text-align: left;
+}
