@@ -5,7 +5,7 @@ import time
 import pytest
 
 from desflow.blueprint.loader import BlueprintError
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from desflow.core.expressions import Expression, Scope
 
 MODEL = """\

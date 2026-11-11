@@ -130,7 +130,7 @@ def _taken(records):
 
 
 def _builder_tasks():
-    from desflow.core.context import SimulationContext
+    from desflow.builder.context import SimulationContext
     from tests.conformance.harness import run_builder
 
     app = SimulationContext("C5", factor=0.0)

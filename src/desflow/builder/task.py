@@ -36,7 +36,7 @@ from simpy.events import Condition, Event
 from simpy.resources.resource import Preempted
 
 from desflow.core.expressions import ANY_NAME, Expression, Scope, boolean_word
-from desflow.core.flow import (
+from desflow.builder.flow import (
     Listen,
     Open,
     Release,
@@ -60,8 +60,8 @@ from desflow.values.runtime import RunStopped, stream_of
 from desflow.values.template import BoundPayload, Template
 
 if TYPE_CHECKING:
-    from desflow.core.context import SimulationContext
-    from desflow.core.runs import Parts
+    from desflow.builder.context import SimulationContext
+    from desflow.builder.runs import Parts
 
 
 class TaskFailed(Exception):

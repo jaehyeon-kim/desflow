@@ -26,7 +26,7 @@ from desflow import (
     SignalFailed,
     SimParameter,
 )
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from desflow.internal import is_internal
 from tests.conformance.batch5_scripts import pinger
 from tests.conformance.harness import (

@@ -75,7 +75,7 @@ def test_env_property_exposes_environment():
     assert app.env is app._env
 
 
-@patch("desflow.core.context.DynamicRealtimeEnvironment")
+@patch("desflow.builder.context.DynamicRealtimeEnvironment")
 def test_simulation_execution_wiring(MockEnv):
     """
     Validates the .run() orchestration logic without running a real SimPy loop.
@@ -198,7 +198,7 @@ def test_with_batching_defaults_the_egress_bounds():
     assert app._sinks.drain_stall_seconds == 30.0
 
 
-@patch("desflow.core.context.DynamicRealtimeEnvironment")
+@patch("desflow.builder.context.DynamicRealtimeEnvironment")
 def test_egress_bounds_reach_the_environment(MockEnv):
     """What the builder collects has to arrive at setup_egress, or it does nothing."""
     instance = MockEnv.return_value
@@ -222,7 +222,7 @@ def test_egress_bounds_reach_the_environment(MockEnv):
     assert kwargs["drain_stall_seconds"] == 3.0
 
 
-@patch("desflow.core.context.DynamicRealtimeEnvironment")
+@patch("desflow.builder.context.DynamicRealtimeEnvironment")
 def test_per_provider_cadence_reaches_the_environment(MockEnv):
     """A cadence given on add_egress has to arrive, aligned by position."""
     instance = MockEnv.return_value
@@ -673,7 +673,7 @@ def test_a_failed_start_tears_the_connectors_down():
     app = SimulationContext("Shop", factor=0).add_egress(_Sink())
     app.add_resource("packers", current_cap=1, max_cap=1)
     with patch(
-        "desflow.core.holders.DynamicResource", side_effect=RuntimeError("broken")
+        "desflow.builder.holders.DynamicResource", side_effect=RuntimeError("broken")
     ):
         with pytest.raises(RuntimeError, match="broken"):
             app.run(until=10)
@@ -1715,7 +1715,7 @@ def test_low_level_run_scenario_raises_for_a_refused_value():
         ParamRejected,
         SimParameter,
     )
-    from desflow.core.scenario import run_scenario
+    from desflow.builder.scenario import run_scenario
 
     env = DynamicRealtimeEnvironment(factor=0.0)
     env.registry.register_sim_parameter(
@@ -1775,7 +1775,7 @@ def test_every_run_of_a_context_calls_its_callbacks():
 def test_low_level_scenario_changes_have_the_scenario_source():
     """The low-level `run_scenario` reports its steps as source "scenario"."""
     from desflow import DynamicRealtimeEnvironment, SimParameter
-    from desflow.core.scenario import run_scenario
+    from desflow.builder.scenario import run_scenario
 
     env = DynamicRealtimeEnvironment(factor=0.0)
     env.registry.register_sim_parameter(SimParameter(sim_id="Shop", variables={"x": 0}))
@@ -2199,7 +2199,7 @@ def test_a_replay_with_no_row_left_logs_its_end_once(caplog):
         yield context.env.timeout(1)
 
     app.add_process(ask_twice)
-    with caplog.at_level("INFO", logger="desflow.core.context"):
+    with caplog.at_level("INFO", logger="desflow.builder.context"):
         app.run(until=2)
     ended = [r for r in caplog.records if "replayed its last row" in r.getMessage()]
     assert len(ended) == 1
@@ -2761,8 +2761,8 @@ def test_the_scenario_walk_yields_each_step_with_its_problem():
     """A-U4: the walk the scenario checks share takes the steps in time order, skips a
     step with no path, a member's path or a generated value, and ends at the first
     problem the registry's own check finds."""
-    from desflow.core.context import scratch_registry
-    from desflow.core.scenario import walk_steps
+    from desflow.builder.context import scratch_registry
+    from desflow.builder.scenario import walk_steps
     from desflow.values.models import Expr
 
     app = SimulationContext("S", factor=0)

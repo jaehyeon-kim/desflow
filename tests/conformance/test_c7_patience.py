@@ -20,7 +20,7 @@ from desflow import (
     Entity,
     SimParameter,
 )
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance.b3 import Job, run_desflow, run_simpy
 from tests.conformance.custom_resources import SimPyTwoWaiting, TwoWaiting
 from tests.conformance.harness import (

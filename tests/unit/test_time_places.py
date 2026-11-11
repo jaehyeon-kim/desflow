@@ -12,7 +12,7 @@ runs under a wall-clock limit: a run that hangs fails the test.
 import pytest
 import yaml as pyyaml
 
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from desflow.utils import _seconds
 
 BAD = [float("nan"), float("inf"), -1, True]

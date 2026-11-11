@@ -18,7 +18,7 @@ from simpy.core import StopSimulation
 
 from desflow import SimulationContext
 from desflow.blueprint import BlueprintError
-from desflow.core.task import TaskFailed
+from desflow.builder.task import TaskFailed
 from desflow.core.environment import DynamicRealtimeEnvironment
 from desflow.values import Template, ValueRuntime, generator
 from desflow.values.check import load_rows

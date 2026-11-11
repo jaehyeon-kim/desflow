@@ -9,7 +9,7 @@ the behaviour the plan settles.
 import numpy as np
 import pytest
 
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance.harness import run_builder, times
 
 
@@ -572,7 +572,7 @@ tasks:
 """
     )
     app = SimulationContext.from_yaml(path)
-    with caplog.at_level("WARNING", logger="desflow.core.context"):
+    with caplog.at_level("WARNING", logger="desflow.builder.context"):
         app.run(until=10)
     assert app.signal("ready").count == 0
     assert [r.getMessage() for r in caplog.records if "nothing" in r.getMessage()] == [

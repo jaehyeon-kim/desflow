@@ -46,7 +46,7 @@ from desflow.values.models import (
 )
 
 if TYPE_CHECKING:
-    from desflow.core.flow import LiveScope
+    from desflow.builder.flow import LiveScope
 
 logger = logging.getLogger(__name__)
 

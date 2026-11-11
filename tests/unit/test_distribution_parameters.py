@@ -3,7 +3,7 @@ mean or variance overflows a float. A time a family draws between is not below 0
 
 import pytest
 
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from desflow.models.params import DistributionConfig
 
 nan, inf = float("nan"), float("inf")
@@ -65,7 +65,7 @@ BAD = [True, float("nan"), float("inf")]
 
 @pytest.mark.parametrize("bad", BAD, ids=repr)
 def test_the_builder_refuses_an_arrival_parameter_by_name(bad):
-    from desflow.core.context import SimulationContext
+    from desflow.builder.context import SimulationContext
 
     with pytest.raises(ValueError, match="rate"):
         SimulationContext("S", factor=0).add_arrival(
@@ -75,7 +75,7 @@ def test_the_builder_refuses_an_arrival_parameter_by_name(bad):
 
 @pytest.mark.parametrize("written", ["true", ".nan", ".inf"])
 def test_a_scenario_step_refuses_a_parameter_at_its_line(written, tmp_path):
-    from desflow.core.context import SimulationContext
+    from desflow.builder.context import SimulationContext
 
     path = tmp_path / "m.yaml"
     path.write_text(

@@ -27,16 +27,16 @@ import simpy
 
 from desflow.core.expressions import Expression, Scope
 from desflow.core.families import Reference
-from desflow.core.scenario import apply_step
-from desflow.core.task import TaskRun, TaskSpec
+from desflow.builder.scenario import apply_step
+from desflow.builder.task import TaskRun, TaskSpec
 from desflow.models.flow import Entity, Upstream
 from desflow.values.models import Gen, has_generator
 
 if TYPE_CHECKING:
-    from desflow.core.context import SimulationContext
-    from desflow.core.runs import Parts
+    from desflow.builder.context import SimulationContext
+    from desflow.builder.runs import Parts
 
-logger = logging.getLogger("desflow.core.context")
+logger = logging.getLogger("desflow.builder.context")
 
 # The default of `Tasks.new_run`'s `task_id`: the task's next instance id
 _NEXT: Any = object()

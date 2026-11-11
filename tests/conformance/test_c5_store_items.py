@@ -9,7 +9,7 @@ watcher or a route in the low-level API, the builder and YAML must agree with it
 import simpy
 
 from desflow import CapacityConfig, DynamicStore, SimParameter
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance.harness import run_builder, run_low_level, run_yaml_text, times
 
 WATCH_UP = 0.5

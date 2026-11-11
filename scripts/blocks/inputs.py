@@ -25,7 +25,7 @@ def _seed_line(run: Callable[[], object]) -> List[str]:
                 lines.append(record.getMessage())
 
     handler = _Keep(logging.INFO)
-    logger = logging.getLogger("desflow.core.context")
+    logger = logging.getLogger("desflow.builder.context")
     level = logger.level
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)

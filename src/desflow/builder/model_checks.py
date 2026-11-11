@@ -25,16 +25,16 @@ from typing import (
 
 import simpy
 
-from desflow.core.arrivals import Arrivals
+from desflow.builder.arrivals import Arrivals
 from desflow.core.expressions import ANY_NAME, Expression
 from desflow.core.families import Families, member_path
-from desflow.core.holders import Holders
+from desflow.builder.holders import Holders
 from desflow.core.registry import ParamRejected, SimulationRegistry
-from desflow.core.runs import EndSets
-from desflow.core.scenario import walk_steps
-from desflow.core.signals import Signals, timing_problem
-from desflow.core.task import TaskSpec
-from desflow.core.task_checks import (
+from desflow.builder.runs import EndSets
+from desflow.builder.scenario import walk_steps
+from desflow.builder.signals import Signals, timing_problem
+from desflow.builder.task import TaskSpec
+from desflow.builder.task_checks import (
     Holding,
     batch_mismatch,
     batch_mismatch_text,
@@ -48,7 +48,7 @@ from desflow.core.task_checks import (
     scope_problem,
     whole_flow_problems,
 )
-from desflow.core.tasks import Tasks
+from desflow.builder.tasks import Tasks
 from desflow.models.params import DistributionConfig
 from desflow.utils import suggestion
 from desflow.values.check import (
@@ -59,8 +59,8 @@ from desflow.values.check import (
 )
 from desflow.values.models import Gen
 
-# Moved from core/context.py, so it keeps the logger name a user's setup reads
-logger = logging.getLogger("desflow.core.context")
+# Moved from builder/context.py, so it keeps the logger name a user's setup reads
+logger = logging.getLogger("desflow.builder.context")
 
 
 # The kinds of name an expression reads, in the order each check reads them

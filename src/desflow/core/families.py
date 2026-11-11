@@ -14,8 +14,8 @@ member calls `resolve`.
 
 The module also holds `read_place`, which reads a place of a run, and `whole`, which
 takes a count as `range` does: an integer, or a boolean as 1 or 0, and refuses any
-other value, even `2.0`. A family reads its `members` with them, and the model layer
-of `core` imports them from here, below it.
+other value, even `2.0`. A family reads its `members` with them, and `builder` imports them
+from here, below it.
 """
 
 from dataclasses import dataclass, field, replace
@@ -35,8 +35,8 @@ from typing import (
 from desflow.core.expressions import Expression, Scope, member_name, normal_key
 
 if TYPE_CHECKING:
-    from desflow.core.holders import HolderRun
-    from desflow.core.signals import SignalRun
+    from desflow.builder.holders import HolderRun
+    from desflow.builder.signals import SignalRun
     from desflow.values.runtime import ValueRuntime
 
 # The kinds a family can be, and the section of a blueprint each one is written in

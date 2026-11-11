@@ -6,7 +6,7 @@ import logging
 import pytest
 
 from desflow.connectors.egress.base import BaseEgress
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 
 
 class _Keeper(BaseEgress):

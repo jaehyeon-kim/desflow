@@ -51,13 +51,13 @@ from desflow.core.expressions import (
     boolean_word,
     rank_problem,
 )
-from desflow.core.arrivals import (
+from desflow.builder.arrivals import (
     Arrivals,
     defuse_stopped,
     distribution,
     distribution_of,
 )
-from desflow.core.flow import (
+from desflow.builder.flow import (
     NextSpec,
     Listen,
     Open,
@@ -75,14 +75,14 @@ from desflow.core.families import (
     Reference,
     name_of,
 )
-from desflow.core.signals import Signal, Signals, event_priority
-from desflow.core.task import Batch, TaskRun, TaskSpec
-from desflow.core.task_checks import (
+from desflow.builder.signals import Signal, Signals, event_priority
+from desflow.builder.task import Batch, TaskRun, TaskSpec
+from desflow.builder.task_checks import (
     family_read_problem,
 )
 from desflow.core.registry import ParamChange, SimulationRegistry
 from desflow.core.rules import check_capacity
-from desflow.core.holders import (
+from desflow.builder.holders import (
     _run_copy,
     _within_max,
     Holders,
@@ -90,13 +90,13 @@ from desflow.core.holders import (
     check_queue_limit,
 )
 from desflow.core.sinks import Sink, Sinks
-from desflow.core.model_checks import ModelChecks, not_added
-from desflow.core.runs import EndSets, Parts, RunState
-from desflow.core.tasks import Tasks, task_generator
+from desflow.builder.model_checks import ModelChecks, not_added
+from desflow.builder.runs import EndSets, Parts, RunState
+from desflow.builder.tasks import Tasks, task_generator
 from desflow.core.sampler import Sampler
 from desflow.models.flow import Entity, Upstream
 from desflow.core.replay import read_trace
-from desflow.core.scenario import check_step, run_scenario
+from desflow.builder.scenario import check_step, run_scenario
 from desflow.values.models import (
     Gen,
     values_adapter,

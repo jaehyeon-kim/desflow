@@ -25,7 +25,7 @@ from typing import (
     Union,
 )
 
-from desflow.core.breakdowns import run_breakdowns
+from desflow.builder.breakdowns import run_breakdowns
 from desflow.core.expressions import Expression, Scope
 from desflow.core.families import SECTIONS
 from desflow.core.rules import check_capacity
@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     from desflow.core.sampler import Sampler
     from desflow.values.runtime import ValueRuntime
 
-logger = logging.getLogger("desflow.core.context")
+logger = logging.getLogger("desflow.builder.context")
 
 
 def _within_max(

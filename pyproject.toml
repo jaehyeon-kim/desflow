@@ -231,8 +231,8 @@ root_package = "desflow"
 # An import that only an annotation needs is not a dependency at run time.
 exclude_type_checking_imports = true
 
-# ARCHITECTURE.md draws the layers of these two contracts and their allowed imports,
-# and tests/docs/test_architecture.py fails when the drawing and a contract differ.
+# ARCHITECTURE.md draws the layers of this contract and its allowed imports, and
+# tests/docs/test_architecture.py fails when the drawing and the contract differ.
 [[tool.importlinter.contracts]]
 name = "packages import only the packages below them"
 type = "layers"
@@ -241,9 +241,9 @@ layers = [
     "desflow.loading",
     "desflow.analysis",
     "desflow.blueprint | desflow.explain",
-    "desflow.core.arrivals : desflow.core.breakdowns : desflow.core.context : desflow.core.flow : desflow.core.holders : desflow.core.model_checks : desflow.core.runs : desflow.core.scenario : desflow.core.signals : desflow.core.task : desflow.core.task_checks : desflow.core.tasks",
+    "desflow.builder",
     "desflow.values",
-    "desflow.core.environment : desflow.core.expressions : desflow.core.families : desflow.core.registry : desflow.core.replay : desflow.core.rules : desflow.core.sampler : desflow.core.sinks : desflow.core.statistics",
+    "desflow.core",
     "desflow.resources",
     "desflow.models",
     "desflow.config | desflow.examples | desflow.internal | desflow.utils",
@@ -252,12 +252,12 @@ layers = [
 ignore_imports = [
     # Convenience method: SimulationContext.from_yaml builds the context from a
     # blueprint, importing inside the method
-    "desflow.core.context -> desflow.blueprint.build",
+    "desflow.builder.context -> desflow.blueprint.build",
     # Convenience method: SimulationContext.analyze explains the model, importing
     # inside the method
-    "desflow.core.context -> desflow.explain.analysis",
-    "desflow.core.context -> desflow.explain.graph",
-    "desflow.core.context -> desflow.explain.verify",
+    "desflow.builder.context -> desflow.explain.analysis",
+    "desflow.builder.context -> desflow.explain.graph",
+    "desflow.builder.context -> desflow.explain.verify",
     # Convenience function: `explain --verify` runs the model to check the formulas
     "desflow.explain.verify -> desflow.analysis.intervals",
     "desflow.explain.verify -> desflow.analysis.models",
@@ -268,16 +268,6 @@ ignore_imports = [
     # Top-package import: analysis.runner imports desflow inside a function for
     # __version__, and desflow imports loading, which is above analysis
     "desflow.analysis.runner -> desflow",
-]
-
-[[tool.importlinter.contracts]]
-name = "the model layer of core imports the run layer, not the other way"
-type = "layers"
-containers = ["desflow.core"]
-exhaustive = true
-layers = [
-    "arrivals : breakdowns : context : flow : holders : model_checks : runs : scenario : signals : task : task_checks : tasks",
-    "environment : expressions : families : registry : replay : rules : sampler : sinks : statistics",
 ]
 
 [tool.pytest.ini_options]

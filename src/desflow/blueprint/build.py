@@ -47,14 +47,14 @@ from desflow.blueprint.models import (
 from desflow.config import LABELS, TRACE
 from desflow.connectors.egress.local import ConsoleEgress
 from desflow.core.expressions import ANY_NAME, Expression, Scope
-from desflow.core.arrivals import ArrivalPlan
+from desflow.builder.arrivals import ArrivalPlan
 from desflow.core.families import member_path, name_of, name_problem, references
-from desflow.core.flow import Open, Release, Wait
-from desflow.core.holders import check_level, check_queue_limit
+from desflow.builder.flow import Open, Release, Wait
+from desflow.builder.holders import check_level, check_queue_limit
 from desflow.core.registry import ParamRejected
 from desflow.core.rules import check_capacity
-from desflow.core.task import NO_RECORD
-from desflow.core.task_checks import (
+from desflow.builder.task import NO_RECORD
+from desflow.builder.task_checks import (
     Holding,
     batch_mismatch,
     batch_mismatch_text,
@@ -65,7 +65,7 @@ from desflow.core.task_checks import (
     handle_problem,
     scope_problem,
 )
-from desflow.core.context import (
+from desflow.builder.context import (
     SimulationContext,
     parts_of,
     scratch_registry,
@@ -74,9 +74,9 @@ from desflow.core.context import (
     stop_condition,
     stop_family_problem,
 )
-from desflow.core.model_checks import written_paths
-from desflow.core.scenario import walk_steps
-from desflow.core.signals import timing_problem
+from desflow.builder.model_checks import written_paths
+from desflow.builder.scenario import walk_steps
+from desflow.builder.signals import timing_problem
 from desflow.core.environment import in_zone, resolve_zone
 from desflow.utils import suggestion
 from desflow.values.check import (

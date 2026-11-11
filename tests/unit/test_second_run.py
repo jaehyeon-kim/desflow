@@ -29,7 +29,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from desflow.core.context import SimulationContext, scratch_registry
+from desflow.builder.context import SimulationContext, scratch_registry
 
 # It runs every model the regression capture runs, so CI runs it on one Python
 # version on each system (scripts/ci_plan.py).

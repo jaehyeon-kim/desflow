@@ -1,35 +1,27 @@
-"""The text diagrams of `ARCHITECTURE.md` match the layers contracts in `pyproject.toml`.
+"""The text diagrams of `ARCHITECTURE.md` match the layers contract and the packages.
 
-The Packages diagram lists the layers of the contract over the packages, from the top
-down, one on each row, and the Inside Core diagram lists the modules of each layer of
-the contract over `core`. Each line marked `✗` under a diagram is an `ignore_imports`
-entry of its contract. A change to a contract or a text diagram fails here until the
-other matches.
+The Packages diagram lists the layers of the contract in `pyproject.toml`, from the top
+down, one on each row. Each line marked `✗` under it is an `ignore_imports` entry of the
+contract. The Inside Core, Inside Builder and Inside Blueprint diagrams each name every
+module of their package. A change to the contract, a package or a text diagram fails
+here until the other matches.
 """
 
 import re
 import tomllib
 from pathlib import Path
-from typing import Any, Dict, FrozenSet, List, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGES = "packages import only the packages below them"
-CORE = "the model layer of core imports the run layer, not the other way"
-# The names of the two layers of core in the Packages diagram, by place in the core contract
-CORE_TITLES = {"core, model layer": 0, "core, run layer": 1}
-
-Layer = Tuple[FrozenSet[str], bool]
 
 
-def _contracts() -> Dict[str, Dict[str, Any]]:
+def _contract() -> Dict[str, Any]:
     data = tomllib.loads((ROOT / "pyproject.toml").read_text())
-    return {c["name"]: c for c in data["tool"]["importlinter"]["contracts"]}
-
-
-def _layer(text: str, prefix: str = "") -> Layer:
-    """A layer as its modules and whether they are independent (`|`) or not (`:`)."""
-    sep = "|" if "|" in text else ":"
-    return frozenset(prefix + part.strip() for part in text.split(sep)), sep == "|"
+    contracts = data["tool"]["importlinter"]["contracts"]
+    return next(c for c in contracts if c["name"] == PACKAGES)
 
 
 def _ignored(contract: Dict[str, Any]) -> Set[Tuple[str, str]]:
@@ -53,23 +45,8 @@ def _packages_drawn(lines: List[str]) -> List[str]:
     for line in lines:
         if not line.strip():
             break
-        drawn += re.findall(r"core, (?:model|run) layer|[a-z]+", line)
+        drawn += re.findall(r"[a-z]+", line)
     return drawn
-
-
-def _core_layers(lines: List[str]) -> List[Layer]:
-    """The modules of each layer of the Inside Core diagram, from the top down."""
-    modules = {path.stem for path in (ROOT / "src" / "desflow" / "core").glob("*.py")}
-    layers: List[List[str]] = []
-    for line in lines:
-        if re.match(r" (model|run) layer\b", line):
-            layers.append([])
-            line = line[len(" model layer") :]
-        if layers:
-            # The notes in brackets are not module names
-            words = re.findall(r"\b[a-z_]+\b", re.sub(r"\([^)]*\)", "", line))
-            layers[-1] += [word for word in words if word in modules]
-    return [(frozenset(found), False) for found in layers]
 
 
 def _crossings(lines: List[str]) -> Set[Tuple[str, str]]:
@@ -78,38 +55,38 @@ def _crossings(lines: List[str]) -> Set[Tuple[str, str]]:
 
 
 def test_the_packages_diagram_draws_the_layers_of_its_contract() -> None:
-    contracts = _contracts()
-    layers = contracts[PACKAGES]["layers"]
-    core = [i for i, text in enumerate(layers) if "desflow.core." in text]
     index = {}
-    for i, text in enumerate(layers):
-        for package in _layer(text)[0]:
-            if not package.startswith("desflow.core."):
-                index[package.removeprefix("desflow.")] = i
-    for title, place in CORE_TITLES.items():
-        index[title] = core[place]
+    for i, text in enumerate(_contract()["layers"]):
+        for package in re.split(r"[|:]", text):
+            index[package.strip().removeprefix("desflow.")] = i
     drawn = _packages_drawn(_diagram("Packages"))
     # Each package of the contract is drawn once, so none is missing or extra
     assert sorted(drawn) == sorted(index)
     # A row is at or below the rows above it, in the order of the contract's layers
     ranks = [index[name] for name in drawn]
     assert ranks == sorted(ranks), drawn
-    # The two layers of core are the two layers of the core contract
-    contract = _contracts()[CORE]["layers"]
-    assert [_layer(layers[i]) for i in core] == [
-        _layer(text, "desflow.core.") for text in contract
-    ]
 
 
-def test_the_core_diagram_lists_the_modules_of_its_layers() -> None:
-    contract = _contracts()[CORE]
-    assert contract["containers"] == ["desflow.core"]
-    assert contract["exhaustive"] is True
-    drawn = _core_layers(_diagram("Inside Core"))
-    assert drawn == [_layer(text) for text in contract["layers"]]
+def test_each_crossing_line_is_an_ignored_import_of_the_contract() -> None:
+    assert _crossings(_diagram("Packages")) == _ignored(_contract())
 
 
-def test_each_crossing_line_is_an_ignored_import_of_its_contract() -> None:
-    contracts = _contracts()
-    assert _crossings(_diagram("Packages")) == _ignored(contracts[PACKAGES])
-    assert _crossings(_diagram("Inside Core")) == _ignored(contracts[CORE])
+@pytest.mark.parametrize(
+    ("heading", "package"),
+    [
+        ("Inside Core", "core"),
+        ("Inside Builder", "builder"),
+        ("Inside Blueprint", "blueprint"),
+    ],
+)
+def test_each_package_diagram_names_every_module_of_its_package(
+    heading: str, package: str
+) -> None:
+    modules = {
+        path.stem
+        for path in (ROOT / "src" / "desflow" / package).glob("*.py")
+        if path.stem != "__init__"
+    }
+    # The notes in brackets are not module names
+    text = re.sub(r"\([^)]*\)", "", "\n".join(_diagram(heading)))
+    assert modules <= set(re.findall(r"\b[a-z_]+\b", text))

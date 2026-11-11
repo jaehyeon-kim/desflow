@@ -21,7 +21,7 @@ from desflow import (
     SimParameter,
 )
 from desflow.blueprint.loader import BlueprintError
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from desflow.internal import is_internal
 from tests.conformance.batch5_scripts import TracingEnvironment, start_go
 from tests.conformance.harness import (

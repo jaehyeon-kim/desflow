@@ -32,7 +32,7 @@ from typing import (
 import numpy as np
 from simpy import Environment
 
-from desflow.core.context import SimulationContext, parts_of
+from desflow.builder.context import SimulationContext, parts_of
 from desflow.core.environment import (
     DynamicRealtimeEnvironment,
     end_is_set,

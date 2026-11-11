@@ -28,7 +28,7 @@ import pytest
 
 import test_capture_places as places
 from test_capture_places import CASES, build_module, regression, second_run
-from desflow.core import arrivals as arrivals_module
+from desflow.builder import arrivals as arrivals_module
 
 # It runs every model the regression capture runs, so CI runs it on one Python
 # version on each system (scripts/ci_plan.py).

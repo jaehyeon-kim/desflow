@@ -603,7 +603,7 @@ def test_a_restarted_wait_starts_the_child_flow_again():
 
 def test_a_negative_wait_timeout_is_refused():
     """A wait timeout is a duration of 0 or more, so a negative one is refused."""
-    from desflow.core.flow import Wait
+    from desflow.builder.flow import Wait
 
     with pytest.raises(ValueError, match="must be 0 or more"):
         Wait({"timeout": -1})
@@ -619,7 +619,7 @@ def test_a_negative_wait_timeout_is_refused():
 def test_running_branch_parses(spec):
     """A `running` branch parses, named after its task, in a single branch and inside
     a group, and `targets("running")` and `targets("task")` name its task."""
-    from desflow.core.flow import Wait
+    from desflow.builder.flow import Wait
 
     wait = Wait(spec)
     assert wait.targets("running") == {"inspect"}
@@ -629,7 +629,7 @@ def test_running_branch_parses(spec):
 def test_at_least_above_its_branches_is_refused():
     """A non-empty `at_least` whose count is above its branch number never triggers
     in SimPy, so desflow refuses it at load."""
-    from desflow.core.flow import Wait
+    from desflow.builder.flow import Wait
 
     with pytest.raises(ValueError, match="above the"):
         Wait({"at_least": 3, "of": {"a": {"timeout": 1}, "b": {"timeout": 2}}})

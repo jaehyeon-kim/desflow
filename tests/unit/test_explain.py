@@ -263,7 +263,7 @@ def test_a_current_cap_above_max_cap_is_analysed_as_the_run_uses_it(caplog):
     app = SimulationContext(sim_id="Shop", factor=0)
     app.add_arrival("orders", dist="exponential", rate=0.8, spawn="pack")
     app.add_service("packing", dist="exponential", rate=1.5)
-    with caplog.at_level(logging.WARNING, logger="desflow.core.context"):
+    with caplog.at_level(logging.WARNING, logger="desflow.builder.context"):
         app.add_resource("packers", current_cap=2, max_cap=1)
     app.task("packing", "packers", name="pack")(lambda task_id: {})
     packers = _by_name(app.analyze().resources, "packers")
@@ -294,7 +294,7 @@ def test_a_blueprint_current_cap_above_max_cap_is_clamped(tmp_path, caplog):
         "arrivals:\n  orders: {dist: exponential, rate: 0.8, spawn: pack}\n"
         "tasks:\n  pack: {resource: packers, service: packing, payload: {}}\n"
     )
-    with caplog.at_level(logging.WARNING, logger="desflow.core.context"):
+    with caplog.at_level(logging.WARNING, logger="desflow.builder.context"):
         app = SimulationContext.from_yaml(blueprint)
     assert _by_name(app.analyze().resources, "packers").servers == 1
     assert "outside [0, max_cap 1]" in caplog.text

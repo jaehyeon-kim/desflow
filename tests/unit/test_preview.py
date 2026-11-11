@@ -157,7 +157,7 @@ def test_run_before_is_skipped_and_said_so(tmp_path, caplog):
         "setup.py",
     )
     path = _write(tmp_path, SHOP + "run:\n  before: [!python setup.prepare]\n")
-    with caplog.at_level(logging.WARNING, logger="desflow.core.context"):
+    with caplog.at_level(logging.WARNING, logger="desflow.builder.context"):
         result = _run(path, "--sample", 1)
     assert result.exit_code == 0, result.output
     assert not marker.exists()

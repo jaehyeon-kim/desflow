@@ -57,6 +57,42 @@ Each part is described in full on its own page. In short:
 | Threads, ingress and egress | The SimPy thread runs the model. Ingress and egress run their connectors on threads of their own, each on an asyncio loop, so a network wait never stalls a simulation step. | [Threads and Queues](#threads-and-queues), which also compares these queues with the waiting lines of the model; [Ingress](live-runs-and-connectors/ingress.md#how-it-works), [Egress](live-runs-and-connectors/egress.md#how-it-works), [Write a Connector](../how-to/records-and-kafka/write-a-connector.md) |
 | Measurement and explain | One statistics object collects readings while the run goes on. Replications run the model again for each seed and give a Student t interval. `desflow explain` applies queueing formulas to the model before anything runs. | [Built-in Statistics](results/statistics.md#how-it-works), [Replications](results/replications.md#how-it-works), [Experiments](results/experiments.md#how-it-works), [Command Line](../cli/index.md#how-it-works) |
 
+### How a YAML File Becomes Builder Calls
+
+Follow the file down the left column, then look at the group on the right, which joins each section of the file to the builder call it becomes:
+
+![blueprint: how a YAML file becomes builder calls. A YAML file is read by loader (${VAR}, !python, !include), checked by models (refuses an unknown key, drawn in red as a check) and built by build (one call for each entry). A group, one builder call for each entry, joins each YAML section to its call: tasks to @app.task, arrivals to add_arrival, resources to add_resource, signals to add_signal, and egress to add_egress, drawn in purple because it makes a connector. The calls go to SimulationContext (builder.context). Also in blueprint, for the tools: schema, model_check, expectations](../assets/diagrams/blueprint-package.png)
+
+- **loader** reads the file, replaces `${VAR}` with an environment variable, and resolves `!python` and `!include` ([YAML Blueprints](writing-a-model/blueprints.md#how-it-works)). It keeps the line each key came from, so an error names the line.
+- **models** checks each section and refuses an unknown key, so a misspelt key is reported, not ignored.
+- **build** makes one builder call for each entry, so a YAML file and a builder script that make the same calls build the same model. From `SimulationContext` on, a run goes as the next diagram shows.
+
+### How a Builder Script Becomes a Run
+
+Look at the two halves: the top shows where the builder keeps what a script declares, and the group below shows what `run()` does with it, in order. `run()` is `start()`, which makes steps 1 to 4, then `finish()`, which makes step 5; a script that steps through a run itself calls `start()` alone:
+
+![builder: how a builder script becomes a run. A builder script calls @app.task, add_arrival, add_resource, add_signal, add_egress and the others on context (SimulationContext), which keeps each kind in its own module: tasks, arrivals, holders and signals; holders starts breakdowns. A group, when the script calls run(), with the note that start() does steps 1 to 4 and finish() does step 5: 1. checks, model_checks then task_checks, in red; 2. keeps the run, runs (RunState); 3. builds environment, registry (green), statistics, connectors (purple) and resources; 4. starts, as SimPy processes, the arrival loops and scenario (steps), and each arrival starts task (TaskRun), which hands its entity to flow (routes the entity on); 5. runs to until, stop or drain, then closes the run](../assets/diagrams/builder-package.png)
+
+1. **checks:** every name a declaration refers to is checked first, and a wrong model is refused with a `ValueError` before anything is built.
+2. **keeps the run:** each `start()` makes a new run state, so a second run never starts from what the first left.
+3. **builds:** the builder makes the parts a low-level script makes by hand, which the next diagram shows: the environment, its registry and statistics, the connectors and the resources.
+4. **starts:** the arrival loops and the scenario run as SimPy processes. Each arrival starts a task instance, `TaskRun` runs it, and `flow` routes its entity to the next task ([What `run()` Does](tasks-and-processes/tasks.md#what-run-does)).
+5. **runs:** the model runs to its `until`, its `stop` or the end of its drain, and the run closes: the last statistics are published and the connectors stop.
+
+### What a Low-Level Script Uses
+
+A low-level script uses the engine directly. Look at the top row for what the script calls, and at the row below it for what the environment holds:
+
+![core: what a low-level script uses. A low-level script creates and runs environment (DynamicRealtimeEnvironment), draws times with sampler (Sampler) and makes DynamicResource (the resources package). The environment holds registry (live parameters), statistics (measures) and sinks (one Sink for each egress). The registry checks a capacity change with rules, drawn in red as a check. Used by the builder, not by a low-level script: expressions, families, replay](../assets/diagrams/core-package.png)
+
+- **environment:** the script creates it, registers its parameters, calls `setup_stats`, `setup_ingress` and `setup_egress`, starts its processes with `env.process`, and calls `run()`.
+- **sampler:** draws every random time, with one random stream for each distribution ([Arrivals and Services](model-parts/arrivals-and-services.md#how-it-works)).
+- **DynamicResource:** a resource whose capacity follows its registry path ([Resources](resources/index.md#how-it-works)).
+- **rules:** the checks a blueprint and the builder share; the registry uses one of them to check a capacity before it stores it.
+- **expressions, families and replay** serve the builder and YAML: conditions and amounts, resources and signals made from a computed key, and arrivals read from a recorded file.
+
+[ARCHITECTURE.md](https://github.com/jaehyeon-kim/desflow/blob/main/ARCHITECTURE.md) draws the same three diagrams as text, with every module.
+
 ---
 
 ## Threads and Queues

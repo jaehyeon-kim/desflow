@@ -155,7 +155,7 @@ def test_replay_stops_at_the_end_of_the_input(caplog):
         {"time": 1, "order": "o1", "sku": "tea"},
         {"time": 3, "order": "o2", "sku": "mug"},
     ]
-    with caplog.at_level(logging.INFO, logger="desflow.core.context"):
+    with caplog.at_level(logging.INFO, logger="desflow.builder.context"):
         records = _builder(rows)
     assert _arrived(records) == [(1.0, "o1", "tea"), (3.0, "o2", "mug")]
     lines = [

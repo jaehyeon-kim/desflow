@@ -6,7 +6,7 @@ import pytest
 from desflow import SimulationContext
 from desflow.values.models import Expr
 from desflow.core.environment import DynamicRealtimeEnvironment
-from desflow.core.signals import Signal, SignalFailed
+from desflow.builder.signals import Signal, SignalFailed
 
 
 def test_a_signal_failure_nobody_waits_for_is_defused():
@@ -407,7 +407,7 @@ tasks:
   f: {fail: "True", fail_reason: {gen: expr, expr: "1 / 0"}, payload: {e: x}, on: [{fire: {signal: s}}]}
 """,
     )
-    from desflow.core.task import TaskFailed
+    from desflow.builder.task import TaskFailed
 
     chain, error = [], outcome.error
     while error is not None:

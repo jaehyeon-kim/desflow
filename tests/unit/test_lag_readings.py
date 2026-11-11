@@ -9,7 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "conformance"))
 from harness import RecordingEgress  # noqa: E402
 
-from desflow.core.context import SimulationContext  # noqa: E402
+from desflow.builder.context import SimulationContext  # noqa: E402
 
 
 @pytest.mark.paced

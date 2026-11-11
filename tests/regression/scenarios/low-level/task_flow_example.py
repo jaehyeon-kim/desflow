@@ -27,7 +27,7 @@ from desflow import (
     Upstream,
     run_scenario,
 )
-from desflow.core.flow import make_scope
+from desflow.builder.flow import make_scope
 
 PARAMS = SimParameter(
     sim_id="Shop",

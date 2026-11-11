@@ -19,7 +19,7 @@ from desflow import (
     Sampler,
     SimParameter,
 )
-from desflow.core.flow import Router
+from desflow.builder.flow import Router
 from desflow.values import Template, ValueRuntime
 from desflow.values.template import bind
 

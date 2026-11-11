@@ -18,7 +18,7 @@ The integration tests and the examples that need a service get it from [odctl](h
 
 ## Code Map
 
-[ARCHITECTURE.md](ARCHITECTURE.md) maps the source: the packages, which may import which, the two layers of `core`, and what each folder of the repository holds.
+[ARCHITECTURE.md](ARCHITECTURE.md) maps the source: the packages, which may import which, what is inside `core`, `builder` and `blueprint`, and what each folder of the repository holds.
 
 ## Tests
 

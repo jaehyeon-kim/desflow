@@ -29,7 +29,7 @@
         <mxCell id="b19" value="" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="110" y="590" width="10" height="44" as="geometry"/></mxCell>
         <mxCell id="e19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=2;endArrow=block;strokeColor=#666666;fontFamily=Comic Sans MS;fontSize=13;" edge="1" parent="1" source="a19" target="b19"><mxGeometry relative="1" as="geometry"/></mxCell>
         <mxCell id="t19" value="Calls or reads" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="140" y="590" width="520" height="44" as="geometry"/></mxCell>
-      </root>
+      <mxCell id="s20" value="" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="0" y="650" width="120" height="44" as="geometry"/></mxCell><mxCell id="t20" value="A check that refuses a wrong model" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="140" y="650" width="520" height="44" as="geometry"/></mxCell></root>
     </mxGraphModel>
   </diagram>
 </mxfile>

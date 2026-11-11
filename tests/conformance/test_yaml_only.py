@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Tuple
 import pytest
 
 from desflow import DynamicRealtimeEnvironment
-from desflow.core.task import TaskFailed
+from desflow.builder.task import TaskFailed
 from tests.conformance.harness import run_yaml_text
 from tests.conformance.yaml_only import fixed_draws
 from tests.conformance.yaml_only.programs import (

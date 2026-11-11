@@ -8,7 +8,7 @@ from desflow.core.families import Reference
 from desflow.explain.models import Edge, Node
 
 if TYPE_CHECKING:
-    from desflow.core.task import TaskSpec
+    from desflow.builder.task import TaskSpec
 
 EXIT = "exit"
 

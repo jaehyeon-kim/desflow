@@ -14,7 +14,7 @@ from aiokafka.errors import (
 
 from desflow.connectors.admin.kafka import KafkaAdminConnector
 from desflow.connectors.egress.base import BaseEgress
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from desflow.connectors.ingress.kafka import KafkaIngress
 
 

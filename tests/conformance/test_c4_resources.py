@@ -17,7 +17,7 @@ from desflow import (
     Entity,
     SimParameter,
 )
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance import custom_resources as custom
 from tests.conformance.b3 import Job, run_desflow, run_simpy, who
 from tests.conformance.harness import (

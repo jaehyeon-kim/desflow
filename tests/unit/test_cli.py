@@ -83,7 +83,8 @@ def test_a_console_record_prints_without_the_log_prefix():
         "[EVT] {}\n[EVT] {}"
     )
     assert (
-        line("desflow.core.context", "started") == "INFO desflow.core.context: started"
+        line("desflow.builder.context", "started")
+        == "INFO desflow.builder.context: started"
     )
 
 

@@ -18,7 +18,7 @@ assert _spec is not None and _spec.loader is not None
 ci_plan = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ci_plan)
 
-SRC = ["src/desflow/core/task.py"]
+SRC = ["src/desflow/builder/task.py"]
 
 
 def _plan(event, changed):

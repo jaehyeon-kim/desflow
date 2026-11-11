@@ -10,7 +10,7 @@ import pytest
 import simpy
 
 from desflow import read_trace
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance.harness import (
     BLUEPRINTS,
     run_builder,

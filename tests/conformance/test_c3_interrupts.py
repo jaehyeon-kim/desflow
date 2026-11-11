@@ -24,7 +24,7 @@ from desflow import (
     Sampler,
     SimParameter,
 )
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance.b3 import Job, run_desflow, run_simpy
 from tests.conformance.harness import (
     run_builder,

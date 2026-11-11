@@ -219,7 +219,7 @@ def test_an_unseeded_run_logs_its_seed_and_repeats_with_it(caplog):
         app.run(until=100)
         return app, draws
 
-    with caplog.at_level(logging.INFO, logger="desflow.core.context"):
+    with caplog.at_level(logging.INFO, logger="desflow.builder.context"):
         app, first = run(None)
     seed = app.sampler.seed
     assert f"this run uses {seed}" in caplog.text
@@ -241,7 +241,7 @@ def test_cli_seed_overrides_the_file_and_an_unseeded_run_names_the_command(
         "run: {until: 5}\n",
         encoding="utf-8",
     )
-    with caplog.at_level(logging.INFO, logger="desflow.core.context"):
+    with caplog.at_level(logging.INFO, logger="desflow.builder.context"):
         result = CliRunner().invoke(cli, ["run", str(path)])
     assert result.exit_code == 0, result.output
     match = re.search(
@@ -275,7 +275,7 @@ def test_the_repeat_command_keeps_the_options_that_change_the_run(tmp_path, capl
         "run: {until: 5}\n",
         encoding="utf-8",
     )
-    with caplog.at_level(logging.INFO, logger="desflow.core.context"):
+    with caplog.at_level(logging.INFO, logger="desflow.builder.context"):
         result = CliRunner().invoke(
             cli, ["run", str(path), "--until", "1 min", "--drain"]
         )

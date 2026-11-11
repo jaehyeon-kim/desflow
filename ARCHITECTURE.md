@@ -1,6 +1,6 @@
 # Architecture
 
-This file is for contributors. It shows how the source under `src/desflow` is divided into packages, which package may import which, how `core` is divided into two layers, and where each part of the repository lives. [How desflow Works](https://jaehyeon.me/desflow/latest/user-guide/how-desflow-works/) shows the parts of a run for users.
+This file is for contributors. It shows how the source under `src/desflow` is divided into packages, which package may import which, what is inside `core`, `builder` and `blueprint`, and where each part of the repository lives. [How desflow Works](https://jaehyeon.me/desflow/latest/user-guide/how-desflow-works/) shows the parts of a run for users.
 
 ## Overview
 
@@ -16,7 +16,7 @@ A model is written in one of three ways, and each way builds one `DynamicRealtim
                 └───────────────────────────────┤                                   │
                                                 ▼                                   │
                                         SimulationContext                           │
-                                         (core.context)                             │
+                                        (builder.context)                           │
                                                 │ run() builds                      │ builds by hand
                                                 ▼                                   ▼
                           DynamicRealtimeEnvironment (core.environment, a SimPy environment)
@@ -34,7 +34,7 @@ A model is written in one of three ways, and each way builds one `DynamicRealtim
 ```
 
 - `YAML file`: read by `blueprint` in `src/desflow/blueprint/`. `loader.py` reads the file, `models.py` defines and checks its sections, and `build.py` turns them into builder calls.
-- `Python (builder)`: a script that calls `SimulationContext` itself, the builder in `src/desflow/core/context.py`. `SimulationContext` collects what a model declares, and its `run()` checks the declarations and builds the environment.
+- `Python (builder)`: a script that calls `SimulationContext` itself, the builder in `src/desflow/builder/context.py`. `SimulationContext` collects what a model declares, and its `run()` checks the declarations and builds the environment.
 - `Python (low-level)`: a script that creates the environment by hand and writes SimPy processes against it.
 - `DynamicRealtimeEnvironment`: in `src/desflow/core/environment.py`. It is SimPy's `RealtimeEnvironment` with the parts below added.
 - `registry`: the live parameters, each under a dot path, in `core/registry.py`. Every change is checked before it is stored.
@@ -62,13 +62,13 @@ The diagram lists the packages from the top of the source to the bottom, one lay
          blueprint                                     explain
              └────────────────────┬───────────────────────┘
                                   ▼
-                          core, model layer
+                             builder
                                   ├───────────┬───────────────┐
                                   ▼           │               │
                                values         │               │
                                   │           │               │
                                   ▼           │               │
-                          core, run layer ◄───┘               │
+                                core ◄────────┘               │
                                   │                           ▼
                                   │                       resources
                                   ▼                           │
@@ -81,10 +81,10 @@ The diagram lists the packages from the top of the source to the bottom, one lay
                                             connectors
 
  Against the layers:
-   ✗ desflow.core.context ──► desflow.blueprint.build        SimulationContext.from_yaml
-   ✗ desflow.core.context ──► desflow.explain.analysis       SimulationContext.analyze
-   ✗ desflow.core.context ──► desflow.explain.graph          SimulationContext.analyze
-   ✗ desflow.core.context ──► desflow.explain.verify         SimulationContext.analyze
+   ✗ desflow.builder.context ──► desflow.blueprint.build     SimulationContext.from_yaml
+   ✗ desflow.builder.context ──► desflow.explain.analysis    SimulationContext.analyze
+   ✗ desflow.builder.context ──► desflow.explain.graph       SimulationContext.analyze
+   ✗ desflow.builder.context ──► desflow.explain.verify      SimulationContext.analyze
    ✗ desflow.explain.verify ──► desflow.analysis.intervals   explain --verify
    ✗ desflow.explain.verify ──► desflow.analysis.models      explain --verify
    ✗ desflow.explain.verify ──► desflow.analysis.runner      explain --verify
@@ -92,12 +92,13 @@ The diagram lists the packages from the top of the source to the bottom, one lay
    ✗ desflow.analysis.runner ──► desflow                     the version number
 ```
 
-Each name is a package of `src/desflow`, or one of the two layers of `core`:
+Each name is a package of `src/desflow`:
 
 - `cli`: the `desflow` command, one module for each command. `loading`: `load_context`, which loads a blueprint or a builder file. `analysis`: replications, experiments, reports and fitting. `explain`: the graph of a model and its queueing formulas.
 - `blueprint`: the YAML loader, its models and `build`. It is a layer with `explain`, so neither imports the other.
-- `core, model layer`: `SimulationContext` and the modules that declare a model, check it and run its tasks. `core, run layer`: the environment, the registry, the sinks and the other modules that hold the clock, the live parameters and the output. [Inside Core](#inside-core) lists the modules of both.
-- `values`: the `gen` value generators and `Template`. It sits between the two layers of `core`, so it may import the run layer and not the model layer.
+- `builder`: `SimulationContext` and the modules that declare a model, check it and run its tasks. [Inside Builder](#inside-builder) shows them.
+- `values`: the `gen` value generators and `Template`. It sits between `builder` and `core`, so it may import `core` and not `builder`.
+- `core`: the environment, the registry, the statistics, the sinks and the other modules that hold the clock, the live parameters and the output. [Inside Core](#inside-core) shows them.
 - `resources`: `DynamicResource`, `DynamicContainer` and `DynamicStore`, with capacities that follow the registry.
 - `models`: parameter configs, distributions, `Entity` and the record schemas.
 - `config`, `examples`, `internal` and `utils`: settings, the list of bundled examples, the markers for desflow's own events, and shared helpers. These four are one layer, so none imports another.
@@ -105,7 +106,7 @@ Each name is a package of `src/desflow`, or one of the two layers of `core`:
 
 Each line marked `✗` is an import against the layers that the contract allows by name:
 
-- `SimulationContext.from_yaml` and `SimulationContext.analyze` are methods of the builder that load a blueprint and explain the model. Each imports inside the method. `blueprint.build` imports `core.context`, so a top-level import would be circular, and `explain` is loaded only when `analyze` is called.
+- `SimulationContext.from_yaml` and `SimulationContext.analyze` are methods of the builder that load a blueprint and explain the model. Each imports inside the method. `blueprint.build` imports `builder.context`, so a top-level import would be circular, and `explain` is loaded only when `analyze` is called.
 - `explain --verify` runs the model to check the formulas, so it needs `analysis`.
 - `check_model` in `desflow.blueprint`, the entry the Agent Skill calls, checks a file as `desflow check` does.
 - `analysis.runner` reads `desflow.__version__` for `experiment.json`, and the top package imports `loading`, which is above `analysis`.
@@ -114,44 +115,109 @@ Each of these imports sits inside a function.
 
 ## Inside Core
 
-`core` holds a model layer, which declares a model, checks it and runs its tasks, above a run layer, which holds the clock, the live parameters and the output. The modules of one layer may import each other.
-
-An arrow points at a module that the module above it imports. Most names have a short note in brackets.
+`core` is the engine, and a low-level script uses it directly. The diagram shows what such a script creates and calls. A word on a line says what is done, and an arrow points at what is created, held or called.
 
 ```
- model layer
-                                   context (SimulationContext)
-       ┌───────────────┬──────────────┬─────────┼─────────┬───────────────┬───────────────┐
- model_checks        tasks        arrivals      │      holders         signals          runs
-(before a run)   (task starts) (arrival loops)  │    (resources)       (fires)       (RunState)
-       ▼               ▼                        │         ▼
- task_checks ──► task (TaskRun) ──► flow        │    breakdowns
-                 scenario (steps)               │
-                                                │ imports
-                                                ▼
- run layer                  environment (DynamicRealtimeEnvironment)
-                      ┌─────────────────────────┼─────────────────────────┐
-                  registry                 statistics                   sinks
-                (live params)              (measures)             (egress buffers)
+                                a low-level script
+             │ creates and runs              │ draws times with          │ makes
+             ▼                               ▼                           ▼
+        environment                       sampler                DynamicResource
+ (DynamicRealtimeEnvironment)            (Sampler)            (the resources package)
+             │ holds
+   ┌─────────┴────────────────┬───────────────────────────┐
+   ▼                          ▼                           ▼
+registry                  statistics                    sinks
+(live parameters)         (measures)                    (one Sink for each egress)
+   │ checks a capacity
+   ▼ change with
+rules
 
- also in the run layer: expressions, families, rules, sampler, replay
+ used by the builder, not by a low-level script: expressions, families, replay
 ```
 
-The model layer, at the top, holds `context`, which is `SimulationContext`, and the modules that declare and check a model and run its tasks. The run layer, below it, holds `environment`, which is `DynamicRealtimeEnvironment`, and the modules that hold the clock, the live parameters and the output. The line from `context` down to `environment` is the one import from the model layer to the run layer that the diagram names: `run()` builds the environment. Every module of the model layer may import the run layer, and no module of the run layer imports the model layer. The Code Map lists what each module holds, and the notes in brackets give the short form:
+- `environment`: `DynamicRealtimeEnvironment`, SimPy's `RealtimeEnvironment` with the registry, the connectors and the statistics added. The script creates it, registers its parameters, calls `setup_stats`, `setup_ingress` and `setup_egress`, starts its own processes with `env.process`, and calls `run()`.
+- `sampler`: `Sampler`, which draws every random time, with one random stream for each distribution, so a run with a seed repeats.
+- `registry`: the live parameters, each under a dot path. `register_sim_parameter` adds them, and ingress changes them during a run. A write of a capacity is checked with `check_capacity` from `rules`, which also holds the checks that a blueprint and the builder share.
+- `statistics`: the measures a run collects about itself, which `setup_stats` starts.
+- `sinks`: one `Sink` for each egress that `setup_egress` adds, with its batching, and `Sinks`, what a builder model declares about its egress and ingress.
+- `DynamicResource` and the other holders are in the `resources` package, below `core`; their capacities follow the registry.
+- `expressions`, `families` and `replay` are used by the builder: conditions and amounts written as expressions, resources, stores, containers and signals made from a computed key, and arrivals read from a recorded file.
 
-- Under `context` are the modules a run uses: `model_checks` checks the declarations of a model before each run, `tasks` starts the instances of its tasks, `arrivals` holds the arrival loops, `holders` holds its resources, stores, containers and breakdowns, `signals` holds the named events that tasks fire and wait for, and `runs` holds `RunState`, the state of one run.
-- Three chains sit under the row. `model_checks` imports `task_checks`, which checks the tasks, families and rules and imports `task`. `tasks` and `task_checks` both import `task`, which holds `TaskRun`, the life of one task instance, and `task` imports `flow`, which routes a task's entity to the next task. `holders` imports `breakdowns`, which fails a resource at random until it is repaired.
-- `scenario` holds the steps of a scenario, such as a registry change at a set simulation time. `context`, `model_checks` and `tasks` import it; the diagram leaves those arrows out so the lines stay apart.
-- Under `environment` are `registry`, the live parameters, `statistics`, the measures of the run, and `sinks`, a model's egress and ingress providers with their batching. The line at the bottom names the rest of the run layer: `expressions` (conditions and amounts), `families` (resources, stores, containers and signals made from a computed key), `rules` (the checks that a blueprint and the builder share), `sampler` (one random stream for each distribution) and `replay` (arrivals read from a recorded file).
+## Inside Builder
 
-## Rules the Contracts Hold
+`builder` is the Builder API. `SimulationContext` collects what a script declares, and `run()` turns it into the low-level parts of [Inside Core](#inside-core), making the calls a low-level script would make by hand. `run()` is `start()`, which makes steps 1 to 4 of the diagram, then `finish()`, which makes step 5; a script that steps through a run itself calls `start()` alone. The arrows point at what is called or started.
 
-The contracts are in `pyproject.toml`, under `[tool.importlinter]`, and `uv run --all-extras lint-imports` checks them in the lint job:
+```
+                                a builder script
+                                       │ @app.task, add_arrival, add_resource,
+                                       │ add_signal, add_egress and the others
+                                       ▼
+                          context (SimulationContext)
+                                       │ keeps each kind in its own module
+          ┌───────────────┬────────────┴───┬────────────────┐
+          ▼               ▼                ▼                ▼
+        tasks          arrivals         holders          signals
+                                           │ starts
+                                           ▼
+                                       breakdowns
 
-- Each package imports only the layers below it, as the Packages diagram shows. So `connectors`, at the bottom, imports no other desflow package, and `values` may import the run layer of `core` but not its model layer.
-- In `core`, the model layer imports the run layer, and not the other way. Every module of `core` is in one of the two layers, so a new module fails the lint until it is placed.
+ when the script calls run() (start() does steps 1 to 4, and finish() does step 5):
+   1. checks         model_checks ──► task_checks
+   2. keeps the run  runs (RunState)
+   3. builds         environment, registry, statistics, connectors, resources
+   4. starts         the arrival loops and scenario (steps), as SimPy processes
+                             │ each arrival starts
+                             ▼
+                     task (TaskRun) ──► flow (routes the entity on)
+   5. runs           to until, stop or drain, then closes the run
+```
 
-The contracts count an import made inside a function, so a new import against the layers fails even there. They leave out an import made only for a type annotation, under `if TYPE_CHECKING`. Each allowed import is an `ignore_imports` entry with a comment that gives its reason, and an entry that matches no import fails the lint, so the list is cut when an import goes. `tests/docs/test_architecture.py` compares the layers and the `✗` lines of the Packages and Inside Core diagrams with the contracts, so a change to one fails until the other matches.
+- Declaring: `context` holds `SimulationContext`, and it keeps each kind of declaration in its own module: `tasks` (the tasks and the start of their instances), `arrivals` (the arrivals and their loops), `holders` (resources, stores, containers and their breakdowns) and `signals` (the named events that tasks fire and wait for).
+- Checking: `model_checks` checks every name a declaration refers to, and refuses the model with a `ValueError` before anything is built. It calls `task_checks` for the tasks, families and rules.
+- Keeping the run: `runs` holds `RunState`, made new by each `start()`, so no run starts from what an earlier run left.
+- Building: `start()` makes the environment, registers the parameters in its registry, starts the statistics, connects the ingress and egress connectors, and makes the resources, stores and containers.
+- Starting: the arrival loops and the scenario run as SimPy processes. `scenario` applies registry changes at set times. Each arrival starts a task instance: `task` holds `TaskRun`, the life of one instance, and `flow` routes its entity to the next task. `holders` starts `breakdowns`, which fails a resource at random until it is repaired.
+- Running: `finish()` runs the model to its `until`, its `stop` or the end of its drain, then closes the run: it publishes the last statistics, flushes and stops the egress connectors, and stops the ingress connectors.
+
+## Inside Blueprint
+
+`blueprint` is the YAML API. It reads a file and builds it through the public builder methods of [Inside Builder](#inside-builder), so a YAML file and a builder script that make the same calls make the same simulation.
+
+```
+   a YAML file
+        │ read by
+        ▼
+      loader   (${VAR}, !python, !include)
+        │ checked by
+        ▼
+      models   (refuses an unknown key)
+        │ built by
+        ▼
+      build    (one call for each entry)
+        │
+        └──► one builder call for each entry:
+                tasks ───────► @app.task
+                arrivals ────► add_arrival
+                resources ───► add_resource
+                signals ─────► add_signal
+                egress ──────► add_egress
+                          │ calls
+                          ▼
+              SimulationContext (builder.context)
+
+ also in blueprint, for the tools: schema, model_check, expectations
+```
+
+- `loader`: reads the file and replaces `${VAR}` with an environment variable, and resolves `!python` (a Python object named by its path) and `!include` (another YAML file). It keeps the line each key came from, for the error messages.
+- `models`: the Pydantic models of the file. Each refuses an unknown key, and many values are checked by the same functions the builder uses, in `core/rules.py`.
+- `build`: makes one builder call for each entry of the checked file, such as `add_resource` for a resource, `add_arrival` for an arrival and `@app.task` for a task, and returns the `SimulationContext`. From there a run goes as for a builder script.
+- `schema`, `model_check` and `expectations` serve tools: the JSON Schema of a blueprint file for editors, `check_model` for the Agent Skill, and `desflow test --fix`, which writes measured statistics into a file's `tests`.
+
+## Rules the Contract Holds
+
+The contract is in `pyproject.toml`, under `[tool.importlinter]`, and `uv run --all-extras lint-imports` checks it in the lint job. Each package imports only the layers below it, as the Packages diagram shows. So `connectors`, at the bottom, imports no other desflow package, and `values` may import `core` but not `builder`.
+
+The contract counts an import made inside a function, so a new import against the layers fails even there. It leaves out an import made only for a type annotation, under `if TYPE_CHECKING`. Each allowed import is an `ignore_imports` entry with a comment that gives its reason, and an entry that matches no import fails the lint, so the list is cut when an import goes. `tests/docs/test_architecture.py` compares the layers and the `✗` lines of the Packages diagram with the contract, and checks that the diagrams of Inside Core, Inside Builder and Inside Blueprint name every module of their package, so a change to one fails until the other matches.
 
 To draw the graph of the imports for yourself, run `uv run --all-extras import-linter drawgraph desflow --show-lazy-imports > desflow.dot`, or name a package such as `desflow.core`. Rendering the file needs [Graphviz](https://graphviz.org/): `dot -Tsvg desflow.dot -o desflow.svg`.
 
@@ -161,7 +227,8 @@ To draw the graph of the imports for yourself, run `uv run --all-extras import-l
 |---|---|
 | `src/desflow/config.py` | settings shared by more than one module: queue orders, statistics levels, the `labels` sink value, `MIN_DELAY` (the shortest time a draw gives) |
 | `src/desflow/internal.py` | marks the events desflow creates for its own work |
-| `src/desflow/core/` | `environment.py` (`DynamicRealtimeEnvironment`, egress buffering, record building), `context.py` (the `SimulationContext` builder), `runs.py` (`RunState`: the state of one run, and `EndSets`), `arrivals.py` (`Arrivals`: a model's arrivals, and `ArrivalRun`: their loops in one run), `holders.py` (`Holders`: a model's resources, stores, containers and breakdowns, and `HolderRun`: those of one run), `sinks.py` (`Sinks`: a model's egress and ingress providers, their batching and its statistics, with one `Sink` record per egress), `registry.py` (live parameters), `sampler.py` (one random stream per distribution), `expressions.py` (conditions and amounts, and the name of a family's member), `flow.py` (`Router`, `Transfer`, `LiveScope`: what every scope of a run reads), `statistics.py` (built-in statistics), `task.py` (`TaskSpec`, `TaskRun`: the life of one task instance), `tasks.py` (`Tasks`: a model's tasks, and the start of their instances in a run), `model_checks.py` (`ModelChecks`: the checks of what a model's declarations name, which `start()` and `analyze()` make before anything is built), `task_checks.py` (the checks of a model's tasks, which `ModelChecks`, `SimulationContext.family_read_problem` and the blueprint loader call), `families.py` (`Family`, `Families`: a model's families, `FamilyRun`: their members in one run, `read_place`, which reads a place of a run: a number, an expression or a generator, and `whole`, which takes a count as `range` does: an integer, or a boolean as 1 or 0, and refuses any other value, even `2.0`), `signals.py` (`Signal`; `Signals`: a model's signals, and `SignalRun`: those of one run), `scenario.py` (`run_scenario`), `breakdowns.py` (`run_breakdowns`), `replay.py` (arrivals from a recorded file), `rules.py` (the checks a blueprint and the builder share, among them `check_capacity`, which a live write of a capacity also uses) |
+| `src/desflow/builder/` | `context.py` (the `SimulationContext` builder), `runs.py` (`RunState`: the state of one run, and `EndSets`), `arrivals.py` (`Arrivals`: a model's arrivals, and `ArrivalRun`: their loops in one run), `holders.py` (`Holders`: a model's resources, stores, containers and breakdowns, and `HolderRun`: those of one run), `flow.py` (`Router`, `Transfer`, `LiveScope`: what every scope of a run reads), `task.py` (`TaskSpec`, `TaskRun`: the life of one task instance), `tasks.py` (`Tasks`: a model's tasks, and the start of their instances in a run), `model_checks.py` (`ModelChecks`: the checks of what a model's declarations name, which `start()` and `analyze()` make before anything is built), `task_checks.py` (the checks of a model's tasks, which `ModelChecks`, `SimulationContext.family_read_problem` and the blueprint loader call), `signals.py` (`Signal`; `Signals`: a model's signals, and `SignalRun`: those of one run), `scenario.py` (`run_scenario`), `breakdowns.py` (`run_breakdowns`) |
+| `src/desflow/core/` | `environment.py` (`DynamicRealtimeEnvironment`, egress buffering, record building), `sinks.py` (`Sinks`: a model's egress and ingress providers, their batching and its statistics, with one `Sink` record per egress), `registry.py` (live parameters), `sampler.py` (one random stream per distribution), `expressions.py` (conditions and amounts, and the name of a family's member), `statistics.py` (built-in statistics), `families.py` (`Family`, `Families`: a model's families, `FamilyRun`: their members in one run, `read_place`, which reads a place of a run: a number, an expression or a generator, and `whole`, which takes a count as `range` does: an integer, or a boolean as 1 or 0, and refuses any other value, even `2.0`), `replay.py` (arrivals from a recorded file), `rules.py` (the checks a blueprint and the builder share, among them `check_capacity`, which a live write of a capacity also uses) |
 | `src/desflow/models/` | `params.py` (`SimParameter`, `DistributionConfig`, `CapacityConfig`, `ContainerConfig`), `flow.py` (`Entity`, `Upstream`), `schemas.py` (`EventPayload`, `TelemetryPayload`, `LabelPayload`: the published record schema), `distributions.py` (every distribution family, `DISTRIBUTIONS`) |
 | `src/desflow/resources/` | `DynamicResource`, `DynamicContainer`, `DynamicStore`, with capacities driven by the registry |
 | `src/desflow/connectors/` | `ingress/` (parameter changes in), `egress/` (records out), `admin/`, `_schema_registry/` (the code of the Confluent and Glue serializers and deserializers: the two registry clients, the wire framing, the Avro, JSON Schema and Protobuf codecs, and the errors) |

@@ -14,8 +14,8 @@ from typer.testing import CliRunner
 from desflow import SimulationContext, replicate
 from desflow.blueprint.loader import BlueprintError
 from desflow.cli import app as cli
-from desflow.core.breakdowns import run_breakdowns
-from desflow.core.task import TaskFailed
+from desflow.builder.breakdowns import run_breakdowns
+from desflow.builder.task import TaskFailed
 from desflow.resources.resource import DynamicResource
 from tests.conformance.harness import RecordingEgress, run_builder, run_yaml_text
 
@@ -1389,7 +1389,7 @@ def test_a_trace_record_names_only_public_events(tmp_path):
 
 def test_every_class_desflow_defines_has_a_public_trace_name():
     from desflow.core.environment import trace_event_name
-    from desflow.core.task import _Suspension
+    from desflow.builder.task import _Suspension
     from desflow.resources.container import (
         DynamicContainerGet,
         DynamicContainerPut,

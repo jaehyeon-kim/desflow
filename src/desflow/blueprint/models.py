@@ -72,7 +72,7 @@ from desflow.core.environment import (
     resolve_zone,
 )
 from desflow.core.families import Reference
-from desflow.core.flow import Open, Release, Router, Transfer, Wait, check_batch_size
+from desflow.builder.flow import Open, Release, Router, Transfer, Wait, check_batch_size
 from desflow.core.rules import (
     PLAIN_NUMBER,
     Ref,

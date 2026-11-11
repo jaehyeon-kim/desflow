@@ -20,8 +20,8 @@ from desflow import (
     Signal,
     SimParameter,
 )
-from desflow.core.context import SimulationContext
-from desflow.core.task import TaskRun
+from desflow.builder.context import SimulationContext
+from desflow.builder.task import TaskRun
 from tests.conformance.harness import (
     event_trace,
     periodic,

@@ -1,8 +1,8 @@
 """A refusal built from parts has a separator at each join.
 
 `not_added` begins with `which`, so a text it follows must end in a space or a comma
-and a space. The source scan finds every join of it in `core/context.py` and
-`core/model_checks.py`; the run checks the `running(<name>)` refusal that lacked one.
+and a space. The source scan finds every join of it in `builder/context.py` and
+`builder/model_checks.py`; the run checks the `running(<name>)` refusal that lacked one.
 """
 
 import ast
@@ -10,10 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 
-CORE = Path(__file__).resolve().parents[2] / "src" / "desflow" / "core"
-SOURCES = [CORE / "context.py", CORE / "model_checks.py"]
+BUILDER = Path(__file__).resolve().parents[2] / "src" / "desflow" / "builder"
+SOURCES = [BUILDER / "context.py", BUILDER / "model_checks.py"]
 
 
 def _last_text(node):

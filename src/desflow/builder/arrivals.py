@@ -50,8 +50,8 @@ if TYPE_CHECKING:
     from desflow.values.runtime import ValueRuntime
 
 # The messages of the arrival methods keep the logger they had in the context, so a
-# filter or a level set on `desflow.core.context` still reaches them
-logger = logging.getLogger("desflow.core.context")
+# filter or a level set on `desflow.builder.context` still reaches them
+logger = logging.getLogger("desflow.builder.context")
 
 ARRIVALS_STOPPED = "arrivals stopped"
 

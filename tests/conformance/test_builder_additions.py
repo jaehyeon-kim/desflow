@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 import simpy
 
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance.harness import run_builder
 
 SIZES = [1, 3, 10]

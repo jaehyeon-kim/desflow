@@ -31,8 +31,8 @@ from typing import Any, Optional
 import pytest
 import yaml
 from desflow.blueprint.loader import BlueprintError
-from desflow.core.signals import SignalFailed
-from desflow.core.task import TaskFailed
+from desflow.builder.signals import SignalFailed
+from desflow.builder.task import TaskFailed
 
 from tests.known_cases import harness
 

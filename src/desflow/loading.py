@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import List, Mapping, Optional, Union
 
 from desflow.blueprint.build import Preview, preview_builder
-from desflow.core.context import SimulationContext, parts_of
+from desflow.builder.context import SimulationContext, parts_of
 
 _PYTHON_SUFFIX = ".py"
 # Each Python entry is imported under a new name, so two loads never share a module

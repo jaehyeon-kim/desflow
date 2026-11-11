@@ -1,6 +1,6 @@
 """The checks of a model's declarations that `start()` makes.
 
-Each case is a branch of `core/model_checks.py` that no other test reaches. Most are
+Each case is a branch of `builder/model_checks.py` that no other test reaches. Most are
 refusals that only a builder model gets to, because the blueprint loader refuses
 their YAML form first.
 """
@@ -148,10 +148,10 @@ def test_a_whole_flow_warning_is_logged_once_across_two_starts(tmp_path, caplog)
         " payload: {e: 2}}\n"
     )
     app = SimulationContext.from_yaml(path)
-    with caplog.at_level(logging.WARNING, logger="desflow.core.context"):
+    with caplog.at_level(logging.WARNING, logger="desflow.builder.context"):
         for _ in range(2):
             app.start(until=5)
             app.close()
     warned = [r for r in caplog.records if "waits for the whole flow" in r.message]
     assert len(warned) == 1
-    assert warned[0].name == "desflow.core.context"
+    assert warned[0].name == "desflow.builder.context"

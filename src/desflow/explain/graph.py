@@ -19,10 +19,10 @@ from desflow.explain import features
 from desflow.explain.edges import EXIT, node_id, signal_edges, task_edges
 from desflow.explain.models import Edge, Graph, Node
 
-from desflow.core.context import parts_of
+from desflow.builder.context import parts_of
 
 if TYPE_CHECKING:
-    from desflow.core.context import SimulationContext
+    from desflow.builder.context import SimulationContext
 
 
 def build_graph(context: "SimulationContext") -> Graph:

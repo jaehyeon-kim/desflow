@@ -52,7 +52,7 @@ def verify(
     from desflow.analysis.intervals import interval
     from desflow.analysis.models import context_of, run_once, seconds, spawn_seeds
     from desflow.analysis.runner import run_replications
-    from desflow.core.context import parts_of
+    from desflow.builder.context import parts_of
     from desflow.core.statistics import published_value
 
     if replications is not None:

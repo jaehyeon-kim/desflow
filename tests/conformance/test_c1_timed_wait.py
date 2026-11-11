@@ -12,7 +12,7 @@ import pytest
 import simpy
 
 from desflow import DynamicRealtimeEnvironment, Entity
-from desflow.core.context import SimulationContext
+from desflow.builder.context import SimulationContext
 from tests.conformance.harness import (
     RecordingEgress,
     event_trace,
