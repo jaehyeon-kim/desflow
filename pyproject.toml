@@ -241,7 +241,7 @@ layers = [
     "desflow.loading",
     "desflow.analysis",
     "desflow.blueprint | desflow.explain",
-    "desflow.core.arrivals : desflow.core.breakdowns : desflow.core.context : desflow.core.flow : desflow.core.holders : desflow.core.runs : desflow.core.scenario : desflow.core.signals : desflow.core.task : desflow.core.task_checks : desflow.core.tasks",
+    "desflow.core.arrivals : desflow.core.breakdowns : desflow.core.context : desflow.core.flow : desflow.core.holders : desflow.core.model_checks : desflow.core.runs : desflow.core.scenario : desflow.core.signals : desflow.core.task : desflow.core.task_checks : desflow.core.tasks",
     "desflow.values",
     "desflow.core.environment : desflow.core.expressions : desflow.core.families : desflow.core.registry : desflow.core.replay : desflow.core.rules : desflow.core.sampler : desflow.core.sinks : desflow.core.statistics",
     "desflow.resources",
@@ -276,7 +276,7 @@ type = "layers"
 containers = ["desflow.core"]
 exhaustive = true
 layers = [
-    "arrivals : breakdowns : context : flow : holders : runs : scenario : signals : task : task_checks : tasks",
+    "arrivals : breakdowns : context : flow : holders : model_checks : runs : scenario : signals : task : task_checks : tasks",
     "environment : expressions : families : registry : replay : rules : sampler : sinks : statistics",
 ]
 

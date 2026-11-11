@@ -1,8 +1,8 @@
 """A refusal built from parts has a separator at each join.
 
-`_not_added` begins with `which`, so a text it follows must end in a space or a comma
-and a space. The source scan finds every join of it in `core/context.py`; the run
-checks the `running(<name>)` refusal that lacked one.
+`not_added` begins with `which`, so a text it follows must end in a space or a comma
+and a space. The source scan finds every join of it in `core/context.py` and
+`core/model_checks.py`; the run checks the `running(<name>)` refusal that lacked one.
 """
 
 import ast
@@ -12,7 +12,8 @@ import pytest
 
 from desflow.core.context import SimulationContext
 
-SOURCE = Path(__file__).resolve().parents[2] / "src" / "desflow" / "core" / "context.py"
+CORE = Path(__file__).resolve().parents[2] / "src" / "desflow" / "core"
+SOURCES = [CORE / "context.py", CORE / "model_checks.py"]
 
 
 def _last_text(node):
@@ -25,19 +26,21 @@ def _last_text(node):
 
 
 def test_every_join_with_not_added_has_a_separator():
-    tree = ast.parse(SOURCE.read_text())
     bad = []
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.BinOp)
-            and isinstance(node.op, ast.Add)
-            and isinstance(node.right, ast.Call)
-            and getattr(node.right.func, "id", "") == "_not_added"
-        ):
-            text = _last_text(node.left)
-            if not text.endswith((", ", " ")):
-                bad.append(node.lineno)
-    assert not bad, f"_not_added joins a text with no separator at lines {bad}"
+    joins = 0
+    for source in SOURCES:
+        for node in ast.walk(ast.parse(source.read_text())):
+            if (
+                isinstance(node, ast.BinOp)
+                and isinstance(node.op, ast.Add)
+                and isinstance(node.right, ast.Call)
+                and getattr(node.right.func, "id", "") == "not_added"
+            ):
+                joins += 1
+                if not _last_text(node.left).endswith((", ", " ")):
+                    bad.append(f"{source.name}:{node.lineno}")
+    assert joins, "the scan found no join of not_added"
+    assert not bad, f"not_added joins a text with no separator at {bad}"
 
 
 def test_the_running_refusal_is_one_sentence():

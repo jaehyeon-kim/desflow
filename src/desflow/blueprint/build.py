@@ -73,8 +73,8 @@ from desflow.core.context import (
     reading_problem,
     stop_condition,
     stop_family_problem,
-    written_paths,
 )
+from desflow.core.model_checks import written_paths
 from desflow.core.scenario import walk_steps
 from desflow.core.signals import timing_problem
 from desflow.core.environment import in_zone, resolve_zone
@@ -2627,7 +2627,8 @@ def _check_values(
     registry = scratch_registry(context)
     services = set(blueprint.services)
     base_dir = source.path.parent
-    written = written_paths(parts_of(context))
+    parts = parts_of(context)
+    written = written_paths(parts.scenario_steps, parts.tasks, parts.signals)
     problems: List[Tuple[Tuple[Any, ...], str]] = []
     for name, task in blueprint.tasks.items():
         found = task_value_problems(

@@ -4,11 +4,9 @@ This page shows how desflow is built: the parts that run a model, why each one e
 
 One run moves through the parts of desflow like this:
 
-![The three ways to write a simulation build one DynamicRealtimeEnvironment. Its registry holds every live parameter; ingress connectors on background threads update it from a file you edit, Kafka, Redis, PostgreSQL or a local schedule, and the resources follow it. Telemetry and events go to egress connectors on their own thread, which write them to Kafka, Redis, PostgreSQL, Parquet or JSONL files, Iceberg or the console](../assets/diagrams/architecture.png)
+![The three ways to write a simulation build one DynamicRealtimeEnvironment. Its registry holds every live parameter; ingress connectors on a thread of their own update it from a file you edit, Kafka, Redis, PostgreSQL or a local schedule, and the resources follow it. Telemetry and events go to egress connectors on their own thread, which write them to Kafka, Redis, PostgreSQL, Parquet or JSONL files, Iceberg or the console](../assets/diagrams/architecture.png)
 
-Whichever way a model is written, it builds one environment, and one run goes the same way from there. The environment holds the registry of live parameters, and the resources, stores and containers follow it. Ingress connectors change registry values from outside while the run goes on. Tasks and other processes publish events and telemetry, and egress connectors write them to their sinks on a thread of their own. The registry paths, the [records](../reference/records-and-telemetry.md), the batching and the connectors are therefore the same in all three ways.
-
-A contributor who changes desflow itself can read [ARCHITECTURE.md](https://github.com/jaehyeon-kim/desflow/blob/main/ARCHITECTURE.md), which shows how its source is divided into packages and which package may import which.
+Whichever way a model is written, it builds one environment, and one run goes the same way from there. The registry paths, the [records](../reference/records-and-telemetry.md), the batching and the connectors are therefore the same in all three ways. [How It Works](#how-it-works) follows a model from its file or script to the environment.
 
 ---
 
@@ -31,6 +29,21 @@ desflow is built on [SimPy](https://simpy.readthedocs.io/). SimPy gives the even
 ---
 
 ## How It Works
+
+Look first at how a model gets from a file or a script to a run, then at the parts the run holds:
+
+![Top row: YAML file, Python (builder) and Python (low-level), the three ways to write a model. The YAML file goes to blueprint (loader, models, build), which calls the builder, SimulationContext (core.context). The builder script reaches SimulationContext directly. run() builds DynamicRealtimeEnvironment (core.environment, a SimPy environment), and the low-level script builds it by hand. The environment holds registry (live parameters), statistics (measures) and egress queue (batches of records). connectors/ingress (its own thread) updates the registry, and the egress queue writes to connectors/egress (its own thread). A group at the bottom, tools, holds cli, which imports loading, then analysis (many runs) and explain (graph and formulas)](../assets/diagrams/how-it-works.png)
+
+Each of the three ways ends in one `DynamicRealtimeEnvironment`. A YAML file is read by `blueprint`: `loader` reads the file, including `!python` and `!include`, `models` define and check each section, and `build` turns the sections into calls on `SimulationContext`; the arrow labelled calls the builder shows them. A builder script makes those calls itself, with the builder's methods and decorators. A low-level script makes neither: it builds the environment by hand and writes SimPy processes against it. [Writing a Model](writing-a-model/index.md) helps choose between them.
+
+`SimulationContext` in `core.context` collects what a model declares. `run()` checks the declarations and builds the environment, then starts the model's loops and processes and runs it, in the order [What `run()` Does](tasks-and-processes/tasks.md#what-run-does) lists. The environment holds the parts in the row under it:
+
+- **registry:** holds every live parameter ([Live Parameters](live-runs-and-connectors/live-parameters.md#how-it-works)).
+- **statistics:** collects the measures of the run while it goes on ([Built-in Statistics](results/statistics.md#how-it-works)).
+- **egress queue:** the records that tasks and processes publish are buffered for each sink, and full batches wait in a queue. `connectors/egress` writes from it, on a thread of its own, and the arrow points the way the records go ([Egress](live-runs-and-connectors/egress.md#how-it-works)).
+- **connectors/ingress:** read parameter changes from outside, on a thread of their own, and update the registry. The arrow points up, because a change reaches the model only through the registry; the environment applies each one from a queue ([Ingress](live-runs-and-connectors/ingress.md#how-it-works)). [Threads and Queues](#threads-and-queues) shows both queues.
+
+The group at the bottom holds the tools. `cli` is the `desflow` command and calls `loading`, the path by which `desflow run` and `desflow explain` turn a blueprint or a builder file into a context ([Command Line](../cli/index.md#how-it-works)). `analysis` runs a model many times for [replications](results/replications.md#how-it-works) and [experiments](results/experiments.md#how-it-works). `cli` and `explain` read a blueprint or a builder file; `analysis` also runs a low-level model, as a `LowLevelModel`, from Python. `explain` is in the last row of the table below.
 
 Each part is described in full on its own page. In short:
 
@@ -86,3 +99,9 @@ They share SimPy's one event queue with the model's events, so `run()` processes
 ### SimPy and desflow
 
 SimPy's `RealtimeEnvironment` takes one `factor` for the whole run, and raises an error when the model falls behind the wall clock. desflow runs without waiting at `factor: 0`, switches to real time at `go_live_at`, and stamps every record with a logical time. A paced run is strict by default, as SimPy's is, and `strict: false` reports falling behind as telemetry instead. [SimPy and desflow](../simpy/index.md) compares the two.
+
+---
+
+## For Contributors
+
+A contributor who changes desflow itself can read [ARCHITECTURE.md](https://github.com/jaehyeon-kim/desflow/blob/main/ARCHITECTURE.md), which holds the code map and the rules for imports.
