@@ -8,7 +8,7 @@ One folder, which `grade.py --records-out` writes from the run that `claude plug
 
 - `files/`: the five files the agent wrote, `model.yaml`, `builder.py.txt`, `low_level.py.txt`, `test_model.py.txt` and `reply.md`. A Python file has `.txt` added and is otherwise as the agent left it.
 - `trace.jsonl`: the run's full transcript, one JSON object per line as `claude -p --output-format stream-json` writes it. A line of `"type": "assistant"` holds the agent's text and its tool calls (`"type": "tool_use"`, with `name`, `input` and `id`); a line of `"type": "user"` holds the result of each call (`"type": "tool_result"`, with the call's id as `tool_use_id`), that is, what the command printed or the file the agent read. The reviewer reads it in full.
-- `records/`: `yaml.jsonl`, `builder.jsonl` and `low_level.jsonl`, the records of each form as `grade.py` runs them at the file's own seed. The YAML form runs as the task's `records.yaml` says (`via`: with `--sample 100000`, with `--stdout`, or through the sinks the model names, and with `--until` when the model has no run end of its own), and each Python form as `python FILE`. So a header is read against the records of its own form.
+- `records/`: `yaml.jsonl`, `builder.jsonl` and `low_level.jsonl`, the records of each form as `grade.py` runs them at the file's own seed. The YAML form runs as the task's `records.yaml` says (`via`: with `--sample 100000`, with `--stdout`, or through the sinks the model names, and with `--until` when the model has no run end of its own), and each Python form as `python FILE`. A run with `--stdout` or `--sample` prints no `system.simulation.lag_seconds` readings, so a paced YAML form's file lacks the readings its Python forms' files hold, and that difference is not a mistake. So a header is read against the records of its own form.
 - `tests.json`: for each test id, its outcome on the agent's model (`unchanged`), from three plain runs, three under `pytest -n 4` and three in reverse order, or `"outcome": "flaky"` with the outcome of each run in `runs` when the runs of one way differ; its outcome under each of the task's three changes (`changes`), from the same nine runs of the changed model, `flaky` when the runs of one way differ, and the forms the plugin `form_trace.py` saw it run (`forms`); and `changes`, the list of the three changes with the key and value each applied, or why none was applied.
 - `clocks.json`: each assert of `test_model.py` that reads a wall clock, with its line and text, and `paced_wall`, the wall seconds the request's pacing gives, null for an unpaced task.
 - `task/`: the case's `prompt.md` (the request as the agent got it, after a settings block), the task's `records.yaml` (the records the request names, written before any run), and `original.py.txt`, the program of the known case, for K17.
@@ -37,6 +37,8 @@ Check every sentence in a file header, docstring, comment and in `reply.md` that
 - Wrong: "Adding two agents ends the hang-ups." when every caller in the run still hangs up. Right: "With three agents, about one caller in five hangs up; `scenario` adds two agents at 1 hour." where the records show both.
 - Wrong: "all three forms give the same records" when the three files of `records/` differ. Right: the sentence names the forms that were compared, and their records agree.
 - Wrong: a field that has the same value in every record, such as a `count` over `last: 10` with no `where`, which is 10 in every record. It shows the reader nothing; the check is the records, not the intent.
+- Wrong: "the timestamps show the run took 16 s" when the run took about a second. A record's `timestamp` is the moment the run started plus the simulation time, so its gaps follow the simulation time, not the wall time.
+- Not a mistake: "`timestamp` is wall-clock time, so it differs between runs" in a run that sets no `logical_start_time`. The field starts at the wall-clock moment the run starts, so it does differ between runs.
 - Not a mistake: "the capacity of m goes from 1 to 3" and "sets the capacity of m to 3, so `a-2` starts at 2" (P33). No record holds the capacity of `m`, and the records show its effect: `a-2` starts at 2, when the capacity grows, and not at 5, when `a-1` would release the one unit.
 - Not a mistake: a sentence about intent, such as "this models a bank".
 
@@ -89,6 +91,8 @@ A statement in a file or in `reply.md` that desflow lacks a form, that gives the
 - Wrong: "the Low-level environment has no trace" when `env.trace_events()` exists. Right: "`env.trace_events()` gives the trace".
 - Wrong: "the records differ because of tie order" with no run that shows the order. Right: the cause is stated after a run shows it, with the run named.
 - Wrong: "the YAML `Console` egress takes no `format` key" when no call in `trace.jsonl` tried one. Right: a run that tries `config: {format: json}` comes first; it runs, so the claim is not made.
+- Wrong: "I found no switch to turn this off" when no call in `trace.jsonl` looked for one and no page of `skill/` says so. A hedged wording still claims the feature is missing.
+- Wrong: "the command takes about 1.3 s because of start-up and shutdown" when the run measured only the total time. A measured total does not show its cause.
 - Not a mistake: a limit that the run itself shows, such as a refusal that `desflow check` printed and the file quotes.
 
 The reviewer checks a claim against the pages of `skill/` and the calls in `trace.jsonl`; it does not search a repository.
@@ -103,7 +107,7 @@ For a task whose `original.py.txt` is a SimPy program, a form that keeps a SimPy
 - A subscribed task's interrupt value is the record's payload in a mapping, where SimPy's cause is the returned value.
 - A child that ends by an uncaught interrupt needs `run.on_unhandled_failure: continue`.
 - A `put` waits for the item to go in, where `out_pipe.put(msg)` with no `yield` does not: write `wait: false`.
-- `system.simulation.lag_seconds` depends on the wall clock and is left out of a comparison.
+- `system.simulation.lag_seconds` depends on the wall clock and is left out of a comparison. A test that compares forms or runs with the readings kept is a K17 mistake, and also a K8 mistake when `tests.json` marks it flaky.
 - A model with no `run.until` runs until no event is left, as `env.run()` does.
 - SimPy's minutes become seconds unless converted, once and said.
 - SimPy prints `env.now` as it is, so numbers are compared, not printed text.
