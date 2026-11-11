@@ -1198,7 +1198,6 @@ class BatchSpec(StrictModel):
     @field_validator("size", mode="before")
     @classmethod
     def _size_not_boolean(cls, value: Any) -> Any:
-        _refuse_boolean(value, "batch size")
         check_batch_size(value)
         return value
 

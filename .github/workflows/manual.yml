@@ -1,20 +1,28 @@
 name: Manual tests
 
 # The long tests, which pull-request.yml and pipeline.yml do not run: every test, with
-# the tests marked every_model and the known cases, on Python 3.12 on Ubuntu and
-# Windows; the paced cases; the conformance tests at the lowest and newest SimPy; the
-# lowest Pydantic; and the core install on Windows. The integration and service
+# the tests marked every_model and the known cases, on Python 3.11, 3.12 and 3.15 on
+# Ubuntu and on Python 3.12 on Windows; the paced cases; the conformance tests at the
+# lowest and newest SimPy; the unit and conformance tests at the lowest Pydantic; and
+# the core install's time zone on Ubuntu and Windows. The integration and service
 # example jobs are in pull-request.yml. macOS is not run: development is on a Mac,
 # whose local pipeline runs the tests. Every day at 17:00 UTC (03:00 or 04:00 in
 # Melbourne), and by hand before a release: gh workflow run manual.yml --ref
-# <branch>. GitHub starts a workflow by hand only when its file is on the default
-# branch, so a pull request starts it from its own branch with the label
-# `manual tests` (remove the label and add it again to start it again). A run started
-# by any other label skips every job.
+# <branch>, with -f python="3.13" to test other versions on Ubuntu. GitHub starts a
+# workflow by hand only when its file is on the default branch, so a pull request
+# starts it from its own branch with the label `manual tests` (remove the label and
+# add it again to start it again). A run started by any other label skips every job.
+# A run has more than the 20 jobs GitHub runs at once, so the rest wait for a free
+# runner.
 on:
   schedule:
     - cron: "0 17 * * *"
   workflow_dispatch:
+    inputs:
+      python:
+        description: The Python versions to run every test on, on Ubuntu, separated by spaces
+        type: string
+        default: "3.11 3.12 3.15"
   pull_request:
     types: [labeled]
 
@@ -37,7 +45,9 @@ jobs:
 
       - name: Plan the test jobs
         id: plan
-        run: python3 scripts/ci_plan.py manual < /dev/null | tee -a "$GITHUB_OUTPUT"
+        env:
+          PYTHON_VERSIONS: ${{ inputs.python || '3.11 3.12 3.15' }}
+        run: python3 scripts/ci_plan.py manual "$PYTHON_VERSIONS" < /dev/null | tee -a "$GITHUB_OUTPUT"
 
   # Every test of the unit, conformance, benchtop and known case suites, with those
   # marked every_model, in the jobs and parts that scripts/ci_plan.py lists. A part
@@ -150,17 +160,18 @@ jobs:
   # Python 3.12 and earlier only, so the job runs the lowest Python desflow supports.
   # The two schema tests compare a committed file with one that the installed
   # Pydantic writes, which another release may write differently. The public API
-  # snapshot does the same for the signatures and fields of the Pydantic models. It
-  # runs in two parts, without the tests marked every_model.
+  # snapshot does the same for the signatures and fields of the Pydantic models. With
+  # the tests marked every_model, the tests take about 120 minutes of test time, so
+  # the job runs in 6 parts.
   pydantic-floor:
-    name: Unit and conformance tests at the lowest Pydantic, part ${{ matrix.shard }} of 2
+    name: Unit and conformance tests at the lowest Pydantic, part ${{ matrix.shard }} of 6
     if: github.event_name != 'pull_request' || github.event.label.name == 'manual tests'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v7
 
@@ -176,17 +187,24 @@ jobs:
 
       - name: Run the unit and conformance tests
         env:
-          TEST_SHARD: ${{ matrix.shard }}/2
+          TEST_SHARD: ${{ matrix.shard }}/6
         run: |
           uv run --python 3.11 --all-extras --with "$PYDANTIC" python -c "import pydantic; print('Pydantic', pydantic.VERSION)"
-          uv run --python 3.11 --all-extras --with "$PYDANTIC" python -m pytest tests/unit tests/conformance -m "not every_model" -q -n auto --deselect tests/unit/test_schema.py::test_committed_schema_is_current --deselect tests/unit/test_explain.py::test_json_validates_and_the_committed_schema_is_current --deselect tests/unit/test_public_api.py::test_public_api_matches_the_snapshot
+          uv run --python 3.11 --all-extras --with "$PYDANTIC" python -m pytest tests/unit tests/conformance -q -n auto --deselect tests/unit/test_schema.py::test_committed_schema_is_current --deselect tests/unit/test_explain.py::test_json_validates_and_the_committed_schema_is_current --deselect tests/unit/test_public_api.py::test_public_api_matches_the_snapshot
 
   # --all-extras installs pandas, which brings tzdata, so the test jobs cannot show
-  # whether the core install has a time zone database on Windows.
-  windows-core-install:
-    name: Resolve a time zone with the core install on Windows
+  # whether the core install has a time zone database. Windows has none of its own,
+  # and an Ubuntu runner has the system one.
+  core-install:
+    name: Resolve a time zone with the core install on ${{ matrix.system }}
     if: github.event_name != 'pull_request' || github.event.label.name == 'manual tests'
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, system: Ubuntu }
+          - { os: windows-latest, system: Windows }
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7

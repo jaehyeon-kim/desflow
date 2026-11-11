@@ -167,7 +167,11 @@ def imports_outside_promise(source: str) -> List[OutsideImport]:
                 else []
             )
             for alias in node.names:
-                if alias.name in exported:
+                # A star import from a promised package gives only the names of its
+                # __all__, so it is inside the promise
+                if alias.name in exported or (
+                    alias.name == "*" and module in PROMISED_PACKAGES
+                ):
                     continue
                 found.append(
                     OutsideImport(

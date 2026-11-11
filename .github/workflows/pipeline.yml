@@ -107,7 +107,9 @@ jobs:
     permissions:
       contents: write
       pages: write
-    # A push that changes only docs skips the unit tests, and the docs still deploy
+    # A push that changes only files no code job reads (the site's styles and scripts,
+    # mkdocs.yml, the top-level Markdown files) skips the unit tests, and the docs still
+    # deploy
     if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15

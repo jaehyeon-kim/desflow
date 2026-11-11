@@ -1,10 +1,11 @@
 """scripts/ci_plan.py picks the test jobs of the workflows.
 
 A pull request tests Python 3.11, a push to main Python 3.12 to 3.15, and manual.yml
-every test on Python 3.12 on Ubuntu and Windows. A pull request
-or a push skips the code jobs when it changes only docs. A pull request runs the docs
-and service jobs only when it changes what they cover, and a push to main runs
-neither. Each job's parts cover every part number once, so no test is left out.
+every test on Python 3.11, 3.12 and 3.15 (or the versions it is given) on Ubuntu and
+on Python 3.12 on Windows. A pull request or a push skips the code jobs when it
+changes only files no code job reads. A pull request runs the docs and service jobs
+only when it changes what they cover, and a push to main runs neither. Each job's
+parts cover every part number once, so no test is left out.
 """
 
 import importlib.util
@@ -50,21 +51,54 @@ def test_the_short_sets_leave_out_the_every_model_tests_and_known_cases():
             assert "not every_model" in leg["marks"]
 
 
-def test_the_manual_set_runs_every_test_on_python_3_12_on_ubuntu_and_windows():
-    legs = _plan("manual", [])["unit"]["include"]
-    assert {leg["os"] for leg in legs} == {"ubuntu-latest", "windows-latest"}
-    for leg in legs:
-        assert leg["python"] == "3.12"
+def test_the_manual_set_runs_every_test_on_the_lowest_and_newest_python():
+    plan = _plan("manual", [])
+    assert _versions(plan) == {"3.11", "3.12", "3.15"}
+    assert _versions(plan, "windows-latest") == {"3.12"}
+    for leg in plan["unit"]["include"]:
         assert "tests/known_cases" in leg["paths"]
         assert "every_model" not in leg["marks"]
 
 
+def test_a_manual_run_by_hand_tests_the_versions_it_is_given():
+    plan = {
+        k: json.loads(v)
+        for k, v in ci_plan.plan("workflow_dispatch", [], ["3.13"]).items()
+    }
+    assert _versions(plan) == {"3.13"}
+    assert _versions(plan, "windows-latest") == {"3.12"}
+
+
 def test_a_docs_only_change_skips_the_code_jobs():
     for event in ("pull_request", "push"):
-        plan = _plan(event, ["docs/index.md", "mkdocs.yml", "CONTRIBUTING.md"])
+        plan = _plan(
+            event, ["docs/css/code-lines.css", "mkdocs.yml", "CONTRIBUTING.md"]
+        )
         assert not plan["code"] and not plan["services"]
         assert plan["docs"] == (event == "pull_request")
-    assert _plan("pull_request", ["docs/index.md", "src/desflow/cli/run.py"])["code"]
+    assert _plan("pull_request", ["CONTRIBUTING.md", "src/desflow/cli/run.py"])["code"]
+
+
+def test_a_page_or_snippet_change_runs_the_code_jobs_that_read_it():
+    # The unit tests check each page's imports and run the snippet blueprints, and
+    # the regression captures the blueprints under docs/
+    for path in (
+        "docs/index.md",
+        "docs/snippets/yaml/dynamic_topology.yaml",
+        "docs/snippets/yaml/simpy_forms.py",
+    ):
+        for event in ("pull_request", "push"):
+            assert _plan(event, [path])["code"], (event, path)
+
+
+def test_the_docs_tests_run_when_a_test_file_they_read_changes():
+    for path in (
+        "tests/conformance/test_yaml_only.py",
+        "tests/conformance/register.yaml",
+        "tests/known_cases/bt_aq1/original.py",
+        "tests/regression/left_out.yaml",
+    ):
+        assert _plan("pull_request", [path])["docs"], path
 
 
 def test_the_docs_tests_run_only_when_what_they_read_changes():
@@ -78,6 +112,14 @@ def test_a_connector_change_runs_the_service_jobs_on_a_pull_request():
         "src/desflow/connectors/egress/kafka.py",
         "uv.lock",
         "examples/yaml/kafka.yaml",
+        # The modules that build, start and stop the connectors, and what the
+        # service examples read
+        "src/desflow/blueprint/build.py",
+        "src/desflow/builder/context.py",
+        "src/desflow/cli/run.py",
+        "src/desflow/core/environment.py",
+        "tests/conftest.py",
+        "docs/gallery/simulation-models/kafka.md",
     ):
         assert _plan("pull_request", [path])["services"], path
         assert not _plan("push", [path])["services"], path

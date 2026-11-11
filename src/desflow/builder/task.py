@@ -2710,7 +2710,10 @@ class TaskRun:
     def _waited(self) -> None:
         """Takes the time waited since `_deadline` from the patience left."""
         if self._patience_since is not None and self._patience_left is not None:
-            self._patience_left -= self.env.now - self._patience_since
+            # Never below 0: a wait that ends as the patience does leaves -1.1e-16 in
+            # floats (1.0 + 0.6 - 1.6), and SimPy refuses a negative delay
+            waited = self.env.now - self._patience_since
+            self._patience_left = max(0, self._patience_left - waited)
             self._patience_since = None
 
     def _release(self, held: List[Any]) -> None:

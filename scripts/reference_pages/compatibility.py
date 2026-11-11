@@ -12,7 +12,6 @@ REGISTER = ROOT / "tests" / "conformance" / "register.yaml"
 CONSTRUCTS = ROOT / "tests" / "conformance" / "simpy_constructs.yaml"
 LOCK = ROOT / "uv.lock"
 SOURCE_URL = "https://github.com/jaehyeon-kim/desflow/blob/main/"
-ISSUE_URL = "https://github.com/jaehyeon-kim/desflow/issues/105"
 # The section that explains each feature that is not native
 EXCEPTIONS = "Where desflow Differs"
 # The forms on Call Python from YAML, by the `form` of a gap
@@ -108,7 +107,8 @@ def _item(
     construct: Dict[str, Any], entry: Dict[str, Any], gaps: Dict[str, Any]
 ) -> List[str]:
     """The entry for a SimPy feature: what it does in bold, with the page that explains
-    it, then its form in SimPy and in each API as a list, then its checks."""
+    it, then its form in SimPy and in each API as a list, with how desflow differs in a
+    detail when the register says, then its checks."""
     kind = status(construct, entry, gaps)
     lead = f"**{construct['description']}**"
     if entry.get("page"):
@@ -127,6 +127,10 @@ def _item(
             ("Low-level", "low_level"),
         )
     ]
+    # A native feature can still differ in a detail that its checks do not compare;
+    # a gap or a difference gives its text under Where desflow Differs
+    if kind == "native" and entry.get("differences"):
+        lines.append(f"- Where desflow differs: {entry['differences']}")
     if entry.get("checks"):
         lines += ["", _checks(entry["checks"])]
     return lines
@@ -154,14 +158,15 @@ def compatibility_page() -> str:
         "",
         "Each feature starts with what it does in SimPy, in bold, and a link to the "
         "page that explains it. Below that are its form in SimPy, in YAML, in the "
-        "Builder API and in the low-level API, and the tests that check it.",
+        "Builder API and in the low-level API, how desflow differs in a detail where "
+        "it does, and the tests that check it.",
         "",
         f"- **Native: {native}.** A conformance test runs a plain SimPy {version} model "
         "and the same model in desflow, and compares the event times, outcomes and "
         "balances.",
         f"- **{'Gap' if gap == 1 else 'Gaps'}: {gap}.** desflow gives other times, order "
-        "or values than SimPy, or has no key for the feature. Each gap has an id, is "
-        f"tracked in [issue #105]({ISSUE_URL}), and says how to get SimPy's behaviour.",
+        "or values than SimPy, or has no key for the feature. Each gap has an id and "
+        "says how to get SimPy's behaviour.",
         f"- **{'Difference' if difference == 1 else 'Differences'} kept by design: "
         f"{difference}.** desflow behaves differently on purpose, for the reason given.",
         "",

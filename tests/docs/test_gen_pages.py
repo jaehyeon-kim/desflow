@@ -136,6 +136,8 @@ def test_every_register_page_exists_and_every_feature_has_a_row():
             ]
             if entry["inventory"]:
                 assert f"[{entry['operation']}](../{entry['page']})" in page
+                if entry.get("differences"):
+                    assert entry["differences"] in page, entry["id"]
         else:
             # A gap replaces the reason of a difference in its row
             rows = [
@@ -144,7 +146,7 @@ def test_every_register_page_exists_and_every_feature_has_a_row():
                 if c["id"] in entry["inventory"] and not c.get("gaps")
             ]
             if rows:
-                assert entry["differences"].replace("|", "\\|") in page
+                assert entry["differences"] in page, entry["id"]
 
 
 # The 98 modelling features of SimPy 4.1.2, by inventory id; the SP- prefix keeps

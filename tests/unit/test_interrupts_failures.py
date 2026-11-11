@@ -889,3 +889,57 @@ run: {until: 40}
         (7.0, "t_done"),
         (8.0, "other_done"),
     ]
+
+
+PATIENCE_AT_A_TIE = """
+simulation: {sim_id: S, factor: 0}
+resources: {m: {current_cap: 1}}
+arrivals:
+  h: {dist: constant, value: 1, spawn: hog, max_events: 1, first_at: 0}
+  k: {dist: constant, value: 1, spawn: kick, max_events: 1, first_at: 1.0}
+  a: {dist: constant, value: 1, spawn: job, max_events: 1, first_at: 1.0}
+tasks:
+  hog: {resource: m, service_time: 5, payload: {e: h}}
+  kick: {service_time: 0.6, interrupt: {task: job, cause: cut}, payload: {e: k}}
+  job: {BATCHresource: m, service_time: 1, patience: 0.6, on_interrupt: resume, payload: {e: done}}
+run: {until: 10}
+"""
+
+BATCH_CLOSES_AS_PATIENCE_ENDS = """
+simulation: {sim_id: S, factor: 0}
+resources: {m: {current_cap: 1}}
+arrivals:
+  a: {dist: constant, value: 1, spawn: first, max_events: 1, first_at: 0}
+  b: {dist: constant, value: 1, spawn: second, max_events: 1, first_at: 1.0}
+tasks:
+  first: {batch: {size: 3, timeout: 1.6, name: s}, resource: m, service_time: 1, patience: 1.2, payload: {e: done}}
+  second: {batch: {size: 3, timeout: 1.6, name: s}, resource: m, service_time: 1, patience: 0.6, payload: {e: done}}
+run: {until: 10}
+"""
+
+
+@pytest.mark.parametrize(
+    "text, key, last",
+    [
+        (PATIENCE_AT_A_TIE.replace("BATCH", ""), "a-1", (1.6, "reneged")),
+        (
+            PATIENCE_AT_A_TIE.replace("BATCH", "batch: {size: 2}, "),
+            "a-1",
+            (1.6, "reneged"),
+        ),
+        (BATCH_CLOSES_AS_PATIENCE_ENDS, "b-1", (1.6, "started")),
+    ],
+    ids=["interrupt in a queue", "interrupt in a batch", "batch closes"],
+)
+def test_patience_used_up_at_a_tie_does_not_stop_the_run(tmp_path, text, key, last):
+    """0.6 s of patience from 1.0 ends at 1.6, where 1.0 + 0.6 - 1.6 is -1.1e-16 in
+    floats: an interrupt or a batch close at that instant leaves no patience, and the
+    next wait starts with none, rather than with a negative delay SimPy refuses."""
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None
+    statuses = [
+        (round(r["sim_ts"], 3), r["value"]["status"])
+        for r in outcome.records
+        if r["stream_type"] == "event" and r["key"] == key and "status" in r["value"]
+    ]
+    assert statuses[-1] == last

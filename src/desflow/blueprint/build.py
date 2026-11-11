@@ -56,6 +56,7 @@ from desflow.core.rules import check_capacity
 from desflow.builder.task import NO_RECORD
 from desflow.builder.task_checks import (
     Holding,
+    bare_name_problem,
     batch_mismatch,
     batch_mismatch_text,
     check_acquisition_order,
@@ -934,43 +935,28 @@ def _check_task_scopes(
         reached_by_interrupt=name in cause_targets,
     )
     for expression, location in _expressions(name, task):
-        # A var gets its value after the service, so only put, fail and next
-        # (evaluated after it) read one as a bare name
-        after = location[2] in ("put", "fail", "next")
         early_vars = {*task.vars_once, *task.vars}
         for loop in sorted(expression.references["loop"] & var_names):
             raise source.error(
                 location,
                 f"'{expression.text}': the loop name '{loop}' is a var of the task",
             )
-        for bare in sorted(expression.references["name"]):
-            if bare in var_names and after:
-                continue
-            if bare in early_vars and location[2] == "service_time":
-                continue
-            raise source.error(
-                location,
-                f"'{expression.text}' uses the name '{bare}', "
-                + (
-                    "which is not one of the task's vars"
-                    + (suggestion(bare, var_names) or "")
-                    if after or bare not in var_names
-                    else f"a var, which {location[2]} cannot read: vars get a "
-                    "value after the service"
-                    if location[2] != "service_time"
-                    else "a finish_vars name, which a service_time cannot read: "
-                    "it gets its value after the service"
-                )
-                + "; write payload.<field>, attr.<name>, level.<store> or "
-                "another source for anything else",
-            )
+        problem = bare_name_problem(
+            expression,
+            f"batch {location[3]}" if location[2] == "batch" else str(location[2]),
+            str(location[2]),
+            var_names,
+            early_vars,
+        )
+        if problem:
+            raise source.error(location, problem)
         if task.payload is None and expression.references["payload"]:
             raise source.error(
                 location,
                 f"'{expression.text}' reads payload, but payload: null gives "
                 f"the task no payload",
             )
-        for signal in expression.references["signal"]:
+        for signal in sorted(expression.references["signal"]):
             if signal not in blueprint.signals:
                 raise source.error(
                     location,
@@ -981,7 +967,7 @@ def _check_task_scopes(
                     ),
                 )
         in_when = location[2:4] == ("wait", "when")
-        for branch in expression.references["wait"]:
+        for branch in sorted(expression.references["wait"]):
             # balk and patience are read before the wait starts
             if branch not in branches or (
                 location[2] in ("wait", "balk", "patience", "open", "seize", "batch")
@@ -1031,7 +1017,7 @@ def _check_task_scopes(
                 "item.<field> reads the item a store get took, so it is "
                 "read in the get's filter, the put and next of a task with one",
             )
-        for level in expression.references["level"]:
+        for level in sorted(expression.references["level"]):
             if level not in blueprint.stores and level not in blueprint.containers:
                 raise source.error(
                     location,
@@ -1450,14 +1436,14 @@ def _check_events(blueprint: Blueprint, source: SourceMap) -> None:
             spawn_clash(task.spawn.task, owner, ("tasks", name, "spawn"))
         if task.subscribe is not None:
             branches = Wait(task.subscribe)
-            for target in branches.targets("task"):
+            for target in sorted(branches.targets("task")):
                 if target not in tasks:
                     raise source.error(
                         ("tasks", name, "subscribe"),
                         f"task '{name}' subscribes to task '{target}', "
                         + _undefined(target, tasks, "tasks"),
                     )
-            for target in branches.targets("signal"):
+            for target in sorted(branches.targets("signal")):
                 if target not in signals:
                     raise source.error(
                         ("tasks", name, "subscribe"),
@@ -1842,14 +1828,14 @@ def _check_run_names(
             f"wait.{branch} is read outside a task's own keys, where no wait is in "
             f"scope; a signal's on entries run with no wait",
         )
-    for signal in expression.references["signal"]:
+    for signal in sorted(expression.references["signal"]):
         if signal not in blueprint.signals:
             raise source.error(
                 where,
                 f"signal.{signal} names no signal under signals"
                 + (suggestion(signal, blueprint.signals) or "; add it under signals"),
             )
-    for level in expression.references["level"]:
+    for level in sorted(expression.references["level"]):
         if level not in blueprint.stores and level not in blueprint.containers:
             raise source.error(
                 where,
@@ -1878,7 +1864,7 @@ def _check_resource_names(
 ) -> None:
     """Checks that `users.<name>` and `queue.<name>` name a resource."""
     for kind in ("users", "queue", "held", "waiting"):
-        for name in expression.references[kind]:
+        for name in sorted(expression.references[kind]):
             if name not in blueprint.resources:
                 raise source.error(
                     location,
@@ -1905,7 +1891,7 @@ def _check_store_names(
     that the name in `count(...)` and `items(...)` is a store."""
     holders = [*blueprint.stores, *blueprint.containers]
     for kind in ("putters", "getters", "putting", "getting"):
-        for name in expression.references[kind]:
+        for name in sorted(expression.references[kind]):
             if name not in holders:
                 raise source.error(
                     location,
@@ -1920,7 +1906,7 @@ def _check_store_names(
                         or "; add it under stores or containers"
                     ),
                 )
-    for name in expression.references["running"]:
+    for name in sorted(expression.references["running"]):
         if name not in blueprint.tasks:
             raise source.error(
                 location,
@@ -1928,7 +1914,7 @@ def _check_store_names(
                 + (suggestion(name, blueprint.tasks) or "; add it under tasks"),
             )
     for kind in ("count", "items"):
-        for name in expression.references[kind]:
+        for name in sorted(expression.references[kind]):
             if name not in blueprint.stores:
                 raise source.error(
                     location,
@@ -3098,7 +3084,7 @@ def _check_registry_reads(
     for location, value in _value_sites(blueprint):
         found += list(_parsed_texts(value, location))
     for expression, location in found:
-        for path in expression.references["registry"]:
+        for path in sorted(expression.references["registry"]):
             if _names_a_member(path, context):
                 continue
             try:

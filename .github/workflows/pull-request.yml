@@ -331,16 +331,16 @@ jobs:
       - name: Capture this commit
         run: uv run --all-extras python scripts/regression.py capture --root . --shard ${{ matrix.part }}/3 --out "$RUNNER_TEMP/capture/new-${{ matrix.part }}.json"
 
-      # On a pull request the last release's capture is kept between runs. It changes
-      # only with the tag, the scenarios, the list of left-out files or the script, so
-      # those are its key. A push captures it again.
+      # The last release's capture is kept between runs. It changes only with the tag
+      # and the files of this commit that the capture reads: the scenarios, cases.py
+      # (each scenario's until, processes and run), the list of left-out files and the
+      # script, so those are its key.
       - name: Restore the capture of the last release
-        if: github.event_name == 'pull_request'
         id: baseline
         uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/capture/old-${{ matrix.part }}.json
-          key: regression-${{ env.BASELINE }}-${{ matrix.part }}-${{ hashFiles('tests/regression/scenarios/**', 'tests/regression/left_out.yaml', 'scripts/regression.py') }}
+          key: regression-${{ env.BASELINE }}-${{ matrix.part }}-${{ hashFiles('tests/regression/scenarios/**', 'tests/regression/cases.py', 'tests/regression/left_out.yaml', 'scripts/regression.py') }}
 
       - name: Capture the last release
         if: steps.baseline.outputs.cache-hit != 'true'

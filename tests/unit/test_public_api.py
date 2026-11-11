@@ -269,3 +269,12 @@ def test_the_guard_names_the_promised_path():
         (2, "desflow.explain.render_terminal"),
         (5, ""),
     ]
+
+
+def test_a_star_import_is_inside_the_promise_only_from_a_promised_package():
+    found = public_api.imports_outside_promise(
+        "from desflow import *\n"
+        "from desflow.values import *\n"
+        "from desflow.core.registry import *\n"
+    )
+    assert [f.text for f in found] == ["from desflow.core.registry import *"]

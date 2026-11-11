@@ -26,6 +26,7 @@ A path is the `sim_id`, the kind of parameter, its name and the field:
 | a resource | `<sim_id>.resources.<name>.current_cap`, `.max_cap` and `.queue_limit` (`None` while the resource has no limit) |
 | a container | `<sim_id>.containers.<name>.current_cap`, `.max_cap` and `.level` |
 | a store | `<sim_id>.stores.<name>.current_cap` and `.max_cap` |
+| a breakdown of a resource | `<sim_id>.breakdown.<resource>.time_to_failure.<parameter>` and `<sim_id>.breakdown.<resource>.repair.<parameter>`, one per scalar parameter of each distribution's family, as for a service |
 | a variable | `<sim_id>.variables.<name>` |
 
 [Arrivals and Services](../model-parts/arrivals-and-services.md) lists each family's parameters. An update to a path that does not exist, including a parameter the family does not take, is logged as a warning and ignored, so a misspelt path changes nothing.
