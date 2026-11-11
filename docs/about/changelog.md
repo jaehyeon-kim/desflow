@@ -34,6 +34,7 @@ desflow 1.0 is the first stable release. From 1.0, the YAML blueprint format, th
 ### Upgrading
 
 - 1.0 changes results and some YAML forms. [Upgrading to 1.0](upgrading-to-1.0.md) lists each change with the old behaviour, the new behaviour and what to change. The changes most models meet are the defaults of `strict` and `on_unhandled_failure`, signals that fire once, the end of a run with no `until`, an unrounded `sim_ts`, numbers that keep their written type, and tasks that go on in the same step as SimPy's process, which changes the order of records at one instant.
+- The log messages of a model's declaration, checks and signals come from the loggers `desflow.builder.context` and `desflow.builder.signals`, which were `desflow.core.context` and `desflow.core.signals`. A level or a handler set on `desflow.core` no longer applies to them: set it on `desflow.builder` as well, or on `desflow`, which covers both.
 
 ## Version 0.28.0
 
