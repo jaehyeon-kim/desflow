@@ -14,6 +14,7 @@ import simpy
 from simpy.events import NORMAL, URGENT
 
 from desflow import Entity, Signal, SignalFailed
+from desflow.blueprint.loader import BlueprintError
 from desflow.builder.context import SimulationContext
 from tests.conformance.harness import (
     event_trace,
@@ -1501,44 +1502,72 @@ CHILD_ERROR = {
 }
 
 
+# An `on:` write whose value cannot be evaluated: the path exists, so the model loads,
+# and the action raises when it runs
+FAILING_ON = "on: [{path: C1.variables.v, value: {gen: expr, expr: '1 / 0'}}]"
+
+
 @pytest.mark.parametrize("child", ["losing", "waited"])
-def test_c1_an_on_path_that_does_not_exist_in_a_child_flow_stops_the_run(
-    tmp_path, child
-):
-    """An `on:` action that raises in a child flow stops the run with its KeyError,
+def test_c1_an_on_action_that_raises_in_a_child_flow_stops_the_run(tmp_path, child):
+    """An `on:` action that raises in a child flow stops the run with its error,
     whether the parent lost its wait for the child or waits for it, as an exception
     in a SimPy process that nothing handles stops `run()`. The stop is at the kid's
     end."""
     text = (
         "simulation: {sim_id: C1, factor: 0}\n"
+        "variables: {v: 0}\n"
         "services: {one: {dist: constant, value: 1}, three: {dist: constant, value: 3}}\n"
         "arrivals: {a: {replay: {path: a.csv}, spawn: parent}}\n"
         "tasks:\n"
         f"{CHILD_ERROR[child]}"
-        "  kid: {service: three, payload: {e: k}, "
-        "on: [{path: C1.variables.nope, value: 1}]}\n"
+        f"  kid: {{service: three, payload: {{e: k}}, {FAILING_ON}}}\n"
         "run: {until: 10}\n"
     )
     outcome = run_yaml_text(tmp_path, text, {"a": [0]})
     assert outcome.app_or_env.env.now == 3.0
-    assert isinstance(outcome.error, KeyError)
-    assert "C1.variables.nope" in str(outcome.error)
+    assert isinstance(outcome.error, (ZeroDivisionError, ValueError))
+    assert "division by zero" in str(outcome.error)
 
 
-def test_c1_an_on_path_that_does_not_exist_in_a_root_task_stops_the_run(tmp_path):
-    """The same action in a root task stops the run with the KeyError too."""
+def test_c1_an_on_action_that_raises_in_a_root_task_stops_the_run(tmp_path):
+    """The same action in a root task stops the run with its error too."""
+    text = (
+        "simulation: {sim_id: C1, factor: 0}\n"
+        "variables: {v: 0}\n"
+        f"{ONE}\n"
+        "arrivals: {a: {replay: {path: a.csv}, spawn: job}}\n"
+        "tasks:\n"
+        f"  job: {{service: one, payload: {{e: 1}}, {FAILING_ON}}}\n"
+        "run: {until: 10}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"a": [0]})
+    assert isinstance(outcome.error, (ZeroDivisionError, ValueError))
+    assert "division by zero" in str(outcome.error)
+
+
+@pytest.mark.parametrize("place", ["root", "child"])
+def test_c1_an_on_path_that_does_not_exist_is_refused_before_the_run(tmp_path, place):
+    """A missing `on:` path, in a root task or a child flow, is refused when the model
+    loads, at its line and naming the path, so the clock never starts."""
+    tasks = {
+        "root": "  job: {service: one, payload: {e: 1}, %s}\n",
+        "child": (
+            "  job: {wait: {task: kid}, payload: {e: p}}\n"
+            "  kid: {service: one, payload: {e: k}, %s}\n"
+        ),
+    }[place]
     text = (
         "simulation: {sim_id: C1, factor: 0}\n"
         f"{ONE}\n"
         "arrivals: {a: {replay: {path: a.csv}, spawn: job}}\n"
         "tasks:\n"
-        "  job: {service: one, payload: {e: 1}, "
-        "on: [{path: C1.variables.nope, value: 1}]}\n"
-        "run: {until: 10}\n"
+        + tasks % "on: [{path: C1.variables.nope, value: 1}]"
+        + "run: {until: 10}\n"
     )
-    outcome = run_yaml_text(tmp_path, text, {"a": [0]})
-    assert isinstance(outcome.error, KeyError)
-    assert "C1.variables.nope" in str(outcome.error)
+    with pytest.raises(
+        BlueprintError, match=r"\.yaml:\d+: 'C1.variables.nope' is not a registry path"
+    ):
+        run_yaml_text(tmp_path, text, {"a": [0]})
 
 
 NEXT_FLAG = """

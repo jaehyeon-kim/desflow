@@ -45,6 +45,7 @@ operand that cannot be evaluated fails the expression. Each name carries its sou
 
 import ast
 import math
+import unicodedata
 from numbers import Integral as _Integral
 from dataclasses import dataclass, field, replace
 from pydantic import TypeAdapter, ValidationError
@@ -264,6 +265,25 @@ _FUNCTIONS: Dict[str, Tuple[Callable[..., Any], int, Optional[int]]] = {
     "cos": (math.cos, 1, 1),
     "tan": (math.tan, 1, 1),
 }
+
+
+def folded_name(name: str) -> Optional[str]:
+    """The name an expression reads instead of `name`, or None when it reads `name`.
+
+    Python's parser reads an identifier in its NFKC form, so a micro sign (`µ`), a
+    ligature (`ﬁ`) or a full-width letter in a name makes the expression read a
+    different name, which looks the same.
+
+    Args:
+        name: A name as the model writes it.
+
+    Returns:
+        Optional[str]: The NFKC form of `name`, or None when it is the same.
+    """
+    folded = unicodedata.normalize("NFKC", name)
+    return None if folded == name else folded
+
+
 # Names an expression gives a meaning, so a var cannot take them. The words from `all`
 # to `waiting` are the functions and names of Batch 6, and the words that the Facts
 # table keeps for the handles and resource names of later batches (`batch`, `each`,
@@ -552,11 +572,26 @@ def _attr_indexes_as_reads(tree: ast.Expression) -> ast.Expression:
     return ast.fix_missing_locations(_AttrIndexes().visit(tree))
 
 
+def _key_read_as(container: Mapping[str, Any], name: str) -> Optional[str]:
+    """The key of `container` that a dotted read of `name` means, or None.
+
+    The parser gives a name in its NFKC form, so a key written with a micro sign
+    (`µs`) is read as `name` when `name` is `μs`.
+    """
+    if name in container:
+        return name
+    for key in container:
+        if isinstance(key, str) and unicodedata.normalize("NFKC", key) == name:
+            return key
+    return None
+
+
 def _field(value: Any, name: str, what: str = "the value") -> Any:
     """The field `name` of a mapping, for a dotted read."""
-    if not isinstance(value, Mapping) or name not in value:
+    key = _key_read_as(value, name) if isinstance(value, Mapping) else None
+    if key is None:
         raise KeyError(f"{what} has no field '{name}'")
-    return value[name]
+    return value[key]
 
 
 @dataclass
@@ -1413,7 +1448,8 @@ class Expression:
         """The value of a call for a scope."""
         name = node.func.id  # type: ignore[attr-defined]
         if name == "has":
-            return node.args[0].attr in scope.attributes  # type: ignore[attr-defined]
+            attribute = node.args[0].attr  # type: ignore[attr-defined]
+            return _key_read_as(scope.attributes, attribute) is not None
         if name in _STATE_CALLS:
             return self._state_call(name, node, scope)
         if name in _FUNCTIONS:
@@ -1664,9 +1700,12 @@ class Expression:
             raise KeyError(f"no request is being tested, so {source} has no value")
         if parts[0] == "attr":
             attributes = row.get("attr")
-            if not isinstance(attributes, Mapping) or parts[1] not in attributes:
+            if not isinstance(attributes, Mapping):
                 raise KeyError(f"the holder has no attribute '{parts[1]}'")
-            return attributes[parts[1]]
+            key = _key_read_as(attributes, parts[1])
+            if key is None:
+                raise KeyError(f"the holder has no attribute '{parts[1]}'")
+            return attributes[key]
         return row[parts[0]]
 
     def _attribute(self, node: ast.Attribute, scope: Scope) -> Any:
@@ -1745,11 +1784,13 @@ class Expression:
             "upstream": (scope.upstream, "the upstream payload has no field '{}'"),
         }
         if source == "arg":
-            if scope.args is None or first not in scope.args:
+            found = None if scope.args is None else _key_read_as(scope.args, first)
+            if found is None:
                 raise KeyError(
                     f"the process has no argument '{first}': an argument is passed "
                     f"with args or written with set_args"
                 )
+            first = found
             container: Any = scope.args
         elif source == "cause":
             if scope.cause is None:
@@ -1757,15 +1798,19 @@ class Expression:
                     "no interrupt reached this task: cause is read in a task an "
                     "on_interrupt_next edge or an on_interrupt_run edge reaches"
                 )
-            if first not in scope.cause:
+            found = _key_read_as(scope.cause, first)
+            if found is None:
                 raise KeyError(f"the cause has no '{first}'")
+            first = found
             container = scope.cause
         else:
             container, message = sources[source]
             if source == "payload" and container is None:
                 raise KeyError("the payload is null")
-            if container is None or first not in container:
+            found = None if container is None else _key_read_as(container, first)
+            if found is None:
                 raise KeyError(message.format(first))
+            first = found
         value = container[first]
         for part in parts[1:]:
             value = _field(value, part, f"'{source}.{first}'")

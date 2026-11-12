@@ -57,10 +57,18 @@ def _within_max(
 ) -> Optional[Union[int, float]]:
     """A `current_cap` clamped to `[0, max_cap]`, with a warning when it changes, as
     the registry clamps a live update; the run and `analyze()` then use the same
-    capacity."""
+    capacity. A resource's or a store's capacity clamped to a finite bound keeps the
+    type of `current_cap`: `7` under `max_cap` `5.0` gives `5`, and `7.0` under `5`
+    gives `5.0`. An infinite `current_cap` clamps to a whole number. A container's
+    keeps the type given."""
     if current_cap is None or max_cap is None:
         return current_cap
-    clamped = type(current_cap)(min(max(current_cap, 0), max_cap))
+    clamped = min(max(current_cap, 0), max_cap)
+    if kind == "container":
+        clamped = type(current_cap)(clamped)
+    elif clamped != current_cap and math.isfinite(clamped):
+        finite_float = isinstance(current_cap, float) and math.isfinite(current_cap)
+        clamped = float(clamped) if finite_float else int(clamped)
     if clamped != current_cap:
         logger.warning(
             f"current_cap {current_cap} of {kind} '{name}' is outside "

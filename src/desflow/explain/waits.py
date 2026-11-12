@@ -7,7 +7,7 @@ law) for Lq and L.
 """
 
 import json
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from desflow.explain.arrivals import exponential
 from desflow.explain.formulas import UNSTABLE_AT, erlang_wait, kingman_wait
@@ -65,6 +65,18 @@ def stations(
     return passes
 
 
+def _parameters_text(distribution: Optional[Dict[str, Any]]) -> str:
+    """A distribution's parameters as text that is equal for equal values, so a rate
+    written `1` and one written `1.0` are the same."""
+    numbers = {
+        key: float(value)
+        if isinstance(value, (int, float)) and not isinstance(value, bool)
+        else value
+        for key, value in (distribution or {}).items()
+    }
+    return json.dumps(numbers, sort_keys=True)
+
+
 def _markov(
     node: Node,
     resource: ResourceResult,
@@ -73,8 +85,8 @@ def _markov(
 ) -> bool:
     """True for a stable resource whose tasks share one exponential service rate."""
     using = [nodes[t] for t in users[node.id]]
-    # One rate: every task's service has the same parameters
-    services = {json.dumps(t.distribution, sort_keys=True) for t in using}
+    # One rate: every task's service has the same parameters, `1` and `1.0` alike
+    services = {_parameters_text(t.distribution) for t in using}
     return (
         all(exponential(t) for t in using)
         and len(services) == 1

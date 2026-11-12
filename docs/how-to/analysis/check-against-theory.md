@@ -321,7 +321,7 @@ The utilisation is still known here, because it needs only the rates. The same r
 - an `on:` entry that sets a resource's capacity, or a resource family: the tasks that use the resource and every task after them;
 - an unstable resource: every task after its tasks, though the resource itself keeps its utilisation and status;
 - a priority queue whose tasks have different priorities: its wait, and every task after its tasks;
-- a scenario step that changes a parameter, live ingress, or an `add_process` function: every arrival and every task;
+- a scenario step that changes a parameter, an `on:` entry that sets an arrival or a service, live ingress, or an `add_process` function: every arrival and every task;
 - a replayed arrival, a hand-written arrival loop or a `next` function: every rate they could change;
 - a task started by a `spawn` entry of a task's `on:` or `listen` list, by a `task` branch of a `wait`, `open` or `subscribe`, by a `spawn` entry in the `on:` list of a signal a task fires, or by `on_interrupt_next` or `on_interrupt_run`: it has no rate, because how often it starts is known only in a run.
 

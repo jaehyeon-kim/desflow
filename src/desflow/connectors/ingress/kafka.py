@@ -866,7 +866,9 @@ class KafkaIngress(BaseIngress):
         """Consumes parameter changes from Kafka and puts each on the ingress queue.
 
         Each message is read as JSON with `path` and `value`; a message that cannot be
-        read is logged and skipped.
+        read is logged and skipped. A deserializer runs in a worker thread, because it
+        may call a schema registry, which waits and retries, and must not hold the loop
+        that every ingress connector of the run shares.
 
         Args:
             ingress_queue: The queue the environment applies changes from, as
@@ -893,8 +895,13 @@ class KafkaIngress(BaseIngress):
                                 msg.topic, self.default_deserializer
                             )
 
-                            # Decode binary payload -> Python Dict
-                            data = deserializer.deserialize(msg.topic, msg.value)
+                            # Decode binary payload -> Python Dict. In a worker
+                            # thread: a deserializer may call a schema registry,
+                            # which waits and retries, and the loop is shared by
+                            # every ingress connector of the run.
+                            data = await asyncio.to_thread(
+                                deserializer.deserialize, msg.topic, msg.value
+                            )
 
                             ingress_queue.put(parse_change(data))
 

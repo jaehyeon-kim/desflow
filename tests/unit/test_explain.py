@@ -188,6 +188,7 @@ def test_when_rules_make_the_split_unknown():
 def test_a_task_feature_makes_the_wait_unsupported(task, feature):
     app = _shop(**task)
     app.add_signal("done")
+    app.add_variable("x", 0)
     _check_feature(app, feature)
 
 
@@ -270,6 +271,34 @@ def test_a_current_cap_above_max_cap_is_analysed_as_the_run_uses_it(caplog):
     assert packers.servers == 1
     assert packers.utilization == pytest.approx(0.8 / 1.5)
     assert "current_cap 2 of resource 'packers'" in caplog.text
+
+
+def test_infinity_declared_as_a_current_cap_is_clamped_to_a_whole_number(caplog):
+    app = SimulationContext(sim_id="Shop", factor=0)
+    with caplog.at_level(logging.WARNING, logger="desflow.builder.context"):
+        app.add_resource("packers", current_cap=math.inf, max_cap=5)
+        app.add_container("tank", current_cap=math.inf, max_cap=5)
+    assert [m.rsplit(". ", 1)[1] for m in caplog.messages] == ["Using 5.", "Using 5.0."]
+
+
+def test_a_current_cap_clamped_to_a_whole_float_max_cap_is_a_whole_number(caplog):
+    app = SimulationContext(sim_id="Shop", factor=0)
+    with caplog.at_level(logging.WARNING, logger="desflow.builder.context"):
+        app.add_resource("packers", current_cap=7, max_cap=5.0)
+    assert [m.rsplit(". ", 1)[1] for m in caplog.messages] == ["Using 5."]
+
+
+def test_a_float_current_cap_clamped_to_max_cap_keeps_its_float_type(caplog):
+    """`7.0` under `max_cap` 5 gives `5.0`, as on rc3: the clamp keeps the type of
+    `current_cap`, and only an infinite one becomes a whole number."""
+    app = SimulationContext(sim_id="Shop", factor=0)
+    with caplog.at_level(logging.WARNING, logger="desflow.builder.context"):
+        app.add_resource("packers", current_cap=7.0, max_cap=5)
+        app.add_store("shelf", current_cap=7.0, max_cap=5)
+    assert [m.rsplit(". ", 1)[1] for m in caplog.messages] == [
+        "Using 5.0.",
+        "Using 5.0.",
+    ]
 
 
 def test_a_hint_above_max_cap_says_to_raise_max_cap():
@@ -787,6 +816,79 @@ def test_verify_does_not_compare_after_an_unstable_resource(tmp_path):
     assert all(c.differs is None for c in found.values())
 
 
+def test_verify_does_not_compare_a_throughput_after_run_stop_ends_the_run(tmp_path):
+    """The signal fires at 500 s, so each run is a quarter of `until` long."""
+    text = (
+        MM1.replace(
+            "arrivals:\n",
+            "arrivals:\n  closer: {dist: constant, value: 500, max_events: 1, spawn: close}\n",
+        )
+        .replace(
+            "tasks:\n",
+            "signals: {closing: {}}\ntasks:\n  close: {signal: closing, payload: {}}\n",
+        )
+        .replace("run: {until: 20000}", "run: {until: 2000, stop: {signal: closing}}")
+    )
+    found = _verify(tmp_path, text, until=2000)
+    throughput = found[("orders", "throughput")]
+    assert throughput.analytical is None and throughput.differs is None
+    assert throughput.reason == (
+        "run.stop can end a run before until, so a run has no fixed time to divide by"
+    )
+    assert found[("packers", "utilization")].analytical is not None
+
+    from desflow.explain.render import render_terminal
+
+    explanation = SimulationContext.from_yaml(tmp_path / "shop.yaml").analyze(
+        verify=True, until=2000
+    )
+    assert "Verify: 1 run to run.stop or 2000 s, seed 7" in render_terminal(explanation)
+
+
+def test_names_with_square_brackets_are_printed_as_written(tmp_path):
+    from desflow.explain.render import render_terminal
+
+    path = tmp_path / "names.yaml"
+    path.write_text(
+        MM1.replace("  packers:", '  "[bold]packers":')
+        .replace("resource: packers", 'resource: "[bold]packers"')
+        .replace("orders:", '"orders[/x]":')
+        .replace("  pack:", '  "[dim]pack":')
+        .replace("spawn: pack", 'spawn: "[dim]pack"'),
+        encoding="utf-8",
+    )
+    text = render_terminal(SimulationContext.from_yaml(path).analyze(), width=120)
+    for name in ("[bold]packers", "orders[/x]", "[dim]pack"):
+        assert name in text
+    assert "Bottleneck: [bold]packers" in text
+
+
+def test_a_rate_written_1_and_1_0_is_one_service_rate_for_erlang_c(tmp_path):
+    texts = [
+        f"""\
+simulation: {{sim_id: Shop, random_seed: 1}}
+resources: {{packers: {{current_cap: 2, max_cap: 2}}}}
+services:
+  a: {{dist: exponential, rate: 1}}
+  b: {{dist: exponential, rate: {second}}}
+arrivals:
+  x: {{dist: exponential, rate: 0.5, spawn: pa}}
+  y: {{dist: exponential, rate: 0.5, spawn: pb}}
+tasks:
+  pa: {{service: a, resource: packers, payload: {{}}}}
+  pb: {{service: b, resource: packers, payload: {{}}}}
+run: {{until: 100}}
+"""
+        for second in ("1", "1.0")
+    ]
+    waits = []
+    for number, text in enumerate(texts):
+        path = tmp_path / f"shop{number}.yaml"
+        path.write_text(text)
+        waits.append(SimulationContext.from_yaml(path).analyze().resources[0].wait)
+    assert waits[0] == waits[1] and waits[0] is not None
+
+
 def test_json_validates_and_the_committed_schema_is_current():
     from desflow.explain.render import to_json
 
@@ -797,6 +899,28 @@ def test_json_validates_and_the_committed_schema_is_current():
     assert committed == Explanation.model_json_schema(), (
         "The committed schema is out of date; run `uv run python scripts/gen_schema.py`"
     )
+
+
+def test_an_arrival_rate_too_small_for_a_float_is_refused_without_a_traceback(tmp_path):
+    (tmp_path / "tiny.yaml").write_text(
+        MM1.replace("rate: 0.8", "rate: 1e-200"), encoding="utf-8"
+    )
+    result = CliRunner().invoke(cli, ["explain", str(tmp_path / "tiny.yaml")])
+    assert result.exit_code == 1, result.output
+    assert (
+        "arrival orders: exponential with rate 1e-200 has a mean or variance too "
+        "large for a float" in result.output
+    )
+    assert "Traceback" not in result.output
+
+
+def test_a_service_rate_too_small_for_a_float_names_the_task(tmp_path):
+    (tmp_path / "tiny.yaml").write_text(
+        MM1.replace("rate: 1}", "rate: 1e-200}"), encoding="utf-8"
+    )
+    result = CliRunner().invoke(cli, ["explain", str(tmp_path / "tiny.yaml")])
+    assert result.exit_code == 1, result.output
+    assert "task pack: exponential with rate 1e-200" in result.output
 
 
 def test_the_command_prints_the_tree_and_the_resources(tmp_path):

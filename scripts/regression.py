@@ -187,8 +187,11 @@ def _other_blueprints(root: Path, twins, left_out: Dict[str, str]) -> List[Path]
     }
     found: List[Path] = []
     for folder in ("examples", "tests", "docs"):
-        for pattern in ("*.yaml", "*.yml"):
-            found.extend((root / folder).rglob(pattern))
+        found.extend(
+            path
+            for path in (root / folder).rglob("*")
+            if path.suffix.lower() in (".yaml", ".yml") and path.is_file()
+        )
     other: List[Path] = []
     for path in sorted(found):
         name = path.relative_to(root).as_posix()
@@ -430,6 +433,12 @@ def _expected(path: Path, baseline: str) -> Dict[str, Dict[str, Any]]:
         if missing:
             raise SystemExit(
                 f"{path}: entry {entry.get('run')} lacks {sorted(missing)}"
+            )
+    for entry in entries:
+        if not isinstance(entry["since"], str):
+            raise SystemExit(
+                f"{path}: entry {entry['run']} has since {entry['since']!r}, which "
+                "YAML reads as a number; write it in quotes, such as '1.10'"
             )
     runs = [entry["run"] for entry in entries]
     repeated = sorted({run for run in runs if runs.count(run) > 1})

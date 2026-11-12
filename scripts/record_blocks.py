@@ -36,6 +36,18 @@ _MARKER = re.compile(
     r"(?P=indent)```text\n(?P<body>.*?)\n(?P=indent)```$",
     re.S | re.M,
 )
+_MARKER_LINE = re.compile(r"^ *<!-- records: ", re.M)
+
+
+def unmatched_markers(text: str) -> List[int]:
+    """The line numbers of the markers that no block follows: a marker whose next line
+    is not a ```text fence matches nothing and would never be checked."""
+    matched = {m.start() for m in _MARKER.finditer(text)}
+    return [
+        text.count("\n", 0, m.start()) + 1
+        for m in _MARKER_LINE.finditer(text)
+        if m.start() not in matched
+    ]
 
 
 def _pages() -> List[Path]:
@@ -46,9 +58,20 @@ def used() -> Dict[str, List[Path]]:
     """Every block name the pages use, with the pages that use it."""
     found: Dict[str, List[Path]] = {}
     for page in _pages():
-        for match in _MARKER.finditer(page.read_text(encoding="utf-8")):
+        text = page.read_text(encoding="utf-8")
+        _refuse_unmatched(page, text)
+        for match in _MARKER.finditer(text):
             found.setdefault(match["name"], []).append(page)
     return found
+
+
+def _refuse_unmatched(page: Path, text: str) -> None:
+    lines = unmatched_markers(text)
+    if lines:
+        raise ValueError(
+            f"{page.relative_to(ROOT)}: line {', '.join(map(str, lines))}: a records "
+            "marker needs a ```text fence on the next line"
+        )
 
 
 def _rewrite(page: Path, cache: Dict[str, List[str]]) -> str:
@@ -70,6 +93,7 @@ def stale() -> List[str]:
     out = []
     for page in _pages():
         text = page.read_text(encoding="utf-8")
+        _refuse_unmatched(page, text)
         if not _MARKER.search(text):
             continue
         if _rewrite(page, cache) != text:
@@ -85,8 +109,16 @@ def main(argv: List[str]) -> int:
         argv: The command-line arguments; `--check` reports instead of writing.
 
     Returns:
-        int: 1 when `--check` finds a stale block, else 0.
+        int: 1 when `--check` finds a stale block or a marker has no block, else 0.
     """
+    try:
+        return _run(argv)
+    except ValueError as error:
+        print(error)
+        return 1
+
+
+def _run(argv: List[str]) -> int:
     if "--check" in argv:
         out = stale()
         print("\n".join(out) or "Every block is up to date.")
@@ -94,6 +126,7 @@ def main(argv: List[str]) -> int:
     cache: Dict[str, List[str]] = {}
     for page in _pages():
         text = page.read_text(encoding="utf-8")
+        _refuse_unmatched(page, text)
         if _MARKER.search(text):
             new = _rewrite(page, cache)
             if new != text:

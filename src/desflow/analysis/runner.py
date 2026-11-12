@@ -39,6 +39,7 @@ from desflow.analysis.models import (
     default_until,
     describe,
     inspect_model,
+    python_file_refusal,
     run_once,
     seconds,
     spawn_seeds,
@@ -499,6 +500,9 @@ def _checked_settings(spec: Union[str, Path, Mapping[str, Any], Any]) -> _Checke
                 f"model {settings.model}: no such file; give a path from the "
                 f"experiment file's folder",
             )
+        refusal = python_file_refusal(settings.model)
+        if refusal:
+            raise located(("model",), refusal)
     if settings.observed is not None:
         observed_file = folder / settings.observed.file
         if not observed_file.is_file():

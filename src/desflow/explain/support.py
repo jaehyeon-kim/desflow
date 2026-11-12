@@ -14,8 +14,8 @@ mark:
 - a priority queue whose tasks have different priorities: every task after its
   tasks (the resource keeps its utilisation, without a wait);
 - an unstable resource: every task after its tasks (the resource keeps its status);
-- a scenario step, live ingress or an `add_process` function: every arrival and
-  every task.
+- a scenario step, an `on:` entry that sets an arrival or a service, live ingress
+  or an `add_process` function: every arrival and every task.
 
 The priority queue and the unstable resource leave out the resource's own tasks,
 which a rework loop also reaches.

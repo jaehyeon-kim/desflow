@@ -45,7 +45,7 @@ FROZEN_MESSAGE = (
 WIDENINGS = {
     "new key or definition": "a key of `properties` or a definition of `$defs` is one that no 1.0 blueprint uses",
     "new member or value": "a member of `anyOf` or `oneOf`, or a value of `enum`, only adds what is accepted",
-    "wider limit": "`minimum`, `exclusiveMinimum`, `ge`, `gt` and `minItems` fall or go; `maximum` and `maxItems` rise or go",
+    "wider limit": "`minimum`, `exclusiveMinimum` and `minItems` fall or go; `maximum` and `maxItems` rise or go",
     "required key removed": "a key that is no longer required accepts a blueprint that omits it",
     "additionalProperties opened": "`additionalProperties` from `false` to `true` or to a schema accepts more keys",
     "pattern kept": "a pattern changes while every frozen sample still matches it",
@@ -53,7 +53,7 @@ WIDENINGS = {
 }
 
 FREE = ("$id", "$schema", "title", "description", "default")
-LOWER_BOUNDS = ("minimum", "exclusiveMinimum", "ge", "gt", "minItems")
+LOWER_BOUNDS = ("minimum", "exclusiveMinimum", "minItems")
 UPPER_BOUNDS = ("maximum", "maxItems")
 # Keywords whose subschemas are walked with the same rules. `if` is compared as it is,
 # because a widening inside the condition changes which branch a value takes.
@@ -385,8 +385,12 @@ NARROWINGS: List[Tuple[str, str, Callable[[Dict[str, Any]], None]]] = [
         "an exclusiveMinimum raised",
         _set(BATCH, "exclusiveMinimum", 1),
     ),
-    ("ge", "a ge raised", _set(WITHIN, "ge", 1)),
-    ("gt", "a gt raised", _set(INTERVAL, "gt", 1)),
+    ("minimum", "a minimum beside anyOf raised", _set(WITHIN, "minimum", 1)),
+    (
+        "exclusiveMinimum",
+        "an exclusiveMinimum beside anyOf raised",
+        _set(INTERVAL, "exclusiveMinimum", 1),
+    ),
     ("minItems", "a minItems raised", _set(f"{ADD}/args", "minItems", 3)),
     ("maxItems", "a maxItems lowered", _set(BOUNDS, "maxItems", 1)),
     ("maxItems", "a new maxItems", _set(f"{ADD}/args", "maxItems", 9)),
@@ -454,8 +458,12 @@ WIDENINGS_APPLIED: List[Tuple[str, str, Callable[[Dict[str, Any]], None]]] = [
     ("wider limit", "a maximum raised", _set(RATE, "maximum", 2)),
     ("wider limit", "a maximum removed", _drop(RATE, "maximum")),
     ("wider limit", "an exclusiveMinimum lowered", _set(BATCH, "exclusiveMinimum", -1)),
-    ("wider limit", "a ge lowered", _set(WITHIN, "ge", -1)),
-    ("wider limit", "a gt removed", _drop(INTERVAL, "gt")),
+    ("wider limit", "a minimum beside anyOf lowered", _set(WITHIN, "minimum", -1)),
+    (
+        "wider limit",
+        "an exclusiveMinimum beside anyOf removed",
+        _drop(INTERVAL, "exclusiveMinimum"),
+    ),
     ("wider limit", "a minItems lowered", _set(f"{ADD}/args", "minItems", 1)),
     ("wider limit", "a maxItems raised", _set(BOUNDS, "maxItems", 3)),
     ("required key removed", "a required key removed", _pop("$defs/Add/required", 0)),

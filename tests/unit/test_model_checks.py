@@ -120,8 +120,9 @@ def test_an_override_the_registry_refuses_is_left_to_the_run_when_steps_exist():
     app.task(name="t", service_time=1)(_job)
     with pytest.raises(ParamRejected) as caught:
         app.start(until=5, overrides={"S.resources.r.current_cap": "abc"})
+    assert caught.value.path == "S.resources.r.current_cap"
     assert str(caught.value) == (
-        "'S.resources.r.current_cap' cannot be set to 'abc'; the registry kept 1"
+        "resource 'r' needs a whole number of 0 or more for current_cap, got 'abc'"
     )
 
 

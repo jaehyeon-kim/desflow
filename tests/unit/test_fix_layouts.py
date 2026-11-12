@@ -11,6 +11,7 @@ from typing import List, Mapping
 
 import pytest
 
+from desflow.blueprint import BlueprintError
 from desflow.blueprint.build import read_tests_file
 from desflow.blueprint.expectations import fix_expectations, holds
 
@@ -33,6 +34,13 @@ LAYOUTS = {
         tests:
           - name: t
             expect: {a: {value: 1, within: 0}, b: {value: 2, within: 0}}
+        """,
+    "flow over lines": """\
+        tests:
+          - name: t
+            expect: {
+              a: 5,
+              b: 7 }
         """,
     "quoted names": """\
         tests:
@@ -71,6 +79,39 @@ def test_fix_writes_the_measured_value_into_the_key_it_belongs_to(layout, tmp_pa
 def test_fix_changes_the_first_of_two_keys_alone(tmp_path):
     path = _fix(tmp_path, LAYOUTS["one line"], [{"a": 5, "b": 2}])
     assert "a: {value: 5, within: 0}, b: {value: 2, within: 0}" in path.read_text()
+
+
+def test_fix_writes_an_empty_expect_that_is_the_first_key_of_a_test(tmp_path):
+    path = _fix(
+        tmp_path,
+        """\
+        tests:
+          - expect: {}
+            name: t
+        """,
+        [{"a": 3}],
+    )
+    tests, _ = read_tests_file(path)
+    assert holds(tests[0].expect["a"], 3), path.read_text()
+
+
+def test_fix_refuses_an_expect_that_two_tests_share_through_an_anchor(tmp_path):
+    with pytest.raises(BlueprintError) as error:
+        _fix(
+            tmp_path,
+            """\
+            tests:
+              - name: one
+                expect: &e
+                  a: 5
+              - name: two
+                expect: *e
+            """,
+            [{"a": 5}, {"a": 9}],
+        )
+    message = str(error.value)
+    assert message.startswith(f"{tmp_path / 'tests.yaml'}:4: "), message
+    assert "tests 'one', 'two' share" in message
 
 
 def test_the_capture_blueprint_with_tests_is_fixed_to_its_measured_values(tmp_path):

@@ -221,6 +221,32 @@ tasks:
     assert finished == [{"done": 1}], finished
 
 
+def test_the_record_schemas_call_the_timestamp_logical_time_and_the_value_a_mapping(
+    tmp_path,
+):
+    """`timestamp` is the logical start time plus `sim_ts`, never the wall clock, and
+    an event's value is a mapping or null."""
+    text = """\
+simulation: {sim_id: S, factor: 0, random_seed: 1, logical_start_time: 2026-01-01T00:00:00}
+arrivals: {a: {initial: 1, spawn: serve}}
+tasks:
+  serve: {service_time: 10, payload: {done: 1}}
+"""
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None, outcome.error
+    finished = [r for r in outcome.records if r.get("value") == {"done": 1}]
+    assert finished[0]["sim_ts"] == 10.0
+    assert finished[0]["timestamp"].startswith("2026-01-01T00:00:10"), finished[0]
+    for payload in (TelemetryPayload, EventPayload, LabelPayload):
+        description = payload.model_fields["timestamp"].description or ""
+        documented = (payload.__mro__[1].__doc__ or "") + (payload.__doc__ or "")
+        assert "logical" in description, (payload.__name__, description)
+        assert "real-world" not in description + documented, payload.__name__
+    value = EventPayload.model_fields["value"].description or ""
+    assert "null" in value and "dictionary" not in value, value
+    assert "None" in (EventPayload.__doc__ or ""), EventPayload.__doc__
+
+
 SUBSCRIBE = """\
 simulation: {{sim_id: T, factor: 0, random_seed: 1}}
 signals: {{to: {{once: true}}, never: {{once: true}}}}

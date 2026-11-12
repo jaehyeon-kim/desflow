@@ -6,6 +6,7 @@ file loads the same way, so a command that takes either kind of file has one pat
 
 import atexit
 import functools
+import importlib.machinery
 import importlib.util
 import itertools
 import shutil
@@ -15,9 +16,10 @@ from pathlib import Path
 from typing import List, Mapping, Optional, Union
 
 from desflow.blueprint.build import Preview, preview_builder
+from desflow.blueprint.loader import entry_modules
 from desflow.builder.context import SimulationContext, parts_of
+from desflow.utils import is_builder_file
 
-_PYTHON_SUFFIX = ".py"
 # Each Python entry is imported under a new name, so two loads never share a module
 _entry_numbers = itertools.count()
 
@@ -32,10 +34,11 @@ def load_context(
 
     An entry ending in `.py` is a builder file: it is imported under a new module
     name each call, with `folder` first on `sys.path` during the import, so its
-    imports resolve from its folder and its `if __name__ == "__main__":` block does
-    not run. Its `DESFLOW_APP` names the context to use; without it, the file must
-    define exactly one `SimulationContext` at module level. Any other entry is a
-    YAML blueprint, built by `SimulationContext.from_yaml`.
+    imports resolve from its folder, not from a file of another folder loaded
+    earlier, and its `if __name__ == "__main__":` block does not run. Its
+    `DESFLOW_APP` names the context to use; without it, the file must define exactly
+    one `SimulationContext` at module level. Any other entry is a YAML blueprint,
+    built by `SimulationContext.from_yaml`.
 
     Args:
         folder: A local folder, or a URI that `pyarrow.fs.FileSystem.from_uri`
@@ -56,17 +59,19 @@ def load_context(
     Raises:
         NoContextError: If a Python entry defines no context. It is a
             `ValueError`.
-        ValueError: If `folder` is a URI and `entry` is not a file in it; if a Python
-            entry defines several contexts with no `DESFLOW_APP`, or `DESFLOW_APP`
-            names no context; or variables are given with a Python entry.
+        EntryNotFoundError: If `folder` is a URI and `entry` is not a file in it. It
+            is a `ValueError`.
+        ValueError: If a Python entry defines several contexts with no `DESFLOW_APP`,
+            or `DESFLOW_APP` names no context; or variables are given with a Python
+            entry.
         ImportError: If `folder` is a URI and pyarrow is not installed.
         BlueprintError: If a blueprint is invalid.
     """
     local = _local_folder(folder)
     path = local / entry
     if isinstance(folder, str) and "://" in folder and not path.is_file():
-        raise ValueError(f"no file {folder}/{entry}")
-    if path.suffix != _PYTHON_SUFFIX:
+        raise EntryNotFoundError(f"no file {folder}/{entry}")
+    if not is_builder_file(path):
         return SimulationContext.from_yaml(path, preview, variables)
     if variables:
         raise ValueError(
@@ -104,6 +109,10 @@ def _local_folder(folder: Union[str, Path]) -> Path:
     return local
 
 
+class EntryNotFoundError(ValueError):
+    """The entry of a URI folder is not a file in it."""
+
+
 class NoContextError(ValueError):
     """A Python file that defines no module-level `SimulationContext`, such as a
     script that builds `DynamicRealtimeEnvironment` itself."""
@@ -112,7 +121,9 @@ class NoContextError(ValueError):
 def _python_context(path: Path) -> SimulationContext:
     """Imports a builder file and returns the context it defines."""
     name = f"desflow_entry_{next(_entry_numbers)}"
-    spec = importlib.util.spec_from_file_location(name, path)
+    # The loader is given, because importlib knows only `.py` in lower case
+    loader = importlib.machinery.SourceFileLoader(name, str(path))
+    spec = importlib.util.spec_from_file_location(name, path, loader=loader)
     if spec is None or spec.loader is None:
         raise ValueError(f"{path} cannot be imported as a Python file")
     module = importlib.util.module_from_spec(spec)
@@ -121,7 +132,8 @@ def _python_context(path: Path) -> SimulationContext:
     folder = str(path.parent)
     sys.path.insert(0, folder)
     try:
-        spec.loader.exec_module(module)
+        with entry_modules(path.parent):
+            spec.loader.exec_module(module)
     finally:
         sys.path.remove(folder)
 

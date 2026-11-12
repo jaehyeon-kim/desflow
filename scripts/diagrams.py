@@ -223,6 +223,13 @@ def main(names):
     Args:
         names: Diagram names (draw.io files without `.drawio`) and tape names.
     """
+    known = {p.stem for p in DIAGRAMS.glob("*.drawio") if not p.name.startswith("_")}
+    unknown = [n for n in names if n not in TAPES and n not in known]
+    if unknown:
+        raise SystemExit(
+            f"No diagram or tape named {', '.join(unknown)}. "
+            f"Names: {', '.join(sorted(known | set(TAPES)))}"
+        )
     tapes = [n for n in names if n in TAPES]
     for name in tapes:
         print(f"{name}.tape -> {_record(name).name}")

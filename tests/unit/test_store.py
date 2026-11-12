@@ -186,6 +186,14 @@ def test_initial_items_above_capacity_or_without_a_priority_are_refused(
         DynamicStore(env, "Shop", "buffer1", items=list(range(6)))
     with pytest.raises(ValueError, match="pairs"):
         DynamicStore(env, "Other", "buffer2", priority=True, items=["x"])
+    with pytest.raises(ValueError, match="starting item priority must be a number"):
+        DynamicStore(
+            env, "Other", "buffer2", priority=True, items=[(float("nan"), "x")]
+        )
+    with pytest.raises(ValueError, match="starting item priority must be a number"):
+        DynamicStore(
+            env, "Other", "buffer2", priority=True, items=[((5, float("nan")), "x")]
+        )
 
 
 def test_a_priority_store_refuses_a_filter(env, registry, sample_params):

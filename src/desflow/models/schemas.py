@@ -8,17 +8,20 @@ class BaseStreamPayload(BaseModel):
     Base schema for all egress data emitted by the simulation engine.
 
     This schema guarantees that all outgoing data streams share a common temporal context,
-    allowing downstream systems to accurately synchronize simulation time with real-world time.
+    allowing downstream systems to read each record at its place on the simulated calendar.
 
     Attributes:
         stream_type (Literal["telemetry", "event", "label"]): An identifier indicating the nature of the payload.
         sim_ts (float): The simulation clock time (in seconds) when the payload was generated.
-        timestamp (str): The real-world ISO 8601 timestamp indicating when the payload was generated.
+        timestamp (str): The ISO 8601 logical time of the payload: the run's logical start time plus `sim_ts`.
     """
 
     stream_type: Literal["telemetry", "event", "label"]
     sim_ts: float = Field(..., description="The simulation clock time (in seconds).")
-    timestamp: str = Field(..., description="The real-world ISO 8601 timestamp.")
+    timestamp: str = Field(
+        ...,
+        description="The ISO 8601 logical time: the logical start time plus sim_ts.",
+    )
 
 
 class TelemetryPayload(BaseStreamPayload):
@@ -57,7 +60,7 @@ class EventPayload(BaseStreamPayload):
         task (Optional[str]): The name of the task the event belongs to, or None for
             an event published outside a task.
         instance (Optional[Any]): The task's instance id, or None.
-        value (Dict[str, Any]): A dictionary containing the event's detailed payload.
+        value (Optional[Dict[str, Any]]): The event's payload, a mapping, or None when the payload is null.
     """
 
     stream_type: Literal["event"] = "event"
@@ -68,7 +71,8 @@ class EventPayload(BaseStreamPayload):
     task: Optional[str] = Field(None, description="The task's name.")
     instance: Optional[Any] = Field(None, description="The task's instance id.")
     value: Any = Field(
-        ..., description="A dictionary or Pydantic model containing the event payload."
+        ...,
+        description="The event payload: a mapping, or null when the payload is null.",
     )
 
 

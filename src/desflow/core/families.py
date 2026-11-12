@@ -32,7 +32,13 @@ from typing import (
     Union,
 )
 
-from desflow.core.expressions import Expression, Scope, member_name, normal_key
+from desflow.core.expressions import (
+    Expression,
+    Scope,
+    folded_name,
+    member_name,
+    normal_key,
+)
 
 if TYPE_CHECKING:
     from desflow.builder.holders import HolderRun
@@ -447,6 +453,12 @@ def name_problem(kind: str, name: str, held_by: Optional[str]) -> Optional[str]:
                 f"{kind} '{name}' has a {word} in its name, which an expression "
                 f"cannot name; use a name without one"
             )
+    folded = folded_name(name)
+    if folded is not None:
+        return (
+            f"{kind} '{name}' is read as '{folded}' in an expression, which is "
+            f"another name; use '{folded}'"
+        )
     return None
 
 
@@ -487,7 +499,8 @@ class Families:
             name: The entry's name.
 
         Raises:
-            ValueError: If another kind has the name, or it holds a dot or a space.
+            ValueError: If another kind has the name, or it holds a dot, a space or a
+                character that an expression reads as another, such as `µ`.
         """
         problem = name_problem(kind, name, self.kinds.get(name))
         if problem is not None:

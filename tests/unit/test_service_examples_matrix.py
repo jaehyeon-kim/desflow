@@ -1,9 +1,9 @@
 """The `services` jobs run every example that has an odctl profile, each once.
 
-The job's matrix in `pull-request.yml` lists the examples of each group by hand, and
-`EXAMPLES` is the list of examples. An example registered with a profile and left out
-of the matrix would never run in CI, and a name left in the matrix after its example
-goes would select no test.
+The job's matrix in `services.yml`, which `pull-request.yml` and `manual.yml` call,
+lists the examples of each group by hand, and `EXAMPLES` is the list of examples. An
+example registered with a profile and left out of the matrix would never run in CI, and
+a name left in the matrix after its example goes would select no test.
 """
 
 from pathlib import Path
@@ -16,7 +16,7 @@ WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 
 
 def test_matrix_lists_the_examples_with_a_profile():
-    job = yaml.safe_load((WORKFLOWS / "pull-request.yml").read_text(encoding="utf-8"))[
+    job = yaml.safe_load((WORKFLOWS / "services.yml").read_text(encoding="utf-8"))[
         "jobs"
     ]["services"]
     listed = [
@@ -26,9 +26,18 @@ def test_matrix_lists_the_examples_with_a_profile():
     ]
     registered = sorted(name for name, e in EXAMPLES.items() if e.profile)
     assert sorted(listed) == registered, (
-        "The services matrix in pull-request.yml and the examples with a profile "
+        "The services matrix in services.yml and the examples with a profile "
         f"in EXAMPLES differ: matrix {sorted(listed)}, EXAMPLES {registered}."
     )
+
+
+def test_pull_request_and_manual_workflows_call_the_services_workflow():
+    """`manual.yml` runs the service tests every day, so a change that `ci_plan.py` does
+    not list for a pull request is still tested."""
+    for name in ("pull-request.yml", "manual.yml"):
+        jobs = yaml.safe_load((WORKFLOWS / name).read_text(encoding="utf-8"))["jobs"]
+        called = [job["uses"] for job in jobs.values() if "uses" in job]
+        assert called == ["./.github/workflows/services.yml"], name
 
 
 def test_every_service_example_has_a_plan_and_a_reader():

@@ -249,6 +249,48 @@ def test_later_batches_are_cast_to_the_table_schema():
     assert second.to_pylist() == [{"key": "b", "sim_ts": 2.0}]
 
 
+def test_whole_numbers_are_inferred_as_longs_and_a_later_fraction_is_refused(caplog):
+    """A table created from whole numbers has a long column, in a list or a struct
+    too, and so has a column a later batch adds, so an integer of any size is written.
+    A later fraction is refused with a message that says how to keep fractions."""
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(catalog=catalog, default_table="sim.orders")
+    big = 1767225600123456789  # an epoch time in nanoseconds, above 2**53
+
+    egress._write_batch(
+        [
+            {
+                "stream_type": "event",
+                "key": "a",
+                "value": {"amount": big, "tags": [1], "box": {"n": 2}, "flag": True},
+            }
+        ],
+        pa,
+    )
+    egress._write_batch(
+        [{"stream_type": "event", "key": "b", "value": {"amount": 12, "later": big}}],
+        pa,
+    )
+    with caplog.at_level("ERROR"):
+        egress._write_batch(
+            [{"stream_type": "event", "key": "c", "value": {"amount": 12.5}}], pa
+        )
+
+    schema = catalog.create_calls[0][1]
+    assert schema.field("amount").type == pa.int64()
+    assert schema.field("tags").type == pa.list_(pa.int64())
+    assert schema.field("box").type == pa.struct([("n", pa.int64())])
+    assert schema.field("flag").type == pa.bool_()
+    table = catalog.tables["sim.orders"]
+    assert table.unions[0].field("later").type == pa.int64()
+    assert table.appended[0].to_pylist()[0]["amount"] == big
+    assert len(table.appended) == 2
+    assert (
+        "Name the column double in schemas before the table is created" in caplog.text
+    )
+    assert "table_policy: drop_and_create" in caplog.text
+
+
 def test_a_table_without_upsert_keys_is_appended():
     """Without upsert_keys nothing changes: the batch is appended."""
     catalog = FakeCatalog()
@@ -277,6 +319,48 @@ def test_a_table_with_upsert_keys_is_upserted_on_those_keys():
     df, join_cols = table.upserted[0]
     assert join_cols == ["order_id"]
     assert df.to_pylist() == [{"order_id": 1, "status": "new"}]
+
+
+@needs_upsert
+def test_a_batch_that_brings_a_column_to_an_upsert_table_is_refused(caplog):
+    """PyIceberg's `upsert` cannot update a row written before a column was added, so
+    the sink logs one error that names the table and the columns, writes nothing of
+    that batch and adds no column. A later batch with the table's columns is written."""
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(
+        catalog=catalog,
+        default_table="sim.orders",
+        upsert_keys={"sim.orders": ["order_id"]},
+    )
+    egress._write_batch([{"order_id": 1, "qty": 1}], pa)
+
+    with caplog.at_level("ERROR"):
+        egress._write_batch([{"order_id": 1, "qty": 2, "big": 3}], pa)
+    egress._write_batch([{"order_id": 2, "qty": 5}], pa)
+
+    table = catalog.tables["sim.orders"]
+    assert table.unions == []
+    assert len(table.upserted) == 2
+    assert len(caplog.records) == 1
+    assert "sim.orders has upsert_keys" in caplog.text
+    assert "the columns 'big' that the table lacks" in caplog.text
+    assert "Name every column in schemas and create the table again" in caplog.text
+
+
+@needs_upsert
+def test_upsert_keys_given_as_a_string_are_one_column():
+    """`upsert_keys: {sim.orders: order_id}` names one key column, not eight characters."""
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(
+        catalog=catalog,
+        default_table="sim.orders",
+        upsert_keys={"sim.orders": "order_id"},
+    )
+
+    egress._write_batch([{"order_id": 1, "status": "new"}], pa)
+
+    assert egress.upsert_keys == {"sim.orders": ["order_id"]}
+    assert catalog.tables["sim.orders"].upserted[0][1] == ["order_id"]
 
 
 @needs_upsert

@@ -53,7 +53,11 @@ def task_results(graph: Graph, arrivals: List[ArrivalResult]) -> List[TaskResult
         known = [task for task in known if task not in reasons]
     results = []
     for node in tasks:
-        mean, variance = moments(node.distribution) if node.distribution else (0.0, 0.0)
+        mean, variance = (
+            moments(node.distribution, f"task {node.label}")
+            if node.distribution
+            else (0.0, 0.0)
+        )
         results.append(
             TaskResult(
                 name=node.label,

@@ -34,8 +34,10 @@ A YAML blueprint builds the same kind of context: `SimulationContext.from_yaml(p
 or `desflow run <file>.yaml` from a shell.
 """
 
+import contextlib
 import logging
 from importlib.metadata import PackageNotFoundError, version
+from typing import Iterator
 
 # ---------------------------------------------------------
 # Core & Local Components (Always Available)
@@ -139,61 +141,67 @@ __all__ = [
     "FitResult",
 ]
 
+
 # ---------------------------------------------------------
-# Optional: Kafka Connectors (Requires `pip install desflow[kafka]`)
+# Optional connectors, each in its own extra. A connector is left out only when a
+# package of its extra is missing; any other failure to import it is raised, so a
+# fault in a connector module does not look like a missing extra.
 # ---------------------------------------------------------
-try:
+@contextlib.contextmanager
+def _without_extra() -> Iterator[None]:
+    """Skips the imports in the block when a package outside desflow is missing."""
+    try:
+        yield
+    except ModuleNotFoundError as exc:
+        if exc.name is None or exc.name.split(".")[0] == "desflow":
+            raise
+
+
+# Requires `pip install desflow[kafka]`
+with _without_extra():
     from desflow.connectors.admin.kafka import KafkaAdminConnector  # noqa: F401
+
+    __all__.append("KafkaAdminConnector")
+with _without_extra():
     from desflow.connectors.egress.kafka import KafkaEgress  # noqa: F401
+
+    __all__.append("KafkaEgress")
+with _without_extra():
     from desflow.connectors.ingress.kafka import KafkaIngress  # noqa: F401
 
-    __all__.extend(["KafkaAdminConnector", "KafkaEgress", "KafkaIngress"])
-except ImportError:
-    pass
+    __all__.append("KafkaIngress")
 
-# ---------------------------------------------------------
-# Optional: Storage Connectors (Requires `pip install desflow[parquet]`)
-# ---------------------------------------------------------
-try:
+# Requires `pip install desflow[parquet]`
+with _without_extra():
     from desflow.connectors.egress.storage import (
         JsonlStorageEgress,  # noqa: F401
         ParquetStorageEgress,  # noqa: F401
     )
 
     __all__.extend(["JsonlStorageEgress", "ParquetStorageEgress"])
-except ImportError:
-    pass
 
-# ---------------------------------------------------------
-# Optional: Iceberg Connector (Requires `pip install desflow[iceberg]`)
-# ---------------------------------------------------------
-try:
-    from desflow.connectors.egress.iceberg import (
-        IcebergStorageEgress,  # noqa: F401
-    )
+# Requires `pip install desflow[iceberg]`
+with _without_extra():
+    from desflow.connectors.egress.iceberg import IcebergStorageEgress  # noqa: F401
 
-    __all__.extend(["IcebergStorageEgress"])
-except ImportError:
-    pass
+    __all__.append("IcebergStorageEgress")
 
-# ---------------------------------------------------------
-# Optional: Postgres Connectors (Requires `pip install desflow[postgres]`)
-# ---------------------------------------------------------
-try:
+# Requires `pip install desflow[postgres]`
+with _without_extra():
     from desflow.connectors.egress.postgres import PostgresEgress  # noqa: F401
+
+    __all__.append("PostgresEgress")
+with _without_extra():
     from desflow.connectors.ingress.postgres import PostgresIngress  # noqa: F401
 
-    __all__.extend(["PostgresEgress", "PostgresIngress"])
-except ImportError:
-    pass
+    __all__.append("PostgresIngress")
 
-# ---------------------------------------------------------
-# Optional: Redis Connectors (Requires `pip install desflow[redis]`)
-# ---------------------------------------------------------
-try:
+# Requires `pip install desflow[redis]`
+with _without_extra():
     from desflow.connectors.egress.redis import RedisEgress  # noqa: F401
+
+    __all__.append("RedisEgress")
+with _without_extra():
     from desflow.connectors.ingress.redis import RedisIngress  # noqa: F401
 
-    __all__.extend(["RedisEgress", "RedisIngress"])
-except ImportError:
-    pass
+    __all__.append("RedisIngress")

@@ -183,7 +183,7 @@ Some keys of a record's `value` belong to desflow, not to the data. They are the
 | `__path__` | `ParquetStorageEgress`, `JsonlStorageEgress` | the base path of the chunk files the key names; a `path_router` wins over the key, and a record with no key goes to `default_path`. The path is relative to the working directory or the sink's `filesystem`, not under the folder of `default_path`, and each flush writes `<stem>_<id><suffix>` |
 | `__stream__` | `RedisEgress` | the stream the key names |
 
-- Every other key of that kind is dropped, with one warning per key the first time a sink meets it, by `KafkaEgress`, the Parquet, JSON Lines and Iceberg sinks, and `ConsoleEgress`. Each of them keeps the key it routes by. `PostgresEgress` and `RedisEgress` remove only their own routing key, so any other such key reaches their rows as data.
+- Every other key of that kind is dropped, with one warning per key the first time a sink meets it, by `KafkaEgress`, `RedisEgress`, the Parquet, JSON Lines and Iceberg sinks, and `ConsoleEgress`. Each of them keeps the key it routes by. `PostgresEgress` removes only its own routing key, so any other such key reaches its rows as data.
 
 The warning names the sink and the key:
 
@@ -203,7 +203,7 @@ Every sink receives the events and telemetry above. A `when: labels` sink receiv
 |---|---|
 | `ConsoleEgress` | one line per record: `[TEL]`, `[EVT]` or `[LBL]`, followed by the record without `stream_type`. A trace record prints as `[EVT]`. Each batch is one INFO log call, so only a batch's first line carries the logging format's prefix |
 | `KafkaEgress` | the record as JSON, without `stream_type` unless `include_stream_type=True`; the message key is `path_id` for telemetry and `key` for an event. A label goes to `event_topic` with no key |
-| `RedisEgress` | the record as JSON in one `payload` field, with any `__stream__` key removed |
+| `RedisEgress` | the record as JSON in one `payload` field, with every reserved key removed, as the list above sets out |
 | `ParquetStorageEgress`, `JsonlStorageEgress`, `IcebergStorageEgress` | without a router, one flat row per event or label, with an event's `value` mapping unpacked into columns, and no telemetry; with a router, each record as the router leaves it |
 | `PostgresEgress` | an event or telemetry record whose value is a mapping, written to the table its `__table__` key names; the key is removed. The sink adds `sim_ts` and `timestamp` to the row, and for an event `key` as `event_id`, `task` and `instance`, or for telemetry `path_id`, as [Egress](../user-guide/live-runs-and-connectors/egress.md#postgresql) describes. A label is written as the columns `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`, the last three as JSON text |
 

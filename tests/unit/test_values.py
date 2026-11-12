@@ -21,6 +21,7 @@ from desflow.blueprint import BlueprintError
 from desflow.builder.task import TaskFailed
 from desflow.core.environment import DynamicRealtimeEnvironment
 from desflow.values import Template, ValueRuntime, generator
+from desflow.values.template import bind
 from desflow.values.check import load_rows
 from tests.conformance.harness import RecordingEgress, run_yaml_text
 
@@ -143,6 +144,79 @@ def test_sample_refuses_a_parameter_the_family_lacks(tmp_path):
         )
 
 
+@pytest.mark.parametrize(
+    "spec, setting, reason",
+    [
+        ("{gen: sequence, start: yes}", "start", "not the boolean True"),
+        ("{gen: sequence, step: 2.0}", "step", "whole number written without a point"),
+        ("{gen: sequence, loop_after: yes}", "loop_after", "not the boolean True"),
+        ("{gen: uniform, low: 0, high: 1, decimals: yes}", "decimals", "boolean"),
+        ("{gen: normal, mean: 0, std: 1, decimals: 1.0}", "decimals", "whole number"),
+        ("{gen: uniform, low: 0, high: 1, null_rate: yes}", "null_rate", "boolean"),
+        ("{gen: uniform, low: 0, high: 1, omit_rate: no}", "omit_rate", "boolean"),
+    ],
+)
+def test_a_boolean_or_a_float_is_refused_in_a_plain_number_field_with_its_line(
+    tmp_path, spec, setting, reason
+):
+    with pytest.raises(BlueprintError) as raised:
+        run(tmp_path, f"payload: {{x: {spec}}}")
+    assert f"model.yaml:6: tasks.t.payload.x.{setting}:" in str(raised.value)
+    assert reason in str(raised.value)
+    with pytest.raises(ValueError, match=setting):
+        generator(
+            {"gen": "uniform", "low": 0, "high": 1, setting: True}
+            if setting in ("decimals", "null_rate", "omit_rate")
+            else {"gen": "sequence", setting: True}
+        )
+
+
+@pytest.mark.parametrize(
+    "spec, setting, kwargs",
+    [
+        (
+            "{gen: switch, on: 1, cases: [{min: yes, max: 3, value: a}]}",
+            "cases.0.min",
+            {"gen": "switch", "on": 1, "cases": [{"min": True, "value": "a"}]},
+        ),
+        (
+            "{gen: lookup, task: make, histogram: [{bin: 1, frequency: yes}]}",
+            "histogram.0.frequency",
+            {
+                "gen": "lookup",
+                "task": "make",
+                "histogram": [{"bin": 1, "frequency": True}],
+            },
+        ),
+    ],
+)
+def test_a_boolean_is_refused_in_the_numbers_of_a_switch_range_and_a_histogram_bin(
+    tmp_path, spec, setting, kwargs
+):
+    with pytest.raises(BlueprintError) as raised:
+        run(tmp_path, f"payload: {{x: {spec}}}")
+    assert f"model.yaml:6: tasks.t.payload.x.{setting}:" in str(raised.value)
+    assert "not the boolean True" in str(raised.value)
+    with pytest.raises(ValueError, match="not the boolean True"):
+        generator(kwargs)
+
+
+def test_a_whole_number_a_fraction_and_a_quoted_number_stay_accepted_in_those_fields(
+    tmp_path,
+):
+    assert field(tmp_path, "{gen: sequence, start: 5, step: 2, loop_after: 2}") == [
+        5,
+        7,
+        5,
+    ]
+    assert field(tmp_path, "{gen: sequence, start: '5'}", n=1) == [5]
+    spec = "{gen: uniform, low: 0, high: 1, decimals: 1, null_rate: 0, omit_rate: 0.0}"
+    assert all(len(str(v)) <= 3 for v in field(tmp_path, spec))
+    assert set(field(tmp_path, "{gen: uniform, low: 0, high: 1, null_rate: 1}")) == {
+        None
+    }
+
+
 def test_boolean_follows_p(tmp_path):
     assert set(field(tmp_path, "{gen: boolean, p: 1}")) == {True}
     assert set(field(tmp_path, "{gen: boolean, p: 0}")) == {False}
@@ -194,6 +268,31 @@ def test_switch_by_value_by_range_and_default(tmp_path):
     assert field(tmp_path, f"{{gen: switch, on: 99, {ranges}}}", n=1) == ["low"]
     assert field(tmp_path, f"{{gen: switch, on: 100, {ranges}}}", n=1) == ["high"]
     assert field(tmp_path, "{gen: switch, on: 1, cases: {2: x}}", n=1) == [None]
+
+
+def test_a_case_written_yes_no_on_or_off_matches_that_text(tmp_path):
+    for word in ("yes", "no", "on", "off", "Yes", "NO"):
+        spec = f"{{gen: switch, on: '{word}', cases: {{{word}: found}}, default: lost}}"
+        assert field(tmp_path, spec, n=1) == ["found"], word
+
+
+def test_an_option_written_on_or_off_is_that_text(tmp_path):
+    values = field(tmp_path, "{gen: weighted, options: {on: 1, off: 1, Yes: 1}}", n=60)
+    assert set(values) == {"on", "off", "Yes"}
+
+
+def test_a_boolean_on_still_matches_the_case_words_for_it(tmp_path):
+    cases = "{yes: agreed, no: declined}"
+    assert field(tmp_path, f"{{gen: switch, on: true, cases: {cases}}}", n=1) == [
+        "agreed"
+    ]
+    assert field(tmp_path, f"{{gen: switch, on: false, cases: {cases}}}", n=1) == [
+        "declined"
+    ]
+    cases = "{true: agreed, false: declined}"
+    assert field(tmp_path, f"{{gen: switch, on: false, cases: {cases}}}", n=1) == [
+        "declined"
+    ]
 
 
 def test_when_evaluates_only_the_branch_taken(tmp_path):
@@ -784,6 +883,7 @@ def test_a_bare_var_name_is_read_by_put_fail_and_next_and_not_before(tmp_path):
             "'count' is a name an expression already uses",
         ),
         ("vars: {'a b': 1}\npayload: {}", "is not a name an expression can read"),
+        ("vars: {µs: 1}\npayload: {}", "'µs' is read as 'μs'"),
         ("payload: {x: {gen: var, name: a}}", "'a' is not a var that has a value here"),
         (
             "vars: {a: {gen: expr, expr: 'zz + 1'}}\npayload: {}",
@@ -1619,6 +1719,140 @@ def test_unnamed_templates_do_not_share_a_counter_or_a_stream():
     app.add_process(process)
     app.run(until=2)
     assert seen == [0, 0, 1]
+
+
+def _amounts_of_one_template(app: SimulationContext, template: Template) -> List[Any]:
+    seen: List[Any] = []
+
+    def process(context):
+        for _ in range(3):
+            seen.append(template.render(context)["x"])
+            yield context.env.timeout(1)
+
+    app.add_process(process)
+    return seen
+
+
+_AMOUNT = {"x": {"gen": "uniform", "low": 0, "high": 1000, "decimals": 0}}
+
+
+@pytest.mark.parametrize("order", ["built-together", "after-a-run", "made-before"])
+def test_an_unnamed_template_gives_the_same_values_whatever_context_was_built_first(
+    order,
+):
+    alone_app = SimulationContext(sim_id="B", random_seed=7, factor=0)
+    alone = _amounts_of_one_template(alone_app, Template(_AMOUNT))
+    alone_app.run(until=3.5)
+
+    if order == "made-before":
+        # Made before its own context, and after another context ran
+        first_app = SimulationContext(sim_id="A", random_seed=7, factor=0)
+        _amounts_of_one_template(first_app, Template(_AMOUNT))
+        first_app.run(until=3.5)
+        template = Template(_AMOUNT)
+        second_app = SimulationContext(sim_id="B", random_seed=7, factor=0)
+        after_another = _amounts_of_one_template(second_app, template)
+    else:
+        first_app = SimulationContext(sim_id="A", random_seed=7, factor=0)
+        _amounts_of_one_template(first_app, Template(_AMOUNT))
+        second_app = SimulationContext(sim_id="B", random_seed=7, factor=0)
+        after_another = _amounts_of_one_template(second_app, Template(_AMOUNT))
+        if order == "after-a-run":
+            first_app.run(until=3.5)
+    second_app.run(until=3.5)
+    assert after_another == alone
+
+
+def test_a_template_made_after_another_context_took_its_key_takes_the_key_of_the_context_that_renders_it():
+    first_app = SimulationContext(sim_id="A", random_seed=7, factor=0)
+    _amounts_of_one_template(first_app, Template(_AMOUNT))
+    between = Template(_AMOUNT)
+    app = SimulationContext(sim_id="B", random_seed=7, factor=0)
+    _amounts_of_one_template(app, between)
+    app.run(until=3.5)
+    assert between.key == "template1"
+
+
+def test_unnamed_templates_made_and_freed_in_each_call_are_numbered_by_the_order_of_renders():
+    # Templates made earlier raise the process's creation count; a freed template can
+    # leave its address to the next one
+    earlier = [Template(_AMOUNT) for _ in range(50)]
+    app = SimulationContext(sim_id="B", random_seed=7, factor=0)
+    keys: List[str] = []
+
+    def process(context):
+        for _ in range(5):
+            fresh = Template(_AMOUNT)
+            fresh.render(context)
+            keys.append(fresh.key)
+            del fresh
+            yield context.env.timeout(1)
+
+    app.add_process(process)
+    app.run(until=6)
+    assert keys == [f"template{n}" for n in range(1, 6)]
+    assert len(earlier) == 50
+
+
+def test_a_template_named_like_an_unnamed_one_has_a_stream_of_its_own():
+    unnamed = Template({"n": {"gen": "sequence"}})
+    named = Template({"n": {"gen": "sequence"}}, name=unnamed.key)
+    assert named.key != unnamed.key
+    assert named.payload["n"]._path != unnamed.payload["n"]._path
+
+
+def test_a_key_with_a_dot_and_the_nested_keys_have_different_streams_and_counters():
+    template = Template(
+        {
+            "a.b": {"gen": "sequence"},
+            "a": {"b": {"gen": "sequence"}},
+            "1": {"gen": "sequence"},
+            True: {"gen": "sequence"},
+        },
+        name="t",
+    )
+    paths = [
+        template.payload["a.b"]._path,
+        template.payload["a"]["b"]._path,
+        template.payload["1"]._path,
+        template.payload[True]._path,
+    ]
+    assert len(set(paths)) == len(paths), paths
+    app = SimulationContext(sim_id="B", random_seed=7, factor=0)
+    seen: List[Any] = []
+
+    def process(context):
+        seen.append(template.render(context))
+        yield context.env.timeout(1)
+
+    app.add_process(process)
+    app.run(until=2)
+    assert seen == [{"a.b": 0, "a": {"b": 0}, "1": 0, True: 0}]
+
+
+def test_the_names_a_caller_gives_as_the_start_of_a_path_are_joined_as_written():
+    """A task named `p.q` has the place `tasks.p.q.payload.x`, which a low-level
+    `sampler.generator` call and a dotted run both name; only keys under the
+    payload are escaped."""
+    node = generator({"gen": "sequence"})
+    mapping = {"x": node, "a.b": generator({"gen": "sequence"})}
+    bind(mapping, ("tasks", "p.q", "payload"))
+    assert node._path == "tasks.p.q.payload.x"
+    assert mapping["a.b"]._path == "tasks.p.q.payload.a\\.b"
+
+
+def test_a_key_without_a_dot_keeps_the_path_that_names_its_stream():
+    template = Template(
+        {
+            "plain": {"gen": "sequence"},
+            "list": [{"gen": "sequence"}],
+            7: {"gen": "sequence"},
+        },
+        name="t",
+    )
+    assert template.payload["plain"]._path == "t.payload.plain"
+    assert template.payload["list"][0]._path == "t.payload.list.0"
+    assert template.payload[7]._path == "t.payload.7"
 
 
 def test_a_template_reads_attributes_when_the_payload_is_built(tmp_path):
@@ -2549,8 +2783,8 @@ def test_a_dropped_start_runs_none_of_its_on_actions(tmp_path):
         + "arrivals: {m: {dist: constant, value: 1, first_at: 3, spawn: make, max_events: 1}, r: {dist: constant, value: 1, first_at: 1, spawn: read, max_events: 2}}\n"
         + "tasks:\n  make: {payload: {a: 1}}\n  other: {payload: {b: 1}}\n"
         + "  read:\n    on:\n      - {spawn: {task: other}}\n"
-        + "      - {path: B.resources.pool.current_cap, value: 4}\n"
-        + "      - {path: B.resources.pool.current_cap, value: {gen: lookup, task: make, path: a}}\n"
+        + "      - {path: V.resources.pool.current_cap, value: 4}\n"
+        + "      - {path: V.resources.pool.current_cap, value: {gen: lookup, task: make, path: a}}\n"
         + "    payload: {x: {gen: lookup, task: make, path: a}}\n"
         + "run: {until: 2.5}\n"
     )

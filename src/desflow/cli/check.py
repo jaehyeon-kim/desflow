@@ -121,10 +121,10 @@ def check_file(file: Path, variables: Optional[Mapping[str, str]] = None) -> Fil
     """
     from desflow.blueprint.build import check
     from desflow.blueprint.loader import BlueprintError
-    from desflow.loading import NoContextError, load_context
+    from desflow.loading import NoContextError, is_builder_file, load_context
 
     try:
-        if file.suffix == ".py":
+        if is_builder_file(file):
             context = load_context(file.parent, file.name, variables=variables)
         else:
             context = check(file, variables)
@@ -133,7 +133,7 @@ def check_file(file: Path, variables: Optional[Mapping[str, str]] = None) -> Fil
     except NoContextError as exc:
         return FileCheck(None, str(exc), no_context=True)
     except (Exception, SystemExit) as exc:
-        if file.suffix != ".py" and not isinstance(exc, (ImportError, ValueError)):
+        if not is_builder_file(file) and not isinstance(exc, (ImportError, ValueError)):
             raise
         # A builder file runs code of its own, so any error or exit is the file's
         return FileCheck(None, _error_place(file, exc))
@@ -147,7 +147,9 @@ def _error_place(file: Path, exc: BaseException) -> str:
     desflow raised about the file, from no line of it, is the file and the message.
     An error of a YAML file keeps its own message, which names the file or the
     reference."""
-    if file.suffix != ".py":
+    from desflow.loading import is_builder_file
+
+    if not is_builder_file(file):
         return str(exc)
     line = None
     target = file.resolve()

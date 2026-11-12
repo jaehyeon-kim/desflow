@@ -3,9 +3,10 @@
 Each model of the capture (the cases of `test_second_run.py`) that `analyze`
 gives a compared value is verified with 5 replications and must show no "differs". The
 same model with an arrival `group` of 3, every arrival off (`active: false`), a spawn
-`count` of 3, an `on:` entry that sets another resource's capacity, or a resource family
-must have no compared value for each resource it touches. The statistics `pairs` names
-are among those a run publishes, also for a resource family.
+`count` of 3, an `on:` entry that sets another resource's capacity, an arrival or a
+service, or a resource family must have no compared value for each resource it
+touches. The statistics `pairs` names are among those a run publishes, also for a
+resource family.
 """
 
 import importlib.util
@@ -23,6 +24,7 @@ from desflow.builder.arrivals import ArrivalPlan
 from desflow.builder.context import parts_of
 from desflow.explain import analyze, build_graph, verify
 from desflow.explain.pairs import pairs
+from desflow.explain.support import static_marks
 
 ROOT = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location(
@@ -250,3 +252,36 @@ def test_an_on_entry_that_sets_another_resources_capacity_is_a_feature(tmp_path)
     )
     explanation = _analysis(SimulationContext.from_yaml(path))
     assert {r.name: r.utilization for r in explanation.resources}["back"] is None
+
+
+@pytest.mark.parametrize(
+    "path, value",
+    [("S.arrival.orders.rate", 0.9), ("S.service.packing.rate", 0.2)],
+)
+def test_an_on_entry_that_sets_an_arrival_or_a_service_gives_no_compared_value(
+    tmp_path, path, value
+):
+    file = tmp_path / "m.yaml"
+    file.write_text(
+        textwrap.dedent(
+            f"""\
+            simulation: {{sim_id: S, factor: 0, random_seed: 1}}
+            resources: {{packers: {{current_cap: 1, max_cap: 1}}}}
+            services: {{packing: {{dist: exponential, rate: 1.0}}}}
+            arrivals:
+              kick: {{dist: constant, value: 1, max_events: 1, spawn: kick}}
+              orders: {{dist: exponential, rate: 0.1, spawn: pack}}
+            tasks:
+              kick: {{on: [{{path: {path}, value: {value}}}], payload: {{}}}}
+              pack: {{service: packing, resource: packers, payload: {{}}}}
+            run: {{until: 2000}}
+            """
+        )
+    )
+    context = SimulationContext.from_yaml(file)
+    explanation = _analysis(context)
+    assert {r.name: r.utilization for r in explanation.resources}["packers"] is None
+    reasons = static_marks(build_graph(context)).values()
+    assert all(
+        "an arrival or a service that an on: entry changes" in r for r in reasons
+    )

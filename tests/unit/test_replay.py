@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pytest
 
-from desflow import read_trace
+from desflow import SimulationContext, read_trace
 
 
 def test_parquet_and_timestamps_map_from_the_logical_start(tmp_path):
@@ -164,3 +164,116 @@ def test_replay_stops_at_the_end_of_the_input(caplog):
         if "replayed its last row" in r.getMessage()
     ]
     assert lines == ["Arrival 'orders' replayed its last row at 3 s; it stops."]
+
+
+@pytest.mark.parametrize("times", [[0, 0, 3], [1, 1, 3]])
+def test_replayed_rows_dropped_while_the_source_is_off_draw_no_attributes(times):
+    """Rows that start nobody draw nothing, whether they are due at the step in
+    progress or later: the entity that starts at 3 gets the first number."""
+    from desflow import SimulationContext
+    from desflow.values import generator
+
+    app = SimulationContext("S", factor=0, random_seed=1)
+    got = []
+    app.add_arrival_replay(
+        "a",
+        [{"time": time} for time in times],
+        spawn="t",
+        active=False,
+        attributes={"n": generator({"gen": "sequence", "start": 1})},
+    )
+
+    def turn_on(context):
+        yield context.env.timeout(2)
+        context._run.arrivals.set_arrivals(["a"], True)
+
+    app.add_process(turn_on)
+    app.task(service_time=0, name="t")(
+        lambda task_id, entity: got.append(entity.attributes["n"]) or {}
+    )
+    app.run(until=10)
+    assert got == [1]
+
+
+_REPLAY_MODEL = (
+    "simulation: {sim_id: R, factor: 0}\n"
+    "arrivals:\n"
+    "  a: {replay: {path: rows.csv}, spawn: work}\n"
+    "tasks:\n"
+    "  work: {service_time: 1, payload: {event_type: done}}\n"
+)
+
+
+def _replay_builder(path):
+    """A builder model whose one arrival replays `path`."""
+    app = SimulationContext("R", factor=0)
+    app.add_arrival_replay("a", path)
+
+    @app.task()
+    def work(task_id, entity):
+        return {"event": "arrived"}
+
+    @app.arrival_loop("a")
+    def arrivals(context):
+        while True:
+            entity = yield context.wait_for_arrival("a")
+            context.spawn(work(context.next_instance("work"), entity=entity))
+
+    return app
+
+
+def test_a_csv_with_a_byte_order_mark_keeps_its_time_column(tmp_path):
+    """Excel's "CSV UTF-8" starts the file with a byte order mark, which is not part
+    of the first header, in `read_trace`, the Builder and YAML alike."""
+    csv_path = tmp_path / "rows.csv"
+    csv_path.write_bytes("time,sku\r\n1.5,a\r\n2,b\r\n".encode("utf-8-sig"))
+    (tmp_path / "model.yaml").write_text(_REPLAY_MODEL)
+
+    assert [(row.time, row.fields) for row in read_trace(csv_path)] == [
+        (1.5, {"time": 1.5, "sku": "a"}),
+        (2.0, {"time": 2, "sku": "b"}),
+    ]
+    assert len(read_trace(csv_path, on_invalid="skip")) == 2
+    _replay_builder(csv_path).run(until=3)
+    SimulationContext.from_yaml(tmp_path / "model.yaml").run(until=3)
+
+
+def test_a_csv_row_of_another_length_or_a_repeated_header_is_refused(tmp_path):
+    """A row with more or fewer values than the header, and a header that names a
+    column twice, are refused naming the row or the column, in every API."""
+    csv_path = tmp_path / "rows.csv"
+    (tmp_path / "model.yaml").write_text(_REPLAY_MODEL)
+
+    def refusals():
+        found = []
+        for run in (
+            lambda: read_trace(csv_path, fields=["time", "qty"]),
+            lambda: _replay_builder(csv_path).run(until=3),
+            lambda: SimulationContext.from_yaml(tmp_path / "model.yaml").run(until=3),
+        ):
+            with pytest.raises(ValueError) as refused:
+                run()
+            found.append(str(refused.value))
+        return found
+
+    csv_path.write_text("time,sku,qty\n1,a,2\n2,b,3,EXTRA\n")
+    assert all("row 2 has 4 values, but the header has 3" in m for m in refusals())
+    csv_path.write_text("time,sku,qty\n1,a,2\n2,b\n")
+    assert all("row 2 has 2 values, but the header has 3" in m for m in refusals())
+    csv_path.write_text("time,sku,sku\n1,a,b\n")
+    assert all("names column sku more than once" in m for m in refusals())
+    from_trace, from_builder, from_yaml = refusals()
+    assert "arrival" not in from_trace
+    assert "arrival 'a' replays" in from_builder and "rows.csv" in from_builder
+    assert from_yaml.startswith(
+        f"{tmp_path / 'model.yaml'}:3: arrivals.a.replay.path: rows.csv: "
+    )
+
+
+def test_a_refusal_of_rows_given_in_memory_does_not_print_them():
+    rows = [{"time": i} for i in range(200)] + [{"time": "late"}]
+    with pytest.raises(ValueError) as refused:
+        _replay_builder(rows).run(until=3)
+    assert str(refused.value) == (
+        "arrival 'a' replays its rows: row 201 has no valid time: 'late'"
+    )

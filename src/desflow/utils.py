@@ -3,6 +3,7 @@ import math
 import numbers
 import re
 from decimal import Decimal
+from pathlib import Path
 from typing import Any, Iterable, Union
 
 from desflow.connectors._checks import checked_whole  # noqa: F401
@@ -80,11 +81,15 @@ def _seconds(value: Union[float, Decimal, str]) -> float:
 
     A real number other than a bool (an `int`, a `float`, a NumPy number, a
     `Fraction`) is returned as given, so an integer stays an integer, as in SimPy. A
-    `Decimal` is returned as a float. A duration in text is a float."""
+    `Decimal` is returned as a float. A duration in text is a float, and one that starts
+    with `-` is negative, as the generators read it."""
     if isinstance(value, str):
         try:
             return float(value)
         except ValueError:
+            text = value.strip()
+            if text.startswith("-"):
+                return -time_to_seconds(text[1:].strip())
             return time_to_seconds(value)
     if isinstance(value, numbers.Real) and not isinstance(value, bool):
         return value
@@ -122,6 +127,13 @@ def checked_seconds(
         seconds = _seconds(value)
     except ValueError:
         raise ValueError(f"{what} is seconds or a duration, got {value!r}") from None
+    try:
+        float(seconds)
+    except OverflowError:
+        raise ValueError(
+            f"{what} is a whole number too large for a float, so it is not a number "
+            f"of seconds"
+        ) from None
     if math.isnan(seconds):
         raise ValueError(f"{what} gave nan, which is not a number of seconds")
     if seconds < 0 and not below_zero:
@@ -133,7 +145,46 @@ def checked_seconds(
     return seconds
 
 
-def checked_factor(value: Any) -> Union[float, int, Decimal]:
+def has_nan_priority(value: Any) -> bool:
+    """Whether a priority is NaN, or a list or tuple that holds NaN.
+
+    Args:
+        value: The priority.
+
+    Returns:
+        True if it is a number that is NaN, or a list or tuple with one.
+    """
+    parts = value if isinstance(value, (list, tuple)) else [value]
+    return any(
+        isinstance(part, numbers.Real) and not isinstance(part, bool) and part != part
+        for part in parts
+    )
+
+
+def checked_priority(value: Any, what: str) -> Any:
+    """A literal priority, refused when it is NaN or a list or tuple that holds NaN.
+
+    NaN compares false with every priority, so one request with it breaks the order
+    of the requests around it. Infinity orders correctly and is accepted, as it is
+    in an expression. A value that is not a number (an
+    expression, a function) is returned as given and checked when it is read.
+
+    Args:
+        value: The priority as written.
+        what: The place, such as `"task 't' priority"`.
+
+    Returns:
+        The value as given.
+
+    Raises:
+        ValueError: With `what` in the message, if the value is or holds NaN.
+    """
+    if has_nan_priority(value):
+        raise ValueError(f"{what} must be a number that is not NaN, got {value!r}")
+    return value
+
+
+def checked_factor(value: Any) -> Union[float, int]:
     """A run's `factor`: a real number of 0 or more, or a plain number in text.
 
     It is a number of wall-clock seconds for each simulated second, not a time, so
@@ -144,7 +195,8 @@ def checked_factor(value: Any) -> Union[float, int, Decimal]:
         value: The factor as given.
 
     Returns:
-        The number as given, or the number a text holds.
+        The number as given, or the number a text holds; a `Decimal` is returned as a
+        float, as `_seconds` returns one.
 
     Raises:
         ValueError: Naming `factor`.
@@ -157,6 +209,8 @@ def checked_factor(value: Any) -> Union[float, int, Decimal]:
             raise ValueError(f"factor is a number, got {value!r}") from None
     if isinstance(number, bool) or not isinstance(number, (numbers.Real, Decimal)):
         raise ValueError(f"factor is a number, got {value!r}")
+    if isinstance(number, Decimal):
+        number = float(number)
     if not 0 <= number < math.inf:
         raise ValueError(
             f"factor gave {value!r}, and it must be a finite number of 0 or more"
@@ -188,6 +242,19 @@ def checked_interval(value: Any, what: str) -> Union[float, int]:
     if seconds <= 0:
         raise ValueError(f"{what} gave {seconds:g}, and it must be above 0")
     return seconds
+
+
+def is_builder_file(path: Union[str, Path]) -> bool:
+    """Returns True when `path` names a builder Python file: its suffix is `.py` in
+    any letter case, as a case-insensitive file system also finds `shop.PY`.
+
+    Args:
+        path: A file path.
+
+    Returns:
+        bool: Whether the file is read as a builder file, not as a YAML blueprint.
+    """
+    return Path(path).suffix.lower() == ".py"
 
 
 def suggestion(name: str, choices: Iterable[str]) -> str:

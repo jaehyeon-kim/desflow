@@ -2,6 +2,7 @@ import asyncio
 import inspect
 import json
 from collections import defaultdict
+from collections.abc import Hashable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, DefaultDict, Dict, List, Mapping, Optional, Tuple
 
@@ -469,13 +470,19 @@ class KafkaAdminConnector:
 
         # 1. Telemetry: 'path_id' is at the root level
         if "path_id" in data and not isinstance(data.get("value"), dict):
-            self._vitals[data["path_id"]] = data["value"]
+            # The value alone of an event, with no `value` key, is not telemetry
+            if "value" in data and isinstance(data["path_id"], str):
+                self._vitals[data["path_id"]] = data["value"]
 
         # 2. Events: 'key' is at the root, 'value' is a dictionary
         elif "key" in data and isinstance(data.get("value"), dict):
             task_id = data["key"]
             payload = data["value"]
             status = payload.get("status")
+            names = (task_id, status, payload.get("sim_id"), payload.get("service"))
+            if not all(isinstance(name, Hashable) for name in names):
+                # A list or a mapping cannot name a task, a status or a service
+                return
 
             # Using 'timestamp' based on your actual JSON payload
             ts = data.get("timestamp")

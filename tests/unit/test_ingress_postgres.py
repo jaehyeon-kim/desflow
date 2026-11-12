@@ -17,6 +17,39 @@ def mock_pool():
     return pool, conn
 
 
+def test_postgres_ingress_refuses_a_poll_interval_that_is_not_a_positive_number():
+    """The constructor refuses a `poll_interval` of 0. `checked_poll` has its own test, so one
+    refused value shows that the constructor calls it."""
+    with pytest.raises(
+        ValueError, match="poll_interval is a number of seconds above 0"
+    ):
+        PostgresIngress("postgresql://u:p@localhost/db", poll_interval=0)
+
+
+@pytest.mark.asyncio
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_postgres_ingress_waits_for_a_database_that_is_not_up(
+    mock_create_pool, mock_pool, run_until, caplog
+):
+    """A database that refuses connections when the run starts delays the ingress,
+    which then reads the table once the database answers."""
+    pool, conn = mock_pool
+    mock_create_pool.side_effect = [ConnectionRefusedError("refused"), pool]
+    conn.fetch.side_effect = [[], [{"id": 1, "path": "sim.rate", "value": "5.5"}], []]
+    ingress = PostgresIngress("postgresql://u:p@localhost/db", poll_interval=0.01)
+    ingress_queue = queue.Queue()
+
+    with patch("desflow.connectors._retry.FIRST_DELAY", 0.01):
+        await run_until(ingress.run(ingress_queue), lambda: not ingress_queue.empty())
+
+    assert ingress_queue.get_nowait() == ("sim.rate", 5.5)
+    assert mock_create_pool.call_count == 2
+    assert "PostgresIngress could not connect: refused" in caplog.text
+
+
 @pytest.mark.asyncio
 @patch(
     "desflow.connectors.ingress.postgres.asyncpg.create_pool",

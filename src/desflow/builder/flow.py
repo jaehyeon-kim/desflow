@@ -17,6 +17,7 @@ import numpy as np
 from desflow.core.expressions import ANY_NAME, Expression, Scope, boolean_word
 from desflow.core.families import Reference, name_of
 from desflow.models.flow import Upstream, payload_of
+from desflow.utils import checked_priority
 
 NextSpec = Union[None, str, Mapping[str, Any], Callable[[Upstream], Optional[str]]]
 Amount = Union[float, str, Callable[[Any, Dict[str, Any]], float]]
@@ -580,14 +581,14 @@ class Transfer:
         if isinstance(amount, str):
             self._expression = Expression(amount, names=ANY_NAME)
         elif not callable(amount) and (
-            isinstance(amount, bool) or not isinstance(amount, (int, float))
+            isinstance(amount, bool) or not isinstance(amount, numbers.Real)
         ):
             raise ValueError(
                 f"amount must be a number or an expression, got {amount!r}"
             )
         if (
             container is not None
-            and isinstance(amount, (int, float))
+            and isinstance(amount, numbers.Real)
             and not isinstance(amount, bool)
         ):
             _checked_amount(amount, f"the amount of container '{container}'")
@@ -891,8 +892,9 @@ class Wait:
             spec: The wait, in one of the forms above.
 
         Raises:
-            ValueError: If the form, a branch or a condition is malformed, or a
-                branch name is used more than once.
+            ValueError: If the form, a branch or a condition is malformed, a
+                branch name is used more than once, or a branch is named like an
+                element of an `each` group.
         """
         if not isinstance(spec, Mapping) or not spec:
             raise ValueError(
@@ -903,6 +905,23 @@ class Wait:
         self.all_nodes: List[WaitNode] = []
         self.root = self._node(spec, None)
         self.mode = self.root.kind if self.root.is_group else "any"
+        self._refuse_element_names()
+
+    def _refuse_element_names(self) -> None:
+        """Refuses a branch named like an element of an `each` group, `<each name>[<n>]`,
+        because the group's element of that number would replace it.
+
+        Raises:
+            ValueError: Naming the branch and the `each` group.
+        """
+        each_names = {n.name for n in self.all_nodes if n.is_each}
+        for name in self.branches:
+            element = re.fullmatch(r"(.+)\[\d+\]", name)
+            if element is not None and element.group(1) in each_names:
+                raise ValueError(
+                    f"wait branch name '{name}' is the name of an element of the "
+                    f"each group '{element.group(1)}'; give it another name"
+                )
 
     def _node(self, spec: Any, name: Optional[str], register: bool = True) -> WaitNode:
         """Parses one branch spec, a leaf or a group, under branch name `name` (None
@@ -1619,6 +1638,7 @@ class RequestOptions:
             raise ValueError(
                 f"{what} priority is a number or an expression, got {priority!r}"
             )
+        checked_priority(priority, f"{what} priority")
         self.priority: Any = (
             Expression(priority) if isinstance(priority, str) else priority
         )

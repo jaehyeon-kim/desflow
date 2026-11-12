@@ -180,6 +180,19 @@ def test_a_numpy_group_is_taken_as_the_yaml_takes_the_number(tmp_path):
     assert from_yaml[0] == "records" and from_yaml[1]
 
 
+def test_a_numpy_initial_and_a_duration_first_at_are_taken_as_the_yaml_takes_them(
+    tmp_path,
+):
+    arrival = {**_BASE, "attributes": dict(_ATTRIBUTES), "initial": 2, "first_at": 5}
+    from_yaml = _yaml({**arrival, "first_at": "5 s"}, tmp_path)
+    built = _builder({**arrival, "initial": np.int64(2), "first_at": "5 s"})
+    assert built == from_yaml
+    assert from_yaml[0] == "records" and from_yaml[1]
+    app = SimulationContext("S", factor=0)
+    app.add_initial_arrival("b", np.int64(2), spawn="t")
+    assert app._arrivals.plans["b"].initial == 2
+
+
 def _without_spawn(**more: Any) -> Dict[str, Any]:
     return {"gap": 1, "first_at": 0, "attributes": dict(_ATTRIBUTES), **more}
 

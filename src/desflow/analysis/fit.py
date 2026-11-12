@@ -25,6 +25,8 @@ from desflow.models.params import DistributionConfig
 
 # Seconds in one unit of the data; desflow's times are seconds.
 _UNITS = {"ms": 0.001, "s": 1.0, "min": 60.0, "h": 3600.0}
+# How far, as a share of the std, rounding to six digits may move the mean or std
+_DIGITS_TOLERANCE = 0.001
 # Families defined for positive values only; zeros or negatives skip them.
 _POSITIVE_ONLY = ("gamma", "weibull", "lognormal")
 _FIT_EXTRA = (
@@ -158,9 +160,13 @@ class FitResult:
             kind: The family; None takes the best.
 
         Returns:
-            Dict[str, Any]: `dist` and the family's parameters, in seconds, with six
-                significant digits, the numbers `yaml` writes, so a script and a
-                blueprint that load the same fit draw the same values.
+            Dict[str, Any]: `dist` and the family's parameters, in seconds. A number
+                has six significant digits, unless rounding would make the settings
+                fail to load or move the mean or std by more than a thousandth of
+                the std; then every digit is kept. The lists of an empirical fit
+                (`values`, `edges` and `counts`) keep every digit, because rounding
+                makes close values equal. These are the numbers `yaml` writes, so a
+                script and a blueprint that load the same fit draw the same values.
 
         Raises:
             ValueError: If no candidate is usable, or `kind` is not one that is.
@@ -168,15 +174,7 @@ class FitResult:
         name = kind or self.best
         for candidate in self.candidates:
             if candidate.family == name and candidate.usable:
-                return {
-                    "dist": name,
-                    **{
-                        key: [_rounded(v) for v in value]
-                        if isinstance(value, list)
-                        else _rounded(value)
-                        for key, value in candidate.parameters.items()
-                    },
-                }
+                return {"dist": name, **_settings_digits(name, candidate.parameters)}
         usable = [c.family for c in self.candidates if c.usable]
         if not usable:
             raise ValueError(
@@ -316,6 +314,35 @@ def _rounded(value: Any) -> float:
     return float(_short(value))
 
 
+def _settings_digits(family: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    """The parameters with six significant digits for each number, or with every
+    digit when the six-digit settings would not load, or would move the mean or std
+    by more than `_DIGITS_TOLERANCE` of the std, as for values that differ in their
+    fifth decimal place at a size of 100000. A list keeps every digit."""
+    exact: Dict[str, Any] = {
+        key: value if isinstance(value, list) else float(value)
+        for key, value in parameters.items()
+    }
+    rounded: Dict[str, Any] = {
+        key: value if isinstance(value, list) else _rounded(value)
+        for key, value in exact.items()
+    }
+    if rounded == exact:
+        return exact
+    shape = get_distribution(family)
+    try:
+        before, after = (DistributionConfig(dist=family, **p) for p in (exact, rounded))
+        std = math.sqrt(shape.variance(before))
+        spread = _DIGITS_TOLERANCE * std
+        keeps = (
+            abs(shape.mean(after) - shape.mean(before)) <= spread
+            and abs(math.sqrt(shape.variance(after)) - std) <= spread
+        )
+    except (ValueError, ArithmeticError):
+        keeps = False
+    return rounded if keeps else exact
+
+
 def _number(value: Optional[float]) -> str:
     return "" if value is None else f"{value:.4g}"
 
@@ -342,7 +369,8 @@ def read_column(path: Union[str, Path], column: str) -> List[str]:
     Raises:
         ValueError: If the file has no such column.
     """
-    with Path(path).open(newline="", encoding="utf-8") as handle:
+    # utf-8-sig drops the byte order mark that Excel's "CSV UTF-8" writes
+    with Path(path).open(newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(handle)
         if column not in (reader.fieldnames or []):
             raise ValueError(
@@ -697,6 +725,9 @@ def _checked(
         )
     family = get_distribution(name)
     mean, std = x.mean(), x.std()
+    if np.all(x == x[0]):
+        # The mean and std of equal values are exact, but their float sums are not
+        mean, std = x[0], 0.0
     fitted_mean, fitted_std = family.mean(config), math.sqrt(family.variance(config))
     for what, ours, theirs in (("mean", fitted_mean, mean), ("std", fitted_std, std)):
         if abs(ours - theirs) > tolerance * abs(theirs):

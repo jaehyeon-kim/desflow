@@ -83,6 +83,60 @@ async def test_stream_key_is_read_from_the_nested_payload(run_until):
 
 
 @pytest.mark.asyncio
+async def test_reserved_keys_other_than_stream_are_not_written(run_until, caplog):
+    """`__table__` and the other reserved keys are dropped with one warning, as every
+    other sink does, and `__stream__` still routes."""
+    egress = RedisEgress("redis://localhost:6379", stream_name="default_events")
+    egress.client = AsyncMock()
+    pipe = MagicMock()
+    pipe.execute = AsyncMock()
+    egress.client.pipeline = MagicMock(return_value=pipe)
+    q: queue.Queue = queue.Queue()
+    q.put(
+        [
+            {
+                "stream_type": "event",
+                "key": "k1",
+                "value": {"order": 1, "__table__": "shop.orders", "__stream__": "s1"},
+            }
+        ]
+    )
+
+    await run_until(egress.run(q), lambda: pipe.execute.called and q.empty())
+
+    assert pipe.xadd.call_args_list[0].args[0] == "s1"
+    written = json.loads(pipe.xadd.call_args_list[0].args[1]["payload"])
+    assert written["value"] == {"order": 1}
+    assert "RedisEgress drops the payload key '__table__'" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_record_json_cannot_hold_is_skipped_alone(run_until, caplog):
+    """An integer over 64 bits cannot be written as JSON. Its record is skipped with
+    a warning and the rest of the batch is published."""
+    egress = RedisEgress("redis://localhost:6379", stream_name="events")
+    egress.client = AsyncMock()
+    pipe = MagicMock()
+    pipe.execute = AsyncMock()
+    egress.client.pipeline = MagicMock(return_value=pipe)
+    q: queue.Queue = queue.Queue()
+    q.put(
+        [
+            {"stream_type": "event", "key": "a", "value": {"x": 1}},
+            {"stream_type": "event", "key": "b", "value": {"x": 2**64}},
+            {"stream_type": "event", "key": "c", "value": {"x": 3}},
+        ]
+    )
+
+    await run_until(egress.run(q), lambda: pipe.execute.called and q.empty())
+
+    keys = [json.loads(c.args[1]["payload"])["key"] for c in pipe.xadd.call_args_list]
+    assert keys == ["a", "c"]
+    assert "skipped the record with key b" in caplog.text
+    assert "Error publishing batch" not in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_envelope_false_stores_the_value_alone(run_until):
     """With `envelope` off the `payload` field holds the event's value as JSON,
     without `__stream__`, and a value that is not a mapping is stored too, a null

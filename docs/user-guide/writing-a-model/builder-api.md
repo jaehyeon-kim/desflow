@@ -315,7 +315,7 @@ A mistake stops the script before the clock starts. A method raises `ValueError`
 - a `current_cap`, `max_cap` or `queue_limit` below 0, and `true` or a fraction where a whole number is needed;
 - a distribution parameter that is `true`, NaN or infinity, or a negative `low` or value in a time distribution;
 - a rank or priority that is NaN, or text for a ranked queue or a resource priority;
-- a name used in two of resources, stores, containers and signals, or one that holds a dot or a space (a second `add_arrival` of one name replaces the first);
+- a name used in two of resources, stores, containers and signals, or one that holds a dot, a space or a character that an expression reads as another, such as `µ` (a second `add_arrival` of one name replaces the first);
 - a `stop` on a signal family or a stop condition that reads `attr` or `payload`, an `activate` or `deactivate` of an arrival that is unknown, segment ends that do not increase, and a spawn `count` below 0.
 
 A `start()` that is refused leaves the open run as it was.

@@ -385,7 +385,7 @@ Repeat one replication with: desflow run experiment/yaml/experiment_shop.yaml --
 
 The mean wait is 4.505 seconds, and its [half-width](../learn/concepts/output-analysis.md#interval-and-half-width) of 0.6483 says that the true mean lies within about 0.65 seconds of it, with 95% confidence. The packers are busy 79.53% of the time, close to the 0.8 that `explain` worked out. The last line repeats any one replication, with its events. This shop has no sinks. A model with a sink, such as `type: Console`, also sends the result to it as telemetry: one reading for each replication and measure. A Console sink therefore prints those lines before the table, as [What the Sinks Receive](../user-guide/results/replications.md#what-the-sinks-receive) explains.
 
-`--measure` names a statistic to summarise, and repeats for more. `--level` sets the confidence level of the intervals. `--workers` runs that many replications at once, each in its own process, and gives the same results, because each replication keeps its seed:
+`--measure` names a statistic to summarise, and repeats for more. `--level` sets the confidence level of the intervals. `--workers` runs that many replications at once, each in its own process, and gives the same results, because each replication keeps its seed. The three apply to `--replications`, and `desflow run` refuses them without it:
 
 ```bash
 # Two statistics at a 99% level, two replications at a time
@@ -589,7 +589,7 @@ Anything else marks tasks, and the rate of a marked task is unknown. These mark 
 - A router with a weight that is an expression ends no flow and has no shares.
 - A priority queue whose tasks have different priorities marks every task after its tasks. The resource keeps its utilisation but has no wait.
 - An unstable resource marks every task after its tasks. The resource keeps its status.
-- A scenario step, live ingress or an `add_process` function marks every arrival and every task.
+- A scenario step, an `on:` entry that sets an arrival or a service, live ingress or an `add_process` function marks every arrival and every task.
 
 A resource used by a marked task has no supported utilisation, status or wait, and the output names the reason under `Not estimated`.
 
@@ -612,7 +612,7 @@ A measure is not compared in these cases:
 - The analysis has no value for it.
 - Its resource is unstable.
 - Its wait comes from Kingman's formula as an approximation.
-- For a throughput, the arrival starts no task the graph shows, or its flow passes a marked task or an unstable resource.
+- For a throughput, the arrival starts no task the graph shows, its flow passes a marked task or an unstable resource, or the blueprint has a `run.stop` that can end a run before `until`.
 
 ---
 

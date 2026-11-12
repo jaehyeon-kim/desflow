@@ -1260,8 +1260,9 @@
     - tests/conformance/test_c1_events.py::test_c1_a_task_that_balks_or_reneges_runs_its_on_actions
     - tests/conformance/test_c3_interrupts.py::test_on_actions_do_not_run_after_a_run_failure
     - tests/conformance/test_c3_interrupts.py::test_on_actions_do_not_run_after_a_task_function_raises
-    - tests/conformance/test_c1_events.py::test_c1_an_on_path_that_does_not_exist_in_a_child_flow_stops_the_run
-    - tests/conformance/test_c1_events.py::test_c1_an_on_path_that_does_not_exist_in_a_root_task_stops_the_run
+    - tests/conformance/test_c1_events.py::test_c1_an_on_action_that_raises_in_a_child_flow_stops_the_run
+    - tests/conformance/test_c1_events.py::test_c1_an_on_action_that_raises_in_a_root_task_stops_the_run
+    - tests/conformance/test_c1_events.py::test_c1_an_on_path_that_does_not_exist_is_refused_before_the_run
     - tests/conformance/test_c1_events.py::test_c1_losing_child_flow_fire_after_left_is_not_counted
   page: user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens
 

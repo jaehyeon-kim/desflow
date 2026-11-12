@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://jaehyeon.me/desflow/latest/schema/blueprint.schema.json",
   "title": "desflow blueprint",
-  "description": "The keys a desflow blueprint file takes, for desflow 1.0.0rc3.",
+  "description": "The keys a desflow blueprint file takes, for desflow 1.0.0rc4.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -169,6 +169,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -194,6 +197,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -227,6 +233,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeIntegerText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -268,6 +277,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -293,6 +305,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -538,6 +553,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -556,6 +574,9 @@
             },
             {
               "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -578,6 +599,9 @@
               "$ref": "#/$defs/Duration"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -596,6 +620,9 @@
             },
             {
               "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -618,6 +645,9 @@
               "$ref": "#/$defs/Duration"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -636,6 +666,9 @@
             },
             {
               "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -658,6 +691,9 @@
               "$ref": "#/$defs/Duration"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -673,6 +709,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -695,6 +734,9 @@
               "$ref": "#/$defs/Duration"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -713,6 +755,9 @@
                   },
                   {
                     "$ref": "#/$defs/Duration"
+                  },
+                  {
+                    "$ref": "#/$defs/NumberText"
                   },
                   {
                     "$ref": "#/$defs/Placeholder"
@@ -734,6 +779,9 @@
                 "anyOf": [
                   {
                     "type": "number"
+                  },
+                  {
+                    "$ref": "#/$defs/NumberText"
                   },
                   {
                     "$ref": "#/$defs/Placeholder"
@@ -760,6 +808,9 @@
                     "$ref": "#/$defs/Duration"
                   },
                   {
+                    "$ref": "#/$defs/NumberText"
+                  },
+                  {
                     "$ref": "#/$defs/Placeholder"
                   }
                 ]
@@ -779,6 +830,9 @@
                 "anyOf": [
                   {
                     "type": "number"
+                  },
+                  {
+                    "$ref": "#/$defs/NumberText"
                   },
                   {
                     "$ref": "#/$defs/Placeholder"
@@ -803,6 +857,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -840,6 +897,9 @@
                       "type": "string"
                     },
                     {
+                      "$ref": "#/$defs/NumberText"
+                    },
+                    {
                       "$ref": "#/$defs/Placeholder"
                     }
                   ]
@@ -870,6 +930,9 @@
             },
             {
               "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -957,6 +1020,9 @@
                     },
                     {
                       "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/NumberText"
                     },
                     {
                       "$ref": "#/$defs/Placeholder"
@@ -1114,6 +1180,9 @@
               "type": "integer"
             },
             {
+              "$ref": "#/$defs/IntegerText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ]
@@ -1193,6 +1262,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -1218,6 +1290,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -1296,6 +1371,9 @@
               "type": "string"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ]
@@ -1317,6 +1395,9 @@
                     },
                     {
                       "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/NumberText"
                     },
                     {
                       "$ref": "#/$defs/Placeholder"
@@ -1365,6 +1446,9 @@
               "type": "integer"
             },
             {
+              "$ref": "#/$defs/PositiveIntegerText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ]
@@ -1374,6 +1458,9 @@
             {
               "exclusiveMinimum": 0,
               "type": "number"
+            },
+            {
+              "$ref": "#/$defs/PositiveNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -1390,6 +1477,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/PositiveIntegerText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -1403,6 +1493,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/PositiveNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -1457,6 +1550,9 @@
               "$ref": "#/$defs/Duration"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -1503,6 +1599,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -1528,6 +1627,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -1631,6 +1733,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -1656,6 +1761,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -1770,6 +1878,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -1790,6 +1901,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -1805,6 +1919,9 @@
             },
             {
               "type": "string"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -1907,6 +2024,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -1925,6 +2045,9 @@
             },
             {
               "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -1947,6 +2070,9 @@
               "$ref": "#/$defs/Duration"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -1965,6 +2091,9 @@
             },
             {
               "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -1987,6 +2116,9 @@
               "$ref": "#/$defs/Duration"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -2005,6 +2137,9 @@
             },
             {
               "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -2027,6 +2162,9 @@
               "$ref": "#/$defs/Duration"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -2042,6 +2180,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -2064,6 +2205,9 @@
               "$ref": "#/$defs/Duration"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -2082,6 +2226,9 @@
                   },
                   {
                     "$ref": "#/$defs/Duration"
+                  },
+                  {
+                    "$ref": "#/$defs/NumberText"
                   },
                   {
                     "$ref": "#/$defs/Placeholder"
@@ -2103,6 +2250,9 @@
                 "anyOf": [
                   {
                     "type": "number"
+                  },
+                  {
+                    "$ref": "#/$defs/NumberText"
                   },
                   {
                     "$ref": "#/$defs/Placeholder"
@@ -2129,6 +2279,9 @@
                     "$ref": "#/$defs/Duration"
                   },
                   {
+                    "$ref": "#/$defs/NumberText"
+                  },
+                  {
                     "$ref": "#/$defs/Placeholder"
                   }
                 ]
@@ -2148,6 +2301,9 @@
                 "anyOf": [
                   {
                     "type": "number"
+                  },
+                  {
+                    "$ref": "#/$defs/NumberText"
                   },
                   {
                     "$ref": "#/$defs/Placeholder"
@@ -2172,6 +2328,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -2201,6 +2360,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -2226,6 +2388,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -2259,6 +2424,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeIntegerText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -2300,6 +2468,9 @@
             },
             {
               "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/PositiveNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -2496,6 +2667,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/PositiveIntegerText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -2509,6 +2683,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/PositiveNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -2538,6 +2715,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -2563,6 +2743,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -2628,7 +2811,7 @@
               "$ref": "#/$defs/Placeholder"
             }
           ],
-          "ge": 0
+          "minimum": 0
         }
       },
       "required": [
@@ -2651,6 +2834,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -2678,6 +2864,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -2726,6 +2915,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeIntegerText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -2754,6 +2946,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -2779,6 +2974,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -2892,6 +3090,9 @@
               "$ref": "#/$defs/Duration"
             },
             {
+              "$ref": "#/$defs/PositiveNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -2955,6 +3156,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -2980,6 +3184,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -3041,6 +3248,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -3066,6 +3276,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -3208,6 +3421,9 @@
               "type": "number"
             },
             {
+              "$ref": "#/$defs/PositiveNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ]
@@ -3217,6 +3433,9 @@
             {
               "minimum": 0,
               "type": "number"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -3246,6 +3465,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -3271,6 +3493,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -3449,6 +3674,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -3474,6 +3702,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -3528,6 +3759,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -3553,6 +3787,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -3671,6 +3908,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -3696,6 +3936,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -3751,6 +3994,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -3776,6 +4022,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -3809,6 +4058,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeIntegerText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -3850,6 +4102,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -3875,6 +4130,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -3908,6 +4166,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeIntegerText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -3949,6 +4210,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -3974,6 +4238,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -4007,6 +4274,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeIntegerText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -4066,6 +4336,9 @@
                     "type": "string"
                   },
                   {
+                    "$ref": "#/$defs/NumberText"
+                  },
+                  {
                     "$ref": "#/$defs/Placeholder"
                   }
                 ]
@@ -4097,6 +4370,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -4122,6 +4398,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -4167,6 +4446,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeIntegerText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -4196,6 +4478,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -4221,6 +4506,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -4276,6 +4564,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -4301,6 +4592,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -4471,6 +4765,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -4496,6 +4793,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -4555,6 +4855,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -4580,6 +4883,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -4657,6 +4963,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -4682,6 +4991,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -4775,6 +5087,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -4800,6 +5115,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -4941,6 +5259,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/IntegerText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -5051,6 +5372,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -5076,6 +5400,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -5218,6 +5545,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -5290,6 +5620,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -5308,6 +5641,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -5347,6 +5683,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/IntegerText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -5491,6 +5830,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -5516,6 +5858,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -5644,10 +5989,13 @@
                   "type": "number"
                 },
                 {
+                  "$ref": "#/$defs/PositiveNumberText"
+                },
+                {
                   "$ref": "#/$defs/Placeholder"
                 }
               ],
-              "gt": 0
+              "exclusiveMinimum": 0
             },
             {
               "type": "null"
@@ -5770,6 +6118,9 @@
               "$ref": "#/$defs/Duration"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -5878,6 +6229,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -5903,6 +6257,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -6009,6 +6366,9 @@
                     "type": "string"
                   },
                   {
+                    "$ref": "#/$defs/NumberText"
+                  },
+                  {
                     "$ref": "#/$defs/Placeholder"
                   }
                 ]
@@ -6028,6 +6388,9 @@
                 "anyOf": [
                   {
                     "type": "number"
+                  },
+                  {
+                    "$ref": "#/$defs/NumberText"
                   },
                   {
                     "$ref": "#/$defs/Placeholder"
@@ -6057,6 +6420,9 @@
                     "type": "string"
                   },
                   {
+                    "$ref": "#/$defs/NumberText"
+                  },
+                  {
                     "$ref": "#/$defs/Placeholder"
                   }
                 ]
@@ -6076,6 +6442,9 @@
                 "anyOf": [
                   {
                     "type": "number"
+                  },
+                  {
+                    "$ref": "#/$defs/NumberText"
                   },
                   {
                     "$ref": "#/$defs/Placeholder"
@@ -6098,6 +6467,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeIntegerText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -6126,6 +6498,9 @@
             },
             {
               "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -6198,6 +6573,9 @@
               "$ref": "#/$defs/Duration"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ]
@@ -6236,6 +6614,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -6279,6 +6660,9 @@
                       "type": "string"
                     },
                     {
+                      "$ref": "#/$defs/NumberText"
+                    },
+                    {
                       "$ref": "#/$defs/Placeholder"
                     }
                   ]
@@ -6318,6 +6702,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -6343,6 +6730,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -6379,6 +6769,9 @@
               "type": "integer"
             },
             {
+              "$ref": "#/$defs/IntegerText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ]
@@ -6388,6 +6781,9 @@
           "anyOf": [
             {
               "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/IntegerText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -6402,6 +6798,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/PositiveIntegerText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -6537,6 +6936,9 @@
               "type": "number"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ]
@@ -6548,6 +6950,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/IntegerText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -6599,10 +7004,13 @@
                   "type": "number"
                 },
                 {
+                  "$ref": "#/$defs/NonNegativeNumberText"
+                },
+                {
                   "$ref": "#/$defs/Placeholder"
                 }
               ],
-              "ge": 0
+              "minimum": 0
             },
             {
               "type": "null"
@@ -6625,6 +7033,9 @@
               "$ref": "#/$defs/Duration"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -6641,6 +7052,9 @@
             },
             {
               "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -6702,6 +7116,9 @@
             },
             {
               "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/PositiveNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -6794,11 +7211,14 @@
               "$ref": "#/$defs/Duration"
             },
             {
+              "$ref": "#/$defs/PositiveNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
           "default": 10.0,
-          "gt": 0
+          "exclusiveMinimum": 0
         },
         "on_change": {
           "default": false,
@@ -6845,6 +7265,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -6863,6 +7286,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -6978,6 +7404,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -7003,6 +7432,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -7036,6 +7468,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeIntegerText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -7086,7 +7521,7 @@
     },
     "Switch": {
       "additionalProperties": false,
-      "description": "`switch`: the value of the first case that matches `on`, evaluated only when\npicked. `cases` is a mapping from a value to its result, or a list of ranges;\n`default` is used when none matches (null when it is left out).",
+      "description": "`switch`: the value of the first case that matches `on`, evaluated only when\npicked. `cases` is a mapping from a value to its result, or a list of ranges;\n`default` is used when none matches (null when it is left out). In a blueprint,\na key written `yes`, `no`, `on` or `off` is that text, not a boolean.",
       "properties": {
         "null_rate": {
           "anyOf": [
@@ -7097,6 +7532,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -7124,6 +7562,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -7201,6 +7642,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -7216,6 +7660,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -7265,6 +7712,9 @@
                     },
                     {
                       "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/NumberText"
                     },
                     {
                       "$ref": "#/$defs/Placeholder"
@@ -7386,6 +7836,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -7408,6 +7861,9 @@
                     },
                     {
                       "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/NumberText"
                     },
                     {
                       "$ref": "#/$defs/Placeholder"
@@ -7953,6 +8409,9 @@
               "type": "number"
             },
             {
+              "$ref": "#/$defs/PositiveNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ]
@@ -8010,6 +8469,9 @@
                   "type": "string"
                 },
                 {
+                  "$ref": "#/$defs/NumberText"
+                },
+                {
                   "$ref": "#/$defs/Placeholder"
                 }
               ]
@@ -8046,6 +8508,9 @@
                 },
                 {
                   "type": "string"
+                },
+                {
+                  "$ref": "#/$defs/NumberText"
                 },
                 {
                   "$ref": "#/$defs/Placeholder"
@@ -8108,6 +8573,9 @@
               "type": "string"
             },
             {
+              "$ref": "#/$defs/NumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -8161,6 +8629,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -8186,6 +8657,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -8231,6 +8705,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeIntegerText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -8260,6 +8737,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -8285,6 +8765,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -8340,6 +8823,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -8365,6 +8851,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -8427,6 +8916,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -8452,6 +8944,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -8552,6 +9047,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -8577,6 +9075,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -8630,7 +9131,7 @@
     },
     "Weighted": {
       "additionalProperties": false,
-      "description": "`weighted`: one choice, by weight. `options` maps each value to its weight, or\n`choices` lists `{value, weight}` for values that are mappings or generators. Each\nweight is 0 or more and at least one is above 0; weights are divided by their\nsum. Only the value picked is evaluated.",
+      "description": "`weighted`: one choice, by weight. `options` maps each value to its weight, or\n`choices` lists `{value, weight}` for values that are mappings or generators. Each\nweight is 0 or more and at least one is above 0; weights are divided by their\nsum. Only the value picked is evaluated. In a blueprint, an option key written\n`yes`, `no`, `on` or `off` is that text, not a boolean.",
       "properties": {
         "null_rate": {
           "anyOf": [
@@ -8641,6 +9142,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -8668,6 +9172,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -8766,6 +9273,9 @@
               "type": "null"
             },
             {
+              "$ref": "#/$defs/NonNegativeNumberText"
+            },
+            {
               "$ref": "#/$defs/Placeholder"
             }
           ],
@@ -8791,6 +9301,9 @@
             },
             {
               "type": "null"
+            },
+            {
+              "$ref": "#/$defs/NonNegativeNumberText"
             },
             {
               "$ref": "#/$defs/Placeholder"
@@ -9064,6 +9577,42 @@
       "pattern": "^.*\\$\\{[A-Za-z_][A-Za-z0-9_]*(:-[^}]*)?\\}.*$",
       "title": "Placeholder",
       "description": "A ${VAR} or ${VAR:-default} reference, replaced when the file is loaded"
+    },
+    "NumberText": {
+      "type": "string",
+      "pattern": "^\\s*[+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?\\s*$",
+      "title": "Number as text",
+      "description": "A number written in quotes, such as '1000'"
+    },
+    "NonNegativeNumberText": {
+      "type": "string",
+      "pattern": "^\\s*\\+?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?\\s*$",
+      "title": "Number as text",
+      "description": "A number written in quotes, such as '1000'"
+    },
+    "PositiveNumberText": {
+      "type": "string",
+      "pattern": "^(?!\\s*\\+?[0.]*\\s*(?:[eE][+-]?\\d+)?\\s*$)\\s*\\+?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?\\s*$",
+      "title": "Number as text",
+      "description": "A number written in quotes, such as '1000'"
+    },
+    "IntegerText": {
+      "type": "string",
+      "pattern": "^\\s*[+-]?\\d+(?:\\.0+)?\\s*$",
+      "title": "Number as text",
+      "description": "A number written in quotes, such as '1000'"
+    },
+    "NonNegativeIntegerText": {
+      "type": "string",
+      "pattern": "^\\s*\\+?\\d+(?:\\.0+)?\\s*$",
+      "title": "Number as text",
+      "description": "A number written in quotes, such as '1000'"
+    },
+    "PositiveIntegerText": {
+      "type": "string",
+      "pattern": "^(?!\\s*\\+?[0.]*\\s*(?:[eE][+-]?\\d+)?\\s*$)\\s*\\+?\\d+(?:\\.0+)?\\s*$",
+      "title": "Number as text",
+      "description": "A number written in quotes, such as '1000'"
     },
     "Duration": {
       "type": "string",

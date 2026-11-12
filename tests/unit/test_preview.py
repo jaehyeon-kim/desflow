@@ -184,14 +184,21 @@ def test_stdout_prints_a_label_once(tmp_path):
             ["--sample", "2", "--replications", "2"],
             "Error: --sample and --stdout print one run; leave out --replications",
         ),
+        (
+            "shop.yaml",
+            ["--sample", "2", "--measure", "no.such", "--level", "7", "--workers", "1"],
+            "Error: --measure, --level, --workers can only be used with "
+            "--replications; add it",
+        ),
         *[
             (
-                "shop.py",
+                name,
                 arguments,
                 "Error: desflow run takes a builder Python file only with --sample, "
                 "and without --stdout, --var or --watch; run a Python file with "
                 "python FILE",
             )
+            for name in ("shop.py", "shop.PY")
             for arguments in (
                 [],
                 ["--stdout"],

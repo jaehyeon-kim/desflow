@@ -38,6 +38,13 @@ def test_a_refused_blueprint_gives_the_problem_and_no_run_section(tmp_path):
     assert checked.problem and str(file) in checked.problem
 
 
+def test_a_python_file_with_an_upper_case_suffix_is_read_as_python(tmp_path):
+    file = tmp_path / "low.PY"
+    file.write_text("x = 1\n", encoding="utf-8")
+    checked = check_model(file)
+    assert checked.no_context and checked.context is None and checked.run is None
+
+
 def test_a_python_file_gives_no_run_section_and_a_file_without_a_context_says_so(
     tmp_path,
 ):

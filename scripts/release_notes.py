@@ -7,8 +7,9 @@ The GitHub release copies its section, so the two never differ:
     gh release create v0.21.0 --title v0.21.0 --notes-file /tmp/notes.md
 
 The section's own heading is left out, because the release has its title. Links to other
-docs pages are relative in the Changelog, so they become links to the latest docs. The
-notes end with a Full Changelog link comparing the release with the tag before it.
+docs pages and files, such as images, are relative in the Changelog, so they become
+links to the latest docs. The notes end with a Full Changelog link comparing the
+release with the tag before it.
 
 A release candidate, such as `1.0.0rc1`, has no section of its own: its notes are the
 section of the release it leads to, `1.0.0`, and its link compares the last release
@@ -29,21 +30,35 @@ REPO_URL = "https://github.com/jaehyeon-kim/desflow"
 _HEADING = re.compile(r"^## Version (\S+)\s*$", re.MULTILINE)
 _TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 _CANDIDATE = re.compile(r"^(\d+\.\d+\.\d+)rc\d+$")
-_RELATIVE_LINK = re.compile(r"\]\((?!https?://|#|mailto:)([^)\s#]+)\.md(#[^)]*)?\)")
+_RELATIVE_LINK = re.compile(
+    r"\]\((?![A-Za-z][A-Za-z0-9+.-]*:|#)(?P<path>[^)\s#]+)(?P<anchor>#[^)\s]*)?"
+    r"(?P<title>\s+\"[^\"]*\")?\)"
+)
 
 
 def _absolute(match: re.Match) -> str:
-    """Turn a link relative to docs/about/ into a link to the latest docs."""
-    target = (Path("about") / match.group(1)).as_posix()
+    """Turn a link relative to docs/about/ into a link to the latest docs.
+
+    Raises:
+        ValueError: If the link leaves the docs folder.
+    """
+    link = match.group("path")
+    target = (Path("about") / link).as_posix()
     parts: list[str] = []
     for part in target.split("/"):
         if part == "..":
+            if not parts:
+                raise ValueError(f"The link {link} leaves the docs folder")
             parts.pop()
         elif part != ".":
             parts.append(part)
     page = "/".join(parts)
-    page = "" if page == "index" else page.removesuffix("/index") + "/"
-    return f"]({DOCS_URL}{page}{match.group(2) or ''})"
+    if page.endswith(".md"):
+        page = page.removesuffix(".md")
+        page = "" if page == "index" else page.removesuffix("/index") + "/"
+    return (
+        f"]({DOCS_URL}{page}{match.group('anchor') or ''}{match.group('title') or ''})"
+    )
 
 
 def section(version: str, text: str) -> str:
@@ -57,7 +72,8 @@ def section(version: str, text: str) -> str:
         str: The section, with relative docs links made absolute.
 
     Raises:
-        ValueError: If the Changelog has no section for the version.
+        ValueError: If the Changelog has no section for the version, or the section
+            has a relative link that leaves the docs folder.
     """
     headings = list(_HEADING.finditer(text))
     for i, heading in enumerate(headings):

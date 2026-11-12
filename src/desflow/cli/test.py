@@ -100,10 +100,10 @@ def _test_file(file: Path, fix: bool, variables: Mapping[str, str]) -> bool:
     from desflow.blueprint.expectations import fix_expectations
     from desflow.builder.context import SimulationContext, parts_of
     from desflow.core.statistics import published_value
-    from desflow.loading import load_context
+    from desflow.loading import is_builder_file, load_context
 
     model: Any
-    if file.suffix == ".py":
+    if is_builder_file(file):
         if variables:
             raise ValueError(
                 f"{file}: --var fills ${{NAME}} in a YAML blueprint, and a builder "

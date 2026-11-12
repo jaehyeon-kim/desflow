@@ -31,3 +31,47 @@ class SerializationError(ValueError):
     not known, a schema of a format the class does not handle, and a schema with
     rules that desflow does not run.
     """
+
+
+def is_temporary(error: BaseException) -> bool:
+    """Returns True when `error` is a registry failure that a later call may not meet.
+
+    A temporary failure is a 5xx answer, a timeout or a lost connection, to a
+    Confluent registry (an `httpx.TransportError`) or to AWS Glue (a botocore
+    connection error, which `GlueSchemaRegistryClient` wraps in a
+    `SchemaRegistryError` with the status -1). A 4xx answer, a payload the schema
+    cannot encode and any other error are permanent: the same record fails again.
+
+    Args:
+        error: The exception a serializer raised.
+
+    Returns:
+        bool: Whether waiting and trying the same record again can succeed.
+    """
+    transport = _transport_errors()
+    if isinstance(error, transport):
+        return True
+    if not isinstance(error, SchemaRegistryError):
+        return False
+    if 500 <= error.http_status <= 599:
+        return True
+    return isinstance(error.__cause__, transport)
+
+
+def _transport_errors() -> tuple[type[BaseException], ...]:
+    """Returns the connection and timeout errors of the installed HTTP libraries."""
+    classes: list[type[BaseException]] = []
+    try:
+        import httpx
+
+        classes.append(httpx.TransportError)
+    except ImportError:
+        pass
+    try:
+        from botocore.exceptions import ConnectionError as BotocoreConnectionError
+        from botocore.exceptions import HTTPClientError
+
+        classes += [BotocoreConnectionError, HTTPClientError]
+    except ImportError:
+        pass
+    return tuple(classes)

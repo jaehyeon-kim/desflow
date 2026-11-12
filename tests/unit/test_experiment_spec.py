@@ -61,7 +61,39 @@ CASES = {
         "max",
         "- {measure: tasks.pack.wait_mean, variant",
     ),
+    "min above max": (
+        lambda t: t.replace(
+            "variant: three, max: 2}", "variant: three, min: 3, max: 2}"
+        ),
+        "checks.0",
+        "- {measure: tasks.pack.wait_mean, variant",
+    ),
+    "negative seed": (lambda t: t.replace("seed: 42", "seed: -1"), "seed", "seed: "),
+    "seed written yes": (
+        lambda t: t.replace("seed: 42", "seed: yes"),
+        "seed",
+        "seed: ",
+    ),
+    "experiment outside results": (
+        lambda t: t.replace("experiment: packers", "experiment: ../packers"),
+        "experiment",
+        "experiment: ",
+    ),
+    "empty experiment": (
+        lambda t: t.replace("experiment: packers", 'experiment: ""'),
+        "experiment",
+        "experiment: ",
+    ),
 }
+
+
+def test_a_refused_experiment_name_is_printed_as_written(tmp_path):
+    path = _write(
+        tmp_path, lambda t: t.replace("experiment: packers", "experiment: 'a\\b'")
+    )
+    with pytest.raises(BlueprintError) as caught:
+        load_experiment(path)
+    assert "not 'a\\b'" in str(caught.value)
 
 
 @pytest.mark.parametrize("case", sorted(CASES))
@@ -74,3 +106,18 @@ def test_a_cross_field_check_names_its_key_and_line(tmp_path, case):
     assert f"e.yaml:{_line_of(path, needle)}:" in text, text
     assert key in text, text
     assert "Value error" not in text and "top level" not in text, text
+
+
+def test_a_measure_named_twice_is_kept_once(tmp_path):
+    path = _write(
+        tmp_path,
+        lambda t: t.replace(
+            "measures: [tasks.pack.wait_mean,",
+            "measures: [tasks.pack.wait_mean, tasks.pack.wait_mean,",
+        ),
+    )
+    spec, _ = load_experiment(path)
+    assert spec.measures == [
+        "tasks.pack.wait_mean",
+        "resources.packers.utilization_avg",
+    ]

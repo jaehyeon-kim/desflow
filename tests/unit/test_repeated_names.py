@@ -107,6 +107,33 @@ def test_a_name_an_expression_cannot_read_is_refused_in_both(
     assert f"has a {word} in its name" in str(refused.value)
 
 
+@pytest.mark.parametrize("kind", ["resource", "store", "container", "signal"])
+def test_a_name_read_as_another_name_is_refused_in_both(tmp_path, kind):
+    """`ﬁve` (a ligature) is read as `five` by every expression, so the Builder and
+    YAML refuse it, naming the name read."""
+    with pytest.raises(ValueError, match="'ﬁve' is read as 'five'"):
+        _app()._families.claim(kind, "ﬁve")
+    section = {"resource": "resources", "store": "stores"}.get(kind, kind + "s")
+    body = "{}" if kind == "signal" else "{current_cap: 5}"
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0}\n"
+        f"{section}: {{ﬁve: {body}}}\n"
+        "arrivals: {a: {gap: 1, max_events: 1, spawn: t}}\n"
+        "tasks: {t: {service_time: 1, payload: {}}}\n"
+        "run: {until: 3}\n"
+    )
+    with pytest.raises(Exception) as refused:
+        SimulationContext.from_yaml(path)
+    assert "m.yaml:2" in str(refused.value)
+    assert "'ﬁve' is read as 'five'" in str(refused.value)
+
+
+def test_add_arrival_refuses_a_var_name_read_as_another_name():
+    with pytest.raises(ValueError, match="arrival 'a': vars: 'µs' is read as 'μs'"):
+        _app().add_arrival("a", "constant", value=1, vars={"µs": 1})
+
+
 def test_add_container_refuses_a_dotted_name():
     with pytest.raises(ValueError, match="container 'a.b' has a dot in its name"):
         _app().add_container("a.b", current_cap=5)
@@ -152,4 +179,51 @@ def test_a_key_written_twice_in_one_mapping_is_refused_at_its_second_line(
     with pytest.raises(
         ValueError, match=rf"m\.yaml:{line}: the key '\w+' is written twice"
     ):
+        check(str(path))
+
+
+@pytest.mark.parametrize(
+    "keys, read",
+    [
+        ("{yes: 1, true: 2}", "True"),
+        ("{1: x, 0x1: y}", "1"),
+        ("{~: x, null: y}", "None"),
+        ("{0: x, false: y}", "0 and False, which a mapping holds as one key"),
+        ("{1: x, 1.0: y}", "1 and 1.0, which a mapping holds as one key"),
+    ],
+    ids=[
+        "boolean words",
+        "integer forms",
+        "null forms",
+        "zero and false",
+        "int and float",
+    ],
+)
+def test_two_keys_that_yaml_reads_as_one_value_are_refused_at_the_second(
+    tmp_path, keys, read
+):
+    from desflow.blueprint.build import check
+
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0}\n"
+        f"variables: {{v: {keys}}}\n"
+        "tasks: {t: {payload: {x: 1}}}\n"
+    )
+    with pytest.raises(
+        ValueError, match=rf"m\.yaml:2: the keys '.+' and '.+' (both )?read as {read}"
+    ):
+        check(str(path))
+
+
+def test_a_signal_written_twice_in_the_list_form_is_refused(tmp_path):
+    from desflow.blueprint.build import check
+
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0}\n"
+        "signals: [go, stop, go]\n"
+        "tasks: {t: {payload: {x: 1}}}\n"
+    )
+    with pytest.raises(ValueError, match=r"m\.yaml:2: .*repeated: go"):
         check(str(path))

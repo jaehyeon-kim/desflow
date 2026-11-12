@@ -81,6 +81,37 @@ _ISO_DATETIME = (
     r"(?:[Zz]|[+-]\d{2}(?::?\d{2})?)?)?\s*$"
 )
 
+# A number written in quotes, which the models read as a number except where a field is
+# declared strict. The text of an integer field is a whole number with an optional
+# `.0`; the text of a number field also takes a fraction and an exponent. A field with
+# a lower bound of 0 takes no minus sign, and one that must be above 0 refuses a text of
+# only zeros. The patterns refuse a text such as `inf` or `1_000`, which desflow loads,
+# and check no bound other than 0.
+_NUMBER_BODY = r"(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?"
+_INTEGER_BODY = r"\d+(?:\.0+)?"
+_SIGNS = {"": "[+-]?", "NonNegative": r"\+?", "Positive": r"\+?"}
+_ZEROS = r"(?!\s*\+?[0.]*\s*(?:[eE][+-]?\d+)?\s*$)"
+
+
+def _number_text(kind: str, bound: str) -> Dict[str, Any]:
+    """The definition of the text form of an integer or number leaf with `bound`, which is
+    `""`, `"NonNegative"` or `"Positive"`."""
+    body = _INTEGER_BODY if kind == "Integer" else _NUMBER_BODY
+    zeros = _ZEROS if bound == "Positive" else ""
+    return {
+        "type": "string",
+        "pattern": rf"^{zeros}\s*{_SIGNS[bound]}{body}\s*$",
+        "title": "Number as text",
+        "description": "A number written in quotes, such as '1000'",
+    }
+
+
+_NUMBER_TEXTS: Dict[str, Any] = {
+    f"{bound}{kind}Text": _number_text(kind, bound)
+    for kind in ("Number", "Integer")
+    for bound in ("", "NonNegative", "Positive")
+}
+
 SHARED_DEFS: Dict[str, Any] = {
     # What the loader turns into a function, a class or an object
     "PythonReference": {
@@ -98,6 +129,7 @@ SHARED_DEFS: Dict[str, Any] = {
             "A ${VAR} or ${VAR:-default} reference, replaced when the file is loaded"
         ),
     },
+    **_NUMBER_TEXTS,
     "Duration": {
         "type": "string",
         "pattern": rf"^\s*{_DURATION_BODY}\s*$",
@@ -192,6 +224,19 @@ INPUT_FORMS: Dict[Tuple[str, str], Any] = {
 
 _OUTSIDE = ("default", "description", "title")
 
+# Pydantic writes the bound of a union as `gt`, `ge`, `lt` or `le`, which are not JSON
+# Schema keywords, so a validator ignores them
+_BOUNDS = {
+    "gt": "exclusiveMinimum",
+    "ge": "minimum",
+    "lt": "exclusiveMaximum",
+    "le": "maximum",
+}
+
+# Set on the number and integer leaves of a field that is not strict, and removed
+# when `_placeholders` adds the text form to the leaf
+_TEXT = "x-number-text"
+
 
 class _Schema(GenerateJsonSchema):
     """Writes a callable, a class or an instance type as a !python reference, and
@@ -208,6 +253,18 @@ class _Schema(GenerateJsonSchema):
 
     def field_title_should_be_set(self, schema: Any) -> bool:
         return False
+
+    def int_schema(self, schema: Any) -> Dict[str, Any]:
+        return self._lax(super().int_schema(schema), schema)
+
+    def float_schema(self, schema: Any) -> Dict[str, Any]:
+        return self._lax(super().float_schema(schema), schema)
+
+    @staticmethod
+    def _lax(leaf: Dict[str, Any], schema: Any) -> Dict[str, Any]:
+        """Marks a leaf whose model reads a number written as text, which a strict
+        field does not."""
+        return leaf if schema.get("strict") else {**leaf, _TEXT: True}
 
 
 def model_classes() -> Dict[str, Type[BaseModel]]:
@@ -348,7 +405,10 @@ def _tighten(schema: Dict[str, Any]) -> None:
         prop = defs[name]["properties"]["after"]
         prop["anyOf"] = [alt for alt in prop["anyOf"] if alt != {"type": "string"}]
         for alt in prop["anyOf"]:
-            if alt in ({"type": "integer"}, {"type": "number"}):
+            if {k: v for k, v in alt.items() if k != _TEXT} in (
+                {"type": "integer"},
+                {"type": "number"},
+            ):
                 alt["exclusiveMinimum"] = 0
     defs["Stats"]["properties"]["level"] = {"enum": list(STATS_LEVELS)}
     defs["Task"]["properties"]["on_interrupt"] = {
@@ -474,6 +534,23 @@ def _share(node: Any) -> Any:
     }
 
 
+def _json_schema_bounds(node: Any) -> None:
+    """Writes `gt`, `ge`, `lt` and `le` as the keywords JSON Schema reads."""
+    if isinstance(node, list):
+        for item in node:
+            _json_schema_bounds(item)
+    elif isinstance(node, dict):
+        for old, new in _BOUNDS.items():
+            if old in node:
+                node[new] = node.pop(old)
+        for key, value in node.items():
+            if key in ("properties", "$defs"):
+                for member in value.values():
+                    _json_schema_bounds(member)
+            elif key not in ("default", "enum", "const", "examples", "required"):
+                _json_schema_bounds(value)
+
+
 def _is_leaf(node: Any) -> bool:
     if not isinstance(node, dict) or "anyOf" in node:
         return False
@@ -483,6 +560,30 @@ def _is_leaf(node: Any) -> bool:
     )
 
 
+def _lower_bound(leaf: Dict[str, Any], outer: Dict[str, Any]) -> str:
+    """`"Positive"` when the leaf or `outer` refuses 0 and below, `"NonNegative"` when it
+    refuses below 0, otherwise `""`."""
+    bounds = {**outer, **leaf}
+    if bounds.get("exclusiveMinimum") == 0:
+        return "Positive"
+    if leaf["type"] == "integer" and bounds.get("minimum") == 1:
+        return "Positive"
+    return "NonNegative" if bounds.get("minimum") == 0 else ""
+
+
+def _text_forms(leaves: List[Dict[str, Any]], outer: Dict[str, Any]) -> List[Any]:
+    """The references to the text forms of the marked `leaves`, which take the lower
+    bound of the leaf or of `outer`. A number form also takes every text an integer form
+    does, so the integer form is left out beside it."""
+    forms = {(leaf["type"].capitalize(), _lower_bound(leaf, outer)) for leaf in leaves}
+    names = [
+        f"{bound}{kind}Text"
+        for kind, bound in sorted(forms)
+        if kind == "Number" or ("Number", bound) not in forms
+    ]
+    return [{"$ref": f"#/$defs/{name}"} for name in names]
+
+
 def _placeholders(node: Any) -> Any:
     """Lets every number, integer, boolean and fixed-name leaf take a placeholder."""
     if isinstance(node, list):
@@ -490,9 +591,10 @@ def _placeholders(node: Any) -> Any:
     if not isinstance(node, dict):
         return node
     if _is_leaf(node):
-        inner = {k: v for k, v in node.items() if k not in _OUTSIDE}
+        inner = {k: v for k, v in node.items() if k not in _OUTSIDE and k != _TEXT}
         wrapped = {k: v for k, v in node.items() if k in _OUTSIDE}
-        wrapped["anyOf"] = [inner, dict(PLACEHOLDER)]
+        text = _text_forms([node], {}) if _TEXT in node else []
+        wrapped["anyOf"] = [inner, *text, dict(PLACEHOLDER)]
         return wrapped
     out: Dict[str, Any] = {}
     for key, value in node.items():
@@ -502,8 +604,13 @@ def _placeholders(node: Any) -> Any:
         elif key == "anyOf":
             # A leaf among the alternatives is one more alternative, plus one placeholder
             alternatives = [
-                alt if _is_leaf(alt) else _placeholders(alt) for alt in value
+                {k: v for k, v in alt.items() if k != _TEXT}
+                if _is_leaf(alt)
+                else _placeholders(alt)
+                for alt in value
             ]
+            marked = [alt for alt in value if isinstance(alt, dict) and _TEXT in alt]
+            alternatives.extend(_text_forms(marked, node))
             if any(_is_leaf(alt) for alt in value):
                 alternatives.append(dict(PLACEHOLDER))
             out[key] = alternatives
@@ -517,6 +624,7 @@ def _placeholders(node: Any) -> Any:
 def schema() -> Dict[str, Any]:
     """The blueprint JSON Schema, as a dict."""
     raw = Blueprint.model_json_schema(schema_generator=_Schema, mode="validation")
+    _json_schema_bounds(raw)
     _apply_input_forms(raw)
     for owner, definition in raw.get("$defs", {}).items():
         for name, prop in definition.get("properties", {}).items():

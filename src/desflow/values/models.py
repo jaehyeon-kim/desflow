@@ -58,6 +58,7 @@ from desflow.models.distributions import (
     get_distribution,
 )
 from desflow.core.expressions import ANY_NAME, RESERVED_NAMES, Expression, Scope
+from desflow.core.rules import check_name_folds
 from desflow.core.environment import resolve_zone
 from desflow.models.params import DistributionConfig, finite_number
 from desflow.utils import time_to_seconds
@@ -73,6 +74,37 @@ _SECOND = timedelta(seconds=1)
 class ValueGenerationError(ValueError):
     """A generator could not give its value: a bad argument, a missing var, a draw
     from an empty choice. The message names the place in the file."""
+
+
+def _not_boolean(value: Any) -> Any:
+    """Refuses a boolean where a number is written; YAML reads `yes` and `on` as one."""
+    if isinstance(value, bool):
+        raise ValueError(f"must be a number, not the boolean {value!r}")
+    return value
+
+
+def _whole_number(value: Any) -> Any:
+    """Refuses a boolean or a float where a whole number is written, such as `2.0`."""
+    if isinstance(value, float):
+        raise ValueError(
+            f"must be a whole number written without a point, got {value!r}"
+        )
+    return _not_boolean(value)
+
+
+def _number_fields(*names: str) -> Any:
+    """A validator for plain-typed number fields, which Pydantic would read a boolean
+    into: `_x = _number_fields("rate")` in a model refuses a boolean in `rate`."""
+    return field_validator(*names, mode="before")(
+        classmethod(lambda cls, value: _not_boolean(value))
+    )
+
+
+def _whole_number_fields(*names: str) -> Any:
+    """The same for fields that take a whole number, which also refuses a float."""
+    return field_validator(*names, mode="before")(
+        classmethod(lambda cls, value: _whole_number(value))
+    )
 
 
 def _is_number(value: Any) -> bool:
@@ -140,6 +172,7 @@ class Gen(BaseModel):
     null_rate: Optional[float] = Field(default=None, ge=0, le=1)
     unique: bool = False
     omit_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    _plain_rates = _number_fields("null_rate", "omit_rate")
     omit_when: Optional[str] = None
 
     # Where the generator is written, set when the file is loaded: its dotted path,
@@ -257,6 +290,7 @@ class Uniform(Gen):
     low: "Value"
     high: "Value"
     decimals: Optional[int] = Field(default=None, ge=0)
+    _whole_decimals = _whole_number_fields("decimals")
 
     def evaluate(self, run: "ValueRuntime", scope: Scope) -> Any:
         """The value of this generator.
@@ -308,6 +342,7 @@ class Normal(Gen):
     mean: "Value"
     std: "Value"
     decimals: Optional[int] = Field(default=None, ge=0)
+    _whole_decimals = _whole_number_fields("decimals")
 
     def evaluate(self, run: "ValueRuntime", scope: Scope) -> Any:
         """The value of this generator.
@@ -363,6 +398,7 @@ class Sample(Gen):
     edges: Optional[List[Union[int, float, str]]] = None
     counts: Optional[List[float]] = None
     decimals: Optional[int] = Field(default=None, ge=0)
+    _whole_decimals = _whole_number_fields("decimals")
 
     def parameters(self) -> Dict[str, Any]:
         """The parameters written, by name."""
@@ -500,7 +536,8 @@ class Weighted(Gen):
     """`weighted`: one choice, by weight. `options` maps each value to its weight, or
     `choices` lists `{value, weight}` for values that are mappings or generators. Each
     weight is 0 or more and at least one is above 0; weights are divided by their
-    sum. Only the value picked is evaluated."""
+    sum. Only the value picked is evaluated. In a blueprint, an option key written
+    `yes`, `no`, `on` or `off` is that text, not a boolean."""
 
     _number_arguments: ClassVar[Tuple[str, ...]] = ("options", "choices")
 
@@ -590,13 +627,28 @@ class SwitchRange(BaseModel):
 
     min: Optional[Union[int, float]] = None
     max: Optional[Union[int, float]] = None
+    _plain_bounds = _number_fields("min", "max")
     value: "Value"
+
+
+def _is_case(key: Any, on: Any) -> bool:
+    """Whether the case `key` of a `switch` matches the value `on`.
+
+    A boolean `on` also matches the YAML words for it, as a blueprint reads a case
+    `yes:` as the text `yes`: `yes` and `on` for true, `no` and `off` for false.
+    """
+    if key == on or str(key) == str(on):
+        return True
+    if isinstance(on, bool) and isinstance(key, str):
+        return key.lower() in (("yes", "on") if on else ("no", "off"))
+    return False
 
 
 class Switch(Gen):
     """`switch`: the value of the first case that matches `on`, evaluated only when
     picked. `cases` is a mapping from a value to its result, or a list of ranges;
-    `default` is used when none matches (null when it is left out)."""
+    `default` is used when none matches (null when it is left out). In a blueprint,
+    a key written `yes`, `no`, `on` or `off` is that text, not a boolean."""
 
     gen: Literal["switch"]
     on: "Value"
@@ -616,7 +668,7 @@ class Switch(Gen):
         on = run.evaluate(self.on, scope)
         if isinstance(self.cases, dict):
             for key, result in self.cases.items():
-                if key == on or str(key) == str(on):
+                if _is_case(key, on):
                     return run.evaluate(result, scope)
         else:
             number = self.number(on, "on, for ranges,")
@@ -703,6 +755,7 @@ class Sequence(Gen):
     start: int = 0
     step: int = 1
     loop_after: Optional[int] = Field(default=None, ge=1)
+    _whole_counts = _whole_number_fields("start", "step", "loop_after")
     format: Optional[str] = None
 
     @field_validator("format")
@@ -932,6 +985,7 @@ class _Arithmetic(Gen):
 
     args: List["Value"] = Field(min_length=2)
     decimals: Optional[int] = Field(default=None, ge=0)
+    _whole_decimals = _whole_number_fields("decimals")
 
     def operands(self, run: "ValueRuntime", scope: Scope) -> Tuple[Any, List[Any]]:
         """The arguments, each evaluated once. When the first is the ISO text of a
@@ -1110,6 +1164,7 @@ class Expr(Gen):
     expr: str
     names: Dict[str, "Value"] = Field(default_factory=dict)
     decimals: Optional[int] = Field(default=None, ge=0)
+    _whole_decimals = _whole_number_fields("decimals")
 
     _parsed: Optional[Expression] = PrivateAttr(default=None)
 
@@ -1126,6 +1181,7 @@ class Expr(Gen):
                     f"'{name}' cannot be a name here: a name is an identifier that "
                     "no expression already uses"
                 )
+            check_name_folds(name, "names")
         return value
 
     @field_validator("expr")
@@ -1417,6 +1473,7 @@ class HistogramBin(BaseModel):
 
     bin: float = Field(gt=0, allow_inf_nan=False)
     frequency: float = Field(ge=0, allow_inf_nan=False)
+    _plain_numbers = _number_fields("bin", "frequency")
 
 
 class Lookup(Gen):

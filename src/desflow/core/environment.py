@@ -28,8 +28,10 @@ from desflow.internal import (
     is_internal,
 )
 from desflow.core.registry import SimulationRegistry
+from desflow.core.rules import checked_datetime
 from desflow.core.sinks import Sink
 from desflow.core.statistics import Statistics
+from desflow.utils import checked_count, checked_interval
 
 logger = logging.getLogger(__name__)
 
@@ -384,12 +386,25 @@ class EgressMixIn:
                 receives it. Defaults to None, which is no trace sink.
 
         Raises:
-            ValueError: If a per-provider list has the wrong length.
+            ValueError: If a per-provider list has the wrong length, or `batch_size`,
+                `flush_interval`, `drain_stall_seconds` or an entry of `batch_sizes`
+                or `flush_intervals` is not a whole number of 1 or more (a batch size)
+                or a number of seconds above 0 (an interval), as `add_egress` and
+                `with_batching` refuse it.
 
         Each provider gets its own queue. They previously shared one, so several
         providers competed for batches instead of each receiving them, and a run with
         two sinks wrote part of the data to each with no error and exit code 0.
         """
+        batch_size = checked_count(batch_size, "egress batch_size")
+        flush_interval = checked_interval(flush_interval, "egress flush_interval")
+        drain_stall_seconds = checked_interval(
+            drain_stall_seconds, "egress drain_stall_seconds"
+        )
+        batch_sizes = self._checked_entries(batch_sizes, checked_count, "batch_sizes")
+        flush_intervals = self._checked_entries(
+            flush_intervals, checked_interval, "flush_intervals"
+        )
         # Each provider imports its libraries here, before the run, and not in the
         # egress thread: a first import holds the interpreter lock while it loads,
         # which in a paced run stops the simulation and fails a strict one
@@ -705,6 +720,16 @@ class EgressMixIn:
             loop.close()
 
     @staticmethod
+    def _checked_entries(values, check, name):
+        """Internal: a per-provider list with each entry that is not None checked."""
+        if values is None:
+            return None
+        return [
+            None if value is None else check(value, f"egress {name}[{index}]")
+            for index, value in enumerate(values)
+        ]
+
+    @staticmethod
     def _resolve_per_provider(values, default, count, name):
         """Internal: fill per-provider overrides, falling back to the shared default."""
         if values is None:
@@ -969,7 +994,7 @@ class EgressMixIn:
         )
 
     def _get_iso_timestamp(self, start_time: datetime, sim_now: float) -> str:
-        """Internal: Converts simulation time to a real-world ISO string.
+        """Internal: Converts simulation time to the ISO text of the logical time.
 
         The clock runs in UTC, so a daylight-saving change never adds or drops
         simulation time, and the text is written in the run's zone (`self.zone`)
@@ -1275,8 +1300,9 @@ class DynamicRealtimeEnvironment(
     for managing high-throughput asynchronous I/O with external systems.
 
     Attributes:
-        start_datetime (datetime): The real-world clock time when the simulation
-            started, with its time zone.
+        start_datetime (datetime): The logical start time: `logical_start_time`, or the
+            wall-clock time the environment was made when that is not given, with its
+            time zone.
         zone (tzinfo): The time zone timestamps are written in.
     """
 
@@ -1336,6 +1362,8 @@ class DynamicRealtimeEnvironment(
                 + ", ".join(UNHANDLED_FAILURE_POLICIES)
             )
         self.on_unhandled_failure = on_unhandled_failure
+        checked_datetime(logical_start_time, "logical_start_time")
+        checked_datetime(go_live_at, "go_live_at")
         self.zone: tzinfo = resolve_zone(timezone, logical_start_time)
         # The custom time, or the moment the script runs, in the run's zone
         self.start_datetime = (
@@ -1731,11 +1759,17 @@ class DynamicRealtimeEnvironment(
         ingress and egress are cleanly stopped. Should be called in a `finally` block.
         """
         logger.info("Environment teardown initiated.")
-        # The last publication of the built-in statistics, at the end of the run
-        if self.stats.enabled:
-            self.stats.publish()
-        if hasattr(self, "teardown_egress"):
-            self.teardown_egress()
-        if hasattr(self, "teardown_ingress"):
-            self.teardown_ingress()
+        # The last publication of the built-in statistics, at the end of the run. When
+        # it raises, the flush and the thread stops still run, and the error still
+        # reaches the caller
+        try:
+            if self.stats.enabled:
+                self.stats.publish()
+        finally:
+            try:
+                if hasattr(self, "teardown_egress"):
+                    self.teardown_egress()
+            finally:
+                if hasattr(self, "teardown_ingress"):
+                    self.teardown_ingress()
         logger.info("Environment teardown complete.")

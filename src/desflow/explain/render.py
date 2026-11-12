@@ -32,6 +32,8 @@ def render_terminal(explanation: Explanation, width: Optional[int] = None) -> st
         color_system=None,
         highlight=False,
         emoji=False,
+        # A model's names are printed as written, so "[bold]packers" is not a style
+        markup=False,
         soft_wrap=False,
     )
     console.print(_tree(explanation))

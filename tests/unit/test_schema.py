@@ -21,7 +21,7 @@ from desflow.blueprint.build import _file_location
 from desflow.blueprint.loader import (
     BlueprintLoader,
     _keep_on_keys,
-    _keep_switch_on,
+    _keep_generator_keys,
     substitute,
 )
 from desflow.blueprint.schema import schema_text
@@ -58,6 +58,8 @@ NOT_BLUEPRINTS = {
     "docs/snippets/yaml/iceberg_tables_catalogs/sqlite.yaml",
     "docs/snippets/yaml/test_a_model_tests.yaml",
 }
+# Blueprints that desflow refuses at load, which the schema must refuse as well
+REFUSED = {"tests/known_cases/st_rt5/model.yaml"}
 FOLDERS = (
     "examples/yaml",
     "examples/gallery",
@@ -122,7 +124,7 @@ def _read(path: Path, at: Optional[str] = None) -> Dict[str, Any]:
         assert node is not None
         includes: Dict[Any, str] = {}
         _keep_on_keys(node, includes, at)
-        _keep_switch_on(node)
+        _keep_generator_keys(node)
         setattr(loader, "includes", includes)
         return loader.construct_document(node)
     finally:
@@ -166,6 +168,11 @@ def test_every_blueprint_matches_the_schema():
             f"one without is listed in NOT_BLUEPRINTS"
         )
         if listed:
+            continue
+        if _relative(path) in REFUSED:
+            assert not validator.is_valid(data), f"{_relative(path)}: schema accepts"
+            assert not _model_accepts(data), f"{_relative(path)}: model accepts"
+            blueprints += 1
             continue
         # A fitted file is read as part of the blueprint that includes it
         errors = sorted(validator.iter_errors(data), key=lambda e: list(e.path))
@@ -393,6 +400,38 @@ FORMS = [
     ("run", {"until": "10 min"}, True),
     ("run", {"until": 5}, True),
     ("run", {"until": "soon"}, False),
+    # The lower bounds: a value the models refuse on load is refused by the schema
+    ("run", {"until": 0}, False),
+    ("run", {"until": -5}, False),
+    ("simulation", {"warmup": 0}, True),
+    ("simulation", {"warmup": -1}, False),
+    ("stats", {"level": "all", "interval": 0}, False),
+    ("tests", [{"name": "t", "expect": {"a": {"value": 1, "within": 0}}}], True),
+    ("tests", [{"name": "t", "expect": {"a": {"value": 1, "within": -1}}}], False),
+    # A number written as text is read as a number, except where the model is strict
+    ("run", {"until": "1000"}, True),
+    ("simulation", {"factor": "2"}, True),
+    ("simulation", {"warmup": "1e0"}, True),
+    ("simulation", {"factor": "fast"}, False),
+    ("tests", [{"name": "t", "expect": {"a": {"value": "1", "within": 1}}}], False),
+    # The text form of an integer field takes no fraction, and the text form of a field
+    # with a lower bound takes the same values the number does
+    ("simulation", {"random_seed": "7.0"}, True),
+    ("simulation", {"random_seed": "1.5"}, False),
+    (
+        "*",
+        {"resources": {"p": {"current_cap": 1, "max_cap": 1, "queue_limit": "4.0"}}},
+        True,
+    ),
+    (
+        "*",
+        {"resources": {"p": {"current_cap": 1, "max_cap": 1, "queue_limit": "4."}}},
+        False,
+    ),
+    ("run", {"until": "0"}, False),
+    ("run", {"until": "-5"}, False),
+    ("simulation", {"warmup": "0"}, True),
+    ("simulation", {"warmup": "-1"}, False),
     ("simulation", {"warmup": "2 h"}, True),
     ("simulation", {"warmup": 30}, True),
     ("simulation", {"warmup": "2 parsecs"}, False),

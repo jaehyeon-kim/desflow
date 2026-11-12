@@ -61,7 +61,7 @@ def type_text(node: Any, defs: Dict[str, Any], anchors: Dict[str, str]) -> str:
         return "any value"
     name = ref_name(node)
     if name is not None:
-        if name == "Placeholder":
+        if name == "Placeholder" or name.endswith(("NumberText", "IntegerText")):
             return ""
         target = defs[name]
         if "properties" in target:

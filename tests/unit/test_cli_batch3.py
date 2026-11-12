@@ -449,6 +449,7 @@ def test_blueprint_filter_counts_the_file_and_python_files_beside_it(tmp_path):
     assert accept(Change.modified, str(file))
     assert accept(Change.modified, str(tmp_path / "logic.py"))
     assert accept(Change.added, str(tmp_path / "sub" / "more.py"))
+    assert accept(Change.modified, str(tmp_path / "Logic.PY"))
     assert not accept(Change.modified, str(tmp_path / "data" / "events.parquet"))
     assert not accept(Change.modified, str(tmp_path / "other.yaml"))
     pycache = tmp_path / "__pycache__" / "logic.cpython-312.pyc"
@@ -640,28 +641,34 @@ tests:
     assert again.exit_code == 0, again.output
 
 
-def test_the_on_warning_is_shown_once_for_replications_and_tests(tmp_path, caplog):
-    """A wrong `on:` path warns at the first build; `--replications` and `desflow
-    test` build the file again for each run and do not repeat it."""
+def test_a_build_warning_is_shown_once_for_replications_and_tests(
+    tmp_path, caplog, monkeypatch
+):
+    """A warning of the first build shows; `--replications` and `desflow test` build
+    the file again for each run and do not repeat it. The `on:` path check, which
+    used to warn, is replaced by a stand-in that warns on every build, because the
+    build has no other warning that these commands reach."""
+    build_module = importlib.import_module("desflow.blueprint.build")
+    monkeypatch.setattr(
+        build_module,
+        "_check_on_paths",
+        lambda blueprint, context, source: build_module.logger.warning(
+            "a build warning"
+        ),
+    )
     text = (
-        SHOP.replace(
-            "payload: {event_type: packed}}",
-            "payload: {event_type: packed}, "
-            "on: [{path: Shop.resources.lath.current_cap, value: 3}]}",
-        )
+        SHOP
         + "stats: basic\ntests:\n  - name: a\n    expect: {tasks.pack_order.finished: 3}\n"
         "  - name: b\n    expect: {tasks.pack_order.finished: 3}\n"
     )
-    path = _write(tmp_path, "on.yaml", text)
+    path = _write(tmp_path, "warns.yaml", text)
     for args in (["run", str(path), "--replications", "3"], ["test", str(path)]):
         caplog.clear()
         with caplog.at_level("WARNING", logger="desflow.blueprint.build"):
             CliRunner().invoke(cli, args)
-        shown = [r for r in caplog.records if "not a registry path" in r.getMessage()]
+        shown = [r for r in caplog.records if r.getMessage() == "a build warning"]
         assert len(shown) == 1, args
     # The level is restored afterwards
-    import logging
-
     assert logging.getLogger("desflow.blueprint.build").level != logging.ERROR
 
 

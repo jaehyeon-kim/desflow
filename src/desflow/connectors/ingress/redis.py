@@ -6,6 +6,8 @@ from typing import Any
 import orjson
 import redis.asyncio as redis
 
+from desflow.connectors._checks import checked_poll
+from desflow.connectors._retry import FIRST_DELAY, next_delay
 from desflow.connectors.ingress.base import BaseIngress, parse_change
 
 logger = logging.getLogger(__name__)
@@ -48,7 +50,7 @@ class RedisIngress(BaseIngress):
         """
         self.url = url
         self.channel_name = channel_name
-        self.poll_interval = poll_interval
+        self.poll_interval = checked_poll(poll_interval, "poll_interval")
         self.kwargs = kwargs
         self.client: redis.Redis | None = None
         self.pubsub: redis.client.PubSub | None = None
@@ -59,33 +61,73 @@ class RedisIngress(BaseIngress):
 
         Continuously polls the Pub/Sub channel for incoming JSON messages containing
         `path` and `value`, placing successfully parsed updates onto the
-        internal update queue.
+        internal update queue. When Redis is down or the connection fails, it logs
+        the error and connects again with a back-off that grows to one minute, as the
+        Kafka ingress does.
 
         Args:
             update_queue: A thread-safe queue where incoming parameters are pushed
                 so they can be applied within the SimPy context.
-        """
-        self.client = redis.from_url(self.url, **self.kwargs)
-        self.pubsub = self.client.pubsub()
-        await self.pubsub.subscribe(self.channel_name)
-        logger.info(f"RedisIngress subscribed to channel '{self.channel_name}'")
 
+        Raises:
+            ValueError: If `redis.from_url` refuses the URL, such as one with a scheme
+                it does not know. No wait fixes it, so it is raised at once, as the
+                PostgreSQL connectors do.
+        """
+        delay = FIRST_DELAY
         try:
             while True:
-                message = await self.pubsub.get_message(
-                    ignore_subscribe_messages=True, timeout=self.poll_interval
-                )
-                if message and message["type"] == "message":
-                    try:
-                        update_queue.put(parse_change(orjson.loads(message["data"])))
-                    except Exception as e:
-                        logger.warning(f"Skipped a Redis ingress message: {e}")
-                else:
-                    await asyncio.sleep(self.poll_interval)
+                try:
+                    self.client = redis.from_url(self.url, **self.kwargs)
+                    self.pubsub = self.client.pubsub()
+                    await self.pubsub.subscribe(self.channel_name)
+                    logger.info(
+                        f"RedisIngress subscribed to channel '{self.channel_name}'"
+                    )
+                    delay = FIRST_DELAY
+                    await self._receive(update_queue)
+                except Exception as e:
+                    if isinstance(e, ValueError) and self.client is None:
+                        # `redis.from_url` refused the URL: no wait fixes it
+                        raise
+                    logger.error(
+                        f"RedisIngress connection failed: {e}. Retrying in {delay}s"
+                    )
+                    await self._disconnect()
+                    await asyncio.sleep(delay)
+                    delay = next_delay(delay)
         except asyncio.CancelledError:
             pass
         finally:
-            if self.pubsub:
-                await self.pubsub.unsubscribe(self.channel_name)
-            if self.client:
-                await self.client.aclose()
+            await self._disconnect()
+
+    async def _receive(self, update_queue: queue.Queue) -> None:
+        """Reads messages from the subscription until an error or a cancel ends it."""
+        assert self.pubsub is not None
+        while True:
+            message = await self.pubsub.get_message(
+                ignore_subscribe_messages=True, timeout=self.poll_interval
+            )
+            if message and message["type"] == "message":
+                try:
+                    update_queue.put(parse_change(orjson.loads(message["data"])))
+                except Exception as e:
+                    logger.warning(f"Skipped a Redis ingress message: {e}")
+            else:
+                await asyncio.sleep(self.poll_interval)
+
+    async def _disconnect(self) -> None:
+        """Leaves the channel and closes the client, ignoring errors from a connection
+        that is already down."""
+        pubsub, client = self.pubsub, self.client
+        self.pubsub = self.client = None
+        try:
+            if pubsub:
+                await pubsub.unsubscribe(self.channel_name)
+        except Exception:
+            pass
+        try:
+            if client:
+                await client.aclose()
+        except Exception:
+            pass

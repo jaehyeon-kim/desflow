@@ -8,7 +8,9 @@ check cannot read or change a run. `SimulationContext._check_tasks` calls it fro
 `task_checks`, which the blueprint loader calls too.
 """
 
+import copy
 import logging
+import numbers
 from pathlib import Path
 from typing import (
     Any,
@@ -26,8 +28,8 @@ from typing import (
 import simpy
 
 from desflow.builder.arrivals import Arrivals
-from desflow.core.expressions import ANY_NAME, Expression
-from desflow.core.families import Families, member_path
+from desflow.core.expressions import ANY_NAME, Expression, member_name
+from desflow.core.families import Families, Reference, member_path, split_path
 from desflow.builder.holders import Holders
 from desflow.core.registry import ParamRejected, SimulationRegistry
 from desflow.builder.runs import EndSets
@@ -41,6 +43,7 @@ from desflow.builder.task_checks import (
     batch_mismatch_text,
     builder_value,
     check_acquisition_order,
+    families_made_at_first_use,
     first_family_problem,
     flow_sets,
     generator_expressions,
@@ -103,6 +106,166 @@ def not_added(name: str, added: Iterable[str], how: str) -> str:
     return "which is not added" + (suggestion(name, added) or f"; add it with {how}")
 
 
+def _unmade_member(
+    path: str,
+    families: Families,
+    holders: Holders,
+    sim_id: str,
+    tasks: Tasks,
+    signals: Signals,
+) -> Optional[str]:
+    """The text that says why a family never makes the member `path` names, or None
+    when the path is not a member path of a resource, store or container family, or
+    the family can make the member. The arguments are those of `names_a_member`."""
+    found = member_path(path, families.by_name, sim_id)
+    if found is None:
+        return None
+    family = families.by_name[found[0]]
+    if family.kind not in ("resource", "store", "container"):
+        return None
+    if family.name in families_made_at_first_use(tasks.specs, signals.on):
+        return None
+    declared = family.members
+    count = 0 if declared is None else declared
+    if not isinstance(count, numbers.Integral):
+        return None
+    count = int(count)
+    member = split_path(path[len(sim_id) + 1 :])[1]
+    if member in {member_name(family.name, key) for key in range(count)}:
+        return None
+    if declared is None:
+        made = "the family has no `members`"
+    elif count == 0:
+        made = "`members: 0` makes none"
+    elif count == 1:
+        made = f"`members: 1` makes only {member_name(family.name, 0)}"
+    else:
+        made = (
+            f"`members: {count}` makes {member_name(family.name, 0)} to "
+            f"{member_name(family.name, count - 1)}"
+        )
+    return (
+        f"'{member}' is a member the family '{family.name}' never makes: {made}, "
+        f"and no task or `on:` action picks a member by `key`"
+    )
+
+
+def unmade_member_note(
+    path: str,
+    families: Families,
+    holders: Holders,
+    sim_id: str,
+    tasks: Tasks,
+    signals: Signals,
+) -> str:
+    """The end of a refusal of a registry path that names a member its family never
+    makes, so the reader sees why a path of the right form is refused.
+
+    Args:
+        path: The registry path.
+        families: The declared families.
+        holders: The declared resources, stores and containers.
+        sim_id: The model's `sim_id`.
+        tasks: The model's tasks.
+        signals: The model's signals.
+
+    Returns:
+        str: A sentence that starts with a full stop, or "" when the path names no
+            such member.
+    """
+    why = _unmade_member(path, families, holders, sim_id, tasks, signals)
+    return "" if why is None else f". {why}"
+
+
+def names_a_member(
+    path: str,
+    families: Families,
+    holders: Holders,
+    sim_id: str,
+    tasks: Tasks,
+    signals: Signals,
+) -> bool:
+    """Whether a registry path names an attribute a member of a family has, such as
+    `S.resources.desk[3].current_cap`, of a member the family can have.
+
+    The member is made when the run starts or at its first use, so the scratch
+    registry does not hold it. The attributes a member has are the paths the registry
+    gives an ordinary resource, store or container of the family's settings, found by
+    registering one under the member's name; a signal has none. A path that names a
+    member with another attribute, such as `desk[3].curent_cap`, is no registry path.
+    So is a path of a member the family can never have: no task or `on:` action
+    names the family with a `key`, which would make a member at its first use, and the
+    key is not one of 0 to `members` - 1 (none, when the family has no `members`). A
+    `members` that is read when the run starts is not known here, so such a family
+    accepts every key.
+
+    Args:
+        path: The registry path.
+        families: The declared families.
+        holders: The declared resources, stores and containers.
+        sim_id: The model's `sim_id`.
+        tasks: The model's tasks, which name a family with a `key`.
+        signals: The model's signals, whose `on:` actions do the same.
+
+    Returns:
+        bool: True when the path names an attribute of a member of a family.
+    """
+    found = member_path(path, families.by_name, sim_id)
+    if found is None:
+        return False
+    family = families.by_name[found[0]]
+    configs = {
+        "resource": holders.resources_config,
+        "store": holders.stores_config,
+        "container": holders.containers_config,
+    }.get(family.kind)
+    if configs is None or family.name not in configs:
+        return False
+    member = split_path(path[len(sim_id) + 1 :])[1]
+    if _unmade_member(path, families, holders, sim_id, tasks, signals) is not None:
+        return False
+    registry = SimulationRegistry(simpy.Environment())
+    register = {
+        "resource": registry.register_resource,
+        "store": registry.register_store,
+        "container": registry.register_container,
+    }[family.kind]
+    try:
+        register(sim_id, member, copy.copy(configs[family.name]))
+    except ValueError:
+        # The run refuses the family's own settings, with its own message
+        return True
+    try:
+        registry.get(path)
+    except KeyError:
+        return False
+    return True
+
+
+def generator_reads(spec: TaskSpec) -> List[Tuple[str, Expression]]:
+    """The expressions inside the generators of a task's value places (an `expr`
+    generator's text, a `when` condition and an `omit_when`), each with the key of the
+    place. Text that does not parse is left to the check of the value.
+
+    Args:
+        spec: The task.
+
+    Returns:
+        List[Tuple[str, Expression]]: The key of the place and the parsed expression.
+    """
+    found: List[Tuple[str, Expression]] = []
+    for key, _where, _after, place in task_value_places(
+        lambda key: builder_value(spec, key)
+    ):
+        for _path, generator in generators_in(place, (Gen,)):
+            for text in generator_expressions(generator):
+                try:
+                    found.append((key, Expression(text, names=ANY_NAME)))
+                except ValueError:
+                    continue
+    return found
+
+
 def written_paths(
     scenario_steps: List[Dict[str, Any]], tasks: Tasks, signals: Signals
 ) -> Set[str]:
@@ -124,6 +287,34 @@ def written_paths(
         for action in [*spec.on, *(spec.listen.on if spec.listen else [])]
     ] + [action for found in signals.on.values() for action in found]
     return paths | {a["path"] for a in actions if isinstance(a.get("path"), str)}
+
+
+def _timeout_values(wait: Any) -> Dict[Tuple[Any, ...], Any]:
+    """The delay and the `value` of every timeout in a wait, the branch an `each`
+    group makes included, by where each is written.
+
+    Args:
+        wait: The task's parsed `Wait`, or None.
+
+    Returns:
+        Dict[Tuple[Any, ...], Any]: The values the check reads before the vars have a
+            value, by path.
+    """
+    found: Dict[Tuple[Any, ...], Any] = {}
+
+    def walk(node: Any, prefix: Tuple[Any, ...], named: bool = True) -> None:
+        if node.kind == "timeout":
+            where = prefix + ((node.name,) if named else ())
+            found[where + ("timeout",)] = node.target[0]
+            found[where] = node.target[1]
+        for child in node.children:
+            walk(child, prefix)
+        if node.template is not None:
+            walk(node.template, ("wait", node.name, "branch"), named=False)
+
+    if wait is not None:
+        walk(wait.root, ("wait",))
+    return found
 
 
 def _holding(spec: TaskSpec) -> Holding:
@@ -382,6 +573,7 @@ class ModelChecks:
         self._check_lookups()
         self._check_families()
         self._check_scenario_steps(sim_id, overrides, scratch)
+        self._check_on_paths(sim_id, scratch)
         self._check_spawns_and_breakdowns()
         self._check_resources_held_once()
         self._check_handles()
@@ -392,6 +584,8 @@ class ModelChecks:
         for place, expression, _location in rule_expressions(
             self._holders, self._readings, self._signals.on
         ):
+            self._check_rule_names(place, expression, holders, sim_id, scratch)
+        for place, expression in self._run_reads():
             self._check_rule_names(place, expression, holders, sim_id, scratch)
         routes = self._routes()
         self._warn_whole_flows(routes, order_warned)
@@ -501,8 +695,13 @@ class ModelChecks:
             for index, problem, detail in walk_steps(
                 [(step["at"], step.get("path"), step.get("value")) for step in steps],
                 known,
-                lambda path: (
-                    member_path(str(path), self._families.by_name, sim_id) is not None
+                lambda path: names_a_member(
+                    str(path),
+                    self._families,
+                    self._holders,
+                    sim_id,
+                    self._tasks,
+                    self._signals,
                 ),
             ):
                 step = steps[index]
@@ -511,6 +710,7 @@ class ModelChecks:
                         f"scenario step at {step['at']:g} s sets '{step['path']}', "
                         f"which is not a registry path"
                         + suggestion(step["path"], known.paths())
+                        + self._unmade_note(str(step["path"]), sim_id)
                     )
                 if problem == "value":
                     raise ValueError(
@@ -528,6 +728,54 @@ class ModelChecks:
                         f"'{action['task']}', "
                         + not_added(action["task"], self._tasks.specs, "@app.task()")
                     )
+
+    def _check_on_paths(
+        self, sim_id: str, scratch: Callable[[], SimulationRegistry]
+    ) -> None:
+        """Checks that the `path` of every `on:` action is a registry path, as a
+        scenario step's is, because an action on a path the registry lacks ends the
+        run with `KeyError` when it first runs.
+
+        Raises:
+            ValueError: Naming the task or signal and the path.
+        """
+        lists = [
+            (f"the on: action of task '{name}'", spec.on)
+            for name, spec in self._tasks.specs.items()
+        ]
+        lists += [
+            (f"the listen on: action of task '{name}'", spec.listen.on)
+            for name, spec in self._tasks.specs.items()
+            if spec.listen is not None
+        ]
+        lists += [
+            (f"the on: action of signal '{name}'", found)
+            for name, found in self._signals.on.items()
+        ]
+        registry: Optional[SimulationRegistry] = None
+        for place, actions in lists:
+            for action in actions:
+                path = action.get("path")
+                if not isinstance(path, str) or names_a_member(
+                    path,
+                    self._families,
+                    self._holders,
+                    sim_id,
+                    self._tasks,
+                    self._signals,
+                ):
+                    continue
+                if registry is None:
+                    registry = scratch()
+                try:
+                    registry.get(path)
+                except KeyError:
+                    raise ValueError(
+                        f"{place} sets '{path}', which is not a "
+                        f"registry path"
+                        + suggestion(path, registry.paths())
+                        + self._unmade_note(path, sim_id)
+                    ) from None
 
     def _check_spawns_and_breakdowns(self) -> None:
         """Checks that the task each arrival spawns, and the resource each breakdown
@@ -613,20 +861,10 @@ class ModelChecks:
                     (name, key, h, "any")
                     for h in sorted(expression.references["handle"])
                 ]
-            # The expressions inside the generators of the task's value places
-            for key, _where, _after, place in task_value_places(
-                lambda key: builder_value(spec, key)
-            ):
-                for _where, generator in generators_in(place, (Gen,)):
-                    for text in generator_expressions(generator):
-                        try:
-                            read = Expression(text, names=ANY_NAME)
-                        except ValueError:
-                            continue  # reported where the value is checked
-                        uses += [
-                            (name, key, h, "any")
-                            for h in sorted(read.references["handle"])
-                        ]
+            for key, read in generator_reads(spec):
+                uses += [
+                    (name, key, h, "any") for h in sorted(read.references["handle"])
+                ]
         unmatched = handle_problem(opens, uses)
         if unmatched is not None:
             holder, key, message = unmatched
@@ -816,13 +1054,18 @@ class ModelChecks:
                 raise ValueError(
                     f"task '{name}' uses {kind} '{transfer.target}', which is not added"
                 )
-            if transfer.filter is not None and self._holders.store_priority.get(
-                transfer.target
+            for store in (
+                transfer.target.names
+                if isinstance(transfer.target, Reference)
+                else (transfer.target,)
             ):
-                raise ValueError(
-                    f"task '{name}' filters priority store '{transfer.target}'; "
-                    f"SimPy has no store that both ranks and filters its items"
-                )
+                if transfer.filter is not None and self._holders.store_priority.get(
+                    store
+                ):
+                    raise ValueError(
+                        f"task '{name}' filters priority store '{store}'; "
+                        f"SimPy has no store that both ranks and filters its items"
+                    )
             if (
                 transfer.filter is not None
                 and kind == "store"
@@ -895,6 +1138,7 @@ class ModelChecks:
         if spec.listen is not None and spec.listen.signal is not None:
             signals.add(spec.listen.signal)
         expressions = [found.expression for found in spec.expressions]
+        expressions += [read for _key, read in generator_reads(spec)]
         for expression in expressions:
             signals |= expression.references["signal"]
         for signal in sorted(signals):
@@ -1022,15 +1266,7 @@ class ModelChecks:
                 "listen": [] if spec.listen is None else spec.listen.on,
             },
             wait_values={
-                **{
-                    where: found
-                    for node in (spec.wait.branches.values() if spec.wait else ())
-                    if node.kind == "timeout"
-                    for where, found in (
-                        (("wait", node.name, "timeout"), node.target[0]),
-                        (("wait", node.name), node.target[1]),
-                    )
-                },
+                **_timeout_values(spec.wait),
                 ("patience",): spec.patience,
                 ("key",): spec.key,
                 ("batch", "timeout"): (
@@ -1071,8 +1307,10 @@ class ModelChecks:
         registry: SimulationRegistry,
         sim_id: str,
     ) -> None:
-        """Checks that each name a task's expressions read is declared."""
+        """Checks that each name a task's expressions read is declared, those in its
+        generators too."""
         expressions = [found.expression for found in spec.expressions]
+        expressions += [read for _key, read in generator_reads(spec)]
         for expression in expressions:
             for kind, ref in self._unknown_references(
                 expression, _TASK_REFERENCES, holders, lambda: registry, sim_id
@@ -1112,8 +1350,51 @@ class ModelChecks:
                     )
                 raise ValueError(
                     f"task '{name}' reads registry[\"{ref}\"], which is "
-                    f"not a registry path"
+                    f"not a registry path" + self._unmade_note(ref, sim_id)
                 )
+
+    def _unmade_note(self, path: str, sim_id: str) -> str:
+        """The end of a refusal of `path`: why its family never makes the member it
+        names, or "" when it names no such member."""
+        return unmade_member_note(
+            path,
+            self._families,
+            self._holders,
+            sim_id,
+            self._tasks,
+            self._signals,
+        )
+
+    def _run_reads(self) -> Iterator[Tuple[str, Expression]]:
+        """Yields each expression the run places of an arrival and the values of a
+        scenario step hold, with the place for a message: an `Expression` given as the
+        value, and the text of each `expr`, `when` or `omit_when` of a generator in it.
+        Text that does not parse is left to the check of the value."""
+        places: List[Tuple[str, Any]] = []
+        for name, plan in self._arrivals.plans.items():
+            where = f"arrival '{name}'"
+            places += [
+                (f"{where} {key}", getattr(plan, key))
+                for key in ("gap", "count", "stagger", "max_events", "group", "key")
+            ]
+            places += [
+                (f"{where} vars.{var}", value) for var, value in plan.vars.items()
+            ]
+        for name, (attributes, _prefix) in self._arrivals.entities.items():
+            places.append((f"arrival '{name}' attributes", attributes))
+        for step in self._scenario_steps:
+            where = f"scenario step at {step['at']:g} s"
+            places += [(f"{where} {key}", step.get(key)) for key in ("value", "record")]
+            places.append((f"{where} interrupt", step.get("interrupt")))
+        for place, value in places:
+            if isinstance(value, Expression):
+                yield place, value
+            for _path, generator in generators_in(value, (Gen,)):
+                for text in generator_expressions(generator):
+                    try:
+                        yield place, Expression(text, names=ANY_NAME)
+                    except ValueError:
+                        continue
 
     def _check_rule_names(
         self,
@@ -1162,6 +1443,7 @@ class ModelChecks:
                 )
             raise ValueError(
                 f'{place} reads registry["{name}"], which is not a registry path'
+                + self._unmade_note(name, sim_id)
             )
 
     def _unknown_references(
@@ -1196,7 +1478,14 @@ class ModelChecks:
                     known = name in self._signals.entries
                 elif kind == "running":
                     known = name in self._tasks.specs
-                elif member_path(name, self._families.by_name, sim_id) is not None:
+                elif names_a_member(
+                    name,
+                    self._families,
+                    self._holders,
+                    sim_id,
+                    self._tasks,
+                    self._signals,
+                ):
                     known = True
                 else:
                     try:

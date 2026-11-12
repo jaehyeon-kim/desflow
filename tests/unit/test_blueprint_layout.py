@@ -61,3 +61,26 @@ def test_a_long_ordinary_comment_is_still_wrapped():
     result = blueprint_layout._layout(f"{comment.rstrip()}\n{BODY}")
     assert all(len(line) <= blueprint_layout.MAX_WIDTH for line in result.splitlines())
     assert len(result.splitlines()) > 2
+
+
+@pytest.mark.parametrize(
+    "text, message",
+    [
+        (
+            "resources:\n  p: {current_cap: 1, # keep one\n      max_cap: 5}\n",
+            "line 2: the layout would lose the comment `# keep one`",
+        ),
+        (
+            "x:\n  y: [1, # first\n      2]\n",
+            "line 2: the layout would lose the comment `# first`",
+        ),
+        (
+            "x:\n  y: [1, #first\n      2]\n",
+            "line 2: the layout would lose the comment `#first`",
+        ),
+    ],
+    ids=["mapping", "sequence", "no space after the hash"],
+)
+def test_a_comment_inside_an_inline_collection_is_refused_not_dropped(text, message):
+    with pytest.raises(ValueError, match=message):
+        blueprint_layout._layout(text)

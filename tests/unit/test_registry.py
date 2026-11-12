@@ -4,7 +4,12 @@ import pytest
 
 from desflow.core.registry import ParamChange, ParamRejected
 from desflow.resources.container import DynamicContainer
-from desflow.models.params import CapacityConfig, DistributionConfig, SimParameter
+from desflow.models.params import (
+    BreakdownConfig,
+    CapacityConfig,
+    DistributionConfig,
+    SimParameter,
+)
 
 
 def test_registry_registration_paths(registry, sample_params):
@@ -779,3 +784,138 @@ def test_infinity_and_nan_are_refused_over_an_integer_variable(registry):
     for bad in (float("inf"), float("nan")):
         registry.update("Shop.variables.count", bad)
         assert registry.get("Shop.variables.count").value == 10
+
+
+def test_a_breakdown_parameter_stores_a_number_as_given(registry):
+    """YAML reads `rate: 1` and `high: 15` as integers; 12.5 over 15 and 0.02 over 1
+    are stored as sent, as an arrival's parameter is, and `true` is refused."""
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="S",
+            resources={"m": CapacityConfig(current_cap=1)},
+            breakdowns={
+                "m": BreakdownConfig(
+                    time_to_failure=DistributionConfig(dist="exponential", rate=1),
+                    repair=DistributionConfig(dist="uniform", low=5, high=15),
+                )
+            },
+        )
+    )
+
+    assert registry.change("S.breakdown.m.repair.high", 12.5).new == 12.5
+    assert registry.change("S.breakdown.m.time_to_failure.rate", 0.02).new == 0.02
+    assert registry.get("S.breakdown.m.repair.high").value == 12.5
+    assert registry.change("S.breakdown.m.repair.low", "6.5").new == 6.5
+    with pytest.raises(ParamRejected, match="S.breakdown.m.repair.high"):
+        registry.change("S.breakdown.m.repair.high", True)
+
+
+def test_text_is_not_written_to_a_variable_holding_a_list(registry):
+    """`list("c3")` is `['c', '3']` and `list({"x": 1})` is `['x']`, so text, and a
+    mapping over a list or a list over a mapping, are refused, and the value stays."""
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="S", variables={"skus": ["a1", "b2"], "codes": {"x": 1}, "n": 1}
+        )
+    )
+
+    for name in ("skus", "codes"):
+        with pytest.raises(ParamRejected, match=f"S.variables.{name}"):
+            registry.change(f"S.variables.{name}", "c3")
+    with pytest.raises(ParamRejected, match="S.variables.skus"):
+        registry.change("S.variables.skus", {"x": 1})
+    with pytest.raises(ParamRejected, match="S.variables.codes"):
+        registry.change("S.variables.codes", [["k", 1]])
+    assert registry.get("S.variables.skus").value == ["a1", "b2"]
+    assert registry.get("S.variables.codes").value == {"x": 1}
+    assert registry.change("S.variables.skus", ["c3"]).new == ["c3"]
+    assert registry.change("S.variables.skus", ("d4",)).new == ["d4"]
+
+
+def test_set_exactly_refuses_a_text_max_cap_with_the_path(registry, sample_params):
+    """A text `max_cap` raises `ParamRejected` naming the path, never `TypeError`."""
+    registry.register_sim_parameter(sample_params)
+    path = "Shop.resources.packers.max_cap"
+
+    for text in ("4", "inf"):
+        with pytest.raises(ParamRejected, match="would store") as refused:
+            registry.set_exactly(path, text)
+        assert refused.value.path == path
+    with pytest.raises(ParamRejected) as refused:
+        registry.set_exactly(path, "1")
+    assert refused.value.path == path
+    assert registry.get(path).value == 5
+    with pytest.raises(ParamRejected, match="current_cap first"):
+        registry.set_exactly(path, 1)
+
+
+def test_set_exactly_refuses_a_value_the_registry_would_clamp_before_storing_it(
+    registry, sample_params
+):
+    """A `current_cap` above `max_cap` and a container `level` above `current_cap` are
+    refused naming the range, and the value held stays. NaN is refused by name."""
+    registry.register_sim_parameter(sample_params)
+
+    for path, value, range_text in (
+        ("Shop.resources.packers.current_cap", 9, "[0, max_cap 5]"),
+        ("Shop.resources.packers.current_cap", -1, "[0, max_cap 5]"),
+        ("Shop.containers.tank1.level", 60.0, "[0, current_cap 50.0]"),
+    ):
+        before = registry.get(path).value
+        with pytest.raises(ParamRejected, match="must be within") as refused:
+            registry.set_exactly(path, value)
+        assert range_text in str(refused.value)
+        assert refused.value.path == path
+        assert registry.get(path).value == before
+    registry.set_exactly("Shop.resources.packers.current_cap", 5)
+    with pytest.raises(ParamRejected, match="cannot be set to nan"):
+        registry.set_exactly("Shop.containers.tank1.current_cap", float("nan"))
+    assert registry.get("Shop.containers.tank1.current_cap").value == 50.0
+
+
+def test_infinity_written_to_a_current_cap_clamps_to_a_whole_number(
+    registry, sample_params
+):
+    """A resource's capacity stays a whole number when infinity is clamped to a finite
+    `max_cap`, and when a lower `max_cap` lowers an infinite `current_cap`."""
+    registry.register_sim_parameter(sample_params)
+
+    stored = registry.change("Shop.resources.packers.current_cap", float("inf")).new
+    assert stored == 5 and isinstance(stored, int)
+
+    registry.update("Shop.resources.packers.max_cap", float("inf"))
+    registry.update("Shop.resources.packers.current_cap", float("inf"))
+    registry.update("Shop.resources.packers.max_cap", 3)
+    lowered = registry.get("Shop.resources.packers.current_cap").value
+    assert lowered == 3 and isinstance(lowered, int)
+
+
+def test_infinity_declared_as_a_current_cap_clamps_to_a_whole_number(registry):
+    """The capacity a model declares is clamped as a live write is: a resource's
+    stays a whole number, a container's keeps the type given."""
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="S",
+            resources={"r": CapacityConfig(current_cap=float("inf"), max_cap=5)},
+            containers={"c": CapacityConfig(current_cap=float("inf"), max_cap=5)},
+        )
+    )
+
+    declared = registry.get("S.resources.r.current_cap").value
+    assert declared == 5 and isinstance(declared, int)
+    assert registry.get("S.containers.c.current_cap").value == 5.0
+
+
+def test_a_capacity_clamped_to_a_whole_float_max_cap_stays_a_whole_number(registry):
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="S",
+            resources={"r": CapacityConfig(current_cap=7, max_cap=5.0)},
+        )
+    )
+    declared = registry.get("S.resources.r.current_cap").value
+    assert declared == 5 and isinstance(declared, int)
+    registry.update("S.resources.r.current_cap", 2)
+    registry.update("S.resources.r.current_cap", 7)
+    written = registry.get("S.resources.r.current_cap").value
+    assert written == 5 and isinstance(written, int)

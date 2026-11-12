@@ -1,12 +1,56 @@
 import asyncio
 import queue
+import re
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from desflow import Entity, SimulationContext
+from desflow.blueprint import BlueprintError
+from desflow.values import generator
 from tests.conformance.harness import run_yaml_text
+
+
+@pytest.mark.parametrize("setting", ["logical_start_time", "go_live_at"])
+def test_a_number_is_refused_as_a_start_or_go_live_time(setting):
+    with pytest.raises(
+        ValueError,
+        match=f"{setting} is 20260101 of type int, .*must be a datetime such as datetime",
+    ):
+        SimulationContext("S", **{setting: 20260101})
+
+
+@pytest.mark.parametrize("setting", ["logical_start_time", "go_live_at"])
+@pytest.mark.parametrize(
+    "value,fragment",
+    [
+        ("numpy", "of type int64"),
+        ("decimal", "of type Decimal"),
+        ("hex text", "0x10"),
+        ("date", "of type date"),
+        ("text", "'hello'"),
+    ],
+)
+def test_a_value_that_is_not_a_datetime_is_refused_as_a_start_or_go_live_time(
+    setting, value, fragment
+):
+    from datetime import date
+    from decimal import Decimal
+
+    import numpy
+
+    given = {
+        "numpy": numpy.int64(20260101),
+        "decimal": Decimal(5),
+        "hex text": "0x10",
+        "date": date(2026, 1, 1),
+        "text": "hello",
+    }[value]
+    with pytest.raises(
+        ValueError, match=f"{setting} is .*{re.escape(fragment)}.*must be a datetime"
+    ):
+        SimulationContext("S", **{setting: given})
 
 
 def test_builder_state_management():
@@ -629,8 +673,23 @@ def test_stop_and_drain_are_checked_when_the_run_starts():
         closing.run(until=1, stop={"signal": "closng"})
     with pytest.raises(ValueError, match="drain takes a limit, not limt; did you"):
         SimulationContext("TestSim", factor=0.0).run(until=1, drain={"limt": 5})
+    for bad in ("false", 1, [5]):
+        with pytest.raises(ValueError, match="drain is True, False or {'limit'"):
+            SimulationContext("TestSim", factor=0.0).run(until=1, drain=bad)
     with pytest.raises(ValueError, match="stop takes a signal or a condition"):
         SimulationContext("TestSim", factor=0.0).run(until=1, stop={"event": "x"})
+
+
+def test_an_event_is_not_an_until_of_run_or_start():
+    """`until` is seconds or a duration; an event is refused with a message saying
+    so, not with a `TypeError` from a comparison."""
+    import simpy
+
+    event = simpy.Environment().event()
+    with pytest.raises(ValueError, match="until is seconds or a duration"):
+        SimulationContext("TestSim", factor=0.0).start(until=event)
+    with pytest.raises(ValueError, match="until is seconds or a duration"):
+        SimulationContext("TestSim", factor=0.0).run(until=event)
 
 
 def test_balk_with_an_unknown_level_fails_before_the_run():
@@ -1161,6 +1220,125 @@ def test_a_scenario_step_at_until_does_not_apply():
         assert app.get_resource("packers").capacity == expected
 
 
+def test_a_scenario_interrupt_whose_where_does_not_parse_is_refused_when_added():
+    """`add_step` refuses an interrupt `where` that is no expression, as a task's
+    interrupt action does when it is declared, and the low-level `run_scenario`
+    does too."""
+    app = SimulationContext("S", factor=0.0)
+    with pytest.raises(ValueError, match="interrupt where: 'attr.x ==' is not a valid"):
+        app.add_step(at=3, interrupt={"task": "t", "where": "attr.x =="})
+    assert app._scenario_steps == []
+    from desflow.builder.scenario import run_scenario
+
+    with pytest.raises(ValueError, match="interrupt where: 'attr.x ==' is not a valid"):
+        next(
+            run_scenario(
+                None, [{"at": 3, "interrupt": {"task": "t", "where": "attr.x =="}}]
+            )
+        )
+
+
+def test_an_interval_given_as_a_duration_is_kept_in_seconds():
+    """`add_readings`, `telemetry_loop` and `with_stats` take a duration such as
+    "10 s" for the interval, and the run reads it as seconds."""
+    app = SimulationContext("S", factor=0.0)
+    app.add_variable("v", 0)
+    app.add_readings("10 s", {"v": 'registry["S.variables.v"]'})
+    ticks = []
+    app.telemetry_loop("5 s")(lambda context: ticks.append(context.env.now))
+    app.with_stats("basic", interval="1 min")
+    assert app._sinks.stats_interval == 60
+    app.run(until=21)
+    assert ticks == [0, 5, 10, 15, 20]
+
+
+@pytest.mark.parametrize(
+    "refused, message",
+    [
+        (
+            lambda app: app.add_arrival(
+                "a", "constant", value=2, first_at=-1, spawn="t"
+            ),
+            "first_at is a time of 0 or more",
+        ),
+        (
+            lambda app: app.add_initial_arrival("a", 2, spawn="t", gap=-1),
+            "gap",
+        ),
+        (
+            lambda app: app.add_arrival_replay("a", [1, 2], unit="parsec", spawn="t"),
+            "unit",
+        ),
+        (
+            lambda app: app.add_arrival("a", "constant", value=2, max_events=3),
+            "max_events needs a spawn",
+        ),
+    ],
+    ids=["add_arrival", "add_initial_arrival", "add_arrival_replay", "max_events"],
+)
+def test_a_refused_redeclaration_of_an_arrival_keeps_the_first_declaration(
+    refused, message
+):
+    """A refused `add_arrival`, `add_initial_arrival` or `add_arrival_replay` under a
+    name already used changes nothing: the run starts the first declaration's
+    arrivals."""
+    started = []
+    app = SimulationContext("S", factor=0.0)
+    app.add_arrival("a", "constant", value=1, spawn="t")
+    with pytest.raises(ValueError, match=message):
+        refused(app)
+    assert app._arrivals.configs["a"].value == 1
+    assert app._arrivals.spawns == {"a": "t"}
+    app.task(name="t")(lambda task_id: started.append(task_id) or {})
+    app.run(until=4.5)
+    assert len(started) == 4
+
+
+def test_a_numpy_count_of_a_spawn_action_is_a_whole_number():
+    """`count` of a `spawn` takes a NumPy integer, as `group` and `max_events` do."""
+    import numpy
+
+    from desflow.builder.context import _parse_spawn
+
+    parsed = _parse_spawn({"task": "t", "count": numpy.int64(2)})
+    assert parsed["count"] == 2 and type(parsed["count"]) is int
+
+
+def test_sim_id_must_be_text_that_is_not_empty():
+    """`sim_id` starts every registry path, so `None`, a number and empty text are
+    refused when the context is made."""
+    for bad in (None, "", 3):
+        with pytest.raises(ValueError, match="sim_id is text that is not empty"):
+            SimulationContext(bad)
+    assert SimulationContext("Shop.v2").sim_id == "Shop.v2"
+
+
+def test_an_empty_sim_id_in_a_blueprint_is_refused_at_its_line(tmp_path):
+    """A blueprint's empty `sim_id` is refused when the file loads, with the file and
+    the line, not by the context after the load."""
+    path = tmp_path / "empty.yaml"
+    path.write_text("simulation:\n  sim_id: ''\n  factor: 0\n", encoding="utf-8")
+    with pytest.raises(
+        BlueprintError,
+        match=rf"{re.escape(str(path))}:2: .*sim_id is text that is not empty",
+    ):
+        SimulationContext.from_yaml(path)
+
+
+def test_a_scenario_step_after_until_does_not_apply_during_a_drain():
+    """A drain runs past `until`, and a step due after `until` still never applies."""
+    seen = []
+    app = SimulationContext("S", factor=0.0)
+    app.add_variable("v", 0)
+    app.on_change.append(lambda change: seen.append((change.path, change.source)))
+    app.add_arrival("a", "constant", value=5, spawn="job", max_events=1)
+    app.add_step(at=12, path="S.variables.v", value=7)
+    app.task(service_time=20, name="job")(lambda task_id: {})
+    app.run(until=10, drain=True)
+    assert app.env.now == 25
+    assert ("S.variables.v", "scenario") not in seen
+
+
 def test_a_misspelt_name_names_the_closest_or_how_to_add_it():
     """A task that names a resource, service, task or path nothing added gets the
     closest name, or the call that adds it."""
@@ -1230,6 +1408,159 @@ def test_run_refuses_an_on_or_subscribe_name_nothing_added():
         app.add_signal("s", on=on)
         with pytest.raises(ValueError, match=f"{message}, which is not added"):
             app.run(until=5)
+
+
+def test_run_refuses_an_on_action_path_the_registry_lacks():
+    """`start()` refuses, as for a scenario step, an on: action whose path is no
+    registry path, on a task, in its listen and on a signal, and takes a family
+    member's path, which is made when the run starts."""
+    missing = "S.variables.nope"
+    on = [{"path": missing, "value": 1}]
+    cases = [
+        ({"on": on}, None, "the on: action of task 'pack' "),
+        (
+            {"listen": {"signal": "go", "on": on}},
+            None,
+            "the listen on: action of task 'pack' ",
+        ),
+        ({}, on, "the on: action of signal 'go' "),
+    ]
+    for options, signal_on, place in cases:
+        app = SimulationContext("S", factor=0.0)
+        app.add_variable("v", 0)
+        app.add_signal("go", on=signal_on)
+
+        @app.task(name="pack", **options)
+        def pack(task_id):
+            return {}
+
+        with pytest.raises(ValueError) as error:
+            app.start(until=5)
+        assert str(error.value).startswith(
+            f"{place}sets '{missing}', which is not a registry path"
+        )
+
+    app = SimulationContext("S", factor=0.0)
+    app.add_resource("desk", current_cap=1, family=True, members=2)
+    app.add_variable("v", 0)
+    app.add_arrival("a", gap=1, spawn="pack", max_events=1)
+
+    @app.task(
+        name="pack",
+        on=[
+            {"path": "S.variables.v", "value": 1},
+            {"path": "S.resources.desk[0].current_cap", "value": 1},
+        ],
+    )
+    def pack_with_member_path(task_id):
+        return {}
+
+    app.run(until=5)
+
+
+def test_a_path_on_a_family_member_is_checked_for_the_attribute_a_member_has():
+    """A scenario step or an on: action on a member of a family is refused at start
+    when the member has no such attribute, and is taken when it has one."""
+
+    def model():
+        app = SimulationContext("S", factor=0.0)
+        app.add_resource("desk", current_cap=1, family=True, members=2)
+        app.add_container("tank", current_cap=1, max_cap=5, family=True, members=2)
+        app.add_store("shelf", current_cap=1, family=True, members=2)
+        app.add_signal("lane", family=True, members=2)
+        return app
+
+    for path in (
+        "S.resources.desk[0].current_cap",
+        "S.resources.desk[1].queue_limit",
+        "S.containers.tank[0].level",
+        "S.stores.shelf[0].max_cap",
+    ):
+        app = model()
+        app.add_step(at=3, path=path, value=1)
+        app.run(until=10)
+    for path in (
+        "S.resources.desk[0].curent_cap",
+        "S.resources.desk[0].current_cap.extra",
+        "S.stores.shelf[0].level",
+        "S.signals.lane[0].count",
+    ):
+        for declare in ("step", "on"):
+            app = model()
+            if declare == "step":
+                app.add_step(at=3, path=path, value=1)
+            else:
+                app.add_signal("go", on=[{"path": path, "value": 1}])
+            with pytest.raises(ValueError, match=f"'{re.escape(path)}'.*registry path"):
+                app.start(until=10)
+
+
+def test_a_path_on_a_member_the_family_can_never_have_is_refused_at_start():
+    """A step or an on: action on `desk[7]` of a family with `members: 2` is refused
+    at start, unless a task names the family with a `key`, which makes a member at its
+    first use. A `members` read at start is not known, so it takes every key."""
+
+    def model(members, key=None):
+        app = SimulationContext("S", factor=0.0)
+        app.add_resource("desk", current_cap=1, family=True, members=members)
+        if key is not None:
+            app.task(name="t", resource_id={"of": "desk", "key": key}, service_time=1)(
+                lambda task_id: {}
+            )
+        return app
+
+    def declare(app, path, how):
+        if how == "step":
+            app.add_step(at=3, path=path, value=1)
+        else:
+            app.add_signal("go", on=[{"path": path, "value": 1}])
+
+    for how in ("step", "on"):
+        for members, path in (
+            (2, "S.resources.desk[7].current_cap"),
+            (2, "S.resources.desk['a'].current_cap"),
+            (None, "S.resources.desk[0].current_cap"),
+        ):
+            app = model(members)
+            declare(app, path, how)
+            with pytest.raises(ValueError, match=f"'{re.escape(path)}'.*registry path"):
+                app.start(until=10)
+        import numpy
+
+        for members, path in (
+            (numpy.int64(2), "S.resources.desk[7].current_cap"),
+            (numpy.int64(2), "S.resources.desk['a'].current_cap"),
+        ):
+            app = model(members)
+            declare(app, path, how)
+            with pytest.raises(
+                ValueError,
+                match=f"'{re.escape(path)}'.*registry path.*"
+                r"family 'desk' never makes: `members: 2` makes desk\[0\] to desk\[1\]",
+            ):
+                app.start(until=10)
+        app = model(None)
+        declare(app, "S.resources.desk[0].current_cap", how)
+        with pytest.raises(ValueError, match="the family has no `members`"):
+            app.start(until=10)
+        for members, made in (
+            (0, "`members: 0` makes none"),
+            (1, "makes only desk[0]"),
+        ):
+            app = model(members)
+            declare(app, "S.resources.desk[1].current_cap", how)
+            with pytest.raises(ValueError, match=re.escape(made)):
+                app.start(until=10)
+        for members, key, path in (
+            (2, None, "S.resources.desk[1].current_cap"),
+            (2, "attr.i", "S.resources.desk[7].current_cap"),
+            (2, 7, "S.resources.desk[7].current_cap"),
+            (None, "attr.i", "S.resources.desk[5].current_cap"),
+            ("2 + 1", None, "S.resources.desk[7].current_cap"),
+        ):
+            app = model(members, key)
+            declare(app, path, how)
+            app.start(until=10)
 
 
 def test_calls_that_need_a_running_model_say_where_to_make_them():
@@ -1389,7 +1720,7 @@ def test_requests_under_one_all_are_acquired_together(caplog):
     assert "in one order everywhere" not in caplog.text
 
 
-def test_a_kept_resource_requested_in_the_next_wait_is_refused():
+def test_a_kept_resource_requested_in_the_next_wait_is_refused(tmp_path):
     """A task that keeps the picker for a task whose wait requests the picker would
     queue that request behind the unit kept for it, so the model is refused."""
     app = _two_resources()
@@ -1408,8 +1739,36 @@ def test_a_kept_resource_requested_in_the_next_wait_is_refused():
     def b(task_id):
         return {}
 
-    with pytest.raises(ValueError, match="requests 'picker' in its wait"):
+    with pytest.raises(ValueError, match="requests 'picker' in its wait") as refused:
         app.run(until=1)
+    # The advice runs: listing the picker in the resource of 'b' instead would
+    # stall, so the message does not give it
+    advice = str(refused.value)
+    assert "in the resource of" not in advice
+    assert "Take 'picker' out of the keep of 'a'" in advice
+    assert "a seize of 'picker' in 'a' and a release of 'picker' in 'b'" in advice
+    # Both forms the message advises run to the end
+    for pick, tidy in (
+        ("resource: picker", "wait: {request: picker}"),
+        ("seize: picker", "release: picker"),
+    ):
+        text = (
+            "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+            "resources: {picker: {current_cap: 1}}\n"
+            "arrivals: {a: {initial: 1, spawn: pick}}\n"
+            "tasks:\n"
+            f"  pick: {{{pick}, service_time: 1, payload: {{e: pick}}, next: tidy}}\n"
+            f"  tidy: {{{tidy}, service_time: 1, payload: {{e: tidy}}}}\n"
+            "run: {until: 50}\n"
+        )
+        outcome = run_yaml_text(tmp_path, text, {})
+        assert outcome.error is None
+        done = [
+            r["value"]["e"]
+            for r in outcome.records
+            if r["stream_type"] == "event" and "e" in r["value"]
+        ]
+        assert done == ["pick", "tidy"]
 
 
 def test_a_priority_needs_a_resource_or_a_wait_request_on_a_priority_queue():
@@ -2709,6 +3068,61 @@ def test_an_unknown_name_an_expression_reads_is_refused_with_its_message(
     with pytest.raises(ValueError) as refused:
         _reading_model(kind, form).run(until=1)
     assert str(refused.value).startswith(message)
+
+
+@pytest.mark.parametrize(
+    "form,message",
+    [
+        ("users.nope", "reads users.nope, but no resource is called 'nope'"),
+        ("level.nope", "reads level.nope, but no store or container is called"),
+        (
+            "signal.nope.count",
+            "signal 'nope', which is not added|reads signal.nope, but no signal",
+        ),
+        ("running(nope)", "reads running(nope), but no task is called 'nope'"),
+        (
+            'registry["S.nope"]',
+            'reads registry["S.nope"], which is not a registry path',
+        ),
+    ],
+)
+def test_a_name_an_expr_generator_reads_is_refused_wherever_the_generator_is(
+    form, message
+):
+    """A generator `expr` is checked as the same text written as an expression: in a
+    task's vars and service_time, an arrival's attributes and gap, and a scenario
+    step's value."""
+    expr = generator({"gen": "expr", "expr": form})
+
+    def model():
+        app = SimulationContext("S", factor=0, random_seed=1)
+        app.add_variable("v", 0)
+        app.add_arrival_replay("a", [{"time": 0}], spawn="t")
+        return app
+
+    def add_task(app, **options):
+        app.task(name="t", **options)(lambda task_id: {})
+
+    cases = [
+        lambda app: add_task(app, service_time=1, vars={"x": expr}),
+        lambda app: add_task(app, service_time=expr),
+        lambda app: (
+            add_task(app)
+            or app.add_arrival("b", gap=1, spawn="t", attributes={"x": expr})
+        ),
+        lambda app: add_task(app) or app.add_arrival("b", gap=expr, spawn="t"),
+        lambda app: (
+            add_task(app) or app.add_step(at=1, path="S.variables.v", value=expr)
+        ),
+    ]
+    for declare in cases:
+        app = model()
+        declare(app)
+        with pytest.raises(ValueError) as refused:
+            app.start(until=1)
+        assert re.search(
+            re.escape(message) if "|" not in message else message, str(refused.value)
+        )
 
 
 @pytest.mark.parametrize(

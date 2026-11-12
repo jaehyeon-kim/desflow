@@ -255,7 +255,7 @@ An arrival can take its times from recorded rows instead of a distribution. Each
 - A row without a valid time stops the run, unless `on_invalid` is `skip`, which leaves it out with a warning.
 - After the last row, the arrival stops and logs one INFO line.
 
-A CSV field is a number only when it is a CSV number: `1_0`, `nan` and `0x1` stay text, and as a time they are refused. A Parquet file needs the `parquet` extra. A replayed arrival has no registry path. [Local Replay](../../learn/inputs/local-replay.md) compares a recorded morning with a model of it.
+A CSV field is a number only when it is a CSV number: `1_0`, `nan` and `0x1` stay text, and as a time they are refused. A CSV file may start with a byte order mark. A row with more or fewer values than the header, and a header that names a column twice, are refused with the row or the column named. A Parquet file needs the `parquet` extra. A replayed arrival has no registry path. [Local Replay](../../learn/inputs/local-replay.md) compares a recorded morning with a model of it.
 
 ### Start Entities
 

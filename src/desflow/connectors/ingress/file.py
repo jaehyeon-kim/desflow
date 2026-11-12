@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional, Union
 
 import yaml
 
+from desflow.connectors._checks import checked_poll
 from desflow.connectors.ingress.base import BaseIngress, parse_change
 
 logger = logging.getLogger(__name__)
@@ -61,7 +62,7 @@ class FileIngress(BaseIngress):
                 about one second; pass a smaller value for a faster reaction.
         """
         self.path = Path(path)
-        self.poll = poll
+        self.poll = checked_poll(poll, "poll")
 
     async def run(self, ingress_queue: queue.Queue) -> None:
         """

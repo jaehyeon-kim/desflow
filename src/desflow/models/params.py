@@ -30,7 +30,14 @@ def finite_number(name: str, value: Any) -> None:
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{name} must be a number, got {value!r}")
-    if not math.isfinite(value):
+    try:
+        finite = math.isfinite(value)
+    except OverflowError:
+        raise ValueError(
+            f"{name} must be a finite number, and this whole number is too large "
+            f"for a float"
+        ) from None
+    if not finite:
         raise ValueError(f"{name} must be a finite number, got {value!r}")
 
 
@@ -209,6 +216,37 @@ class ContainerConfig(CapacityConfig):
     """
 
     level: Union[int, float] = 0
+
+
+def _always_zero(config: DistributionConfig) -> bool:
+    """Whether every draw of `config` is 0: no spread, and a mean of 0 or below, which
+    the sampler raises to 0."""
+    family = get_distribution(config.dist)
+    return family.variance(config) == 0 and family.mean(config) <= 0
+
+
+def check_breakdown_advances(
+    time_to_failure: DistributionConfig, repair: DistributionConfig, what: str
+) -> None:
+    """Refuses a breakdown whose failure and repair both always take 0 seconds.
+
+    Such a resource fails and is repaired for ever at one instant, so the clock never
+    moves and the run never reaches its end time.
+
+    Args:
+        time_to_failure: The time from a repair, or the start, to the next failure.
+        repair: How long a repair takes.
+        what: The place, such as `"resource 'm' breakdown"`.
+
+    Raises:
+        ValueError: With `what` in the message, if both always give 0.
+    """
+    if _always_zero(time_to_failure) and _always_zero(repair):
+        raise ValueError(
+            f"{what}: time_to_failure and repair both always give 0, so the "
+            f"resource would fail and be repaired for ever at one instant; give "
+            f"one of them a time above 0"
+        )
 
 
 @dataclass

@@ -558,8 +558,33 @@ def test_jsonl_logs_a_batch_it_cannot_write_and_goes_on(tmp_path: Path, caplog):
     assert [f.read_text() for f in files] == [
         '{"stream_type":"event","key":"b","x":1}\n'
     ]
-    assert "JSONL Writer: batch not written" in caplog.text
+    assert "JSONL Writer: could not write 1 rows to" in caplog.text
     assert "Successfully wrote 1 total chunks" in caplog.text
+
+
+def test_jsonl_loses_only_the_path_of_a_record_it_cannot_encode(tmp_path: Path, caplog):
+    """A record JSON cannot hold, an integer over 64 bits, costs its own path only: the
+    other path of the batch is written, as the Parquet writer does."""
+    egress = JsonlStorageEgress()
+    egress.filesystem = fs.LocalFileSystem()
+    batch = [
+        {
+            "stream_type": "event",
+            "key": "a",
+            "value": {"__path__": str(tmp_path / "good" / "a.jsonl"), "x": 1},
+        },
+        {
+            "stream_type": "event",
+            "key": "b",
+            "value": {"__path__": str(tmp_path / "bad" / "b.jsonl"), "x": 2**64},
+        },
+    ]
+
+    assert egress._write_batch(batch) == 1
+
+    assert [f.parent.name for f in tmp_path.rglob("*.jsonl")] == ["good"]
+    assert "JSONL Writer: could not write 1 rows to" in caplog.text
+    assert "b.jsonl" in caplog.text and "64-bit" in caplog.text
 
 
 def test_the_jsonl_heartbeat_names_the_jsonl_writer(tmp_path: Path, caplog):

@@ -120,6 +120,12 @@ def _dist(
         typer.echo(_values_text(chosen, given))
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from None
+    except ArithmeticError:
+        # A rate of 1e-200 has a variance of 1e400, which a float cannot hold
+        options = " ".join(f"--{name} {number}" for name, number in given.items())
+        raise typer.BadParameter(
+            f"{family} with {options} has a mean or std too large for a float"
+        ) from None
 
 
 def _list_families(families: Dict[str, Any]) -> None:

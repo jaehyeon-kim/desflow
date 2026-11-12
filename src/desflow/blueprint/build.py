@@ -48,7 +48,7 @@ from desflow.config import LABELS, TRACE
 from desflow.connectors.egress.local import ConsoleEgress
 from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.builder.arrivals import ArrivalPlan
-from desflow.core.families import member_path, name_of, name_problem, references
+from desflow.core.families import name_of, name_problem, references
 from desflow.builder.flow import Open, Release, Wait
 from desflow.builder.holders import check_level, check_queue_limit
 from desflow.core.registry import ParamRejected
@@ -75,7 +75,11 @@ from desflow.builder.context import (
     stop_condition,
     stop_family_problem,
 )
-from desflow.builder.model_checks import written_paths
+from desflow.builder.model_checks import (
+    names_a_member,
+    unmade_member_note,
+    written_paths,
+)
 from desflow.builder.scenario import walk_steps
 from desflow.builder.signals import timing_problem
 from desflow.core.environment import in_zone, resolve_zone
@@ -852,13 +856,18 @@ def _check_task_names(
                 f"task '{name}' uses {kind} '{target}', "
                 + _undefined(target, section, f"{kind}s"),
             )
-        if step.filter is not None and blueprint.stores[target].priority:
-            raise source.error(
-                ("tasks", name, field, "filter"),
-                f"store '{target}' serves by priority, and SimPy has no store "
-                f"that both ranks and filters its items; remove the filter, or "
-                f"the store's priority",
-            )
+        for store in _store_names(step.store, target):
+            if (
+                step.filter is not None
+                and store in blueprint.stores
+                and blueprint.stores[store].priority
+            ):
+                raise source.error(
+                    ("tasks", name, field, "filter"),
+                    f"store '{store}' serves by priority, and SimPy has no store "
+                    f"that both ranks and filters its items; remove the filter, or "
+                    f"the store's priority",
+                )
     for target, location in _routes(name, task):
         if target not in blueprint.tasks:
             raise source.error(
@@ -907,6 +916,14 @@ def _check_task_names(
                     f"'{node.target.target}', "
                     + _undefined(node.target.target, section, f"{kind}s"),
                 )
+
+
+def _store_names(reference: Any, target: str) -> Tuple[str, ...]:
+    """The stores a task's `store` names: every name of a `{of: [...]}` list, and the
+    one name otherwise. A name that is not declared is left to the check of the name."""
+    if isinstance(reference, Ref):
+        return reference.name().names
+    return (target,)
 
 
 def _check_task_scopes(
@@ -2287,6 +2304,10 @@ def _add_arrivals(
                 attributes=arrival.attributes,
                 spawn=arrival.spawn,
             )
+            line = source.line(("arrivals", name, "replay", "path"))
+            parts_of(context).arrivals.replay_places[name] = (
+                f"{source.path}:{line}: arrivals.{name}.replay.path: {replay.path}"
+            )
         elif arrival.gap is None and arrival.dist is None:
             assert arrival.spawn is not None  # the model refuses initial with no spawn
             context.add_initial_arrival(
@@ -2941,13 +2962,14 @@ def _timeout_values(
         if isinstance(branches, Mapping):
             for name, branch in branches.items():
                 yield from _timeout_values(branch, path + (key, name))
+    if "each" in wait and isinstance(wait.get("branch"), Mapping):
+        yield from _timeout_values(wait["branch"], path + ("branch",))
 
 
 def _names_a_member(path: str, context: SimulationContext) -> bool:
-    """Whether a registry path names a member of a declared family, such as
-    `S.resources.desk[3].current_cap`. The member is made when the run starts or at its
-    first use, so the scratch registry does not hold it and the path is checked when it
-    is used.
+    """Whether a registry path names an attribute of a member of a declared family,
+    such as `S.resources.desk[3].current_cap`, which the scratch registry does not
+    hold because the member is made when the run starts or at its first use.
 
     Args:
         path: The registry path.
@@ -2956,16 +2978,44 @@ def _names_a_member(path: str, context: SimulationContext) -> bool:
     Returns:
         bool: True when the path names an attribute of a member of a family.
     """
-    return (
-        member_path(str(path), parts_of(context).families.by_name, context.sim_id)
-        is not None
+    parts = parts_of(context)
+    return names_a_member(
+        str(path),
+        parts.families,
+        parts.holders,
+        context.sim_id,
+        parts.tasks,
+        parts.signals,
+    )
+
+
+def _unmade_note(path: str, context: SimulationContext) -> str:
+    """The end of a refusal of `path`: why its family never makes the member it names,
+    or "" when it names no such member.
+
+    Args:
+        path: The registry path.
+        context: The context with the declared families.
+
+    Returns:
+        str: The sentence that follows the refusal, or "".
+    """
+    parts = parts_of(context)
+    return unmade_member_note(
+        str(path),
+        parts.families,
+        parts.holders,
+        context.sim_id,
+        parts.tasks,
+        parts.signals,
     )
 
 
 def _check_declared_names(blueprint: Blueprint, source: SourceMap) -> None:
     """Checks that no name is in two of resources, stores, containers and signals, and
-    that none holds a dot or a space, which an expression cannot name. A name in two
-    sections is refused at its second place."""
+    that none holds a dot or a space, which an expression cannot name, or a character
+    that an expression reads as another, such as `µ`. A name in two sections is
+    refused at its second place."""
     kinds: Dict[str, str] = {}
     for section, kind in (
         ("resources", "resource"),
@@ -3015,7 +3065,8 @@ def _check_scenario(
                 ("scenario", index, "path"),
                 f"'{step.path}' is not a registry path. Paths look like "
                 f"{context.sim_id}.resources.<name>.current_cap or "
-                f"{context.sim_id}.arrival.<name>.rate",
+                f"{context.sim_id}.arrival.<name>.rate"
+                + _unmade_note(str(step.path), context),
             )
         if problem == "value":
             raise source.error(("scenario", index, "value"), detail)
@@ -3024,12 +3075,9 @@ def _check_scenario(
 def _check_on_paths(
     blueprint: Blueprint, context: SimulationContext, source: SourceMap
 ) -> None:
-    """Warns about an `on:` entry whose `path` is not a registry path, at the
-    entry's line, and refuses one whose `value` the path does not accept.
-
-    A wrong path is a warning, because those entries load and run today: they end the
-    run with `KeyError` when the entry first runs.
-    """
+    """Refuses an `on:` entry whose `path` is not a registry path, or whose `value`
+    the path does not accept, at the entry's line. An entry on a path the registry
+    lacks would end the run with `KeyError` when it first runs."""
     registry = scratch_registry(context)
     owners: List[Tuple[str, str, Tuple[str, ...], List[Any]]] = [
         ("tasks", name, at_where, entries)
@@ -3048,16 +3096,12 @@ def _check_on_paths(
             try:
                 registry.get(entry.path)
             except KeyError:
-                logger.warning(
-                    "%s",
-                    source.error(
-                        (*where, "path"),
-                        f"'{entry.path}' is not a registry path, so this on: entry "
-                        f"ends the run with KeyError when it runs. Paths look like "
-                        f"{context.sim_id}.resources.<name>.current_cap",
-                    ),
-                )
-                continue
+                raise source.error(
+                    (*where, "path"),
+                    f"'{entry.path}' is not a registry path. Paths look like "
+                    f"{context.sim_id}.resources.<name>.current_cap"
+                    + _unmade_note(entry.path, context),
+                ) from None
             if has_generator(entry.value):
                 continue
             try:
@@ -3091,7 +3135,9 @@ def _check_registry_reads(
                 registry.get(path)
             except KeyError:
                 raise source.error(
-                    location, f'registry["{path}"] is not a registry path'
+                    location,
+                    f'registry["{path}"] is not a registry path'
+                    + _unmade_note(path, context),
                 ) from None
 
 

@@ -80,12 +80,14 @@ from desflow.core.rules import (
     SegmentEvery,
     StrictModel,
     check_count_place,
+    check_name_folds,
     check_run_text,
     check_stop,
+    checked_instant,
     check_var_names,
     duration_text,
 )
-from desflow.models.params import DistributionConfig
+from desflow.models.params import DistributionConfig, check_breakdown_advances
 from desflow.resources.base import check_ties
 from desflow.resources.container import ContainerBase, check_container_type
 from desflow.resources.resource import ResourceBase, check_resource_type
@@ -96,6 +98,7 @@ from desflow.utils import (
     checked_count,
     checked_factor,
     checked_interval,
+    checked_priority,
     checked_seconds,
     checked_whole,
     suggestion,
@@ -181,6 +184,7 @@ def _instant(value: Any, now: datetime) -> Any:
     """Reads `now`, a signed duration from now such as `-1d`, or an ISO datetime.
 
     A datetime, from a YAML timestamp or a `!python` reference, is returned as it is.
+    A number is refused by `checked_instant`.
     """
     if not isinstance(value, str):
         return value
@@ -231,6 +235,14 @@ class Simulation(StrictModel):
     """
 
     sim_id: str
+
+    @field_validator("sim_id")
+    @classmethod
+    def _sim_id_not_empty(cls, value: str) -> str:
+        if not value:
+            raise ValueError(f"sim_id is text that is not empty, got {value!r}")
+        return value
+
     factor: float = 1.0
 
     @field_validator("factor", mode="before")
@@ -278,6 +290,7 @@ class Simulation(StrictModel):
     @field_validator("logical_start_time", "go_live_at", mode="before")
     @classmethod
     def _parse_instant(cls, value: Any, info: ValidationInfo) -> Any:
+        checked_instant(value, str(info.field_name))
         zone = resolve_zone(info.data.get("timezone"))
         now = (info.context or {}).get("now") or datetime.now(zone)
         # `now` and relative times are read in the run's zone
@@ -623,6 +636,13 @@ class Breakdown(StrictModel):
     work: Literal["interrupt", "finish"] = "interrupt"
     clock: Literal["calendar", "busy"] = "calendar"
 
+    @model_validator(mode="after")
+    def _cycle_advances(self) -> "Breakdown":
+        check_breakdown_advances(
+            self.time_to_failure.config(), self.repair.config(), "breakdown"
+        )
+        return self
+
 
 class QueueRule(StrictModel):
     """A `queue` of a resource, or a `get_queue` or `put_queue` of a store or container,
@@ -908,6 +928,9 @@ class Store(StrictModel):
             for item in self.items
         ):
             raise ValueError("a priority store starts with [priority, item] pairs")
+        for item in self.items:
+            if isinstance(item, list):
+                checked_priority(item[0], "the priority of a starting item")
         return self
 
 
@@ -1573,6 +1596,11 @@ class RequestSpec(StrictModel):
     def _preempt_words(cls, value: Any) -> Any:
         return _boolean_words(value)
 
+    @field_validator("priority")
+    @classmethod
+    def _priority_orders(cls, value: Any) -> Any:
+        return checked_priority(value, "priority")
+
     @model_validator(mode="after")
     def _expressions_parse(self) -> "RequestSpec":
         for what in ("priority", "preempt"):
@@ -1854,6 +1882,11 @@ class SeizeSpec(StrictModel):
     @classmethod
     def _preempt_words(cls, value: Any) -> Any:
         return _boolean_words(value)
+
+    @field_validator("priority")
+    @classmethod
+    def _priority_orders(cls, value: Any) -> Any:
+        return checked_priority(value, "priority")
 
     @field_validator("patience", mode="before")
     @classmethod
@@ -2391,6 +2424,11 @@ class Task(StrictModel):
             Expression(value, names=ANY_NAME)
         return value
 
+    @field_validator("priority")
+    @classmethod
+    def _priority_orders(cls, value: Any) -> Any:
+        return checked_priority(value, "priority")
+
     @field_validator("patience", "service_time", mode="before")
     @classmethod
     def _patience_duration(cls, value: Any, info: ValidationInfo) -> Any:
@@ -2559,6 +2597,7 @@ class Task(StrictModel):
                         f"{tier}: '{name}' is not a name an expression can read; use "
                         "letters, digits and _, not starting with a digit"
                     )
+                check_name_folds(name, tier)
                 if name in RESERVED_NAMES:
                     raise ValueError(
                         f"{tier}: '{name}' is a name an expression already uses; "
@@ -3066,6 +3105,11 @@ class Blueprint(StrictModel):
         """Lets `signals` be written as a list of names, as before, or a mapping of
         name to `{once, on}`; a name alone is a one-shot signal."""
         if isinstance(value, list):
+            repeated = sorted({str(name) for name in value if value.count(name) > 1})
+            if repeated:
+                raise ValueError(
+                    f"each signal needs its own name; repeated: {', '.join(repeated)}"
+                )
             return {name: {} for name in value}
         return value
 

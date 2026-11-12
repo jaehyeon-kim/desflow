@@ -149,6 +149,7 @@ def test_dist_names_a_negative_draw_raised_to_zero():
         (["gamma", "--mean", "5", "--std", "2", "--shape", "1"], 2, "together"),
         (["exponential", "--mean", "2", "--std", "1"], 2, "std equals its mean"),
         (["weibull", "--mean", "3"], 1, "no simple formula"),
+        (["exponential", "--rate", "1e-200"], 2, "mean or std too large"),
     ],
 )
 def test_dist_refusals_and_their_exit_codes(arguments, code, message):

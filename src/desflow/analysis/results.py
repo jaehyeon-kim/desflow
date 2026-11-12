@@ -389,13 +389,14 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
 
     Raises:
         ValueError: If a column is missing, a measure is not one of the experiment's,
-            or a row's unit, population or horizon differs from the simulated
-            measure's.
+            a horizon is not a number or a duration, or a row's unit, population or
+            horizon differs from the simulated measure's.
     """
     if spec.observed is None:
         return []
     path = folder / spec.observed.file
-    with path.open(newline="", encoding="utf-8") as handle:
+    # utf-8-sig skips the byte order mark that Excel's "CSV UTF-8" writes
+    with path.open(newline="", encoding="utf-8-sig") as handle:
         rows = list(csv.DictReader(handle))
     needed = ("measure", "value", "unit", "population", "horizon")
     if rows and any(column not in rows[0] for column in needed):
@@ -426,7 +427,7 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
                 f"{_population_of(measure)!r}"
             )
         text = row["horizon"].strip()
-        seconds = time_to_seconds(text) if re.search(r"[a-z]", text) else float(text)
+        seconds = _horizon_seconds(text, where)
         if not math.isclose(seconds, horizon):
             raise ValueError(
                 f"{where}: the observed horizon is {seconds:g} s, but the experiment "
@@ -443,6 +444,22 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
             }
         )
     return found
+
+
+def _horizon_seconds(text: str, where: str) -> float:
+    """A horizon written as a number of seconds, such as `600` or `6e2`, or as a
+    duration in any case, such as `10 min`; the refusal names the file and row."""
+    try:
+        return float(text)
+    except ValueError:
+        pass
+    try:
+        return time_to_seconds(text.lower())
+    except ValueError:
+        raise ValueError(
+            f"{where}: the observed horizon {text!r} is not a number of seconds or "
+            f"a duration such as 10 min"
+        ) from None
 
 
 def observed_rows(

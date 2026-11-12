@@ -11,12 +11,16 @@ from typing import Any, Generator
 
 from desflow.internal import InternalTimeout
 from desflow.core.sampler import Sampler
+from desflow.models.params import check_breakdown_advances
 from desflow.resources.resource import ResourceBase
 
 # What a breakdown does to the tasks being served
 BREAKDOWN_WORK = ("interrupt", "finish")
 # Which time the time to failure counts
 BREAKDOWN_CLOCKS = ("calendar", "busy")
+# The cycles that may end at one instant before the run is refused: no static check
+# covers every distribution whose draws are all 0
+_MAX_CYCLES_AT_ONE_INSTANT = 10_000
 # The time a busy clock may differ from its drawn time by float error and still fail
 _BUSY_EPSILON = 1e-9
 
@@ -52,7 +56,10 @@ def run_breakdowns(
 
     Raises:
         ValueError: If `work` is neither `interrupt` nor `finish`, or `clock` is
-            neither `calendar` nor `busy`.
+            neither `calendar` nor `busy`, or, at the start of a cycle, the time to
+            failure and the repair both always give 0, or the resource has failed
+            and been repaired 10,000 times at one instant, as draws that are all 0
+            give.
     """
     if work not in BREAKDOWN_WORK:
         raise ValueError(f"work must be interrupt or finish, got '{work}'")
@@ -60,8 +67,17 @@ def run_breakdowns(
         raise ValueError(f"clock must be calendar or busy, got '{clock}'")
     path = f"{resource.sim_id}.breakdown.{resource.obj_id}"
     resource.has_breakdowns = True
+    cycles_now = 0
     while True:
+        cycle_began = env.now
         failure = env.registry.get_config(f"{path}.time_to_failure")
+        # The values can change during the run, so each cycle checks that it moves
+        # the clock
+        check_breakdown_advances(
+            failure,
+            env.registry.get_config(f"{path}.repair"),
+            f"resource '{resource.obj_id}' breakdown",
+        )
         if clock == "busy":
             yield from _busy_time(env, resource, sampler.sample(failure))
         else:
@@ -72,6 +88,15 @@ def run_breakdowns(
         yield env.timeout(sampler.sample(repair))
         resource.repair()
         _publish(env, resource, "repaired")
+        # A time to failure and a repair that both draw 0 never move the clock
+        cycles_now = cycles_now + 1 if env.now == cycle_began else 1
+        if cycles_now >= _MAX_CYCLES_AT_ONE_INSTANT:
+            raise ValueError(
+                f"resource '{resource.obj_id}' breakdown: it failed and was "
+                f"repaired {_MAX_CYCLES_AT_ONE_INSTANT} times at time {env.now:g}, "
+                f"so the clock does not move; give time_to_failure or repair a "
+                f"time above 0"
+            )
 
 
 def _busy_time(

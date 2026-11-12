@@ -81,7 +81,7 @@ A seed is found where it is given to `random.Random`, `random.seed`, `numpy.rand
 ## Test a model
 
 - Test the statistics with `desflow test` and the records with pytest.
-- Run every test unpaced, except a test of pacing, which runs alone. Give every test a fixed seed and a fixed `logical_start_time`.
+- Run every test unpaced, except a test of pacing, which runs alone. Give every test a fixed seed and a fixed `logical_start_time`. A record's `timestamp` is not the wall-clock time: it is `logical_start_time` plus the simulation time, so with a fixed start time two runs give the same timestamps.
 - Read [references/testing.md](skill:references/testing.md) before writing a test: it has a wrong and a right example of each mistake, and a template.
 
 ## Sections of a blueprint
@@ -93,13 +93,13 @@ A seed is found where it is given to `random.Random`, `random.seed`, `numpy.rand
 - A time in YAML and in the Builder takes a unit: write `mean: 4 min`, not `mean: 240`. The Low-level `DistributionConfig` takes seconds only, so give the unit in a comment: `DistributionConfig(dist="normal", mean=240, std=60)  # 4 min, 1 min`. `rate` is a number per second. A SimPy program that counts minutes is ported with each time converted, or says once that one SimPy minute is one second here. [references/simpy.md](skill:references/simpy.md) lists the other differences from SimPy.
 - Builder and Low-level code use only the names `from desflow import ...` and `from desflow.values import ...` give ([references/api.md](skill:references/api.md)) and the documented serializer classes. Wrong: `resource._capacity = 3` or `from desflow.builder.task import NO_RECORD`. Right: `env.registry.update("Shop.resources.packers.current_cap", 3)` and `from desflow import NO_RECORD`.
 - A Low-level form gives the YAML's records when it draws as the YAML does: each distribution with `sampler.sample(env.registry.get_config("<sim_id>.<path>"))`, which draws from the path's own sequence, and each generated value from `sampler.generator("<place>")`, such as `sampler.generator("tasks.audit.payload.merchant")`, with the same seed. Use the generator's methods: `rng.uniform(-1, 1)`, not `-1 + 2 * rng.random()`. A `DistributionConfig` built by hand and never registered draws from the main generator and gives other numbers.
-- A Builder or Low-level file runs with `python <file>`: use `ConsoleEgress(format="json")`, or call `logging.basicConfig(level=logging.INFO)` before the run, because the default `log` format writes at INFO. Import a connector that needs an extra only in a file whose header names that extra.
+- A Builder or Low-level file runs with `python <file>`: use `ConsoleEgress(format="json")`, or call `logging.basicConfig(level=logging.INFO)` before the run, because the default `log` format writes at INFO. Import a connector that needs an extra only in a file whose header names that extra. A YAML Console prints JSON lines with `{type: Console, config: {format: json}}`.
 - Both forms keep 1,000,000 rows of a task that a `lookup` or `aggregate` reads; give the same `history` in both or none. A Builder task read only from a `Template` keeps none: give it `history=`.
 - `logical_start_time` and `go_live_at` are instants: `now`, a signed duration such as `-1d`, or an ISO datetime.
 - `!python module.attribute` imports the module and returns the attribute. The module is found on `sys.path`, which includes the folder of the YAML file, so a Python file beside the blueprint works from any directory.
 - `!include path` puts a mapping from another YAML file in place, with the path relative to the file that names it.
 - `${VAR}` reads an environment variable and `${VAR:-default}` gives a default when it is unset or empty. An unquoted value is read as YAML reads it after the replacement, so `factor: ${SIM_FACTOR:-0}` is the number 0. `$${` writes a literal `${`. A variable without a default that is unset stops the load.
-- An arrival's `spawn` names one task. The task passes the entity on with `next`.
+- An arrival's `spawn` names one task. The task passes the entity on with `next`. In the Builder, a task that an arrival's `spawn` starts takes `task_id`, and `entity`, `upstream`, `item` or `wait` only when it declares them, such as `def pack(task_id, entity):`. It takes no `context`; only an `arrival_loop` function does.
 - A task's `spawn` and an `on:` spawn action start a task as a new entity. A task that a task's `spawn` or an `on:` spawn starts must not share an arrival's name.
 - A connector `type` is a short name with its capital letter, such as `Console` or `Kafka`. [references/connectors.md](skill:references/connectors.md) lists them and the extra each one needs.
 - A resource or store has a whole-number capacity. A container holds a continuous amount, so its capacity and level can be fractional.

@@ -31,7 +31,8 @@ def verify(
     Each run is a replication's run (`run_once`): no ingress, no egress, statistics
     at `typical`. It compares, per resource, `utilization_avg` / 100 with ρ and
     `queue_length_avg` with Lq; per task with one resource, `wait_mean` with Wq; per
-    arrival, `flows.<arrival>.finished` over the time after the warm-up with λ.
+    arrival, `flows.<arrival>.finished` over the time after the warm-up with λ, except
+    in a model whose `run.stop` can end a run early, which has no throughput comparison.
 
     Args:
         model: A blueprint path, or a function that builds the context again.
@@ -85,9 +86,10 @@ def verify(
         results = run_replications(
             model, spawn_seeds(seed, replications), until=end, stats="typical"
         )
+    stopped = parts_of(context).defaults.stop is not None
     comparisons = []
     seen = {name for r in results for name in r.readings}
-    for pair in pairs(explanation, end - start):
+    for pair in pairs(explanation, end - start, stopped):
         found = [
             published_value(
                 r.readings,
@@ -105,6 +107,7 @@ def verify(
         update={
             "verification": Verification(
                 until=end,
+                stopped=stopped,
                 warmup=context.warmup,
                 seed=seed,
                 replications=replications,

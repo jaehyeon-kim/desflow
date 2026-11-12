@@ -4,7 +4,7 @@ import logging
 import queue
 from collections import Counter
 from collections.abc import Mapping
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from desflow.connectors.egress.base import (
     BaseEgress,
@@ -136,6 +136,28 @@ def _truncates(value: Any, kind: Any, pa: Any) -> bool:
     return False
 
 
+def _inferred_fields(records: list, known: Any, pa: Any) -> list:
+    """
+    Returns the columns of `records`, as inferred, that a table can be created with.
+
+    A column that is null in every row is left out, because Iceberg has no null
+    type. A column that `known` has is left out.
+
+    Args:
+        records (list): The rows of one table.
+        known (Any): The names of the columns the table already has, or an empty list.
+        pa (Any): Injected reference to the `pyarrow` module.
+
+    Returns:
+        list: The `pyarrow.Field` of each column to add.
+    """
+    return [
+        field
+        for field in rows_table(records, pa).schema
+        if field.name not in known and not pa.types.is_null(field.type)
+    ]
+
+
 def _rows_to_table(records: list, schema: Any, pa: Any) -> Any:
     """
     Builds the Arrow table of a table's rows in the table's schema.
@@ -159,7 +181,10 @@ def _rows_to_table(records: list, schema: Any, pa: Any) -> Any:
                 raise ValueError(
                     f"row {number} holds {record[field.name]!r} for the "
                     f"{field.type} column '{field.name}', which would lose "
-                    f"its fraction"
+                    f"its fraction. Iceberg cannot change the type of a column that "
+                    f"exists. Name the column double in schemas before the table is "
+                    f"created (for a list or struct column, in a PyArrow schema), or "
+                    f"create the table again with table_policy: drop_and_create"
                 )
     return pa.Table.from_pylist(records, schema=schema)
 
@@ -213,8 +238,14 @@ class IcebergStorageEgress(BaseEgress):
 
     A table without a schema in `schemas` is created with the columns of every row of
     its first batch, and a column a later batch adds is added to the table, as the
-    Parquet writer widens its schema. Inference reads an ISO timestamp as a string,
-    so a table whose consumer expects a real timestamp needs an explicit schema. An
+    Parquet writer widens its schema, except on a table with `upsert_keys`. Inference reads a whole number as a long, so a
+    later fraction in that column is refused, and an ISO timestamp as a string. The
+    fields that `as_doubles` reads as doubles, such as a telemetry `value`, are the
+    exception. A table whose column takes fractions, or whose consumer expects a real
+    timestamp, needs an explicit schema. A table with `upsert_keys` cannot gain a
+    column, because PyIceberg's `upsert` compares the batch with the matching rows of
+    the old data files, which lack it, so a batch that brings a column the table lacks
+    is refused: name every column in `schemas`. An
     ISO string bound for a timestamp or date column of the table is converted to a
     `datetime` or `date` before the write, because PyArrow rejects the string itself.
 
@@ -276,7 +307,7 @@ class IcebergStorageEgress(BaseEgress):
         table_router: Optional[Callable[[dict], Optional[str]]] = None,
         schemas: Optional[Dict[str, Any]] = None,
         locations: Optional[Dict[str, str]] = None,
-        upsert_keys: Optional[Dict[str, list]] = None,
+        upsert_keys: Optional[Dict[str, Union[str, list]]] = None,
         table_policy: str = "create",
     ):
         """
@@ -301,7 +332,7 @@ class IcebergStorageEgress(BaseEgress):
             locations: Optional storage location per table identifier. Pin this when a
                 consumer reads the table by path, because a catalog with
                 `unique-table-location` set otherwise appends a random suffix.
-            upsert_keys: Optional key columns per table identifier. A table named
+            upsert_keys: Optional key columns per table identifier, a list or one column name. A table named
                 here is written with `upsert` on those columns; any other table is
                 appended to. An entry with `upsert_keys` is keyed: it skips a record
                 that has no destination (no `__table__`, no router and no
@@ -355,7 +386,8 @@ class IcebergStorageEgress(BaseEgress):
         self._declared_schemas = dict(self.schemas)
         self.locations: Dict[str, str] = dict(locations or {})
         self.upsert_keys: Dict[str, list] = {
-            identifier: list(keys) for identifier, keys in (upsert_keys or {}).items()
+            identifier: [keys] if isinstance(keys, str) else list(keys)
+            for identifier, keys in (upsert_keys or {}).items()
         }
         if self.upsert_keys:
             from pyiceberg.table import Table
@@ -540,11 +572,16 @@ class IcebergStorageEgress(BaseEgress):
         table = self._resolve_table(identifier, records, pa)
         if identifier not in self._pinned:
             known = self.schemas[identifier].names
-            new = [
-                field
-                for field in rows_table(records, pa).schema
-                if field.name not in known and not pa.types.is_null(field.type)
-            ]
+            new = _inferred_fields(records, known, pa)
+            if new and keys:
+                names = ", ".join(f"'{field.name}'" for field in new)
+                raise ValueError(
+                    f"{identifier} has upsert_keys, which cannot update a row "
+                    f"written before a column was added, and this batch brings "
+                    f"the columns {names} that the table lacks. Name every column "
+                    f"in schemas and create the table again with table_policy: "
+                    f"drop_and_create, which deletes its rows"
+                )
             if new:
                 with table.update_schema() as update:
                     update.union_by_name(pa.schema(new))
@@ -586,12 +623,9 @@ class IcebergStorageEgress(BaseEgress):
 
         schema = self.schemas.get(identifier)
         if schema is None:
-            # Iceberg has no null type, so a column null in every row, such as a
-            # low-level event's task, is left out until a batch gives it a value
-            inferred = rows_table(records, pa).schema
-            schema = pa.schema(
-                [field for field in inferred if not pa.types.is_null(field.type)]
-            )
+            # A column null in every row, such as a low-level event's task, is left
+            # out until a batch gives it a value
+            schema = pa.schema(_inferred_fields(records, [], pa))
         catalog = self._load_catalog()
         if self.table_policy == "manual":
             table = catalog.load_table(identifier)

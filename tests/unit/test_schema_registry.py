@@ -27,6 +27,7 @@ from google.protobuf import (
 )
 
 from desflow.connectors._schema_registry import (
+    avro,
     confluent_client,
     glue_client,
     glue_json,
@@ -178,6 +179,71 @@ def test_deserializer_reads_fixture(registry_transport, fixture):
     deserializer = ConfluentAvroDeserializer("http://registry:8081")
 
     assert deserializer.deserialize("probe", bytes.fromhex(framed)) == value
+
+
+_NUMBERS = {
+    "type": "record",
+    "name": "Numbers",
+    "fields": [
+        {
+            "name": "first",
+            "type": {
+                "type": "record",
+                "name": "Numbers2",
+                "fields": [{"name": "m", "type": "long"}],
+            },
+        },
+        {"name": "again", "type": "Numbers2"},
+        {"name": "n", "type": "long"},
+        {"name": "i", "type": "int"},
+        {"name": "list", "type": {"type": "array", "items": "int"}},
+        {"name": "inner", "type": {"type": "map", "values": "long"}},
+    ],
+}
+
+
+@pytest.mark.parametrize(
+    "record, message",
+    [
+        ({"n": 1.5}, "field 'n' holds 1.5 for a field of the Avro type long"),
+        ({"i": 2**40}, "field 'i' holds 1099511627776, outside the range"),
+        ({"n": float("nan")}, "holds nan for a field of the Avro type long, which an"),
+        ({"n": float("inf")}, "holds inf for a field of the Avro type long, which an"),
+        ({"n": 2**63}, "field 'n' holds 9223372036854775808, outside the range"),
+        ({"list": [1, 2.5]}, "holds 2.5 for a field of the Avro type int"),
+        ({"inner": {"a": 0.5}}, "holds 0.5 for a field of the Avro type long"),
+        ({"first": {"m": 0.5}}, "field 'm' holds 0.5"),
+        ({"again": {"m": 0.5}}, "field 'm' holds 0.5"),
+    ],
+)
+def test_avro_refuses_a_number_its_integer_field_would_change(
+    registry_transport, record, message
+):
+    """A fraction, nan, infinity or an out-of-range number for an `int` or `long`
+    field is refused as a `SerializationError`, by the Confluent codec and by
+    `encode_standard`, which Glue uses, instead of written as another number. A whole
+    float is still written."""
+    registry_transport(
+        FakeRegistry({("POST", "/subjects/t-value/versions"): (200, {"id": 1})})
+    )
+    whole = {
+        "first": {"m": 1},
+        "again": {"m": 1},
+        "n": 1,
+        "i": 1,
+        "list": [1],
+        "inner": {"a": 1},
+    }
+    schema = json.dumps(_NUMBERS)
+
+    serializer = ConfluentAvroSerializer("http://registry:8081", schema)
+    with pytest.raises(SerializationError, match=message):
+        serializer.serialize("t", {**whole, **record})
+    assert serializer.serialize("t", {**whole, "n": 3.0, "list": [2.0]})
+
+    parsed = avro.parse_writer_schema(schema, (), None)
+    with pytest.raises(SerializationError, match=message):
+        avro.encode_standard(parsed, {**whole, **record})
 
 
 # Register request, caches and references

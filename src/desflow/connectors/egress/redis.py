@@ -6,7 +6,7 @@ from typing import Any
 import orjson
 import redis.asyncio as redis
 
-from desflow.connectors.egress.base import BaseEgress
+from desflow.connectors.egress.base import BaseEgress, drop_reserved_keys
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +81,8 @@ class RedisEgress(BaseEgress):
                     continue
 
                 with self._writing():
+                    # Redis routes by __stream__, and writes no other reserved key
+                    batch = drop_reserved_keys(batch, self, keep=("__stream__",))
                     pipe = self.client.pipeline()
                     count = 0
                     for item in batch:
@@ -116,7 +118,17 @@ class RedisEgress(BaseEgress):
                             if not self.envelope and item.get("stream_type") != "label"
                             else item_copy
                         )
-                        payload = orjson.dumps(body).decode("utf-8")
+                        try:
+                            payload = orjson.dumps(body).decode("utf-8")
+                        except TypeError as error:
+                            # A record JSON cannot hold costs only itself, as in
+                            # the Kafka and JSONL sinks
+                            logger.warning(
+                                f"RedisEgress skipped the record with key "
+                                f"{item.get('key')}: it cannot be encoded as JSON: "
+                                f"{error}"
+                            )
+                            continue
                         pipe.xadd(target, {"payload": payload})
                         count += 1
 

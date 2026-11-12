@@ -213,7 +213,10 @@ def test_the_first_batch_sets_the_columns_of_an_iceberg_table(tmp_path, caplog):
     assert _iceberg_rows(tmp_path / "a", "shop.plain", None, caplog) == [1, 2]
     message = (
         "could not write 1 rows to shop.events: row 1 holds 2.5 for the int64 column "
-        "'amount', which would lose its fraction"
+        "'amount', which would lose its fraction. Iceberg cannot change the type of a "
+        "column that exists. Name the column double in schemas before the table is "
+        "created (for a list or struct column, in a PyArrow schema), or create the "
+        "table again with table_policy: drop_and_create"
     )
     assert message.replace("shop.events", "shop.plain") in caplog.text
     fixed = {"shop.fixed": {"key": "string", "amount": "double"}}

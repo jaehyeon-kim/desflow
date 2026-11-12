@@ -555,6 +555,8 @@ def test_queue_limit_is_a_registry_path_whose_start_value_is_the_limit_given():
         (np.float64(3.0), 3),
         ("4", 4),
         (" 6 ", 6),
+        ("4.0", 4),
+        ("1e3", 1000),
     ],
 )
 def test_a_write_to_queue_limit_takes_a_whole_number_or_null(written, stored):

@@ -58,6 +58,27 @@ def test_admin_process_events_and_pruning():
     assert "task-2" in service_tasks
 
 
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"path_id": "Shop.service.pack", "status": "started"},
+        {"path_id": ["Shop"], "value": 1},
+        {"key": ["a"], "value": {"status": "x", "sim_id": "s", "service": "v"}},
+        {"key": "a", "value": {"status": ["x"], "sim_id": "s", "service": "v"}},
+        {"key": "a", "value": {"status": "x", "sim_id": {"s": 1}, "service": "v"}},
+    ],
+    ids=["no-value", "list-path-id", "list-key", "list-status", "mapping-sim-id"],
+)
+def test_a_message_the_connector_cannot_use_is_passed_over(body):
+    """The value alone of an event whose payload has a `path_id`, and a message with a
+    list for a key, a status or a name, change neither vitals nor state."""
+    admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+
+    admin._process_message(body)
+
+    assert admin.get_vitals() == {} and admin.get_state() == {}
+
+
 def test_a_status_record_with_only_a_path_id_is_filed_by_its_path_id():
     """A record written before status records named their sim id and service is
     filed under the two sides of the last `.service.` in its path_id."""
