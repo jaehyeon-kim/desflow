@@ -1,0 +1,83 @@
+name: Docs
+
+# A docs change pushed straight to main. pipeline.yml deploys it after the strict build
+# alone, because only a pull request runs the docs tests. This workflow, started by
+# hand, runs the docs tests in the same 5 parts as pull-request.yml and the strict
+# build, and deploys the docs when both pass: `gh workflow run docs.yml --ref main`.
+# It deploys only from main, because the deploy publishes the docs as `latest`.
+on:
+  workflow_dispatch:
+
+# Read-only by default. The deploy job raises its own permissions, because it is the
+# only one that pushes.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  docs-tests:
+    name: Docs tests, part ${{ matrix.group }} of 5
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Run group ${{ matrix.group }} of the docs and example tests
+        env:
+          DOCS_SHARD: ${{ matrix.group }}/5
+        run: uv run --all-extras pytest tests/docs/ -q -n auto
+
+  # Material prints a notice about MkDocs 2.0 that strict mode counts as a warning;
+  # the variable turns that notice off.
+  docs-strict-build:
+    name: Docs strict build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Build the docs in strict mode
+        env:
+          DISABLE_MKDOCS_2_WARNING: "true"
+          NO_MKDOCS_2_WARNING: "1"
+        run: uv run mkdocs build --strict
+
+  deploy:
+    name: Deploy the docs
+    needs: [docs-tests, docs-strict-build]
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      pages: write
+    # pipeline.yml deploys too; both push to gh-pages, so one deploy waits for the other
+    concurrency:
+      group: docs-deploy
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # Mike needs the full history to pull the gh-pages branch
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Build and deploy the docs (versioned)
+        run: bash scripts/deploy_docs.sh
