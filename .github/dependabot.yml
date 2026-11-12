@@ -9,6 +9,9 @@ updates:
     groups:
       all:
         patterns: ["*"]
+    # A push to main that conflicts with an open pull request would rebase it and
+    # start its full run again; comment `@dependabot rebase` to rebase one.
+    rebase-strategy: "disabled"
 
   # Python dependencies: the uv ecosystem updates uv.lock, so the versions CI tests,
   # SimPy above all, follow new releases. The pip ecosystem left the lower bounds
@@ -22,3 +25,6 @@ updates:
     groups:
       all:
         patterns: ["*"]
+    # A push to main that conflicts with an open pull request would rebase it and
+    # start its full run again; comment `@dependabot rebase` to rebase one.
+    rebase-strategy: "disabled"
