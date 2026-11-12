@@ -6,8 +6,8 @@ name: Manual tests
 # lowest and newest SimPy; the unit and conformance tests at the lowest Pydantic; and
 # the core install's time zone on Ubuntu and Windows. The integration and service
 # example jobs are in pull-request.yml. macOS is not run: development is on a Mac,
-# whose local pipeline runs the tests. Every day at 17:00 UTC (03:00 or 04:00 in
-# Melbourne), and by hand before a release: gh workflow run manual.yml --ref
+# whose local pipeline runs the tests. Every day at 16:00 UTC (02:00 or 03:00 in
+# Sydney), and by hand before a release: gh workflow run manual.yml --ref
 # <branch>, with -f python="3.13" to test other versions on Ubuntu. GitHub starts a
 # workflow by hand only when its file is on the default branch, so a pull request
 # starts it from its own branch with the label `manual tests` (remove the label and
@@ -16,7 +16,7 @@ name: Manual tests
 # runner.
 on:
   schedule:
-    - cron: "0 17 * * *"
+    - cron: "0 16 * * *"
   workflow_dispatch:
     inputs:
       python:
