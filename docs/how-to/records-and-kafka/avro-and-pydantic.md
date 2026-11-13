@@ -233,7 +233,7 @@ A task can also return the model itself, and `publish_event` turns a Pydantic V2
 
 ## Check the Result
 
-Run `desflow run avro_and_pydantic.yaml`, `python avro_and_pydantic.py` or `python avro_and_pydantic_low_level.py` while `kafka-lite` is up. Each runs for one simulated minute and ends at once. The serializer registers the generated schema with the registry of `kafka-lite` on its first send, under the subject `ml-predictions-value`, which `curl http://127.0.0.1:8081/subjects` lists. The run sends 28 predictions to `ml-predictions`, and every one fits the generated schema. The `queued` and `started` events go to `sim-events` as JSON.
+Run `desflow run avro_and_pydantic.yaml`, `python avro_and_pydantic.py` or `python avro_and_pydantic_low_level.py` while `kafka-lite` is up. Each runs for one simulated minute and ends at once. The serializer registers the generated schema with the registry of `kafka-lite` on its first send, under the subject `ml-predictions-value`, which `curl http://127.0.0.1:8081/subjects` lists. The run sends 20 predictions to `ml-predictions`, and every one fits the generated schema. The `queued` and `started` events go to `sim-events` as JSON.
 
 To read a prediction back, run this script after a shop has run. It reads `ml-predictions` and decodes the first message with a `ConfluentAvroDeserializer`, which fetches the schema that the message names from the registry:
 
@@ -270,7 +270,7 @@ python avro_and_pydantic_check.py
 ```
 
 ```text
-{'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'sim_ts': 4.052379876696467, 'timestamp': '2026-11-09T00:00:00.000+00:00', 'value': {'event_type': 'prediction', 'task_id': 'orders-1', 'confidence': 0.9}}
+{'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'sim_ts': 2.1283113312939435, 'timestamp': '2026-11-09T00:00:00.000+00:00', 'value': {'event_type': 'prediction', 'task_id': 'orders-1', 'confidence': 0.9}}
 ```
 
 The `timestamp` is the clock time of your run.

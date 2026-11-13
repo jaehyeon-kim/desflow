@@ -39,6 +39,6 @@ run: {until: 20}
 # --8<-- [start:tests]
 tests:
   # Run with: desflow test first_shop.yaml
-  - name: nine_orders_in_20_seconds
-    expect: {tasks.pack_order.finished: 9}
+  - name: seven_orders_in_20_seconds
+    expect: {tasks.pack_order.finished: 7}
 # --8<-- [end:tests]

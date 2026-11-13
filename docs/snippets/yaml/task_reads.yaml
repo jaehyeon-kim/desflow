@@ -1,6 +1,6 @@
 # The Task Flow page: a task reads the finished records of other tasks to set how long
 # it takes. Run it with: desflow run task_reads.yaml
-simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+simulation: {sim_id: Shop, factor: 0, random_seed: 2}
 
 egress:
   - {type: Console}

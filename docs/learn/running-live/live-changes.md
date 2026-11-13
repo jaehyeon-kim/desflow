@@ -255,9 +255,9 @@ Half a wall-clock second is 100 simulated seconds at this pace, and packing chan
 
 The wait of every order over the hour, by the time it was queued, with the jam and without it:
 
-![The wait of each order of one packer over the hour, by the time it was queued. Without the jam every wait stays under 10 seconds. With the jam, shaded from 20 to 30 minutes, the waits climb to about 147 seconds for orders queued near 27 minutes, then fall after the fix and meet the waits without the jam again at about 33 minutes](../../assets/charts/jam-waits.png)
+![The wait of each order of one packer over the hour, by the time it was queued. Without the jam every wait stays under 12 seconds. With the jam, shaded from 20 to 30 minutes, the waits climb to about 100 seconds for orders queued near 28 minutes, then fall after the fix and meet the waits without the jam again at about 33 minutes](../../assets/charts/jam-waits.png)
 
-How long does the jam keep orders waiting after the fix? In one run of the hour with the seed 42, the orders queued during the jam wait **80.85 seconds** on average, against **1.50** seconds in the run without the jam. The orders queued in the 10 minutes after the fix still wait **11.93 seconds** on average, against **1.04** seconds. The last order that waits longer than in the baseline is queued at **1,987.8 seconds**, about 3 minutes after the fix, so the delay notice should stay up for about 3 minutes more. The two labels, at **1,200** and **1,800 seconds**, tell a reader what changed and when.
+How long does the jam keep orders waiting after the fix? In one run of the hour with the seed 42, the orders queued during the jam wait **45.79 seconds** on average, against **1.26** seconds in the run without the jam. The orders queued in the 10 minutes after the fix still wait **14.60 seconds** on average, against **1.30** seconds. The last order that waits longer than in the baseline is queued at **1,982.3 seconds**, about 3 minutes after the fix, so the delay notice should stay up for about 3 minutes more. The two labels, at **1,200** and **1,800 seconds**, tell a reader what changed and when.
 
 Each tab gives the labels and the mean waits:
 
@@ -270,9 +270,9 @@ Each tab gives the labels and the mean waits:
     ```text
     label at 1200.0 s: printer_jam, packing 1.5 s to 3.0 s
     label at 1800.0 s: printer_fixed, packing 3.0 s to 1.5 s
-    with the jam: mean wait  80.85 s from 20 to 30 min,  11.93 s from 30 to 40 min
-      without it: mean wait   1.50 s from 20 to 30 min,   1.04 s from 30 to 40 min
-    the last order that waits longer is queued at 1987.8 s
+    with the jam: mean wait  45.79 s from 20 to 30 min,  14.60 s from 30 to 40 min
+      without it: mean wait   1.26 s from 20 to 30 min,   1.30 s from 30 to 40 min
+    the last order that waits longer is queued at 1982.3 s
     ```
 
 === "Builder"
@@ -284,9 +284,9 @@ Each tab gives the labels and the mean waits:
     ```text
     label at 1200.0 s: printer_jam, packing 1.5 s to 3.0 s
     label at 1800.0 s: printer_fixed, packing 3.0 s to 1.5 s
-    with the jam: mean wait  80.85 s from 20 to 30 min,  11.93 s from 30 to 40 min
-      without it: mean wait   1.50 s from 20 to 30 min,   1.04 s from 30 to 40 min
-    the last order that waits longer is queued at 1987.8 s
+    with the jam: mean wait  45.79 s from 20 to 30 min,  14.60 s from 30 to 40 min
+      without it: mean wait   1.26 s from 20 to 30 min,   1.30 s from 30 to 40 min
+    the last order that waits longer is queued at 1982.3 s
     ```
 
 === "Low-level"
@@ -298,9 +298,9 @@ Each tab gives the labels and the mean waits:
     ```text
     label at 1200.0 s: printer_jam, packing 1.5 s to 3.0 s
     label at 1800.0 s: printer_fixed, packing 3.0 s to 1.5 s
-    with the jam: mean wait  80.85 s from 20 to 30 min,  11.93 s from 30 to 40 min
-      without it: mean wait   1.50 s from 20 to 30 min,   1.04 s from 30 to 40 min
-    the last order that waits longer is queued at 1987.8 s
+    with the jam: mean wait  45.79 s from 20 to 30 min,  14.60 s from 30 to 40 min
+      without it: mean wait   1.26 s from 20 to 30 min,   1.30 s from 30 to 40 min
+    the last order that waits longer is queued at 1982.3 s
     ```
 
 During the jam the packer finishes one order every 3 seconds (20 a minute), while an order arrives every 2.5 seconds on average (24 a minute). The queue grows by about 4 orders a minute, so about 40 orders build up in 10 minutes. After the fix the packer finishes an order every 1.5 seconds (40 a minute), 16 a minute more than arrive, so the queue takes a few minutes to clear. The effect of a change therefore lasts beyond the change itself. A label names the cause, and only a comparison with a baseline on the same orders measures the effect, as [Output Analysis](../concepts/output-analysis.md#comparing-designs) explains for any two designs.

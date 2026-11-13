@@ -18,6 +18,12 @@ from typing import (
 
 import orjson
 from aiokafka import AIOKafkaProducer
+from aiokafka.errors import (
+    InvalidTopicError,
+    MessageSizeTooLargeError,
+    TopicAuthorizationFailedError,
+    UnknownTopicOrPartitionError,
+)
 
 from desflow.connectors.admin.kafka import (
     KafkaAdminConnector,
@@ -42,6 +48,16 @@ from desflow.connectors.egress.base import (
 )
 
 logger = logging.getLogger(__name__)
+
+# What `AIOKafkaProducer.send` raises for one record, not for the connection: a
+# record larger than `max_request_size`, and a topic the broker does not have,
+# refuses or does not accept as a name.
+RECORD_ERRORS = (
+    MessageSizeTooLargeError,
+    UnknownTopicOrPartitionError,
+    TopicAuthorizationFailedError,
+    InvalidTopicError,
+)
 
 # ==========================================
 # Pluggable Serializer Interfaces
@@ -260,8 +276,9 @@ class GlueAvroSerializer:
         self._client = GlueRegistryClient(registry_name, boto3_kwargs)
         self._avro = avro
         self._frame = frame_glue
-        # Glue finds a version by the exact definition string, so the same schema
-        # written with other spacing or key order is the same version.
+        # Glue finds a version by the exact definition string. Writing it through
+        # json makes the spacing the same, so a schema written with other spacing is
+        # the same version; one written with its keys in another order is not.
         self._definition = json.dumps(json.loads(schema_str))
         self._parsed = avro.parse_writer_schema(schema_str, (), no_references)
 
@@ -1095,6 +1112,19 @@ class KafkaEgress(BaseEgress):
             error,
         )
 
+    def _warn_not_sent(
+        self, key: Optional[bytes], topic: Optional[str], error: Exception
+    ) -> None:
+        """Warns that Kafka refused to take one record, which is not sent."""
+        logger.warning(
+            "KafkaEgress skipped the record with key %s for topic %s: Kafka "
+            "refused it: %s: %s",
+            None if key is None else key.decode(errors="replace"),
+            topic,
+            type(error).__name__,
+            error,
+        )
+
     def _message(
         self, data: dict
     ) -> Optional[Tuple[str, Optional[bytes], Optional[bytes]]]:
@@ -1112,8 +1142,9 @@ class KafkaEgress(BaseEgress):
 
         Returns:
             Optional[Tuple[str, Optional[bytes], Optional[bytes]]]: The topic, the
-                key and the value, or None when the serializer refuses the record,
-                which is then skipped with a warning.
+                key and the value, or None when the router returns no topic, which
+                drops the record, or the topic is not a name, or the serializer
+                refuses the record, which are then skipped with a warning.
 
         Raises:
             Exception: The serializer's error when it is temporary, as
@@ -1129,6 +1160,17 @@ class KafkaEgress(BaseEgress):
             # Use externalized logic if provided
             topic = self.topic_router(data)
             stream = data.get("stream_type", "event")
+            if topic is None:
+                # As a storage router does, a router that returns no topic drops
+                # the record
+                return None
+            if type(topic) is not str or not topic:
+                logger.warning(
+                    "KafkaEgress skipped a record: its topic_router returned %r, "
+                    "which is not a topic name.",
+                    topic,
+                )
+                return None
         else:
             # Fallback to standard desflow routing
             stream = data["stream_type"]
@@ -1257,7 +1299,10 @@ class KafkaEgress(BaseEgress):
         serializer refuses, with a `SerializationError`, a value error or a
         `SchemaRegistryError` with a 4xx status other than a throttled call, is
         skipped with a warning that names its key and the reason, and the rest of
-        the batch is sent. A registry that fails for a time (a 5xx status, a
+        the batch is sent. A record that Kafka refuses (larger than
+        `max_request_size`, or for a topic Kafka does not have or refuses) is
+        skipped the same way, and a `topic_router` that returns None drops its
+        record. A registry that fails for a time (a 5xx status, a
         throttled call, a timeout or a lost connection) keeps the batch, which is
         tried again after a longer wait. A registry that refuses the sink's
         credentials or access (a 401 or 403 status, or the Glue error
@@ -1304,10 +1349,28 @@ class KafkaEgress(BaseEgress):
                                 )
 
                                 messages = await self._messages_with_retry(batch)
+                                # A topic Kafka does not have or refuses is not
+                                # asked again for the rest of the batch: each ask
+                                # waits for the metadata
+                                refused: dict = {}
                                 for topic, key, payload_bytes in messages:
-                                    await producer.send(
-                                        topic, value=payload_bytes, key=key
-                                    )
+                                    if topic in refused:
+                                        self._warn_not_sent(key, topic, refused[topic])
+                                        continue
+                                    try:
+                                        await producer.send(
+                                            topic, value=payload_bytes, key=key
+                                        )
+                                    except RECORD_ERRORS as error:
+                                        # Kafka refuses this record, not the
+                                        # connection: the producer is not
+                                        # restarted and the rest of the batch is
+                                        # sent.
+                                        self._warn_not_sent(key, topic, error)
+                                        if not isinstance(
+                                            error, MessageSizeTooLargeError
+                                        ):
+                                            refused[topic] = error
 
                         except queue.Empty:
                             # Yield to loop if queue is empty

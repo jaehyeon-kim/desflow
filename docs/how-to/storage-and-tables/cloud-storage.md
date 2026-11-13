@@ -371,8 +371,8 @@ python cloud_storage_stores.py
 ```
 
 ```text
-parquet: 5291 rows
-jsonl: 5291 rows
+parquet: 5465 rows
+jsonl: 5465 rows
 ```
 
 Both folders hold the same number of rows. For a cloud, run the script with the same `STORAGE` and `STORAGE_BUCKET` as the shop.

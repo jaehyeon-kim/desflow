@@ -190,9 +190,9 @@ Run the model for 20 simulated seconds and print its first 3 records. Each recor
 
 <!-- records: gd-realistic-fields -->
 ```text
-{"stream_type":"event","sim_ts":0.2343673678329999,"timestamp":"...","key":"signups-1","task":"signup","instance":0,"value":{"customer_id":1,"name":"Frederick Holmes","email":"hendersonrobert@example.net","city":"Hallborough","german_city":"Gräfenhainichen","job":"Surveyor, building control","favourite":{"sku":"P-104","title":"Headphones","price":89.0,"popularity":2}}}
-{"stream_type":"event","sim_ts":1.056268358233068,"timestamp":"...","key":"signups-2","task":"signup","instance":1,"value":{"customer_id":2,"name":"Jordan Daniel","email":"matthew48@example.com","city":"West Nicole","german_city":"Großenhain","job":"Clinical biochemist","favourite":{"sku":"P-101","title":"Notebook","price":4.5,"popularity":12}}}
-{"stream_type":"event","sim_ts":2.4217216156996133,"timestamp":"...","key":"signups-3","task":"signup","instance":2,"value":{"customer_id":3,"name":"Matthew King","email":"lewisdiane@example.com","city":"Tomland","german_city":"Ueckermünde","job":"Paediatric nurse","favourite":{"sku":"P-100","title":"Desk lamp","price":24.9,"popularity":5}}}
+{"stream_type":"event","sim_ts":8.590320322744143,"timestamp":"...","key":"signups-1","task":"signup","instance":0,"value":{"customer_id":1,"name":"Mr. Roy Castro","email":"candacestevens@example.net","city":"South Jeremy","german_city":"Görlitz","job":"Librarian, public","favourite":{"sku":"P-101","title":"Notebook","price":4.5,"popularity":12}}}
+{"stream_type":"event","sim_ts":10.844439604632683,"timestamp":"...","key":"signups-2","task":"signup","instance":1,"value":{"customer_id":2,"name":"James Mclaughlin","email":"vlang@example.org","city":"West Heatherton","german_city":"Bremervörde","job":"Optician, dispensing","favourite":{"sku":"P-102","title":"Water bottle","price":16.0,"popularity":8}}}
+{"stream_type":"event","sim_ts":16.652088685514833,"timestamp":"...","key":"signups-3","task":"signup","instance":2,"value":{"customer_id":3,"name":"Emily Simmons","email":"gnichols@example.com","city":"Jenniferfurt","german_city":"Weißwasser","job":"Cabin crew","favourite":{"sku":"P-100","title":"Desk lamp","price":24.9,"popularity":5}}}
 ```
 
 The names depend on the version of Faker that the lock file pins, so a different version writes other names. The records stay the same from run to run for one version.

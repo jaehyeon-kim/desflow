@@ -203,7 +203,7 @@ The three tabs write the same records, which [a test](https://github.com/jaehyeo
     "
     ```
 
-It prints the number of rows and the number of snapshots. After one run with the seed in the file these are `515786 3`: one row for each lifecycle event of the day, in three snapshots (two flushes of 200,000 records and the final flush). After a second run both numbers grow, because each run appends. When you have checked the result, stop the service:
+It prints the number of rows and the number of snapshots. After one run with the seed in the file these are `518773 3`: one row for each lifecycle event of the day, in three snapshots (two flushes of 200,000 records and the final flush). After a second run both numbers grow, because each run appends. When you have checked the result, stop the service:
 
 ```bash
 odctl down catalog --volumes
@@ -213,10 +213,10 @@ In `iceberg/yaml`, which `desflow examples get iceberg --api yaml` creates, `des
 
 <!-- records: iceberg-sample -->
 ```text
-{"stream_type":"event","sim_ts":0.6380949691741167,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":0.6380949691741167,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
-{"stream_type":"event","sim_ts":0.6739613317861898,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":0.6739613317861898,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":0.1570778328234859,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.1570778328234859,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":1.2335847253047847,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":1.2335847253047847,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
 ```
 
 Each event becomes one row of the table, and the two fields of `value`, `path_id` and `status`, become columns of their own.

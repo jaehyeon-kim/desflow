@@ -94,7 +94,8 @@ def _explain(
     from desflow.blueprint.loader import BlueprintError
     from desflow.builder.context import parts_of
     from desflow.explain.render import render_terminal, to_json
-    from desflow.loading import EntryNotFoundError, load_context
+    from desflow.cli.check import error_place
+    from desflow.loading import EntryNotFoundError, is_builder_file, load_context
 
     if not 0 < target <= 10:
         refuse(f"--target must be above 0 and at most 10, got {target:g}")
@@ -127,7 +128,14 @@ def _explain(
         refuse(f"no file {source}")
     except ValueError as exc:
         # A Python file with no SimulationContext, such as a low-level script
-        refuse(str(exc))
+        refuse(
+            error_place(Path(entry), exc) if is_builder_file(Path(entry)) else str(exc)
+        )
+    except (Exception, SystemExit) as exc:
+        if not is_builder_file(Path(entry)):
+            raise
+        # A builder file runs code of its own, so any error or exit is the file's
+        fail(error_place(Path(folder) / entry, exc))
     if verify and stop_at is None and parts_of(context).defaults.until is None:
         refuse("--verify needs an end time: pass --until, or set run.until in the file")
     if verify:

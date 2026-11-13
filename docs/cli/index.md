@@ -159,8 +159,8 @@ The commands below use a small shop in a file of its own. Its packers come from 
     tests:
       - name: two packers
         expect:
-          tasks.pack.finished: 254
-          tasks.pack.wait_mean: {value: 4.592, within: 0.001}
+          tasks.pack.finished: 224
+          tasks.pack.wait_mean: {value: 2.299, within: 0.001}
     ```
 
 === "Builder"
@@ -311,10 +311,10 @@ Verify: 10 runs to 3600 s, seed 42
 +------------------------------------------------------------------------+
 | node    | measure      | analysis | measured |        ± | result       |
 |---------+--------------+----------+----------+----------+--------------|
-| packers | utilization  |      0.8 |   0.7953 |  0.01561 | agrees       |
-| packers | queue_length |        - |    1.823 |   0.2856 | not compared |
-| pack    | wait         |        - |    4.505 |   0.6483 | not compared |
-| orders  | throughput   |      0.4 |   0.4002 | 0.007201 | agrees       |
+| packers | utilization  |      0.8 |   0.8017 |  0.01893 | agrees       |
+| packers | queue_length |        - |    1.753 |   0.2404 | not compared |
+| pack    | wait         |        - |    4.354 |   0.5143 | not compared |
+| orders  | throughput   |      0.4 |   0.3992 | 0.009612 | agrees       |
 +------------------------------------------------------------------------+
 Not compared:
   packers queue_length: no closed formula for c > 1 with non-exponential times
@@ -322,7 +322,7 @@ Not compared:
 --verify checks the implementation against the queueing analysis where it applies; it does not show that the model is close enough to the real system
 ```
 
-The measured utilisation of 0.7953 and throughput of 0.4002 agree with the analysis, so the model does what the formulas say. The wait has no formula here, so the runs only measure it: 4.505 seconds. With a target of 0.9, the hints say that two packers reach it at an order every 2.22 seconds. `--json` prints the same explanation as one JSON object, for a script to read. Its `schema_version` names the shape, which the [`Explanation`](../reference/api.md#explaining-a-model) class describes:
+The measured utilisation of 0.8017 and throughput of 0.3992 agree with the analysis, so the model does what the formulas say. The wait has no formula here, so the runs only measure it: 4.354 seconds. With a target of 0.9, the hints say that two packers reach it at an order every 2.22 seconds. `--json` prints the same explanation as one JSON object, for a script to read. Its `schema_version` names the shape, which the [`Explanation`](../reference/api.md#explaining-a-model) class describes:
 
 ```bash
 desflow explain experiment/yaml/experiment_shop.yaml --json > explain.json
@@ -338,11 +338,11 @@ desflow run experiment/yaml/experiment_shop.yaml --sample 5
 
 <!-- records: cli-sample -->
 ```text
-{"stream_type":"event","sim_ts":3.1904748458705834,"timestamp":"...","key":"orders-1","task":"pack","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":3.1904748458705834,"timestamp":"...","key":"orders-1","task":"pack","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
-{"stream_type":"event","sim_ts":3.369806658930949,"timestamp":"...","key":"orders-2","task":"pack","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":3.369806658930949,"timestamp":"...","key":"orders-2","task":"pack","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
-{"stream_type":"event","sim_ts":4.671648089361866,"timestamp":"...","key":"orders-3","task":"pack","instance":2,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.7853891641174294,"timestamp":"...","key":"orders-1","task":"pack","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.7853891641174294,"timestamp":"...","key":"orders-1","task":"pack","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":4.186525464662821,"timestamp":"...","key":"orders-1","task":"pack","instance":0,"value":{"event_type":"order_packed"}}
+{"stream_type":"event","sim_ts":6.1679236265239235,"timestamp":"...","key":"orders-2","task":"pack","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":6.1679236265239235,"timestamp":"...","key":"orders-2","task":"pack","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
 ```
 
 Each order publishes `queued` when it joins the packers' queue and `started` when a packer takes it. The first two orders find a packer free, so each starts at the moment it queues. Without `--sample`, `desflow run` runs the model with its own settings and sinks. A model that runs out of events before the sample is full ends with exit 0 and the records it made.
@@ -364,26 +364,26 @@ desflow run experiment/yaml/experiment_shop.yaml --replications 10 --seed 42 --u
 ```text
 measure                                n          mean    half-width (95%)
 resources.packers.capacity            10             2                   0
-resources.packers.in_use              10           1.8              0.3016
-resources.packers.queue_length        10             4               3.422
-resources.packers.utilization         10            90               15.08
-resources.packers.utilization_avg     10         79.53               1.561
-resources.packers.queue_length_avg    10         1.823              0.2856
-tasks.pack.in_progress                10           5.8               3.566
-tasks.pack.finished                   10          1441               25.92
-tasks.pack.wait_mean                  10         4.505              0.6483
-tasks.pack.wait_max                   10         28.84               4.347
-tasks.pack.service_mean               10         3.972             0.04102
-tasks.pack.service_max                10         14.64              0.8328
-flows.orders.finished                 10          1441               25.92
-flows.orders.started                  10          1446               26.78
-flows.orders.in_system                10           5.8               3.566
+resources.packers.in_use              10           1.9              0.2262
+resources.packers.queue_length        10           3.9               2.298
+resources.packers.utilization         10            95               11.31
+resources.packers.utilization_avg     10         80.17               1.893
+resources.packers.queue_length_avg    10         1.753              0.2404
+tasks.pack.in_progress                10           5.8               2.404
+tasks.pack.finished                   10          1437                34.6
+tasks.pack.wait_mean                  10         4.354              0.5143
+tasks.pack.wait_max                   10         28.17               3.833
+tasks.pack.service_mean               10         4.013             0.03767
+tasks.pack.service_max                10         15.15               1.292
+flows.orders.finished                 10          1437                34.6
+flows.orders.started                  10          1443               33.77
+flows.orders.in_system                10           5.8               2.404
 
 Seed 42; replication seeds: 2684470948, 4091952314, 233227757, 3276785861, 3644269654, 1206282609, 3543069911, 3479688010, 877132087, 1244265337
 Repeat one replication with: desflow run experiment/yaml/experiment_shop.yaml --seed <its seed> --until 1h
 ```
 
-The mean wait is 4.505 seconds, and its [half-width](../learn/concepts/output-analysis.md#interval-and-half-width) of 0.6483 says that the true mean lies within about 0.65 seconds of it, with 95% confidence. The packers are busy 79.53% of the time, close to the 0.8 that `explain` worked out. The last line repeats any one replication, with its events. This shop has no sinks. A model with a sink, such as `type: Console`, also sends the result to it as telemetry: one reading for each replication and measure. A Console sink therefore prints those lines before the table, as [What the Sinks Receive](../user-guide/results/replications.md#what-the-sinks-receive) explains.
+The mean wait is 4.354 seconds, and its [half-width](../learn/concepts/output-analysis.md#interval-and-half-width) of 0.5143 says that the true mean lies within about 0.51 seconds of it, with 95% confidence. The packers are busy 80.17% of the time, close to the 0.8 that `explain` worked out. The last line repeats any one replication, with its events. This shop has no sinks. A model with a sink, such as `type: Console`, also sends the result to it as telemetry: one reading for each replication and measure. A Console sink therefore prints those lines before the table, as [What the Sinks Receive](../user-guide/results/replications.md#what-the-sinks-receive) explains.
 
 `--measure` names a statistic to summarise, and repeats for more. `--level` sets the confidence level of the intervals. `--workers` runs that many replications at once, each in its own process, and gives the same results, because each replication keeps its seed. The three apply to `--replications`, and `desflow run` refuses them without it:
 
@@ -395,14 +395,14 @@ desflow run experiment/yaml/experiment_shop.yaml --replications 10 --seed 42 --u
 <!-- records: cli-measure -->
 ```text
 measure                               n          mean    half-width (99%)
-tasks.pack.wait_mean                 10         4.505              0.9314
-resources.packers.utilization_avg    10         79.53               2.243
+tasks.pack.wait_mean                 10         4.354              0.7389
+resources.packers.utilization_avg    10         80.17                2.72
 
 Seed 42; replication seeds: 2684470948, 4091952314, 233227757, 3276785861, 3644269654, 1206282609, 3543069911, 3479688010, 877132087, 1244265337
 Repeat one replication with: desflow run experiment/yaml/experiment_shop.yaml --seed <its seed> --until 1h
 ```
 
-The means are the same as before. At 99%, the half-width of the mean wait grows from 0.6483 to 0.9314 seconds, because more confidence needs a wider interval.
+The means are the same as before. At 99%, the half-width of the mean wait grows from 0.5143 to 0.7389 seconds, because more confidence needs a wider interval.
 
 `--stdout` prints the run's records as JSON lines, instead of writing to the file's sinks. The run keeps its ingress connectors, so a `KafkaIngress` still applies its `topic_policy`: it creates the control topic, and with `drop_and_create` it deletes it and creates it again. `--drain` stops the arrivals at the end time and runs on until every order has left. This run stops the arrivals at 20 seconds, and its last record is the ninth order packed, at 24.789303362278915 seconds. A record keeps its time unrounded:
 
@@ -422,10 +422,10 @@ desflow experiment experiment/yaml/experiment.yaml --output results/packers
 <!-- records: cli-experiment -->
 ```text
 Wrote the artifacts and report.md to results/packers
-passed: three: tasks.pack.wait_mean max 2, checked 0.5919
+passed: three: tasks.pack.wait_mean max 2, checked 0.5816
 ```
 
-The check passed: the upper end of the interval of the mean wait with three packers is 0.5919 seconds, under the bound of 2. The command exits with status 1 when a check fails, so a CI job that runs it fails too. The six files in `results/packers` hold every value, and `report.md` compares the designs, as [Experiment Results](../user-guide/results/experiment-results.md) describes. After editing `experiment.json` by hand, `desflow report` builds the report again from the files, without running anything:
+The check passed: the upper end of the interval of the mean wait with three packers is 0.5816 seconds, under the bound of 2. The command exits with status 1 when a check fails, so a CI job that runs it fails too. The six files in `results/packers` hold every value, and `report.md` compares the designs, as [Experiment Results](../user-guide/results/experiment-results.md) describes. After editing `experiment.json` by hand, `desflow report` builds the report again from the files, without running anything:
 
 ```bash
 desflow report results/packers

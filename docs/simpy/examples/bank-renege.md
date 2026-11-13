@@ -283,7 +283,7 @@ def customer(env, name, counter, time_in_bank):
 
 ## Check the Result
 
-Three of the five customers renege: `Customer01`, `Customer02` and `Customer04`. `Customer00` is served from time 0 and finishes at 24.981 seconds. `Customer03` reaches the counter at 29.312 seconds and finishes at 37.245 seconds. The run has no end time, so it stops when the last customer leaves.
+Two of the five customers renege: `Customer03` and `Customer04`. `Customer00` is served from time 0 and finishes at 3.536 seconds. `Customer01` reaches the counter at 5.384 seconds and finishes at 10.53 seconds. `Customer02` reaches the counter at 10.53 seconds and finishes at 18.266 seconds. The run has no end time, so it stops when the last customer leaves.
 
 SimPy's own output, below, has customers who are served and customers who renege too. desflow draws each random value from its own stream, named by the place where the value is used, such as `Bank.service.patience`. A seed of 42 therefore gives different numbers from SimPy's `random.seed(42)`. The system is the same. The figures are not.
 

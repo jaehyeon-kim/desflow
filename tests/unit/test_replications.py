@@ -3,6 +3,9 @@
 import asyncio
 import queue
 import shlex
+import threading
+import time
+from concurrent.futures import Future
 from pathlib import Path
 
 import pytest
@@ -21,8 +24,9 @@ from desflow.cli import app as cli
 from desflow.connectors.egress.base import BaseEgress
 from desflow.connectors.ingress.base import BaseIngress
 from desflow.analysis.intervals import interval, t_quantile
+from desflow.analysis import runner
 from desflow.analysis.models import spawn_seeds
-from desflow.analysis.runner import level_for
+from desflow.analysis.runner import level_for, run_replications
 
 BLUEPRINT = """\
 simulation: {sim_id: Shop, factor: 0}
@@ -207,6 +211,59 @@ def test_workers_give_the_same_values(blueprint):
 def test_workers_need_an_importable_model():
     with pytest.raises(ValueError, match="cannot be imported"):
         replicate(lambda: shop(), 2, seed=1, until=100, workers=2)
+
+
+def test_an_empty_measures_list_is_refused_before_any_run():
+    with pytest.raises(ValueError, match="measures is empty"):
+        replicate(shop, 3, seed=1, until=60, measures=[])
+
+
+def test_the_first_failed_replication_is_raised_at_once_and_the_rest_dropped(
+    blueprint, monkeypatch
+):
+    """With workers, a failure in one replication ends the call without waiting for
+    the runs before it, and runs not yet started are cancelled."""
+    started = time.monotonic()
+    pending: list = []
+
+    class FakePool:
+        def __init__(self, max_workers):
+            self.cancelled = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self.shutdown()
+
+        def submit(self, function, *args, **kwargs):
+            future: Future = Future()
+            if pending:
+                future.set_exception(RuntimeError("replication 2 failed"))
+            else:
+                # The first replication is a long run that ends after a second
+                timer = threading.Timer(
+                    1.0, lambda: future.cancelled() or future.set_result(None)
+                )
+                timer.daemon = True
+                timer.start()
+            pending.append(future)
+            return future
+
+        def shutdown(self, wait=True, cancel_futures=False):
+            self.cancelled = cancel_futures
+            for future in pending:
+                if cancel_futures:
+                    future.cancel()
+            pools.append(self)
+
+    pools: list = []
+    monkeypatch.setattr(runner, "ProcessPoolExecutor", FakePool)
+    with pytest.raises(RuntimeError, match="replication 2 failed"):
+        run_replications(blueprint, [1, 2, 3], until=10, workers=2)
+    assert time.monotonic() - started < 0.5
+    assert pools and pools[0].cancelled
+    assert pending[0].cancelled()
 
 
 def test_an_unknown_measure_is_refused():

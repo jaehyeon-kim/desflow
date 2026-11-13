@@ -201,6 +201,21 @@ async def test_redis_ingress_refuses_a_url_with_an_unknown_scheme_at_once(caplog
 
 
 @pytest.mark.asyncio
+async def test_redis_ingress_refuses_a_setting_redis_py_refuses_at_once(caplog):
+    """A keyword redis-py does not take, such as a misspelt `socket_timeout`, raises a
+    `TypeError` when the connection is made. No wait fixes it, so the task ends with
+    it instead of retrying for ever."""
+    ingress = RedisIngress(
+        url="redis://localhost:6379/0", poll_interval=0.01, socket_timout=2
+    )
+
+    with pytest.raises(TypeError, match="socket_timout"):
+        await asyncio.wait_for(ingress.run(queue.Queue()), timeout=5)
+
+    assert "Retrying" not in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_redis_ingress_reconnects_after_a_value_error_while_reading(
     caplog, run_until
 ):

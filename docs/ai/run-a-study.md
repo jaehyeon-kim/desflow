@@ -66,11 +66,11 @@ The Comparisons table of `report.md` gives each difference, two packers minus on
 ```text
 | Baseline | Variant | Measure | Difference | Half-width | Interval | Random streams |
 |---|---|---|---|---|---|---|
-| one | two | `tasks.pack_order.wait_mean` | -2.247 | 0.1769 | -2.424 to -2.07 | 1 shared |
-| one | two | `resources.packers.utilization_avg` | -37.71 | 0.3621 | -38.07 to -37.35 | 1 shared |
+| one | two | `tasks.pack_order.wait_mean` | -2.043 | 0.1261 | -2.169 to -1.917 | 1 shared |
+| one | two | `resources.packers.utilization_avg` | -37.26 | 0.4302 | -37.69 to -36.83 | 1 shared |
 ```
 
-A second packer cuts the mean wait by 2.25 ± 0.18 seconds, from 2.38 to 0.14. The packers' utilisation halves, from 75% to 38%. The interval of the difference does not hold 0, so the cut is not chance.
+A second packer cuts the mean wait by 2.04 ± 0.13 seconds, from 2.18 to 0.13. The packers' utilisation halves, from 75% to 37%. The interval of the difference does not hold 0, so the cut is not chance.
 
 ---
 

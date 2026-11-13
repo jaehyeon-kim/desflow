@@ -1350,3 +1350,64 @@ async def test_the_run_logs_a_batch_it_cannot_write_and_goes_on(
     assert written == [[{"a": 2}]]
     assert "Iceberg Writer: batch not written: catalog down" in caplog.text
     assert egress.active_tasks == 0
+
+
+@pytest.mark.asyncio
+async def test_a_catalog_setting_pyiceberg_refuses_ends_the_sink(caplog):
+    """An unknown catalog type is a setting no wait fixes, so the task ends with
+    PyIceberg's error at the start of the run instead of logging every batch as
+    not written."""
+    import asyncio
+    import queue
+
+    egress = IcebergStorageEgress(
+        catalog={"type": "sqll", "uri": "sqlite:///unused.db"},
+        default_table="shop.orders",
+    )
+    batches: queue.Queue = queue.Queue()
+    batches.put([{"stream_type": "event", "key": "a", "value": {"n": 1}}])
+
+    with pytest.raises(ValueError, match="sqll"):
+        await asyncio.wait_for(egress.run(batches), timeout=5)
+
+    assert "could not write" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_catalog_that_does_not_answer_yet_is_built_again_at_the_first_write(
+    monkeypatch, caplog
+):
+    """An error other than a refused setting is logged, and the sink goes on: the first
+    write builds the catalog again."""
+    import asyncio
+    import queue
+
+    import pyiceberg.catalog
+
+    fake = FakeCatalog()
+    attempts = []
+
+    def flaky_load_catalog(name=None, **properties):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise ConnectionError("catalog is down")
+        return fake
+
+    monkeypatch.setattr(pyiceberg.catalog, "load_catalog", flaky_load_catalog)
+    egress = IcebergStorageEgress(
+        catalog={"uri": "http://localhost:8181"}, default_table="sim.events"
+    )
+    batches: queue.Queue = queue.Queue()
+    batches.put([{"stream_type": "event", "key": "a", "value": {"n": 1}}])
+
+    task = asyncio.create_task(egress.run(batches))
+    for _ in range(100):
+        if fake.tables:
+            break
+        await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert len(attempts) == 2
+    assert "could not build the catalog yet: catalog is down" in caplog.text
+    assert len(fake.tables["sim.events"].appended) == 1

@@ -300,7 +300,7 @@ class Template:
         # numbers it by the order of renders (`TemplateNumbers`), so two builds of one
         # code give one key.
         self.name = name
-        self._numbered = name is not None
+        self._numbered = bool(name)
         self.key: str = _key_of(name, None if name else _next_serial())
         # A name is a path: "tasks.wash" gives the generators the places a blueprint's
         # `tasks.wash.payload` has, and so the same random sequences

@@ -25,6 +25,7 @@ from typing import (
     Union,
 )
 
+import yaml
 from pydantic import BaseModel, ValidationError
 
 from desflow.blueprint.loader import BlueprintError, SourceMap, read_document
@@ -49,7 +50,7 @@ from desflow.connectors.egress.local import ConsoleEgress
 from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.builder.arrivals import ArrivalPlan
 from desflow.core.families import name_of, name_problem, references
-from desflow.builder.flow import Open, Release, Wait
+from desflow.builder.flow import Open, Release, Transfer, Wait, transfer_expressions
 from desflow.builder.holders import check_level, check_queue_limit
 from desflow.core.registry import ParamRejected
 from desflow.core.rules import check_capacity
@@ -77,6 +78,7 @@ from desflow.builder.context import (
 )
 from desflow.builder.model_checks import (
     names_a_member,
+    priority_mix,
     unmade_member_note,
     written_paths,
 )
@@ -307,7 +309,8 @@ def _check_test_seeds(blueprint: Blueprint, source: SourceMap) -> None:
 
 
 def _warn_on_no_end(blueprint: Blueprint, source: SourceMap) -> None:
-    """Logs a warning for each arrival that keeps a run with no end going."""
+    """Logs a warning for each arrival and each telemetry entry that keeps a run with no
+    end going."""
     run = blueprint.run
     if run.until is not None or run.stop is not None or run.segments is not None:
         return
@@ -324,6 +327,17 @@ def _warn_on_no_end(blueprint: Blueprint, source: SourceMap) -> None:
                     f"desflow run",
                 ),
             )
+    for index, entry in enumerate(blueprint.telemetry):
+        logger.warning(
+            "%s",
+            source.error(
+                ("telemetry", index),
+                f"telemetry[{index}]: the run has no end: this entry publishes every "
+                f"{entry.interval:g} s for as long as the run goes, and run has "
+                f"no until or stop, so desflow run runs until it is stopped. Give "
+                f"run.until, or pass --until to desflow run",
+            ),
+        )
 
 
 class Built(NamedTuple):
@@ -363,6 +377,7 @@ def load_blueprint(
         BlueprintError: If the file is invalid. The message names the file and line.
     """
     data, source = read_document(path, variables=variables)
+    _check_section_keys(data, source)
     try:
         # One `now` for the whole file, so relative times agree with each other;
         # an instant, read in the run's zone
@@ -377,12 +392,62 @@ def load_blueprint(
     _check_declared_names(blueprint, source)
     context = _build_context(blueprint, source, preview)
     _check_batches(context, source)
+    _check_priority_kinds(context, source)
     _check_families(blueprint, context, source)
     _check_values(blueprint, context, source)
     _check_scenario(blueprint, context, source)
     _check_registry_reads(blueprint, context, source)
     _check_on_paths(blueprint, context, source)
     return Built(context, blueprint.run, blueprint, source)
+
+
+_NAMED_SECTIONS = (
+    "resources",
+    "containers",
+    "stores",
+    "services",
+    "arrivals",
+    "variables",
+    "signals",
+    "tasks",
+)
+
+
+def _read_as_yaml(text: str) -> Any:
+    """The value YAML reads from the text of a key, or the text when it cannot read it."""
+    try:
+        return yaml.safe_load(text)
+    except yaml.YAMLError:
+        return text
+
+
+def _check_section_keys(data: Any, source: SourceMap) -> None:
+    """Refuses a name that YAML reads as a boolean, a number, a date or null, such as
+    an unquoted task called `on`, `no`, `1` or `null`, at its own line and as it is
+    written. The load would otherwise name it by the value YAML read."""
+    if not isinstance(data, dict):
+        return
+    for section in _NAMED_SECTIONS:
+        entries = data.get(section)
+        if not isinstance(entries, dict):
+            continue
+        for key in entries:
+            if isinstance(key, str):
+                continue
+            written = next(
+                (
+                    text
+                    for text in source.keys((section,))
+                    if _read_as_yaml(text) == key
+                    and type(_read_as_yaml(text)) is type(key)
+                ),
+                str(key),
+            )
+            raise source.error(
+                (section, written),
+                f"{section}.{written}: YAML reads the name {written} as {key!r}, "
+                f'which is not text; write it in quotes, "{written}"',
+            )
 
 
 def read_tests_file(
@@ -1046,6 +1111,8 @@ def _check_task_scopes(
                 )
         _check_resource_names(expression, blueprint, source, location)
         _check_store_names(expression, blueprint, source, location)
+    for expression, location in _name_expressions(name, task):
+        _check_run_names(expression, blueprint, source, location)
 
 
 def _check_acquisition_order(blueprint: Blueprint, source: SourceMap) -> None:
@@ -1311,6 +1378,14 @@ def _check_batches(context: Any, source: SourceMap) -> None:
         raise source.error(("tasks", found.other, "batch"), batch_mismatch_text(*found))
 
 
+def _check_priority_kinds(context: Any, source: SourceMap) -> None:
+    """Refuses a priority resource or store that is given a number and a list as
+    priorities, at the line of the second."""
+    found = priority_mix(parts_of(context).tasks.specs, parts_of(context).holders)
+    if found is not None:
+        raise source.error(found.location, found.message)
+
+
 def _check_events(blueprint: Blueprint, source: SourceMap) -> None:
     """Checks the `spawn`, `subscribe`, `listen` and `on:` names a task or signal uses,
     at the line of each action.
@@ -1543,6 +1618,12 @@ def _check_segments(blueprint: Blueprint, source: SourceMap) -> None:
                 ("run", "segments", "every"),
                 "every needs run.until, which is where the last segment ends",
             )
+        if math.isinf(run.until):
+            raise source.error(
+                ("run", "segments", "every"),
+                "every needs a finite run.until, which is where the last segment "
+                f"ends, and run.until gave {run.until:g}",
+            )
         return
     previous = simulation.initial_time
     for index, segment in enumerate(segments):
@@ -1702,6 +1783,10 @@ def _arrival_expressions(
             at = ("signals", name, "on", index)
             if entry.when is not None:
                 yield Expression(entry.when, names=ANY_NAME), (*at, "when")
+            if entry.spawn is not None:
+                yield from _parsed(
+                    _read_texts(entry.spawn.count, (*at, "spawn", "count"))
+                )
             if entry.interrupt is not None and entry.interrupt.where is not None:
                 yield (
                     Expression(entry.interrupt.where, names=ANY_NAME),
@@ -1814,6 +1899,8 @@ def _check_arrival_places(blueprint: Blueprint, source: SourceMap) -> None:
         _check_run_names(expression, blueprint, source, where)
     for expression, where in _reading_expressions(blueprint):
         _check_run_names(expression, blueprint, source, where)
+    for expression, where in _family_expressions(blueprint):
+        _check_run_names(expression, blueprint, source, where)
     for location, value in _value_sites(blueprint):
         for expression, where in _parsed_texts(value, location):
             _check_run_names(expression, blueprint, source, where)
@@ -1824,11 +1911,71 @@ def _parsed_texts(
 ) -> Iterator[Tuple[Expression, Tuple[Any, ...]]]:
     """The expressions of the generators in a value, parsed, with where each is
     written. Text that does not parse is left to the checks that report it."""
-    for text, path in _generator_texts(value, location):
+    yield from _parsed(_generator_texts(value, location))
+
+
+def _read_texts(
+    value: Any, path: Tuple[Any, ...]
+) -> Iterator[Tuple[str, Tuple[Any, ...]]]:
+    """The text of a place written as an expression, or the texts of the generators
+    in a place written as a value, with where each is written."""
+    if isinstance(value, str):
+        yield value, path
+    else:
+        yield from _generator_texts(value, path)
+
+
+def _parsed(
+    texts: Iterable[Tuple[str, Tuple[Any, ...]]],
+) -> Iterator[Tuple[Expression, Tuple[Any, ...]]]:
+    """The expression of each text, with where it is written. Text that does not parse
+    is left to the checks that report it."""
+    for text, path in texts:
         try:
             yield Expression(text, names=ANY_NAME), path
         except ValueError:
             continue
+
+
+def _family_expressions(
+    blueprint: Blueprint,
+) -> Iterator[Tuple[Expression, Tuple[Any, ...]]]:
+    """The expressions a family writes as text in `members`, `current_cap`, `max_cap`
+    and a container's `level`, parsed, with where each is written. They are read once
+    for the run, when each member is made. A generator in `members` is a value place."""
+    for section in ("resources", "stores", "containers", "signals"):
+        for name, entry in getattr(blueprint, section).items():
+            for key in ("members", "current_cap", "max_cap", "level"):
+                value = getattr(entry, key, None)
+                if isinstance(value, str) and getattr(entry, "family", False):
+                    yield from _parsed([(value, (section, name, key))])
+
+
+def _name_expressions(
+    name: str, task: Any
+) -> Iterator[Tuple[Expression, Tuple[Union[str, int], ...]]]:
+    """The expressions of a task that only the name checks read, parsed, with where each
+    is written: the `count` of its `spawn` and of each `spawn` in its `on` entries, and
+    the `amount`, `priority` and `filter` of the `get` and `put` branches of its `wait`
+    and `open`."""
+    where: Tuple[Union[str, int], ...] = ("tasks", name)
+    if task.spawn is not None:
+        yield from _parsed(_read_texts(task.spawn.count, where + ("spawn", "count")))
+    for at_where, entries in task.on_lists():
+        for index, entry in enumerate(entries):
+            if entry.spawn is not None:
+                at = where + (*at_where, index, "spawn", "count")
+                yield from _parsed(_read_texts(entry.spawn.count, at))
+    branches = []
+    if task.wait is not None:
+        branches.append(("wait", Wait(task.wait)))
+    if task.open is not None:
+        branches.append(("open", Open(task.open).wait))
+    for key, wait in branches:
+        for node in wait.all_nodes:
+            if isinstance(node.target, Transfer):
+                for _field, expression in transfer_expressions(node.target):
+                    yield expression, where + (key,)
 
 
 def _check_run_names(
@@ -3045,8 +3192,14 @@ def _unmade_note(path: str, context: SimulationContext) -> str:
 def _check_declared_names(blueprint: Blueprint, source: SourceMap) -> None:
     """Checks that no name is in two of resources, stores, containers and signals, and
     that none holds a dot or a space, which an expression cannot name, or a character
-    that an expression reads as another, such as `µ`. A name in two sections is
-    refused at its second place."""
+    that an expression reads as another, such as `µ`, and that no task or arrival has an
+    empty name. A name in two sections is refused at its second place."""
+    for section, article in (("tasks", "a task"), ("arrivals", "an arrival")):
+        if "" in getattr(blueprint, section):
+            raise source.error(
+                (section, ""),
+                f"the name of {article} is at least one character, got ''",
+            )
     kinds: Dict[str, str] = {}
     for section, kind in (
         ("resources", "resource"),
@@ -3151,9 +3304,15 @@ def _check_registry_reads(
         for name, task in blueprint.tasks.items()
         for pair in _expressions(name, task)
     ]
+    found += [
+        pair
+        for name, task in blueprint.tasks.items()
+        for pair in _name_expressions(name, task)
+    ]
     found += list(_arrival_expressions(blueprint))
     found += list(_rule_expressions(blueprint))
     found += list(_reading_expressions(blueprint))
+    found += list(_family_expressions(blueprint))
     for location, value, _owner in _task_sites(blueprint):
         found += list(_parsed_texts(value, location))
     for location, value in _value_sites(blueprint):

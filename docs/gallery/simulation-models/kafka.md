@@ -207,16 +207,16 @@ In `kafka/yaml`, which `desflow examples get kafka --api yaml` creates, `desflow
 
 <!-- records: kafka-sample -->
 ```text
-{"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
-{"stream_type":"event","sim_ts":1.3479226635723796,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":1.8686592357447462,"timestamp":"...","key":"orders-3","task":"pack_order","instance":2,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
 {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":1}
 {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
-{"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":2}
+{"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
 {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":100.0}
-{"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.in_progress","value":3}
-{"stream_type":"event","sim_ts":2.0097703062717214,"timestamp":"...","key":"orders-4","task":"pack_order","instance":3,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.in_progress","value":1}
+{"stream_type":"event","sim_ts":2.4671694506095694,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":2.5122243094067938,"timestamp":"...","key":"orders-3","task":"pack_order","instance":2,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":3.124962891934927,"timestamp":"...","key":"orders-4","task":"pack_order","instance":3,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
 ```
 
 With one packer, `orders-1` starts at once and the next orders wait. At 2 simulation seconds the readings show 1 packer in use, 2 orders in the queue and 3 tasks in progress.

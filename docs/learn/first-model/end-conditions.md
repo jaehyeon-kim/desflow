@@ -108,9 +108,9 @@ A drain can also take a limit, `drain: {limit: 10 min}`, so a model that never e
 
 ## What You Get and Why
 
-Does a fixed horizon answer the same question as a drain? Not for every order. Each figure here comes from a run with the seed 42: one that stops at the hour, and one that drains after it. The fixed horizon ends at **3,600** seconds with **2,436** orders started, **2,398** finished and **38** still in the shop, one being packed and 37 waiting. The drain ends **56.4** seconds later, at **3,656.4**, with all **2,436** finished:
+Does a fixed horizon answer the same question as a drain? Not for every order. Each figure here comes from a run with the seed 42: one that stops at the hour, and one that drains after it. The fixed horizon ends at **3,600** seconds with **2,561** orders started, **2,386** finished and **175** still in the shop, one being packed and 174 waiting. The drain ends **261.8** seconds later, at **3,861.8**, with all **2,561** finished:
 
-![Fixed horizon: 2398 orders finished and 38 left; drain: 2436 finished and 0 left](../../assets/charts/end-counts.png)
+![Fixed horizon: 2386 orders finished and 175 left; drain: 2561 finished and 0 left](../../assets/charts/end-counts.png)
 
 `desflow explain` shows why so many orders are left, without a run:
 
@@ -132,7 +132,7 @@ Not estimated:
 
 The packer gets 1.05 seconds of work every second, more than it can do, so the queue grows for as long as orders arrive. The longer the horizon, the more orders it leaves in the shop. A drain packs them all. In Python, `context.analyze()` gives the same analysis for a builder model. A low-level model has no `explain`, because its SimPy code makes the links between arrivals, tasks and resources as it runs, so there are none to read.
 
-The mean wait barely moves: **71.70** seconds with the fixed horizon against **71.51** with the drain. An order's wait is measured when its packing starts, and only 37 of the 2,436 orders start packing after the hour.
+The mean wait moves less than the count of finished orders: **122.81** seconds with the fixed horizon against **131.27** with the drain. An order's wait is measured when its packing starts, so only the 174 of the 2,561 orders that start packing after the hour change the mean, and they raise it because they waited longer than the orders before them.
 
 Each tab prints both runs: the orders started, finished and still in the shop, and the mean wait. A record's `sim_ts` is the time the run ended.
 
@@ -147,14 +147,14 @@ Each tab prints both runs: the orders started, finished and still in the shop, a
 
     <!-- records: end-yaml -->
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":71.69841183873338}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.finished","value":2398}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.started","value":2436}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.in_system","value":38}
-    {"stream_type":"telemetry","sim_ts":3656.3828405403037,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":71.50563836690414}
-    {"stream_type":"telemetry","sim_ts":3656.3828405403037,"timestamp":"...","path_id":"Shop.stats.flows.orders.finished","value":2436}
-    {"stream_type":"telemetry","sim_ts":3656.3828405403037,"timestamp":"...","path_id":"Shop.stats.flows.orders.started","value":2436}
-    {"stream_type":"telemetry","sim_ts":3656.3828405403037,"timestamp":"...","path_id":"Shop.stats.flows.orders.in_system","value":0}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":122.8142837353294}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.finished","value":2386}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.started","value":2561}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.in_system","value":175}
+    {"stream_type":"telemetry","sim_ts":3861.806114353957,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":131.26839079806425}
+    {"stream_type":"telemetry","sim_ts":3861.806114353957,"timestamp":"...","path_id":"Shop.stats.flows.orders.finished","value":2561}
+    {"stream_type":"telemetry","sim_ts":3861.806114353957,"timestamp":"...","path_id":"Shop.stats.flows.orders.started","value":2561}
+    {"stream_type":"telemetry","sim_ts":3861.806114353957,"timestamp":"...","path_id":"Shop.stats.flows.orders.in_system","value":0}
     ```
 
 === "Builder"
@@ -164,8 +164,8 @@ Each tab prints both runs: the orders started, finished and still in the shop, a
     ```
 
     ```text
-    horizon: ends at  3600.0 s, 2436 started, 2398 finished, 38 left, mean wait 71.70 s
-    drain  : ends at  3656.4 s, 2436 started, 2436 finished, 0 left, mean wait 71.51 s
+    horizon: ends at  3600.0 s, 2561 started, 2386 finished, 175 left, mean wait 122.81 s
+    drain  : ends at  3861.8 s, 2561 started, 2561 finished, 0 left, mean wait 131.27 s
     ```
 
 === "Low-level"
@@ -175,8 +175,8 @@ Each tab prints both runs: the orders started, finished and still in the shop, a
     ```
 
     ```text
-    horizon: ends at  3600.0 s, 2436 started, 2398 finished, 38 left, mean wait 71.70 s
-    drain  : ends at  3656.4 s, 2436 started, 2436 finished, 0 left, mean wait 71.51 s
+    horizon: ends at  3600.0 s, 2561 started, 2386 finished, 175 left, mean wait 122.81 s
+    drain  : ends at  3861.8 s, 2561 started, 2561 finished, 0 left, mean wait 131.27 s
     ```
 
 A fixed horizon answers a question about a period, such as how many orders the shop packs in an hour. The orders still in the shop at the end are unfinished work, and `in_system` says how many there are. A drain answers a question about a batch of orders, such as how long the day's orders take to clear. It serves every admitted order, but the run goes on past the hour. Report the counts beside any mean, so a reader knows which orders it covers. [Output Analysis](../concepts/output-analysis.md#terminating-or-steady-state) explains the two kinds of run, and [Statistics](../../user-guide/results/statistics.md) describes each count.

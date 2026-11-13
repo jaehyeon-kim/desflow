@@ -96,7 +96,9 @@ class PostgresIngress(BaseIngress):
 
         If PostgreSQL does not answer at start, the ingress retries with a back-off
         that grows to one minute, as the Kafka ingress does. An error that no wait
-        fixes, such as a `table_name` the server refuses, ends the task at once.
+        fixes, such as a `table_name` the server refuses, or a role that may read the table
+        but not update it, ends the task at once. The rows of a poll are marked applied
+        before their changes are sent, so an update that fails sends nothing.
 
         Args:
             ingress_queue: A thread-safe queue used to transmit (path, value)
@@ -104,7 +106,7 @@ class PostgresIngress(BaseIngress):
 
         Raises:
             asyncpg.PostgresError: If the server refuses a setting, such as the
-                password or `table_name`.
+                password, `table_name` or the role's privilege to update the table.
         """
         try:
             await connect_with_retry(
@@ -171,31 +173,38 @@ class PostgresIngress(BaseIngress):
 
                     if rows:
                         applied_ids = []
+                        changes = []
                         for row in rows:
                             # A bad row is marked applied too, so it is skipped once
                             applied_ids.append(row["id"])
                             try:
-                                path, val = _row_change(row)
+                                changes.append(_row_change(row))
                             except ValueError as e:
                                 logger.warning(
                                     f"Skipped a PostgreSQL ingress row {row['id']}: {e}"
                                 )
-                                continue
 
-                            # Send to the simulation registry queue
-                            ingress_queue.put((path, val))
-                            logger.info(f"Ingested parameter update: {path} = {val}")
-
-                        # Mark the rows as applied so we don't process them again
+                        # Mark the rows as applied before the changes are sent, so a
+                        # failed update sends nothing and the next poll reads the
+                        # rows again, instead of sending the same changes at every poll
                         await conn.execute(
                             f"""
                             UPDATE {self.table_name}
                             SET is_applied = TRUE
-                            WHERE id = ANY($1::int[])
+                            WHERE id = ANY($1::bigint[])
                         """,
                             applied_ids,
                         )
 
+                        # Send to the simulation registry queue
+                        for path, val in changes:
+                            ingress_queue.put((path, val))
+                            logger.info(f"Ingested parameter update: {path} = {val}")
+
+            except asyncpg.InsufficientPrivilegeError:
+                # A role that may not update the table is a setting, which no wait
+                # fixes
+                raise
             except Exception as e:
                 logger.error(
                     f"Error polling PostgresIngress table {self.table_name}: "

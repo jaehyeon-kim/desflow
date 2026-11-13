@@ -115,8 +115,8 @@ run: {until: 20}
 
 tests:
   # Run with: desflow test first_shop.yaml
-  - name: nine_orders_in_20_seconds
-    expect: {tasks.pack_order.finished: 9}
+  - name: seven_orders_in_20_seconds
+    expect: {tasks.pack_order.finished: 7}
 ```
 
 Save it as `first_shop.yaml` and run `desflow run first_shop.yaml`. [First Simulation](https://jaehyeon.me/desflow/latest/learn/first-model/first-simulation/) builds this model step by step, with the YAML, builder and low-level code side by side.

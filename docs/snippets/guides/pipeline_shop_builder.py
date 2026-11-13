@@ -10,7 +10,7 @@ from desflow import JsonlStorageEgress, SimulationContext
 def run_shop(folder: Path) -> None:
     """Runs the shop, writing its data and labels under `folder`."""
     app = (
-        SimulationContext(sim_id="Shop", factor=0, random_seed=42)
+        SimulationContext(sim_id="Shop", factor=0, random_seed=7)
         .add_resource("packers", current_cap=3, max_cap=5)
         .add_service("packing", dist="constant", value=1.5)
         .add_arrival("orders", dist="exponential", rate=0.5, spawn="pack_order")

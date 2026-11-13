@@ -238,3 +238,25 @@ def test_a_store_and_a_container_start_at_capacity_0():
     env.run(until=20)
     env.teardown()
     assert done == [("box", 5), ("oil", 10)]
+
+
+def test_a_number_and_a_list_priority_in_one_store_are_refused(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    store = DynamicStore(env, "Shop", "buffer1", priority=True)
+    store.put(simpy.PriorityItem(priority=1, item="a"))
+    with pytest.raises(ValueError, match="store 'buffer1' cannot rank the priority 1"):
+        store.put(simpy.PriorityItem(priority=[0, 1], item="b"))
+    with pytest.raises(ValueError, match="\\(a number\\) with \\[0, 1\\] \\(a list\\)"):
+        store.wrap("b", [0, 1])
+
+
+def test_starting_priorities_of_a_number_and_a_list_are_refused(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    with pytest.raises(ValueError, match="store 'buffer1' cannot rank the priority 1"):
+        DynamicStore(
+            env, "Shop", "buffer1", priority=True, items=[(1, "a"), ([0, 1], "b")]
+        )

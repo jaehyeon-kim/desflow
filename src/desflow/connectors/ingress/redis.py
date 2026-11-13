@@ -90,15 +90,20 @@ class RedisIngress(BaseIngress):
             ValueError: If `redis.from_url` refuses the URL, such as one with a scheme
                 it does not know. No wait fixes it, so it is raised at once, as the
                 PostgreSQL connectors do.
+            TypeError: If redis-py refuses a keyword setting, such as a misspelt
+                `socket_timeout`, when it makes the connection. It is raised at once
+                too.
         """
         delay = FIRST_DELAY
         try:
             while True:
+                subscribed = False
                 try:
                     self.client = redis.from_url(self.url, **self.kwargs)
                     self.pubsub = self.client.pubsub()
                     await self.pubsub.subscribe(self.channel_name)
                     await self._confirm_subscription()
+                    subscribed = True
                     logger.info(
                         f"RedisIngress subscribed to channel '{self.channel_name}'"
                     )
@@ -107,6 +112,10 @@ class RedisIngress(BaseIngress):
                 except Exception as e:
                     if isinstance(e, ValueError) and self.client is None:
                         # `redis.from_url` refused the URL: no wait fixes it
+                        raise
+                    if isinstance(e, TypeError) and not subscribed:
+                        # redis-py refused a keyword when it made the connection: no
+                        # wait fixes it
                         raise
                     logger.error(
                         f"RedisIngress connection failed: {e}. Retrying in {delay}s"

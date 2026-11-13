@@ -166,6 +166,31 @@ def test_a_tag_that_is_not_published_is_named(tmp_path):
     assert "--ref main" in unpublished.output and "--ref main" in added_later.output
 
 
+@pytest.mark.parametrize("code", [403, 503])
+def test_a_refusal_or_outage_is_not_read_as_a_missing_tag(tmp_path, code):
+    """A 403 rate limit or a 503 says the service failed and a retry may work; it
+    neither says the tag is unpublished nor sends the user to main."""
+
+    def missing_file(url):
+        status = 404 if url.endswith("/local.yaml") else code
+        raise urllib.error.HTTPError(url, status, "x", None, None)
+
+    get = ["examples", "get", "local", "--dest", str(tmp_path), "--ref", "v9.9.9"]
+    with mock.patch.object(examples, "_fetch", side_effect=missing_file):
+        tag_check_failed = runner.invoke(app, get)
+    with mock.patch.object(
+        examples,
+        "_fetch",
+        side_effect=urllib.error.HTTPError("u", code, "x", None, None),
+    ):
+        download_failed = runner.invoke(app, get)
+    for result in (tag_check_failed, download_failed):
+        assert result.exit_code == 1
+        assert "not published yet" not in result.output
+        assert "--ref main" not in result.output
+        assert "a retry may work" in " ".join(result.output.split())
+
+
 def test_unknown_example_is_refused():
     result = runner.invoke(app, ["examples", "get", "nope"])
     assert result.exit_code != 0

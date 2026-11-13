@@ -96,6 +96,26 @@ def test_builder_initial_time_refuses_nan_infinity_and_true(bad):
         SimulationContext("S", initial_time=bad)
 
 
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"factor": -1}, "factor gave -1"),
+        ({"factor": float("nan")}, "factor gave nan"),
+        ({"factor": True}, "factor is a number"),
+        ({"factor": 0, "initial_time": float("nan")}, "initial_time gave nan"),
+        ({"factor": 0, "initial_time": True}, "initial_time"),
+        ({"factor": 0, "initial_time": float("inf")}, "initial_time"),
+    ],
+)
+def test_the_low_level_environment_refuses_what_the_builder_refuses(kwargs, message):
+    """`DynamicRealtimeEnvironment` checks `factor` and `initial_time` as
+    `SimulationContext` does, with the same messages, not at its first step."""
+    from desflow.core.environment import DynamicRealtimeEnvironment
+
+    with pytest.raises(ValueError, match=message):
+        DynamicRealtimeEnvironment(**kwargs)
+
+
 def _app():
     app = SimulationContext("S", factor=0, random_seed=1)
     app.add_arrival("orders", "constant", value=1, spawn="job", max_events=3)

@@ -60,7 +60,7 @@ The example needs only desflow, which each Quick Start below installs, and no ot
 
     **What It Does**
 
-    The run writes each batch as a Parquet file of its own, such as `data/events_1a2b3c4d.parquet`, and ends on its own. `default_path` is a file name prefix, not a folder. [Egress](../../user-guide/live-runs-and-connectors/egress.md#parquet-and-json-lines) explains the file names and how to read the files back as one table. A second run adds its files beside the first run's, so delete `data/` before running again, or set `DEST_PATH` to a new folder. On a laptop, one run of a week of simulated time takes about 20 seconds. It writes 725 files with 3.6 million rows in all, one row per lifecycle event. Without a router, the egress drops telemetry and writes each event as one flat row, so the columns are `stream_type`, `sim_ts`, `timestamp`, `key`, `task`, `instance`, `path_id` and `status`. `logical_start_time: -7d` stamps the week as history that ends now.
+    The run writes each batch as a Parquet file of its own, such as `data/events_1a2b3c4d.parquet`, and ends on its own. `default_path` is a file name prefix, not a folder. [Egress](../../user-guide/live-runs-and-connectors/egress.md#parquet-and-json-lines) explains the file names and how to read the files back as one table. A second run adds its files beside the first run's, so delete `data/` before running again, or set `DEST_PATH` to a new folder. On a laptop, one run of a week of simulated time takes about 20 seconds. It writes 726 files with 3.6 million rows in all, one row per lifecycle event. Without a router, the egress drops telemetry and writes each event as one flat row, so the columns are `stream_type`, `sim_ts`, `timestamp`, `key`, `task`, `instance`, `path_id` and `status`. `logical_start_time: -7d` stamps the week as history that ends now.
 
     To write to S3 instead, install `odctl` (`uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`), start the object store, and set these variables before the run command. All three versions read the same ones. The files are written under the `odctl-dev/history/` prefix, which you can browse at <http://localhost:8889>.
 
@@ -179,7 +179,7 @@ The three tabs write the same records, which [a test](https://github.com/jaehyeo
     python -c "import pyarrow.dataset as ds; print(ds.dataset('data', format='parquet').count_rows())"
     ```
 
-It prints `3621530`, one row per lifecycle event of the week, and `ls data | wc -l` prints `725`, the number of files. With the S3 variables set, the files are under `odctl-dev/history/` in the object store instead. Count them there with this command, which uses the same credentials as the variables, and expect the same `3621530`. With uv, start the command with the same `uv run --no-project --with "desflow[parquet]"` prefix:
+It prints `3627756`, one row per lifecycle event of the week, and `ls data | wc -l` prints `726`, the number of files. With the S3 variables set, the files are under `odctl-dev/history/` in the object store instead. Count them there with this command, which uses the same credentials as the variables, and expect the same `3627756`. With uv, start the command with the same `uv run --no-project --with "desflow[parquet]"` prefix:
 
 ```bash
 python -c "import pyarrow.dataset as ds; from pyarrow import fs; s3 = fs.S3FileSystem(endpoint_override='127.0.0.1:8333', scheme='http', access_key='user', secret_key='password'); print(ds.dataset('odctl-dev/history', filesystem=s3, format='parquet').count_rows())"
@@ -195,10 +195,10 @@ In `parquet/yaml`, which `desflow examples get parquet --api yaml` creates, `des
 
 <!-- records: parquet-sample -->
 ```text
-{"stream_type":"event","sim_ts":0.6380949691741167,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":0.6380949691741167,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
-{"stream_type":"event","sim_ts":0.6739613317861898,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":0.6739613317861898,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":0.1570778328234859,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.1570778328234859,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":1.2335847253047847,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":1.2335847253047847,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
 ```
 
 Each event becomes one row of a file, and the two fields of `value`, `path_id` and `status`, become columns of their own.

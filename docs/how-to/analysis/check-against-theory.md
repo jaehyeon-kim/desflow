@@ -151,10 +151,10 @@ Verify: 10 runs to 20000 s, seed 42
 +---------------------------------------------------------------------+
 | node       | measure      | analysis | measured |        ± | result |
 |------------+--------------+----------+----------+----------+--------|
-| packers    | utilization  |     0.75 |   0.7508 |  0.00624 | agrees |
-| packers    | queue_length |     2.25 |     2.25 |    0.132 | agrees |
-| pack_order | wait         |        3 |    2.994 |    0.163 | agrees |
-| orders     | throughput   |     0.75 |   0.7514 | 0.004534 | agrees |
+| packers    | utilization  |     0.75 |   0.7502 | 0.007597 | agrees |
+| packers    | queue_length |     2.25 |    2.267 |   0.1765 | agrees |
+| pack_order | wait         |        3 |     3.02 |   0.2166 | agrees |
+| orders     | throughput   |     0.75 |   0.7501 | 0.005283 | agrees |
 +---------------------------------------------------------------------+
 --verify checks the implementation against the queueing analysis where it applies; it does not show that the model is close enough to the real system
 ```
@@ -184,10 +184,10 @@ Verify: 10 runs to 20000 s, seed 42
 +---------------------------------------------------------------------+
 | node       | measure      | analysis | measured |        ± | result |
 |------------+--------------+----------+----------+----------+--------|
-| packers    | utilization  |     0.75 |    0.752 | 0.004173 | agrees |
-| packers    | queue_length |    1.929 |    1.972 |  0.07398 | agrees |
-| pack_order | wait         |    1.286 |    1.312 |  0.04669 | agrees |
-| orders     | throughput   |      1.5 |    1.503 |  0.00529 | agrees |
+| packers    | utilization  |     0.75 |   0.7488 | 0.005598 | agrees |
+| packers    | queue_length |    1.929 |    1.912 |   0.1241 | agrees |
+| pack_order | wait         |    1.286 |    1.274 |   0.0761 | agrees |
+| orders     | throughput   |      1.5 |      1.5 | 0.008894 | agrees |
 +---------------------------------------------------------------------+
 --verify checks the implementation against the queueing analysis where it applies; it does not show that the model is close enough to the real system
 ```
@@ -229,10 +229,10 @@ Each form loads its model from its file and passes the result to `show`:
 
 <!-- records: theory-python -->
 ```text
-packers utilization: analysis 0.750, runs 0.751 ± 0.006, agrees
-packers queue_length: analysis 2.250, runs 2.250 ± 0.132, agrees
-pack_order wait: analysis 3.000, runs 2.994 ± 0.163, agrees
-orders throughput: analysis 0.750, runs 0.751 ± 0.005, agrees
+packers utilization: analysis 0.750, runs 0.750 ± 0.008, agrees
+packers queue_length: analysis 2.250, runs 2.267 ± 0.177, agrees
+pack_order wait: analysis 3.000, runs 3.020 ± 0.217, agrees
+orders throughput: analysis 0.750, runs 0.750 ± 0.005, agrees
 ```
 
 A context built in a script's own code refuses `verify=True`, because the runs need a new copy of the model, which only a file can give.

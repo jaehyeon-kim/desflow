@@ -457,6 +457,8 @@ class IcebergStorageEgress(BaseEgress):
 
         Raises:
             ImportError: If the 'pyarrow' package is not installed.
+            ValueError: If PyIceberg refuses a catalog setting, such as an unknown
+                catalog `type`. No wait fixes it, so the task ends at once.
 
         Note:
             The loop exits gracefully upon receiving an `asyncio.CancelledError`, so
@@ -473,6 +475,10 @@ class IcebergStorageEgress(BaseEgress):
         batches_processed = 0
 
         try:
+            # A setting that PyIceberg refuses, such as an unknown catalog type, is
+            # raised here at once. A catalog that cannot be reached yet is built
+            # again at the first write.
+            await asyncio.to_thread(self._check_catalog)
             while True:
                 try:
                     batch = egress_queue.get_nowait()
@@ -503,6 +509,27 @@ class IcebergStorageEgress(BaseEgress):
                 f"IcebergStorageEgress shut down requested. "
                 f"Successfully committed {batches_processed} total snapshots."
             )
+
+    def _check_catalog(self) -> None:
+        """
+        Builds the catalog at the start of the run, so a refused setting ends the task.
+
+        A `ValueError`, a `TypeError` or an `ImportError` from `load_catalog` comes
+        from a setting, such as an unknown `type` or a missing extra, which no wait
+        fixes. Any other error, such as a catalog that does not answer yet, is
+        logged, and the first write builds the catalog again.
+
+        Raises:
+            ValueError: If PyIceberg refuses a catalog setting.
+            TypeError: If PyIceberg refuses a catalog keyword.
+            ImportError: If the catalog's package is not installed.
+        """
+        try:
+            self._load_catalog()
+        except (ValueError, TypeError, ImportError):
+            raise
+        except Exception as error:
+            logger.error(f"Iceberg Writer: could not build the catalog yet: {error}")
 
     def _write_batch(self, batch: list, pa: Any) -> int:
         """

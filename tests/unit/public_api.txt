@@ -327,6 +327,7 @@ desflow.analysis.RunResult(readings: dict[str, Any], streams: list[str], sim_id:
 desflow.analysis.SourceMap(path: pathlib.Path, lines: dict[tuple[str | int, ...], int])
 desflow.analysis.SourceMap.error(location: collections.abc.Iterable[str | int], message: str) -> desflow.blueprint.BlueprintError
 desflow.analysis.SourceMap.has(location: collections.abc.Iterable[str | int]) -> bool
+desflow.analysis.SourceMap.keys(location: collections.abc.Iterable[str | int]) -> list[str]
 desflow.analysis.SourceMap.line(location: collections.abc.Iterable[str | int]) -> int
 desflow.analysis.fit_column = desflow.fit_column
 desflow.analysis.interval(values: collections.abc.Sequence[float], level: float = 0.95) -> desflow.analysis.Interval

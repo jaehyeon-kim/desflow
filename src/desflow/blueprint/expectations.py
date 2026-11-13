@@ -90,7 +90,7 @@ def fix_expectations(
                     and not math.isnan(found[name])
                     and not holds(expected, found[name])
                 ):
-                    at = _where(source, "tests", index, "expect", name)
+                    at = _expect_line(source, tests, index, name)
                     _refuse_a_shared_expect(source, tests, owners[at], at)
                     _replace(lines, source, index, name, expected, found[name])
         else:
@@ -99,6 +99,22 @@ def fix_expectations(
     for after in sorted(inserts, reverse=True):
         lines[after + 1 : after + 1] = inserts[after]
     return "".join(lines)
+
+
+def _expect_line(
+    source: SourceMap, tests: List[BlueprintTest], index: int, name: str
+) -> int:
+    """The index in the list of lines of the key `name` of test `index`'s `expect`. A
+    key written through an alias has the line of the first place of its anchor, which
+    is that of an earlier test with the same `expect`."""
+    if not source.has(("tests", index, "expect", name)):
+        for earlier in range(index):
+            if (
+                source.has(("tests", earlier, "expect", name))
+                and tests[earlier].expect == tests[index].expect
+            ):
+                return _where(source, "tests", earlier, "expect", name)
+    return _where(source, "tests", index, "expect", name)
 
 
 def _tests_by_expect_line(
@@ -110,9 +126,8 @@ def _tests_by_expect_line(
     owners: Dict[int, List[int]] = {}
     for index, test in enumerate(tests):
         for name in test.expect or {}:
-            readers = owners.setdefault(
-                _where(source, "tests", index, "expect", name), []
-            )
+            where = _expect_line(source, tests, index, name)
+            readers = owners.setdefault(where, [])
             if index not in readers:
                 readers.append(index)
     return owners

@@ -20,11 +20,11 @@ desflow does this for any system with arrivals, work and limited capacity: a fac
 
 The shop of [First Simulation](first-model/first-simulation.md) has one packer, orders about every 2 seconds and 1.5 seconds of packing. Its first records show the events:
 
-- At 2.552 seconds order 1 arrives, finds the packer free and starts at once.
-- At 2.696 seconds order 2 arrives and joins the queue, because the packer is busy.
-- At 4.052 seconds, 1.5 seconds after it started, order 1 is packed, and order 2 starts in the same instant.
+- At 4.934 seconds order 2 arrives, finds the packer free and starts at once.
+- At 5.024 seconds order 3 arrives and joins the queue, because the packer is busy.
+- At 6.434 seconds, 1.5 seconds after it started, order 2 is packed, and order 3 starts in the same instant.
 
-Order 2 waited from 2.696 to 4.052 seconds, which is 1.357 seconds before rounding to three places. Nothing in the model says so: the wait comes from when the events fell. The two figures on this page use round times (0.0, 1.5, 2.6 and 4.1 seconds) to show the idea, so they differ from these records.
+Order 3 waited from 5.024 to 6.434 seconds, which is 1.410 seconds. Nothing in the model says so: the wait comes from when the events fell. The two figures on this page use round times (0.0, 1.5, 2.6 and 4.1 seconds) to show the idea, so they differ from these records.
 
 ### Why It Matters
 
@@ -42,7 +42,7 @@ To see these events yourself, follow [First Simulation](first-model/first-simula
 
 ### What the Result Means
 
-Read `sim_ts`, the simulation time of each record. It jumps from 2.552 to 2.696 and then to 4.052, because nothing happens in between. A run unpaced, with `factor: 0`, gives the same records in a fraction of a second. A run paced to the wall clock gives them in real time, which is how desflow feeds live data to a system that reads it.
+Read `sim_ts`, the simulation time of each record. It jumps from 4.934 to 5.024 and then to 6.434, because nothing happens in between. A run unpaced, with `factor: 0`, gives the same records in a fraction of a second. A run paced to the wall clock gives them in real time, which is how desflow feeds live data to a system that reads it.
 
 ---
 

@@ -23,3 +23,16 @@ def test_a_numpy_value_is_written_as_its_python_value(value, expected):
 
 def test_a_numpy_nan_is_written_as_null():
     assert _jsonable({"x": np.float32("nan")}) == {"x": None}
+
+
+@pytest.mark.parametrize("text", ["NaN", "Infinity", "-Infinity", "sNaN"])
+def test_a_decimal_nan_or_infinity_is_written_as_null(text):
+    """`to_jsonable_python` writes a Decimal as text, so the text "NaN" would reach the
+    record; a float NaN is already null."""
+    from decimal import Decimal
+
+    assert _jsonable({"x": Decimal(text)}) == {"x": None}
+    assert _jsonable({"x": [Decimal(text), 1]}) == {"x": [None, 1]}
+    if text != "sNaN":  # a signaling NaN cannot be in a set
+        assert _jsonable({"x": {Decimal(text)}}) == {"x": [None]}
+    assert _jsonable({"x": Decimal("1.5")}) == {"x": "1.5"}

@@ -168,6 +168,27 @@ def test_check_file_says_when_a_file_has_no_context(tmp_path):
     assert checked.problem == f"{broken}:1: ZeroDivisionError: division by zero"
 
 
+@pytest.mark.parametrize("command", [["run", "--sample", "2"], ["test"], ["explain"]])
+def test_every_command_gives_the_line_of_a_builder_files_own_error(tmp_path, command):
+    """`run --sample`, `test` and `explain` report a builder file whose import fails
+    as `check` does: one line with the file and its line, and no traceback."""
+    builder = _write(tmp_path, "bad_import.py", "import not_a_module_here  # noqa\n")
+    _write(tmp_path, "tests.yaml", "tests: []\n")
+    result = CliRunner().invoke(cli, [command[0], str(builder), *command[1:]])
+    assert result.exit_code == 1
+    assert result.stderr.splitlines() == [
+        f"Error: {builder}:1: ModuleNotFoundError: No module named 'not_a_module_here'"
+    ]
+
+
+def test_run_reports_a_builder_file_with_no_context_in_one_line(tmp_path):
+    builder = _write(tmp_path, "no_context.py", "import desflow  # noqa\nx = 1\n")
+    result = CliRunner().invoke(cli, ["run", str(builder), "--sample", "2"])
+    assert result.exit_code == 1
+    lines = result.stderr.splitlines()
+    assert len(lines) == 1 and "defines no SimulationContext" in lines[0]
+
+
 def test_check_gives_the_line_of_any_builder_error(tmp_path):
     """A ValueError of the file's own code, and a sys.exit at its top level, are one
     line with the file and its line, and the files after them are still checked."""
@@ -221,6 +242,27 @@ def test_check_warns_about_a_run_with_no_end(tmp_path, caplog):
         f"{endless}:6: arrivals.orders: the run has no end: this arrival has no "
         f"max_events, and run has no until or stop, so desflow run runs until it is "
         f"stopped. Give run.until, or pass --until to desflow run"
+    ]
+
+
+def test_check_warns_about_a_telemetry_entry_in_a_run_with_no_end(tmp_path, caplog):
+    """A telemetry entry publishes for as long as the run goes, so it keeps a run with
+    no until or stop going, even when every arrival has max_events."""
+    telemetry = "telemetry: [{interval: 1, readings: {n: 't'}}]\n"
+    counted = SHOP.replace("run: {until: 21}\n", telemetry).replace(
+        "spawn: pack_order}", "spawn: pack_order, max_events: 3}"
+    )
+    endless = _write(tmp_path, "endless.yaml", counted)
+    ended = _write(tmp_path, "ended.yaml", counted + "run: {until: 21}\n")
+    with caplog.at_level(logging.WARNING, logger="desflow.blueprint.build"):
+        result = CliRunner().invoke(cli, ["check", str(endless), str(ended)])
+    assert result.exit_code == 0
+    warned = [r.getMessage() for r in caplog.records if "has no end" in r.getMessage()]
+    assert warned == [
+        f"{endless}:9: telemetry[0]: the run has no end: this entry publishes every "
+        f"1 s for as long as the run goes, and run has no until or stop, so desflow "
+        f"run runs until it is stopped. Give run.until, or pass --until to desflow "
+        f"run"
     ]
 
 

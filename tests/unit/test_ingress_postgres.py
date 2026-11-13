@@ -186,3 +186,65 @@ async def test_postgres_ingress_names_the_column_rename(
         and "ALTER TABLE params RENAME COLUMN param_value TO value;" in r.getMessage()
         for r in caplog.records
     )
+
+
+@pytest.mark.parametrize(
+    "refused", [asyncpg.InsufficientPrivilegeError, asyncpg.DeadlockDetectedError]
+)
+@pytest.mark.asyncio
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_postgres_ingress_sends_a_change_only_after_its_row_is_marked(
+    mock_create_pool, mock_pool, refused
+):
+    """When the update that marks rows applied fails, nothing is sent, so the next poll
+    does not send the same changes again. A role that may not update the table ends
+    the task with that error, and any other failure is logged and polled again."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+
+    async def fetch(sql, *args):
+        if "is_applied = FALSE" in sql:
+            return [{"id": 1, "path": "sim.rate", "value": "5"}]
+        return []
+
+    conn.fetch.side_effect = fetch
+
+    async def execute(sql, *args):
+        if sql.lstrip().startswith("UPDATE"):
+            raise refused("update failed")
+
+    conn.execute.side_effect = execute
+    ingress = PostgresIngress("postgresql://localhost/db", "params", poll_interval=0.01)
+    ingress_queue = queue.Queue()
+
+    if refused is asyncpg.InsufficientPrivilegeError:
+        with pytest.raises(refused):
+            await asyncio.wait_for(ingress.run(ingress_queue), timeout=2)
+    else:
+        await _run_briefly(ingress, ingress_queue)
+
+    assert ingress_queue.empty()
+
+
+@pytest.mark.asyncio
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_postgres_ingress_marks_ids_above_the_int_range(
+    mock_create_pool, mock_pool
+):
+    """The update casts the ids to `bigint`, so a table the user created with
+    BIGSERIAL and an id above 2**31 is marked applied."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.side_effect = [[], [{"id": 2**40, "path": "sim.rate", "value": "5"}], []]
+    ingress = PostgresIngress("postgresql://localhost/db", "params", poll_interval=0.1)
+
+    await _run_briefly(ingress, queue.Queue())
+
+    update = [c for c in conn.execute.call_args_list if "UPDATE" in c.args[0]]
+    assert "$1::bigint[]" in update[0].args[0]

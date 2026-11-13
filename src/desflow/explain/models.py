@@ -16,6 +16,10 @@ NodeKind = Literal[
 EdgeKind = Literal["spawn", "uses", "next", "takes", "gives"]
 Status = Literal["OK", "CONGESTED", "UNSTABLE"]
 
+# The id prefix of an `add_process` function's node. A node id of another kind starts
+# with its own kind, so a task or arrival named `process.x` never starts with this.
+PROCESS_ID_PREFIX = "process:"
+
 # The end of each reason the formulas give no value for: a run measures the value
 # instead. The terminal text leaves it out while `--verify` is running.
 VERIFY_HINT = "; run --verify to measure it"

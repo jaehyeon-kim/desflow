@@ -43,10 +43,10 @@ VARIABLES = {"FACTOR": "0"}
 START = datetime(2025, 10, 3)
 GAP = 777.5  # the history's fixed gap, so 10,000 events end inside the 90 days
 GOLDEN = 0.6180339887
-# The phase of the click draws. It puts the draw of event 5057, a user of 30 to 32 years
+# The phase of the click draws. It puts the draw of at least one event, a user of 30 to 32 years
 # (0.25 to 0.3 scaled) shown a product of more than 0.8 of the price range, between the
 # chance of a click without the budget rule and the chance with it.
-CLICK = 0.65
+CLICK = 0.05
 CONFIGS = [{"variables": {}, "args": {"users": 1000}}]
 MALE = ["Liam", "Noah", "Oliver", "Henry", "Jack"]
 FEMALE = ["Olivia", "Charlotte", "Amelia", "Mia", "Chloe", "Ava", "Grace"]

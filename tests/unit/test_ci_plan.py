@@ -156,3 +156,47 @@ def test_the_all_extra_names_every_other_extra():
     ]["optional-dependencies"]
     named = extras["all"][0].removeprefix("desflow[").removesuffix("]").split(",")
     assert sorted(named) == sorted(set(extras) - {"all"})
+
+
+def test_a_step_that_pipes_into_tee_fails_when_the_command_before_it_fails():
+    """A step runs as `bash -e {0}` without `shell: bash`, and the status of a pipe is
+    then that of `tee`, so a plan that raises would leave every output empty and skip
+    every test job while the checks pass."""
+    import yaml
+
+    piped = []
+    for workflow in (SCRIPT.parents[1] / ".github" / "workflows").glob("*.yml"):
+        jobs = yaml.safe_load(workflow.read_text())["jobs"]
+        for name, job in jobs.items():
+            for step in job.get("steps", []):
+                if "| tee" in step.get("run", ""):
+                    piped.append((workflow.name, name, step.get("shell")))
+    assert piped, "no step pipes into tee, so this test checks nothing"
+    assert [p for p in piped if p[2] != "bash"] == []
+
+
+def test_every_paced_test_runs_in_the_paced_job_without_parallel_workers():
+    """The unit legs deselect `paced` and the lowest-Pydantic job runs `-n auto`, so a
+    paced test under tests/unit that the paced job leaves out would run only where
+    other tests' CPU time can make it late."""
+    import yaml
+
+    root = SCRIPT.parents[1]
+    manual = yaml.safe_load((root / ".github" / "workflows" / "manual.yml").read_text())
+    commands = [
+        s["run"]
+        for s in manual["jobs"]["paced"]["steps"]
+        if "pytest" in s.get("run", "")
+    ]
+    assert len(commands) == 1 and "-n auto" not in commands[0]
+    folders = {
+        path.parent.relative_to(root).as_posix()
+        for path in (root / "tests").rglob("test_*.py")
+        if any(
+            line.lstrip().startswith(("@pytest.mark.paced", "pytestmark"))
+            and "paced" in line
+            for line in path.read_text(encoding="utf-8").splitlines()
+        )
+    }
+    assert folders
+    assert all(folder in commands[0] for folder in folders)

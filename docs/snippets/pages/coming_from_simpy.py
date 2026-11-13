@@ -133,4 +133,4 @@ if __name__ == "__main__":
     )
     assert abs(mean - row["mean"]) <= spread + row["half_width"]
     assert abs(mean - 2.30) < 0.005 and abs(spread - 0.20) < 0.005
-    assert abs(row["mean"] - 2.45) < 0.005 and abs(row["half_width"] - 0.27) < 0.005
+    assert abs(row["mean"] - 2.18) < 0.005 and abs(row["half_width"] - 0.24) < 0.005

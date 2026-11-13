@@ -320,7 +320,7 @@ The same two sinks write to Google Cloud Storage and Azure Blob Storage when `fi
 - Keys with no matching column are dropped.
 - A `__table__` key sends the record only to the sink whose `table_name` matches.
 
-The columns are those of the one table that the name resolves to, as PostgreSQL reads it in the `CREATE TABLE` and `INSERT` statements. A name with capitals reads the table with the lower-case name, and a name with no schema reads the first table of that name on the `search_path`. `table_policy` says what the sink does about the tables in `tables` when the run starts: `create`, the default, creates the schema of a qualified name and the table when they do not exist, `drop_and_create` also drops the table first, and `manual` creates nothing.
+The columns are those of the one table that the name resolves to, as PostgreSQL reads it in the `CREATE TABLE` and `INSERT` statements. A name with capitals reads the table with the lower-case name (PostgreSQL folds only the letters `A` to `Z`, so `Ärger` stays `Ärger`), and a name with no schema reads the first table of that name on the `search_path`. `table_policy` says what the sink does about the tables in `tables` when the run starts: `create`, the default, creates the schema of a qualified name and the table when they do not exist, `drop_and_create` also drops the table first, and `manual` creates nothing.
 
 The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
 

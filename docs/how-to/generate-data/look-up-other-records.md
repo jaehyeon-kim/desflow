@@ -234,7 +234,7 @@ Three generators read the rows that other tasks have written:
 
 ## Check the Result
 
-Run the model for 60 simulated seconds and print its first 40 records. The block keeps three of them: the first order, the payment that follows it and the first report. The order names a customer that exists, the payment repeats the order's id and total as `amount`, and the report, at 10 seconds, gives the mean and the largest total of the first 10 orders.
+Run the model for 60 simulated seconds and print its first 40 records. The block keeps three of them: the first order, the payment that follows it and the first report. The order names a customer that exists, the payment repeats the order's id and total as `amount`, and the report, at 10 seconds, gives the mean and the largest total of the 7 orders written by then, because fewer than 10 have arrived.
 
 === "YAML"
 
@@ -260,9 +260,9 @@ Run the model for 60 simulated seconds and print its first 40 records. The block
 
 <!-- records: gd-look-up-other-records -->
 ```text
-{"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"order_id":1,"customer_id":4,"total":100.17}}
-{"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"payment","instance":0,"value":{"order_id":1,"amount":100.17}}
-{"stream_type":"event","sim_ts":10.0,"timestamp":"...","key":"reports-1","task":"report","instance":0,"value":{"mean_total":91.449,"largest_total":167.01}}
+{"stream_type":"event","sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"order_id":1,"customer_id":5,"total":161.55}}
+{"stream_type":"event","sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":"payment","instance":0,"value":{"order_id":1,"amount":161.55}}
+{"stream_type":"event","sim_ts":10.0,"timestamp":"...","key":"reports-1","task":"report","instance":0,"value":{"mean_total":105.08285714285715,"largest_total":177.63}}
 ```
 
 The docs test checks every order against the customers written by then, every payment against its order, and every report against the last 10 orders.

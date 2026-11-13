@@ -147,12 +147,12 @@ Run the model for 1,000 simulated seconds, print its first 6 records and read th
 
 <!-- records: gd-skewed-keys -->
 ```text
-{"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"12","task":"order","instance":0,"value":{"order_id":1,"customer_id":12}}
-{"stream_type":"event","sim_ts":2.0,"timestamp":"...","key":"11","task":"order","instance":1,"value":{"order_id":2,"customer_id":11}}
-{"stream_type":"event","sim_ts":3.0,"timestamp":"...","key":"12","task":"order","instance":2,"value":{"order_id":3,"customer_id":12}}
-{"stream_type":"event","sim_ts":4.0,"timestamp":"...","key":"2","task":"order","instance":3,"value":{"order_id":4,"customer_id":2}}
-{"stream_type":"event","sim_ts":5.0,"timestamp":"...","key":"3","task":"order","instance":4,"value":{"order_id":5,"customer_id":3}}
-{"stream_type":"event","sim_ts":6.0,"timestamp":"...","key":"4","task":"order","instance":5,"value":{"order_id":6,"customer_id":4}}
+{"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"1","task":"order","instance":0,"value":{"order_id":1,"customer_id":1}}
+{"stream_type":"event","sim_ts":2.0,"timestamp":"...","key":"3","task":"order","instance":1,"value":{"order_id":2,"customer_id":3}}
+{"stream_type":"event","sim_ts":3.0,"timestamp":"...","key":"5","task":"order","instance":2,"value":{"order_id":3,"customer_id":5}}
+{"stream_type":"event","sim_ts":4.0,"timestamp":"...","key":"20","task":"order","instance":3,"value":{"order_id":4,"customer_id":20}}
+{"stream_type":"event","sim_ts":5.0,"timestamp":"...","key":"2","task":"order","instance":4,"value":{"order_id":5,"customer_id":2}}
+{"stream_type":"event","sim_ts":6.0,"timestamp":"...","key":"1","task":"order","instance":5,"value":{"order_id":6,"customer_id":1}}
 ```
 
 The docs test runs the model for 10,000 simulated seconds and counts the orders: customers 1 to 5 place about 75 percent of them, each about 15 percent, and customers 6 to 25 place the rest.

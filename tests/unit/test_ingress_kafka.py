@@ -376,6 +376,59 @@ async def test_a_registry_that_refuses_access_ends_the_source(
         assert "Skipped a Kafka ingress message" in caplog.text
 
 
+@pytest.mark.asyncio
+@patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
+async def test_a_temporary_registry_error_keeps_the_message_for_a_retry(
+    MockConsumer, caplog, monkeypatch
+):
+    """A registry that fails for a time (a 503 status) keeps the message, which is
+    decoded again after a wait, so the change is applied and the one after it
+    follows in order."""
+    from desflow.connectors._schema_registry.errors import SchemaRegistryError
+
+    monkeypatch.setattr(
+        "desflow.connectors.ingress.kafka.FIRST_DELAY", 0.01, raising=False
+    )
+
+    class FakeConsumer:
+        def __init__(self):
+            self.start = AsyncMock()
+            self.stop = AsyncMock()
+
+        async def __aiter__(self):
+            for payload in (b"10", b"20"):
+                yield MagicMock(topic="sim-config", value=payload)
+            await asyncio.sleep(999)
+
+    calls = []
+
+    def deserialize(topic, value):
+        calls.append(value)
+        if len(calls) == 1:
+            raise SchemaRegistryError(503, 50003, "Service Unavailable")
+        return {"path": "A", "value": int(value)}
+
+    deserializer = MagicMock()
+    deserializer.deserialize.side_effect = deserialize
+    MockConsumer.return_value = FakeConsumer()
+    ingress_queue = queue.Queue()
+    ingress = KafkaIngress(
+        topic="sim-config",
+        bootstrap_servers="localhost:9092",
+        default_deserializer=deserializer,
+        topic_policy="manual",
+    )
+
+    task = asyncio.create_task(ingress.run(ingress_queue))
+    await _wait_until(lambda: ingress_queue.qsize() >= 2)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert [ingress_queue.get_nowait() for _ in range(2)] == [("A", 10), ("A", 20)]
+    assert calls == [b"10", b"10", b"20"]
+    assert "Skipped a Kafka ingress message" not in caplog.text
+
+
 def test_topic_policy_creates_the_control_topic(mock_admin, caplog):
     """`create`, the default, asks for the control topic by name. A mapping gives
     it its settings, `drop_and_create` deletes it first, and `manual` touches

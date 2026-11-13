@@ -72,6 +72,12 @@ NOT_VERIFIED: Dict[str, str] = {
 }
 
 
+# Models at a utilization of 0.9, whose queue and wait vary so much between seeds that
+# five replications of 5000 seconds differ from the formula for some seeds (3 of 6 seeds
+# checked); ten times as long agrees for 5 of the 6
+LONGER_RUN = {"file:examples/gallery/urgent_tickets_are_served_first.yaml": 50000.0}
+
+
 @pytest.mark.parametrize("name,make,until,run", MODELS, ids=IDS)
 def test_a_compared_value_agrees_with_five_replications(name, make, until, run):
     if name in NOT_VERIFIED:
@@ -81,7 +87,10 @@ def test_a_compared_value_agrees_with_five_replications(name, make, until, run):
             pytest.skip("no resource has a compared value")
         explanation = _analysis(_built(make))
         # Long enough that the entities cut off at the end are a small part of a run
-        end = max(5000.0, until if isinstance(until, (int, float)) else 0.0)
+        end = max(
+            LONGER_RUN.get(name, 5000.0),
+            until if isinstance(until, (int, float)) else 0.0,
+        )
         try:
             checked = verify(make, explanation, until=end, seed=3, replications=5)
         except RuntimeError as exc:
@@ -255,6 +264,37 @@ def test_an_on_entry_that_sets_another_resources_capacity_is_a_feature(tmp_path)
 
 
 @pytest.mark.parametrize(
+    "task",
+    [
+        "on: [{deactivate: orders}]",
+        "on: [{activate: orders}]",
+        "deactivate: orders",
+        "activate: orders",
+    ],
+)
+def test_a_task_that_turns_an_arrival_on_or_off_gives_no_compared_value(tmp_path, task):
+    file = tmp_path / "m.yaml"
+    file.write_text(
+        textwrap.dedent(
+            f"""\
+            simulation: {{sim_id: S, factor: 0, random_seed: 1}}
+            resources: {{packers: {{current_cap: 1, max_cap: 1}}}}
+            services: {{packing: {{dist: exponential, rate: 1.0}}}}
+            arrivals:
+              bell: {{dist: constant, value: 100, max_events: 1, spawn: ring}}
+              orders: {{dist: exponential, rate: 0.5, spawn: pack}}
+            tasks:
+              ring: {{{task}, payload: {{}}}}
+              pack: {{service: packing, resource: packers, payload: {{}}}}
+            run: {{until: 2000}}
+            """
+        )
+    )
+    explanation = _analysis(SimulationContext.from_yaml(file))
+    assert {r.name: r.utilization for r in explanation.resources}["packers"] is None
+
+
+@pytest.mark.parametrize(
     "path, value",
     [("S.arrival.orders.rate", 0.9), ("S.service.packing.rate", 0.2)],
 )
@@ -283,5 +323,6 @@ def test_an_on_entry_that_sets_an_arrival_or_a_service_gives_no_compared_value(
     assert {r.name: r.utilization for r in explanation.resources}["packers"] is None
     reasons = static_marks(build_graph(context)).values()
     assert all(
-        "an arrival or a service that an on: entry changes" in r for r in reasons
+        "an arrival or a service that a task or an on: entry changes" in r
+        for r in reasons
     )

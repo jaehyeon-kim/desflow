@@ -1193,6 +1193,35 @@ def test_go_live_does_not_duplicate_periodic_flush(provider_count):
     env.teardown_egress()
 
 
+def test_an_ingress_value_too_large_for_a_float_does_not_stop_the_run(caplog):
+    """The ingress monitor applies a message with `update`, which logs a refused value
+    and goes on; `10**400` is refused, not raised as `OverflowError`."""
+    from desflow.models.params import CapacityConfig, SimParameter
+
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    env.registry.register_sim_parameter(
+        SimParameter(
+            sim_id="S", resources={"r": CapacityConfig(current_cap=1, max_cap=5)}
+        )
+    )
+    env.setup_ingress([])
+    try:
+        env.ingress_queue.put(("S.resources.r.current_cap", 10**400))
+        env.process(_ticks(env))
+        with caplog.at_level(logging.ERROR):
+            env.run(until=2)
+    finally:
+        env.teardown_ingress()
+    assert env.now == 2
+    assert "too large for a float" in caplog.text
+    assert env.registry.get("S.resources.r.current_cap").value == 1
+
+
+def _ticks(env):
+    while True:
+        yield env.timeout(1)
+
+
 def test_nan_becomes_none_inside_a_pydantic_model():
     """A model keeps NaN in its own dump, so the record value is cleaned as well."""
     from pydantic import BaseModel
@@ -1357,6 +1386,24 @@ def test_ingress_monitor_applies_items_in_arrival_order():
 
     assert env.registry.get("Shop.variables.x").value == 2
     assert applied == [("Shop.variables.x", 1), ("Shop.variables.x", 2)]
+
+
+def test_teardown_stops_an_ingress_loop_that_has_not_started_running():
+    """A teardown right after `setup_ingress` reaches a thread whose loop is not stored
+    or not running yet: `teardown` returns with the thread ended."""
+
+    class Ingress:
+        async def run(self, source):
+            while True:
+                await asyncio.sleep(0.05)
+
+    threads = []
+    for _ in range(30):
+        env = DynamicRealtimeEnvironment(factor=0)
+        env.setup_ingress([Ingress()])
+        env.teardown()
+        threads.append(env._ingress_thread)
+    assert not [thread for thread in threads if thread.is_alive()]
 
 
 def _wait_for_ingress_items(env, count):

@@ -307,7 +307,7 @@ It prints `stopped before 30 at 20`. Stepping does not stop at `until`: compare 
 
 === "YAML"
 
-    `run.segments` lists the parts. A segment ends at an `until` or when a `stop` holds, and `{}` runs to the end. `look` names a task whose new entity reads the model where the segment stops, before any event due at that time runs. `sync: true` on a segment moves the wall-clock anchor to the start of the segment. After each segment the run publishes `system.simulation.segment` with the segment's `index`, `now` and `peek`, which is null when no model event is left:
+    `run.segments` lists the parts. A segment ends at an `until` or when a `stop` holds, and `{}` runs to the end. `look` names a task whose new entity reads the model where the segment stops, before any event due at that time runs. The task must take no time: a `look` task with a service time, or a wait that does not end at once, stops the run with an error that names it. `sync: true` on a segment moves the wall-clock anchor to the start of the segment. After each segment the run publishes `system.simulation.segment` with the segment's `index`, `now` and `peek`, which is null when no model event is left:
 
     ```yaml title="docs/snippets/yaml/run_segments.yaml:look"
     tasks:
@@ -341,13 +341,13 @@ It prints `stopped before 30 at 20`. Stepping does not stop at `until`: compare 
 
     <!-- records: run-segments -->
     ```text
-    [EVT] {'sim_ts': 60.0, 'timestamp': '...', 'key': 'look-1', 'task': 'look', 'instance': 0, 'value': {'event_type': 'queue_read', 'waiting': 3}}
+    [EVT] {'sim_ts': 60.0, 'timestamp': '...', 'key': 'look-1', 'task': 'look', 'instance': 0, 'value': {'event_type': 'queue_read', 'waiting': 1}}
     [TEL] {'sim_ts': 60.0, 'timestamp': '...', 'path_id': 'system.simulation.segment', 'value': {'index': 0, 'now': 60.0, 'peek': 60.0}}
-    [EVT] {'sim_ts': 61.9609547422594, 'timestamp': '...', 'key': 'look-2', 'task': 'look', 'instance': 1, 'value': {'event_type': 'queue_read', 'waiting': 4}}
-    [TEL] {'sim_ts': 61.9609547422594, 'timestamp': '...', 'path_id': 'system.simulation.segment', 'value': {'index': 1, 'now': 61.9609547422594, 'peek': 61.9609547422594}}
+    [EVT] {'sim_ts': 180.0, 'timestamp': '...', 'key': 'look-2', 'task': 'look', 'instance': 1, 'value': {'event_type': 'queue_read', 'waiting': 2}}
+    [TEL] {'sim_ts': 180.0, 'timestamp': '...', 'path_id': 'system.simulation.segment', 'value': {'index': 1, 'now': 180.0, 'peek': 180.0}}
     ```
 
-    `segments: {every: 30 s}` makes equal parts up to `until`. A list whose last entry has an `until` or a `stop` and a run with no `until` end there, and a last entry `{}` runs to the end:
+    `segments: {every: 30 s}` makes equal parts up to `until`, which must be finite. A list whose last entry has an `until` or a `stop` and a run with no `until` end there, and a last entry `{}` runs to the end:
 
     ```yaml title="docs/snippets/yaml/run_segments_every.yaml:every"
     run:

@@ -123,7 +123,7 @@ Run the hour once with the seed 42 at each of three total arrival rates, with a 
     ```
 
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":2.498057755878174}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":2.6988794009208137}
     ```
 
 === "Builder"
@@ -135,7 +135,7 @@ Run the hour once with the seed 42 at each of three total arrival rates, with a 
     ```
 
     ```text
-    priority pack_order   mean wait  2.50 s
+    priority pack_order   mean wait  2.70 s
     ```
 
 === "Low-level"
@@ -145,10 +145,10 @@ Run the hour once with the seed 42 at each of three total arrival rates, with a 
     ```
 
     ```text
-    priority pack_order   mean wait  2.50 s
+    priority pack_order   mean wait  2.70 s
     ```
 
-Use the rates `0.4125` and `0.1375`, as variables in YAML and as arguments in the scripts, for 33 a minute (0.55), and no rates for 36 a minute (0.6). The mean wait of a regular order is 2.50 seconds at 30 orders a minute, 3.98 seconds at 33 a minute and 6.94 seconds at 36 a minute. Express orders wait less than a second on average at all three rates. If express orders alone kept the packer busy, regular orders would never be served at all: they would **starve**.
+Use the rates `0.4125` and `0.1375`, as variables in YAML and as arguments in the scripts, for 33 a minute (0.55), and no rates for 36 a minute (0.6). The mean wait of a regular order is 2.70 seconds at 30 orders a minute, 4.12 seconds at 33 a minute and 7.17 seconds at 36 a minute. Express orders wait less than a second on average at all three rates. If express orders alone kept the packer busy, regular orders would never be served at all: they would **starve**.
 
 `desflow explain` shows how busy the packer is at the default 36 orders a minute, without a run. Its output includes these lines:
 
@@ -207,10 +207,10 @@ Can express orders jump the queue? **Yes**, and the regular orders pay for it. E
 
     <!-- records: priorities-yaml -->
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":5.315772740238626}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_express.wait_mean","value":5.844909407947519}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":6.937041396955051}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_express.wait_mean","value":0.8410706363544268}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":5.718486776602804}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_express.wait_mean","value":5.444253373607553}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":7.174611091045217}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_express.wait_mean","value":0.8578810127630234}
     ```
 
 === "Builder"
@@ -221,10 +221,10 @@ Can express orders jump the queue? **Yes**, and the regular orders pay for it. E
 
     <!-- records: priorities-table -->
     ```text
-    fifo     pack_express mean wait  5.84 s
-    fifo     pack_order   mean wait  5.32 s
-    priority pack_express mean wait  0.84 s
-    priority pack_order   mean wait  6.94 s
+    fifo     pack_express mean wait  5.44 s
+    fifo     pack_order   mean wait  5.72 s
+    priority pack_express mean wait  0.86 s
+    priority pack_order   mean wait  7.17 s
     ```
 
 === "Low-level"
@@ -235,17 +235,17 @@ Can express orders jump the queue? **Yes**, and the regular orders pay for it. E
 
     <!-- records: priorities-table -->
     ```text
-    fifo     pack_express mean wait  5.84 s
-    fifo     pack_order   mean wait  5.32 s
-    priority pack_express mean wait  0.84 s
-    priority pack_order   mean wait  6.94 s
+    fifo     pack_express mean wait  5.44 s
+    fifo     pack_order   mean wait  5.72 s
+    priority pack_express mean wait  0.86 s
+    priority pack_order   mean wait  7.17 s
     ```
 
-![Mean waits under fifo: express 5.84 s, regular 5.32 s; under priority: express 0.84 s, regular 6.94 s](../../assets/charts/priorities-wait.png)
+![Mean waits under fifo: express 5.44 s, regular 5.72 s; under priority: express 0.86 s, regular 7.17 s](../../assets/charts/priorities-wait.png)
 
-In one run of the hour with the seed 42, under `priority`, express orders wait **0.84 seconds** on average instead of **5.84**. Regular orders pay for it: **6.94 seconds** instead of **5.32**.
+In one run of the hour with the seed 42, under `priority`, express orders wait **0.86 seconds** on average instead of **5.44**. Regular orders pay for it: **7.17 seconds** instead of **5.72**.
 
-Priority does not make the packer faster, so it cannot remove waiting. It only decides who waits. Weighted by how many orders of each kind arrive, the mean wait is 0.75 × 5.32 + 0.25 × 5.84 = 5.45 seconds under `fifo` and 0.75 × 6.94 + 0.25 × 0.84 = 5.41 seconds under `priority`: almost the same total, shared out differently. Both queue orders keep the packer busy the same share of the time, 0.6 × 1.5 = 0.9 ([utilisation](../concepts/queueing-basics.md#utilisation)). Every order takes the same time, so the queue holds the same number of orders on average under both, and [Little's Law](../concepts/queueing-basics.md#littles-law) turns that number into the same mean wait over all orders. [Resources](../../user-guide/resources/index.md) describes how the queue orders requests. Plain SimPy's `PriorityResource`, which [SimPy and desflow](../../simpy/index.md#resources) shows, serves these requests in the same order, ties included. The tests check the order in all three APIs ([SimPy Compatibility](../../simpy/compatibility.md)).
+Priority does not make the packer faster, so it cannot remove waiting. It only decides who waits. Weighted by how many orders of each kind arrive, the mean wait is 0.75 × 5.72 + 0.25 × 5.44 = 5.65 seconds under `fifo` and 0.75 × 7.17 + 0.25 × 0.86 = 5.59 seconds under `priority`: almost the same total, shared out differently. Both queue orders keep the packer busy the same share of the time, 0.6 × 1.5 = 0.9 ([utilisation](../concepts/queueing-basics.md#utilisation)). Every order takes the same time, so the queue holds the same number of orders on average under both, and [Little's Law](../concepts/queueing-basics.md#littles-law) turns that number into the same mean wait over all orders. [Resources](../../user-guide/resources/index.md) describes how the queue orders requests. Plain SimPy's `PriorityResource`, which [SimPy and desflow](../../simpy/index.md#resources) shows, serves these requests in the same order, ties included. The tests check the order in all three APIs ([SimPy Compatibility](../../simpy/compatibility.md)).
 
 Items can be ranked too: a priority store returns the parcel with the lowest priority first, as [Stores and Containers](../../user-guide/model-parts/stores-and-containers.md#start-with-items-and-serve-by-priority) describes. A resource's priority decides which request is served, and a store's priority decides which item is taken.
 

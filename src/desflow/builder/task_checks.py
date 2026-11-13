@@ -415,6 +415,18 @@ class _OrderNotes:
             f"avoid it"
         )
 
+    def warn_held_again(self, task: str, resource: str) -> None:
+        """Warns once of a task that asks for a resource its flow still holds from a
+        `seize`."""
+        message = (
+            f"task '{task}' asks for resource '{resource}' while its flow still holds "
+            f"a unit of it from a seize, so it waits for a second unit, and with a "
+            f"capacity of one it waits for ever. Give the unit back with a release "
+            f"of '{resource}' first"
+        )
+        if message not in self.warnings:
+            self.warnings.append(message)
+
     def note(self, first: str, second: str, where: str) -> None:
         if (second, first) in self.before:
             self.warn(
@@ -503,6 +515,8 @@ def _note_seized_flows(notes: _OrderNotes, resources: Dict[str, List[str]]) -> N
                             second,
                             f"task '{task}' holding '{first}' from a seize",
                         )
+                    else:
+                        notes.warn_held_again(task, first)
             now = set(held)
             if holding.seize is not None and not isinstance(holding.seize, Reference):
                 now.add(holding.seize)

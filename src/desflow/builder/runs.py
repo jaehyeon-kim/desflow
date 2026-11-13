@@ -15,7 +15,9 @@ from typing import (
     Callable,
     Dict,
     FrozenSet,
+    Iterable,
     List,
+    Mapping,
     Optional,
     Tuple,
     Union,
@@ -58,6 +60,8 @@ class EndSets:
         ended: Every task whose instances get an end event: the two above and every
             task with `on:` actions.
         whole_flow: The tasks a `running` branch with `whole_flow` names.
+        flow_waiters: For each task with such a branch, the tasks its branches
+            name.
         held: The tasks a `release: {resource, task}` names, whose requests a run
             lists.
     """
@@ -66,6 +70,7 @@ class EndSets:
     copied: FrozenSet[str] = frozenset()
     ended: FrozenSet[str] = frozenset()
     whole_flow: FrozenSet[str] = frozenset()
+    flow_waiters: Mapping[str, FrozenSet[str]] = field(default_factory=dict)
     held: FrozenSet[str] = frozenset()
 
 
@@ -89,7 +94,10 @@ class RunState:
             `wait: {suspend: true}`, by task, in the order they suspended.
         open_batches: The batch open under each batch name.
         flow_runs: The instances of each task a `running` branch with `whole_flow`
-            names, ended ones too.
+            names. Instances of ended flows stay only while an instance of a task
+            with such a branch is running.
+        flow_waiting: How many instances of tasks with such a branch are running, by
+            the task the branch names.
         held_by_task: The requests the tasks named by a `release: {resource, task}`
             hold or wait for, by task.
         held_prune: The length at which each of those lists is next pruned.
@@ -129,6 +137,7 @@ class RunState:
     suspended: Dict[str, List[Any]] = field(default_factory=dict)
     open_batches: Dict[str, Any] = field(default_factory=dict)
     flow_runs: Dict[str, List["TaskRun"]] = field(default_factory=dict)
+    flow_waiting: Dict[str, int] = field(default_factory=dict)
     held_by_task: Dict[str, List[Any]] = field(default_factory=dict)
     held_prune: Dict[str, int] = field(default_factory=dict)
     routes: Dict[str, np.random.Generator] = field(default_factory=dict)
@@ -211,6 +220,27 @@ class RunState:
             ]
             self.held_prune[task] = max(HELD_PRUNE, 2 * len(listed))
         listed.append(request)
+
+    def flow_waiters_changed(self, targets: Iterable[str], change: int) -> None:
+        """Counts an instance of a task with a `whole_flow` branch in or out, and drops
+        the instances of ended flows when the count of a task falls to 0 or rises from
+        0. A wait selects an ended flow only when an instance that can wait for it was
+        running when the flow ended, so a run that waits now and then keeps only the
+        flows still running.
+
+        Args:
+            targets: The tasks the instance's branches name.
+            change: 1 when the instance starts running, -1 when it stops.
+        """
+        for target in targets:
+            waiting = self.flow_waiting.get(target, 0) + change
+            self.flow_waiting[target] = waiting
+            if waiting == (1 if change > 0 else 0):
+                self.flow_runs[target] = [
+                    run
+                    for run in self.flow_runs.get(target, [])
+                    if run.flow.process is None or run.flow.process.is_alive
+                ]
 
     def entity_entered(self, entity: Entity) -> None:
         """Counts an entity whose first task instance has begun as in the model.

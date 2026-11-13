@@ -32,7 +32,6 @@ arrivals: {{a: {{gap: 1, max_events: 5, spawn: serve, attributes: {{n: {{gen: se
 tasks:
   serve:
     service: work
-    resource: desk
     seize: {{resource: desk, priority: "[9, 3, {bad}, 1, 0][attr.n]"}}
     payload: {{}}
 run: {{until: 40}}
@@ -259,3 +258,74 @@ def test_a_priority_pair_that_holds_nan_is_refused_when_put_in_a_priority_store(
     with pytest.raises(Exception) as caught:
         app.run(until=10)
     assert "bin" in str(caught.value) and "not NaN" in str(caught.value)
+
+
+MIXED_RESOURCE = """\
+simulation: {sim_id: S, factor: 0, random_seed: 1}
+egress: []
+resources:
+  desk: {current_cap: 1, queue: priority}
+services:
+  s: {dist: constant, value: 5}
+arrivals:
+  a: {dist: constant, value: 1, spawn: plain}
+  b: {dist: constant, value: 1, spawn: ranked}
+tasks:
+  plain: {service: s, resource: desk, priority: 1, payload: {e: 1}}
+  ranked: {service: s, resource: desk, priority: "[0, 1]", payload: {e: 2}}
+run: {until: 20}
+"""
+
+
+def test_a_number_and_a_list_priority_on_one_resource_are_refused_at_load(tmp_path):
+    path = tmp_path / "m.yaml"
+    path.write_text(MIXED_RESOURCE)
+    with pytest.raises(BlueprintError) as caught:
+        SimulationContext.from_yaml(path)
+    message = str(caught.value)
+    assert message.startswith(f"{path}:12:"), message
+    assert "resource 'desk'" in message
+    assert "priority 1 (a number)" in message
+    assert "'[0, 1]' (a list)" in message
+
+
+def test_a_number_and_a_list_priority_on_one_store_are_refused_at_load(tmp_path):
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0}\n"
+        "egress: []\n"
+        "stores:\n"
+        "  shelf: {priority: true, items: [[1, a], [[0, 1], b]]}\n"
+        "run: {until: 5}\n"
+    )
+    with pytest.raises(BlueprintError) as caught:
+        SimulationContext.from_yaml(path)
+    message = str(caught.value)
+    assert message.startswith(f"{path}:4:"), message
+    assert "store 'shelf'" in message and "(a number)" in message
+    assert "[0, 1] (a list)" in message
+
+
+def test_a_builder_model_with_mixed_priorities_is_refused_before_the_clock():
+    app = SimulationContext("S", factor=0)
+    app.add_resource("desk", current_cap=1, queue="priority")
+    app.add_service("s", dist="constant", value=1)
+    app.task(name="plain", service_time=1, resource_id="desk", priority=1)(
+        lambda task_id: {}
+    )
+    app.task(name="ranked", service_time=1, resource_id="desk", priority="[0, 1]")(
+        lambda task_id: {}
+    )
+    with pytest.raises(ValueError, match="resource 'desk' cannot rank the priority"):
+        app.start(until=5)
+
+
+def test_a_priority_read_at_run_time_is_checked_when_it_is_read(tmp_path):
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        MIXED_RESOURCE.replace('priority: "[0, 1]"', 'priority: "[[0, 1]][0]"')
+    )
+    app = SimulationContext.from_yaml(path)
+    with pytest.raises(Exception) as caught:
+        app.run(until=20)
+    assert "resource 'desk' cannot rank the priority" in str(caught.value)

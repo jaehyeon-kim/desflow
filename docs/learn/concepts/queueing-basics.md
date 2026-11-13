@@ -67,7 +67,7 @@ Utilisation decides whether the queue settles at all. There are three cases:
 - At exactly 1, the packers have no spare time. The queue does not settle, and it drifts longer over time. The one exception is constant gaps with constant packing times, where each order arrives just as a packer becomes free.
 - Above 1, orders arrive faster than the packers can pack them. The queue grows without limit in every case.
 
-Queues and Capacity runs the busy hour with 1 to 4 packers. One packer (utilisation 2.7) and two (1.35) leave mean waits of 1127.21 and 426.31 seconds, and the waits keep growing with the length of the run. Three packers (0.9) give 1.27 seconds and four (0.675) give 0.20 seconds.
+Queues and Capacity runs the busy hour with 1 to 4 packers. One packer (utilisation 2.7) and two (1.35) leave mean waits of 1139.88 and 484.65 seconds, and the waits keep growing with the length of the run. Three packers (0.9) give 1.88 seconds and four (0.675) give 0.24 seconds.
 
 ### How to Use It
 
@@ -117,11 +117,11 @@ The status column is `OK` below 0.85, `CONGESTED` from 0.85 and `UNSTABLE` from 
 
 A utilisation of 1 or above means the design needs more capacity, and no run length gives a stable answer. A utilisation below 1 means the queue settles, but not that the wait is short: [Waits Near Full Use](#waits-near-full-use) shows how long it can be at 0.9.
 
-A run measures utilisation too, as `utilization_avg`, a percentage. Measuring a Run's busy hour measured 86.56%, below the 0.9 of the formula. The formula with that run's own figures gives the same share: 6,250 orders finished in 3,600 seconds is 1.736 a second, and its packing times averaged 1.4954 seconds, so 1.736 × 1.4954 ÷ 3 = 0.865. That hour's random gaps were a little longer than the mean of 1 ÷ 1.8 seconds:
+A run measures utilisation too, as `utilization_avg`, a percentage. Measuring a Run's busy hour measured 89.98%, close to the 0.9 of the formula. The formula with that run's own figures gives the same share: 6,488 orders finished in 3,600 seconds is 1.802 a second, and its packing times averaged 1.4977 seconds, so 1.802 × 1.4977 ÷ 3 = 0.900. That hour's random gaps were very close to the mean of 1 ÷ 1.8 seconds:
 
 <!-- records: queueing-busy -->
 ```text
-utilisation 0.866 measured, 0.865 from the run's rate and service
+utilisation 0.900 measured, 0.900 from the run's rate and service
 ```
 
 ---
@@ -132,7 +132,7 @@ utilisation 0.866 measured, 0.865 from the run's rate and service
 
 **Little's law** says that, in a system that settles, the average number of orders in it equals the arrival rate times the average time an order spends in it: L = λ × W. It needs no assumption about the gaps, the packing times or the order of service. It holds for the queue alone, for the packers alone, and for the whole shop.
 
-In the busy hour of [Measuring a Run](../first-model/measuring-a-run.md), 6,250 orders finished in 3,600 seconds, so λ = 1.736 orders a second. The mean wait was 1.3817 seconds, so λ × W = 1.736 × 1.3817 = 2.399. The time-weighted average queue length was 2.406 orders. The two figures agree.
+In the busy hour of [Measuring a Run](../first-model/measuring-a-run.md), 6,488 orders finished in 3,600 seconds, so λ = 1.802 orders a second. The mean wait was 2.0065 seconds, so λ × W = 1.802 × 2.0065 = 3.616. The time-weighted average queue length was 3.618 orders. The two figures agree.
 
 ### Why It Matters
 
@@ -173,11 +173,11 @@ Each tab runs the Measuring a Run hour and reads its statistics:
 
     <!-- records: littles-yaml -->
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization_avg","value":86.56336659179189}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length_avg","value":2.405756864104584}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.3816663590146558}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.service_mean","value":1.4953759999999972}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.finished","value":6250}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization_avg","value":89.98409865705875}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length_avg","value":3.617867825881605}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":2.0065204395584315}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.service_mean","value":1.4977034525277377}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.finished","value":6488}
     ```
 
     Put these five values into the arithmetic of `littles_law`, with 3 packers and 3,600 seconds.
@@ -208,14 +208,14 @@ All three give the same figures:
 
 <!-- records: queueing-little -->
 ```text
-arrival rate 1.736 orders a second
-queue: L 2.406, lambda x W 2.399
-shop: L 5.003, lambda x W 4.995
+arrival rate 1.802 orders a second
+queue: L 3.618, lambda x W 3.616
+shop: L 6.317, lambda x W 6.315
 ```
 
 ### What the Result Means
 
-The queue gives 2.406 against 2.399, and the whole shop 5.003 against 4.995. Both agree within 0.3%. The small difference comes from the 11 orders still in the shop when the hour ended: their time counts in L, but their wait is not yet in W. In a long run of a settled shop, a difference of more than a few percent means a statistic is wrong, for example a task that keeps its packer after it finishes. [Checking and Validating](checking-and-validating.md) uses the law as one of its checks.
+The queue gives 3.618 against 3.616, and the whole shop 6.317 against 6.315. Both agree within 0.1%. The small difference comes from the 3 orders still in the shop when the hour ended: their time counts in L, but their wait is not yet in W. In a long run of a settled shop, a difference of more than a few percent means a statistic is wrong, for example a task that keeps its packer after it finishes. [Checking and Validating](checking-and-validating.md) uses the law as one of its checks.
 
 ---
 
@@ -223,7 +223,7 @@ The queue gives 2.406 against 2.399, and the whole shop 5.003 against 4.995. Bot
 
 ### In the Tutorial
 
-[Parameter Sweeps](../studies/parameter-sweeps.md) runs the busy hour with three packers and the measured packing times at four arrival rates, 20 replications each. At 1.6 orders a second (utilisation 0.8) the mean wait is 0.97 seconds. At 1.8 (utilisation 0.9) it is 2.48 seconds. At 1.9 (utilisation 0.95) it is 5.55 seconds. A rise of 6% in the rate more than doubles the wait.
+[Parameter Sweeps](../studies/parameter-sweeps.md) runs the busy hour with three packers and the measured packing times at four arrival rates, 20 replications each. At 1.6 orders a second (utilisation 0.8) the mean wait is 0.90 seconds. At 1.8 (utilisation 0.9) it is 2.15 seconds. At 1.9 (utilisation 0.95) it is 4.52 seconds. A rise of 6% in the rate more than doubles the wait.
 
 ### Why It Matters
 
@@ -280,7 +280,7 @@ Near full use, the wait depends strongly on the exact arrival rate. Before trust
 
 ### In the Tutorial
 
-The busy hour has three packers with constant packing at utilisation 0.9. Ten long runs of it give a mean wait of 2.05 seconds, as [Check a Formula Against the Shop](#check-a-formula-against-the-shop) shows. One packer with constant packing at the same utilisation would make orders wait 6.75 seconds on average, by the M/D/1 formula above. Three packers sharing one queue wait far less at the same utilisation.
+The busy hour has three packers with constant packing at utilisation 0.9. Ten long runs of it give a mean wait of 2.06 seconds, as [Check a Formula Against the Shop](#check-a-formula-against-the-shop) shows. One packer with constant packing at the same utilisation would make orders wait 6.75 seconds on average, by the M/D/1 formula above. Three packers sharing one queue wait far less at the same utilisation.
 
 ### Why It Matters
 
@@ -306,7 +306,7 @@ Pooling packers into one queue shortens the wait at the same load. A design ques
 
 ### In the Tutorial
 
-[Choosing Inputs](../inputs/choosing-inputs.md) runs the busy hour with four candidate packing times, all with a mean of 1.5 seconds. The mean waits are 1.27 seconds with constant times, 1.28 with triangular, 1.35 with the measured times and 2.37 with exponential. The same mean with a wider spread gives a longer wait.
+[Choosing Inputs](../inputs/choosing-inputs.md) runs the busy hour with four candidate packing times, all with a mean of 1.5 seconds. The mean waits are 1.88 seconds with constant times, 1.95 with triangular, 1.81 with the measured times and 3.46 with exponential. The same mean with the widest spread, the exponential, gives a much longer wait. The three narrower spreads give waits within 8% of each other in one run, and their order is not that of their spreads.
 
 ### Why It Matters
 
@@ -450,7 +450,7 @@ A formula and a run that agree check each other. The formula shows that the mode
 The Builder tab's checks compare each formula with the runs, and pass when the formula lies within the interval:
 
 ```python title="docs/snippets/pages/queueing_basics.py:checks"
-for rho, figures in ((0.5, (1.50, 1.47, 0.06)), (0.75, (4.50, 4.46, 0.33))):
+for rho, figures in ((0.5, (1.50, 1.50, 0.06)), (0.75, (4.50, 4.39, 0.31))):
     arrival = exponential(SERVICE / rho)
     check(
         f"M/M/1 at utilisation {rho}",
@@ -462,23 +462,23 @@ check(
     "M/M/3 at utilisation 0.8",
     mmc_wait(3, 1.6),
     measured_wait(exponential(1 / 1.6), exponential(SERVICE), 3, 30_000),
-    (1.62, 1.64, 0.06),
+    (1.62, 1.57, 0.09),
 )
 arrival = exponential(SERVICE / 0.75)
 check(
     "M/D/1 at utilisation 0.75, Kingman",
     kingman_wait(0.75, 1, 0),
     measured_wait(arrival, constant(SERVICE), 1, 20_000),
-    (2.25, 2.23, 0.14),
+    (2.25, 2.23, 0.13),
 )
 ```
 
 <!-- records: queueing-checks -->
 ```text
-M/M/1 at utilisation 0.5: formula 1.50 s, mean of 10 runs 1.47 ± 0.06 s
-M/M/1 at utilisation 0.75: formula 4.50 s, mean of 10 runs 4.46 ± 0.33 s
-M/M/3 at utilisation 0.8: formula 1.62 s, mean of 10 runs 1.64 ± 0.06 s
-M/D/1 at utilisation 0.75, Kingman: formula 2.25 s, mean of 10 runs 2.23 ± 0.14 s
+M/M/1 at utilisation 0.5: formula 1.50 s, mean of 10 runs 1.50 ± 0.06 s
+M/M/1 at utilisation 0.75: formula 4.50 s, mean of 10 runs 4.39 ± 0.31 s
+M/M/3 at utilisation 0.8: formula 1.62 s, mean of 10 runs 1.57 ± 0.09 s
+M/D/1 at utilisation 0.75, Kingman: formula 2.25 s, mean of 10 runs 2.23 ± 0.13 s
 ```
 
 The busy hour itself is M/D/3, which has no closed formula. For one packer, constant service halves the M/M/1 wait. This check compares the M/D/3 runs with half the M/M/3 wait, as an approximation:
@@ -490,13 +490,13 @@ check(
     "M/D/3 at utilisation 0.9, half the M/M/3 wait",
     mmc_wait(3, 1.8) / 2,
     measured_wait(exponential(1 / 1.8), constant(SERVICE), 3, 20_000),
-    (2.04, 2.05, 0.13),
+    (2.04, 2.06, 0.17),
 )
 ```
 
 <!-- records: queueing-kendall -->
 ```text
-M/D/3 at utilisation 0.9, half the M/M/3 wait: formula 2.04 s, mean of 10 runs 2.05 ± 0.13 s
+M/D/3 at utilisation 0.9, half the M/M/3 wait: formula 2.04 s, mean of 10 runs 2.06 ± 0.17 s
 ```
 
 These are [10 runs of 20,000 seconds](output-analysis.md#busy-hour-figures), each without its first 2,000 seconds, not one-hour runs.
@@ -515,7 +515,7 @@ print(
 
 <!-- records: queueing-dm1 -->
 ```text
-D/M/1 at utilisation 0.75: Kingman 2.25 s, mean of 10 runs 1.78 ± 0.09 s
+D/M/1 at utilisation 0.75: Kingman 2.25 s, mean of 10 runs 1.76 ± 0.08 s
 ```
 
 ### What the Result Means

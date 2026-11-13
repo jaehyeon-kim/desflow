@@ -585,11 +585,11 @@ It needs the `fake` extra: `pip install "desflow[fake]"`.
 
     <!-- records: gallery-film_rental_store -->
     ```text
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"films-1","task":"film","instance":0,"value":{"film_id":1,"title":"Last Letter","rating":"NC-17","rental_rate":2.99,"length":141}}
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"films-2","task":"film","instance":1,"value":{"film_id":2,"title":"Golden Letter","rating":"NC-17","rental_rate":4.99,"length":93}}
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"films-3","task":"film","instance":2,"value":{"film_id":3,"title":"Last Highway","rating":"PG","rental_rate":0.99,"length":96}}
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"films-4","task":"film","instance":3,"value":{"film_id":4,"title":"Broken River","rating":"PG","rental_rate":2.99,"length":105}}
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"films-5","task":"film","instance":4,"value":{"film_id":5,"title":"Hidden Harbour","rating":"PG","rental_rate":4.99,"length":115}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"films-1","task":"film","instance":0,"value":{"film_id":1,"title":"Golden River","rating":"NC-17","rental_rate":2.99,"length":94}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"films-2","task":"film","instance":1,"value":{"film_id":2,"title":"Last Letter","rating":"R","rental_rate":4.99,"length":62}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"films-3","task":"film","instance":2,"value":{"film_id":3,"title":"Last Garden","rating":"PG","rental_rate":2.99,"length":164}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"films-4","task":"film","instance":3,"value":{"film_id":4,"title":"Last Garden","rating":"PG-13","rental_rate":0.99,"length":60}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"films-5","task":"film","instance":4,"value":{"film_id":5,"title":"Silent Garden","rating":"NC-17","rental_rate":2.99,"length":73}}
     ```
 
 === "Builder"
@@ -981,11 +981,11 @@ It needs the `fake` extra: `pip install "desflow[fake]"`.
 
     <!-- records: gallery-auction_streams -->
     ```text
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"people-1","task":"person","instance":0,"value":{"person_id":1000,"name":"Lisa Allen","city":"Phoenix","state":"AZ"}}
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"people-2","task":"person","instance":1,"value":{"person_id":1001,"name":"David Cunningham","city":"Boise","state":"AZ"}}
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"people-3","task":"person","instance":2,"value":{"person_id":1002,"name":"Sara Spence","city":"Kent","state":"ID"}}
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"people-4","task":"person","instance":3,"value":{"person_id":1003,"name":"Amber Bean","city":"Boise","state":"OR"}}
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"people-5","task":"person","instance":4,"value":{"person_id":1004,"name":"Michele Savage","city":"Kent","state":"WA"}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"people-1","task":"person","instance":0,"value":{"person_id":1000,"name":"Gabriel Klein","city":"Boise","state":"OR"}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"people-2","task":"person","instance":1,"value":{"person_id":1001,"name":"Paul Murphy","city":"Cheyenne","state":"OR"}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"people-3","task":"person","instance":2,"value":{"person_id":1002,"name":"Stacey Adams","city":"Phoenix","state":"WY"}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"people-4","task":"person","instance":3,"value":{"person_id":1003,"name":"Brandon Harmon","city":"Phoenix","state":"WA"}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"people-5","task":"person","instance":4,"value":{"person_id":1004,"name":"Noah Russell","city":"Cheyenne","state":"AZ"}}
     ```
 
 === "Builder"
@@ -1314,11 +1314,11 @@ Each row has three keys that are text (id1 to id3, with 100, 100 and 100,000 val
 
     <!-- records: gallery-group_by_table -->
     ```text
-    {"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"rows-1","task":"row","instance":0,"value":{"id1":"id077","id2":"id045","id3":"id0000064280","id4":50,"id5":66,"id6":60719,"v1":2,"v2":14,"v3":21.170454}}
-    {"stream_type":"event","sim_ts":2.0,"timestamp":"...","key":"rows-2","task":"row","instance":1,"value":{"id1":"id089","id2":"id065","id3":"id0000003738","id4":7,"id5":29,"id6":23702,"v1":1,"v2":10,"v3":59.492801}}
-    {"stream_type":"event","sim_ts":3.0,"timestamp":"...","key":"rows-3","task":"row","instance":2,"value":{"id1":"id076","id2":"id066","id3":"id0000095153","id4":75,"id5":86,"id6":49573,"v1":1,"v2":6,"v3":95.16441}}
-    {"stream_type":"event","sim_ts":4.0,"timestamp":"...","key":"rows-4","task":"row","instance":3,"value":{"id1":"id021","id2":"id045","id3":"id0000023013","id4":10,"id5":39,"id6":45451,"v1":5,"v2":14,"v3":47.143878}}
-    {"stream_type":"event","sim_ts":5.0,"timestamp":"...","key":"rows-5","task":"row","instance":4,"value":{"id1":"id046","id2":"id097","id3":"id0000095822","id4":82,"id5":15,"id6":23992,"v1":1,"v2":1,"v3":4.205366}}
+    {"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"rows-1","task":"row","instance":0,"value":{"id1":"id065","id2":"id052","id3":"id0000092102","id4":90,"id5":54,"id6":79667,"v1":3,"v2":8,"v3":98.973392}}
+    {"stream_type":"event","sim_ts":2.0,"timestamp":"...","key":"rows-2","task":"row","instance":1,"value":{"id1":"id046","id2":"id037","id3":"id0000094548","id4":11,"id5":16,"id6":19271,"v1":1,"v2":2,"v3":25.314477}}
+    {"stream_type":"event","sim_ts":3.0,"timestamp":"...","key":"rows-3","task":"row","instance":2,"value":{"id1":"id099","id2":"id045","id3":"id0000044421","id4":18,"id5":74,"id6":43698,"v1":2,"v2":4,"v3":51.069601}}
+    {"stream_type":"event","sim_ts":4.0,"timestamp":"...","key":"rows-4","task":"row","instance":3,"value":{"id1":"id032","id2":"id014","id3":"id0000028409","id4":50,"id5":82,"id6":95333,"v1":2,"v2":9,"v3":39.159243}}
+    {"stream_type":"event","sim_ts":5.0,"timestamp":"...","key":"rows-5","task":"row","instance":4,"value":{"id1":"id084","id2":"id019","id3":"id0000033540","id4":97,"id5":97,"id6":38451,"v1":1,"v2":1,"v3":51.161482}}
     ```
 
 === "Builder"
@@ -1552,11 +1552,11 @@ A ride starts about every 10 seconds. Its distance is 0.5 to 20 km, its duration
 
     <!-- records: gallery-taxi_rides -->
     ```text
-    {"stream_type":"event","sim_ts":5.350962446908744,"timestamp":"...","key":"rides-1","task":"ride","instance":0,"value":{"ride_id":1,"pickup_time":"2026-01-01T00:00:05.350+00:00","dropoff_time":"2026-01-01T00:29:53.350+00:00","passengers":5,"pickup_latitude":40.76959,"pickup_longitude":-73.97817,"distance_km":15.93,"fare":49.97,"payment":"dispute"}}
-    {"stream_type":"event","sim_ts":12.782361457212403,"timestamp":"...","key":"rides-2","task":"ride","instance":1,"value":{"ride_id":2,"pickup_time":"2026-01-01T00:00:12.782+00:00","dropoff_time":"2026-01-01T00:24:24.782+00:00","passengers":1,"pickup_latitude":40.79611,"pickup_longitude":-73.95995,"distance_km":16.95,"fare":49.97,"payment":"cash"}}
-    {"stream_type":"event","sim_ts":21.60201181850169,"timestamp":"...","key":"rides-3","task":"ride","instance":2,"value":{"ride_id":3,"pickup_time":"2026-01-01T00:00:21.602+00:00","dropoff_time":"2026-01-01T00:38:57.602+00:00","passengers":2,"pickup_latitude":40.78903,"pickup_longitude":-74.0196,"distance_km":10.45,"fare":41.43,"payment":"cash"}}
-    {"stream_type":"event","sim_ts":37.29261778662655,"timestamp":"...","key":"rides-4","task":"ride","instance":3,"value":{"ride_id":4,"pickup_time":"2026-01-01T00:00:37.292+00:00","dropoff_time":"2026-01-01T00:23:31.292+00:00","passengers":1,"pickup_latitude":40.76259,"pickup_longitude":-73.99615,"distance_km":8.99,"fare":31.94,"payment":"card"}}
-    {"stream_type":"event","sim_ts":39.600079308854646,"timestamp":"...","key":"rides-5","task":"ride","instance":4,"value":{"ride_id":5,"pickup_time":"2026-01-01T00:00:39.600+00:00","dropoff_time":"2026-01-01T00:28:27.600+00:00","passengers":1,"pickup_latitude":40.70961,"pickup_longitude":-73.97145,"distance_km":16.28,"fare":49.94,"payment":"card"}}
+    {"stream_type":"event","sim_ts":11.604677390791194,"timestamp":"...","key":"rides-1","task":"ride","instance":0,"value":{"ride_id":1,"pickup_time":"2026-01-01T00:00:11.604+00:00","dropoff_time":"2026-01-01T00:03:47.604+00:00","passengers":1,"pickup_latitude":40.75306,"pickup_longitude":-74.01146,"distance_km":8.02,"fare":22.08,"payment":"card"}}
+    {"stream_type":"event","sim_ts":22.693542131865627,"timestamp":"...","key":"rides-2","task":"ride","instance":1,"value":{"ride_id":2,"pickup_time":"2026-01-01T00:00:22.693+00:00","dropoff_time":"2026-01-01T00:37:10.693+00:00","passengers":1,"pickup_latitude":40.74255,"pickup_longitude":-73.97564,"distance_km":8.66,"fare":36.77,"payment":"card"}}
+    {"stream_type":"event","sim_ts":23.65052438981398,"timestamp":"...","key":"rides-3","task":"ride","instance":2,"value":{"ride_id":3,"pickup_time":"2026-01-01T00:00:23.650+00:00","dropoff_time":"2026-01-01T00:26:29.650+00:00","passengers":2,"pickup_latitude":40.77585,"pickup_longitude":-73.94231,"distance_km":4.55,"fare":23.45,"payment":"card"}}
+    {"stream_type":"event","sim_ts":55.511066162645236,"timestamp":"...","key":"rides-4","task":"ride","instance":3,"value":{"ride_id":4,"pickup_time":"2026-01-01T00:00:55.511+00:00","dropoff_time":"2026-01-01T00:23:43.511+00:00","passengers":1,"pickup_latitude":40.78844,"pickup_longitude":-73.99307,"distance_km":12.18,"fare":38.92,"payment":"cash"}}
+    {"stream_type":"event","sim_ts":87.27070653875613,"timestamp":"...","key":"rides-5","task":"ride","instance":4,"value":{"ride_id":5,"pickup_time":"2026-01-01T00:01:27.270+00:00","dropoff_time":"2026-01-01T00:27:03.270+00:00","passengers":1,"pickup_latitude":40.74953,"pickup_longitude":-73.95768,"distance_km":1.44,"fare":16.41,"payment":"card"}}
     ```
 
 === "Builder"
@@ -1877,11 +1877,11 @@ Each message has an intent and each review a sentiment, drawn first by weight. T
 
     <!-- records: gallery-labelled_text -->
     ```text
-    {"stream_type":"event","sim_ts":5.954583282580391,"timestamp":"...","key":"messages-1","task":"message","instance":0,"value":{"message_id":1,"intent":"cancel","text":"Cancel my order, I changed my mind."}}
-    {"stream_type":"event","sim_ts":10.226505406484272,"timestamp":"...","key":"messages-2","task":"message","instance":1,"value":{"message_id":2,"intent":"hello","text":"Hi, I have a question."}}
-    {"stream_type":"event","sim_ts":10.668409519913007,"timestamp":"...","key":"messages-3","task":"message","instance":2,"value":{"message_id":3,"intent":"order_status","text":"Where is my order 5723?"}}
-    {"stream_type":"event","sim_ts":11.60968254261269,"timestamp":"...","key":"messages-4","task":"message","instance":3,"value":{"message_id":4,"intent":"order_status","text":"Where is my order 8265?"}}
-    {"stream_type":"event","sim_ts":12.326845051488377,"timestamp":"...","key":"reviews-1","task":"review","instance":0,"value":{"review_id":1,"sentiment":"positive","text":"The notebook is great and arrived early."}}
+    {"stream_type":"event","sim_ts":0.501883476100159,"timestamp":"...","key":"reviews-1","task":"review","instance":0,"value":{"review_id":1,"sentiment":"neutral","text":"The lamp is fine, nothing special."}}
+    {"stream_type":"event","sim_ts":5.9294365045675255,"timestamp":"...","key":"reviews-2","task":"review","instance":1,"value":{"review_id":2,"sentiment":"neutral","text":"The notebook is fine, nothing special."}}
+    {"stream_type":"event","sim_ts":6.9507388220227355,"timestamp":"...","key":"messages-1","task":"message","instance":0,"value":{"message_id":1,"intent":"hello","text":"Hello, is anyone there?"}}
+    {"stream_type":"event","sim_ts":7.1569152417580275,"timestamp":"...","key":"reviews-3","task":"review","instance":2,"value":{"review_id":3,"sentiment":"negative","text":"The notebook broke after a week."}}
+    {"stream_type":"event","sim_ts":7.847108166885388,"timestamp":"...","key":"messages-2","task":"message","instance":1,"value":{"message_id":2,"intent":"order_status","text":"Where is my order 8831?"}}
     ```
 
 === "Builder"
@@ -2291,11 +2291,11 @@ Five customers each get a feature record every day (sessions and spend over the 
 
     <!-- records: gallery-point_in_time_training_set -->
     ```text
-    {"stream_type":"event","sim_ts":86400.0,"timestamp":"...","key":"customer-1","task":"features","instance":0,"value":{"customer_id":"customer-1","as_of":"2026-01-02T00:00:00.000+00:00","sessions_30d":19,"spend_30d":261.84}}
+    {"stream_type":"event","sim_ts":86400.0,"timestamp":"...","key":"customer-1","task":"features","instance":0,"value":{"customer_id":"customer-1","as_of":"2026-01-02T00:00:00.000+00:00","sessions_30d":12,"spend_30d":408.84}}
     {"stream_type":"event","sim_ts":86400.0,"timestamp":"...","key":"customer-1","task":"label","instance":0,"value":{"status":"queued"}}
-    {"stream_type":"event","sim_ts":86400.0,"timestamp":"...","key":"customer-2","task":"features","instance":1,"value":{"customer_id":"customer-2","as_of":"2026-01-02T00:00:00.000+00:00","sessions_30d":21,"spend_30d":88.83}}
+    {"stream_type":"event","sim_ts":86400.0,"timestamp":"...","key":"customer-2","task":"features","instance":1,"value":{"customer_id":"customer-2","as_of":"2026-01-02T00:00:00.000+00:00","sessions_30d":23,"spend_30d":240.3}}
     {"stream_type":"event","sim_ts":86400.0,"timestamp":"...","key":"customer-2","task":"label","instance":1,"value":{"status":"queued"}}
-    {"stream_type":"event","sim_ts":86400.0,"timestamp":"...","key":"customer-3","task":"features","instance":2,"value":{"customer_id":"customer-3","as_of":"2026-01-02T00:00:00.000+00:00","sessions_30d":11,"spend_30d":443.75}}
+    {"stream_type":"event","sim_ts":86400.0,"timestamp":"...","key":"customer-3","task":"features","instance":2,"value":{"customer_id":"customer-3","as_of":"2026-01-02T00:00:00.000+00:00","sessions_30d":24,"spend_30d":178.15}}
     ```
 
 === "Builder"

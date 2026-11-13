@@ -247,10 +247,10 @@ python iceberg_tables_catalog.py
 ```
 
 ```text
-5291 rows in shop.events
+5465 rows in shop.events
 ```
 
-The count of one run is 5,291 rows. A second run appends its rows to the table, so the count is then the sum of both runs.
+The count of one run is 5,465 rows. A second run appends its rows to the table, so the count is then the sum of both runs.
 
 ---
 

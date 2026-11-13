@@ -193,10 +193,10 @@ Each tab prints the mean wait of each candidate, in the order constant, triangul
 
     <!-- records: choosing-yaml -->
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.2722664697774682}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.281837926549086}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.3496182005774233}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":2.3684299503297592}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.8791946460820799}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.9465363475526438}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.8059063505648683}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":3.461835405008601}
     ```
 
 === "Builder"
@@ -207,10 +207,10 @@ Each tab prints the mean wait of each candidate, in the order constant, triangul
 
     <!-- records: choosing-table -->
     ```text
-    constant     mean wait  1.27 s
-    triangular   mean wait  1.28 s
-    empirical    mean wait  1.35 s
-    exponential  mean wait  2.37 s
+    constant     mean wait  1.88 s
+    triangular   mean wait  1.95 s
+    empirical    mean wait  1.81 s
+    exponential  mean wait  3.46 s
     ```
 
 === "Low-level"
@@ -221,10 +221,10 @@ Each tab prints the mean wait of each candidate, in the order constant, triangul
 
     <!-- records: choosing-table -->
     ```text
-    constant     mean wait  1.27 s
-    triangular   mean wait  1.28 s
-    empirical    mean wait  1.35 s
-    exponential  mean wait  2.37 s
+    constant     mean wait  1.88 s
+    triangular   mean wait  1.95 s
+    empirical    mean wait  1.81 s
+    exponential  mean wait  3.46 s
     ```
 
 A mean alone hides queues. With constant packing nobody holds a packer for long. With exponential packing a few orders take 4, 5 or 6 seconds, and everyone behind them waits: the mean wait almost doubles at the same utilisation.
@@ -235,9 +235,9 @@ A mean alone hides queues. With constant packing nobody holds a packer for long.
 
 Which distribution fits packing times? **The empirical distribution**, because it is the measured times themselves. The chart shows the shapes of the four candidates on the left, and the mean wait each gives in the busy hour on the right:
 
-![On the left, the four packing distributions: exponential spread from 0 to over 6 seconds, empirical and triangular between 0.5 and 2.75 seconds, constant a line at 1.5; on the right, the mean waits: constant 1.27, triangular 1.28, empirical 1.35 and exponential 2.37 seconds](../../assets/charts/choosing-inputs.png)
+![On the left, the four packing distributions: exponential spread from 0 to over 6 seconds, empirical and triangular between 0.5 and 2.75 seconds, constant a line at 1.5; on the right, the mean waits: constant 1.88, triangular 1.95, empirical 1.81 and exponential 3.46 seconds](../../assets/charts/choosing-inputs.png)
 
-With the empirical distribution the mean wait is **1.35 seconds**, from [one run of the hour with the seed 42 and no warm-up](../concepts/output-analysis.md#busy-hour-figures), like each figure here. The constant mean gives 1.27 seconds, 6% shorter than with the measured times. The exponential guess gives 2.37 seconds, 75% longer. The expert's triangle is close to the constant, because its range is narrower than the measured one.
+With the empirical distribution the mean wait is **1.81 seconds**, from [one run of the hour with the seed 42 and no warm-up](../concepts/output-analysis.md#busy-hour-figures), like each figure here. The constant mean gives 1.88 seconds, 4% longer than with the measured times. The exponential guess gives 3.46 seconds, 92% longer. The expert's triangle gives 1.95 seconds. These three are close, and one run does not put them in the order of their spreads: the measured times are a little below the constant, which has no spread. The exponential guess is the only one clearly apart.
 
 In the busy hour the mean wait grows with the spread of the gaps between orders and with the spread of the packing times. [Kingman's formula](../concepts/queueing-basics.md#variation-lengthens-waits) puts it in numbers: the wait is roughly proportional to the square of one spread plus the square of the other, each spread measured relative to its mean. The gaps are the same in all four runs, so only the packing spread differs: none for `constant`, a little for `triangular`, more for the measured times, and as much as the mean itself for `exponential`. Replacing a distribution by its mean, as `constant` does, is one of the [Common Mistakes](../concepts/common-mistakes.md#replacing-a-distribution-by-its-mean).
 

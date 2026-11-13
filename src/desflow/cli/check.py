@@ -136,11 +136,11 @@ def check_file(file: Path, variables: Optional[Mapping[str, str]] = None) -> Fil
         if not is_builder_file(file) and not isinstance(exc, (ImportError, ValueError)):
             raise
         # A builder file runs code of its own, so any error or exit is the file's
-        return FileCheck(None, _error_place(file, exc))
+        return FileCheck(None, error_place(file, exc))
     return FileCheck(context, None)
 
 
-def _error_place(file: Path, exc: BaseException) -> str:
+def error_place(file: Path, exc: BaseException) -> str:
     """An error of a builder file as one line: the file and the line of the file
     where it was raised, its type and its message. An error raised in a module of
     the file's own folder also names that module's file and line. An error that

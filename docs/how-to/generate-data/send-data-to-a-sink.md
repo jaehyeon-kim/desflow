@@ -250,7 +250,7 @@ Run the console model for 10 simulated seconds and print its first 5 records. Or
     cat data/orders_*.jsonl | wc -l
     ```
 
-    A run of 10 simulated seconds writes 10 records, so the PostgreSQL count and the file count are 10 after one run. A second run appends to the topic and adds a new file to the folder, and PostgreSQL skips an order number the table already holds, so the count stays at 10 until you drop the table.
+    A run of 10 simulated seconds writes 7 records, so the PostgreSQL count and the file count are 7 after one run. A second run appends to the topic and adds a new file to the folder, and PostgreSQL skips an order number the table already holds, so the count stays at 7 until you drop the table.
 
 === "Builder"
 
@@ -277,7 +277,7 @@ Run the console model for 10 simulated seconds and print its first 5 records. Or
     cat data/orders_*.jsonl | wc -l
     ```
 
-    A run of 10 simulated seconds writes 10 records, so the PostgreSQL count and the file count are 10 after one run. A second run appends to the topic and adds a new file to the folder, and PostgreSQL skips an order number the table already holds, so the count stays at 10 until you drop the table.
+    A run of 10 simulated seconds writes 7 records, so the PostgreSQL count and the file count are 7 after one run. A second run appends to the topic and adds a new file to the folder, and PostgreSQL skips an order number the table already holds, so the count stays at 7 until you drop the table.
 
 === "Low-level"
 
@@ -304,15 +304,15 @@ Run the console model for 10 simulated seconds and print its first 5 records. Or
     cat data/orders_*.jsonl | wc -l
     ```
 
-    A run of 10 simulated seconds writes 10 records, so the PostgreSQL count and the file count are 10 after one run. A second run appends to the topic and adds a new file to the folder, and PostgreSQL skips an order number the table already holds, so the count stays at 10 until you drop the table.
+    A run of 10 simulated seconds writes 7 records, so the PostgreSQL count and the file count are 7 after one run. A second run appends to the topic and adds a new file to the folder, and PostgreSQL skips an order number the table already holds, so the count stays at 7 until you drop the table.
 
 <!-- records: gd-send-data-to-a-sink -->
 ```text
-{"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"order_id":1,"customer_id":71,"total":100.17}}
-{"stream_type":"event","sim_ts":1.3479226635723796,"timestamp":"...","key":"orders-2","task":"order","instance":1,"value":{"order_id":2,"customer_id":40,"total":126.8}}
-{"stream_type":"event","sim_ts":1.8686592357447462,"timestamp":"...","key":"orders-3","task":"order","instance":2,"value":{"order_id":3,"customer_id":59,"total":48.33}}
-{"stream_type":"event","sim_ts":2.0097703062717214,"timestamp":"...","key":"orders-4","task":"order","instance":3,"value":{"order_id":4,"customer_id":40,"total":26.1}}
-{"stream_type":"event","sim_ts":3.09804773711297,"timestamp":"...","key":"orders-5","task":"order","instance":4,"value":{"order_id":5,"customer_id":76,"total":167.01}}
+{"stream_type":"event","sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"order_id":1,"customer_id":95,"total":161.55}}
+{"stream_type":"event","sim_ts":2.4671694506095694,"timestamp":"...","key":"orders-2","task":"order","instance":1,"value":{"order_id":2,"customer_id":67,"total":177.63}}
+{"stream_type":"event","sim_ts":2.5122243094067938,"timestamp":"...","key":"orders-3","task":"order","instance":2,"value":{"order_id":3,"customer_id":26,"total":59.25}}
+{"stream_type":"event","sim_ts":3.124962891934927,"timestamp":"...","key":"orders-4","task":"order","instance":3,"value":{"order_id":4,"customer_id":67,"total":141.25}}
+{"stream_type":"event","sim_ts":4.773803932004462,"timestamp":"...","key":"orders-5","task":"order","instance":4,"value":{"order_id":5,"customer_id":84,"total":15.19}}
 ```
 
 The Kafka, PostgreSQL and file models write these same records to their sink. Kafka receives them on the topic `orders` and PostgreSQL writes a row of the table `orders` for each, with `order_id` as the primary key. The file model writes the records as flat rows of JSON Lines files named `data/orders_<8 hex digits>.jsonl`, one file for each batch, as [Egress, Batching and Delivery](../../user-guide/live-runs-and-connectors/egress.md) sets out for file names. `DEST_PATH` sets another folder.

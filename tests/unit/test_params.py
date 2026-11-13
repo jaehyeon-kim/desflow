@@ -62,3 +62,20 @@ def test_distribution_config_accepts_a_zero_std():
 def test_constant_needs_a_value_of_zero_or_more(value):
     with pytest.raises(ValueError, match="constant value"):
         DistributionConfig(dist="constant", value=value)
+
+
+@pytest.mark.parametrize(
+    "values", ["907", {5: "a", 7: "b"}, {5, 7}], ids=["text", "mapping", "set"]
+)
+@pytest.mark.parametrize("name", ["values", "weights", "edges", "counts"])
+def test_an_empirical_list_given_as_text_a_mapping_or_a_set_is_refused(name, values):
+    kwargs = {"dist": "empirical", name: values}
+    with pytest.raises(ValueError, match=f"empirical {name} must be a list of numbers"):
+        DistributionConfig(**kwargs)
+
+
+def test_an_empirical_list_may_be_a_tuple_or_an_array():
+    import numpy as np
+
+    assert DistributionConfig(dist="empirical", values=(1, 2)).values == [1, 2]
+    assert DistributionConfig(dist="empirical", values=np.array([1.5])).values == [1.5]

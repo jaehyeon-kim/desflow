@@ -199,10 +199,10 @@ Save the files of your form from [Full Files](#full-files) in a folder of their 
     python performance_tuning_low_level.py
     ```
 
-For one simulated hour, each form prints **108,688** records, at about 100,000 records a second of wall-clock time on the machine below. The rate differs from run to run and between machines:
+For one simulated hour, each form prints **110,070** records, at about 100,000 records a second of wall-clock time on the machine below. The rate differs from run to run and between machines:
 
 ```text
-{'records': 108688, 'per_second': 98264}
+{'records': 110070, 'per_second': 98264}
 ```
 
 ### Measurements

@@ -378,7 +378,7 @@ def setup(env, num_machines, washtime, t_inter):
 
 ## Check the Result
 
-Six cars enter the carwash in the 20 seconds. Cars 0 to 3 are waiting at time 0, car 4 arrives at 5 seconds and car 5 at 14 seconds. Cars 0 and 1 finish washing at 5 seconds, cars 2 and 3 at 10 seconds, car 4 at 15 seconds and car 5 at 19 seconds.
+Six cars enter the carwash in the 20 seconds. Cars 0 to 3 are waiting at time 0, car 4 arrives at 9 seconds and car 5 at 15 seconds. Cars 0 and 1 finish washing at 5 seconds, cars 2 and 3 at 10 seconds and car 4 at 15 seconds. Car 5 starts its wash at 15 seconds and would finish at 20 seconds, when the run ends, so the records show no wash finished for it.
 
 SimPy's example prints the percentage of dirt removed in a line of text. Here it is the `dirt_removed_pct` field of each `washed` record. desflow draws each random value from its own stream, named by the place where the value is used, such as `Carwash.service.patience`. A seed of 42 therefore gives different numbers from SimPy's `random.seed(42)`. The system is the same. The figures are not.
 

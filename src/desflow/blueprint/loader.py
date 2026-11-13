@@ -32,6 +32,7 @@ from typing import (
     List,
     Mapping,
     Optional,
+    Set,
     Tuple,
     Union,
 )
@@ -61,7 +62,7 @@ def substitute(text: str, overrides: Optional[Mapping[str, str]] = None) -> str:
 
     A variable in `overrides` takes its value from there, and any other from the
     environment. `${VAR:-default}` uses the default when the value is unset or empty.
-    `$${` is a literal `${`.
+    `$${` is a literal `${`. A default that holds another `${` is refused.
 
     Args:
         text: The text of a blueprint.
@@ -71,13 +72,19 @@ def substitute(text: str, overrides: Optional[Mapping[str, str]] = None) -> str:
         str: The text with every reference replaced.
 
     Raises:
-        ValueError: If a variable without a default is unset.
+        ValueError: If a variable without a default is unset, or a default holds `${`.
     """
 
     def replace(match: "re.Match[str]") -> str:
         if match.group(0) == "$${":
             return "${"
         name, default = match.group(1), match.group(2)
+        if default is not None and "${" in default:
+            raise ValueError(
+                f"the default of ${{{name}:-...}} holds another ${{, which is not "
+                f"replaced, and the default would end at the first }}; write the "
+                f"default without a variable"
+            )
         if overrides is not None and name in overrides:
             value: Optional[str] = overrides[name]
         else:
@@ -129,6 +136,10 @@ def _construct_str(loader: yaml.SafeLoader, node: yaml.ScalarNode) -> Any:
 _folder_modules: Dict[Path, Dict[str, ModuleType]] = {}
 _loading_folders: List[Path] = []
 _before_any_entry: Dict[str, ModuleType] = {}
+# The folders `read_document` put on `sys.path` that were not on it. Another file's load
+# takes them off `sys.path` and its modules out of `sys.modules`, so it finds only its
+# own folder's modules and the installed packages, as it does when loaded alone.
+_added_folders: Set[str] = set()
 _INSTALLED_PARTS = ("site-packages", "dist-packages")
 _OWN_PACKAGES = ("desflow", "desflow_entry_")
 
@@ -181,16 +192,17 @@ def _holds(folder: Path, top: str) -> bool:
 
 def _swap_in_modules(folder: Path) -> None:
     """Takes out of `sys.modules` each module of another entry folder whose name
-    `folder` also has a file or package for, and puts the modules of `folder` back, so
-    `import helpers` finds the `helpers.py` of `folder`. A module whose name `folder`
-    does not have stays, as Python keeps it."""
+    `folder` also has a file or package for, and each module of a folder that
+    `read_document` put on `sys.path`, and puts the modules of `folder` back, so
+    `import helpers` finds the `helpers.py` of `folder`. A module of any other folder
+    whose name `folder` does not have stays, as Python keeps it."""
     _remember_modules()
     for name, module in list(sys.modules.items()):
         owner = _owner(name, module)
         if (
             owner is not None
             and owner != folder
-            and _holds(folder, name.partition(".")[0])
+            and (_holds(folder, name.partition(".")[0]) or str(owner) in _added_folders)
         ):
             del sys.modules[name]
     for name, module in _folder_modules.get(folder, {}).items():
@@ -211,10 +223,13 @@ def entry_modules(folder: Path) -> Iterator[None]:
     is the folder's when the first part of its name is a file or a package directly
     in the folder, so one that a run imported later, or that a file imported before
     it loaded another file from inside its own import, is swapped out too. A module
-    whose name `folder` does not have is never taken out. An installed package, a package reached through
-    another `sys.path` entry that lies under the folder (an editable install, the
-    standard library), and a module the process had before the first entry file are
-    never touched.
+    of a folder that was on `sys.path` before it was loaded, such as a project root
+    the process started in, is taken out only when `folder` has a module of the same
+    name. A module of a folder that `read_document` added to `sys.path` is always taken
+    out, so `folder` does not find it by name. An installed package, a package reached
+    through another `sys.path` entry that lies under the folder (an editable install,
+    the standard library), and a module the process had before the first entry file
+    are never touched.
 
     Args:
         folder: The folder of the blueprint or builder file being loaded.
@@ -306,7 +321,8 @@ def _construct_python(loader: yaml.SafeLoader, node: yaml.Node) -> Any:
 
 def _construct_include(loader: yaml.SafeLoader, node: yaml.Node) -> Any:
     """`!include path`, or `!include {file: path, ...}` with keys added to the
-    file's mapping, such as the `spawn` of an arrival whose distribution was fitted."""
+    file's mapping, such as the `spawn` of an arrival whose distribution was fitted. A
+    key the file already has is refused."""
     line = node.start_mark.line + 1
     extra: Dict[Any, Any] = {}
     if isinstance(node, yaml.MappingNode):
@@ -341,6 +357,12 @@ def _construct_include(loader: yaml.SafeLoader, node: yaml.Node) -> Any:
         at=getattr(loader, "includes", {}).get(node),
         variables=getattr(loader, "variables", None),
     )
+    for key in extra:
+        if key in data:
+            raise BlueprintError(
+                f"{loader.name}:{line}: !include {name}: the key '{key}' is in "
+                f"{loader.name} and in {path}; write it in one of them"
+            )
     return {**data, **extra}
 
 
@@ -396,6 +418,21 @@ class SourceMap:
             location: The keys and list indexes from the document's top.
         """
         return tuple(location) in self._lines
+
+    def keys(self, location: Iterable[Union[str, int]]) -> List[str]:
+        """The keys the document writes directly under `location`, as written.
+
+        Args:
+            location: The keys and list indexes from the document's top.
+        """
+        parent = tuple(location)
+        return [
+            key[-1]
+            for key in self._lines
+            if len(key) == len(parent) + 1
+            and key[:-1] == parent
+            and isinstance(key[-1], str)
+        ]
 
     def error(
         self, location: Iterable[Union[str, int]], message: str
@@ -457,12 +494,21 @@ def _record_lines(
     location: Location,
     lines: Dict[Location, int],
     key_of: Optional[Callable[[yaml.Node], Any]] = None,
+    walked: Optional[Set[int]] = None,
 ):
     """Walks the node tree and records the line of every key and list item.
 
     A key written with `${VAR}` is recorded under the name it has after substitution,
-    which `key_of` gives, as the built mapping holds it."""
+    which `key_of` gives, as the built mapping holds it. A collection that an alias
+    repeats is walked at its first place only, so a place under a later alias has the
+    line of the alias."""
     lines.setdefault(location, node.start_mark.line + 1)
+    if walked is None:
+        walked = set()
+    if isinstance(node, (yaml.MappingNode, yaml.SequenceNode)):
+        if id(node) in walked:
+            return
+        walked.add(id(node))
     if isinstance(node, yaml.MappingNode):
         seen: Dict[Any, Tuple[str, Any, int]] = {}
         for key_node, value_node in node.value:
@@ -495,14 +541,46 @@ def _record_lines(
             # A key's own line is where a reader looks, even when its value is a
             # block starting on the next line.
             lines[child] = key_node.start_mark.line + 1
-            _record_lines(value_node, child, lines, key_of)
+            _record_lines(value_node, child, lines, key_of, walked)
     elif isinstance(node, yaml.SequenceNode):
         for index, item in enumerate(node.value):
-            _record_lines(item, location + (index,), lines, key_of)
+            _record_lines(item, location + (index,), lines, key_of, walked)
 
 
 _BOOL_TAG = "tag:yaml.org,2002:bool"
 _STR_TAG = "tag:yaml.org,2002:str"
+
+
+def _refuse_recursive_alias(root: yaml.Node) -> None:
+    """Refuses a collection that holds itself through an alias, such as
+    `a: &x [1, *x]`, which has no end, at the line where the collection starts.
+
+    Raises:
+        yaml.constructor.ConstructorError: If a collection is inside itself.
+    """
+    done: Set[int] = set()
+    holding: Set[int] = set()
+
+    def walk(node: yaml.Node) -> None:
+        if not isinstance(node, (yaml.MappingNode, yaml.SequenceNode)):
+            return
+        if id(node) in holding:
+            raise yaml.constructor.ConstructorError(
+                None,
+                None,
+                "this collection holds itself through an alias, so it has no end",
+                node.start_mark,
+            )
+        if id(node) in done:
+            return
+        holding.add(id(node))
+        for member in node.value:
+            for part in member if isinstance(member, tuple) else (member,):
+                walk(part)
+        holding.discard(id(node))
+        done.add(id(node))
+
+    walk(root)
 
 
 def _keep_on_keys(
@@ -583,7 +661,7 @@ def _keep_on_keys(
 _BOOLEAN_WORDS = ("yes", "no", "on", "off")
 
 
-def _keep_generator_keys(node: yaml.Node) -> None:
+def _keep_generator_keys(node: yaml.Node, walked: Optional[Set[int]] = None) -> None:
     """Keeps the keys a generator reads as text from becoming booleans.
 
     YAML 1.1 reads the words `yes`, `no`, `on` and `off` as booleans, so the `on` of a
@@ -593,11 +671,17 @@ def _keep_generator_keys(node: yaml.Node) -> None:
     the string `on` and every key of `cases` that is one of those four words is a
     string written as it is in the file. In a mapping whose `gen` is `weighted`, the same holds
     for the keys of `options`. A key `true` or `false`, and every other mapping, keep
-    today's reading.
+    today's reading. A collection that an alias repeats is walked once.
     """
+    if walked is None:
+        walked = set()
+    if isinstance(node, (yaml.MappingNode, yaml.SequenceNode)):
+        if id(node) in walked:
+            return
+        walked.add(id(node))
     if isinstance(node, yaml.SequenceNode):
         for member in node.value:
-            _keep_generator_keys(member)
+            _keep_generator_keys(member, walked)
     elif isinstance(node, yaml.MappingNode):
         kind = next(
             (
@@ -624,7 +708,26 @@ def _keep_generator_keys(node: yaml.Node) -> None:
                         and case.value.lower() in _BOOLEAN_WORDS
                     ):
                         case.tag = _STR_TAG
-            _keep_generator_keys(value)
+            _keep_generator_keys(value, walked)
+
+
+@contextlib.contextmanager
+def _without_added_folders(keep: str) -> Iterator[None]:
+    """Takes the folders `read_document` added to `sys.path`, other than `keep`, off it
+    for the block and puts them back at their places, so a file imports only from its
+    own folder and the folders that were on `sys.path` before."""
+    hidden = [
+        (index, entry)
+        for index, entry in enumerate(sys.path)
+        if entry in _added_folders and entry != keep
+    ]
+    names = {entry for _index, entry in hidden}
+    sys.path[:] = [entry for entry in sys.path if entry not in names]
+    try:
+        yield
+    finally:
+        for index, entry in hidden:
+            sys.path.insert(min(index, len(sys.path)), entry)
 
 
 def read_document(
@@ -637,9 +740,11 @@ def read_document(
 
     The folder of the file is moved to the front of `sys.path` before `!python`
     references are resolved, and stays there so later imports find the same modules.
-    A file that no `!include` led to resolves them against its own folder's Python
-    modules, not those of a file loaded earlier from another folder
-    (`entry_modules`).
+    A file resolves them against its own folder's Python modules and the installed
+    packages, not those of a file loaded earlier from another folder
+    (`entry_modules`). An included file from another folder than the file that
+    includes it resolves them against its own folder too, and the including file goes
+    on with its own after it.
 
     Args:
         path: The file.
@@ -660,15 +765,24 @@ def read_document(
     # `!python` references resolve against the folder of the file first, so a
     # blueprint and the module beside it work from any working directory.
     folder = str(path.resolve().parent)
-    if including:
+    includer = str(including[-1].parent) if including else folder
+    if folder == includer and including:
         if folder not in sys.path:
             sys.path.insert(0, folder)
         return _parse_document(path, including, at, variables)
-    if folder in sys.path:
+    if folder not in sys.path:
+        _added_folders.add(folder)
+    else:
         sys.path.remove(folder)
     sys.path.insert(0, folder)
-    with entry_modules(Path(folder)):
-        return _parse_document(path, including, at, variables)
+    try:
+        with _without_added_folders(folder), entry_modules(Path(folder)):
+            return _parse_document(path, including, at, variables)
+    finally:
+        if including and includer in sys.path and folder in sys.path:
+            # The including file's later imports find its own folder first
+            sys.path.remove(folder)
+            sys.path.insert(sys.path.index(includer) + 1, folder)
 
 
 def _parse_document(
@@ -698,6 +812,7 @@ def _parse_document(
         if node is None:
             raise BlueprintError(f"{path}:1: the file is empty")
         includes: Dict[yaml.Node, str] = {}
+        _refuse_recursive_alias(node)
         _keep_on_keys(node, includes, at)
         _keep_generator_keys(node)
         loader.includes = includes  # type: ignore[attr-defined]

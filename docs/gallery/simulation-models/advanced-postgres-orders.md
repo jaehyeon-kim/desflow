@@ -175,8 +175,8 @@ In `related-records/yaml`, which `desflow examples get related-records --api yam
 
 <!-- records: related-records-sample -->
 ```text
-{"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":null,"instance":null,"value":{"order_item_id":1,"order_id":1,"product_id":22,"quantity":3,"unit_price":27.56}}
-{"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":null,"instance":null,"value":{"order_id":1,"customer_id":86,"total_amount":82.68,"status":"pending"}}
+{"stream_type":"event","sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":null,"instance":null,"value":{"order_item_id":1,"order_id":1,"product_id":22,"quantity":3,"unit_price":27.56}}
+{"stream_type":"event","sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":null,"instance":null,"value":{"order_id":1,"customer_id":86,"total_amount":82.68,"status":"pending"}}
 ```
 
 This command leaves out the `__table__` key that picks each record's table, because only a PostgreSQL sink uses it. It logs a warning that says so. The order's `total_amount` is its item's `quantity` times its `unit_price`.

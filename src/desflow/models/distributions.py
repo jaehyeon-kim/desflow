@@ -148,7 +148,9 @@ def _check_lognormal(c: Any) -> None:
 
 def _lognormal_log_parameters(c: Any) -> Tuple[float, float]:
     """The mean and standard deviation of the logarithm of a lognormal draw."""
-    m, s = c.mean, c.std
+    # A whole number is converted first: its square can pass the largest int64, and
+    # NumPy then fails on an object array
+    m, s = float(c.mean), float(c.std)
     mu = np.log(m**2 / np.sqrt(s**2 + m**2))
     sigma = np.sqrt(np.log(1 + (s**2 / m**2)))
     return mu, sigma

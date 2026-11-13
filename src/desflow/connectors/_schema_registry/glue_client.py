@@ -7,6 +7,7 @@ from uuid import UUID
 
 from desflow.connectors._schema_registry.errors import (
     SchemaRegistryError,
+    SchemaVersionPendingError,
     SerializationError,
 )
 
@@ -204,7 +205,7 @@ class GlueRegistryClient:
                 "Status"
             ]
         if status == _PENDING:
-            raise SchemaRegistryError(
+            raise SchemaVersionPendingError(
                 -1,
                 -1,
                 f"Schema version {version_id} is still PENDING after {_CHECKS} "

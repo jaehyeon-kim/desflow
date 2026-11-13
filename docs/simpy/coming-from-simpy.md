@@ -169,7 +169,7 @@ Both versions run 10 times for one hour from an empty shop, so the two answers e
 
 ```text
 plain SimPy: mean wait 2.30 ± 0.20 s over 10 runs
-desflow:     mean wait 2.45 ± 0.27 s over 10 runs
+desflow:     mean wait 2.18 ± 0.24 s over 10 runs
 ```
 
 What you take with you is the SimPy you wrote. A model can still be a SimPy generator inside desflow, through the [Low-level API](../user-guide/writing-a-model/low-level-api.md), and it keeps the SimPy constructs it uses. What you leave behind is the code around it: the parameters class, the result bookkeeping and the trial loop. What you gain is [records](../reference/records-and-telemetry.md), pacing, live parameters and the checks on [Output Analysis](../learn/concepts/output-analysis.md).

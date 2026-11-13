@@ -38,6 +38,7 @@ from desflow.resources.resource import (
     _default_put_queue,
 )
 from desflow.resources.store import DynamicStore, StoreBase
+from desflow.utils import is_finite
 from desflow.values.models import has_generator
 
 if TYPE_CHECKING:
@@ -66,7 +67,7 @@ def _within_max(
     clamped = min(max(current_cap, 0), max_cap)
     if kind == "container":
         clamped = type(current_cap)(clamped)
-    elif clamped != current_cap and math.isfinite(clamped):
+    elif clamped != current_cap and is_finite(clamped):
         finite_float = isinstance(current_cap, float) and math.isfinite(current_cap)
         clamped = float(clamped) if finite_float else int(clamped)
     if clamped != current_cap:
@@ -90,7 +91,7 @@ def check_queue_limit(kind: str, name: str, value: Any) -> None:
     if (
         isinstance(value, bool)
         or not isinstance(value, numbers.Real)
-        or not math.isfinite(value)
+        or not is_finite(value)
         or not float(value).is_integer()
         or value < 0
     ):
@@ -114,7 +115,7 @@ def check_level(name: str, level: Any, current_cap: Any) -> None:
     if (
         isinstance(level, bool)
         or not isinstance(level, numbers.Real)
-        or not math.isfinite(level)
+        or not is_finite(level)
         or level < 0
         or (
             isinstance(current_cap, numbers.Real)
@@ -148,7 +149,7 @@ def _whole_or_unlimited(value: Any) -> bool:
         return False
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return False
     return number == math.inf or (math.isfinite(number) and number.is_integer())
 
@@ -559,7 +560,7 @@ class HolderRun:
             if (
                 field != "level"
                 and family.kind != "container"
-                and math.isfinite(found)
+                and is_finite(found)
                 and not float(found).is_integer()
                 and found >= 0
             ):

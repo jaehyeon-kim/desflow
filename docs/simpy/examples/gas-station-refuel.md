@@ -460,7 +460,7 @@ def car_generator(env, gas_station, station_tank):
 
 ## Check the Result
 
-Five cars refuel in the 1000 seconds. The control task finds the tank below 25 percent at 970 seconds and calls the truck. The truck needs 300 seconds, so it would arrive at 1270 seconds, after the run ends, and the records show no truck arrival.
+Five cars refuel in the 1000 seconds. The control task finds the tank below 25 percent at 820 seconds and calls the truck. The truck needs 300 seconds, so it would arrive at 1120 seconds, after the run ends, and the records show no truck arrival.
 
 In SimPy's output, below, the truck is called at 460 seconds and arrives at 760 seconds. Here the cars arrive at other times, so the tank is low later. desflow draws each random value from its own stream, named by the place where the value is used, such as `GasStation.service.patience`. A seed of 42 therefore gives different numbers from SimPy's `random.seed(42)`. The system is the same. The figures are not.
 

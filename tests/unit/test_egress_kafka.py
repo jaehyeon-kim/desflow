@@ -10,6 +10,10 @@ import fastavro
 import httpx
 import orjson
 import pytest
+from aiokafka.errors import (
+    MessageSizeTooLargeError,
+    UnknownTopicOrPartitionError,
+)
 from pydantic import BaseModel
 
 from desflow.connectors.admin.kafka import KafkaAdminConnector
@@ -889,6 +893,66 @@ async def test_a_registry_or_encoding_error_skips_only_its_record(
 
 
 @pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(MessageSizeTooLargeError("2000000 bytes"), id="too-large"),
+    ],
+)
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_an_error_of_send_for_one_record_skips_only_that_record(
+    MockProducer, run_until, caplog, error
+):
+    """A record larger than `max_request_size` is skipped with a warning that names the
+    key. The records after it are sent and the producer is not restarted."""
+
+    async def send(topic, value=None, key=None):
+        if key == b"k2":
+            raise error
+
+    producer = MockProducer.return_value = AsyncMock()
+    producer.send.side_effect = send
+    egress = KafkaEgress(bootstrap_servers="b:9092", topic_policy="manual")
+    batches = queue.Queue()
+    batches.put(
+        [{"stream_type": "event", "key": f"k{n}", "value": {"n": n}} for n in (1, 2, 3)]
+    )
+
+    await run_until(egress.run(batches), lambda: producer.send.call_count >= 3)
+
+    sent = [call.kwargs["key"] for call in producer.send.call_args_list]
+    assert sent == [b"k1", b"k2", b"k3"]
+    assert "skipped the record with key k2" in caplog.text
+    assert type(error).__name__ in caplog.text
+    assert "connection failed" not in caplog.text
+    assert MockProducer.call_count == 1
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_a_router_that_returns_no_topic_drops_the_record(
+    MockProducer, run_until, caplog
+):
+    """A `topic_router` that returns None drops the record without a warning, and one
+    that returns something other than a name skips it with a warning. The records
+    around them are sent to their topics."""
+    topics = {"a": "t1", "b": None, "c": 7, "d": "t2"}
+    producer = MockProducer.return_value = AsyncMock()
+    egress = KafkaEgress(
+        bootstrap_servers="b:9092", topic_router=lambda data: topics[data["key"]]
+    )
+    batches = queue.Queue()
+    batches.put([{"stream_type": "event", "key": k, "value": {}} for k in topics])
+
+    await run_until(egress.run(batches), lambda: producer.send.call_count >= 2)
+
+    sent = [(c.args[0], c.kwargs["key"]) for c in producer.send.call_args_list]
+    assert sent == [("t1", b"a"), ("t2", b"d")]
+    assert "which is not a topic name" in caplog.text
+    assert "None" not in caplog.text
+
+
+@pytest.mark.parametrize(
     ("status", "code", "cause"),
     [
         pytest.param(401, 40101, None, id="registry-401"),
@@ -1370,3 +1434,31 @@ def test_ssl_and_token_provider(tmp_path, mock_admin):
 def test_a_topics_value_that_is_not_a_mapping_names_the_topic(mock_admin):
     with pytest.raises(ValueError, match=r"topics\.orders must be a mapping"):
         KafkaEgress("b:9092", topics={"orders": "manual"})
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_a_topic_kafka_refuses_is_asked_once_for_a_batch(
+    MockProducer, run_until, caplog
+):
+    """A topic Kafka does not have is asked for once in a batch, because each ask
+    waits for the metadata. The other records of that topic are skipped with the
+    same warning, and the records of other topics are sent."""
+
+    async def send(topic, value=None, key=None):
+        if topic == "missing":
+            raise UnknownTopicOrPartitionError()
+
+    producer = MockProducer.return_value = AsyncMock()
+    producer.send.side_effect = send
+    egress = KafkaEgress(
+        bootstrap_servers="b:9092",
+        topic_router=lambda data: "missing" if data["key"] in ("a", "b") else "ok",
+    )
+    batches = queue.Queue()
+    batches.put([{"stream_type": "event", "key": k, "value": {}} for k in "abc"])
+
+    await run_until(egress.run(batches), lambda: producer.send.call_count >= 2)
+
+    assert [c.args[0] for c in producer.send.call_args_list] == ["missing", "ok"]
+    assert caplog.text.count("skipped the record with key") == 2

@@ -10,10 +10,12 @@ from typing import Any, Callable, Dict, Optional, Protocol, Tuple, Union
 
 from aiokafka import AIOKafkaConsumer
 
+from desflow.connectors._retry import FIRST_DELAY, next_delay
 from desflow.connectors._schema_registry.unset import UNSET
 from desflow.connectors._schema_registry.errors import (  # noqa: F401
     SchemaRegistryError,
     SerializationError,
+    is_temporary,
     refuses_access,
 )
 from desflow.connectors.admin.kafka import (
@@ -864,13 +866,50 @@ class KafkaIngress(BaseIngress):
         except Exception as e:
             logger.warning(f"Could not create the topic {self.topic}: {e}")
 
+    async def _deserialize(self, deserializer: Any, topic: str, value: Any) -> Any:
+        """Returns the decoded message, waiting while the schema registry is down.
+
+        It runs the deserializer in a worker thread. A temporary registry error (a
+        5xx answer, a throttled call, a timeout or a lost connection) keeps the
+        message: the consumer has already moved past it, so it is decoded again after
+        a longer wait, and the messages after it wait for it, in order.
+
+        Args:
+            deserializer: The topic's deserializer.
+            topic: The topic the message came from.
+            value: The message's bytes.
+
+        Returns:
+            Any: What the deserializer returns.
+
+        Raises:
+            Exception: A deserializer's error that is not temporary.
+        """
+        delay = FIRST_DELAY
+        while True:
+            try:
+                return await asyncio.to_thread(deserializer.deserialize, topic, value)
+            except Exception as error:
+                if not is_temporary(error):
+                    raise
+                logger.warning(
+                    "Kafka Ingress could not reach the schema registry: %s. "
+                    "Trying the message again in %ss.",
+                    error,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+                delay = next_delay(delay)
+
     async def run(self, ingress_queue: queue.Queue) -> None:
         """Consumes parameter changes from Kafka and puts each on the ingress queue.
 
         Each message is read as JSON with `path` and `value`; a message that cannot be
         read is logged and skipped. A deserializer runs in a worker thread, because it
         may call a schema registry, which waits and retries, and must not hold the loop
-        that every ingress connector of the run shares. A registry that refuses the
+        that every ingress connector of the run shares. A registry that fails for a time (a
+        5xx status, a throttled call, a timeout or a lost connection) keeps the message,
+        which is decoded again after a longer wait. A registry that refuses the
         deserializer's credentials or access (a 401 or 403 status, or the Glue error
         `AccessDeniedException`) would refuse every message, so it ends the task.
 
@@ -907,8 +946,8 @@ class KafkaIngress(BaseIngress):
                             # thread: a deserializer may call a schema registry,
                             # which waits and retries, and the loop is shared by
                             # every ingress connector of the run.
-                            data = await asyncio.to_thread(
-                                deserializer.deserialize, msg.topic, msg.value
+                            data = await self._deserialize(
+                                deserializer, msg.topic, msg.value
                             )
 
                             ingress_queue.put(parse_change(data))

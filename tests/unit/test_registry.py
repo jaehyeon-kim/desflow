@@ -7,6 +7,7 @@ from desflow.resources.container import DynamicContainer
 from desflow.models.params import (
     BreakdownConfig,
     CapacityConfig,
+    ContainerConfig,
     DistributionConfig,
     SimParameter,
 )
@@ -396,6 +397,42 @@ def test_registry_casts_or_ignores_a_wrong_type_update(registry, sample_params, 
         registry.update(path, "not a number")
     assert registry.get(path).value == 4
     assert "Update ignored" in caplog.text
+
+
+@pytest.mark.parametrize("kind", ["int", "text"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "S.variables.v",
+        "S.variables.f",
+        "S.resources.r.current_cap",
+        "S.resources.r.max_cap",
+        "S.resources.r.queue_limit",
+        "S.containers.c.level",
+        "S.containers.c.current_cap",
+    ],
+)
+def test_a_number_too_large_for_a_float_is_refused_not_raised(
+    registry, caplog, path, kind
+):
+    """`update` never raises for a refused value, also for `10**400`, which `float()`
+    cannot convert; `change` refuses it with a `ParamRejected`, and the old value stays."""
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="S",
+            resources={"r": CapacityConfig(current_cap=1, max_cap=5)},
+            containers={"c": ContainerConfig(current_cap=10, max_cap=10, level=1)},
+            variables={"v": 10, "f": 1.5},
+        )
+    )
+    value = 10**400 if kind == "int" else "1" + "0" * 400
+    before = registry.get(path).value
+    with caplog.at_level(logging.ERROR):
+        registry.update(path, value)
+    assert "too large for a float" in caplog.text
+    assert registry.get(path).value == before
+    with pytest.raises(ParamRejected, match="too large for a float"):
+        registry.change(path, value)
 
 
 @pytest.mark.parametrize(

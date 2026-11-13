@@ -56,6 +56,13 @@ CASES = {
         "warmup",
         "warmup:",
     ),
+    "compare against itself": (
+        lambda t: t.replace(
+            "- {baseline: two, variant: three}", "- {baseline: three, variant: three}"
+        ),
+        "compare.0.variant",
+        "- {baseline: three, variant: three}",
+    ),
     "nan bound": (
         lambda t: t.replace("max: 2}", "max: .nan}"),
         "max",

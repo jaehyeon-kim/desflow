@@ -485,6 +485,8 @@ UNEVALUABLE = {
     "an each of -3": "wait: {each: '1 - 4', branch: {timeout: 1}}",
     "a wait timeout": "wait: {timeout: 'attr.zz'}",
     "a service_time": "service_time: 'attr.zz'",
+    "a key that is a fraction": "key: {gen: expr, expr: '1.5'}",
+    "a key that reads a missing attribute": "key: {gen: expr, expr: 'attr.zz'}",
 }
 
 
@@ -516,7 +518,7 @@ def test_an_expression_that_cannot_be_evaluated_stops_the_run_under_stop_and_fai
         if r["stream_type"] == "event" and r["value"].get("status") == "failed"
     ]
     assert len(reasons) == 2 and all(
-        reason.startswith("ValueError") for reason in reasons
+        reason.startswith(("ValueError", "ValueGenerationError")) for reason in reasons
     )
 
 

@@ -761,6 +761,18 @@ def test_the_builder_checks_a_task_whose_name_starts_with_signals_as_a_task():
         app.run(until=5)
 
 
+def test_a_numpy_text_key_makes_the_member_a_python_text_key_does():
+    """`repr(np.str_("north"))` is `np.str_('north')` in NumPy 2, so the key is made a
+    plain `str` before the member is named."""
+    import numpy as np
+
+    from desflow.core.expressions import member_name, normal_key
+
+    assert type(normal_key(np.str_("north"))) is str
+    assert member_name("desk", np.str_("north")) == member_name("desk", "north")
+    assert member_name("desk", np.str_("north")) == "desk['north']"
+
+
 def test_a_member_name_reads_its_family_by_the_whole_name():
     """`family_of` matches the declared family's whole name before the bracket, so a
     family whose name holds a dot is found, and a name that is no member gives None."""

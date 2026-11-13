@@ -272,10 +272,10 @@ Each tab prints the mean wait with 1, 2, 3 and 4 packers:
 
     <!-- records: queues-yaml -->
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1127.2063863064104}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":426.3063834448629}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.2722664697774682}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":0.19762635335090697}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1139.8758548010155}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":484.65045270890204}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.8791946460820799}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":0.24164977417889455}
     ```
 
 === "Builder"
@@ -286,10 +286,10 @@ Each tab prints the mean wait with 1, 2, 3 and 4 packers:
 
     <!-- records: queues-table -->
     ```text
-    packers 1: mean wait  1127.21 s
-    packers 2: mean wait   426.31 s
-    packers 3: mean wait     1.27 s
-    packers 4: mean wait     0.20 s
+    packers 1: mean wait  1139.88 s
+    packers 2: mean wait   484.65 s
+    packers 3: mean wait     1.88 s
+    packers 4: mean wait     0.24 s
     ```
 
 === "Low-level"
@@ -300,10 +300,10 @@ Each tab prints the mean wait with 1, 2, 3 and 4 packers:
 
     <!-- records: queues-table -->
     ```text
-    packers 1: mean wait  1127.21 s
-    packers 2: mean wait   426.31 s
-    packers 3: mean wait     1.27 s
-    packers 4: mean wait     0.20 s
+    packers 1: mean wait  1139.88 s
+    packers 2: mean wait   484.65 s
+    packers 3: mean wait     1.88 s
+    packers 4: mean wait     0.24 s
     ```
 
 ---
@@ -326,9 +326,9 @@ The **bottleneck** is the resource with the highest utilisation. Relieving it ma
 
 How many packers keep the mean wait under 10 seconds? **3 packers**, as the mean wait for 1 to 4 packers shows:
 
-![Mean wait in the busy hour for 1 to 4 packers on a log scale: 1127 seconds with 1, 426 with 2, 1.27 with 3 and 0.20 with 4; the 10-second line separates 2 from 3](../../assets/charts/queues-wait.png)
+![Mean wait in the busy hour for 1 to 4 packers on a log scale: 1140 seconds with 1, 485 with 2, 1.88 with 3 and 0.24 with 4; the 10-second line separates 2 from 3](../../assets/charts/queues-wait.png)
 
-With 3 packers the mean wait is 1.27 seconds, from [one run of the hour](../concepts/output-analysis.md#busy-hour-figures) with constant packing and the seed 42. With 2 packers it is over 400 seconds and still growing when the hour ends. The answer is the fewest packers that bring utilisation below 1. At utilisation 0.9 the wait stays under 10 seconds, because the shop's packing time is constant and 0.9 is not yet close enough to 1.
+With 3 packers the mean wait is 1.88 seconds, from [one run of the hour](../concepts/output-analysis.md#busy-hour-figures) with constant packing and the seed 42. With 2 packers it is over 400 seconds and still growing when the hour ends. The answer is the fewest packers that bring utilisation below 1. At utilisation 0.9 the wait stays under 10 seconds, because the shop's packing time is constant and 0.9 is not yet close enough to 1.
 
 [Queueing Basics](../concepts/queueing-basics.md) explains why the wait grows without limit as utilisation reaches 1, as the table shows for 1 and 2 packers. It also gives the formula for several packers sharing one queue. Each term of the utilisation is a live parameter, so a running model can be relieved, or overloaded on purpose, as [Live Parameters](../../user-guide/live-runs-and-connectors/live-parameters.md) shows. [Statistics](../../user-guide/results/statistics.md) describes how the mean wait is measured.
 

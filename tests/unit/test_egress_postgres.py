@@ -49,10 +49,12 @@ async def test_postgres_egress_run(mock_create_pool, mock_pool, run_until):
 def test_a_table_route_is_compared_as_postgresql_reads_it(caplog):
     """`Orders` and `public.orders` are the sink's table `orders`. A name that no
     PostgresEgress of the process writes is warned about once, and a name another
-    entry writes is not. The warning says "process", because the sinks it looks at are
-    all those alive in the process."""
+    entry writes is not. The sinks it looks at are the running ones, so a sink of an
+    earlier model that is still referenced does not count."""
     sink = PostgresEgress("postgresql://u:p@localhost/db", table_name="orders")
     other = PostgresEgress("postgresql://u:p@localhost/db", table_name="Items")
+    earlier = PostgresEgress("postgresql://u:p@localhost/db", table_name="audit")
+    PostgresEgress._writers.update({sink, other})
 
     def rows(route):
         record = {"stream_type": "event", "key": "k", "value": {"__table__": route}}
@@ -63,12 +65,15 @@ def test_a_table_route_is_compared_as_postgresql_reads_it(caplog):
     ] * 3
     assert rows("ordrs_misspelt") == [] and rows("ordrs_misspelt") == []
     assert rows("items") == []
+    assert rows("audit") == []
 
     warnings = [r.message for r in caplog.records if "skips records" in r.message]
-    assert len(warnings) == 1
+    assert len(warnings) == 2
     assert "'ordrs_misspelt'" in warnings[0]
-    assert "of this process writes" in warnings[0]
+    assert "'audit'" in warnings[1]
+    assert "no running PostgresEgress writes" in warnings[0]
     assert other.table_name == "Items"
+    assert earlier.table_name == "audit"
 
 
 @pytest.mark.asyncio
@@ -741,3 +746,54 @@ async def test_a_batch_that_writes_nothing_or_fails_leaves_the_sink_running(
     assert "No matching columns for table orders. Skipping." in caplog.text
     assert "Error inserting batch into orders: down" in caplog.text
     assert egress.active_tasks == 0
+
+
+def test_a_table_that_is_not_text_is_counted_in_the_skipped_warning(caplog):
+    """A `__table__` that is not text (YAML `yes`, a number) drops its record with a
+    warning that counts it, as a record without a route is."""
+    sink = PostgresEgress("postgresql://u:p@localhost/db", table_name="orders")
+    batch = [
+        {"stream_type": "event", "key": f"e{i}", "value": {"n": i, "__table__": t}}
+        for i, t in enumerate([True, 7, "orders"])
+    ]
+
+    assert [row["n"] for row in sink._rows(batch)] == [2]
+    assert "2 had a __table__ that is not text" in caplog.text
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_a_sink_counts_as_a_writer_only_while_it_runs(
+    mock_create_pool, mock_pool, run_until
+):
+    """The sinks a record's table is looked for in are the running ones: a sink is
+    added when its task starts and removed when it ends."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.return_value = [{"column_name": "id"}]
+    conn.fetchrow.return_value = {"table_schema": "public", "bare_schema": "public"}
+    sink = PostgresEgress("postgresql://u:p@localhost/db", table_name="orders")
+    assert sink not in PostgresEgress._writers
+
+    seen = []
+
+    def started():
+        if mock_create_pool.called:
+            seen.append(sink in PostgresEgress._writers)
+        return bool(seen)
+
+    await run_until(sink.run(queue.Queue()), started)
+
+    assert seen == [True]
+    assert sink not in PostgresEgress._writers
+
+
+def test_names_are_folded_as_postgresql_folds_them():
+    """PostgreSQL folds only `A` to `Z` in an unquoted name in a multi-byte encoding
+    (`downcase_identifier`), so `Ärger` stays a different column from `ärger`, and
+    a payload key `Ärger` is not matched to a column `ärger`."""
+    from desflow.connectors.egress.postgres import _folded
+
+    assert _folded({"Order": 1, "ORDER": 2, "Ärger": 3}) == {"order": 1, "Ärger": 3}
+    sink = PostgresEgress("postgresql://u:p@localhost/db", table_name="Öl")
+    assert sink._writes("Öl") and not sink._writes("öl")

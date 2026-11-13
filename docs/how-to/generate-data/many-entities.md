@@ -219,9 +219,9 @@ Run the first model for 300 simulated seconds and print its first 3 records. All
 
 <!-- records: gd-many-entities -->
 ```text
-{"stream_type":"event","sim_ts":60.0,"timestamp":"...","key":"till-1","task":"report","instance":0,"value":{"till":"till-1","takings":365.53}}
-{"stream_type":"event","sim_ts":60.0,"timestamp":"...","key":"till-2","task":"report","instance":1,"value":{"till":"till-2","takings":375.63}}
-{"stream_type":"event","sim_ts":60.0,"timestamp":"...","key":"till-3","task":"report","instance":2,"value":{"till":"till-3","takings":414.3}}
+{"stream_type":"event","sim_ts":60.0,"timestamp":"...","key":"till-1","task":"report","instance":0,"value":{"till":"till-1","takings":446.41}}
+{"stream_type":"event","sim_ts":60.0,"timestamp":"...","key":"till-2","task":"report","instance":1,"value":{"till":"till-2","takings":297.08}}
+{"stream_type":"event","sim_ts":60.0,"timestamp":"...","key":"till-3","task":"report","instance":2,"value":{"till":"till-3","takings":434.26}}
 ```
 
 The model with `keys` reports in the order of the list, and the first 4 records are the three warehouses at 2 seconds and the first again at 4 seconds.
@@ -246,10 +246,10 @@ The model with `keys` reports in the order of the list, and the first 4 records 
 
 <!-- records: gd-many-entities-named -->
 ```text
-{"stream_type":"event","sim_ts":2.0,"timestamp":"...","key":"north","task":"report","instance":0,"value":{"warehouse":"north","orders_waiting":1}}
-{"stream_type":"event","sim_ts":2.0,"timestamp":"...","key":"south","task":"report","instance":1,"value":{"warehouse":"south","orders_waiting":22}}
-{"stream_type":"event","sim_ts":2.0,"timestamp":"...","key":"east","task":"report","instance":2,"value":{"warehouse":"east","orders_waiting":36}}
-{"stream_type":"event","sim_ts":4.0,"timestamp":"...","key":"north","task":"report","instance":3,"value":{"warehouse":"north","orders_waiting":23}}
+{"stream_type":"event","sim_ts":2.0,"timestamp":"...","key":"north","task":"report","instance":0,"value":{"warehouse":"north","orders_waiting":22}}
+{"stream_type":"event","sim_ts":2.0,"timestamp":"...","key":"south","task":"report","instance":1,"value":{"warehouse":"south","orders_waiting":20}}
+{"stream_type":"event","sim_ts":2.0,"timestamp":"...","key":"east","task":"report","instance":2,"value":{"warehouse":"east","orders_waiting":2}}
+{"stream_type":"event","sim_ts":4.0,"timestamp":"...","key":"north","task":"report","instance":3,"value":{"warehouse":"north","orders_waiting":4}}
 ```
 
 ---

@@ -471,9 +471,9 @@ python kafka_security_connections.py
 ```
 
 ```text
-{"sim_ts":2.5523798766964667,"timestamp":"2026-11-09T00:00:00.000+00:00","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"sim_ts":2.5523798766964667,"timestamp":"2026-11-09T00:00:00.000+00:00","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
-{"sim_ts":2.695845327144759,"timestamp":"2026-11-09T00:00:00.000+00:00","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"sim_ts":0.6283113312939436,"timestamp":"2026-11-09T00:00:00.000+00:00","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"sim_ts":0.6283113312939436,"timestamp":"2026-11-09T00:00:00.000+00:00","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"sim_ts":2.1283113312939435,"timestamp":"2026-11-09T00:00:00.000+00:00","key":"orders-1","task":"pack_order","instance":0,"value":{"event_type":"order_packed"}}
 ```
 
 Each line is one event as JSON. The `timestamp` is the clock time of your run.

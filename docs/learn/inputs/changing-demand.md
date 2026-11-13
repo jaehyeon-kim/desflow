@@ -95,9 +95,9 @@ The steps follow the simulation clock, so the schedule repeats exactly on every 
 
 ## What You Get and Why
 
-What does a 20-minute rush do to waits? With one packer, it builds a queue for the whole rush. In one run of the hour with the seed 42, the mean wait over the hour is **147.74 seconds** and the longest **416.75 seconds**, more than 6 minutes. A second packer for the rush keeps the mean at **0.74 seconds** and the longest at **6.06**. Both pack the same **1,978** orders:
+What does a 20-minute rush do to waits? With one packer, it builds a queue for the whole rush. In one run of the hour with the seed 42, the mean wait over the hour is **177.81 seconds** and the longest **453.38 seconds**, more than 7 minutes. A second packer for the rush keeps the mean at **0.93 seconds** and the longest at **11.48**. Both pack the same **2,054** orders:
 
-![Waits by the time packing started: with one packer they climb from 20 minutes to 417 s at 47 minutes and are back to near 0 by 54 minutes; with two packers in the rush they stay near 0](../../assets/charts/rush-waits.png)
+![Waits by the time packing started: with one packer they climb from 20 minutes to 453 s at 48 minutes and are back to near 0 by 59 minutes; with two packers in the rush they stay near 0](../../assets/charts/rush-waits.png)
 
 Each tab prints both plans: the orders packed, the mean wait and the longest wait.
 
@@ -112,12 +112,12 @@ Each tab prints both plans: the orders packed, the mean wait and the longest wai
 
     <!-- records: rush-yaml -->
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":1978}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":147.744431867788}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_max","value":416.751806252581}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":1978}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":0.7410266248651487}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_max","value":6.063368615320087}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":2054}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":177.806243989145}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_max","value":453.38095500451755}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":2054}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":0.9256089466996981}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_max","value":11.477742012224326}
     ```
 
 === "Builder"
@@ -127,8 +127,8 @@ Each tab prints both plans: the orders packed, the mean wait and the longest wai
     ```
 
     ```text
-    1 in the rush: 1978 packed, mean wait 147.74 s, longest 416.75 s
-    2 in the rush: 1978 packed, mean wait  0.74 s, longest   6.06 s
+    1 in the rush: 2054 packed, mean wait 177.81 s, longest 453.38 s
+    2 in the rush: 2054 packed, mean wait  0.93 s, longest  11.48 s
     ```
 
 === "Low-level"
@@ -138,11 +138,11 @@ Each tab prints both plans: the orders packed, the mean wait and the longest wai
     ```
 
     ```text
-    1 in the rush: 1978 packed, mean wait 147.74 s, longest 416.75 s
-    2 in the rush: 1978 packed, mean wait  0.74 s, longest   6.06 s
+    1 in the rush: 2054 packed, mean wait 177.81 s, longest 453.38 s
+    2 in the rush: 2054 packed, mean wait  0.93 s, longest  11.48 s
     ```
 
-During the rush one packer would need 0.9 × 1.5 = 1.35 seconds of packing every second, more than it has. Orders arrive at 54 a minute and the packer finishes at most 40, so the queue grows by about 14 orders a minute for as long as the rush lasts. An overload that ends is a **finite overload**. When the rush ends the load falls to 0.4 × 1.5 = 0.6, and the packer works off the queue, here by about 54 minutes. A load that stays at 1 or above is different: its queue grows for as long as the run lasts, and no run length gives a stable mean wait, as [Queueing Basics](../concepts/queueing-basics.md#utilisation) explains.
+During the rush one packer would need 0.9 × 1.5 = 1.35 seconds of packing every second, more than it has. Orders arrive at 54 a minute and the packer finishes at most 40, so the queue grows by about 14 orders a minute for as long as the rush lasts. An overload that ends is a **finite overload**. When the rush ends the load falls to 0.4 × 1.5 = 0.6, and the packer works off the queue, here by about 59 minutes. A load that stays at 1 or above is different: its queue grows for as long as the run lasts, and no run length gives a stable mean wait, as [Queueing Basics](../concepts/queueing-basics.md#utilisation) explains.
 
 A finite overload has an answer, but the answer depends on the schedule. A mean over the hour mixes the quiet minutes with the rush, so report the longest wait, or the waits during the rush, beside it. With two packers the rush load is 1.35 ÷ 2 = 0.68 for each packer, below 1, so waits stay short.
 

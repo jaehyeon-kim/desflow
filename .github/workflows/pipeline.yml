@@ -12,7 +12,9 @@ on:
 permissions:
   contents: read
 
-# Every push to main completes
+# GitHub keeps one run going and one waiting for each group, and a newer push cancels
+# the waiting run. No test runs here, and the run of the newest push builds and
+# deploys the whole head of main, so a cancelled run loses nothing.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 

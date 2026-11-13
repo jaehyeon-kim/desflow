@@ -6,9 +6,11 @@ the file and line) and in the Builder."""
 import numpy as np
 import pytest
 
+from desflow.blueprint import BlueprintError
 from desflow.builder.context import SimulationContext
 
 nan = float("nan")
+BIG = 10**400  # a whole number too large for a float
 
 HEAD = (
     "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
@@ -27,6 +29,7 @@ RESOURCE_CASES = [
     ("max_cap: -1", "max_cap"),
     ("current_cap: 1, max_cap: 4, queue_limit: true", "queue_limit"),
     ("current_cap: 1, max_cap: 4, queue_limit: -1", "queue_limit"),
+    (f"current_cap: 1, max_cap: 4, queue_limit: {BIG}", "queue_limit"),
 ]
 
 
@@ -58,6 +61,7 @@ def test_yaml_refuses_a_bad_resource_value_with_the_line(tmp_path, given, field)
         {"max_cap": float("-inf")},
         {"current_cap": 1, "max_cap": 4, "queue_limit": True},
         {"current_cap": 1, "max_cap": 4, "queue_limit": 2.5},
+        {"current_cap": 1, "max_cap": 4, "queue_limit": BIG},
     ],
 )
 def test_builder_refuses_a_bad_resource_value(kwargs):
@@ -71,6 +75,7 @@ def test_builder_refuses_a_bad_resource_value(kwargs):
         {"current_cap": 5, "level": 10},
         {"current_cap": 5, "level": -1},
         {"current_cap": 5, "level": nan},
+        {"current_cap": 5, "level": BIG},
         {"current_cap": -1},
         {"current_cap": nan},
     ],
@@ -86,6 +91,7 @@ def test_builder_refuses_a_bad_container(kwargs):
         "current_cap: 5, level: 10",
         "current_cap: 5, level: -1",
         "current_cap: 5, level: .nan",
+        f"current_cap: 5, level: {BIG}",
     ],
 )
 def test_yaml_refuses_a_bad_container_level(tmp_path, given):
@@ -99,7 +105,7 @@ def test_yaml_refuses_a_bad_container_level(tmp_path, given):
         SimulationContext.from_yaml(path)
 
 
-@pytest.mark.parametrize("amount", ["-1", "0", ".nan", ".inf", "true"])
+@pytest.mark.parametrize("amount", ["-1", "0", ".nan", ".inf", "true", str(BIG)])
 def test_yaml_refuses_a_bad_container_amount(tmp_path, amount):
     path = tmp_path / "m.yaml"
     path.write_text(
@@ -108,11 +114,11 @@ def test_yaml_refuses_a_bad_container_amount(tmp_path, amount):
         + f"tasks: {{t: {{get: {{container: tank, amount: {amount}}}, payload: {{}}}}}}\n"
         + TAIL
     )
-    with pytest.raises(Exception, match="m.yaml|amount"):
+    with pytest.raises(BlueprintError, match="m.yaml|amount"):
         SimulationContext.from_yaml(path)
 
 
-@pytest.mark.parametrize("amount", [0, -1, nan, float("inf")])
+@pytest.mark.parametrize("amount", [0, -1, nan, float("inf"), BIG])
 def test_builder_refuses_a_bad_container_amount(amount):
     app = SimulationContext("S", factor=0)
     app.add_container("tank", current_cap=5, level=5)

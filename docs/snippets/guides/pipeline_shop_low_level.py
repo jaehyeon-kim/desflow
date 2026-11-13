@@ -68,7 +68,7 @@ def run_shop(folder: Path) -> None:
     )
     packers = DynamicResource(env, "Shop", "packers")
     env.process(run_scenario(env, STEPS, until=600))
-    env.process(orders(env, packers, Sampler(seed=42)))
+    env.process(orders(env, packers, Sampler(seed=7)))
     try:
         env.run(until=600)
     finally:
