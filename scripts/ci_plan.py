@@ -1,12 +1,11 @@
 """Decides the test jobs of the workflows, for their `plan` jobs.
 
-There are three sets (issue #90):
+There are two sets (issue #90):
 
 - `pr`, a pull request (`pull-request.yml`): the unit and conformance tests on Python
-  3.11, the lowest version desflow supports.
-- `main`, a push to `main` (`pipeline.yml`): the same on Python 3.12 to 3.15, which the
-  pull request did not run. A pull request is up to date with `main` when it merges, so
-  `main` holds the code it tested.
+  3.11 to 3.15, every version desflow supports. A pull request is up to date with
+  `main` when it merges, so `main` holds the code it tested, and a push to `main`
+  (`pipeline.yml`) runs no test job.
 - `manual`, a run of `manual.yml` (the daily schedule, by hand, or the label
   `manual tests` on a pull request): every test, with the tests marked `every_model`
   and the known cases, on Ubuntu for each Python version it is given (by default
@@ -28,9 +27,12 @@ The parts of a test job are dealt by the times in `tests/durations.json`, measur
 the runners: the unit, conformance and benchtop tests without those marked
 `every_model` take about 41 minutes of test time for one Python version, and about
 21 minutes of test time run in about 11 minutes on a runner. So each version runs in
-3 parts of about 8 minutes, so a push to `main` (4 versions) has 12 test jobs, within
-the 20 jobs a run may have at once. With the tests marked `every_model` and the known cases, a
-version takes about 145 minutes of test time, which `manual` runs in 7 parts.
+3 parts of about 8 minutes, and a pull request has 15 test jobs. With its other jobs it
+starts 27, and the plan runs 20 at once. The 7 that wait start as the shortest jobs end,
+at 4 to 7 minutes, and end before the longest docs part of about 14 minutes, so a pull
+request takes about 17 minutes, as it did with Python 3.11 alone (simulated from the
+job times of a run). With the tests marked `every_model` and the known cases, a version
+takes about 145 minutes of test time, which `manual` runs in 7 parts.
 """
 
 import fnmatch
@@ -40,9 +42,8 @@ from typing import Dict, List, Optional
 
 ALL = "tests/unit tests/conformance tests/benchtop tests/known_cases"
 UNIT = "tests/unit tests/conformance tests/benchtop"
-# The pull request tests the lowest version, and a push to main the others
-PR_VERSION = "3.11"
-MAIN_VERSIONS = ["3.12", "3.13", "3.14", "3.15"]
+# The pull request tests every version desflow supports
+PR_VERSIONS = ["3.11", "3.12", "3.13", "3.14", "3.15"]
 # manual.yml runs every test on these on Ubuntu unless it is given others, and on
 # Windows on 3.12
 MANUAL_VERSIONS = ["3.11", "3.12", "3.15"]
@@ -125,19 +126,19 @@ def _leg(os: str, python: str, everything: bool) -> List[Dict]:
 
 def unit_legs(tier: str, versions: Optional[List[str]] = None) -> List[Dict]:
     if tier == "pr":
-        return _leg("ubuntu-latest", PR_VERSION, False)
-    if tier == "manual":
-        # Every test, on Ubuntu for each version and on Windows for 3.12, the
-        # version in .python-version
-        ubuntu = [
+        return [
             leg
-            for python in versions or MANUAL_VERSIONS
-            for leg in _leg("ubuntu-latest", python, True)
+            for python in PR_VERSIONS
+            for leg in _leg("ubuntu-latest", python, False)
         ]
-        return ubuntu + _leg("windows-latest", "3.12", True)
-    return [
-        leg for python in MAIN_VERSIONS for leg in _leg("ubuntu-latest", python, False)
+    # Every test, on Ubuntu for each version and on Windows for 3.12, the version in
+    # .python-version
+    ubuntu = [
+        leg
+        for python in versions or MANUAL_VERSIONS
+        for leg in _leg("ubuntu-latest", python, True)
     ]
+    return ubuntu + _leg("windows-latest", "3.12", True)
 
 
 def _matches(path: str, patterns: List[str]) -> bool:
@@ -157,7 +158,7 @@ def plan(
     """The jobs of a run. An empty `changed` means the changed files are not known,
     so every job that depends on them runs. `versions` are the Python versions a
     `manual` run tests on Ubuntu, `MANUAL_VERSIONS` when not given."""
-    tier = {"pull_request": "pr", "push": "main"}.get(event, "manual")
+    tier = "pr" if event == "pull_request" else "manual"
     full = tier == "manual"
     known = bool(changed)
     pr = tier == "pr"

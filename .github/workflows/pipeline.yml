@@ -1,17 +1,14 @@
 name: Pipeline
 
-# A push to main (issue #90). The pull request (pull-request.yml) ran the lint, the
-# install checks, the conformance tests at the lowest SimPy, the unit tests on Python
-# 3.11, the regression, the docs tests and the service jobs on the same code, because
-# branch protection requires a pull request to be up to date with main. So this run
-# tests what the pull request did not: Python 3.12 to 3.15. It builds the docs in
-# strict mode, and deploys them when both pass. The README badge shows this workflow.
+# A push to main (issue #90). The pull request (pull-request.yml) ran every test of
+# CI on the same code, because branch protection requires a pull request to be up to
+# date with main. So this run only builds the docs in strict mode, and deploys them
+# when the build passes. The README badge shows this workflow.
 on:
   push:
     branches: [main]
 
-# Read-only by default. The docs job raises its own permissions, because it is the
-# only one that pushes.
+# Read-only by default. The docs job raises its own permissions, because it pushes.
 permissions:
   contents: read
 
@@ -20,66 +17,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  plan:
-    name: Plan the jobs
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      code: ${{ steps.plan.outputs.code }}
-      unit: ${{ steps.plan.outputs.unit }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Read the changed files and plan the jobs
-        id: plan
-        env:
-          BEFORE: ${{ github.event.before }}
-        # The files the push changes. A list that cannot be read stays empty, and the
-        # plan then runs every job.
-        run: |
-          git diff --name-only "$BEFORE" HEAD > changed.txt 2> /dev/null || : > changed.txt
-          python3 scripts/ci_plan.py push < changed.txt | tee -a "$GITHUB_OUTPUT"
-
-  # The unit, conformance, benchtop and known case tests, in the jobs and parts that
-  # scripts/ci_plan.py lists. A part (TEST_SHARD) is dealt by the time of each test in
-  # tests/durations.json, so the parts of a job take about the same time. Each job
-  # writes a JUnit file, from which scripts/test_durations.py records the times again.
-  # The tests run in parallel worker processes (pytest-xdist, one per CPU).
-  unit-test:
-    name: ${{ matrix.name }}
-    needs: plan
-    if: needs.plan.outputs.code == 'true'
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.plan.outputs.unit) }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-
-      # Pre-downloads the interpreter. `uv run --python` below is what selects it.
-      - name: Fetch Python ${{ matrix.python }}
-        run: uv python install ${{ matrix.python }}
-
-      - name: Run the tests
-        env:
-          TEST_SHARD: ${{ matrix.shard }}
-        run: uv run --python ${{ matrix.python }} --all-extras pytest ${{ matrix.paths }} -m "${{ matrix.marks }}" -q -n auto --tb=short --junitxml=junit.xml
-
-      - name: Upload the test times
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: junit-${{ runner.os }}-${{ matrix.python }}-${{ strategy.job-index }}
-          path: junit.xml
-
   # The strict build fails on a broken link or anchor, so a broken page is never
   # deployed. Material prints a notice about MkDocs 2.0 that strict mode counts as a
   # warning; the variable turns that notice off.
@@ -103,14 +40,10 @@ jobs:
 
   docs:
     name: Deploy the docs
-    needs: [unit-test, docs-strict-build]
+    needs: docs-strict-build
     permissions:
       contents: write
       pages: write
-    # A push that changes only files no code job reads (the site's styles and scripts,
-    # mkdocs.yml, the top-level Markdown files) skips the unit tests, and the docs still
-    # deploy
-    if: ${{ !failure() && !cancelled() }}
     # docs.yml deploys too; both push to gh-pages, so one deploy waits for the other
     concurrency:
       group: docs-deploy
