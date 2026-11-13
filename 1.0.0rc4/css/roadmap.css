@@ -1,0 +1,6 @@
+/* Roadmap timeline: the dot's colour says the release's status, not its position. */
+.nt-timeline-dot.done { background-color: #9e9e9e !important; }
+.nt-timeline-dot.now { background-color: #c0392b !important; }
+.nt-timeline-dot.planned { background-color: #ffffff !important; color: #616161; border: 2px solid #616161; }
+.nt-timeline-dot.planned .twemoji,
+.nt-timeline-dot.planned svg { color: #616161 !important; fill: #616161 !important; }

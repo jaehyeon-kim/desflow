@@ -1,0 +1,23 @@
+<mxfile>
+  <diagram name="run-clock" id="run-clock">
+    <mxGraphModel grid="0" page="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="A run from 8 h to 16 h: until is a clock reading, warmup and at are lengths" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="lbl" value="simulation clock" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="50" width="200" height="30" as="geometry"/></mxCell>
+        <mxCell id="t0" value="8 h" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="20" y="95" width="130" height="40" as="geometry"/></mxCell>
+        <mxCell id="t1" value="8 h 10 min" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="205" y="95" width="130" height="40" as="geometry"/></mxCell>
+        <mxCell id="t2" value="8.5 h" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="390" y="95" width="130" height="40" as="geometry"/></mxCell>
+        <mxCell id="t3" value="16 h" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="600" y="95" width="130" height="40" as="geometry"/></mxCell>
+        <mxCell id="axis" style="sketch=1;html=1;strokeWidth=2;endArrow=block;strokeColor=#666666;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="0" y="160" as="sourcePoint"/><mxPoint x="750" y="160" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="n0" value="initial_time: 8 h&lt;br&gt;run starts" style="text;html=1;align=center;verticalAlign=top;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="0" y="175" width="170" height="50" as="geometry"/></mxCell>
+        <mxCell id="n1" value="warmup: 10 min&lt;br&gt;warm-up ends" style="text;html=1;align=center;verticalAlign=top;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="185" y="175" width="170" height="50" as="geometry"/></mxCell>
+        <mxCell id="n2" value="step at: 30 min&lt;br&gt;step applies" style="text;html=1;align=center;verticalAlign=top;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="370" y="175" width="170" height="50" as="geometry"/></mxCell>
+        <mxCell id="n3" value="until: 16 h&lt;br&gt;run ends" style="text;html=1;align=center;verticalAlign=top;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="580" y="175" width="170" height="50" as="geometry"/></mxCell>
+        <mxCell id="k1" value="clock readings: initial_time and until" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="20" y="250" width="330" height="30" as="geometry"/></mxCell>
+        <mxCell id="k2" value="lengths from the start: warmup and a step&#x27;s at" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="380" y="250" width="370" height="30" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
