@@ -147,7 +147,7 @@ A store with `priority` returns the item with the lowest `priority` value first,
 - a list such as `[1, 2]`, ordered element by element, as a tuple is;
 - any other value that can be ordered against the others, such as a text.
 
-In the Low-level API a priority keeps the value it is given, so a text priority such as `"10"` sorts as text, before `"9"`. In the Builder and in YAML a string priority is an expression, so `"10"` gives the number 10, and a text priority such as `'P1'` comes from `attr.grade` or `payload.grade`. Priorities that cannot be compared, such as a number and a text, raise `TypeError` at the put, as in SimPy.
+In the Low-level API a priority keeps the value it is given, so a text priority such as `"10"` sorts as text, before `"9"`. In the Builder and in YAML a string priority is an expression, so `"10"` gives the number 10, and a text priority such as `'P1'` comes from `attr.grade` or `payload.grade`. A number and a list, or a list and a tuple, in one store raise `ValueError` at the put that mixes them. A number and a text raise `TypeError` when the store compares the two, as in SimPy.
 
 === "YAML"
 
