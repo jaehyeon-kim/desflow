@@ -515,6 +515,7 @@ def test_a_failed_replication_ends_the_workers_that_are_running(tmp_path):
     process could not exit until they ended."""
     import multiprocessing
 
+    started = time.monotonic()
     with pytest.raises(RuntimeError, match="first run fails"):
         replicate(
             LowLevelModel(_FailsOnceThenSleeps(str(tmp_path / "first")), "P"),
@@ -523,6 +524,10 @@ def test_a_failed_replication_ends_the_workers_that_are_running(tmp_path):
             until=10,
             workers=2,
         )
+    # The 12 runs would take about 18 s of wall time on 2 workers if the failure
+    # waited for them.
+    assert time.monotonic() - started < 9.0
+
     deadline = time.monotonic() + 2.0
     while multiprocessing.active_children() and time.monotonic() < deadline:
         time.sleep(0.05)

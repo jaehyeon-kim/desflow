@@ -197,6 +197,24 @@ def test_teardown_tells_each_sink_that_it_has_begun():
     assert sink._ending is True
 
 
+def test_a_sink_reused_for_a_second_run_starts_that_run_active():
+    """Teardown marks a sink as ending. The next run that uses the same sink starts
+    with the mark cleared, so its sink waits for a service that is down."""
+    sink = SlowEgress(delay=0.0)
+    first = DynamicRealtimeEnvironment(strict=False)
+    first.setup_egress(providers=[sink], batch_size=1)
+    first.publish_telemetry("metric", 1.0)
+    first.teardown()
+    assert sink._ending is True
+
+    second = DynamicRealtimeEnvironment(strict=False)
+    second.setup_egress(providers=[sink], batch_size=1)
+    try:
+        assert sink._ending is False
+    finally:
+        second.teardown()
+
+
 def test_teardown_sleeps_half_a_second_after_the_queue_drains():
     """Once the queue empties, teardown sleeps a fixed 0.5 s to let a file sink close
     its last file, so even a fast drain costs that half second."""

@@ -615,24 +615,31 @@ class BaseEgress:
     """
 
     envelope: bool = True
-    # Set by the environment once teardown begins. A sink whose service is down drops
-    # its queued batches then, because each one would wait for the service in turn
-    # and be lost anyway.
+    # Set by the environment when teardown begins and cleared when a run starts. A sink
+    # whose service is down drops its queued batches then, because each one would wait
+    # for the service in turn and be lost anyway.
     _ending: bool = False
 
-    def _drop_backlog(self, egress_queue: queue.Queue, name: str) -> bool:
-        """After a failed write, drops every queued batch when teardown has begun.
+    def _drop_backlog(
+        self, egress_queue: queue.Queue, name: str, service_unavailable: bool
+    ) -> bool:
+        """Drops every queued batch after a failed write if the service is down at teardown.
+
+        A write that the service refused for that batch alone, while the service is up,
+        drops nothing more than itself: the other batches can still be written.
 
         Args:
             egress_queue: The queue the sink reads.
             name: The sink's name for the log line.
+            service_unavailable: Whether the error means the service cannot be
+                reached, not that it refused this batch.
 
         Returns:
-            bool: True when teardown has begun and the queue was emptied; the
-                batch that failed counts as lost too. False means the sink waits and
-                goes on as it does while the run is going.
+            bool: True when teardown has begun, the service is unavailable and the queue
+                was emptied; the batch that failed counts as lost too. False means the
+                sink waits and goes on as it does while the run is going.
         """
-        if not self._ending:
+        if not (self._ending and service_unavailable):
             return False
         lost = 1
         while True:

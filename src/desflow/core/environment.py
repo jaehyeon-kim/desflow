@@ -606,6 +606,10 @@ class EgressMixIn:
     def _start_egress(self, count: int) -> None:
         """Starts the egress thread, the periodic flush of each of the `count`
         providers and the lag monitor."""
+        # A provider reused from an earlier run was told that teardown began. It starts
+        # this run active.
+        for run in self._egress_sinks:
+            run.sink.provider._ending = False
         # Start the background thread for the providers
         self._egress_thread = threading.Thread(
             target=self._run_egress_loop, daemon=True

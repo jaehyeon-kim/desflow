@@ -1259,6 +1259,20 @@ class KafkaEgress(BaseEgress):
         messages = (self._message(data) for data in batch)
         return [message for message in messages if message is not None]
 
+    @staticmethod
+    def _warn_dropped(unsent: list) -> None:
+        """Warns how many held records are dropped because the sink was cancelled.
+
+        Args:
+            unsent: The records a broker error left unconfirmed.
+        """
+        if unsent:
+            logger.warning(
+                "Kafka Egress was cancelled with %d unconfirmed records not sent; "
+                "they are dropped.",
+                len(unsent),
+            )
+
     async def _send_messages(
         self,
         producer: Any,
@@ -1470,6 +1484,7 @@ class KafkaEgress(BaseEgress):
 
             except asyncio.CancelledError:
                 logger.info("Kafka Egress shut down requested. Exiting loop.")
+                self._warn_dropped(unsent)
                 break
             except Exception as e:
                 if refuses_access(e):
@@ -1477,5 +1492,9 @@ class KafkaEgress(BaseEgress):
                 logger.error(
                     f"Kafka Egress connection failed: {e}. Retrying in {backoff} seconds..."
                 )
-                await asyncio.sleep(backoff)
+                try:
+                    await asyncio.sleep(backoff)
+                except asyncio.CancelledError:
+                    self._warn_dropped(unsent)
+                    raise
                 backoff = min(backoff * 2, max_backoff)

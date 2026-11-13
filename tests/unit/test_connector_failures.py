@@ -5,6 +5,7 @@ of `test_second_run.py`) are cut into three batches of two records. Each egress 
 with its client replaced by a fake, fails on the first write of the second batch, and
 works after that. The records of the first and third batch must arrive, the two of the
 second must be the only ones missing, and the failure must be logged as an error. The
+Kafka sink is the exception: it sends the unconfirmed records again, so all arrive. The
 fakes and helpers are those of `test_sink_records.py` and `test_connector_second_run.py`.
 """
 
@@ -245,7 +246,11 @@ def test_redis_loses_only_the_failed_pipeline(name, make, until, run, caplog):
 
 
 @pytest.mark.parametrize("name,make,until,run", MODELS, ids=IDS)
-def test_kafka_loses_only_the_failed_send(name, make, until, run, caplog):
+def test_kafka_sends_the_rest_of_a_batch_after_a_failed_send(
+    name, make, until, run, caplog
+):
+    """The Kafka sink keeps the records the broker did not confirm and sends them
+    once the producer is back, so every record arrives."""
     arrived: Set[int] = set()
     calls: List[int] = []
 
@@ -275,4 +280,7 @@ def test_kafka_loses_only_the_failed_send(name, make, until, run, caplog):
         caplog.at_level(logging.WARNING),
     ):
         _drive(sink, _batches(name))
-    _check(arrived, caplog, name)
+    assert arrived == KEPT | LOST, (
+        f"{name}: arrived {sorted(arrived)}, expected {sorted(KEPT | LOST)}"
+    )
+    assert "failed once" in caplog.text, name
