@@ -1,10 +1,9 @@
 """scripts/ci_plan.py picks the test jobs of the workflows.
 
-A pull request tests Python 3.11, a push to main Python 3.12 to 3.15, and manual.yml
-every test on Python 3.11, 3.12 and 3.15 (or the versions it is given) on Ubuntu and
-on Python 3.12 on Windows. A pull request or a push skips the code jobs when it
-changes only files no code job reads. A pull request runs the docs and service jobs
-only when it changes what they cover, and a push to main runs neither. Each job's
+A pull request tests Python 3.11 to 3.15, and manual.yml every test on Python 3.11,
+3.12 and 3.15 (or the versions it is given) on Ubuntu and on Python 3.12 on Windows.
+A pull request skips the code jobs when it changes only files no code job reads, and
+runs the docs and service jobs only when it changes what they cover. Each job's
 parts cover every part number once, so no test is left out.
 """
 
@@ -30,25 +29,23 @@ def _versions(plan, os="ubuntu-latest"):
     return {leg["python"] for leg in plan["unit"]["include"] if leg["os"] == os}
 
 
-def test_a_pull_request_tests_the_lowest_python():
+def test_a_pull_request_tests_every_supported_python():
     plan = _plan("pull_request", SRC)
     assert plan["code"] and not plan["services"]
     assert {leg["os"] for leg in plan["unit"]["include"]} == {"ubuntu-latest"}
-    assert _versions(plan) == {"3.11"}
+    assert _versions(plan) == {"3.11", "3.12", "3.13", "3.14", "3.15"}
 
 
-def test_a_push_to_main_tests_the_versions_the_pull_request_did_not():
-    plan = _plan("push", SRC)
-    assert plan["code"] and not plan["docs"] and not plan["services"]
-    assert {leg["os"] for leg in plan["unit"]["include"]} == {"ubuntu-latest"}
-    assert _versions(plan) == {"3.12", "3.13", "3.14", "3.15"}
+def test_a_pull_request_runs_each_version_in_3_parts():
+    """scripts/ci_plan.py sizes the run by these 15 test jobs: with the other jobs a
+    pull request starts 27, and the 7 above the 20 the plan runs at once wait."""
+    assert len(_plan("pull_request", SRC)["unit"]["include"]) == 15
 
 
-def test_the_short_sets_leave_out_the_every_model_tests_and_known_cases():
-    for event in ("pull_request", "push"):
-        for leg in _plan(event, SRC)["unit"]["include"]:
-            assert "tests/known_cases" not in leg["paths"]
-            assert "not every_model" in leg["marks"]
+def test_a_pull_request_leaves_out_the_every_model_tests_and_known_cases():
+    for leg in _plan("pull_request", SRC)["unit"]["include"]:
+        assert "tests/known_cases" not in leg["paths"]
+        assert "not every_model" in leg["marks"]
 
 
 def test_the_manual_set_runs_every_test_on_the_lowest_and_newest_python():
@@ -70,12 +67,10 @@ def test_a_manual_run_by_hand_tests_the_versions_it_is_given():
 
 
 def test_a_docs_only_change_skips_the_code_jobs():
-    for event in ("pull_request", "push"):
-        plan = _plan(
-            event, ["docs/css/code-lines.css", "mkdocs.yml", "CONTRIBUTING.md"]
-        )
-        assert not plan["code"] and not plan["services"]
-        assert plan["docs"] == (event == "pull_request")
+    plan = _plan(
+        "pull_request", ["docs/css/code-lines.css", "mkdocs.yml", "CONTRIBUTING.md"]
+    )
+    assert not plan["code"] and not plan["services"] and plan["docs"]
     assert _plan("pull_request", ["CONTRIBUTING.md", "src/desflow/cli/run.py"])["code"]
 
 
@@ -87,8 +82,7 @@ def test_a_page_or_snippet_change_runs_the_code_jobs_that_read_it():
         "docs/snippets/yaml/dynamic_topology.yaml",
         "docs/snippets/yaml/simpy_forms.py",
     ):
-        for event in ("pull_request", "push"):
-            assert _plan(event, [path])["code"], (event, path)
+        assert _plan("pull_request", [path])["code"], path
 
 
 def test_the_docs_tests_run_when_a_test_file_they_read_changes():
@@ -104,7 +98,6 @@ def test_the_docs_tests_run_when_a_test_file_they_read_changes():
 def test_the_docs_tests_run_only_when_what_they_read_changes():
     assert _plan("pull_request", SRC)["docs"]
     assert not _plan("pull_request", ["tests/unit/test_values.py"])["docs"]
-    assert not _plan("push", ["tests/unit/test_values.py"])["docs"]
 
 
 def test_a_connector_change_runs_the_service_jobs_on_a_pull_request():
@@ -122,26 +115,15 @@ def test_a_connector_change_runs_the_service_jobs_on_a_pull_request():
         "docs/gallery/simulation-models/kafka.md",
     ):
         assert _plan("pull_request", [path])["services"], path
-        assert not _plan("push", [path])["services"], path
 
 
 def test_unknown_changes_run_every_job_of_the_set():
     plan = _plan("pull_request", [])
     assert plan["code"] and plan["docs"] and plan["services"]
-    plan = _plan("push", [])
-    assert plan["code"] and not plan["docs"] and not plan["services"]
-
-
-def test_a_run_has_at_most_20_jobs_at_once():
-    """The plan's limit. A pull request runs Lint, the install checks, its unit parts,
-    3 regression parts, 3 service jobs and 5 docs parts together; a push to main its
-    unit parts and the strict docs build."""
-    assert 1 + 1 + len(_plan("pull_request", SRC)["unit"]["include"]) + 3 + 3 + 5 <= 20
-    assert len(_plan("push", SRC)["unit"]["include"]) + 1 <= 20
 
 
 def test_every_job_runs_each_of_its_parts_once():
-    for event in ("pull_request", "push", "manual"):
+    for event in ("pull_request", "manual"):
         parts = defaultdict(list)
         for leg in _plan(event, SRC)["unit"]["include"]:
             parts[(leg["os"], leg["python"], leg["paths"], leg["marks"])].append(

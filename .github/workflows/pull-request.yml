@@ -1,11 +1,12 @@
 name: Pull request
 
-# A pull request to main (issue #90). It tests Python 3.11, the lowest version desflow
-# supports; a push to main (pipeline.yml) tests 3.12 to 3.15 on the merged code, and
-# manual.yml runs the long tests. It runs the docs tests when the files they read
-# change, and the integration and service example jobs when what they cover changes.
-# The jobs are sized so a run has at most 20 at once, the limit of the plan, and so no
-# job takes much longer than a part of the unit tests. The plan job reads the changed
+# A pull request to main (issue #90). It runs every test of CI: the unit and
+# conformance tests on Python 3.11 to 3.15, every version desflow supports. A push to
+# main (pipeline.yml) only deploys the docs, and manual.yml runs the long tests. It
+# runs the docs tests when the files they read change, and the integration and service
+# example jobs when what they cover changes. No job takes much longer than a part of
+# the unit tests. A run starts more jobs than the 20 the plan runs at once, and the
+# rest wait for the shortest to end, as scripts/ci_plan.py sets out. The plan job reads the changed
 # files, and scripts/ci_plan.py decides. Lint runs beside the plan job, and every
 # other job starts only when the plan is read and Lint has passed, so a lint failure
 # stops the run in about a minute. checks-passed collects their results.
