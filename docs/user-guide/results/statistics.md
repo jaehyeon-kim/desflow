@@ -169,7 +169,7 @@ When the statistics are read, every entity that has arrived belongs to one popul
 | rejected | refused to join a queue, as their `balk` held | `tasks.<task>.balked` |
 | abandoned | left a queue when their `patience` ran out, or ended by an interrupt under `on_interrupt: abandon` | `tasks.<task>.reneged`; an abandoned flow leaves `in_system` without adding to `finished` or `failed`, and `tasks.<task>.interrupted` counts the interrupts |
 | failed | ended in a failure that no `on_fail` handled | `flows.<arrival>.failed`; `tasks.<task>.failed` counts failed instances |
-| warm-up-crossing | started before the warm-up ended and ended after it | in `finished` but not in `started`; an instance still queued at the end of the warm-up adds its whole wait, and one in service adds its whole service time and no wait |
+| warm-up-crossing | started before the warm-up ended and ended after it | in `finished` but not in `started`; an instance still queued at the end of the warm-up adds its whole wait, and one in service adds its whole service time and no wait; an instance that started before the warm-up ended, was preempted and resumes after it adds no wait for the time since the preemption, because its first wait belongs to the statistics that the reset replaced |
 
 An entity a task spawns ([Start a Flow Without Waiting](../tasks-and-processes/signals-and-waiting.md#start-a-flow-without-waiting)) counts as a flow of its own under the spawned task's name. So `flows.<task>.*` and `tasks.<task>.*` cover it as they cover any arrival's flow. The spawning entity's key is in `attr.parent`.
 

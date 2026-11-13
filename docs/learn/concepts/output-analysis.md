@@ -43,7 +43,7 @@ The same model can be either, because the choice depends on the question and on 
 
 ### In the Tutorial
 
-The mean wait so far of the busy hour climbs in the first minute, because the first orders found free packers, and then in steps until about eight minutes, after which it moves up and down with no trend. [Trusting Results](../studies/trusting-results.md#compare-warm-ups) has the plot and the numbers.
+The mean wait so far of the busy hour climbs in the first minute, because the first orders found free packers. That first climb is the start-up that a warm-up covers. The mean then rises in steps until about eight minutes, after which it moves up and down with no trend, and the warm-up chosen below of 2 minutes does not cover that rise, which the comparison shows changes the mean little. [Trusting Results](../studies/trusting-results.md#compare-warm-ups) has the plot and the numbers.
 
 ![One run from an empty shop: a warm-up (left out of the statistics), then the measured period, then the end of the run at until](../../assets/diagrams/run-phases.png)
 

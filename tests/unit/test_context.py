@@ -3703,6 +3703,21 @@ def test_step_after_close_raises_and_peek_gives_the_time_of_the_next_event():
     assert app.peek() == before < float("inf")
 
 
+def test_peek_after_a_failed_start_raises(monkeypatch):
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_arrival("a", "constant", value=1.0, spawn="t")
+    app.task(name="t")(lambda task_id, entity=None: {})
+
+    def refuse(env):
+        raise ValueError("replay refused")
+
+    monkeypatch.setattr(app, "_read_replay_rows", refuse)
+    with pytest.raises(ValueError, match="replay refused"):
+        app.start(until=3)
+    with pytest.raises(RuntimeError, match="needs a run that start"):
+        app.peek()
+
+
 def test_an_initial_arrival_with_an_empty_name_is_refused_when_it_is_added():
     app = SimulationContext("S", factor=0, random_seed=1)
     with pytest.raises(ValueError, match="an arrival name is at least one character"):

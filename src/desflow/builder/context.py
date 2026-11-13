@@ -448,6 +448,9 @@ class SimulationContext:
         # True once start() has built and started everything, so a caller can tell
         # a value refused before the run from an error inside it
         self.started = False
+        # True once start() has built the run, and it stays True after close(); False
+        # when the build failed, so peek() can tell a failed start from a closed run
+        self._built = False
         # The random draws of the current run, made by each start()
         self.sampler: Optional[Sampler] = None
         # The generators' state for the run, made when the run is built; nothing
@@ -3251,6 +3254,7 @@ class SimulationContext:
         )
         self._env = None
         self.started = False
+        self._built = False
 
         logger.info(f"Building SimulationContext for '{self.sim_id}'...")
         try:
@@ -3313,6 +3317,7 @@ class SimulationContext:
         self._run.end = self._end_event(settings.until, settings.stop, settings.drain)
         self._closed = False
         self.started = True
+        self._built = True
         if self._env.strict or self._run.sync:
             # Building takes wall time, which a strict run must not count as lag
             self._env.sync()
@@ -3578,6 +3583,8 @@ class SimulationContext:
             RuntimeError: If the run has not started.
         """
         env = self.env
+        if not self._built:
+            raise RuntimeError("peek() needs a run that start() has started")
         return math.inf if self._run.stopped else env.peek()
 
     def _started_env(self, call: str) -> DynamicRealtimeEnvironment:
