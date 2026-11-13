@@ -549,6 +549,9 @@ Below are the records of `task_values.yaml` that these sections show: the first 
 <!-- records: task-values -->
 ```text
 [EVT] {'sim_ts': 42.95160161372071, 'timestamp': '...', 'key': 'c-0', 'task': 'sign_up', 'instance': 0, 'value': {'customer_id': 'c-0'}}
+[EVT] {'sim_ts': 43.408565140468134, 'timestamp': '...', 'key': 'orders-16', 'task': 'place_order', 'instance': 15, 'value': {'customer_id': 'c-0', 'total': 42.23, 'running_total': 42.23}}
+[EVT] {'sim_ts': 43.408565140468134, 'timestamp': '...', 'key': 'orders-16', 'task': 'pack', 'instance': 0, 'value': {'weight': 2.5}}
+[EVT] {'sim_ts': 44.908565140468134, 'timestamp': '...', 'key': 'orders-16', 'task': 'pack', 'instance': 0, 'value': {'box': 'small', 'weight': 2.5, 'fee': 1.0, 'total': 42.23}}
 [EVT] {'sim_ts': 100.0, 'timestamp': '...', 'key': 'closing-1', 'task': 'day_report', 'instance': 0, 'value': {'closed_at': 100.0, 'mean_total': 126.093}}
 ```
 
