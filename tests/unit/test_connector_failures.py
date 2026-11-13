@@ -98,8 +98,10 @@ def _drive(egress: Any, batches: Tuple[Any, ...]) -> None:
 
     async def main() -> None:
         task = asyncio.create_task(egress.run(egress_queue))
+        # As teardown does: the queue is empty and no write is running. A write that
+        # runs in a daemon thread is not waited for when the loop closes.
         for _ in range(1000):
-            if egress_queue.empty():
+            if egress_queue.empty() and not getattr(egress, "active_tasks", 0):
                 break
             await real_sleep(0.01)
         await real_sleep(0.3)
