@@ -52,7 +52,7 @@ dependencies = [
     # Discriminator, which the generators need. The pydantic-floor CI job tests it
     "pydantic>=2.6.1",
     "pyyaml>=6.0.1",
-    "typer>=0.16.0",
+    "typer>=0.16.0,<0.30",
     # TypeAliasType, which the recursive Value type of the generators uses; Python
     # 3.11 has none of its own. 4.6.0 added it; pydantic already requires 4.6.1
     "typing-extensions>=4.6.1",
@@ -181,8 +181,7 @@ dev = [
     "types-redis>=4.6.0",
     "types-pyyaml>=6.0.12",
     "mkdocs-llmstxt>=0.5.1",
-    # 1.2.3 adds properdocs, a second documentation tool with its own command.
-    "mkdocs-redirects==1.2.2",
+    "mkdocs-redirects==1.2.3",
     # The roadmap page draws its releases as a timeline.
     "neoteroi-mkdocs>=1.2.0",
     # scripts/charts.py draws the tutorial answers and the distribution shapes.
