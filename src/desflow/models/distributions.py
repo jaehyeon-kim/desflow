@@ -180,11 +180,13 @@ def _check_truncated_normal(c: Any) -> None:
         )
     if c.std > 0:
         try:
-            distance = (float(c.low) - float(c.mean)) / float(c.std)
+            # The sampler's own arithmetic: whole numbers are subtracted before they
+            # are divided, so adjacent large integers keep their distance of 1
+            distance = (c.low - c.mean) / c.std
             reachable = math.isfinite(distance * distance)
         except (OverflowError, ZeroDivisionError):
             reachable = False
-        if not reachable and float(c.low) > float(c.mean):
+        if not reachable and c.low > c.mean:
             raise ValueError(
                 f"truncated_normal low {c.low:g} is too far above mean {c.mean:g} "
                 f"for std {c.std:g}: the distance in std squared passes the largest "

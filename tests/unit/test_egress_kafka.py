@@ -333,6 +333,150 @@ async def test_cancelling_the_sink_while_records_are_held_warns_how_many_are_dro
 
 
 @pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_cancelling_during_a_send_counts_the_unconfirmed_records_as_dropped(
+    MockProducer, caplog
+):
+    """The first record is confirmed and the send of the second never returns. The
+    cancellation drops the second and third, and the sink says so."""
+    entered = asyncio.Event()
+
+    async def send(topic, value=None, key=None):
+        if key == b"orders-2":
+            entered.set()
+            await asyncio.Event().wait()
+
+    producer = AsyncMock()
+    producer.send.side_effect = send
+    MockProducer.return_value = producer
+    egress = KafkaEgress("localhost:9092", topic_policy="manual")
+    batches = queue.Queue()
+    batches.put(
+        [
+            {"stream_type": "event", "key": f"orders-{n}", "value": {"n": n}}
+            for n in (1, 2, 3)
+        ]
+    )
+    task = asyncio.create_task(egress.run(batches))
+    await asyncio.wait_for(entered.wait(), 5)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+    assert "cancelled with 2 unconfirmed records" in caplog.text
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_cancelling_during_a_delivery_counts_the_unconfirmed_records_as_dropped(
+    MockProducer, caplog
+):
+    """Every record is sent and the delivery of the second never completes. The
+    first is confirmed, so the cancellation drops the second and third."""
+    entered = asyncio.Event()
+
+    async def send(topic, value=None, key=None):
+        delivery = asyncio.get_running_loop().create_future()
+        if key != b"orders-2":
+            delivery.set_result(None)
+        if key == b"orders-3":
+            entered.set()
+        return delivery
+
+    producer = AsyncMock()
+    producer.send.side_effect = send
+    MockProducer.return_value = producer
+    egress = KafkaEgress("localhost:9092", topic_policy="manual")
+    batches = queue.Queue()
+    batches.put(
+        [
+            {"stream_type": "event", "key": f"orders-{n}", "value": {"n": n}}
+            for n in (1, 2, 3)
+        ]
+    )
+    task = asyncio.create_task(egress.run(batches))
+    await asyncio.wait_for(entered.wait(), 5)
+    await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+    assert "cancelled with 2 unconfirmed records" in caplog.text
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_cancelling_during_the_send_of_a_retained_batch_counts_it_as_dropped(
+    MockProducer, caplog
+):
+    """A broker error retains records 2 and 3. The send of the retained batch is
+    cancelled, and the sink still reports both as dropped."""
+    state = {"failed": False}
+    entered = asyncio.Event()
+
+    async def send(topic, value=None, key=None):
+        if key == b"orders-2":
+            if not state["failed"]:
+                state["failed"] = True
+                raise KafkaConnectionError("broker restarted")
+            entered.set()
+            await asyncio.Event().wait()
+
+    producer = AsyncMock()
+    producer.send.side_effect = send
+    MockProducer.return_value = producer
+    egress = KafkaEgress("localhost:9092", topic_policy="manual")
+    batches = queue.Queue()
+    batches.put(
+        [
+            {"stream_type": "event", "key": f"orders-{n}", "value": {"n": n}}
+            for n in (1, 2, 3)
+        ]
+    )
+    task = asyncio.create_task(egress.run(batches))
+    await asyncio.wait_for(entered.wait(), 10)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+    assert "cancelled with 2 unconfirmed records" in caplog.text
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_teardown_waits_for_a_retained_batch_to_be_sent_again(MockProducer):
+    """The only batch fails once. While its records wait for the producer to come
+    back, the sink still counts as writing, so teardown does not cancel it. Once the
+    records are sent, it is idle."""
+    state = {"failed": False}
+    sent = []
+    during_wait = []
+
+    async def send(topic, value=None, key=None):
+        if not state["failed"]:
+            state["failed"] = True
+            raise KafkaConnectionError("broker restarted")
+        sent.append(key)
+
+    async def start():
+        if state["failed"] and not sent:
+            during_wait.append(egress.active_tasks)
+
+    producer = AsyncMock()
+    producer.send.side_effect = send
+    producer.start.side_effect = start
+    MockProducer.return_value = producer
+    egress = KafkaEgress("localhost:9092", topic_policy="manual")
+    batches = queue.Queue()
+    batches.put([{"stream_type": "event", "key": "orders-1", "value": {"n": 1}}])
+    task = asyncio.create_task(egress.run(batches))
+    for _ in range(300):
+        if sent:
+            break
+        await asyncio.sleep(0.01)
+    await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+    assert sent == [b"orders-1"]
+    assert during_wait and all(count > 0 for count in during_wait)
+    assert egress.active_tasks == 0
+
+
+@pytest.mark.asyncio
 @patch("desflow.connectors.egress.kafka.apply_topic_policies")
 @patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_topic_policy_that_worked_is_not_applied_again(

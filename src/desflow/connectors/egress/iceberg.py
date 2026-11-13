@@ -211,8 +211,9 @@ def _is_bad_response(error: Exception) -> bool:
         isinstance(error, ValidationError)
         or any(kind.__name__ == "JSONDecodeError" for kind in type(error).__mro__)
         or (
-            isinstance(error, TypeError)
-            and "argument after ** must be a mapping" in str(error)
+            # "argument after ** must be a mapping" to Python 3.14, "Value after **
+            # must be a mapping" from Python 3.15
+            isinstance(error, TypeError) and "after ** must be a mapping" in str(error)
         )
     )
 

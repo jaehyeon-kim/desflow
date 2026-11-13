@@ -275,29 +275,28 @@ async def test_postgres_ingress_sends_the_change_of_an_update_whose_reply_was_lo
 async def test_postgres_ingress_sends_the_change_of_an_update_that_commits_late(
     mock_create_pool, mock_pool
 ):
-    """The update fails on the client, and the server commits it after the recovery
-    read found the row unmarked and before the poll read the unapplied rows. That
-    poll does not see the row, so the ingress keeps it pending until a later check
-    finds it marked, and sends its change once."""
+    """The update fails on the client, and the server commits it before the next poll
+    reads the unapplied rows. That poll reads a newer row for the same path and not
+    the first row, so the ingress sends the first row's change before the newer one,
+    each once."""
     pool, conn = mock_pool
     mock_create_pool.return_value = pool
-    state = {"marked": False, "checks": 0}
+    state = {"unapplied_reads": 0, "committed": False}
 
     async def fetch(sql, *args):
         if "id = ANY" in sql:
-            state["checks"] += 1
-            found = state["marked"]
-            if state["checks"] == 1:
-                state["marked"] = True  # the server commits after this read
-            return [{"id": 1}] if found else []
+            return [{"id": 1}] if state["committed"] else []
         if "is_applied = FALSE" in sql:
-            return (
-                [] if state["marked"] else [{"id": 1, "path": "sim.rate", "value": "5"}]
-            )
+            state["unapplied_reads"] += 1
+            if state["unapplied_reads"] == 1:
+                return [{"id": 1, "path": "sim.rate", "value": "5"}]
+            if state["unapplied_reads"] == 2:
+                state["committed"] = True  # the server commits before this read
+                return [{"id": 2, "path": "sim.rate", "value": "10"}]
         return []
 
     async def execute(sql, *args):
-        if sql.lstrip().startswith("UPDATE") and not state["checks"]:
+        if sql.lstrip().startswith("UPDATE") and state["unapplied_reads"] == 1:
             raise asyncpg.ConnectionDoesNotExistError("connection was closed")
 
     conn.fetch.side_effect = fetch
@@ -308,6 +307,7 @@ async def test_postgres_ingress_sends_the_change_of_an_update_that_commits_late(
     await _run_briefly(ingress, ingress_queue)
 
     assert ingress_queue.get_nowait() == ("sim.rate", 5)
+    assert ingress_queue.get_nowait() == ("sim.rate", 10)
     assert ingress_queue.empty()
 
 

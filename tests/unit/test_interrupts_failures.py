@@ -1184,3 +1184,31 @@ def test_a_filter_that_fails_on_an_offered_item_takes_no_later_item_of_that_inst
     assert len(items) == 2 and any(
         isinstance(i, dict) and i.get("size") == 2 for i in items
     ), items
+
+
+OPENED_FILTER = (
+    "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+    "stores: {box: {max_cap: 10, items: %s}}\n"
+    "arrivals: {g: {dist: constant, value: 0, spawn: opener, max_events: 1}}\n"
+    "tasks:\n"
+    '  opener: {open: {h: {get: {store: box, filter: "item.size > 1"}}},'
+    " payload: {e: opened}, on_fail: handler}\n"
+    "  handler: {payload: {e: handled}}\n"
+    "run: {until: 10, on_unhandled_failure: continue}\n"
+)
+
+
+def test_an_opened_get_whose_filter_fails_at_once_fails_the_task_not_the_run(tmp_path):
+    """The filter cannot be evaluated when the get is opened, on the stored item
+    `{}`. The task goes to its `on_fail` under `continue`, as a get that is not
+    waited for does, and the run does not raise."""
+    result = run_yaml_text(tmp_path, OPENED_FILTER % "[{}]", {})
+    assert result.error is None
+    events = [
+        (r.get("task") or r.get("source"), r["value"])
+        for r in result.records
+        if r["stream_type"] == "event"
+    ]
+    assert [t for t, v in events if v.get("status") == "failed"] == ["opener"]
+    assert ("opener", {"e": "opened"}) not in events
+    assert ("handler", {"e": "handled"}) in events

@@ -18,6 +18,7 @@ from desflow.models.params import (
     DistributionConfig,
     SimParameter,
     check_distribution,
+    check_parameter_values,
 )
 
 logger = logging.getLogger(__name__)
@@ -602,8 +603,9 @@ class SimulationRegistry:
     def _checked_value(
         self, path: str, new_value: Any, *, distribution_rules: bool
     ) -> Any:
-        """`check_value`, with the distribution's own rules applied only when
-        `distribution_rules` is true."""
+        """`check_value`, with the rules of the distribution family between its
+        parameters applied only when `distribution_rules` is true. The checks of the
+        value itself, a finite number and not a bool, always apply."""
         if path not in self._values:
             rejected = ParamRejected(
                 path,
@@ -680,11 +682,14 @@ class SimulationRegistry:
         parent_obj = self._configs.get(parent_path)
 
         # Check a distribution parameter with the same rules as at load
-        if distribution_rules and isinstance(parent_obj, DistributionConfig):
+        # (the rules between parameters only when `distribution_rules` is true: the
+        # number and finiteness of the value itself are always checked)
+        if isinstance(parent_obj, DistributionConfig):
             candidate = copy.copy(parent_obj)
             setattr(candidate, attr, validated_value)
+            check = check_distribution if distribution_rules else check_parameter_values
             try:
-                check_distribution(candidate)
+                check(candidate)
             except ValueError as exc:
                 rejected = ParamRejected(
                     path, new_value, f"invalid value for '{path}': {exc}"
@@ -1128,11 +1133,12 @@ class SimulationRegistry:
 
 def check_value_type(registry: SimulationRegistry, path: str, new_value: Any) -> Any:
     """The value `path` accepts for `new_value`, checked as `check_value` does but
-    without the distribution's own rules.
+    without the rules of the distribution family between its parameters.
 
     Those rules read the other parameters of the distribution as they are now, and a
     conditional `on:` action may run after a scenario step has changed them, so the
-    load checks of a conditional action use this.
+    load checks of a conditional action use this. A distribution parameter must still
+    be a finite number and not a bool.
 
     Args:
         registry: The registry that holds `path`.

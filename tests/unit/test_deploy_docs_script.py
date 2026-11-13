@@ -6,9 +6,14 @@ import textwrap
 from pathlib import Path
 from typing import List
 
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "deploy_docs.sh"
+
+pytestmark = pytest.mark.skipif(
+    os.name == "nt", reason="The stub PATH needs a POSIX Bash environment."
+)
 
 
 def _deploy(tmp_path: Path, head: str, main: str) -> List[str]:

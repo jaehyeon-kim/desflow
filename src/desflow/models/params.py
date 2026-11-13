@@ -161,13 +161,31 @@ def check_distribution(config: DistributionConfig) -> None:
             f"{config.dist} does not take {', '.join(extra)}; it takes "
             f"{', '.join(family.parameters)}"
         )
+    check_parameter_values(config)
+    family.check(config)
+
+
+def check_parameter_values(config: DistributionConfig) -> None:
+    """
+    Checks each set parameter of a config on its own: a number, not a bool, NaN or
+    infinite.
+
+    These checks do not read the other parameters, so a live update that is written
+    before the others change can still be held to them.
+
+    Args:
+        config: The config to check.
+
+    Raises:
+        ValueError: If a parameter the family takes is not a finite number.
+    """
+    family = get_distribution(config.dist)
     for name in family.parameters:
         value = getattr(config, name)
         if value is None:
             continue
         for item in value if name in LIST_PARAMETERS else [value]:
             finite_number(f"{config.dist} {name}", item)
-    family.check(config)
 
 
 @dataclass

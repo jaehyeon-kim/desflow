@@ -1259,6 +1259,26 @@ class KafkaEgress(BaseEgress):
         messages = (self._message(data) for data in batch)
         return [message for message in messages if message is not None]
 
+    # True while records a broker error left unconfirmed wait to be sent again
+    _holding: bool = False
+
+    def _hold(self, unsent: list) -> None:
+        """Counts the retained records as a batch being written.
+
+        Teardown waits for `active_tasks` to reach 0. Without this the sink counted as
+        idle between a broker error and the retry, and teardown could cancel it
+        with the retained records still unsent.
+
+        Args:
+            unsent: The records a broker error left unconfirmed.
+        """
+        holding = bool(unsent)
+        if holding != self._holding:
+            self._holding = holding
+            self.active_tasks = getattr(self, "active_tasks", 0) + (
+                1 if holding else -1
+            )
+
     @staticmethod
     def _warn_dropped(unsent: list) -> None:
         """Warns how many held records are dropped because the sink was cancelled.
@@ -1327,15 +1347,17 @@ class KafkaEgress(BaseEgress):
                 except RECORD_ERRORS as error:
                     self._warn_not_sent(key, topic, error)
                 done.add(index)
-        except Exception:
+        except (Exception, asyncio.CancelledError) as error:
             unsent.extend(m for i, m in enumerate(messages) if i not in done)
-            logger.warning(
-                "Kafka Egress keeps %d of %d records of the batch and sends them "
-                "again when the producer is back; a record that was on its way can "
-                "arrive twice.",
-                len(unsent),
-                len(messages),
-            )
+            # A cancelled sink does not send them again: `run` reports them dropped
+            if not isinstance(error, asyncio.CancelledError):
+                logger.warning(
+                    "Kafka Egress keeps %d of %d records of the batch and sends them "
+                    "again when the producer is back; a record that was on its way "
+                    "can arrive twice.",
+                    len(unsent),
+                    len(messages),
+                )
             raise
 
     async def _messages_with_retry(
@@ -1466,15 +1488,22 @@ class KafkaEgress(BaseEgress):
                                 # EgressMixIn
                                 batch = egress_queue.get_nowait()
                                 messages = None
-                            with self._writing():
-                                if messages is None:
-                                    # Kafka routes by __topic__, and writes no
-                                    # other reserved key
-                                    batch = drop_reserved_keys(
-                                        batch, self, keep=("__topic__",)
+                            try:
+                                with self._writing():
+                                    if messages is None:
+                                        # Kafka routes by __topic__, and writes no
+                                        # other reserved key
+                                        batch = drop_reserved_keys(
+                                            batch, self, keep=("__topic__",)
+                                        )
+                                        messages = await self._messages_with_retry(
+                                            batch
+                                        )
+                                    await self._send_messages(
+                                        producer, messages, unsent
                                     )
-                                    messages = await self._messages_with_retry(batch)
-                                await self._send_messages(producer, messages, unsent)
+                            finally:
+                                self._hold(unsent)
 
                         except queue.Empty:
                             # Yield to loop if queue is empty
@@ -1485,9 +1514,11 @@ class KafkaEgress(BaseEgress):
             except asyncio.CancelledError:
                 logger.info("Kafka Egress shut down requested. Exiting loop.")
                 self._warn_dropped(unsent)
+                self._hold([])
                 break
             except Exception as e:
                 if refuses_access(e):
+                    self._hold([])
                     raise
                 logger.error(
                     f"Kafka Egress connection failed: {e}. Retrying in {backoff} seconds..."
@@ -1496,5 +1527,6 @@ class KafkaEgress(BaseEgress):
                     await asyncio.sleep(backoff)
                 except asyncio.CancelledError:
                     self._warn_dropped(unsent)
+                    self._hold([])
                     raise
                 backoff = min(backoff * 2, max_backoff)

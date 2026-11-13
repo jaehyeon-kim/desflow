@@ -2577,6 +2577,11 @@ class TaskRun:
                 else None
             )
             event = self._transfer_event(node.target, node.kind, payload)
+            if node.kind == "get" and event.triggered and not event.ok:
+                # A filter that cannot be evaluated is the task's own failure, as for
+                # a get that is not waited for
+                event.defused = True
+                raise event.value.error from None
             handle = Handle(node.kind, event)
             if node.kind == "get":
                 handle.value_of = functools.partial(

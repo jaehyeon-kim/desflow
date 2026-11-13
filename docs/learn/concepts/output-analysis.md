@@ -43,7 +43,7 @@ The same model can be either, because the choice depends on the question and on 
 
 ### In the Tutorial
 
-The mean wait so far of the busy hour climbs in the first minute, because the first orders found free packers. That first climb is the start-up that a warm-up covers. The mean then rises in steps until about eight minutes, after which it moves up and down with no trend, and the warm-up chosen below of 2 minutes does not cover that rise, which the comparison shows changes the mean little. [Trusting Results](../studies/trusting-results.md#compare-warm-ups) has the plot and the numbers.
+The mean wait so far of the busy hour climbs in the first minute, because the first orders found free packers. That first climb is the start-up that a warm-up covers. The mean then rises in steps until about eight minutes, after which it moves up and down with no trend, and the warm-up chosen below of 2 minutes does not cover that rise. The comparison shows that leaving out the first four minutes, half of the rise, changes the mean little. [Trusting Results](../studies/trusting-results.md#compare-warm-ups) has the plot and the numbers.
 
 ![One run from an empty shop: a warm-up (left out of the statistics), then the measured period, then the end of the run at until](../../assets/diagrams/run-phases.png)
 
@@ -58,7 +58,7 @@ Choose the warm-up from evidence, not from habit, in two steps:
 1. Plot a running statistic from the start of the run, such as the queue length or the mean wait so far, and note when it stops climbing. Law's paper shows a plot made with Welch's method for this, in which the warm-up is the time after which the average has levelled off, and advises choosing it conservatively.
 2. Compare a few candidate warm-ups. Run the same replications after each, and check whether a longer warm-up moves the mean by more than its [half-width](#interval-and-half-width). A candidate passes when it does not.
 
-Then keep the shortest candidate that passes the comparison and covers the climb in the plot with a margin, as Law advises. Set it on the run:
+Then keep the shortest candidate that passes the comparison and covers the first climb in the plot with a margin, as Law advises. Set it on the run:
 
 === "YAML"
 
@@ -87,7 +87,7 @@ The warm-up resets every statistic once at that time, as [Run Length](../../user
 
 ### What the Result Means
 
-[Trusting Results](../studies/trusting-results.md#compare-warm-ups) compares warm-ups of 1, 2 and 4 minutes over five seeds, and all pass. The first climb ends at about a minute, and 2 minutes covers it with a minute to spare. The running mean goes on rising in steps after two minutes. Leaving out up to 4 minutes moves the mean by at most 0.005 seconds, so that rise changes the estimate little, although the comparison does not show whether it is part of the start-up. In the run with the seed 42, the warm-up changes the mean wait only from 2.007 to 2.050 seconds: an hour is long enough that its first minutes hardly count. A shorter run, or one that starts far from the usual state, needs the warm-up much more. A warm-up is not a fix for a model that never settles: if [utilisation](queueing-basics.md#utilisation) is 1 or more, there is no steady state for a warm-up to find.
+[Trusting Results](../studies/trusting-results.md#compare-warm-ups) compares warm-ups of 1, 2 and 4 minutes over five seeds, and none shows a visible change in the mean. The first climb ends at about a minute, and 2 minutes covers it with a minute to spare. The running mean goes on rising in steps after two minutes. Leaving out up to 4 minutes moves the mean by at most 0.005 seconds, so leaving out half of that rise changes the estimate little. The comparison does not test a warm-up that covers all of the rise, so it does not show whether the rise is part of the start-up. In the run with the seed 42, the warm-up changes the mean wait only from 2.007 to 2.050 seconds: an hour is long enough that its first minutes hardly count. A shorter run, or one that starts far from the usual state, needs the warm-up much more. A warm-up is not a fix for a model that never settles: if [utilisation](queueing-basics.md#utilisation) is 1 or more, there is no steady state for a warm-up to find.
 
 ---
 
