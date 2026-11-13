@@ -128,7 +128,8 @@ while stepped.peek() < 30:  # the time of the next event
 print(f"stopped before {stepped.peek()} at {stepped.env.now}")
 stepped.close()  # the teardown run() does at its end
 # --8<-- [end:step]
-assert stepped.env.now == 20 and stepped.peek() == 30
+# close() ended the run, so peek() is refused now; the print above showed 30
+assert stepped.env.now == 20
 
 
 # --8<-- [start:strict]

@@ -82,7 +82,13 @@ _MIN_LABEL = 40
 
 def _depth(tree: Tree) -> int:
     """The number of levels below `tree`."""
-    return max((1 + _depth(child) for child in tree.children), default=0)
+    deepest = 0
+    pending = [(tree, 0)]
+    while pending:
+        node, level = pending.pop()
+        deepest = max(deepest, level)
+        pending.extend((child, level + 1) for child in node.children)
+    return deepest
 
 
 class _AsciiText(io.StringIO):

@@ -1797,6 +1797,35 @@ def test_a_template_made_after_another_context_took_its_key_takes_the_key_of_the
     assert numbers_of(app).place(between.payload["x"]._path) == "template1.payload.x"
 
 
+def test_a_named_template_below_an_unnamed_key_keeps_its_stream_when_that_template_renders():
+    """A name such as `<key of an unnamed template>.child` must not follow the unnamed
+    template to its key in the context: its values are the same whether or not the
+    unnamed template renders between its renders."""
+
+    # The unnamed template is not the first made, so its key differs from the
+    # `template1` that the context gives the first unnamed template it renders
+    Template(_AMOUNT)
+    unnamed = Template(_AMOUNT)
+    named = Template(_AMOUNT, name=f"{unnamed.key}.child")
+
+    def named_values(also_render_unnamed: bool) -> List[Any]:
+        app = SimulationContext(sim_id="B", random_seed=7, factor=0)
+        seen: List[Any] = []
+
+        def process(context):
+            for _ in range(3):
+                seen.append(named.render(context)["x"])
+                if also_render_unnamed:
+                    unnamed.render(context)
+                yield context.env.timeout(1)
+
+        app.add_process(process)
+        app.run(until=3.5)
+        return seen
+
+    assert named_values(True) == named_values(False)
+
+
 def test_a_template_named_with_an_empty_text_is_numbered_like_an_unnamed_one():
     alone_app = SimulationContext(sim_id="B", random_seed=7, factor=0)
     alone = _amounts_of_one_template(alone_app, Template(_AMOUNT, name=""))
@@ -3724,4 +3753,6 @@ def test_a_set_a_call_returns_is_written_sorted():
         "cherry",
         "date",
     ]
-    assert _plain({1, "a"}) in ([1, "a"], ["a", 1])
+    # Values that do not compare are ordered by their type name, then their text
+    assert _plain({1, "apple", "banana"}) == [1, "apple", "banana"]
+    assert _plain({"b", 2, "a", 1.5}) == [1.5, 2, "a", "b"]

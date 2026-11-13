@@ -87,12 +87,13 @@ def _plain(value: Any) -> Any:
 
 def _sorted_items(items: List[Any]) -> List[Any]:
     """The items of a set in an order that does not depend on the process: sorted
-    when they compare, as they are when the set holds one kind of value. A set's own
-    order follows the string hash seed, which differs from one process to the next."""
+    when they compare, as they are when the set holds one kind of value, and by type
+    name and then text when they do not. A set's own order follows the string hash
+    seed, which differs from one process to the next."""
     try:
         return sorted(items)
     except TypeError:
-        return items
+        return sorted(items, key=lambda item: (type(item).__name__, repr(item)))
 
 
 class RunStopped(BaseException):

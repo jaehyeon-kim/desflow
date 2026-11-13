@@ -163,4 +163,5 @@ class RedisEgress(BaseEgress):
                     # `socket_timeout`, when it made the connection: no wait fixes it
                     raise
                 logger.error(f"Error publishing batch to Redis: {e}")
-                await asyncio.sleep(1)
+                if not self._drop_backlog(egress_queue, "RedisEgress"):
+                    await asyncio.sleep(1)

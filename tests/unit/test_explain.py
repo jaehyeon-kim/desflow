@@ -1227,3 +1227,17 @@ def test_a_deep_graph_prints_every_task_at_width_80(tmp_path):
     text = render_terminal(SimulationContext.from_yaml(path).analyze(), width=80)
     for i in range(count):
         assert f"-> t{i} (task" in text or f"t{i} (task" in text
+
+
+def test_the_depth_of_a_deep_tree_is_counted_without_recursion():
+    """A chain of 800 levels is below the depth `_branch` handles and above the one a
+    recursive count with a generator at each level survives."""
+    from rich.tree import Tree
+
+    from desflow.explain.render import _depth
+
+    tree = Tree("root")
+    last = tree
+    for level in range(800):
+        last = last.add(str(level))
+    assert _depth(tree) == 800

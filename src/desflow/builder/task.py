@@ -1621,7 +1621,11 @@ class TaskRun:
                             return None
                 if spec.get is not None and not got_item and not spec.get.wait:
                     # Made and not waited for: it takes an item later and discards it
-                    self._transfer_event(spec.get, "get", None)
+                    event = self._transfer_event(spec.get, "get", None)
+                    if event.triggered and not event.ok:
+                        # A filter that cannot be evaluated is the task's own failure
+                        event.defused = True
+                        raise event.value.error from None
                     got_item = True
                 if spec.get is not None and not got_item:
                     self._target = f"get.{self._named(spec.get.target)}"
@@ -3360,6 +3364,9 @@ class TaskRun:
         failed: List[Exception] = []
 
         def guarded(item: Any) -> bool:
+            if failed:
+                # The first error fails the get; no later item is taken for it
+                return False
             try:
                 return matches(item)
             except Exception as error:

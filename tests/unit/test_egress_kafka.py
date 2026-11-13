@@ -11,6 +11,7 @@ import httpx
 import orjson
 import pytest
 from aiokafka.errors import (
+    KafkaConnectionError,
     MessageSizeTooLargeError,
     TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
@@ -142,6 +143,114 @@ async def test_topic_policy_is_applied_again_once_the_producer_connects(
     await run_until(egress.run(queue.Queue()), lambda: apply.call_count >= 2)
     await asyncio.sleep(0.05)
     assert apply.call_count == 2
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.FIRST_DELAY", 0.01)
+@patch("desflow.connectors.egress.kafka.apply_topic_policies")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_no_record_is_sent_before_the_topic_policy_works(
+    MockProducer, apply, run_until
+):
+    """The policy fails at the start and at the first retry. The first batch is held
+    until a retry works, so a `drop_and_create` never meets a record already sent."""
+    producer = AsyncMock()
+    MockProducer.return_value = producer
+    applied_before_send = []
+    producer.send.side_effect = lambda *a, **k: applied_before_send.append(
+        apply.call_count
+    )
+    apply.side_effect = [ConnectionError("down"), ConnectionError("down"), None]
+    egress = KafkaEgress(
+        bootstrap_servers="localhost:9092", topic_policy="drop_and_create"
+    )
+    batches = queue.Queue()
+    batches.put([{"stream_type": "event", "key": "k", "value": "v"}])
+    await run_until(egress.run(batches), lambda: producer.send.called)
+    assert applied_before_send == [3]
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.FIRST_DELAY", 0.01)
+@patch("desflow.connectors.egress.kafka.apply_topic_policies")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_a_topic_policy_that_keeps_failing_is_given_up_before_the_first_send(
+    MockProducer, apply, run_until
+):
+    """After the tries end, the sink sends to the topics as they are, as it did at
+    rc4, and the policy is not tried again."""
+    producer = AsyncMock()
+    MockProducer.return_value = producer
+    apply.side_effect = ConnectionError("down")
+    egress = KafkaEgress(
+        bootstrap_servers="localhost:9092", topic_policy="drop_and_create"
+    )
+    batches = queue.Queue()
+    batches.put([{"stream_type": "event", "key": "k", "value": "v"}])
+    await run_until(egress.run(batches), lambda: producer.send.called)
+    assert apply.call_count == 4
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.FIRST_DELAY", 0.01)
+@patch("desflow.connectors.egress.kafka.apply_topic_policies")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_a_reconnect_after_records_were_sent_does_not_apply_the_policy_again(
+    MockProducer, apply, run_until
+):
+    producer = AsyncMock()
+    MockProducer.return_value = producer
+    apply.side_effect = [ConnectionError("down"), None, None]
+    sends = []
+
+    async def send(*args, **kwargs):
+        sends.append(1)
+        if len(sends) == 1:
+            raise ConnectionError("lost")
+
+    producer.send.side_effect = send
+    egress = KafkaEgress(
+        bootstrap_servers="localhost:9092", topic_policy="drop_and_create"
+    )
+    batches = queue.Queue()
+    for _ in range(2):
+        batches.put([{"stream_type": "event", "key": "k", "value": "v"}])
+    await run_until(egress.run(batches), lambda: producer.start.call_count >= 2)
+    await asyncio.sleep(0.05)
+    assert producer.start.call_count >= 2
+    assert apply.call_count == 2
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_a_broker_error_part_way_through_a_batch_does_not_lose_the_rest(
+    MockProducer, run_until, caplog
+):
+    """The second send fails once with a connection error. The records after it are
+    sent again once the producer has restarted, and the first is not sent again."""
+    sent = []
+    state = {"failed": False}
+
+    async def send(topic, value=None, key=None):
+        if key == b"orders-2" and not state["failed"]:
+            state["failed"] = True
+            raise KafkaConnectionError("broker restarted")
+        sent.append(key.decode())
+
+    producer = AsyncMock()
+    producer.send.side_effect = send
+    MockProducer.return_value = producer
+    egress = KafkaEgress("localhost:9092", topic_policy="manual")
+    batches = queue.Queue()
+    events = [
+        {"stream_type": "event", "key": f"orders-{n}", "value": {"n": n}, "sim_ts": n}
+        for n in (1, 2, 3, 4)
+    ]
+    batches.put(events[:3])
+    batches.put(events[3:])
+    await run_until(egress.run(batches), lambda: len(sent) >= 4, timeout=10)
+    assert sent == ["orders-1", "orders-2", "orders-3", "orders-4"]
+    assert "keeps 2 of 3 records" in caplog.text
 
 
 @pytest.mark.asyncio

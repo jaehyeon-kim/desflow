@@ -1084,6 +1084,10 @@ class EgressMixIn:
         # backlog of any sink slower than the simulation, so the wait ends only when
         # the queue stops shrinking.
         if hasattr(self, "_egress_sinks"):
+            for run in self._egress_sinks:
+                # A sink whose service is down drops its backlog now, not one batch
+                # for every second of back-off
+                run.sink.provider._ending = True
             stall_limit = getattr(self, "egress_drain_stall_seconds", 30.0)
 
             def total_queued() -> int:
@@ -1653,7 +1657,8 @@ class DynamicRealtimeEnvironment(
                 Inside a run with no end of its own, `run()` ends there too.
         """
         if self._in_run:
-            if math.isinf(self.peek()) and not self._ending():
+            idle_matters = self._until_none or self._when_idle is not None
+            if idle_matters and math.isinf(self.peek()) and not self._ending():
                 if self._until_none:
                     # A run with no end of its own ends when no model event is left,
                     # as SimPy's does; the events of desflow's own would go on for ever

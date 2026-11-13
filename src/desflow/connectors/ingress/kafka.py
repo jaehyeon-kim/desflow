@@ -854,7 +854,7 @@ class KafkaIngress(BaseIngress):
 
         The consumer settings the admin client also understands, such as the security
         settings, are passed on to it. A failure is logged rather than raised, and
-        `run` applies the policy again once the consumer has connected.
+        `run` applies the policy again before the consumer starts.
 
         Returns:
             bool: True when the topic could not be created.
@@ -930,8 +930,9 @@ class KafkaIngress(BaseIngress):
                 credentials or access.
         """
         # A broker that is down at the start refuses the topic policy. It is applied
-        # again once the consumer connects, and not again after that: a
-        # `drop_and_create` would delete the control topic's messages.
+        # again before each start of the consumer until a consumer has started, and
+        # not after that: a `drop_and_create` would delete the control topic's
+        # messages.
         topic_failed = await asyncio.to_thread(self._create_topic)
         backoff = 1.0
         # With a group, aiokafka commits the position of every message it has handed
@@ -946,6 +947,8 @@ class KafkaIngress(BaseIngress):
             settings["enable_auto_commit"] = False
         while True:
             try:
+                if topic_failed:
+                    topic_failed = await asyncio.to_thread(self._create_topic)
                 consumer = AIOKafkaConsumer(
                     self.topic, bootstrap_servers=self.bootstrap_servers, **settings
                 )
@@ -955,8 +958,7 @@ class KafkaIngress(BaseIngress):
                     await consumer.start()
                     logger.info(f"Connected to Kafka Ingress topic: {self.topic}")
                     backoff = 1.0
-                    if topic_failed:
-                        topic_failed = await asyncio.to_thread(self._create_topic)
+                    topic_failed = False
 
                     async for msg in consumer:
                         try:

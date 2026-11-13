@@ -668,4 +668,5 @@ class PostgresEgress(BaseEgress):
             except Exception as e:
                 logger.error(f"Error inserting batch into {self.table_name}: {e}")
                 # Back-off on database failures to prevent rapid crash looping
-                await asyncio.sleep(1)
+                if not self._drop_backlog(egress_queue, "PostgresEgress"):
+                    await asyncio.sleep(1)

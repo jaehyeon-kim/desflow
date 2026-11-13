@@ -441,10 +441,15 @@ def test_test_fix_fills_an_empty_expect(tmp_path):
     assert "tasks.pack_order.finished: 3" in path.read_text(encoding="utf-8")
 
 
-def test_test_fix_refuses_a_test_written_as_a_flow_mapping(tmp_path):
-    """A test written as `- {name: t1}` cannot take an `expect` block below it, so
-    `--fix` refuses it and leaves the file as it is."""
-    text = textwrap.dedent(SHOP) + "tests:\n  - {name: t1, seed: 3}\n"
+@pytest.mark.parametrize(
+    "test",
+    ["{name: t1, seed: 3}", "&case {name: t1, seed: 3}", "!!map {name: t1, seed: 3}"],
+    ids=["plain", "anchored", "tagged"],
+)
+def test_test_fix_refuses_a_test_written_as_a_flow_mapping(test, tmp_path):
+    """A test written as `- {name: t1}`, with or without an anchor or a tag, cannot take
+    an `expect` block below it, so `--fix` refuses it and leaves the file as it is."""
+    text = textwrap.dedent(SHOP) + f"tests:\n  - {test}\n"
     path = _write(tmp_path, "shop.yaml", text)
     result = CliRunner().invoke(cli, ["test", str(path), "--fix"])
     assert result.exit_code != 0

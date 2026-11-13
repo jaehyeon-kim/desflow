@@ -79,15 +79,19 @@ def mock_admin():
 @pytest.mark.asyncio
 @patch("desflow.connectors.ingress.kafka.apply_topic_policies")
 @patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
-async def test_topic_policy_is_applied_again_once_the_consumer_connects(
+async def test_topic_policy_is_applied_again_before_the_consumer_starts(
     MockConsumer, apply
 ):
-    """A broker that is down at the start refuses the policy. It is applied again when
-    the consumer connects, and not a third time."""
+    """A broker that is down at the start refuses the policy. It is applied again
+    before the consumer starts, so a `drop_and_create` never meets a message the
+    consumer has read, and not a third time."""
+    applied_at_start = []
 
     class FakeConsumer:
         def __init__(self):
-            self.start = AsyncMock()
+            self.start = AsyncMock(
+                side_effect=lambda: applied_at_start.append(apply.call_count)
+            )
             self.stop = AsyncMock()
 
         async def __aiter__(self):
@@ -107,6 +111,7 @@ async def test_topic_policy_is_applied_again_once_the_consumer_connects(
         await task
     except asyncio.CancelledError:
         pass
+    assert applied_at_start == [2]
     assert apply.call_count == 2
 
 

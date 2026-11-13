@@ -3,6 +3,7 @@
 import re
 import unicodedata
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -837,22 +838,36 @@ def test_a_lowest_reads_the_member_names():
 
 def test_two_threads_each_count_only_their_own_items():
     """Two evaluations of 600,000 items each run in two threads: each passes alone,
-    so together they must pass."""
+    so together they must pass. Both threads wait at the first count of their items,
+    so the two evaluations overlap whatever the scheduler does, and a count the
+    threads share fails."""
     import threading
 
+    from desflow.core import expressions
+
     expression = Expression("len(range(600000)) + len([x for x in range(1) if x == 0])")
+    meeting = threading.Barrier(2, timeout=10)
+    spend = expressions._spend
     errors = []
 
-    def work():
-        for _ in range(10):
-            try:
-                expression.evaluate(Scope())
-            except ValueError as exc:
-                errors.append(str(exc))
+    def spend_after_meeting(items):
+        if not getattr(counted, "met", False):
+            counted.met = True
+            meeting.wait()
+        spend(items)
 
-    threads = [threading.Thread(target=work) for _ in range(2)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
+    counted = threading.local()
+
+    def work():
+        try:
+            expression.evaluate(Scope())
+        except ValueError as exc:
+            errors.append(str(exc))
+
+    with patch.object(expressions, "_spend", spend_after_meeting):
+        threads = [threading.Thread(target=work) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
     assert errors == []

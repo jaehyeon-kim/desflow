@@ -16,13 +16,17 @@ echo "Extracted version: $VERSION"
 # group, but in the order they started, not by commit, and GitHub cancels the deploy
 # that waits in the group when a newer one joins it. A run whose commit is no longer
 # the head of main would replace newer docs as `latest`, and the head's own deploy may
-# have been cancelled, so this run deploys the head of main instead.
+# have been cancelled, so this run deploys the head of main instead. That head has not
+# passed this run's checks, so it is built in strict mode first, as the head's own run
+# would have done.
 git fetch --quiet origin main
 if [ "$(git rev-parse FETCH_HEAD)" != "$(git rev-parse HEAD)" ]; then
   echo "$(git rev-parse --short HEAD) is not the head of main ($(git rev-parse --short FETCH_HEAD)), so the head's docs are deployed."
   git checkout --quiet --detach FETCH_HEAD
   VERSION=$(grep -m 1 '^version = ' pyproject.toml | cut -d '"' -f 2)
   echo "Extracted version: $VERSION"
+  DISABLE_MKDOCS_2_WARNING=true NO_MKDOCS_2_WARNING=1 \
+    uv run mkdocs build --strict --site-dir "$RUNNER_TEMP/strict-site"
 fi
 
 # Deploy the version and tag it as 'latest'

@@ -100,7 +100,7 @@ class FileIngress(BaseIngress):
                         if stamp != modified or content != seen:
                             modified = stamp
                             seen = content
-                            entries = self._read()
+                            entries = self._read(content)
                             if entries is not None:
                                 self._put_changes(entries, previous, ingress_queue)
                                 previous = entries
@@ -108,13 +108,18 @@ class FileIngress(BaseIngress):
         except asyncio.CancelledError:
             pass
 
-    def _read(self) -> Optional[Dict[Any, Any]]:
-        """Returns the file's mapping, or None after logging why it is not valid."""
-        try:
-            data = yaml.safe_load(self.path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
+    def _read(self, content: Optional[bytes]) -> Optional[Dict[Any, Any]]:
+        """Returns the mapping in the bytes read from the file, or None after logging
+        why it is not valid. The bytes are the ones `run` compares, so what is applied
+        is what was seen. None means the file could not be read."""
+        if content is None:
+            logger.warning(
+                f"Skipped the ingress file {self.path}: it could not be read"
+            )
             return None
-        except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        try:
+            data = yaml.safe_load(content.decode("utf-8"))
+        except (UnicodeDecodeError, yaml.YAMLError) as exc:
             logger.warning(f"Skipped the ingress file {self.path}: {exc}")
             return None
         if data is None:

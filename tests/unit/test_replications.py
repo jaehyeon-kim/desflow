@@ -6,6 +6,7 @@ import shlex
 import threading
 import time
 from concurrent.futures import Future
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -487,28 +488,36 @@ def test_workers_refuse_a_function_from_an_interactive_session(monkeypatch):
         replicate(LowLevelModel(typed_in, "Shop"), 2, seed=1, until=100, workers=2)
 
 
-def _fails_once_then_sleeps(env, sampler):
-    """The first run that reaches it fails; the others take 3 s of wall time."""
-    import os
+@dataclass
+class _FailsOnceThenSleeps:
+    """The first run that reaches it fails; the others take 3 s of wall time.
 
-    try:
-        os.close(os.open(os.environ["DESFLOW_FIRST_RUN_MARK"], os.O_CREAT | os.O_EXCL))
-    except FileExistsError:
-        time.sleep(3)
-    else:
-        raise RuntimeError("first run fails")
-    return None
+    The mark file's path travels with the model, because a worker started by
+    forkserver (the default from Python 3.14 on Linux) does not see an environment
+    variable the test sets after the server started."""
+
+    mark: str
+
+    def __call__(self, env, sampler):
+        import os
+
+        try:
+            os.close(os.open(self.mark, os.O_CREAT | os.O_EXCL))
+        except FileExistsError:
+            time.sleep(3)
+        else:
+            raise RuntimeError("first run fails")
+        return None
 
 
-def test_a_failed_replication_ends_the_workers_that_are_running(tmp_path, monkeypatch):
+def test_a_failed_replication_ends_the_workers_that_are_running(tmp_path):
     """The runs already sent to a worker would start after the failure, and the
     process could not exit until they ended."""
     import multiprocessing
 
-    monkeypatch.setenv("DESFLOW_FIRST_RUN_MARK", str(tmp_path / "first"))
     with pytest.raises(RuntimeError, match="first run fails"):
         replicate(
-            LowLevelModel(_fails_once_then_sleeps, "P"),
+            LowLevelModel(_FailsOnceThenSleeps(str(tmp_path / "first")), "P"),
             12,
             seed=1,
             until=10,

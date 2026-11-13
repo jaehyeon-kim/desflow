@@ -1466,16 +1466,22 @@ def test_a_catalog_that_never_answers_does_not_keep_the_process_alive():
         import asyncio, queue, threading
         from desflow.connectors.egress.iceberg import IcebergStorageEgress
 
+        started = threading.Event()
+
         class Silent(IcebergStorageEgress):
             def _check_catalog(self):
+                started.set()
                 threading.Event().wait()
 
         async def main():
             sink = Silent(catalog={"type": "rest", "uri": "http://x"}, default_table="t.e")
             task = asyncio.create_task(sink.run(queue.Queue()))
-            await asyncio.sleep(0.5)
+            # The cancel must come while the call that never returns is running
+            assert await asyncio.to_thread(started.wait, 10), "the call did not start"
             task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+            (result,) = await asyncio.gather(task, return_exceptions=True)
+            # The sink ends on a cancel, as itself or as the cancel; a setup error fails
+            assert result is None or isinstance(result, asyncio.CancelledError), result
 
         asyncio.run(main())
         """

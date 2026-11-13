@@ -183,6 +183,20 @@ def test_teardown_waits_for_a_slow_sink():
     assert len(slow.received_batches) == 10
 
 
+def test_teardown_tells_each_sink_that_it_has_begun():
+    """A sink whose service is down drops its backlog once `ending` is set, so teardown
+    does not wait a second for each batch."""
+    env = DynamicRealtimeEnvironment(strict=False)
+    sink = SlowEgress(delay=0.0)
+    env.setup_egress(providers=[sink], batch_size=1)
+    assert sink._ending is False
+
+    env.publish_telemetry("metric", 1.0)
+    env.teardown()
+
+    assert sink._ending is True
+
+
 def test_teardown_sleeps_half_a_second_after_the_queue_drains():
     """Once the queue empties, teardown sleeps a fixed 0.5 s to let a file sink close
     its last file, so even a fast drain costs that half second."""
@@ -1627,3 +1641,14 @@ def test_setup_egress_refuses_the_batching_values_the_other_apis_refuse(settings
     with pytest.raises(ValueError, match=name):
         env.setup_egress([TrackingEgress(), TrackingEgress()], **settings)
     assert not hasattr(env, "_egress_sinks")
+
+
+def test_a_run_to_a_time_does_not_scan_the_queue_for_an_idle_run():
+    """`step()` looks for the end of the model events only for a run with no end of
+    its own or one that waits for idle, so a run to a time never calls `peek()`."""
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    for at in range(1, 20):
+        env.timeout(at)
+    with patch.object(DynamicRealtimeEnvironment, "peek", wraps=env.peek) as spy:
+        env.run(until=50)
+    assert spy.call_count == 0

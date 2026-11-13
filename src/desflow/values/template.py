@@ -38,7 +38,7 @@ _PATH = Tuple[Any, ...]
 
 _WHOLE_NUMBER = re.compile(r"-?\d+")
 # The keys of unnamed templates, and the names that a prefix keeps away from them
-_UNNAMED_LOOKALIKE = re.compile(r"(named:)*template\d+")
+_UNNAMED_LOOKALIKE = re.compile(r"(named:)*template\d+(\..*)?")
 
 
 def _escaped(text: str) -> str:
@@ -233,8 +233,9 @@ def numbers_of(context: Any) -> TemplateNumbers:
 
 def _key_of(name: Optional[str], serial: Optional[int]) -> str:
     """The key a template's random sequences are named by: its name, or `template<n>`
-    for the `n`-th unnamed template. A name that looks like an unnamed key gets
-    `named:` in front, so no name takes the key of an unnamed template.
+    for the `n`-th unnamed template. A name that looks like an unnamed key, or starts
+    with one and a dot, gets `named:` in front, so no name takes the key of an
+    unnamed template.
     """
     if not name:
         return f"template{serial}"
