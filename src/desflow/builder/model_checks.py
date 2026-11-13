@@ -593,8 +593,10 @@ class ModelChecks:
             self._holders, self._readings, self._signals.on
         ):
             self._check_rule_names(place, expression, holders, sim_id, scratch)
-        for place, expression in self._run_reads():
-            self._check_rule_names(place, expression, holders, sim_id, scratch)
+        for place, expression, interrupted in self._run_reads():
+            self._check_rule_names(
+                place, expression, holders, sim_id, scratch, interrupted
+            )
         routes = self._routes()
         self._warn_whole_flows(routes, order_warned)
         after_get_tasks, cause_targets = flow_sets(
@@ -1373,11 +1375,13 @@ class ModelChecks:
             self._signals,
         )
 
-    def _run_reads(self) -> Iterator[Tuple[str, Expression]]:
+    def _run_reads(self) -> Iterator[Tuple[str, Expression, Optional[str]]]:
         """Yields each expression the run places of an arrival and the values of a
-        scenario step hold, with the place for a message: an `Expression` given as the
-        value, the text of each `expr`, `when` or `omit_when` of a generator in it,
-        and the `where` of a scenario step's interrupt, as text or an `Expression`.
+        scenario step hold, with the place for a message and the task whose scope it
+        is read in: an `Expression` given as the value, the text of each `expr`,
+        `when` or `omit_when` of a generator in it, and the `where` of a scenario
+        step's interrupt, as text or an `Expression`. Only that `where` has a task,
+        the one it interrupts, because `interrupt` reads it in each instance's scope.
         Text that does not parse is left to the check of the value."""
         places: List[Tuple[str, Any]] = []
         for name, plan in self._arrivals.plans.items():
@@ -1395,14 +1399,16 @@ class ModelChecks:
             where = f"scenario step at {step['at']:g} s"
             places += [(f"{where} {key}", step.get(key)) for key in ("value", "record")]
             places.append((f"{where} interrupt", step.get("interrupt")))
-            places.append((f"{where} interrupt where", _interrupt_where(step)))
+            condition = _interrupt_where(step)
+            if condition is not None:
+                yield f"{where} interrupt where", condition, step["interrupt"]["task"]
         for place, value in places:
             if isinstance(value, Expression):
-                yield place, value
+                yield place, value, None
             for _path, generator in generators_in(value, (Gen,)):
                 for text in generator_expressions(generator):
                     try:
-                        yield place, Expression(text, names=ANY_NAME)
+                        yield place, Expression(text, names=ANY_NAME), None
                     except ValueError:
                         continue
 
@@ -1413,14 +1419,30 @@ class ModelChecks:
         holders: Mapping[str, Any],
         sim_id: str,
         scratch: Callable[[], SimulationRegistry],
+        interrupted: Optional[str] = None,
     ) -> None:
         """Checks that the resources, stores, containers, signals and registry paths a
-        queue rank or a preempt rule reads exist.
+        queue rank or a preempt rule reads exist, and the `wait.<branch>` names.
+
+        Args:
+            interrupted: The task a scenario step's interrupt `where` is read for, in
+                the scope of each of its instances, so it reads a branch of that
+                task's wait; None elsewhere, where no wait is in scope.
 
         Raises:
             ValueError: Naming the place and the name, for the first that does not.
         """
-        for branch in sorted(expression.references["wait"]):
+        if interrupted is not None:
+            spec = self._tasks.specs[interrupted]
+            branches = set(spec.wait.branches) if spec.wait else set()
+            for branch in sorted(expression.references["wait"] - branches):
+                raise ValueError(
+                    f"{place} reads wait.{branch}, which is not a branch of the wait "
+                    f"of task '{interrupted}'" + suggestion(branch, branches)
+                )
+        for branch in sorted(
+            expression.references["wait"] if interrupted is None else ()
+        ):
             raise ValueError(
                 f"{place} reads wait.{branch}, where no wait is in scope; a signal's "
                 f"on entries run with no wait in scope"

@@ -10,7 +10,7 @@ from desflow import Entity, SimulationContext
 from desflow.blueprint import BlueprintError
 from desflow.core.expressions import Expression
 from desflow.values import generator
-from tests.conformance.harness import run_yaml_text
+from tests.conformance.harness import RecordingEgress, run_yaml_text
 
 
 @pytest.mark.parametrize("setting", ["logical_start_time", "go_live_at"])
@@ -3198,6 +3198,103 @@ def test_the_registry_paths_a_scenario_interrupt_where_reads_are_checked(form):
         'registry["S.variables.missing"], which is not a registry path'
     ), refused.value
     model("registry['S.variables.v'] == 0 or attr.n == 1").run(until=2)
+
+
+_TIMER_ORDERS = """
+simulation: {sim_id: S, factor: 0, random_seed: 42}
+arrivals:
+  a: {replay: {path: a.csv}, spawn: t}
+signals:
+  go: {}
+tasks:
+  t:
+    wait: {any: {timer: {timeout: 2}, go: {signal: go}}}
+    service_time: 10
+    on_interrupt: abandon
+    payload: {e: t}
+scenario:
+  - at: 5
+    interrupt: {task: t, where: "WHERE", cause: late}
+"""
+
+
+def _timer_orders(form):
+    """The builder twin of `_TIMER_ORDERS`, with the where given in `form`."""
+
+    def model(where):
+        app = SimulationContext("S", factor=0, random_seed=42)
+        app.add_signal("go")
+        app.add_arrival_replay("a", [{"time": 0}, {"time": 1}, {"time": 4}], spawn="t")
+        app.task(
+            name="t",
+            wait={"any": {"timer": {"timeout": 2}, "go": {"signal": "go"}}},
+            service_time=10,
+            on_interrupt="abandon",
+        )(lambda task_id: {"e": "t"})
+        app.add_scenario(
+            [
+                {
+                    "at": 5,
+                    "interrupt": {"task": "t", "where": form(where), "cause": "late"},
+                }
+            ]
+        )
+        return app
+
+    return model
+
+
+def _interrupted(records):
+    return [
+        (r["sim_ts"], r["key"])
+        for r in records
+        if r["stream_type"] == "event" and r["value"].get("status") == "interrupted"
+    ]
+
+
+@pytest.mark.parametrize("form", [str, Expression], ids=["text", "an Expression"])
+def test_a_scenario_interrupt_where_reads_the_wait_of_the_task_it_interrupts(
+    tmp_path, form
+):
+    """A scenario interrupt's `where` is read in each instance's scope, so it reads
+    the interrupted task's `wait` branches, in YAML and in the builder. At 5 s two
+    orders have passed their timer and are interrupted. The third is still in its
+    wait, reads `wait.timer.done` as false, and runs to the end."""
+    outcome = run_yaml_text(
+        tmp_path, _TIMER_ORDERS.replace("WHERE", "wait.timer.done"), {"a": [0, 1, 4]}
+    )
+    assert outcome.error is None
+    assert _interrupted(outcome.records) == [(5.0, "a-1"), (5.0, "a-2")]
+    rec = RecordingEgress()
+    app = _timer_orders(form)("wait.timer.done")
+    app.add_egress(rec)
+    app.run(until=30)
+    assert _interrupted(rec.records) == [(5.0, "a-1"), (5.0, "a-2")]
+    assert [r["sim_ts"] for r in rec.records if r["value"].get("e") == "t"] == [16.0]
+
+
+@pytest.mark.parametrize("form", [str, Expression], ids=["text", "an Expression"])
+def test_a_scenario_interrupt_where_that_names_no_branch_of_the_task_is_refused(
+    tmp_path, form
+):
+    """A `wait.<branch>` in a scenario interrupt's `where` names a branch of the
+    interrupted task's wait, in YAML at load and in the builder before the run."""
+    (tmp_path / "a.csv").write_text("time\n0\n")
+    (tmp_path / "model.yaml").write_text(
+        _TIMER_ORDERS.replace("WHERE", "wait.timr.done")
+    )
+    with pytest.raises(BlueprintError) as refused:
+        SimulationContext.from_yaml(tmp_path / "model.yaml")
+    assert str(refused.value).endswith(
+        ":15: wait.timr is not a branch of the wait of task 't', which the step "
+        "interrupts; did you mean 'timer'?"
+    ), refused.value
+    with pytest.raises(ValueError) as refused:
+        _timer_orders(form)("wait.timr.done").start(until=2)
+    assert str(refused.value) == (
+        "scenario step at 5 s interrupt where reads wait.timr, which is not a branch "
+        "of the wait of task 't'; did you mean 'timer'?"
+    )
 
 
 def test_the_scenario_walk_yields_each_step_with_its_problem():

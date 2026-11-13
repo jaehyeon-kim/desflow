@@ -446,6 +446,7 @@ environment: !python endings_logic.CountingEnvironment
     - A `fail` is refused with `from`, and `defused` needs `fail`. A `fail_reason` needs a `fail` condition.
     - A `listen` names one of `signal` and `handle`, an `index` needs a `handle`, and the signal or handle is declared.
     - A `when` or a generator `value` in a signal's `on:` that reads `wait.<branch>` is refused, because a signal's entries run with no wait in scope. So is an `each.index` or `each.value` read outside the branch of an `each`.
+    - A scenario step's interrupt `where` reads `wait.<branch>` only for a branch of the wait of the task it interrupts.
     - `simulation.environment` names a subclass of `DynamicRealtimeEnvironment`.
 4. **Build the context.** The builder calls are made in the order a script would make them: the simulation, ingress, egress, batching, stats, resources, stores, containers, variables, services, arrivals, tasks, arrival loops, processes, telemetry and the scenario.
 5. **Check the paths.** The parameters are registered into a scratch registry, with the code that the run uses. Every scenario `path`, and every `registry["..."]` that an expression reads, is then checked against the paths the run will have. Every scenario `value` must convert to the type its path holds.

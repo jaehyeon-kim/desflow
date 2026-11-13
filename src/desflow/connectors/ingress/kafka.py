@@ -14,6 +14,7 @@ from desflow.connectors._schema_registry.unset import UNSET
 from desflow.connectors._schema_registry.errors import (  # noqa: F401
     SchemaRegistryError,
     SerializationError,
+    refuses_access,
 )
 from desflow.connectors.admin.kafka import (
     KafkaAdminConnector,
@@ -784,7 +785,8 @@ class KafkaIngress(BaseIngress):
 
     The expected resulting dictionary format must contain a 'path' string
     and a non-null 'value' of any serializable type. A message that cannot be
-    decoded or does not have both is logged as a warning and skipped.
+    decoded or does not have both is logged as a warning and skipped. A schema
+    registry that refuses the deserializer's credentials or access ends the task.
 
     Attributes:
         topic (str): The Kafka topic name used for configuration signals.
@@ -868,11 +870,17 @@ class KafkaIngress(BaseIngress):
         Each message is read as JSON with `path` and `value`; a message that cannot be
         read is logged and skipped. A deserializer runs in a worker thread, because it
         may call a schema registry, which waits and retries, and must not hold the loop
-        that every ingress connector of the run shares.
+        that every ingress connector of the run shares. A registry that refuses the
+        deserializer's credentials or access (a 401 or 403 status, or the Glue error
+        `AccessDeniedException`) would refuse every message, so it ends the task.
 
         Args:
             ingress_queue: The queue the environment applies changes from, as
                 `(path, value)` pairs.
+
+        Raises:
+            SchemaRegistryError: If the registry refuses the deserializer's
+                credentials or access.
         """
         await asyncio.to_thread(self._create_topic)
         backoff = 1.0
@@ -906,6 +914,8 @@ class KafkaIngress(BaseIngress):
                             ingress_queue.put(parse_change(data))
 
                         except Exception as e:
+                            if refuses_access(e):
+                                raise
                             logger.warning(f"Skipped a Kafka ingress message: {e}")
                 finally:
                     await consumer.stop()
@@ -914,6 +924,8 @@ class KafkaIngress(BaseIngress):
                 logger.info("Kafka Ingress shut down requested. Exiting loop.")
                 break
             except Exception as e:
+                if refuses_access(e):
+                    raise
                 logger.error(f"Kafka Ingress error: {e}. Retrying in {backoff}s")
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 60.0)

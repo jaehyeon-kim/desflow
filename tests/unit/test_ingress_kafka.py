@@ -314,6 +314,68 @@ async def test_kafka_ingress_skips_a_payload_that_is_not_glue_framed(
     assert "Invalid header version byte" in skipped[0]
 
 
+@pytest.mark.parametrize(
+    ("status", "code", "ends"),
+    [
+        pytest.param(403, 40301, True, id="registry-403"),
+        pytest.param(400, "AccessDeniedException", True, id="glue-access-denied"),
+        pytest.param(404, 40403, False, id="registry-404"),
+    ],
+)
+@pytest.mark.asyncio
+@patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
+async def test_a_registry_that_refuses_access_ends_the_source(
+    MockConsumer, caplog, status, code, ends
+):
+    """A registry that refuses the source's credentials or access ends the task with
+    that error, so the messages after it are not read and lost one by one. Any other
+    registry error skips its message, and the next one is applied."""
+    from desflow.connectors._schema_registry.errors import SchemaRegistryError
+
+    payloads = [b"refused", b'{"path": "A", "value": 1}']
+
+    class FakeConsumer:
+        def __init__(self):
+            self.start = AsyncMock()
+            self.stop = AsyncMock()
+
+        async def __aiter__(self):
+            for payload in payloads:
+                yield MagicMock(topic="sim-config", value=payload)
+            await asyncio.sleep(999)
+
+    def deserialize(topic, value):
+        if value == b"refused":
+            raise SchemaRegistryError(status, code, "refused")
+        return json.loads(value)
+
+    deserializer = MagicMock()
+    deserializer.deserialize.side_effect = deserialize
+    consumer = MockConsumer.return_value = FakeConsumer()
+    ingress_queue = queue.Queue()
+    ingress = KafkaIngress(
+        topic="sim-config",
+        bootstrap_servers="localhost:9092",
+        default_deserializer=deserializer,
+        topic_policy="manual",
+    )
+
+    task = asyncio.create_task(ingress.run(ingress_queue))
+    await _wait_until(lambda: task.done() or not ingress_queue.empty())
+    task.cancel()
+    outcome = (await asyncio.gather(task, return_exceptions=True))[0]
+
+    if ends:
+        assert isinstance(outcome, SchemaRegistryError)
+        assert ingress_queue.empty()
+        consumer.stop.assert_awaited_once()
+        assert MockConsumer.call_count == 1
+        assert "Skipped a Kafka ingress message" not in caplog.text
+    else:
+        assert ingress_queue.get_nowait() == ("A", 1)
+        assert "Skipped a Kafka ingress message" in caplog.text
+
+
 def test_topic_policy_creates_the_control_topic(mock_admin, caplog):
     """`create`, the default, asks for the control topic by name. A mapping gives
     it its settings, `drop_and_create` deletes it first, and `manual` touches

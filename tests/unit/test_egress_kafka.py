@@ -838,8 +838,10 @@ async def test_a_null_value_with_the_envelope_on_is_written_or_skipped(
 @pytest.mark.parametrize(
     "error",
     [
-        pytest.param(("registry", 409, 409, "incompatible schema"), id="registry"),
-        pytest.param(("registry", 404, 40401, "subject not found"), id="not-found"),
+        pytest.param(("registry", 422, 42201, "invalid schema"), id="registry-422"),
+        pytest.param(
+            ("registry", 400, "InvalidInputException", "bad definition"), id="glue-400"
+        ),
         pytest.param(OverflowError("int too big for 64 bits"), id="overflow"),
     ],
 )
@@ -848,9 +850,10 @@ async def test_a_null_value_with_the_envelope_on_is_written_or_skipped(
 async def test_a_registry_or_encoding_error_skips_only_its_record(
     MockProducer, run_until, caplog, error
 ):
-    """A `SchemaRegistryError` with a 4xx status or an `OverflowError` skips its
-    record with a warning that names the error, as a `ValueError` does. The records
-    after it are sent and the connection is not restarted."""
+    """A `SchemaRegistryError` with a 4xx status that does not refuse access, or an
+    `OverflowError`, skips its record with a warning that names the error, as a
+    `ValueError` does. The records after it are sent and the connection is not
+    restarted."""
     from desflow.connectors._schema_registry.errors import SchemaRegistryError
 
     if isinstance(error, tuple):
@@ -883,6 +886,53 @@ async def test_a_registry_or_encoding_error_skips_only_its_record(
     assert str(error) in caplog.text
     assert "connection failed" not in caplog.text
     assert MockProducer.call_count == 1
+
+
+@pytest.mark.parametrize(
+    ("status", "code"),
+    [
+        pytest.param(401, 40101, id="registry-401"),
+        pytest.param(403, 40301, id="registry-403"),
+        pytest.param(400, "AccessDeniedException", id="glue-access-denied"),
+    ],
+)
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_a_registry_that_refuses_access_ends_the_sink(
+    MockProducer, caplog, status, code
+):
+    """A registry that refuses the sink's credentials or access ends the sink's task
+    with that error, so the queue is not drained record by record. Nothing of the
+    batch is sent, the producer is stopped and no reconnection is tried."""
+    from desflow.connectors._schema_registry.errors import SchemaRegistryError
+
+    def serialize(topic, payload):
+        if payload["key"] == "k2":
+            raise SchemaRegistryError(status, code, "refused")
+        return payload["key"].encode()
+
+    serializer = MagicMock()
+    serializer.serialize.side_effect = serialize
+    producer = MockProducer.return_value = AsyncMock()
+    egress = KafkaEgress(
+        bootstrap_servers="b:9092", topic_policy="manual", serializer=serializer
+    )
+    batches = queue.Queue()
+    batches.put(
+        [{"stream_type": "event", "key": f"k{n}", "value": {"n": n}} for n in (1, 2, 3)]
+    )
+    batches.put([{"stream_type": "event", "key": "k4", "value": {"n": 4}}])
+
+    with pytest.raises(SchemaRegistryError) as raised:
+        await asyncio.wait_for(egress.run(batches), timeout=5)
+
+    assert raised.value.http_status == status
+    producer.send.assert_not_called()
+    producer.stop.assert_awaited_once()
+    assert batches.qsize() == 1
+    assert MockProducer.call_count == 1
+    assert "skipped the record" not in caplog.text
+    assert "connection failed" not in caplog.text
 
 
 @pytest.mark.parametrize(

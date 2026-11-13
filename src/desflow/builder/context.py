@@ -48,6 +48,7 @@ from desflow.core.environment import (
 from desflow.core.expressions import (
     ANY_NAME,
     Expression,
+    Scope,
     boolean_word,
     rank_problem,
 )
@@ -2574,8 +2575,9 @@ class SimulationContext:
 
         Args:
             task: The task's name.
-            where: A condition read for each instance, such as `"attr.order == 3"`;
-                None interrupts every instance.
+            where: A condition read for each instance, such as `"attr.order == 3"`,
+                in that instance's scope; a branch of its wait reads as not done
+                until the wait has ended. None interrupts every instance.
             cause: What the instances receive as the interrupt's cause, published
                 as the record's `cause`.
 
@@ -2597,7 +2599,7 @@ class SimulationContext:
             process = run.flow.process
             if process is None or process is active or not process.is_alive:
                 continue
-            if condition is not None and not condition.evaluate(run.scope()):
+            if condition is not None and not condition.evaluate(_wait_so_far(run)):
                 continue
             process.interrupt(cause)
             count += 1
@@ -3699,6 +3701,24 @@ class SimulationContext:
             lambda: scratch_registry(self),
             self._order_warned,
         )
+
+
+def _wait_so_far(run: Any) -> Scope:
+    """The scope of a task instance that an interrupt `where` is read in. An instance
+    records its wait's branches only when the wait ends, so an instance that has not
+    reached its wait, or is still in it, reads each branch as not done, as a branch
+    that did not happen before the wait ended reads. An `each` branch has no elements
+    then, so its `values` and `flags` are empty."""
+    scope = run.scope()
+    wait = run.spec.wait
+    if wait is None or all(name in scope.waits for name in wait.branches):
+        return scope
+    waits: Dict[str, Dict[str, Any]] = {}
+    for name, node in wait.branches.items():
+        waits[name] = {"done": False, "ok": None, "value": None}
+        if node.template is not None:
+            waits[name].update(values=[], flags=[])
+    return dataclasses.replace(scope, waits={**waits, **scope.waits})
 
 
 def _queue_rule(rule: Mapping[str, Any], what: str) -> Tuple[Expression, str]:

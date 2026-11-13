@@ -62,6 +62,44 @@ def is_temporary(error: BaseException) -> bool:
     return isinstance(error.__cause__, transport)
 
 
+def refuses_access(error: BaseException) -> bool:
+    """Returns True when `error` says the registry refused the credentials or access.
+
+    A Confluent registry answers 401 when it does not accept the credentials and 403
+    when they do not give access. AWS Glue answers 401 or 403 for a key it does not
+    know, an expired token or a bad signature, and `AccessDeniedException` with 400
+    for an IAM policy that does not allow the call. The same failure meets every
+    record, and no wait fixes it, so a connector ends on it rather than skipping
+    each record.
+
+    Args:
+        error: The exception a serializer or deserializer raised.
+
+    Returns:
+        bool: Whether the registry refused the client's credentials or access.
+    """
+    if not isinstance(error, SchemaRegistryError):
+        return False
+    return (
+        error.http_status in _REFUSED_STATUS or error.error_code in _GLUE_REFUSED_CODES
+    )
+
+
+# Unauthorized and forbidden.
+_REFUSED_STATUS = (401, 403)
+
+# The credential and access errors of Glue's Common Error Types page. Glue's pages
+# of the schema operations give AccessDeniedException the status 400, which is why
+# the code is matched as well as the status.
+_GLUE_REFUSED_CODES = (
+    "AccessDeniedException",
+    "ExpiredTokenException",
+    "IncompleteSignature",
+    "NotAuthorized",
+    "UnrecognizedClientException",
+)
+
+
 # The answers a registry gives when it asks the caller to wait: a request timeout and
 # too many requests. The Confluent client retries them a few times first.
 _THROTTLED_STATUS = (408, 429)

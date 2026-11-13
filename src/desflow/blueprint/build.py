@@ -1838,13 +1838,9 @@ def _check_run_names(
     where: Tuple[Union[str, int], ...],
 ) -> None:
     """Checks the signal, store, container and resource names an expression reads
-    outside any task. A `wait.<branch>` is refused: no wait is in scope here."""
-    for branch in sorted(expression.references["wait"] if where[0] != "tasks" else ()):
-        raise source.error(
-            where,
-            f"wait.{branch} is read outside a task's own keys, where no wait is in "
-            f"scope; a signal's on entries run with no wait",
-        )
+    outside any task, and the `wait.<branch>` names it reads."""
+    if where[0] != "tasks":
+        _check_wait_reads(expression, blueprint, source, where)
     for signal in sorted(expression.references["signal"]):
         if signal not in blueprint.signals:
             raise source.error(
@@ -1871,6 +1867,41 @@ def _check_run_names(
         )
     _check_resource_names(expression, blueprint, source, where)
     _check_store_names(expression, blueprint, source, where)
+
+
+def _check_wait_reads(
+    expression: Expression,
+    blueprint: Blueprint,
+    source: SourceMap,
+    where: Tuple[Union[str, int], ...],
+) -> None:
+    """Checks the `wait.<branch>` names an expression outside a task's own keys reads.
+    A scenario step's interrupt `where` is read in the scope of each instance of the
+    task it interrupts, so it reads a branch of that task's wait. Everywhere else no
+    wait is in scope, and a `wait.<branch>` is refused."""
+    read = expression.references["wait"]
+    if not read:
+        return
+    if where[0] == "scenario" and where[2:] == ("interrupt", "where"):
+        interrupt = blueprint.scenario[int(where[1])].interrupt
+        # The model refuses a where without a task
+        assert interrupt is not None and interrupt.task is not None
+        task = blueprint.tasks[interrupt.task]
+        branches = set(Wait(task.wait).branches) if task.wait else set()
+        for branch in sorted(read - branches):
+            raise source.error(
+                where,
+                f"wait.{branch} is not a branch of the wait of task "
+                f"'{interrupt.task}', which the step interrupts"
+                + suggestion(branch, branches),
+            )
+        return
+    for branch in sorted(read):
+        raise source.error(
+            where,
+            f"wait.{branch} is read outside a task's own keys, where no wait is in "
+            f"scope; a signal's on entries run with no wait",
+        )
 
 
 def _check_resource_names(

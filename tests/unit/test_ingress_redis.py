@@ -140,6 +140,50 @@ async def test_redis_ingress_waits_longer_while_redis_refuses_the_subscription(
 
 
 @pytest.mark.asyncio
+async def test_redis_ingress_connects_again_when_redis_never_confirms_the_subscription(
+    caplog, run_until
+):
+    """A connection that stays open but never answers SUBSCRIBE fails once the
+    client's socket timeout has passed, and the ingress connects again."""
+    update_queue = queue.Queue()
+    ingress = RedisIngress(url="redis://localhost:6379/0", poll_interval=0.05)
+    pubsubs = []
+    silent_waits = []
+
+    async def never_confirms(timeout, **kwargs):
+        silent_waits.append(timeout)
+        await asyncio.sleep(timeout)
+        return None
+
+    def client_for_attempt(url, **kwargs):
+        pubsub = AsyncMock()
+        pubsubs.append(pubsub)
+        if len(pubsubs) == 1:
+            pubsub.connection.socket_timeout = 0.12
+            pubsub.get_message.side_effect = never_confirms
+        else:
+            pubsub.get_message.side_effect = [
+                {"type": "subscribe", "data": 1},
+                {"type": "message", "data": orjson.dumps({"path": "a.b", "value": 1})},
+                *[None] * 1000,
+            ]
+        client = AsyncMock()
+        client.pubsub = MagicMock(return_value=pubsub)
+        return client
+
+    with (
+        patch("desflow.connectors.ingress.redis.redis.from_url", client_for_attempt),
+        patch("desflow.connectors.ingress.redis.FIRST_DELAY", 0.01),
+    ):
+        await run_until(ingress.run(update_queue), lambda: not update_queue.empty())
+
+    assert update_queue.get_nowait() == ("a.b", 1)
+    assert len(pubsubs) == 2
+    assert sum(silent_waits) <= 0.12
+    assert "did not confirm the subscription" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_redis_ingress_refuses_a_url_with_an_unknown_scheme_at_once(caplog):
     """A URL that `redis.from_url` refuses is a setting no wait fixes, so the task
     ends with its `ValueError` instead of retrying for ever."""

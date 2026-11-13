@@ -285,7 +285,7 @@ A connector is a class with one method, `async run(queue)`, so a source desflow 
 
 ## Stability and Limits
 
-- **A bad message is skipped.** A message that cannot be decoded, that is not an object, or that lacks a non-empty `path` or a non-null `value` is logged as one WARNING line and skipped, and the run goes on. A PostgreSQL row like that is marked applied, so it is read once. A path the model does not have is a warning from the registry.
+- **A bad message is skipped.** A message that cannot be decoded, that is not an object, or that lacks a non-empty `path` or a non-null `value` is logged as one WARNING line and skipped, and the run goes on. A PostgreSQL row like that is marked applied, so it is read once. A path the model does not have is a warning from the registry. A schema registry that refuses a Kafka deserializer's credentials or access stops `KafkaIngress` instead, as [Connect to Secure Kafka](../../how-to/records-and-kafka/kafka-security.md#connect-to-a-secured-schema-registry) describes.
 - **Old keys get a hint.** Before 0.21.0, Kafka read `path_id`, and Redis and PostgreSQL read `param_path` and `param_value`. A message with the old keys is skipped with a line that says so, such as this one, which `parse_change` gives for a Kafka message written for 0.20.0:
 
     <!-- records: ingress-old-keys -->
