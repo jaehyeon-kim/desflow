@@ -121,7 +121,8 @@ def test_a_name_read_as_another_name_is_refused_in_both(tmp_path, kind):
         f"{section}: {{ﬁve: {body}}}\n"
         "arrivals: {a: {gap: 1, max_events: 1, spawn: t}}\n"
         "tasks: {t: {service_time: 1, payload: {}}}\n"
-        "run: {until: 3}\n"
+        "run: {until: 3}\n",
+        encoding="utf-8",
     )
     with pytest.raises(Exception) as refused:
         SimulationContext.from_yaml(path)

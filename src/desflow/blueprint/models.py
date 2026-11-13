@@ -762,7 +762,11 @@ class Resource(StrictModel):
     @field_validator("queue_limit", mode="before")
     @classmethod
     def _queue_limit_not_boolean(cls, value: Any) -> Any:
-        if isinstance(value, bool):
+        # Pydantic before 2.7 reads the text `4.` as 4, where later versions and the
+        # schema refuse it, so it is refused here for every supported version
+        if isinstance(value, bool) or (
+            isinstance(value, str) and value.strip().endswith(".")
+        ):
             raise ValueError(
                 f"queue_limit is a whole number of 0 or more, or null, got {value!r}"
             )

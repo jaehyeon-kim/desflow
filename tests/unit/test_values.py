@@ -688,7 +688,7 @@ def _records(tmp_path: Path, text: str) -> List[Dict[str, Any]]:
 
 def _write(tmp_path: Path, text: str) -> Path:
     path = tmp_path / "blueprint.yaml"
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     tmp_path.joinpath("a.csv").write_text("time\n0\n1\n2\n")
     return path
 

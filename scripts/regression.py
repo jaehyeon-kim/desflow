@@ -132,8 +132,10 @@ def _blueprints(root: Path, twins, harness) -> Dict[str, Any]:
             records, _ = harness.run_yaml(path.name)
             captured[f"blueprint:{path.name}"] = twins._records(records)
         except Exception as exc:  # the exception is the captured value
+            text = f"{type(exc).__name__}: {exc}"
+            # The checkout's own place is not part of the message
             captured[f"blueprint:{path.name}"] = {
-                "error": f"{type(exc).__name__}: {exc}"
+                "error": text.replace(root.as_posix(), "<root>")
             }
     return captured
 
