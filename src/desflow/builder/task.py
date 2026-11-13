@@ -3370,9 +3370,10 @@ class TaskRun:
             try:
                 return matches(item)
             except Exception as error:
-                if not made:
-                    failed.append(error)  # the get is being made, in this step
-                elif not made[0].triggered:
+                # Recorded first, so no later item of this or any step is offered
+                failed.append(error)
+                if made and not made[0].triggered:
+                    # An item offered after the get was made, in another step
                     made[0].fail(_ExpressionFailed(error))
                 return False
 

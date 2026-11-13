@@ -1147,3 +1147,40 @@ def test_a_filter_that_fails_on_a_stored_item_fails_the_get_and_takes_no_later_i
     assert ("handler", {"e": "handled"}) in events
     assert ("waiter", {"e": "got"}) not in events
     assert result.app_or_env._run.holders.stores["box"].items == [{}, {"size": 2}]
+
+
+OFFERED_FILTER = (
+    "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+    "stores: {box: {max_cap: 10}}\n"
+    "arrivals:\n"
+    "  g: {dist: constant, value: 0, spawn: waiter, max_events: 1}\n"
+    "  p: {dist: constant, value: 1, spawn: bad, max_events: 1}\n"
+    "  q: {dist: constant, value: 1, spawn: good, max_events: 1}\n"
+    'tasks:\n  waiter: {get: {store: box, filter: "item.size > 1"},'
+    " payload: {e: got}, on_fail: handler}\n"
+    "  handler: {payload: {e: handled}}\n"
+    "  bad: {put: {store: box}, payload: {other: 1}}\n"
+    "  good: {put: {store: box}, payload: {size: 2}}\n"
+    "run: {until: 10, on_unhandled_failure: continue}\n"
+)
+
+
+def test_a_filter_that_fails_on_an_offered_item_takes_no_later_item_of_that_instant(
+    tmp_path,
+):
+    """The get waits on an empty store. At 1 an item the filter cannot evaluate is
+    put, then one it accepts. The waiting task fails, the run does not raise, and the
+    accepted item stays in the store."""
+    result = run_yaml_text(tmp_path, OFFERED_FILTER, {})
+    assert result.error is None
+    events = [
+        (r.get("task") or r.get("source"), r["value"])
+        for r in result.records
+        if r["stream_type"] == "event"
+    ]
+    assert [t for t, v in events if v.get("status") == "failed"] == ["waiter"]
+    assert ("waiter", {"e": "got"}) not in events
+    items = result.app_or_env._run.holders.stores["box"].items
+    assert len(items) == 2 and any(
+        isinstance(i, dict) and i.get("size") == 2 for i in items
+    ), items

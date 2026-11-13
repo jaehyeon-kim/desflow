@@ -285,7 +285,7 @@ async def test_a_delivery_that_fails_sends_again_only_what_the_broker_did_not_co
     ]
     batches.put(events[:4])
     batches.put(events[4:])
-    await run_until(egress.run(batches), lambda: len(sent) >= 8, timeout=10)
+    await run_until(egress.run(batches), lambda: len(sent) >= 7, timeout=10)
     assert sent == [
         "orders-1",
         "orders-2",

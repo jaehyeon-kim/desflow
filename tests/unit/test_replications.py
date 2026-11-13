@@ -490,43 +490,49 @@ def test_workers_refuse_a_function_from_an_interactive_session(monkeypatch):
 
 @dataclass
 class _FailsOnceThenSleeps:
-    """The first run that reaches it fails; the others take 3 s of wall time.
+    """The first run that reaches it waits until another run is sleeping, then
+    fails; every other run marks that it sleeps and takes 20 s of wall time.
 
-    The mark file's path travels with the model, because a worker started by
+    The marks' folder travels with the model, because a worker started by
     forkserver (the default from Python 3.14 on Linux) does not see an environment
     variable the test sets after the server started."""
 
-    mark: str
+    marks: str
 
     def __call__(self, env, sampler):
         import os
 
+        first = os.path.join(self.marks, "first")
+        sleeping = os.path.join(self.marks, "sleeping")
         try:
-            os.close(os.open(self.mark, os.O_CREAT | os.O_EXCL))
+            os.close(os.open(first, os.O_CREAT | os.O_EXCL))
         except FileExistsError:
-            time.sleep(3)
-        else:
-            raise RuntimeError("first run fails")
-        return None
+            open(sleeping, "w").close()
+            time.sleep(20)
+            return None
+        waited = time.monotonic() + 10
+        while not os.path.exists(sleeping) and time.monotonic() < waited:
+            time.sleep(0.01)
+        raise RuntimeError("first run fails")
 
 
 def test_a_failed_replication_ends_the_workers_that_are_running(tmp_path):
-    """The runs already sent to a worker would start after the failure, and the
-    process could not exit until they ended."""
+    """A worker is in a 20 s run when another run fails. `replicate` raises at once
+    instead of waiting for that run, and no worker process is left."""
     import multiprocessing
 
     started = time.monotonic()
     with pytest.raises(RuntimeError, match="first run fails"):
         replicate(
-            LowLevelModel(_FailsOnceThenSleeps(str(tmp_path / "first")), "P"),
+            LowLevelModel(_FailsOnceThenSleeps(str(tmp_path)), "P"),
             12,
             seed=1,
             until=10,
             workers=2,
         )
-    # The 12 runs would take about 18 s of wall time on 2 workers if the failure
-    # waited for them.
-    assert time.monotonic() - started < 9.0
+    # Waiting for the sleeping run would take at least 20 s
+    assert time.monotonic() - started < 15.0
+    assert (tmp_path / "sleeping").exists()
 
     deadline = time.monotonic() + 2.0
     while multiprocessing.active_children() and time.monotonic() < deadline:
