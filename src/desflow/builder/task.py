@@ -3421,6 +3421,8 @@ class TaskRun:
             yield joined if deadline is None else joined | deadline
         except Interrupt:
             raise
+        except _CycleLimit:
+            raise  # a loop of tasks that take no time is no failure of the task
         except Exception as error:  # a branch failed
             failure = _reason_of(error)
         finally:

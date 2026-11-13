@@ -58,7 +58,7 @@ Choose the warm-up from evidence, not from habit, in two steps:
 1. Plot a running statistic from the start of the run, such as the queue length or the mean wait so far, and note when it stops climbing. Law's paper shows a plot made with Welch's method for this, in which the warm-up is the time after which the average has levelled off, and advises choosing it conservatively.
 2. Compare a few candidate warm-ups. Run the same replications after each, and check whether a longer warm-up moves the mean by more than its [half-width](#interval-and-half-width). A candidate passes when it does not.
 
-Then keep the shortest candidate that passes the comparison and covers the climb in the plot. Set it on the run:
+Then keep the shortest candidate that passes the comparison and covers the climb in the plot with a margin, as Law advises. Set it on the run:
 
 === "YAML"
 
@@ -87,7 +87,7 @@ The warm-up resets every statistic once at that time, as [Run Length](../../user
 
 ### What the Result Means
 
-[Trusting Results](../studies/trusting-results.md#compare-warm-ups) compares warm-ups of 1, 2 and 4 minutes over five seeds. The longer ones move the mean by 0.004 and 0.005 seconds, far less than the half-widths of 0.43 and 0.49 seconds, so all pass. The first climb ends at about a minute, and 2 minutes covers it with a minute to spare. The later rise of the running mean after two minutes comes in steps after bursts of orders in that one run, and leaving out up to 4 minutes moves the mean by at most 0.005 seconds, so a longer warm-up is not needed. In the run with the seed 42, the warm-up changes the mean wait only from 2.007 to 2.050 seconds: an hour is long enough that its first minutes hardly count. A shorter run, or one that starts far from the usual state, needs the warm-up much more. A warm-up is not a fix for a model that never settles: if [utilisation](queueing-basics.md#utilisation) is 1 or more, there is no steady state for a warm-up to find.
+[Trusting Results](../studies/trusting-results.md#compare-warm-ups) compares warm-ups of 1, 2 and 4 minutes over five seeds. The longer ones move the mean by 0.004 and 0.005 seconds, far less than the half-widths of 0.43 and 0.49 seconds, so all pass. The first climb ends at about a minute, and 2 minutes covers it with a minute to spare. The running mean goes on rising in steps after two minutes. Leaving out up to 4 minutes moves the mean by at most 0.005 seconds, so that rise changes the estimate little, although the comparison does not show whether it is part of the start-up. In the run with the seed 42, the warm-up changes the mean wait only from 2.007 to 2.050 seconds: an hour is long enough that its first minutes hardly count. A shorter run, or one that starts far from the usual state, needs the warm-up much more. A warm-up is not a fix for a model that never settles: if [utilisation](queueing-basics.md#utilisation) is 1 or more, there is no steady state for a warm-up to find.
 
 ---
 
