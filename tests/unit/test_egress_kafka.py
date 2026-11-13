@@ -889,26 +889,33 @@ async def test_a_registry_or_encoding_error_skips_only_its_record(
 
 
 @pytest.mark.parametrize(
-    ("status", "code"),
+    ("status", "code", "cause"),
     [
-        pytest.param(401, 40101, id="registry-401"),
-        pytest.param(403, 40301, id="registry-403"),
-        pytest.param(400, "AccessDeniedException", id="glue-access-denied"),
+        pytest.param(401, 40101, None, id="registry-401"),
+        pytest.param(403, 40301, None, id="registry-403"),
+        pytest.param(400, "AccessDeniedException", None, id="glue-access-denied"),
+        pytest.param(-1, -1, "no-credentials", id="glue-no-credentials"),
     ],
 )
 @pytest.mark.asyncio
 @patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_a_registry_that_refuses_access_ends_the_sink(
-    MockProducer, caplog, status, code
+    MockProducer, caplog, status, code, cause
 ):
     """A registry that refuses the sink's credentials or access ends the sink's task
     with that error, so the queue is not drained record by record. Nothing of the
     batch is sent, the producer is stopped and no reconnection is tried."""
+    from botocore.exceptions import NoCredentialsError
+
     from desflow.connectors._schema_registry.errors import SchemaRegistryError
+
+    # A Glue client with no credentials fails before it calls Glue, and
+    # `GlueSchemaRegistryClient` wraps botocore's error with the status -1
+    origin = NoCredentialsError() if cause == "no-credentials" else None
 
     def serialize(topic, payload):
         if payload["key"] == "k2":
-            raise SchemaRegistryError(status, code, "refused")
+            raise SchemaRegistryError(status, code, "refused") from origin
         return payload["key"].encode()
 
     serializer = MagicMock()

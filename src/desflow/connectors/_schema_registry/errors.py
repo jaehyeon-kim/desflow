@@ -68,7 +68,9 @@ def refuses_access(error: BaseException) -> bool:
     A Confluent registry answers 401 when it does not accept the credentials and 403
     when they do not give access. AWS Glue answers 401 or 403 for a key it does not
     know, an expired token or a bad signature, and `AccessDeniedException` with 400
-    for an IAM policy that does not allow the call. The same failure meets every
+    for an IAM policy that does not allow the call. A Glue client that finds no
+    credentials, or only part of them, fails before it calls Glue, with a botocore
+    error that `GlueSchemaRegistryClient` wraps. The same failure meets every
     record, and no wait fixes it, so a connector ends on it rather than skipping
     each record.
 
@@ -80,6 +82,8 @@ def refuses_access(error: BaseException) -> bool:
     """
     if not isinstance(error, SchemaRegistryError):
         return False
+    if isinstance(error.__cause__, _missing_credentials_errors()):
+        return True
     return (
         error.http_status in _REFUSED_STATUS or error.error_code in _GLUE_REFUSED_CODES
     )
@@ -103,6 +107,15 @@ _GLUE_REFUSED_CODES = (
 # The answers a registry gives when it asks the caller to wait: a request timeout and
 # too many requests. The Confluent client retries them a few times first.
 _THROTTLED_STATUS = (408, 429)
+
+
+def _missing_credentials_errors() -> tuple[type[BaseException], ...]:
+    """Returns botocore's errors for credentials it cannot find, when it is installed."""
+    try:
+        from botocore.exceptions import NoCredentialsError, PartialCredentialsError
+    except ImportError:
+        return ()
+    return (NoCredentialsError, PartialCredentialsError)
 
 
 def _transport_errors() -> tuple[type[BaseException], ...]:
