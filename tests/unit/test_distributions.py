@@ -284,3 +284,20 @@ def test_the_repeat_command_keeps_the_options_that_change_the_run(tmp_path, capl
         r"--until '1 min' --drain",
         caplog.text,
     ), caplog.text
+
+
+@pytest.mark.parametrize(
+    "parameters",
+    [
+        {"mean": 0, "std": 1e-160, "low": 1},
+        {"mean": 0, "std": 1, "low": 1e155},
+    ],
+)
+def test_a_truncated_normal_too_far_into_its_tail_is_refused_at_load(parameters):
+    with pytest.raises(ValueError, match="too far above mean"):
+        DistributionConfig(dist="truncated_normal", **parameters)
+
+
+def test_a_truncated_normal_far_into_its_tail_that_can_be_drawn_is_accepted():
+    config = DistributionConfig(dist="truncated_normal", mean=0, std=1e-150, low=1)
+    assert DISTRIBUTIONS["truncated_normal"].draw(config, np.random.default_rng(1)) >= 1

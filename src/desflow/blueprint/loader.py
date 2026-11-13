@@ -468,6 +468,20 @@ class SourceMap:
         return BlueprintError(f"{self.path}:{self.line(location)}: {message}")
 
 
+def _construct_key(key_of: Callable[[yaml.Node], Any], key_node: yaml.Node) -> Any:
+    """Constructs a key. When it fails, PyYAML leaves the node marked as being
+    constructed, so the load would later refuse it as recursive. The mark is removed,
+    so the load reports the real error."""
+    try:
+        return key_of(key_node)
+    except Exception:
+        loader = getattr(key_of, "__self__", None)
+        marked = getattr(loader, "recursive_objects", None)
+        if marked is not None:
+            marked.pop(key_node, None)
+        raise
+
+
 def _value_read(
     key_node: yaml.ScalarNode,
     name: Any,
@@ -478,7 +492,7 @@ def _value_read(
     if key_of is None:
         return name
     try:
-        read = key_of(key_node)
+        read = _construct_key(key_of, key_node)
         hash(read)
     except (BlueprintError, yaml.YAMLError, ValueError, TypeError):
         return name
@@ -537,7 +551,7 @@ def _record_lines(
             name = key_node.value
             if key_of is not None and "${" in str(name):
                 try:
-                    name = key_of(key_node)
+                    name = _construct_key(key_of, key_node)
                 except BlueprintError:
                     pass  # the load reports it
             if isinstance(key_node, yaml.ScalarNode) and name != "<<":

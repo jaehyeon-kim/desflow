@@ -77,6 +77,45 @@ def mock_admin():
 
 
 @pytest.mark.asyncio
+@patch("desflow.connectors.ingress.kafka.apply_topic_policies")
+@patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
+async def test_topic_policy_is_applied_again_before_the_consumer_starts(
+    MockConsumer, apply
+):
+    """A broker that is down at the start refuses the policy. It is applied again
+    before the consumer starts, so a `drop_and_create` never meets a message the
+    consumer has read, and not a third time."""
+    applied_at_start = []
+
+    class FakeConsumer:
+        def __init__(self):
+            self.start = AsyncMock(
+                side_effect=lambda: applied_at_start.append(apply.call_count)
+            )
+            self.stop = AsyncMock()
+
+        async def __aiter__(self):
+            await asyncio.sleep(999)
+            yield None
+
+    MockConsumer.return_value = FakeConsumer()
+    apply.side_effect = [ConnectionError("broker not up yet"), None, None]
+    ingress = KafkaIngress(
+        topic="control", bootstrap_servers="localhost:9092", topic_policy="create"
+    )
+    task = asyncio.create_task(ingress.run(queue.Queue()))
+    await _wait_until(lambda: apply.call_count >= 2)
+    await asyncio.sleep(0.05)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    assert applied_at_start == [2]
+    assert apply.call_count == 2
+
+
+@pytest.mark.asyncio
 @patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
 async def test_kafka_ingress_pluggable_deserializers(MockConsumer):
     """Verify that topic_deserializers correctly route binary payloads to custom deserializers."""

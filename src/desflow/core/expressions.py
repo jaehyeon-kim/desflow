@@ -45,6 +45,7 @@ operand that cannot be evaluated fails the expression. Each name carries its sou
 
 import ast
 import math
+import threading
 import unicodedata
 from numbers import Integral as _Integral
 from dataclasses import dataclass, field, replace
@@ -142,9 +143,10 @@ def _power(base: Any, exponent: Any) -> Any:
     return result
 
 
-class _Work:
+class _Work(threading.local):
     """The items one evaluation has made, so nested loops, ranges and repetitions
-    cannot add up to more than `_LARGEST_RANGE` between them."""
+    cannot add up to more than `_LARGEST_RANGE` between them. Each thread has its
+    own count, so simulations in two threads do not add their items together."""
 
     depth = 0
     made = 0

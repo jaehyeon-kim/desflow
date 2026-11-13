@@ -33,7 +33,7 @@ from typing import (
 )
 
 from simpy import Interrupt
-from simpy.events import Condition, Event
+from simpy.events import PENDING, Condition, Event
 from simpy.resources.resource import Preempted
 
 from desflow.core.expressions import ANY_NAME, Expression, Scope, boolean_word
@@ -291,6 +291,30 @@ class _HandlerFailed(Exception):
     def __init__(self, reason: Any):
         super().__init__(reason)
         self.reason = reason
+
+
+class _ExpressionFailed(Exception):
+    """An expression of a task's wait that could not be evaluated, such as a
+    `condition`, a `when` predicate or a store `filter`. Another task's step or a
+    SimPy callback evaluates it, so the event the task waits on fails with this, and
+    the waiting task raises `error` in its own step."""
+
+    def __init__(self, error: Exception):
+        super().__init__(error)
+        self.error = error
+
+
+class _WhenCondition(Condition):
+    """The SimPy condition of a `when` group, which fails with `_ExpressionFailed`
+    when its predicate cannot be evaluated as a branch is processed."""
+
+    def _check(self, event: Event) -> None:
+        try:
+            super()._check(event)
+        except Exception as error:
+            if self._value is not PENDING:
+                raise
+            self.fail(_ExpressionFailed(error))
 
 
 class _Suspension(Event):
@@ -1597,7 +1621,11 @@ class TaskRun:
                             return None
                 if spec.get is not None and not got_item and not spec.get.wait:
                     # Made and not waited for: it takes an item later and discards it
-                    self._transfer_event(spec.get, "get", None)
+                    event = self._transfer_event(spec.get, "get", None)
+                    if event.triggered and not event.ok:
+                        # A filter that cannot be evaluated is the task's own failure
+                        event.defused = True
+                        raise event.value.error from None
                     got_item = True
                 if spec.get is not None and not got_item:
                     self._target = f"get.{self._named(spec.get.target)}"
@@ -2672,7 +2700,7 @@ class TaskRun:
         if node.kind == "all":
             return env.all_of(members)
         if node.kind == "when":
-            return Condition(
+            return _WhenCondition(
                 env, lambda evs, c, n=node: self._holds(n, c, built), members
             )
         return Condition(env, lambda evs, c, n=node.count: c >= n, members)
@@ -3295,16 +3323,66 @@ class TaskRun:
         """
         event = self._transfer_event(transfer, direction, payload)
         self._pending = event
-        if deadline is None:
-            yield event
-        else:
-            yield event | deadline
+        try:
+            if deadline is None:
+                yield event
+            else:
+                yield event | deadline
+        except _ExpressionFailed as wrapped:
+            # the filter of this get cannot be evaluated: the task's own failure
+            self._pending = None
+            raise wrapped.error from None
+        if deadline is not None:
             if not _won(event):
                 event.cancel()
                 self._pending = None
                 return _RENEGED
         self._pending = None
         return self._transfer_value(transfer, direction, event)
+
+    def _filtered_get(
+        self,
+        store: Any,
+        matches: Optional[Callable[[Any], bool]],
+        ranked: Dict[str, Any],
+    ) -> Any:
+        """Makes a store's get event. A filter that cannot be evaluated, whichever
+        task's step offers it an item, fails this event, so the waiting task fails and
+        the task that put the item does not.
+
+        Args:
+            store: The store.
+            matches: The get's filter, or None for any item.
+            ranked: The `rank` keyword of the get.
+
+        Returns:
+            Any: The get event.
+        """
+        if matches is None:
+            return store.get(None, **ranked)
+        made: List[Any] = []
+        failed: List[Exception] = []
+
+        def guarded(item: Any) -> bool:
+            if failed:
+                # The first error fails the get; no later item is taken for it
+                return False
+            try:
+                return matches(item)
+            except Exception as error:
+                # Recorded first, so no later item of this or any step is offered
+                failed.append(error)
+                if made and not made[0].triggered:
+                    # An item offered after the get was made, in another step
+                    made[0].fail(_ExpressionFailed(error))
+                return False
+
+        event = store.get(guarded, **ranked)
+        made.append(event)
+        if failed:
+            event.cancel()
+            event.fail(_ExpressionFailed(failed[0]))
+        return event
 
     def _transfer_event(self, transfer: Transfer, direction: str, payload: Any) -> Any:
         """Makes the SimPy get or put event, without waiting for it. A wait branch
@@ -3315,7 +3393,9 @@ class TaskRun:
             store = self.parts.run.holders.stores[held_name]
             ranked = self._queue_rank(store, direction, scope)
             if direction == "get":
-                event = store.get(transfer.filter_for(scope, self.entity), **ranked)
+                event = self._filtered_get(
+                    store, transfer.filter_for(scope, self.entity), ranked
+                )
             else:
                 if transfer.item is not None:
                     # The item of a `put`, read as the put is made
@@ -3423,6 +3503,9 @@ class TaskRun:
             raise
         except _CycleLimit:
             raise  # a loop of tasks that take no time is no failure of the task
+        except _ExpressionFailed as wrapped:
+            # an expression of this wait cannot be evaluated: the task's own failure
+            raise wrapped.error from None
         except Exception as error:  # a branch failed
             failure = _reason_of(error)
         finally:
@@ -3833,12 +3916,21 @@ class TaskRun:
                 event.succeed(True)
                 stop()
 
+        def check_later() -> None:
+            """The check as another task's step calls it: an expression that cannot
+            be evaluated fails the event, so the waiting task fails, not that task."""
+            try:
+                check()
+            except Exception as error:
+                event.fail(_ExpressionFailed(error))
+                stop()
+
         def stop() -> None:
-            env.unwatch_changes(check)
+            env.unwatch_changes(check_later)
 
         check()
         if not event.triggered:
-            env.watch_changes(check, queues=condition.reads_queues)
+            env.watch_changes(check_later, queues=condition.reads_queues)
         return event, stop
 
 

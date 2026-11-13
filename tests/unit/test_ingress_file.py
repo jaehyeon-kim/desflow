@@ -1,7 +1,10 @@
 """A file entry that has not changed is not put again."""
 
+import asyncio
+import os
 import queue
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -28,3 +31,43 @@ def test_a_poll_that_is_not_a_positive_number_is_refused(tmp_path: Path):
     refused value shows that the constructor calls it."""
     with pytest.raises(ValueError, match="poll is a number of seconds above 0"):
         FileIngress(tmp_path / "params.yaml", poll=0)
+
+
+@pytest.mark.asyncio
+async def test_an_edit_that_keeps_the_modification_time_and_size_is_applied(
+    tmp_path: Path,
+):
+    """A coarse file system clock gives two quick saves one time. The new bytes are
+    still read within a poll."""
+    path = tmp_path / "params.yaml"
+    path.write_text("Shop.arrival.orders.rate: 1.0\n", encoding="utf-8")
+    changes: queue.Queue = queue.Queue()
+    task = asyncio.create_task(FileIngress(path, poll=0.05).run(changes))
+    await asyncio.sleep(0.3)
+    first = path.stat().st_mtime_ns
+    path.write_text("Shop.arrival.orders.rate: 2.0\n", encoding="utf-8")
+    os.utime(path, ns=(first, first))
+    await asyncio.sleep(0.5)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+    values = [changes.get_nowait()[1] for _ in range(changes.qsize())]
+    assert values == [1.0, 2.0]
+
+
+@pytest.mark.asyncio
+async def test_the_bytes_that_were_compared_are_the_bytes_that_are_applied(
+    tmp_path: Path,
+):
+    """The file changes between the read that is compared and the parse. The parse
+    uses the compared bytes, so the cached snapshot and the applied one match."""
+    path = tmp_path / "params.yaml"
+    path.write_text("Shop.arrival.orders.rate: 1.0\n", encoding="utf-8")
+    changes: queue.Queue = queue.Queue()
+    with patch.object(
+        Path, "read_bytes", return_value=b"Shop.arrival.orders.rate: 2.0\n"
+    ):
+        task = asyncio.create_task(FileIngress(path, poll=0.05).run(changes))
+        await asyncio.sleep(0.2)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    assert changes.get_nowait()[1] == 2.0

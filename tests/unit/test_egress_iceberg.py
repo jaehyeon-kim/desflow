@@ -1452,3 +1452,38 @@ async def test_a_catalog_that_does_not_answer_yet_is_built_again_at_the_first_wr
     assert len(attempts) == 2
     assert "could not build the catalog yet: catalog is down" in caplog.text
     assert len(fake.tables["sim.events"].appended) == 1
+
+
+def test_a_catalog_that_never_answers_does_not_keep_the_process_alive():
+    """The catalog is built in a daemon thread, so a call that never returns does not
+    stop the process from ending after the sink is cancelled."""
+    import subprocess
+    import sys
+    import textwrap
+
+    code = textwrap.dedent(
+        """
+        import asyncio, queue, threading
+        from desflow.connectors.egress.iceberg import IcebergStorageEgress
+
+        started = threading.Event()
+
+        class Silent(IcebergStorageEgress):
+            def _check_catalog(self):
+                started.set()
+                threading.Event().wait()
+
+        async def main():
+            sink = Silent(catalog={"type": "rest", "uri": "http://x"}, default_table="t.e")
+            task = asyncio.create_task(sink.run(queue.Queue()))
+            # The cancel must come while the call that never returns is running
+            assert await asyncio.to_thread(started.wait, 10), "the call did not start"
+            task.cancel()
+            (result,) = await asyncio.gather(task, return_exceptions=True)
+            # The sink ends on a cancel, as itself or as the cancel; a setup error fails
+            assert result is None or isinstance(result, asyncio.CancelledError), result
+
+        asyncio.run(main())
+        """
+    )
+    subprocess.run([sys.executable, "-c", code], timeout=30, check=True)

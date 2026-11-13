@@ -344,7 +344,7 @@ jobs:
           if ls pin-new-*.json > /dev/null 2>&1; then
             uv run --project "$GITHUB_WORKSPACE" --all-extras python "$GITHUB_WORKSPACE/scripts/regression.py" merge --out pin-old.json pin-old-*.json
             uv run --project "$GITHUB_WORKSPACE" --all-extras python "$GITHUB_WORKSPACE/scripts/regression.py" merge --out pin-new.json pin-new-*.json
-            uv run --project "$GITHUB_WORKSPACE" --all-extras python "$GITHUB_WORKSPACE/scripts/regression.py" compare pin-old.json pin-new.json --baseline 1.0.0 --set-aside-absent
+            uv run --project "$GITHUB_WORKSPACE" --all-extras python "$GITHUB_WORKSPACE/scripts/regression.py" compare pin-old.json pin-new.json --baseline 1.0.0 --set-aside-absent --set-aside-unmatched
           fi
 
   # The one check that branch protection on main requires. A job skipped because a

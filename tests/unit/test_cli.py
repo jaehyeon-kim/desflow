@@ -122,3 +122,20 @@ def test_every_help_example_names_a_command_and_its_options():
     for path, command in found.items():
         assert command.epilog, f"{path} has no Examples list"
     assert shown >= len(found)
+
+
+def test_examples_get_reports_a_read_that_times_out(tmp_path, monkeypatch):
+    """A time-out while a file is read is an error line and exit 1, not a traceback."""
+    from desflow import examples
+
+    def timed_out(url):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(examples, "_fetch", timed_out)
+    name = next(iter(examples.EXAMPLES))
+    result = CliRunner().invoke(
+        app, ["examples", "get", name, "--dest", str(tmp_path), "--ref", "main"]
+    )
+    assert result.exit_code == 1
+    assert "could not download" in result.output
+    assert "timed out" in result.output

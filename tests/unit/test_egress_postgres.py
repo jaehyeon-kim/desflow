@@ -1,4 +1,5 @@
 import queue
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from desflow.connectors.egress.postgres import PostgresEgress
@@ -746,6 +747,56 @@ async def test_a_batch_that_writes_nothing_or_fails_leaves_the_sink_running(
     assert "No matching columns for table orders. Skipping." in caplog.text
     assert "Error inserting batch into orders: down" in caplog.text
     assert egress.active_tasks == 0
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_a_sink_that_cannot_write_at_teardown_drops_its_backlog_at_once(
+    mock_create_pool, mock_pool, run_until, caplog
+):
+    """The database refuses every write and teardown has begun: the 8 queued batches
+    are dropped with one warning that counts them, not one for each second of
+    back-off."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.return_value = [{"column_name": n} for n in ("id", "x", "path_id")]
+    conn.executemany.side_effect = ConnectionRefusedError("down")
+    egress = PostgresEgress("postgresql://u:p@localhost/db", "orders")
+    egress._ending = True
+    egress_queue = queue.Queue()
+    for n in range(8):
+        egress_queue.put([_event({"id": n})])
+
+    started = time.monotonic()
+    await run_until(egress.run(egress_queue), lambda: egress_queue.empty())
+
+    assert time.monotonic() - started < 0.5
+    assert conn.executemany.call_count == 1
+    assert caplog.text.count("PostgresEgress could not write at teardown") == 1
+    assert "8 batches were dropped" in caplog.text
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_a_batch_that_the_database_refuses_at_teardown_does_not_drop_the_others(
+    mock_create_pool, mock_pool, run_until, caplog
+):
+    """The database is up and refuses the first batch alone, during teardown: the
+    other batches are still written and nothing is dropped."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.return_value = [{"column_name": n} for n in ("id", "x", "path_id")]
+    conn.executemany.side_effect = [ValueError("bad batch"), None, None]
+    egress = PostgresEgress("postgresql://u:p@localhost/db", "orders")
+    egress._ending = True
+    egress_queue = queue.Queue()
+    for n in range(3):
+        egress_queue.put([_event({"id": n})])
+
+    await run_until(egress.run(egress_queue), lambda: conn.executemany.call_count == 3)
+
+    assert conn.executemany.call_count == 3
+    assert "were dropped" not in caplog.text
 
 
 def test_a_table_that_is_not_text_is_counted_in_the_skipped_warning(caplog):

@@ -110,6 +110,31 @@ async def test_console_json_writes_one_line_per_record_at_any_log_level(capsys):
 
 
 @pytest.mark.asyncio
+async def test_a_closed_stdout_pipe_does_not_stop_the_sink(monkeypatch, caplog):
+    """A reader such as `head` closes the pipe. The sink goes on taking batches, so
+    the queue drains, and it logs no error."""
+
+    class ClosedPipe:
+        def write(self, text):
+            raise BrokenPipeError(32, "Broken pipe")
+
+        def flush(self):
+            pass
+
+    monkeypatch.setattr(sys, "stdout", ClosedPipe())
+    egress_queue = queue.Queue()
+    for number in range(3):
+        egress_queue.put([{"stream_type": "event", "key": "k", "value": number}])
+    task = asyncio.create_task(ConsoleEgress(format="json").run(egress_queue))
+    await asyncio.sleep(0.5)
+    assert egress_queue.empty()
+    assert not task.done()
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+    assert "Broken pipe" not in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_console_json_logs_a_batch_it_cannot_encode_and_goes_on(capsys, caplog):
     """A batch with a value JSON cannot hold, a set, is logged at ERROR and the next
     batch is still printed."""

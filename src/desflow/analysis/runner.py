@@ -338,8 +338,13 @@ def run_replications(
                     future.result()
             results = [future.result() for future in futures]
         except BaseException:
-            # The first failure is raised now; runs not yet started are dropped
+            # The first failure is raised now. Cancelling drops only the runs that
+            # were not sent to a worker, so the workers are ended too: each would
+            # start the run it was sent, and the process cannot exit until it ends.
+            workers_running = list((getattr(pool, "_processes", None) or {}).values())
             pool.shutdown(wait=False, cancel_futures=True)
+            for process in workers_running:
+                process.terminate()
             raise
         pool.shutdown()
         return results
@@ -651,7 +656,11 @@ def _evidence(
         form = "low-level" if isinstance(model, LowLevelModel) else "builder"
         source = describe(model)
         target = model.function if isinstance(model, LowLevelModel) else model
-        name = inspect.getsourcefile(target) if callable(target) else None
+        try:
+            name = inspect.getsourcefile(target) if callable(target) else None
+        except TypeError:
+            # A `functools.partial` or an object with `__call__` has no source file
+            name = None
         source_file = Path(name) if name else None
     digest = (
         hashlib.sha256(source_file.read_bytes()).hexdigest()

@@ -253,9 +253,11 @@ class DynamicStore(_WrappedHolder, Store):
         that cannot be compared with it.
 
         Raises:
-            ValueError: Naming the store and both priorities, if a number and a list,
-                or a list and a tuple, meet in this store.
+            ValueError: If the priority is NaN or holds NaN, which breaks the order
+                of the items, or, naming the store and both priorities, if a number
+                and a list, or a list and a tuple, meet in this store.
         """
+        checked_priority(priority, f"store '{self.obj_id}' item priority")
         if priority_kind(priority) == "other":
             return
         if self._first_priority is _NO_PRIORITY:
@@ -394,6 +396,13 @@ class DynamicStore(_WrappedHolder, Store):
                 "ranks and filters its items"
             )
         return self._holder.get(*args, **kwargs)
+
+    def _sync_from_registry(self) -> None:
+        """Applies a capacity written in this step before a put or get."""
+        max_cap = _whole(self._max_cap_val.value)
+        self._holder._capacity = max(
+            0, min(_whole(self._current_cap_val.value), max_cap)
+        )
 
     def _handle_capacity_change(self, new_target: float):
         """
