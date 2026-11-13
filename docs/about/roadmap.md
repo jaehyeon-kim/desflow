@@ -76,7 +76,7 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
     - **SimPy's examples:** the seven examples of SimPy's docs in YAML, Builder and Low-level. [#95](https://github.com/jaehyeon-kim/desflow/issues/95)
     - **Record contract frozen:** the records 1.x keeps. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
     - **Old names removed:** `dynamic_des`, `ddes` and the other names kept for compatibility. [#84](https://github.com/jaehyeon-kim/desflow/issues/84)
-    - **Pydantic 2.6.1 or later.** [#104](https://github.com/jaehyeon-kim/desflow/issues/104)
+    - **Pydantic 2.7.0 or later.** [#104](https://github.com/jaehyeon-kim/desflow/issues/104)
     - **Rewritten docs.** The Gallery, the Generate Data group and the Agent Skill section are new, and every page is rewritten for 1.0.
     - **Fixes from reviews of the whole code:** the release candidates 1.0.0rc1 to 1.0.0rc4 and two full reads of the code fixed models that ran wrong, hung or failed in the middle of a run. [Upgrading to 1.0](upgrading-to-1.0.md) lists each change that alters records or refuses input.
 
