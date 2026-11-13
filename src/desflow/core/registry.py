@@ -1134,6 +1134,14 @@ def check_value_type(registry: SimulationRegistry, path: str, new_value: Any) ->
     conditional `on:` action may run after a scenario step has changed them, so the
     load checks of a conditional action use this.
 
+    Args:
+        registry: The registry that holds `path`.
+        path: The registered path.
+        new_value: The value to write.
+
+    Returns:
+        Any: The value cast to the path's type.
+
     Raises:
         ParamRejected: For an unknown path or a value the path refuses.
     """
