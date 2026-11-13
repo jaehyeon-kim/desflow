@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../../assets/favicon.png">
+      <link rel="icon" href="../../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
     
     
@@ -132,7 +132,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -267,7 +267,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -8768,7 +8768,7 @@
 <li>Picking time is <code>uniform</code> from 1 to 3 seconds only to keep the example short. <a href="../../concepts/common-mistakes/#choosing-a-normal-or-uniform-by-habit">Common Mistakes</a> explains why a real study fits a distribution to measured times instead, as <a href="../../inputs/choosing-inputs/">Choosing Inputs</a> does.</li>
 </ul>
 <p>Look at the flow first:</p>
-<p><img alt="Arrivals spawn pick_order. When level.stock is 0 it leads to backorder, a timed step of 1 minute that sets backordered and leads back to pick_order. Otherwise it leads to pack_order, which takes a box from stock. pack_order leads to ship_order with weight 95, and back to itself with weight 5. ship_order ends the flow" src="../../../assets/diagrams/shop-flow.png" /></p>
+<p><img alt="Arrivals spawn pick_order. When level.stock is 0 it leads to backorder, a timed step of 1 minute that sets backordered and leads back to pick_order. Otherwise it leads to pack_order, which takes a box from stock. pack_order leads to ship_order with weight 95, and back to itself with weight 5. ship_order ends the flow" src="../../../../shared-images/1ad4c350e333037a.png" /></p>
 <hr />
 <h2 id="chain-the-tasks">Chain the Tasks</h2>
 <p>Choosing where an entity goes next is called <strong>routing</strong>. In desflow a task names what follows it with <code>next</code>. <a href="../../../user-guide/tasks-and-processes/">Tasks and Processes</a> describes tasks. <code>next</code> takes one of three forms:</p>
@@ -9057,7 +9057,7 @@
 </span><span id="__span-17-14"><a id="__codelineno-17-14" name="__codelineno-17-14"></a>[EVT] {'sim_ts': 466.37555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 245, 'value': {'event_type': 'order_packed'}}
 </span><span id="__span-17-15"><a id="__codelineno-17-15" name="__codelineno-17-15"></a>[EVT] {'sim_ts': 466.37555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'ship_order', 'instance': 233, 'value': {'event_type': 'order_shipped', 'express': 0, 'backordered': 1}}
 </span></code></pre></div></td></tr></table></div>
-<p><img alt="The events of orders-172 in order: pick_order, backorder, pick_order again, pack_order twice, and ship_order with express 0 and backordered 1, all under the key orders-172" src="../../../assets/diagrams/entity-key-timeline.png" /></p>
+<p><img alt="The events of orders-172 in order: pick_order, backorder, pick_order again, pack_order twice, and ship_order with express 0 and backordered 1, all under the key orders-172" src="../../../../shared-images/a4e592c4e989f9cc.png" /></p>
 <hr />
 <h2 id="networks-and-bottlenecks">Networks and Bottlenecks</h2>
 <p>A shop with several tasks is a network: each task's rate comes from the tasks before it. This version of the shop checks every packed order with one checker, and sends one order in ten back to be packed again. A weight in <code>next.weights</code> is a number or an expression read when the task finishes, such as <code>attr.w</code>, <code>registry[...]</code>, <code>level.&lt;store&gt;</code> or <code>t</code>, with no bare name. The draw is one number from <code>route.&lt;task&gt;</code>. A result below 0, or text that is not a number, fails the run with the weight's name, and weights that add up to 0 fail the run. <code>desflow explain</code> makes the cumulative shares once, for numbers only, and gives no shares for expression weights:</p>
