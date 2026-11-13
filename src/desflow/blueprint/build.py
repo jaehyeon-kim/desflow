@@ -3261,8 +3261,9 @@ def _check_on_paths(
 ) -> None:
     """Refuses an `on:` entry whose `path` is not a registry path, or whose `value`
     the path does not accept, at the entry's line. An entry on a path the registry
-    lacks would end the run with `KeyError` when it first runs."""
-    registry = scratch_registry(context)
+    lacks would end the run with `KeyError` when it first runs. Each list is checked
+    against a fresh registry that its earlier literal values have changed, as the
+    run applies them in order."""
     owners: List[Tuple[str, str, Tuple[str, ...], List[Any]]] = [
         ("tasks", name, at_where, entries)
         for name, task in blueprint.tasks.items()
@@ -3273,6 +3274,10 @@ def _check_on_paths(
         for name, signal in blueprint.signals.items()
     ]
     for section, name, at_where, entries in owners:
+        registry = scratch_registry(context)
+        # A generated value is not known before the run, so a later literal on a path
+        # of the same parent is not checked against a value the run may have changed
+        unknown: Set[str] = set()
         for index, entry in enumerate(entries):
             if entry.path is None or _names_a_member(entry.path, context):
                 continue
@@ -3286,10 +3291,14 @@ def _check_on_paths(
                     f"{context.sim_id}.resources.<name>.current_cap"
                     + _unmade_note(entry.path, context),
                 ) from None
+            parent = entry.path.rpartition(".")[0]
             if has_generator(entry.value):
+                unknown.add(parent)
+                continue
+            if parent in unknown:
                 continue
             try:
-                registry.check_value(entry.path, entry.value)
+                registry.change(entry.path, entry.value)
             except ParamRejected as exc:
                 raise source.error((*where, "value"), exc.reason) from None
 

@@ -325,6 +325,7 @@ desflow.analysis.Observed.model_config: dict
 desflow.analysis.Replications = desflow.Replications
 desflow.analysis.RunResult(readings: dict[str, Any], streams: list[str], sim_id: str, parameters: dict[str, Any] = <factory>) -> None
 desflow.analysis.SourceMap(path: pathlib.Path, lines: dict[tuple[str | int, ...], int])
+desflow.analysis.SourceMap.anchor(location: collections.abc.Iterable[str | int]) -> tuple[str | int, ...]
 desflow.analysis.SourceMap.error(location: collections.abc.Iterable[str | int], message: str) -> desflow.blueprint.BlueprintError
 desflow.analysis.SourceMap.has(location: collections.abc.Iterable[str | int]) -> bool
 desflow.analysis.SourceMap.keys(location: collections.abc.Iterable[str | int]) -> list[str]

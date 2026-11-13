@@ -1411,6 +1411,7 @@ async def test_a_catalog_answer_that_cannot_be_read_does_not_end_the_sink(
 
     assert len(attempts) == 2
     assert "could not build the catalog yet: Expecting value" in caplog.text
+    assert len(fake.tables["sim.events"].appended) == 1
 
 
 @pytest.mark.asyncio

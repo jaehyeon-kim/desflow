@@ -933,8 +933,12 @@ class ModelChecks:
         ]
         for place, actions in lists:
             # A fresh registry for each list, changed by each literal value in turn,
-            # so an action is checked against the state the actions before it make
+            # so an action is checked against the state the actions before it make.
+            # A generated value is not known before the run, so a later literal on a
+            # path of the same parent, such as `low` after a generated `high`, is not
+            # checked against a value the run may have changed
             registry: Optional[SimulationRegistry] = None
+            unknown: Set[str] = set()
             for action in actions:
                 path = action.get("path")
                 if not isinstance(path, str) or names_a_member(
@@ -957,7 +961,11 @@ class ModelChecks:
                         + suggestion(path, registry.paths())
                         + self._unmade_note(path, sim_id)
                     ) from None
+                parent = path.rpartition(".")[0]
                 if "value" not in action or has_generator(action["value"]):
+                    unknown.add(parent)
+                    continue
+                if parent in unknown:
                     continue
                 try:
                     registry.change(path, action["value"])

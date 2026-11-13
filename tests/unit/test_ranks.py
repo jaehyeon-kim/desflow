@@ -305,10 +305,12 @@ tasks:
     service: s
     resource: {{of: desk, key: 0}}
     priority: 1
+    payload: {{e: 1}}
   ranked:
     service: s
     resource: {{of: desk, key: {second_key}}}
     priority: "[0, 1]"
+    payload: {{e: 2}}
 run: {{until: 20}}
 """
     )

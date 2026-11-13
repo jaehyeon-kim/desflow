@@ -1286,6 +1286,11 @@ class TaskRun:
         except RunStopped:
             # A `row` with on_end: stop ended the run; this instance ends quietly
             return None
+        except _CycleLimit as error:
+            # A loop of tasks that take no time in an `on_interrupt_run` flow is no
+            # failure of this task, so it does not go to `on_fail`
+            self._end_default(ok=False, error=error, actions=False)
+            raise
         except BaseException as error:
             if not self._send_to_on_fail(error):
                 # An error ends the instance: the end event fails with it, so a waiter

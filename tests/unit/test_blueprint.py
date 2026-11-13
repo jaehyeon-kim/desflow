@@ -2684,6 +2684,24 @@ def test_an_on_list_is_checked_against_the_state_its_earlier_actions_make(tmp_pa
         )
 
 
+def test_a_literal_after_a_generated_value_of_the_same_parent_is_not_refused(
+    tmp_path,
+):
+    """A generated `high` is not known before the run, so a literal `low` after it is
+    not checked against the `high` the model starts with."""
+    text = MINIMAL.replace(
+        "{dist: normal, mean: 3.0, std: 0.5}", "{dist: uniform, low: 0, high: 1}"
+    ).replace(
+        "    resource: packers\n",
+        "    resource: packers\n    on:\n"
+        "      - {path: Shop.service.packing.high, "
+        "value: {gen: integer, bounds: [3, 3]}}\n"
+        "      - {path: Shop.service.packing.low, value: 2}\n",
+        1,
+    )
+    SimulationContext.from_yaml(write(tmp_path, text, "generated.yaml"))
+
+
 def test_an_on_entry_with_a_wrong_path_or_value_is_refused_at_its_line(tmp_path):
     """`on:` entries load when their path is in the registry; one whose path is not,
     or whose value the path cannot hold, is refused at the entry's line."""
