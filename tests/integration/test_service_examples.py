@@ -401,7 +401,7 @@ def test_the_iceberg_page_read_back_prints_the_stated_answer(tmp_path, profile_r
     )
     assert run.returncode == 0, "\n".join(run.stderr.splitlines()[-15:])
     command = _python_read_back("iceberg.md", "load_catalog")
-    assert _run_python_read_back(command) == "515786 3"
+    assert _run_python_read_back(command) == "518773 3"
 
 
 def test_the_parquet_page_s3_read_back_prints_the_stated_answer(
@@ -441,7 +441,7 @@ def test_the_parquet_page_s3_read_back_prints_the_stated_answer(
     )
     assert run.returncode == 0, "\n".join(run.stderr.splitlines()[-15:])
     command = _python_read_back("parquet.md", "S3FileSystem")
-    assert _run_python_read_back(command) == "3621530"
+    assert _run_python_read_back(command) == "3627756"
 
 
 @pytest.mark.parametrize("name", READ_BACK_PAGES)
@@ -496,13 +496,13 @@ def test_the_page_read_back_commands_print_the_stated_answers(
             ("orders-1", "started"),
             ("orders-2", "queued"),
         ]
-        assert records[0]["sim_ts"] == records[1]["sim_ts"] == 1.2761899383482334
+        assert records[0]["sim_ts"] == records[1]["sim_ts"] == 0.3141556656469718
     elif name == "backfill-live":
         assert "Processed a total of 1 messages" in printed[0]
         first = json.loads(
             next(x for x in printed[0].splitlines() if x.startswith("{"))
         )
-        assert (first["key"], first["sim_ts"]) == ("orders-320", 600.1107008261746)
+        assert (first["key"], first["sim_ts"]) == ("orders-285", 601.9874667777033)
     elif name == "postgres":
         assert "(3 rows)" in text and "(3 rows)" in printed[0]
         rows = [x.split("|") for x in printed[0].splitlines() if "pending" in x]

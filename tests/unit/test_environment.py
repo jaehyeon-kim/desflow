@@ -1406,6 +1406,35 @@ def test_teardown_stops_an_ingress_loop_that_has_not_started_running():
     assert not [thread for thread in threads if thread.is_alive()]
 
 
+def test_a_stop_queued_before_the_ingress_loop_runs_does_not_cut_its_cleanup_short():
+    """Teardown can queue `loop.stop` and set the flag before the thread starts the
+    loop. The queued stop must not end the cancellation run early or skip closing."""
+    import threading
+
+    class Ingress:
+        async def run(self, source):
+            await asyncio.sleep(60)
+
+    loops = []
+    new_event_loop = asyncio.new_event_loop
+
+    def loop_with_a_stop_queued():
+        loop = new_event_loop()
+        loop.call_soon(loop.stop)
+        loops.append(loop)
+        return loop
+
+    env = DynamicRealtimeEnvironment(factor=0)
+    env.ingress_queue = queue.Queue()
+    env.ingress_providers = [Ingress()]
+    env._ingress_loop = None
+    env._ingress_stop = threading.Event()
+    env._ingress_stop.set()
+    with patch("asyncio.new_event_loop", loop_with_a_stop_queued):
+        env._run_ingress_loop()
+    assert loops[0].is_closed()
+
+
 def _wait_for_ingress_items(env, count):
     """Waits, for at most 2 wall-clock seconds, until `count` items are queued."""
     deadline = time.monotonic() + 2

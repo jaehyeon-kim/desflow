@@ -113,12 +113,12 @@ When the model has sinks, a blueprint's `egress` or a builder's `add_egress`, th
 ```text
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.replication.1', 'value': 4.074824798103711}
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.replication.2', 'value': 3.773318039867801}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.replication.3', 'value': 5.134222174540101}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.replication.3', 'value': 5.134222174540095}
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.replication.1', 'value': 78.48408508577423}
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.replication.2', 'value': 81.07923190902797}
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.replication.3', 'value': 82.08253291454314}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.mean', 'value': 4.327455004170537}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.half_width', 'value': 1.7755617045290835}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.mean', 'value': 4.3274550041705355}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.half_width', 'value': 1.775561704529075}
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.n', 'value': 3}
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.mean', 'value': 80.54861663644844}
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.half_width', 'value': 4.612991639592727}

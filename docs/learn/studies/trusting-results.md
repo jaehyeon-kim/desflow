@@ -313,7 +313,7 @@ The run also prints its seeds and how to repeat one replication. The half-width 
 
 ## Compare Warm-ups
 
-One seed gives one path through the hour. Run five replications after each candidate warm-up, with the same five seeds spawned from 42, and compare the mean waits. Five replications are enough here, although the mean wait needs 20 for 10% precision. The comparison does not need a precise mean: it asks only whether a longer warm-up moves the mean by more than its half-width. Each candidate runs the same five seeds, so a difference between candidates comes from the warm-up and not from the seeds:
+One seed gives one path through the hour. Run five replications after each candidate warm-up, with the same five seeds spawned from 42, and compare the mean waits. Five replications are few: the half-width of a candidate's mean is about 0.4 seconds, so the comparison rules out only a shift of that size or larger, and the mean wait needs 20 replications for 10% precision. It does not need a precise mean: it asks only whether a longer warm-up moves the mean by more than its half-width. Each candidate runs the same five seeds, so a difference between candidates comes from the warm-up and not from the seeds:
 
 === "YAML"
 
@@ -385,7 +385,7 @@ The mean wait over the five replications, in seconds, with its 95% half-width:
 | 2 minutes | 2.006 ± 0.43 |
 | 4 minutes | 2.005 ± 0.49 |
 
-[Output Analysis](../concepts/output-analysis.md#one-run-starts-empty) keeps the shortest candidate that passes this comparison and covers the climb in the plot. After 1 minute, the longer warm-ups move the mean by 0.004 and 0.005 seconds. Both are far less than the half-widths of 0.43 and 0.49 seconds, so every candidate passes. The first climb in the plot ends at about a minute, which 1 minute only just covers, so the warm-up is **2 minutes**.
+[Output Analysis](../concepts/output-analysis.md#one-run-starts-empty) keeps the shortest candidate that passes this comparison and covers the climb in the plot. After 1 minute, the longer warm-ups move the mean by 0.004 and 0.005 seconds. Both are far less than the half-widths of 0.43 and 0.49 seconds, so every candidate passes. The first climb in the plot ends at about a minute, which 1 minute only just covers, so the warm-up is **2 minutes**, which covers the climb with a minute to spare.
 
 ---
 

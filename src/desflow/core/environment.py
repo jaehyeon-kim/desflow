@@ -264,13 +264,24 @@ class IngressMixIn:
             if not self._ingress_stop.is_set():
                 loop.run_forever()
         finally:
-            # Cancel all pending tasks
-            for task in tasks:
-                task.cancel()
-            # Briefly run the loop again to let the CancelledError propagate cleanly
-            loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
-            # Safely close the loop
-            loop.close()
+            try:
+                # Cancel all pending tasks
+                for task in tasks:
+                    task.cancel()
+                # Briefly run the loop again to let the CancelledError propagate
+                # cleanly. A stop that teardown queued before this thread skipped
+                # `run_forever` ends the first attempt early, so it runs again
+                cancelled = asyncio.gather(*tasks, return_exceptions=True)
+                for _ in range(3):
+                    try:
+                        loop.run_until_complete(cancelled)
+                        break
+                    except RuntimeError:
+                        if cancelled.done():
+                            break
+            finally:
+                # Safely close the loop
+                loop.close()
 
     def _ingress_monitor(self):
         """Internal: A SimPy process that checks the thread-safe queue for new data."""

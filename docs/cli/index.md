@@ -404,7 +404,7 @@ Repeat one replication with: desflow run experiment/yaml/experiment_shop.yaml --
 
 The means are the same as before. At 99%, the half-width of the mean wait grows from 0.5143 to 0.7389 seconds, because more confidence needs a wider interval.
 
-`--stdout` prints the run's records as JSON lines, instead of writing to the file's sinks. The run keeps its ingress connectors, so a `KafkaIngress` still applies its `topic_policy`: it creates the control topic, and with `drop_and_create` it deletes it and creates it again. `--drain` stops the arrivals at the end time and runs on until every order has left. This run stops the arrivals at 20 seconds, and its last record is the ninth order packed, at 24.789303362278915 seconds. A record keeps its time unrounded:
+`--stdout` prints the run's records as JSON lines, instead of writing to the file's sinks. The run keeps its ingress connectors, so a `KafkaIngress` still applies its `topic_policy`: it creates the control topic, and with `drop_and_create` it deletes it and creates it again. `--drain` stops the arrivals at the end time and runs on until every order has left. This run stops the arrivals at 20 seconds, and its last record is the seventh order packed, at 20.502310430365075 seconds. A record keeps its time unrounded:
 
 ```bash
 # Every record of a 20-second run that drains, as JSON lines in a file

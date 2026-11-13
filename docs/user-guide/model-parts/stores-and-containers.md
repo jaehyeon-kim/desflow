@@ -645,7 +645,7 @@ A container has three registry paths, `<sim_id>.containers.<name>.current_cap`, 
 [TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 0}
 ```
 
-At 30 seconds the bin is empty and two orders wait for boxes. At 40 seconds the stock count has put 50 boxes in, those two have taken theirs, and the shelf of parcels is full, with two packed orders waiting for room.
+At 30 seconds the bin is empty and two orders wait for boxes. At 40 seconds the stock count has put 50 boxes in, those two have taken theirs, and the shelf of parcels is full, with no packed order waiting for room.
 
 A condition in a task's `next` reads a level as `level.<name>`, so an order can go to backorder when `level.stock == 0`, as [Task Flow](task-flow.md) shows.
 

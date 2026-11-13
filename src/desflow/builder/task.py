@@ -22,6 +22,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Deque,
     Dict,
     List,
     NamedTuple,
@@ -238,6 +239,49 @@ Example:
 
 # The service still owed, in seconds, at or below which a resumed task has none left
 _NO_TIME_LEFT = 1e-9
+
+
+class _CycleLimit(ValueError):
+    """A flow ran as many instances at one instant as a breakdown cycle may."""
+
+
+class _InstantCycles:
+    """Counts the instances a flow hands on to at one simulated instant, so tasks that
+    take no time and lead back to each other end the run with an error and not never.
+
+    Args:
+        env: The environment whose clock is read.
+    """
+
+    def __init__(self, env: Any) -> None:
+        self._env = env
+        self._instant = env.now
+        self._cycles = 0
+        self._recent: Deque[str] = collections.deque(maxlen=50)
+
+    def count(self, task: str) -> None:
+        """Counts one more instance, of `task`, handed on to.
+
+        Args:
+            task: The name of the task the flow hands on to.
+
+        Raises:
+            _CycleLimit: A `ValueError` when the count at this instant reaches
+                `MAX_CYCLES_AT_ONE_INSTANT`.
+        """
+        if self._env.now != self._instant:
+            self._instant, self._cycles = self._env.now, 0
+        self._cycles += 1
+        self._recent.append(task)
+        if self._cycles >= MAX_CYCLES_AT_ONE_INSTANT:
+            looped = list(dict.fromkeys(self._recent))
+            names = ", ".join(f"'{name}'" for name in looped)
+            raise _CycleLimit(
+                f"{'task' if len(looped) == 1 else 'tasks'} {names} ran "
+                f"{MAX_CYCLES_AT_ONE_INSTANT} times in one flow at time "
+                f"{self._instant:g}, so the clock does not move; give one of them a "
+                f"service_time above 0, or take the loop out of next"
+            )
 
 
 class _HandlerFailed(Exception):
@@ -1191,7 +1235,7 @@ class TaskRun:
                 time and lead back to each other do for ever.
         """
         run, first, kept = self, True, None
-        instant, cycles, recent = self.env.now, 0, collections.deque(maxlen=50)
+        cycles = _InstantCycles(self.env)
         while True:
             value = yield from run._run_one()
             if first:
@@ -1203,18 +1247,7 @@ class TaskRun:
             # The instance that ended keeps no link, so a long flow frees each one.
             following, run._following = run._following, None
             run = following
-            if self.env.now != instant:
-                instant, cycles = self.env.now, 0
-            cycles += 1
-            recent.append(run.spec.name)
-            if cycles >= MAX_CYCLES_AT_ONE_INSTANT:
-                looped = list(dict.fromkeys(recent))
-                names = ", ".join(f"'{name}'" for name in looped)
-                raise ValueError(
-                    f"{'task' if len(looped) == 1 else 'tasks'} {names} ran {MAX_CYCLES_AT_ONE_INSTANT} times in one flow "
-                    f"at time {instant:g}, so the clock does not move; give one of "
-                    f"them a service_time above 0, or take the loop out of next"
-                )
+            cycles.count(run.spec.name)
             self.env.active_process._generator.__name__ = run.spec.name  # type: ignore[attr-defined]
 
     def reach(self, process: Any) -> None:
@@ -2982,12 +3015,16 @@ class TaskRun:
         run.cause_values = self._cause_values(interrupt, left)
         run.flow.name = name
         self._target = f"task.{name}"
+        cycles = _InstantCycles(self.env)
         try:
             while True:
                 yield from run._run_one()
                 if run._following is None:
                     break
                 run, run._following = run._following, None  # type: ignore[assignment]
+                cycles.count(run.spec.name)
+        except _CycleLimit:
+            raise  # a loop of tasks that take no time is no failure of the child
         except Exception as error:  # the child's failure
             reason = _reason_of(error)
             self._fail_error = error

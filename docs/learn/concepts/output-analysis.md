@@ -87,7 +87,7 @@ The warm-up resets every statistic once at that time, as [Run Length](../../user
 
 ### What the Result Means
 
-[Trusting Results](../studies/trusting-results.md#compare-warm-ups) compares warm-ups of 1, 2 and 4 minutes over five seeds. The longer ones move the mean by 0.004 and 0.005 seconds, far less than the half-widths of 0.43 and 0.49 seconds, so all pass, and 2 minutes covers the first climb. In the run with the seed 42, the warm-up changes the mean wait only from 2.007 to 2.050 seconds: an hour is long enough that its first minutes hardly count. A shorter run, or one that starts far from the usual state, needs the warm-up much more. A warm-up is not a fix for a model that never settles: if [utilisation](queueing-basics.md#utilisation) is 1 or more, there is no steady state for a warm-up to find.
+[Trusting Results](../studies/trusting-results.md#compare-warm-ups) compares warm-ups of 1, 2 and 4 minutes over five seeds. The longer ones move the mean by 0.004 and 0.005 seconds, far less than the half-widths of 0.43 and 0.49 seconds, so all pass. The first climb ends at about a minute, and 2 minutes covers it with a minute to spare. The later rise of the running mean after two minutes comes in steps after bursts of orders in that one run, and leaving out up to 4 minutes moves the mean by at most 0.005 seconds, so a longer warm-up is not needed. In the run with the seed 42, the warm-up changes the mean wait only from 2.007 to 2.050 seconds: an hour is long enough that its first minutes hardly count. A shorter run, or one that starts far from the usual state, needs the warm-up much more. A warm-up is not a fix for a model that never settles: if [utilisation](queueing-basics.md#utilisation) is 1 or more, there is no steady state for a warm-up to find.
 
 ---
 
@@ -174,7 +174,7 @@ Every replication command prints the mean and the half-width of each measure. `-
 
 ### What the Result Means
 
-Over many studies, about 95% of the intervals built this way contain the true mean. A 90% interval from the same 40 runs is narrower, ± 0.16 seconds, but misses the true mean more often: 1 study in 10 instead of 1 in 20.
+Over many studies, about 95% of the intervals built this way contain the true mean. A 90% interval from the same 40 runs is narrower, ± 0.08 seconds, but misses the true mean more often: 1 study in 10 instead of 1 in 20.
 
 ---
 

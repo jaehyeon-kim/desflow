@@ -190,7 +190,7 @@ Each arrival starts a new entity, keyed by the arrival's name and a counter from
 
     The process that creates each `Entity` gives it its key.
 
-Below are the finished events of `gifts-5` in [`task_flow.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/task_flow.yaml), the blueprint whose parts this page shows. The gift order is checked while the shelf is empty, backordered, checked again, wrapped, packed and shipped, all under one key:
+Below are the finished events of `gifts-5` in [`task_flow.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/task_flow.yaml), the blueprint whose parts this page shows. The gift order is checked while the shelf has stock, so it is not backordered and its shipping record shows `backordered: None`. It is wrapped, packed and shipped, all under one key:
 
 <!-- records: gift-flow -->
 ```text

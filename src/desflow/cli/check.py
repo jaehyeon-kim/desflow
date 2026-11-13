@@ -146,7 +146,15 @@ def error_place(file: Path, exc: BaseException) -> str:
     the file's own folder also names that module's file and line. An error that
     desflow raised about the file, from no line of it, is the file and the message.
     An error of a YAML file keeps its own message, which names the file or the
-    reference."""
+    reference.
+
+    Args:
+        file: The model file that was loaded.
+        exc: The error its loading raised.
+
+    Returns:
+        str: The line to print.
+    """
     from desflow.loading import is_builder_file
 
     if not is_builder_file(file):

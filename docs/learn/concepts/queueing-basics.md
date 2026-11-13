@@ -215,7 +215,7 @@ shop: L 6.317, lambda x W 6.315
 
 ### What the Result Means
 
-The queue gives 3.618 against 3.616, and the whole shop 6.317 against 6.315. Both agree within 0.1%. The small difference comes from the 3 orders still in the shop when the hour ended: their time counts in L, but their wait is not yet in W. In a long run of a settled shop, a difference of more than a few percent means a statistic is wrong, for example a task that keeps its packer after it finishes. [Checking and Validating](checking-and-validating.md) uses the law as one of its checks.
+The queue gives 3.618 against 3.616, and the whole shop 6.317 against 6.315. Both agree within 0.1%. The 3 orders still in the shop when the hour ended explain part of the difference for the whole shop: the time they have spent in the shop counts in L, but their full time in the shop is not yet in W. All 3 are being packed and none is in the queue, so their waits are already in W and they do not change the queue's figures. In a long run of a settled shop, a difference of more than a few percent means a statistic is wrong, for example a task that keeps its packer after it finishes. [Checking and Validating](checking-and-validating.md) uses the law as one of its checks.
 
 ---
 

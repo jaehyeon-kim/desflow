@@ -394,6 +394,9 @@ class SourceMap:
     def __init__(self, path: Path, lines: Dict[Location, int]):
         self.path = path
         self._lines = lines
+        # The place of a collection that an alias repeats, mapped to the place of its
+        # anchor, which is the one the lines are recorded under
+        self._aliases: Dict[Location, Location] = {}
 
     def line(self, location: Iterable[Union[str, int]]) -> int:
         """Returns the line of the deepest part of `location` the document has.
@@ -418,6 +421,22 @@ class SourceMap:
             location: The keys and list indexes from the document's top.
         """
         return tuple(location) in self._lines
+
+    def anchor(self, location: Iterable[Union[str, int]]) -> Location:
+        """Returns `location` with a part under an alias moved to its anchor.
+
+        Args:
+            location: The keys and list indexes from the document's top.
+
+        Returns:
+            Location: The place of the same value in the anchor's collection, or
+                `location` itself when no part of it is under an alias.
+        """
+        location = tuple(location)
+        for end in range(len(location), -1, -1):
+            if location[:end] in self._aliases:
+                return self._aliases[location[:end]] + location[end:]
+        return location
 
     def keys(self, location: Iterable[Union[str, int]]) -> List[str]:
         """The keys the document writes directly under `location`, as written.
@@ -494,21 +513,24 @@ def _record_lines(
     location: Location,
     lines: Dict[Location, int],
     key_of: Optional[Callable[[yaml.Node], Any]] = None,
-    walked: Optional[Set[int]] = None,
+    walked: Optional[Dict[int, Location]] = None,
+    aliases: Optional[Dict[Location, Location]] = None,
 ):
     """Walks the node tree and records the line of every key and list item.
 
     A key written with `${VAR}` is recorded under the name it has after substitution,
     which `key_of` gives, as the built mapping holds it. A collection that an alias
     repeats is walked at its first place only, so a place under a later alias has the
-    line of the alias."""
+    line of the alias, and `aliases` maps the later place to the first."""
     lines.setdefault(location, node.start_mark.line + 1)
     if walked is None:
-        walked = set()
+        walked = {}
     if isinstance(node, (yaml.MappingNode, yaml.SequenceNode)):
         if id(node) in walked:
+            if aliases is not None:
+                aliases[location] = walked[id(node)]
             return
-        walked.add(id(node))
+        walked[id(node)] = location
     if isinstance(node, yaml.MappingNode):
         seen: Dict[Any, Tuple[str, Any, int]] = {}
         for key_node, value_node in node.value:
@@ -541,10 +563,10 @@ def _record_lines(
             # A key's own line is where a reader looks, even when its value is a
             # block starting on the next line.
             lines[child] = key_node.start_mark.line + 1
-            _record_lines(value_node, child, lines, key_of, walked)
+            _record_lines(value_node, child, lines, key_of, walked, aliases)
     elif isinstance(node, yaml.SequenceNode):
         for index, item in enumerate(node.value):
-            _record_lines(item, location + (index,), lines, key_of, walked)
+            _record_lines(item, location + (index,), lines, key_of, walked, aliases)
 
 
 _BOOL_TAG = "tag:yaml.org,2002:bool"
@@ -807,6 +829,7 @@ def _parse_document(
     loader.including = (*including, path.resolve())  # type: ignore[attr-defined]
     loader.variables = variables  # type: ignore[attr-defined]
     lines: Dict[Location, int] = {}
+    aliases: Dict[Location, Location] = {}
     try:
         node = loader.get_single_node()
         if node is None:
@@ -816,7 +839,7 @@ def _parse_document(
         _keep_on_keys(node, includes, at)
         _keep_generator_keys(node)
         loader.includes = includes  # type: ignore[attr-defined]
-        _record_lines(node, (), lines, loader.construct_object)
+        _record_lines(node, (), lines, loader.construct_object, aliases=aliases)
         data = loader.construct_document(node)
     except yaml.MarkedYAMLError as exc:
         mark = exc.problem_mark or exc.context_mark
@@ -826,6 +849,7 @@ def _parse_document(
         loader.dispose()
 
     source = SourceMap(path, lines)
+    source._aliases = aliases
     if not isinstance(data, dict):
         raise source.error(
             (),

@@ -129,7 +129,9 @@ def _explain(
     except ValueError as exc:
         # A Python file with no SimulationContext, such as a low-level script
         refuse(
-            error_place(Path(entry), exc) if is_builder_file(Path(entry)) else str(exc)
+            error_place(Path(folder) / entry, exc)
+            if is_builder_file(Path(entry))
+            else str(exc)
         )
     except (Exception, SystemExit) as exc:
         if not is_builder_file(Path(entry)):

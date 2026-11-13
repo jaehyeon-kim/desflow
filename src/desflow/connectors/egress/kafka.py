@@ -1353,14 +1353,19 @@ class KafkaEgress(BaseEgress):
                                 # asked again for the rest of the batch: each ask
                                 # waits for the metadata
                                 refused: dict = {}
+                                # The broker refuses a record after `send` returns,
+                                # by failing the delivery future it returned
+                                deliveries = []
                                 for topic, key, payload_bytes in messages:
                                     if topic in refused:
                                         self._warn_not_sent(key, topic, refused[topic])
                                         continue
                                     try:
-                                        await producer.send(
+                                        delivery = await producer.send(
                                             topic, value=payload_bytes, key=key
                                         )
+                                        if asyncio.isfuture(delivery):
+                                            deliveries.append((topic, key, delivery))
                                     except RECORD_ERRORS as error:
                                         # Kafka refuses this record, not the
                                         # connection: the producer is not
@@ -1371,6 +1376,14 @@ class KafkaEgress(BaseEgress):
                                             error, MessageSizeTooLargeError
                                         ):
                                             refused[topic] = error
+
+                                # Every record is sent before any delivery is
+                                # awaited, so the batch stays batched
+                                for topic, key, delivery in deliveries:
+                                    try:
+                                        await delivery
+                                    except RECORD_ERRORS as error:
+                                        self._warn_not_sent(key, topic, error)
 
                         except queue.Empty:
                             # Yield to loop if queue is empty

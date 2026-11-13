@@ -190,6 +190,25 @@ def _rows_to_table(records: list, schema: Any, pa: Any) -> Any:
     return pa.Table.from_pylist(records, schema=schema)
 
 
+def _is_bad_response(error: Exception) -> bool:
+    """Whether a `ValueError` from `load_catalog` is a catalog's answer that cannot be
+    read, which a later try may get right, and not a setting that PyIceberg refuses.
+
+    Args:
+        error: The error `load_catalog` raised.
+
+    Returns:
+        bool: True for text that is not JSON, or JSON that does not fit the
+            configuration a REST catalog sends.
+    """
+    from pydantic import ValidationError
+
+    # `requests` and `simplejson` have a decoding error of their own, named the same
+    return isinstance(error, ValidationError) or any(
+        kind.__name__ == "JSONDecodeError" for kind in type(error).__mro__
+    )
+
+
 class IcebergStorageEgress(BaseEgress):
     """
     Apache Iceberg table writer for lakehouse ingestion patterns.
@@ -516,7 +535,8 @@ class IcebergStorageEgress(BaseEgress):
 
         A `ValueError`, a `TypeError` or an `ImportError` from `load_catalog` comes
         from a setting, such as an unknown `type` or a missing extra, which no wait
-        fixes. Any other error, such as a catalog that does not answer yet, is
+        fixes. Any other error, such as a catalog that does not answer yet, or an
+        answer that is not JSON or not the configuration a REST catalog sends, is
         logged, and the first write builds the catalog again.
 
         Raises:
@@ -526,8 +546,10 @@ class IcebergStorageEgress(BaseEgress):
         """
         try:
             self._load_catalog()
-        except (ValueError, TypeError, ImportError):
-            raise
+        except (ValueError, TypeError, ImportError) as error:
+            if not _is_bad_response(error):
+                raise
+            logger.error(f"Iceberg Writer: could not build the catalog yet: {error}")
         except Exception as error:
             logger.error(f"Iceberg Writer: could not build the catalog yet: {error}")
 

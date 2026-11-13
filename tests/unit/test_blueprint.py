@@ -2660,6 +2660,30 @@ def test_a_bad_sink_option_names_the_line(tmp_path):
         SimulationContext.from_yaml(path)
 
 
+def test_an_on_list_is_checked_against_the_state_its_earlier_actions_make(tmp_path):
+    """Setting `high` to 3 and then `low` to 2 is valid after a `low` of 0 and a `high`
+    of 1; the reverse order is refused, as the run would refuse it."""
+
+    def text(first, second):
+        return MINIMAL.replace(
+            "{dist: normal, mean: 3.0, std: 0.5}", "{dist: uniform, low: 0, high: 1}"
+        ).replace(
+            "    resource: packers\n",
+            "    resource: packers\n    on:\n"
+            f"      - {{path: Shop.service.packing.{first[0]}, value: {first[1]}}}\n"
+            f"      - {{path: Shop.service.packing.{second[0]}, value: {second[1]}}}\n",
+            1,
+        )
+
+    SimulationContext.from_yaml(
+        write(tmp_path, text(("high", 3), ("low", 2)), "ordered.yaml")
+    )
+    with pytest.raises(Exception, match="low"):
+        SimulationContext.from_yaml(
+            write(tmp_path, text(("low", 2), ("high", 3)), "reversed.yaml")
+        )
+
+
 def test_an_on_entry_with_a_wrong_path_or_value_is_refused_at_its_line(tmp_path):
     """`on:` entries load when their path is in the registry; one whose path is not,
     or whose value the path cannot hold, is refused at the entry's line."""

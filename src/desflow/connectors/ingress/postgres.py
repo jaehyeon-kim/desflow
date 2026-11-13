@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import queue
-from typing import Any, Mapping, Tuple
+from typing import Any, List, Mapping, Tuple
 
 import asyncpg
 
@@ -98,7 +98,9 @@ class PostgresIngress(BaseIngress):
         that grows to one minute, as the Kafka ingress does. An error that no wait
         fixes, such as a `table_name` the server refuses, or a role that may read the table
         but not update it, ends the task at once. The rows of a poll are marked applied
-        before their changes are sent, so an update that fails sends nothing.
+        before their changes are sent, so an update that fails sends nothing. When the
+        connection fails during that update, the next poll asks which rows the server
+        marked and sends their changes.
 
         Args:
             ingress_queue: A thread-safe queue used to transmit (path, value)
@@ -125,6 +127,13 @@ class PostgresIngress(BaseIngress):
         pool, self.pool = self.pool, None
         if pool is not None:
             await pool.close()
+
+    @staticmethod
+    def _send(ingress_queue: queue.Queue, changes: List[Tuple[str, Any]]) -> None:
+        """Puts changes on the queue, in order, and logs each."""
+        for path, val in changes:
+            ingress_queue.put((path, val))
+            logger.info(f"Ingested parameter update: {path} = {val}")
 
     async def _ingest(self, ingress_queue: queue.Queue) -> None:
         """Loads the applied history, then polls for new rows until it is cancelled."""
@@ -159,10 +168,28 @@ class PostgresIngress(BaseIngress):
             )
 
         # Phase 2: Continuously poll for new unapplied updates
+        # The changes of rows whose marking failed with no answer, as a lost
+        # connection gives: the server may have committed it, and then the next poll
+        # no longer reads those rows
+        pending: List[Tuple[int, Tuple[str, Any]]] = []
         while True:
             try:
                 assert self.pool is not None
                 async with self.pool.acquire() as conn:
+                    if pending:
+                        marked = await conn.fetch(
+                            f"""
+                            SELECT id FROM {self.table_name}
+                            WHERE id = ANY($1::bigint[]) AND is_applied = TRUE
+                        """,
+                            [row_id for row_id, _ in pending],
+                        )
+                        # An id still unmarked was not committed, and the poll below
+                        # reads it again
+                        committed = {row["id"] for row in marked}
+                        recovered = [c for row_id, c in pending if row_id in committed]
+                        pending = []
+                        self._send(ingress_queue, recovered)
                     # Fetch all unapplied parameter updates
                     rows = await conn.fetch(f"""
                         SELECT id, path, value
@@ -178,7 +205,7 @@ class PostgresIngress(BaseIngress):
                             # A bad row is marked applied too, so it is skipped once
                             applied_ids.append(row["id"])
                             try:
-                                changes.append(_row_change(row))
+                                changes.append((row["id"], _row_change(row)))
                             except ValueError as e:
                                 logger.warning(
                                     f"Skipped a PostgreSQL ingress row {row['id']}: {e}"
@@ -187,6 +214,7 @@ class PostgresIngress(BaseIngress):
                         # Mark the rows as applied before the changes are sent, so a
                         # failed update sends nothing and the next poll reads the
                         # rows again, instead of sending the same changes at every poll
+                        pending = changes
                         await conn.execute(
                             f"""
                             UPDATE {self.table_name}
@@ -195,11 +223,10 @@ class PostgresIngress(BaseIngress):
                         """,
                             applied_ids,
                         )
+                        pending = []
 
                         # Send to the simulation registry queue
-                        for path, val in changes:
-                            ingress_queue.put((path, val))
-                            logger.info(f"Ingested parameter update: {path} = {val}")
+                        self._send(ingress_queue, [change for _, change in changes])
 
             except asyncpg.InsufficientPrivilegeError:
                 # A role that may not update the table is a setting, which no wait

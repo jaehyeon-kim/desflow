@@ -347,6 +347,8 @@ It prints `stopped before 30 at 20`. Stepping does not stop at `until`: compare 
     [TEL] {'sim_ts': 180.0, 'timestamp': '...', 'path_id': 'system.simulation.segment', 'value': {'index': 1, 'now': 180.0, 'peek': 180.0}}
     ```
 
+    The second segment ends at 180 seconds, the end of the run, because 4 orders never waited at one moment in this run, so its `stop` condition did not apply.
+
     `segments: {every: 30 s}` makes equal parts up to `until`, which must be finite. A list whose last entry has an `until` or a `stop` and a run with no `until` end there, and a last entry `{}` runs to the end:
 
     ```yaml title="docs/snippets/yaml/run_segments_every.yaml:every"

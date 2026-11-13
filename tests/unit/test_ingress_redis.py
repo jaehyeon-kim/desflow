@@ -148,13 +148,11 @@ async def test_redis_ingress_connects_again_when_redis_never_confirms_the_subscr
     update_queue = queue.Queue()
     ingress = RedisIngress(url="redis://localhost:6379/0", poll_interval=0.05)
     pubsubs = []
-    silent_times = []
+    asked = []
 
     async def never_confirms(timeout, **kwargs):
-        loop = asyncio.get_running_loop()
-        silent_times.append(loop.time())
+        asked.append(timeout)
         await asyncio.sleep(timeout)
-        silent_times.append(loop.time())
         return None
 
     def client_for_attempt(url, **kwargs):
@@ -181,10 +179,13 @@ async def test_redis_ingress_connects_again_when_redis_never_confirms_the_subscr
 
     assert update_queue.get_nowait() == ("a.b", 1)
     assert len(pubsubs) == 2
-    # The wait ends at the first read that ends past the limit. On Windows the loop
-    # clock moves in steps of about 16 ms, so a sleep can end early by the loop clock,
-    # the next read is asked for, and the sum of the timeouts asked for passes the limit
-    assert silent_times[-1] - silent_times[0] < 0.12 + 0.05
+    # No read asks for more than the poll interval, and the timeouts asked for add up to
+    # the limit. On Windows the loop clock moves in steps of about 16 ms, so a sleep can
+    # end early by the loop clock and the sum can pass the limit by one more read. A
+    # slow runner shortens the asks and never lengthens them, so no wall-clock time is
+    # measured
+    assert max(asked) <= 0.05
+    assert sum(asked) < 0.12 + 0.05
     assert "did not confirm the subscription" in caplog.text
 
 

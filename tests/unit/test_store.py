@@ -248,6 +248,8 @@ def test_a_number_and_a_list_priority_in_one_store_are_refused(
     store.put(simpy.PriorityItem(priority=1, item="a"))
     with pytest.raises(ValueError, match="store 'buffer1' cannot rank the priority 1"):
         store.put(simpy.PriorityItem(priority=[0, 1], item="b"))
+    with pytest.raises(ValueError, match="store 'buffer1' cannot rank the priority 1"):
+        store.put(item=simpy.PriorityItem(priority=[0, 1], item="b"))
     with pytest.raises(ValueError, match="\\(a number\\) with \\[0, 1\\] \\(a list\\)"):
         store.wrap("b", [0, 1])
 

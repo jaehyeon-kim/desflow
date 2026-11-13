@@ -265,9 +265,9 @@ Each tab prints the counts:
     ```
 
     ```text
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.stores.shelf.level","value":248}
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.flows.orders_m.started","value":1454}
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.flows.orders_m.in_system","value":29}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.stores.shelf.level","value":197}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.flows.orders_m.started","value":1383}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.flows.orders_m.in_system","value":35}
     ```
 
 === "Builder"

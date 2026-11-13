@@ -241,7 +241,7 @@ The three tabs write the same records, which [a test](https://github.com/jaehyeo
 docker exec postgres psql -U user -d odctl -c "SELECT order_id, customer_id, total_amount, status, timestamp FROM orders ORDER BY order_id LIMIT 3;"
 ```
 
-It prints `(3 rows)` with `order_id` 0, 1 and 2, and `customer_id` 42, `total_amount` 59.97 and `status` `pending` in every row. The `timestamp` values are the wall-clock times of your run, the first gap 0.07 seconds and the second 0.52 seconds, because the first two orders are 0.072 simulation seconds apart and the next 0.521. `SELECT count(*) FROM orders` prints the number of orders the run wrote. When you have checked the result, stop the service:
+It prints `(3 rows)` with `order_id` 0, 1 and 2, and `customer_id` 42, `total_amount` 59.97 and `status` `pending` in every row. The `timestamp` values are the wall-clock times of your run, the first gap 2.15 seconds and the second 0.05 seconds, because the first two orders are 2.153 simulation seconds apart and the next 0.045. `SELECT count(*) FROM orders` prints the number of orders the run wrote. When you have checked the result, stop the service:
 
 ```bash
 odctl down postgres --volumes

@@ -608,6 +608,28 @@ def test_a_failing_on_interrupt_run_flow_with_no_on_fail_stops_the_run(tmp_path)
     assert "broken" in str(outcome.error)
 
 
+def test_a_loop_of_tasks_with_no_time_in_an_on_interrupt_run_flow_stops_the_run(
+    tmp_path,
+):
+    """The hand-off loop of the repair flow counts instances at one instant as a flow
+    does, and its error is not a failure of the child that goes to `on_fail`."""
+    yaml = """
+simulation: {sim_id: S, factor: 0}
+arrivals:
+  a: {initial: 1, spawn: work}
+  c: {initial: 1, spawn: cutter}
+tasks:
+  work: {service_time: 10, on_interrupt_run: ping, on_fail: handle, payload: {e: 1}}
+  ping: {payload: {e: 2}, next: pong}
+  pong: {payload: {e: 3}, next: ping}
+  handle: {payload: {e: handled}}
+  cutter: {wait: {timeout: 2}, payload: null, interrupt: {task: work}}
+run: {until: 30}
+"""
+    outcome = run_yaml_text(tmp_path, yaml, {})
+    assert "ran 10000 times in one flow at time 2" in str(outcome.error)
+
+
 def test_a_unit_an_earlier_seize_took_stays_held_while_the_on_interrupt_run_flow_runs(
     tmp_path,
 ):

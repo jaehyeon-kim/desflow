@@ -93,6 +93,28 @@ def test_check_takes_a_builder_file(tmp_path, monkeypatch):
     assert errors[1].startswith(f"Error: {low_level} defines no SimulationContext")
 
 
+def test_explain_names_the_file_and_line_of_a_builder_outside_the_working_directory(
+    tmp_path, monkeypatch
+):
+    """A ValueError raised by a builder file gives its path and line, whichever folder
+    the command runs in."""
+    folder = tmp_path / "models"
+    folder.mkdir()
+    builder = _write(
+        folder,
+        "shop.py",
+        """\
+        raise ValueError("no such shop")
+        """,
+    )
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    result = CliRunner().invoke(cli, ["explain", str(builder)])
+    assert result.exit_code != 0
+    assert result.stderr.startswith(f"Error: {builder}:1: ValueError"), result.stderr
+
+
 def test_check_refuses_a_builder_parquet_sink_without_pyarrow(tmp_path, monkeypatch):
     """The storage connectors import without PyArrow and need it to write, so a
     builder file's Parquet sink is refused at check, as a blueprint's entry is."""

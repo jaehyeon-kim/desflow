@@ -12,6 +12,7 @@ import orjson
 import pytest
 from aiokafka.errors import (
     MessageSizeTooLargeError,
+    TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
 )
 from pydantic import BaseModel
@@ -923,6 +924,43 @@ async def test_an_error_of_send_for_one_record_skips_only_that_record(
     sent = [call.kwargs["key"] for call in producer.send.call_args_list]
     assert sent == [b"k1", b"k2", b"k3"]
     assert "skipped the record with key k2" in caplog.text
+    assert type(error).__name__ in caplog.text
+    assert "connection failed" not in caplog.text
+    assert MockProducer.call_count == 1
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_a_refusal_that_fails_the_delivery_future_skips_only_that_record(
+    MockProducer, run_until, caplog
+):
+    """The broker refuses a record by failing the future `send` returned, after `send`
+    has returned. The sink warns with the key, every record is sent before any future
+    is awaited, and the producer is not restarted."""
+    error = TopicAuthorizationFailedError("not allowed")
+
+    async def send(topic, value=None, key=None):
+        delivery = asyncio.get_running_loop().create_future()
+        if key == b"k2":
+            delivery.set_exception(error)
+        else:
+            delivery.set_result(None)
+        return delivery
+
+    producer = MockProducer.return_value = AsyncMock()
+    producer.send.side_effect = send
+    egress = KafkaEgress(bootstrap_servers="b:9092", topic_policy="manual")
+    batches = queue.Queue()
+    batches.put(
+        [{"stream_type": "event", "key": f"k{n}", "value": {"n": n}} for n in (1, 2, 3)]
+    )
+
+    await run_until(
+        egress.run(batches), lambda: "skipped the record with key k2" in caplog.text
+    )
+
+    sent = [call.kwargs["key"] for call in producer.send.call_args_list]
+    assert sent == [b"k1", b"k2", b"k3"]
     assert type(error).__name__ in caplog.text
     assert "connection failed" not in caplog.text
     assert MockProducer.call_count == 1

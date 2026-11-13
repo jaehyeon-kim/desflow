@@ -211,7 +211,7 @@ The level is also a registry path, `Shop.containers.stock.level`, so a scenario 
 
 What happens when stock runs out? Orders wait for boxes, and when deliveries cannot keep up, the wait grows all hour. The level over the first 30 minutes, for both delivery sizes:
 
-![With deliveries of 60 every 100 seconds, the level climbs in a saw-tooth from 50 to about 200 over 30 minutes; with deliveries of 40, it falls to 0 before each delivery from the third on and stays there for about 40 seconds, while orders wait](../../assets/charts/stock-level.png)
+![With deliveries of 60 every 100 seconds, the level climbs in a saw-tooth from 50 to about 200 over 30 minutes; with deliveries of 40, it falls to 0 before each delivery from the third on, for about 15 seconds the first time and about 40 seconds each time after, while orders wait](../../assets/charts/stock-level.png)
 
 These figures come from one run of the hour for each delivery size, with the seed 42. With deliveries of 60, the mean wait for packing is **2.54 seconds**, and stock never runs out. With deliveries of 40, the mean wait is **330.02 seconds**, and the shelf is empty for about 40 of every 100 seconds. Deliveries of 40 boxes every 100 seconds allow at most 40 orders to be packed in 100 seconds, while 50 arrive on average. So the packer queue grows all hour, as with too few packers on [Queues and Capacity](../first-model/queues-and-capacity.md).
 

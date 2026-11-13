@@ -495,8 +495,8 @@
   since: 1.0.0rc1
   changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
 - run: blueprint:c3_interrupt_service_abandon.yaml
-  since: 1.0.0
-  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`. Each random sequence of a seeded run is now named by the SHA-256 hash of its place, in place of a 32-bit CRC checksum that two places could share, so a seeded run draws other numbers than before."
+  since: 1.0.0rc1
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
 - run: blueprint:c3_interrupt_service_restart.yaml
   since: 1.0.0
   changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`. Each random sequence of a seeded run is now named by the SHA-256 hash of its place, in place of a 32-bit CRC checksum that two places could share, so a seeded run draws other numbers than before."

@@ -289,6 +289,41 @@ def test_a_number_and_a_list_priority_on_one_resource_are_refused_at_load(tmp_pa
     assert "'[0, 1]' (a list)" in message
 
 
+def _family_priorities(tmp_path, second_key):
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        f"""\
+simulation: {{sim_id: S, factor: 0}}
+egress: []
+services: {{s: {{dist: constant, value: 1}}}}
+resources: {{desk: {{family: true, current_cap: 1, queue: priority}}}}
+arrivals:
+  a: {{dist: constant, value: 1, spawn: plain}}
+  b: {{dist: constant, value: 1, spawn: ranked}}
+tasks:
+  plain:
+    service: s
+    resource: {{of: desk, key: 0}}
+    priority: 1
+  ranked:
+    service: s
+    resource: {{of: desk, key: {second_key}}}
+    priority: "[0, 1]"
+run: {{until: 20}}
+"""
+    )
+    return path
+
+
+def test_priorities_of_two_members_of_one_family_are_not_compared(tmp_path):
+    SimulationContext.from_yaml(_family_priorities(tmp_path, 1))
+
+
+def test_a_number_and_a_list_priority_on_one_member_are_refused_at_load(tmp_path):
+    with pytest.raises(BlueprintError, match=r"resource 'desk\[0\]'"):
+        SimulationContext.from_yaml(_family_priorities(tmp_path, 0))
+
+
 def test_a_number_and_a_list_priority_on_one_store_are_refused_at_load(tmp_path):
     path = tmp_path / "m.yaml"
     path.write_text(

@@ -8,6 +8,7 @@ check cannot read or change a run. `SimulationContext._check_tasks` calls it fro
 `task_checks`, which the blueprint loader calls too.
 """
 
+import ast
 import copy
 import logging
 import numbers
@@ -24,6 +25,7 @@ from typing import (
     Optional,
     Set,
     Tuple,
+    Union,
 )
 
 import simpy
@@ -390,6 +392,19 @@ class PriorityMix(NamedTuple):
     message: str
 
 
+def _fixed_key(target: Reference) -> Optional[Union[int, str]]:
+    """The key of a reference that always names one member, written as a number or as
+    quoted text; None when the key is read at run time or the reference takes the
+    `lowest` member."""
+    if target.key is None:
+        return None
+    try:
+        key = ast.literal_eval(target.key.strip())
+    except (ValueError, SyntaxError):
+        return None
+    return key if isinstance(key, (int, str)) else None
+
+
 def priority_mix(
     specs: Mapping[str, TaskSpec], holders: Holders
 ) -> Optional[PriorityMix]:
@@ -424,8 +439,16 @@ def priority_mix(
             )
         return None
 
-    def names(target: Any) -> Iterable[str]:
-        return target.names if isinstance(target, Reference) else [target]
+    def names(target: Any) -> Iterable[Tuple[str, str]]:
+        """The declared name and the queue's name of each holder a target requests.
+        A reference with a fixed key gives each member its own queue."""
+        if not isinstance(target, Reference):
+            return [(target, target)]
+        key = _fixed_key(target)
+        return [
+            (name, name if key is None else member_name(name, key))
+            for name in target.names
+        ]
 
     for name, items in holders.store_items.items():
         if holders.store_priority.get(name):
@@ -452,18 +475,18 @@ def priority_mix(
                 value = 0
             else:
                 value = 0 if spec.priority is None else spec.priority
-            for name in names(resource):
+            for name, queue in names(resource):
                 if (
                     holders.resource_queues.get(name) == "priority"
                     and name not in holders.resource_rank
                 ):
-                    found = note(f"resource '{name}'", value, place)
+                    found = note(f"resource '{queue}'", value, place)
                     if found is not None:
                         return found
         if spec.put is not None and spec.put.store is not None:
-            for name in names(spec.put.target):
+            for name, queue in names(spec.put.target):
                 if holders.store_priority.get(name):
-                    found = note(f"store '{name}'", spec.put.priority, place)
+                    found = note(f"store '{queue}'", spec.put.priority, place)
                     if found is not None:
                         return found
     return None
@@ -908,8 +931,10 @@ class ModelChecks:
             (f"the on: action of signal '{name}'", found)
             for name, found in self._signals.on.items()
         ]
-        registry: Optional[SimulationRegistry] = None
         for place, actions in lists:
+            # A fresh registry for each list, changed by each literal value in turn,
+            # so an action is checked against the state the actions before it make
+            registry: Optional[SimulationRegistry] = None
             for action in actions:
                 path = action.get("path")
                 if not isinstance(path, str) or names_a_member(
@@ -935,7 +960,7 @@ class ModelChecks:
                 if "value" not in action or has_generator(action["value"]):
                     continue
                 try:
-                    registry.check_value(path, action["value"])
+                    registry.change(path, action["value"])
                 except ParamRejected as exc:
                     raise ValueError(f"{place} sets '{path}': {exc.reason}") from None
 
@@ -965,8 +990,16 @@ class ModelChecks:
             seized = spec.seize.resource if spec.seize is not None else None
             twice = resource_held_twice(
                 [] if seized is None or isinstance(seized, Reference) else [seized],
-                spec.wait.requests() if spec.wait else [],
-                spec.open.requests() if spec.open else [],
+                [
+                    r
+                    for r in (spec.wait.requests() if spec.wait else [])
+                    if not isinstance(r, Reference)
+                ],
+                [
+                    r
+                    for r in (spec.open.requests() if spec.open else [])
+                    if not isinstance(r, Reference)
+                ],
                 [r for r in spec.resources if not isinstance(r, Reference)],
                 f"task '{name}'",
             )

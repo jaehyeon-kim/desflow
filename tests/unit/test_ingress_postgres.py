@@ -234,6 +234,44 @@ async def test_postgres_ingress_sends_a_change_only_after_its_row_is_marked(
     "desflow.connectors.ingress.postgres.asyncpg.create_pool",
     new_callable=AsyncMock,
 )
+async def test_postgres_ingress_sends_the_change_of_an_update_whose_reply_was_lost(
+    mock_create_pool, mock_pool
+):
+    """The server commits the update that marks rows applied, and the connection fails
+    before the reply. The next poll does not read the rows again, so the ingress asks
+    which of them are marked and sends their changes once."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    marked = []
+
+    async def fetch(sql, *args):
+        if "is_applied = FALSE" in sql:
+            return [] if marked else [{"id": 1, "path": "sim.rate", "value": "5"}]
+        if "is_applied = TRUE" in sql and "id = ANY" in sql:
+            return [{"id": 1}]
+        return []
+
+    async def execute(sql, *args):
+        if sql.lstrip().startswith("UPDATE"):
+            marked.append(1)
+            raise asyncpg.ConnectionDoesNotExistError("connection was closed")
+
+    conn.fetch.side_effect = fetch
+    conn.execute.side_effect = execute
+    ingress = PostgresIngress("postgresql://localhost/db", "params", poll_interval=0.01)
+    ingress_queue = queue.Queue()
+
+    await _run_briefly(ingress, ingress_queue)
+
+    assert ingress_queue.get_nowait() == ("sim.rate", 5)
+    assert ingress_queue.empty()
+
+
+@pytest.mark.asyncio
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
 async def test_postgres_ingress_marks_ids_above_the_int_range(
     mock_create_pool, mock_pool
 ):

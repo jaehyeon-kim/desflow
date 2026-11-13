@@ -24,7 +24,7 @@ ENVIRONMENT = {"logical_start_time": START, "timezone": "UTC"}
 
 def build(env: DynamicRealtimeEnvironment) -> None:
     """Starts the order process on `env`."""
-    sampler = Sampler(seed=42)
+    sampler = Sampler(seed=1)
     missing = sampler.generator("tasks.order.payload.address#null")
     city = sampler.generator("tasks.order.payload.address.fields.city")
     postcode = sampler.generator("tasks.order.payload.address.fields.postcode")

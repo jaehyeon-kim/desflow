@@ -936,3 +936,27 @@ def test_the_builder_refuses_an_entry_named_like_a_member_and_a_family_read(
     with pytest.raises(ValueError) as error:
         app.start(until=2)
     assert str(error.value) == message
+
+
+def test_a_wait_and_an_open_request_of_two_members_of_one_family_are_not_one_resource(
+    tmp_path,
+):
+    """Members of one family are separate units, so a task may open one and wait for
+    another, though both references name the family."""
+    _rows(tmp_path, 1)
+    text = (
+        HEAD
+        + """
+resources: {desk: {family: true, current_cap: 1}}
+arrivals: {a: {replay: {path: a.csv}, spawn: job}}
+tasks:
+  job:
+    open: {first: {request: {of: desk, key: 0}}}
+    wait: {request: {of: desk, key: 1}}
+    payload: {e: done}
+run: {until: 20}
+"""
+    )
+    path = tmp_path / "m.yaml"
+    path.write_text(text)
+    SimulationContext.from_yaml(path)

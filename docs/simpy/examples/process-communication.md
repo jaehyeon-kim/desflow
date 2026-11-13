@@ -624,7 +624,7 @@ class BroadcastPipe:
 
 ## Check the Result
 
-In the one to one run the generator sends 13 messages in the 100 seconds, and the consumer receives 12. The first message is sent at 8 seconds and received at once. The consumer finishes 11 of them. No message is late: the consumer is free each time a message is sent, so it takes each one at once. The 13th message is sent at 99 seconds, while the consumer is still working on the 12th, so it is not taken before the run ends.
+In the one to one run the generator sends 13 messages in the 100 seconds, and the consumer receives 12. The first message is sent at 8 seconds and received at once. The consumer finishes 11 of them. No message is late: the consumer is free each time one of the first 12 messages is sent, so it takes each one at once. The 13th message is sent at 99 seconds, while the consumer is still working on the 12th, so it is not taken before the run ends.
 
 In the one to many run the generator also sends 13 messages, and each consumer receives 12. No receipt is late. SimPy prints one line for each message taken, and its output for the one to one run is shown below. desflow draws each random value from its own stream, named by the place where the value is used, such as `Pipes.service.patience`. A seed of 42 therefore gives different numbers from SimPy's `random.seed(42)`. The system is the same. The figures are not.
 

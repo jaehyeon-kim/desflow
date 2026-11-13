@@ -355,8 +355,9 @@ class DynamicStore(_WrappedHolder, Store):
         Returns:
             simpy.events.Event: A SimPy event that triggers when a slot is available.
         """
-        if self.priority and args and isinstance(args[0], PriorityItem):
-            self._note_priority(args[0].priority)
+        item = args[0] if args else kwargs.get("item")
+        if self.priority and isinstance(item, PriorityItem):
+            self._note_priority(item.priority)
         return self._holder.put(*args, **kwargs)
 
     def get(self, *args: Any, **kwargs: Any) -> StoreGet:

@@ -20,7 +20,7 @@ def build() -> SimulationContext:
     app = SimulationContext(
         sim_id="Gen",
         factor=0,
-        random_seed=42,
+        random_seed=1,
         logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     app.add_egress(ConsoleEgress())

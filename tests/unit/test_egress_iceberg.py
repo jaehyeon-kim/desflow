@@ -1374,6 +1374,46 @@ async def test_a_catalog_setting_pyiceberg_refuses_ends_the_sink(caplog):
 
 
 @pytest.mark.asyncio
+async def test_a_catalog_answer_that_cannot_be_read_does_not_end_the_sink(
+    monkeypatch, caplog
+):
+    """A REST catalog's configuration answer that is not JSON is a `ValueError` from
+    `load_catalog`, but a later try may get a good answer, so the sink goes on."""
+    import asyncio
+    import json
+    import queue
+
+    import pyiceberg.catalog
+
+    fake = FakeCatalog()
+    attempts = []
+
+    def load_catalog(name=None, **properties):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise json.JSONDecodeError("Expecting value", "<html>", 0)
+        return fake
+
+    monkeypatch.setattr(pyiceberg.catalog, "load_catalog", load_catalog)
+    egress = IcebergStorageEgress(
+        catalog={"uri": "http://localhost:8181"}, default_table="sim.events"
+    )
+    batches: queue.Queue = queue.Queue()
+    batches.put([{"stream_type": "event", "key": "a", "value": {"n": 1}}])
+
+    task = asyncio.create_task(egress.run(batches))
+    for _ in range(100):
+        if "sim.events" in fake.tables and fake.tables["sim.events"].appended:
+            break
+        await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert len(attempts) == 2
+    assert "could not build the catalog yet: Expecting value" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_a_catalog_that_does_not_answer_yet_is_built_again_at_the_first_write(
     monkeypatch, caplog
 ):
@@ -1402,7 +1442,7 @@ async def test_a_catalog_that_does_not_answer_yet_is_built_again_at_the_first_wr
 
     task = asyncio.create_task(egress.run(batches))
     for _ in range(100):
-        if fake.tables:
+        if "sim.events" in fake.tables and fake.tables["sim.events"].appended:
             break
         await asyncio.sleep(0.05)
     task.cancel()
