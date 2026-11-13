@@ -209,6 +209,12 @@ class _Counter:
         self.last -= 1
 
 
+def _check_name(name: str) -> None:
+    """Refuses an empty arrival name, which the startup loops read as no arrival."""
+    if name == "":
+        raise ValueError("an arrival name is at least one character, got ''")
+
+
 def _replaces_whole_or_nothing(method: Callable[..., None]) -> Callable[..., None]:
     """Makes a method that declares an arrival under a name keep the arrival the name
     held before when the call is refused, so a refused call changes nothing."""
@@ -326,7 +332,11 @@ class Arrivals:
             bind: Binds the generators of a place at the place a blueprint gives it (the
                 context's `_bind_values`). The others are as for
                 `SimulationContext.add_arrival`.
+
+        Raises:
+            ValueError: If `name` is empty.
         """
+        _check_name(name)
         self.forget(name)
         params = {
             k: v
@@ -376,8 +386,16 @@ class Arrivals:
                     f"arrival '{name}': gap is a number of seconds, a duration, "
                     f"an expression or a generator, got {gap!r}"
                 )
-            if isinstance(gap, numbers.Real) and not float(gap) >= 0:
-                raise ValueError(f"arrival '{name}': gap is 0 or more, got {gap!r}")
+            if isinstance(gap, numbers.Real):
+                try:
+                    from_zero = float(gap) >= 0
+                except OverflowError:
+                    raise ValueError(
+                        f"arrival '{name}': gap is a whole number too large for a "
+                        "float, so it is not a number of seconds"
+                    ) from None
+                if not from_zero:
+                    raise ValueError(f"arrival '{name}': gap is 0 or more, got {gap!r}")
         else:
             assert dist is not None
             self.configs[name] = distribution(dist, params)
@@ -623,7 +641,11 @@ class Arrivals:
             bind: Binds the generators of a place at the place a blueprint gives it (the
                 context's `_bind_values`). The others are as for
                 `SimulationContext.add_arrival_replay`.
+
+        Raises:
+            ValueError: If `name` is empty.
         """
+        _check_name(name)
         self.forget(name)
         if unit not in UNITS and unit != "timestamp":
             raise ValueError(

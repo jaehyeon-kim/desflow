@@ -67,6 +67,6 @@ if __name__ == "__main__":
     print(f"paired by seed: ± {paired.half_width:.2f} s")
     print(f"as if independent: ± {unpaired:.2f} s")
     assert paired.half_width < unpaired / 2
-    assert abs(paired.mean - 0.69) < 0.005
-    assert abs(paired.half_width - 0.12) < 0.005
-    assert abs(unpaired - 0.29) < 0.005
+    assert abs(paired.mean - 0.56) < 0.005
+    assert abs(paired.half_width - 0.05) < 0.005
+    assert abs(unpaired - 0.14) < 0.005

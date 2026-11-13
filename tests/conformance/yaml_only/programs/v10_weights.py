@@ -5,7 +5,7 @@ whose shares are its two weights divided by their sum.
 The program is a plain SimPy model: entities are processes, the routing step is a
 timeout, and the next step is chosen when the timeout ends. The draw comes from the
 stream a blueprint with `random_seed: 42` gives the router of the task `route`
-(`default_rng(SeedSequence(42, spawn_key=(crc32("route.route"),)))`), so the two
+(`default_rng(SeedSequence(42, spawn_key=stream_key("route.route")))`), so the two
 choose the same tasks.
 
 The program does not refuse a weight. A weight below 0, or weights that add up to 0,
@@ -15,11 +15,12 @@ a pair such as (2, -1), so the refusal is a stricter rule and not SimPy's behavi
 The test of the refusals runs desflow only.
 """
 
-import zlib
 from typing import List, Sequence, Tuple
 
 import numpy as np
 import simpy
+
+from desflow.core.sampler import stream_key
 
 SEED = 42
 PLACE = "route.route"
@@ -38,7 +39,7 @@ def reference(
     """
     env = simpy.Environment()
     rng = np.random.default_rng(
-        np.random.SeedSequence(SEED, spawn_key=(zlib.crc32(PLACE.encode()),))
+        np.random.SeedSequence(SEED, spawn_key=stream_key(PLACE))
     )
     routed: List[Tuple[float, str]] = []
 

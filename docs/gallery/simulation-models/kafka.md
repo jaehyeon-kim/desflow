@@ -189,12 +189,12 @@ docker exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 --topic sim-events --from-beginning --max-messages 3
 ```
 
-It prints three JSON lines, then `Processed a total of 3 messages`. The first two are `orders-1` queued and started, both at `sim_ts` 1.2761899383482334, and the third is `orders-2` queued. Each `timestamp` is the wall-clock time of your run:
+It prints three JSON lines, then `Processed a total of 3 messages`. The first two are `orders-1` queued and started, both at `sim_ts` 0.3141556656469718, and the third is `orders-2` queued. Each `timestamp` is the wall-clock time of your run:
 
 ```text
-{"sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
-{"sim_ts":1.3479226635723796,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"sim_ts":2.4671694506095694,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
 ```
 
 Use `--topic sim-telemetry` to read the packers' readings, or open the Kafka UI at http://127.0.0.1:8086. A second run appends to the same topics, so start again with an empty broker when you want only one run in them. When you have checked the result, stop the service:
@@ -207,19 +207,19 @@ In `kafka/yaml`, which `desflow examples get kafka --api yaml` creates, `desflow
 
 <!-- records: kafka-sample -->
 ```text
-{"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
-{"stream_type":"event","sim_ts":1.3479226635723796,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":1.8686592357447462,"timestamp":"...","key":"orders-3","task":"pack_order","instance":2,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
 {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":1}
 {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
-{"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":2}
+{"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
 {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":100.0}
-{"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.in_progress","value":3}
-{"stream_type":"event","sim_ts":2.0097703062717214,"timestamp":"...","key":"orders-4","task":"pack_order","instance":3,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.in_progress","value":1}
+{"stream_type":"event","sim_ts":2.4671694506095694,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":2.5122243094067938,"timestamp":"...","key":"orders-3","task":"pack_order","instance":2,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":3.124962891934927,"timestamp":"...","key":"orders-4","task":"pack_order","instance":3,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
 ```
 
-With one packer, `orders-1` starts at once and the next orders wait. At 2 simulation seconds the readings show 1 packer in use, 2 orders in the queue and 3 tasks in progress.
+With one packer, `orders-1` starts at once. At 2 simulation seconds the readings show 1 packer in use, an empty queue and 1 task in progress, and `orders-2` arrives after them.
 
 ---
 

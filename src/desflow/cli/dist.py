@@ -166,17 +166,27 @@ def _family_text(family: Any) -> str:
     return "\n".join(lines)
 
 
+def _written(number: float) -> str:
+    """A number with six significant digits, or with every digit when six would
+    change it."""
+    short = f"{number:.6g}"
+    return short if float(short) == number else repr(float(number))
+
+
 def _values_text(family: Any, parameters: Dict[str, float]) -> str:
     """The parameters, mean, std and variability of one distribution, and its syntax.
 
     Raises `ValueError` when a parameter breaks the family's rules.
     """
+    from desflow.analysis.fit import settings_digits
     from desflow.config import MIN_DELAY
     from desflow.models.distributions import clamped_normal_moments, variability
     from desflow.models.params import DistributionConfig
 
     config = DistributionConfig(dist=family.name, **parameters)  # type: ignore[arg-type]
-    shown = {name: getattr(config, name) for name in family.parameters}
+    shown = settings_digits(
+        family.name, {name: getattr(config, name) for name in family.parameters}
+    )
     mean, variance = family.mean(config), family.variance(config)
     moments = f"mean {mean:.6g}, std {variance**0.5:.6g}"
     if family.name == "normal":
@@ -196,13 +206,13 @@ def _values_text(family: Any, parameters: Dict[str, float]) -> str:
         draw += f", raised to {MIN_DELAY}"
     ratio = f" (std / mean {std / mean:.3g})" if mean > 0 else ""
     lines = [
-        "parameters: " + ", ".join(f"{k} {v:.6g}" for k, v in shown.items()),
+        "parameters: " + ", ".join(f"{k} {_written(v)}" for k, v in shown.items()),
         moments,
         f"variability: {variability(mean, std)}{ratio}",
         f"with no random generator, every draw is {draw}",
     ]
-    yaml = ", ".join(f"{name}: {number:.6g}" for name, number in shown.items())
-    python = ", ".join(f"{name}={number:.6g}" for name, number in shown.items())
+    yaml = ", ".join(f"{name}: {_written(number)}" for name, number in shown.items())
+    python = ", ".join(f"{name}={_written(number)}" for name, number in shown.items())
     lines += [
         f"YAML: {{dist: {family.name}, {yaml}}}",
         f'Python: dist="{family.name}", {python}',

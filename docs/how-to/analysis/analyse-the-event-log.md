@@ -156,7 +156,7 @@ def read_events(out: Path) -> Table:
     return ds.dataset(out, format="parquet").to_table()
 ```
 
-One 2-minute run of the shop writes **191** rows in every form: 64 queued events, 64 started and 63 finished, because one order is still being packed when the run ends.
+One 2-minute run of the shop writes **134** rows in every form: 45 queued events, 45 started and 44 finished, because one order is still being packed when the run ends.
 
 ### Build the Event Log
 
@@ -194,7 +194,7 @@ def event_log(events: Table, run: int = 1) -> Table:
     return Table.from_pylist(rows)
 ```
 
-The log has **318** rows for **64** orders, and its columns are `entity_id`, `event_type`, `event`, `time` and `run`. This is the form [Animate a Run](animate-a-run.md) takes.
+The log has **223** rows for **45** orders, and its columns are `entity_id`, `event_type`, `event`, `time` and `run`. This is the form [Animate a Run](animate-a-run.md) takes.
 
 ### Find Waits and Throughput
 
@@ -264,12 +264,12 @@ Save the files of your form from [Full Files](#full-files) in a folder of their 
     ```
 
 ```text
-318 rows in the log, for 64 orders
-mean wait 1.250 s
-throughput 31.5 orders a minute
+223 rows in the log, for 45 orders
+mean wait 0.592 s
+throughput 22.0 orders a minute
 ```
 
-The first order waits **0.0** seconds and is in the shop for **1.5** seconds. The mean wait is **1.250** seconds and the longest wait is **3.659** seconds. These come from one 2-minute run of a shop with one packer, not from the busy hour of the tutorials. **63** orders leave in two minutes, a throughput of **31.5** orders a minute. The 64th is still being packed, so it has a wait and no time in the shop.
+The first order waits **0.0** seconds and is in the shop for **1.5** seconds. The mean wait is **0.592** seconds and the longest wait is **3.630** seconds. These come from one 2-minute run of a shop with one packer, not from the busy hour of the tutorials. **44** orders leave in two minutes, a throughput of **22.0** orders a minute. The 45th is still being packed, so it has a wait and no time in the shop.
 
 ---
 

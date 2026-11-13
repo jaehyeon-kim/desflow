@@ -527,12 +527,12 @@ check: arrives at 0, patience 6: reneged
 check: arrives at 3, patience 4: served
 check: the same in YAML: reneged reneged served
 check: the same, low-level: reneged reneged served
-check: {'order_packed': 49, 'reneged': 7, 'started': 1, 'balked': 17}
-check: {'order_packed': 49, 'reneged': 7, 'started': 1, 'balked': 17}
-check: {'order_packed': 49, 'reneged': 7, 'started': 1, 'balked': 17}
+check: {'order_packed': 51, 'reneged': 13, 'balked': 5}
+check: {'order_packed': 51, 'reneged': 13, 'balked': 5}
+check: {'order_packed': 51, 'reneged': 13, 'balked': 5}
 ```
 
-Each form returns 49 packed, 7 reneged, 17 balked and 1 being packed, 74 orders in all. A mean wait counts only the orders that were served, so report the reneged and balked counts beside it.
+Each form returns 51 packed, 13 reneged and 5 balked, 69 orders in all, and no order is still in the shop. A mean wait counts only the orders that were served, so report the reneged and balked counts beside it.
 
 ---
 

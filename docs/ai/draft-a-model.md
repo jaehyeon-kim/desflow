@@ -4,7 +4,7 @@ Describe a process in your own words, and an assistant with the skill turns it i
 
 The GIF follows one request, the packing shop of the [Learn tutorial](../learn/first-model/first-simulation.md), through the steps the skill teaches:
 
-![The shop in four steps. You ask how long an order waits with one packer. The assistant drafts a blueprint and marks each number it assumed. It checks the load with desflow explain: the packer is busy 75% of the time and an order waits 2.25 seconds on average. It runs 20 replications, which give a mean wait of 2.38 seconds, with an interval that holds 2.25](../assets/diagrams/agent-skill.gif)
+![The shop in four steps. You ask how long an order waits with one packer. The assistant drafts a blueprint and marks each number it assumed. It checks the load with desflow explain: the packer is busy 75% of the time and an order waits 2.25 seconds on average. It runs 20 replications, which give a mean wait of 2.18 seconds, with an interval that holds 2.25](../assets/diagrams/agent-skill.gif)
 
 The sections below hold each step's text, so you can copy the request and check each answer.
 
@@ -107,10 +107,10 @@ desflow run drafted_shop.yaml --replications 20 | grep -E "^measure|wait_mean"
 
 ```text
 measure                                n          mean    half-width (95%)
-tasks.pack_order.wait_mean            20         2.383              0.1828
+tasks.pack_order.wait_mean            20         2.175              0.1305
 ```
 
-The mean wait is 2.38 ± 0.18 seconds. The interval, 2.20 to 2.57, holds the 2.25 of the formulas, so the model and the theory agree. The run starts with an empty shop and has no warm-up, which [Trusting Results](../learn/studies/trusting-results.md) explains how to choose.
+The mean wait is 2.18 ± 0.13 seconds. The interval, 2.05 to 2.31, holds the 2.25 of the formulas, so the model and the theory agree. The run starts with an empty shop and has no warm-up, which [Trusting Results](../learn/studies/trusting-results.md) explains how to choose.
 
 ---
 

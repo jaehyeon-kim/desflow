@@ -87,18 +87,18 @@ The test sees the record as published, so an event's payload is still under `val
 Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow run streaming_out.yaml`, `python streaming_out.py` or `python streaming_out_low_level.py`. Every event carries three names. `key` names the entity, here the order, and the arrival names the orders `orders-1`, `orders-2`, and so on. `task` names the task, and `instance` names this run of it. The terminal shows the three events of `orders-12`, each with the same three names:
 
 ```text
-[EVT] {'sim_ts': 26.96951531079364, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
-[EVT] {'sim_ts': 28.20220884909981, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
-[EVT] {'sim_ts': 29.70220884909981, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'event_type': 'order_packed'}}
+[EVT] {'sim_ts': 33.9733203858314, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 34.3280675455825, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
+[EVT] {'sim_ts': 35.8280675455825, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'event_type': 'order_packed'}}
 ```
 
 The file sink receives only the last of the three, the `order_packed` event. Without a router it writes one flat row per event, with the payload's fields beside the record's own:
 
 ```text
-{"stream_type":"event","sim_ts":29.70220884909981,"timestamp":"...","key":"orders-12","task":"pack_order","instance":11,"event_type":"order_packed"}
+{"stream_type":"event","sim_ts":35.8280675455825,"timestamp":"...","key":"orders-12","task":"pack_order","instance":11,"event_type":"order_packed"}
 ```
 
-To find one order's records among the 4,329 of the hour, print the records as JSON lines with `--stdout` and keep the lines with its key. `--stdout` sends the records to the terminal in place of the sinks, so this run writes no files:
+To find one order's records among the 4,392 of the hour, print the records as JSON lines with `--stdout` and keep the lines with its key. `--stdout` sends the records to the terminal in place of the sinks, so this run writes no files:
 
 ```bash
 desflow run streaming_out.yaml --stdout | grep '"key":"orders-12"'
@@ -158,14 +158,14 @@ A job that reads the folder while the run is going therefore sees only the full 
 
 The rows the file sink writes over the hour, counted by the time each order was packed:
 
-![The packed orders, counted by the time each was packed, rise steadily over the hour to 1,432. File 1 holds the 500 orders packed in the first 20.5 minutes, file 2 the 500 packed from 20.5 to 40.6 minutes, and file 3 the 432 packed from 40.6 minutes to the end of the hour](../../assets/charts/streaming-rows.png)
+![The packed orders, counted by the time each was packed, rise steadily over the hour to 1,454. File 1 holds the 500 orders packed in the first 21.2 minutes, file 2 the 500 packed from 21.2 to 41.0 minutes, and file 3 the 454 packed from 41.0 minutes to the end of the hour](../../assets/charts/streaming-rows.png)
 
 Which records reach the team's files? These figures come from one unpaced run of the hour with the seed 42.
 
-- The terminal receives every record: **4,299** events (**1,434** orders queued, **1,433** started and **1,432** packed) and **30** telemetry records, five statistics read every 10 minutes.
-- The file sink receives only the **1,432** packed orders, one row each, in **3** files of **500**, **500** and **432** rows. The two files of 500 were handed over while the model ran. The file of 432 was handed over at teardown, after the model stopped.
+- The terminal receives every record: **4,362** events (**1,454** orders queued, **1,454** started and **1,454** packed) and **30** telemetry records, five statistics read every 10 minutes.
+- The file sink receives only the **1,454** packed orders, one row each, in **3** files of **500**, **500** and **454** rows. The two files of 500 were handed over while the model ran. The file of 454 was handed over at teardown, after the model stopped.
 
-The run returns only when teardown has finished, so the team's job should start only after the run has returned. One order's records share its `key`: `orders-12` was queued at **26.9695** seconds, started at **28.2022** and packed at **29.7022**, rounded to four places.
+The run returns only when teardown has finished, so the team's job should start only after the run has returned. One order's records share its `key`: `orders-12` was queued at **33.9733** seconds, started at **34.3281** and packed at **35.8281**, rounded to four places.
 
 Each tab gives the files' rows and the records of `orders-12`:
 
@@ -180,7 +180,7 @@ Each tab gives the files' rows and the records of `orders-12`:
 
     <!-- records: streaming-rows -->
     ```text
-    432
+    454
     500
     500
     ```
@@ -194,8 +194,8 @@ Each tab gives the files' rows and the records of `orders-12`:
     ```
 
     ```text
-    3 files, with [432, 500, 500] rows
-    orders-12: {'stream_type': 'event', 'sim_ts': 29.70220884909981, 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'event_type': 'order_packed'}
+    3 files, with [454, 500, 500] rows
+    orders-12: {'stream_type': 'event', 'sim_ts': 35.8280675455825, 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'event_type': 'order_packed'}
     ```
 
 === "Low-level"
@@ -205,8 +205,8 @@ Each tab gives the files' rows and the records of `orders-12`:
     ```
 
     ```text
-    3 files, with [432, 500, 500] rows
-    orders-12: {'stream_type': 'event', 'sim_ts': 29.70220884909981, 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'event_type': 'order_packed'}
+    3 files, with [454, 500, 500] rows
+    orders-12: {'stream_type': 'event', 'sim_ts': 35.8280675455825, 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'event_type': 'order_packed'}
     ```
 
 A record goes from `publish_event` to each sink's `when` test, then into that sink's buffer, then to a queue that a separate thread writes from. The model only fills buffers, so it can finish while the threads are still writing. Teardown is the step that waits for them. Writing records on background threads is one of the things desflow adds to SimPy, as [What desflow Changes](../../simpy/coming-from-simpy.md#what-desflow-changes) sets out. [Egress, Batching and Delivery](../../user-guide/live-runs-and-connectors/egress.md#how-it-works) shows each stage of that path. Finding one order's records by its key is also how a run is checked by hand, as [Read the Trace](../concepts/checking-and-validating.md#read-the-trace) shows.

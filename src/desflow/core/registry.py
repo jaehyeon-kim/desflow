@@ -12,7 +12,7 @@ from simpy.resources.store import StoreGet
 from desflow.models.distributions import get_distribution
 from desflow.internal import InternalStore
 from desflow.utils import suggestion
-from desflow.core.rules import check_capacity
+from desflow.core.rules import check_capacity, exceeds_float
 from desflow.models.params import (
     CapacityConfig,
     DistributionConfig,
@@ -67,7 +67,7 @@ def _stored_as_given(kind: str, current: Any, new: Any) -> bool:
     if kind == "variables" and isinstance(new, bool):
         return True
     if kind == "variables" and _is_number(new):
-        return math.isfinite(new)
+        return not exceeds_float(new) and math.isfinite(new)
     return False
 
 
@@ -105,6 +105,7 @@ def queue_limit_value(path: str, value: Any) -> Optional[int]:
         number = _read_number(text)
     if value is None:
         return None
+    _refuse_oversized(path, value, number)
     if (
         isinstance(number, bool)
         or not isinstance(number, numbers.Real)
@@ -162,13 +163,31 @@ def _refusal(path: str, value: Any, reason: str) -> "ParamRejected":
     return refused
 
 
+def _refuse_oversized(path: str, value: Any, number: Any) -> None:
+    """Refuses a number, or text of one, too large to convert to a float.
+
+    Raises:
+        ParamRejected: With a message that does not print the number.
+    """
+    if exceeds_float(number):
+        raise _refusal(
+            path,
+            value,
+            f"'{path}' got a number too large for a float, so it is not a value "
+            f"the run can use",
+        )
+
+
 def _read_number(value: Any) -> Any:
     """The number a text means, when the whole text is one; any other value as given."""
     if not isinstance(value, str):
         return value
     text = value.strip()
     if _WHOLE_TEXT.fullmatch(text):
-        return int(text)
+        try:
+            return int(text)
+        except ValueError:
+            return value  # more digits than Python converts, past any float
     try:
         return float(text)
     except ValueError:
@@ -185,6 +204,7 @@ def _capacity_value(path: str, registered: _PathKind, value: Any) -> Any:
     """
     whole = registered.kind != "containers"
     number = _read_number(value)
+    _refuse_oversized(path, value, number)
     holder = registered.config.rsplit(".", 1)[-1]
     word = _HOLDER_WORDS[registered.kind]
     try:
@@ -214,6 +234,7 @@ def _capacity_value(path: str, registered: _PathKind, value: Any) -> Any:
 def _level_value(path: str, value: Any) -> Any:
     """The container level a write means: a finite number, read from text."""
     number = _read_number(value)
+    _refuse_oversized(path, value, number)
     if (
         isinstance(number, bool)
         or not isinstance(number, numbers.Real)
@@ -589,6 +610,8 @@ class SimulationRegistry:
         current_val = self._values[path].value
         validated_value = new_value
         registered = self._kinds[path]
+        if _is_number(current_val):
+            _refuse_oversized(path, new_value, _read_number(new_value))
         kind, parent_path, attr = registered.kind, registered.config, registered.attr
 
         # Type Validation & Casting

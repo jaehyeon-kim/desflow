@@ -64,7 +64,7 @@ ok drafted_shop.yaml: orders_packed_in_10_hours
 ok drafted_shop.yaml: packer_busy_three_quarters
 ```
 
-With the arrival rate 10% higher, both tests fail and name what they measured, 19,450 orders and 81% busy, so the tests check the rate they are about.
+With the arrival rate 10% higher, both tests fail and name what they measured, 19,937 orders and 83% busy, so the tests check the rate they are about.
 
 For the records, the skill gives the assistant a pytest template that runs the model with the `desflow` command at three seeds and checks the records the request names. [Checking a Model](../learn/studies/checking-a-model.md) shows the checks a model needs beyond tests.
 

@@ -256,14 +256,14 @@ The three tabs publish the same records, which [a test](https://github.com/jaehy
     python -c "import pyarrow.parquet as pq; print(pq.read_table('data/backfill').num_rows)"
     ```
 
-It prints `957`, the records of the first ten simulated minutes with the seed in the file. Then read the first live event back from Kafka:
+It prints `854`, the records of the first ten simulated minutes with the seed in the file. Then read the first live event back from Kafka:
 
 ```bash
 docker exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 --topic sim-events --from-beginning --max-messages 1
 ```
 
-It prints one JSON line and `Processed a total of 1 messages`. Its `sim_ts` is just over 600, the length of the history in simulation seconds, because the live tail starts where the history ends (`orders-320` queued, at `sim_ts` 600.1107008261746). A second run appends to both sinks. When you have checked the result, stop the service:
+It prints one JSON line and `Processed a total of 1 messages`. Its `sim_ts` is a little over 600, the length of the history in simulation seconds, because the live tail starts where the history ends (`orders-285` finished, at `sim_ts` 601.9874667777033). A second run appends to both sinks. When you have checked the result, stop the service:
 
 ```bash
 odctl down kafka-lite --volumes
@@ -273,10 +273,10 @@ In `backfill-live/yaml`, which `desflow examples get backfill-live --api yaml` c
 
 <!-- records: backfill-live-sample -->
 ```text
-{"stream_type":"event","sim_ts":2.5523798766964667,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":2.5523798766964667,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
-{"stream_type":"event","sim_ts":2.695845327144759,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":2.695845327144759,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":0.6283113312939436,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.6283113312939436,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":2.5998798133404177,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"finished"}}
+{"stream_type":"event","sim_ts":4.934338901219139,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
 ```
 
 Each `timestamp` is shown as `...`, because it changes with every run. It is the start of the history plus `sim_ts`, so these records are stamped before `go_live_at` and belong to the history.

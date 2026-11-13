@@ -97,6 +97,10 @@ def _missing_inputs(experiment: Dict[str, Any]) -> List[str]:
     return missing
 
 
+class _MissingRow(KeyError):
+    """A row or a file that the report reads is missing from the saved artifacts."""
+
+
 @dataclass(frozen=True)
 class _Artifacts:
     """What the report reads from an experiment's saved artifacts."""
@@ -113,6 +117,18 @@ class _Artifacts:
     versions: Dict[str, str]
 
 
+def _rows(folder: Path, name: str, listed: bool) -> List[Dict[str, str]]:
+    """The rows of one CSV file; a file that `experiment.json` says holds rows but
+    has none, or a row with a cell fewer than the header, raises `_MissingRow`."""
+    rows = read_csv(folder / name)
+    if listed and not rows:
+        raise _MissingRow(f"{name} has no rows, but experiment.json lists entries")
+    for number, row in enumerate(rows, start=2):
+        if None in row or any(cell is None for cell in row.values()):
+            raise _MissingRow(f"{name} line {number} has fewer cells than its header")
+    return rows
+
+
 def _artifacts(folder: Path) -> _Artifacts:
     """Reads the artifacts in `folder` that the report is built from."""
     experiment = read_json(folder / EXPERIMENT_FILE)
@@ -120,9 +136,9 @@ def _artifacts(folder: Path) -> _Artifacts:
     return _Artifacts(
         experiment=experiment,
         settings=settings,
-        summary=read_csv(folder / SUMMARY_FILE),
-        comparisons=read_csv(folder / COMPARISONS_FILE),
-        checks=read_csv(folder / CHECKS_FILE),
+        summary=_rows(folder, SUMMARY_FILE, False),
+        comparisons=_rows(folder, COMPARISONS_FILE, bool(experiment.get("compare"))),
+        checks=_rows(folder, CHECKS_FILE, bool(experiment.get("checks"))),
         measures=settings["measures"],
         counts=experiment["counts"],
         designs=[d["name"] for d in experiment["designs"]],
@@ -218,10 +234,6 @@ def _run_settings(artifacts: _Artifacts) -> List[str]:
         ],
     )
     return lines
-
-
-class _MissingRow(KeyError):
-    """A row that the report reads is not in `summary.csv`."""
 
 
 def _mean_cell(means: Dict[Tuple[str, str], str], design: str, name: str) -> str:

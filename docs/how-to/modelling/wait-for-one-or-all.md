@@ -1049,8 +1049,8 @@ The example is a shop where each order waits for a restock or 30 seconds, whiche
     ```
 
     ```text
-    "path_id":"Shop.stats.tasks.refund.finished","value":35
-    "path_id":"Shop.stats.tasks.pack.finished","value":27
+    "path_id":"Shop.stats.tasks.refund.finished","value":19
+    "path_id":"Shop.stats.tasks.pack.finished","value":22
     "sim_ts":80.0
     "sim_ts":140.0
     "sim_ts":200.0
@@ -1069,7 +1069,7 @@ The example is a shop where each order waits for a restock or 30 seconds, whiche
     ```
 
     ```text
-    {'pack': 27, 'refund': 35, 'restocked_at': [80.0, 140.0, 200.0, 260.0, 320.0, 380.0, 440.0, 500.0, 560.0]}
+    {'pack': 22, 'refund': 19, 'restocked_at': [80.0, 140.0, 200.0, 260.0, 320.0, 380.0, 440.0, 500.0, 560.0]}
     ```
 
 === "Low-level"
@@ -1079,10 +1079,10 @@ The example is a shop where each order waits for a restock or 30 seconds, whiche
     ```
 
     ```text
-    {'pack': 27, 'refund': 35, 'restocked_at': [80, 140, 200, 260, 320, 380, 440, 500, 560]}
+    {'pack': 22, 'refund': 19, 'restocked_at': [80, 140, 200, 260, 320, 380, 440, 500, 560]}
     ```
 
-Each form runs once for 10 simulation minutes at `factor=0`: 27 orders are packed after a restock and 35 are refunded at the time limit. The restocks come at 80, 140 and so on to 560 seconds. Each comes 20 seconds after its delivery starts, because the wait for all ends with the stock count, the longer of its two branches. With `any` in place of `all`, each restock would come after the 10-second delivery instead, and more orders would be packed.
+Each form runs once for 10 simulation minutes at `factor=0`: 22 orders are packed after a restock and 19 are refunded at the time limit. The restocks come at 80, 140 and so on to 560 seconds. Each comes 20 seconds after its delivery starts, because the wait for all ends with the stock count, the longer of its two branches. With `any` in place of `all`, each restock would come after the 10-second delivery instead, and more orders would be packed.
 
 The `process-interaction` example waits for a child flow, then for the first of a courier's signal and a time limit. [Processes](../../user-guide/tasks-and-processes/processes.md#example-process-interaction) shows how to download and run it.
 

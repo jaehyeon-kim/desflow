@@ -45,9 +45,9 @@ To see how long the distortion lasts, plot an output over time and look for wher
 
     ```text
     {"stream_type":"telemetry","sim_ts":10.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
-    {"stream_type":"telemetry","sim_ts":10.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":0.45699808696098815}
-    {"stream_type":"telemetry","sim_ts":20.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":2}
-    {"stream_type":"telemetry","sim_ts":20.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":0.5569464838069348}
+    {"stream_type":"telemetry","sim_ts":10.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":0.058519544055964254}
+    {"stream_type":"telemetry","sim_ts":20.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
+    {"stream_type":"telemetry","sim_ts":20.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":0.03277094467133998}
     ```
 
 === "Builder"
@@ -66,9 +66,9 @@ To see how long the distortion lasts, plot an output over time and look for wher
 
     ```text
     [TEL] {'sim_ts': 10.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 0}
-    [TEL] {'sim_ts': 10.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 0.45699808696098815}
-    [TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 2}
-    [TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 0.5569464838069348}
+    [TEL] {'sim_ts': 10.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 0.058519544055964254}
+    [TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 0}
+    [TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 0.03277094467133998}
     ```
 
 === "Low-level"
@@ -89,33 +89,33 @@ To see how long the distortion lasts, plot an output over time and look for wher
 
     ```text
     [TEL] {'sim_ts': 10.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 0}
-    [TEL] {'sim_ts': 10.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 0.45699808696098815}
-    [TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 2}
-    [TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 0.5569464838069348}
+    [TEL] {'sim_ts': 10.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 0.058519544055964254}
+    [TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 0}
+    [TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 0.03277094467133998}
     ```
 
 Without `head -4`, each tab prints the two values every 10 seconds of the first 15 minutes, 90 lines for each path. Plot the `value` of the two paths against `sim_ts`. Some of the values:
 
 | `sim_ts` (s) | Queue | Mean wait so far (s) |
 |---|---|---|
-| 10 | 0 | 0.46 |
-| 30 | 5 | 0.89 |
-| 60 | 0 | 1.12 |
-| 90 | 4 | 1.55 |
-| 120 | 3 | 1.41 |
-| 300 | 4 | 1.19 |
-| 600 | 0 | 1.40 |
-| 900 | 0 | 1.27 |
+| 10 | 0 | 0.06 |
+| 30 | 0 | 0.21 |
+| 60 | 2 | 0.65 |
+| 90 | 1 | 0.60 |
+| 120 | 0 | 0.59 |
+| 300 | 0 | 1.31 |
+| 600 | 10 | 2.60 |
+| 900 | 0 | 2.35 |
 
 The plot of all 90 readings:
 
-![Over the first 15 minutes of the busy hour, the queue read every 10 seconds moves between 0 and 13 from the first minute on. The mean wait so far climbs from 0.46 seconds to about 1.5 seconds in the first two minutes, then moves up and down between 1.1 and 1.6 seconds. A dashed line marks the end of a 2-minute warm-up](../../assets/charts/trusting-warmup.png)
+![Over the first 15 minutes of the busy hour, the queue read every 10 seconds is 0 for the first 40 seconds and then moves between 0 and 17. The mean wait so far climbs from 0.06 seconds to 0.65 seconds in the first minute and stays near 0.6 seconds until two minutes. It then climbs in steps to about 2.5 seconds at eight minutes and moves up and down between 2.35 and 2.71 seconds after that. A dashed line marks the end of a 2-minute warm-up](../../assets/charts/trusting-warmup.png)
 
-The queue reaches its usual range within the first minute. The mean wait so far climbs for about a minute and a half, because the first orders found free packers. After that it moves up and down with no trend. The plot shows one seed only, and another seed could climb for longer. So the plot alone cannot settle the [warm-up](../concepts/output-analysis.md#one-run-starts-empty). It suggests three candidates:
+The queue is empty for the first 40 seconds and then moves between 0 and 17 orders. The mean wait so far climbs for about a minute, because the first orders found free packers, and stays near 0.6 seconds until two minutes. After that it climbs in steps, each after a burst of orders, to about 2.5 seconds at eight minutes, and then moves up and down with no trend. The plot shows one seed only, and another seed could climb for longer. So the plot alone cannot settle the [warm-up](../concepts/output-analysis.md#one-run-starts-empty). It suggests three candidates:
 
-- 1 minute, when the queue reaches its usual range;
-- 2 minutes, which covers the climb of the mean wait;
-- 4 minutes, twice that, to see whether a longer warm-up still moves the mean.
+- 1 minute, when the first orders have queued and the first climb of the mean wait has ended;
+- 2 minutes, twice that, to cover the first climb with a margin;
+- 4 minutes, twice that again, to see whether a longer warm-up still moves the mean.
 
 The next section sets 2 minutes. [Compare Warm-ups](#compare-warm-ups), after the replications, checks the three candidates with five seeds.
 
@@ -164,8 +164,8 @@ Run the hour without and with the warm-up. Each tab prints the mean wait without
 
     <!-- records: trusting-yaml -->
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.3816663590146558}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.3806466063873228}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":2.0065204395584315}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":2.050372976906103}
     ```
 
 === "Builder"
@@ -176,8 +176,8 @@ Run the hour without and with the warm-up. Each tab prints the mean wait without
 
     <!-- records: trusting-table -->
     ```text
-    without a warm-up: mean wait 1.382 s
-    with a 2 min warm-up: mean wait 1.381 s
+    without a warm-up: mean wait 2.007 s
+    with a 2 min warm-up: mean wait 2.050 s
     ```
 
 === "Low-level"
@@ -188,8 +188,8 @@ Run the hour without and with the warm-up. Each tab prints the mean wait without
 
     <!-- records: trusting-table -->
     ```text
-    without a warm-up: mean wait 1.382 s
-    with a 2 min warm-up: mean wait 1.381 s
+    without a warm-up: mean wait 2.007 s
+    with a 2 min warm-up: mean wait 2.050 s
     ```
 
 ---
@@ -210,14 +210,14 @@ Run the busy hour 40 times. The 40 seeds are spawned from the seed 42, so every 
     ```
 
     ```text
-    tasks.pack_order.wait_mean            5         2.207              0.4688
-    resources.packers.utilization_avg     5         89.72               1.371
-    tasks.pack_order.wait_mean           10         2.252              0.2476
-    resources.packers.utilization_avg    10         90.34              0.9148
-    tasks.pack_order.wait_mean           20         2.479              0.3223
-    resources.packers.utilization_avg    20         90.33              0.6263
-    tasks.pack_order.wait_mean           40         2.319              0.1951
-    resources.packers.utilization_avg    40         90.03              0.4496
+    tasks.pack_order.wait_mean            5         2.006              0.4289
+    resources.packers.utilization_avg     5          89.6               1.779
+    tasks.pack_order.wait_mean           10         2.147              0.3011
+    resources.packers.utilization_avg    10            90              1.084
+    tasks.pack_order.wait_mean           20         2.151              0.1518
+    resources.packers.utilization_avg    20         89.99              0.6034
+    tasks.pack_order.wait_mean           40           2.1              0.1004
+    resources.packers.utilization_avg    40         89.82              0.3858
     ```
 
 === "Builder"
@@ -236,14 +236,14 @@ Run the busy hour 40 times. The 40 seeds are spawned from the seed 42, so every 
     ```
 
     ```text
-    tasks.pack_order.wait_mean, 5 runs: 2.21 ± 0.47 (21.2%)
-    tasks.pack_order.wait_mean, 10 runs: 2.25 ± 0.25 (11.0%)
-    tasks.pack_order.wait_mean, 20 runs: 2.48 ± 0.32 (13.0%)
-    tasks.pack_order.wait_mean, 40 runs: 2.32 ± 0.20 (8.4%)
-    resources.packers.utilization_avg, 5 runs: 89.72 ± 1.37 (1.5%)
-    resources.packers.utilization_avg, 10 runs: 90.34 ± 0.91 (1.0%)
-    resources.packers.utilization_avg, 20 runs: 90.33 ± 0.63 (0.7%)
-    resources.packers.utilization_avg, 40 runs: 90.03 ± 0.45 (0.5%)
+    tasks.pack_order.wait_mean, 5 runs: 2.01 ± 0.43 (21.4%)
+    tasks.pack_order.wait_mean, 10 runs: 2.15 ± 0.30 (14.0%)
+    tasks.pack_order.wait_mean, 20 runs: 2.15 ± 0.15 (7.1%)
+    tasks.pack_order.wait_mean, 40 runs: 2.10 ± 0.10 (4.8%)
+    resources.packers.utilization_avg, 5 runs: 89.60 ± 1.78 (2.0%)
+    resources.packers.utilization_avg, 10 runs: 90.00 ± 1.08 (1.2%)
+    resources.packers.utilization_avg, 20 runs: 89.99 ± 0.60 (0.7%)
+    resources.packers.utilization_avg, 40 runs: 89.82 ± 0.39 (0.4%)
     ```
 
 === "Low-level"
@@ -279,20 +279,20 @@ The mean of the 40 values is the estimate. Its **[95% interval](../concepts/outp
 
 | Replications | Mean wait (s) | Half-width (s) | Wait half-width share | Utilisation (%) | Half-width (%) | Utilisation half-width share |
 |---|---|---|---|---|---|---|
-| 5 | 2.21 | 0.47 | 21.2% | 89.72 | 1.37 | 1.5% |
-| 10 | 2.25 | 0.25 | 11.0% | 90.34 | 0.91 | 1.0% |
-| 20 | 2.48 | 0.32 | 13.0% | 90.33 | 0.63 | 0.7% |
-| 40 | 2.32 | 0.20 | 8.4% | 90.03 | 0.45 | 0.5% |
+| 5 | 2.01 | 0.43 | 21.4% | 89.60 | 1.78 | 2.0% |
+| 10 | 2.15 | 0.30 | 14.0% | 90.00 | 1.08 | 1.2% |
+| 20 | 2.15 | 0.15 | 7.1% | 89.99 | 0.60 | 0.7% |
+| 40 | 2.10 | 0.10 | 4.8% | 89.82 | 0.39 | 0.4% |
 
-The mean waits of the 40 replications range from 1.45 to 4.39 seconds. The [single run with the seed 42](../concepts/output-analysis.md#busy-hour-figures) measured 1.38 seconds, lower than any of them.
+The mean waits of the 40 replications range from 1.52 to 3.05 seconds. The [single run with the seed 42](../concepts/output-analysis.md#busy-hour-figures) measured 2.01 seconds, inside that range and close to the mean of the 40.
 
 ---
 
 ## Choose the Precision
 
-How many replications are enough depends on the decision, not on a fixed number such as 30. Choose the precision each output needs. Here it is a half-width within 10% of the mean. [Utilisation](../concepts/queueing-basics.md#utilisation) meets it with 5 replications. Of the replication counts in the table of [Run It With Other Seeds](#run-it-with-other-seeds), the mean wait first meets it at 40, because waits vary far more from run to run than how busy the packers are. Each output therefore needs its own number of replications, and the study needs enough replications for the least precise output the decision uses.
+How many replications are enough depends on the decision, not on a fixed number such as 30. Choose the precision each output needs. Here it is a half-width within 10% of the mean. [Utilisation](../concepts/queueing-basics.md#utilisation) meets it with 5 replications. Of the replication counts in the table of [Run It With Other Seeds](#run-it-with-other-seeds), the mean wait first meets it at 20, because waits vary far more from run to run than how busy the packers are. Each output therefore needs its own number of replications, and the study needs enough replications for the least precise output the decision uses.
 
-The half-width shrinks in proportion to 1 ÷ √n, so a half-width k times smaller needs about k² times as many replications. 10 replications gave 11.0%, so 10% needs about 10 × (11.0 ÷ 10)² ≈ 12. That figure is a guide, not a promise: the half-width is itself an estimate, and 20 replications gave 13.0%. Add replications, then read the half-width again.
+The half-width shrinks in proportion to 1 ÷ √n, so a half-width k times smaller needs about k² times as many replications. 10 replications gave 14.0%, so 10% needs about 10 × (14.0 ÷ 10)² ≈ 20. That figure is a guide, not a promise: the half-width is itself an estimate, and 20 replications gave 7.1%. Add replications, then read the half-width again.
 
 The precision also depends on the confidence level, which is 95% unless you choose another. `--level 0.9` gives 90% intervals from the same 40 runs (`level=0.9` in `replicate`, for a builder or a low-level model):
 
@@ -304,16 +304,16 @@ desflow run trusting_results.yaml --replications 40 --measure tasks.pack_order.w
 <!-- records: trusting-level -->
 ```text
 measure                        n          mean    half-width (90%)
-tasks.pack_order.wait_mean    40         2.319              0.1625
+tasks.pack_order.wait_mean    40           2.1             0.08363
 ```
 
-The run also prints its seeds and how to repeat one replication. The half-width falls from 0.20 to 0.16 seconds, 7.0% of the mean, with no extra run. A 90% interval misses the true mean more often, 1 study in 10 instead of 1 in 20, so choose the level with the precision, before the runs.
+The run also prints its seeds and how to repeat one replication. The half-width falls from 0.10 to 0.084 seconds, 4.0% of the mean, with no extra run. A 90% interval misses the true mean more often, 1 study in 10 instead of 1 in 20, so choose the level with the precision, before the runs.
 
 ---
 
 ## Compare Warm-ups
 
-One seed gives one path through the hour. Run five replications after each candidate warm-up, with the same five seeds spawned from 42, and compare the mean waits. Five replications are enough here, although the mean wait needs 40 for 10% precision. The comparison does not need a precise mean: it asks only whether a longer warm-up moves the mean by more than its half-width. Each candidate runs the same five seeds, so a difference between candidates comes from the warm-up and not from the seeds:
+One seed gives one path through the hour. Run five replications after each candidate warm-up, with the same five seeds spawned from 42, and compare the mean waits. Five replications are few: the half-width of a candidate's mean is about 0.4 seconds, so the comparison rules out only a shift of that size or larger, and the mean wait needs 20 replications for 10% precision. It does not need a precise mean: it asks only whether a longer warm-up moves the mean by more than its half-width. Each candidate runs the same five seeds, so a difference between candidates comes from the warm-up and not from the seeds:
 
 === "YAML"
 
@@ -325,9 +325,9 @@ One seed gives one path through the hour. Run five replications after each candi
     ```
 
     ```text
-    tasks.pack_order.wait_mean     5         2.196              0.4656
-    tasks.pack_order.wait_mean     5         2.207              0.4688
-    tasks.pack_order.wait_mean     5         2.232              0.4725
+    tasks.pack_order.wait_mean     5          2.01              0.4146
+    tasks.pack_order.wait_mean     5         2.006              0.4289
+    tasks.pack_order.wait_mean     5         2.005              0.4918
     ```
 
 === "Builder"
@@ -347,9 +347,9 @@ One seed gives one path through the hour. Run five replications after each candi
     ```
 
     ```text
-    warm-up 1 min: mean wait 2.196 ± 0.47 s
-    warm-up 2 min: mean wait 2.207 ± 0.47 s
-    warm-up 4 min: mean wait 2.232 ± 0.47 s
+    warm-up 1 min: mean wait 2.010 ± 0.41 s
+    warm-up 2 min: mean wait 2.006 ± 0.43 s
+    warm-up 4 min: mean wait 2.005 ± 0.49 s
     ```
 
 === "Low-level"
@@ -370,9 +370,9 @@ One seed gives one path through the hour. Run five replications after each candi
     ```
 
     ```text
-    warm-up 60 s: mean wait 2.196 ± 0.47 s
-    warm-up 120 s: mean wait 2.207 ± 0.47 s
-    warm-up 240 s: mean wait 2.232 ± 0.47 s
+    warm-up 60 s: mean wait 2.010 ± 0.41 s
+    warm-up 120 s: mean wait 2.006 ± 0.43 s
+    warm-up 240 s: mean wait 2.005 ± 0.49 s
     ```
 
     `model` is the function from [Run It With Other Seeds](#run-it-with-other-seeds) above.
@@ -381,21 +381,21 @@ The mean wait over the five replications, in seconds, with its 95% half-width:
 
 | Warm-up | Mean wait (s) |
 |---|---|
-| 1 minute | 2.196 ± 0.47 |
-| 2 minutes | 2.207 ± 0.47 |
-| 4 minutes | 2.232 ± 0.47 |
+| 1 minute | 2.010 ± 0.41 |
+| 2 minutes | 2.006 ± 0.43 |
+| 4 minutes | 2.005 ± 0.49 |
 
-[Output Analysis](../concepts/output-analysis.md#one-run-starts-empty) keeps the shortest candidate that passes this comparison and covers the climb in the plot. After 1 minute, the longer warm-ups move the mean by 0.011 and 0.036 seconds. Both are far less than the half-width of 0.47 seconds, so every candidate passes. The plot climbs until about a minute and a half, so the warm-up is **2 minutes**.
+[Output Analysis](../concepts/output-analysis.md#one-run-starts-empty) keeps the shortest candidate that passes this comparison and covers the climb in the plot with a margin. After 1 minute, the longer warm-ups move the mean by 0.004 and 0.005 seconds. Both are far less than the half-widths of 0.43 and 0.49 seconds, so every candidate passes. The first climb in the plot ends at about a minute, which 1 minute only just covers, so the warm-up is **2 minutes**, which covers the climb with a minute to spare. The plotted wait goes on rising in steps after 2 minutes, to about 2.5 seconds at 8 minutes. A 4-minute warm-up, which leaves out half of that rise, moves the mean by only 0.001 seconds from the 2-minute one, so the rise changes the estimate little. This comparison does not show whether the rise is part of the start-up or ordinary variation, because both warm-ups keep the part after 4 minutes.
 
 ---
 
 ## What You Get and Why
 
-Is one run enough? No, because one run's answer depends on its seed. The run with the seed 42 measured 1.38 seconds, lower than every one of 40 replications. Over 40 replications the mean wait is **2.32 ± 0.20 seconds** with 95% confidence, within the chosen 10% precision, and the packers are busy **90.03 ± 0.45%** of the time.
+Is one run enough? No, because one run's answer depends on its seed. The 40 replications range from 1.52 to 3.05 seconds, so a run with another seed could have given a very different answer, even though the run with the seed 42 measured 2.01 seconds, close to their mean. Over 40 replications the mean wait is **2.10 ± 0.10 seconds** with 95% confidence, within the chosen 10% precision, and the packers are busy **89.82 ± 0.39%** of the time.
 
-The empty start is not the problem. The warm-up is **2 minutes**, the shortest candidate that passes the comparison over five seeds and covers the climb in the plot. In the run with the seed 42, a 2-minute warm-up changes the mean wait only from 1.382 to 1.381 seconds. The shop fills within a minute or two, and those minutes are a small part of one hour. A shorter run, or a start further from the usual state, such as a shop that opens with a backlog of orders, needs the warm-up much more.
+The empty start is not the problem. The warm-up is **2 minutes**: 1 minute passes the comparison over five seeds but only just covers the climb in the plot, and 2 minutes covers it with a margin. In the run with the seed 42, a 2-minute warm-up changes the mean wait only from 2.007 to 2.050 seconds. The shop fills within a minute or two, and those minutes are a small part of one hour. A shorter run, or a start further from the usual state, such as a shop that opens with a backlog of orders, needs the warm-up much more.
 
-Initialisation bias ([Output Analysis](../concepts/output-analysis.md#one-run-starts-empty) explains it) fades once the state of the shop no longer depends on how the run started. Here the queue, empty for the first orders, reaches its usual range within a minute. The warmed-up numbers still pass the [Little's law](../concepts/queueing-basics.md#littles-law) check from Measuring a Run. In the 3,480 seconds after the warm-up, 6,024 orders were packed, 1.73 a second. 1.73 orders a second × 1.381 seconds of mean wait = 2.39 orders waiting on average, which matches the `queue_length_avg` of 2.40 that the same statistics report. Each tab prints the two counts:
+Initialisation bias ([Output Analysis](../concepts/output-analysis.md#one-run-starts-empty) explains it) fades once the state of the shop no longer depends on how the run started. Here the queue, empty for the first orders, reaches its usual range within about two minutes. The warmed-up numbers still pass the [Little's law](../concepts/queueing-basics.md#littles-law) check from Measuring a Run. In the 3,480 seconds after the warm-up, 6,294 orders were packed, 1.81 a second. 1.81 orders a second × 2.050 seconds of mean wait = 3.71 orders waiting on average, which matches the `queue_length_avg` of 3.71 that the same statistics report. Each tab prints the two counts:
 
 === "YAML"
 
@@ -404,8 +404,8 @@ Initialisation bias ([Output Analysis](../concepts/output-analysis.md#one-run-st
     ```
 
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length_avg","value":2.3953385163016563}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":6024}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length_avg","value":3.7095253628163287}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":6294}
     ```
 
 === "Builder"
@@ -415,7 +415,7 @@ Initialisation bias ([Output Analysis](../concepts/output-analysis.md#one-run-st
     ```
 
     ```text
-    after the warm-up: 6024 orders packed, queue_length_avg 2.40
+    after the warm-up: 6294 orders packed, queue_length_avg 3.71
     ```
 
 === "Low-level"
@@ -425,7 +425,7 @@ Initialisation bias ([Output Analysis](../concepts/output-analysis.md#one-run-st
     ```
 
     ```text
-    after the warm-up: 6024 orders packed, queue_length_avg 2.40
+    after the warm-up: 6294 orders packed, queue_length_avg 3.71
     ```
 
 [Statistics](../../user-guide/results/statistics.md) describes how the reset works.

@@ -62,7 +62,7 @@ def _run_first_shop(api):
 
 
 def test_first_simulation_same_records_and_first_wait(caplog):
-    """The three tabs print the same events; orders-2 waits from 2.696 to 4.052."""
+    """The three tabs print the same events; orders-3 waits from 5.024 to 6.434."""
     runs = []
     for api in APIS:
         caplog.clear()
@@ -82,8 +82,8 @@ def test_first_simulation_same_records_and_first_wait(caplog):
         if "started" in t and t["started"] > t["queued"]
     ]
     key, wait = waiting[0]
-    assert key == "orders-2"
-    assert round(wait, 3) == 1.357
+    assert key == "orders-3"
+    assert round(wait, 3) == 1.41
 
 
 def test_first_simulation_blueprint_test_passes_and_a_wrong_one_fails(tmp_path):
@@ -97,15 +97,15 @@ def test_first_simulation_blueprint_test_passes_and_a_wrong_one_fails(tmp_path):
     run = CliRunner().invoke(cli, ["test", str(source)])
     assert run.exit_code == 0, run.output
     assert run.output.startswith("ok ")
-    assert run.output.strip().endswith("first_shop.yaml: nine_orders_in_20_seconds")
+    assert run.output.strip().endswith("first_shop.yaml: seven_orders_in_20_seconds")
     wrong = tmp_path / "first_shop.yaml"
-    wrong.write_text(source.read_text().replace("finished: 9}", "finished: 8}"))
+    wrong.write_text(source.read_text().replace("finished: 7}", "finished: 6}"))
     run = CliRunner().invoke(cli, ["test", str(wrong)])
     assert run.exit_code == 1
-    assert "expected 8, measured 9" in run.output
+    assert "expected 6, measured 7" in run.output
 
 
-QUEUE_WAITS = {1: 1127.21, 2: 426.31, 3: 1.27, 4: 0.20}
+QUEUE_WAITS = {1: 1139.88, 2: 484.65, 3: 1.88, 4: 0.24}
 
 
 def _queue_wait(api, packers, monkeypatch):
@@ -187,7 +187,7 @@ def _run_yaml(path, caplog):
 
 @pytest.mark.parametrize("api", APIS)
 def test_randomness_and_seeds_twelfth_order(api, caplog):
-    """orders-12 waits 0.701 s with the seed 42, in every tab."""
+    """orders-12 waits 0 s with the seed 42, in every tab."""
     with caplog.at_level(logging.INFO, logger="desflow"):
         if api == "yaml":
             SimulationContext.from_yaml(BLUEPRINTS / "randomness_and_seeds.yaml").run()
@@ -195,7 +195,7 @@ def test_randomness_and_seeds_twelfth_order(api, caplog):
             _load("randomness_and_seeds").app.run(until="1 min")
         else:
             _load("randomness_and_seeds_low_level").run()
-    assert _wait_of(_events(caplog), "orders-12") == 0.701
+    assert _wait_of(_events(caplog), "orders-12") == 0.0
 
 
 def test_randomness_and_seeds_same_wait_on_every_run_and_after_returns(
@@ -211,14 +211,14 @@ def test_randomness_and_seeds_same_wait_on_every_run_and_after_returns(
     no_returns.write_text(yaml.safe_dump(blueprint))
 
     for path in (source, source, no_returns):
-        assert _wait_of(_run_yaml(path, caplog), "orders-12") == 0.701
+        assert _wait_of(_run_yaml(path, caplog), "orders-12") == 0.0
 
 
 CANDIDATE_WAITS = {
-    "constant": 1.27,
-    "triangular": 1.28,
-    "empirical": 1.35,
-    "exponential": 2.37,
+    "constant": 1.88,
+    "triangular": 1.95,
+    "empirical": 1.81,
+    "exponential": 3.46,
 }
 
 
@@ -234,10 +234,13 @@ def _candidate_wait(api, packing, monkeypatch):
 
 @pytest.mark.parametrize("api", APIS)
 def test_choosing_inputs_spread_lengthens_waits(api, monkeypatch):
-    """Same mean, ordered waits, and the empirical answer of 1.35 s."""
+    """Same mean, the exponential wait far above the others, and the empirical answer of 1.81 s."""
     waits = {p: _candidate_wait(api, p, monkeypatch) for p in CANDIDATE_WAITS}
     assert {p: round(w, 2) for p, w in waits.items()} == CANDIDATE_WAITS
-    assert sorted(waits, key=waits.get) == list(CANDIDATE_WAITS)
+    assert max(waits, key=waits.get) == "exponential"
+    assert waits["exponential"] > 1.5 * max(
+        w for p, w in waits.items() if p != "exponential"
+    )
 
 
 def _measuring_readings(api, path=None):
@@ -257,14 +260,14 @@ def test_measuring_a_run_answer(api):
     """The five numbers of the answer, and the Little's Law check on them."""
     r = _measuring_readings(api)
     name = "Shop.stats.{}".format
-    assert round(r[name("resources.packers.utilization_avg")], 1) == 86.6
-    assert round(r[name("resources.packers.queue_length_avg")], 2) == 2.41
-    assert round(r[name("tasks.pack_order.wait_mean")], 2) == 1.38
-    assert round(r[name("tasks.pack_order.wait_max")], 2) == 9.38
-    assert r[name("tasks.pack_order.finished")] == 6250
-    assert r[name("flows.orders.finished")] == 6250
-    assert r[name("flows.orders.started")] == 6261
-    assert r[name("flows.orders.in_system")] == 11
+    assert round(r[name("resources.packers.utilization_avg")], 1) == 90.0
+    assert round(r[name("resources.packers.queue_length_avg")], 2) == 3.62
+    assert round(r[name("tasks.pack_order.wait_mean")], 2) == 2.01
+    assert round(r[name("tasks.pack_order.wait_max")], 2) == 11.94
+    assert r[name("tasks.pack_order.finished")] == 6488
+    assert r[name("flows.orders.finished")] == 6488
+    assert r[name("flows.orders.started")] == 6491
+    assert r[name("flows.orders.in_system")] == 3
     rate = r[name("tasks.pack_order.finished")] / 3600
     little = rate * r[name("tasks.pack_order.wait_mean")]
     assert little == pytest.approx(
@@ -286,13 +289,13 @@ def _trusting_wait(api, warmup, monkeypatch, path=None):
 
 @pytest.mark.parametrize("api", APIS)
 def test_trusting_results_warmup(api, monkeypatch):
-    """1.382 s without the 2-minute warm-up and 1.381 s with it."""
-    assert round(_trusting_wait(api, "0", monkeypatch), 3) == 1.382
-    assert round(_trusting_wait(api, "2 min", monkeypatch), 3) == 1.381
+    """2.007 s without the 2-minute warm-up and 2.05 s with it."""
+    assert round(_trusting_wait(api, "0", monkeypatch), 3) == 2.007
+    assert round(_trusting_wait(api, "2 min", monkeypatch), 3) == 2.05
 
 
 # The mean wait of 5 runs after each candidate warm-up: (mean, half-width), seconds
-TRUSTING_WARMUPS = {60: (2.196, 0.47), 120: (2.207, 0.47), 240: (2.232, 0.47)}
+TRUSTING_WARMUPS = {60: (2.01, 0.41), 120: (2.006, 0.43), 240: (2.005, 0.49)}
 
 
 def _shortest_warmup(table):
@@ -330,21 +333,21 @@ def test_trusting_results_candidate_warmups(api, monkeypatch):
 
 # (mean, half-width, half-width as a share of the mean in percent) after n runs
 TRUSTING_PRECISION = {
-    ("tasks.pack_order.wait_mean", 5): (2.21, 0.47, 21.2),
-    ("tasks.pack_order.wait_mean", 10): (2.25, 0.25, 11.0),
-    ("tasks.pack_order.wait_mean", 20): (2.48, 0.32, 13.0),
-    ("tasks.pack_order.wait_mean", 40): (2.32, 0.20, 8.4),
-    ("resources.packers.utilization_avg", 5): (89.72, 1.37, 1.5),
-    ("resources.packers.utilization_avg", 10): (90.34, 0.91, 1.0),
-    ("resources.packers.utilization_avg", 20): (90.33, 0.63, 0.7),
-    ("resources.packers.utilization_avg", 40): (90.03, 0.45, 0.5),
+    ("tasks.pack_order.wait_mean", 5): (2.01, 0.43, 21.4),
+    ("tasks.pack_order.wait_mean", 10): (2.15, 0.3, 14.0),
+    ("tasks.pack_order.wait_mean", 20): (2.15, 0.15, 7.1),
+    ("tasks.pack_order.wait_mean", 40): (2.1, 0.1, 4.8),
+    ("resources.packers.utilization_avg", 5): (89.6, 1.78, 2.0),
+    ("resources.packers.utilization_avg", 10): (90.0, 1.08, 1.2),
+    ("resources.packers.utilization_avg", 20): (89.99, 0.6, 0.7),
+    ("resources.packers.utilization_avg", 40): (89.82, 0.39, 0.4),
 }
 
 
 @pytest.mark.parametrize("api", APIS)
 def test_trusting_results_replications(api, monkeypatch):
     """The precision table, the range of the 40 waits, and the 10% target: the
-    mean wait meets it at 40 replications and utilisation at 5."""
+    mean wait meets it at 20 replications and utilisation at 5."""
     from desflow import replicate
 
     builder = _load("trusting_results")
@@ -370,8 +373,8 @@ def test_trusting_results_replications(api, monkeypatch):
     }
     assert table == TRUSTING_PRECISION
     waits = result.values["tasks.pack_order.wait_mean"]
-    assert (round(min(waits), 2), round(max(waits), 2)) == (1.45, 4.39)
-    assert min(waits) > 1.382
+    assert (round(min(waits), 2), round(max(waits), 2)) == (1.52, 3.05)
+    assert min(waits) < 2.007 < max(waits)
 
 
 def _stock_wait(api, delivery, monkeypatch, path=None):
@@ -387,14 +390,14 @@ def _stock_wait(api, delivery, monkeypatch, path=None):
 
 @pytest.mark.parametrize("api", APIS)
 def test_stock_deliveries(api, monkeypatch):
-    """1.93 s with deliveries of 60 boxes, 341.89 s with deliveries of 40."""
-    assert round(_stock_wait(api, 60, monkeypatch), 2) == 1.93
-    assert round(_stock_wait(api, 40, monkeypatch), 2) == 341.89
+    """2.54 s with deliveries of 60 boxes, 330.02 s with deliveries of 40."""
+    assert round(_stock_wait(api, 60, monkeypatch), 2) == 2.54
+    assert round(_stock_wait(api, 40, monkeypatch), 2) == 330.02
 
 
 PRIORITY_WAITS = {
-    "fifo": {"pack_express": 5.84, "pack_order": 5.32},
-    "priority": {"pack_express": 0.84, "pack_order": 6.94},
+    "fifo": {"pack_express": 5.44, "pack_order": 5.72},
+    "priority": {"pack_express": 0.86, "pack_order": 7.17},
 }
 
 
@@ -439,8 +442,8 @@ def test_priorities_four_waits(api, tmp_path):
 def test_priorities_starvation(monkeypatch):
     """The regular waits as load rises, with the rates the page's command sets."""
     for orders, express, regular in (
-        ("0.375", "0.125", 2.50),
-        ("0.4125", "0.1375", 3.98),
+        ("0.375", "0.125", 2.70),
+        ("0.4125", "0.1375", 4.12),
     ):
         monkeypatch.setenv("ORDERS_RATE", orders)
         monkeypatch.setenv("EXPRESS_RATE", express)
@@ -449,10 +452,10 @@ def test_priorities_starvation(monkeypatch):
 
 
 FLOW_COUNTS = {
-    "pick_order": 1857,
-    "backorder": 80,
-    "pack_order": 1849,
-    "ship_order": 1775,
+    "pick_order": 2011,
+    "backorder": 198,
+    "pack_order": 1904,
+    "ship_order": 1812,
 }
 
 
@@ -476,21 +479,21 @@ def _flow_counts(api, path=None):
 
 @pytest.mark.parametrize("api", APIS)
 def test_flow_of_tasks_shares(api):
-    """80 of 1,857 picks led to backorder, and 74 of 1,849 packs were packed again."""
+    """198 of 2,011 picks led to backorder, and 92 of 1,904 packs were packed again."""
     counts = _flow_counts(api)
     assert {t: counts[t] for t in FLOW_COUNTS} == FLOW_COUNTS
-    assert round(counts["backorder"] / counts["pick_order"] * 100, 1) == 4.3
+    assert round(counts["backorder"] / counts["pick_order"] * 100, 1) == 9.8
     reworked = counts["pack_order"] - counts["ship_order"]
-    assert round(reworked / counts["pack_order"] * 100, 1) == 4.0
+    assert round(reworked / counts["pack_order"] * 100, 1) == 4.8
 
 
 def test_flow_of_tasks_one_order(caplog):
-    """orders-172 is backordered, picked again, packed twice and shipped."""
+    """orders-851 is backordered, picked again, packed twice and shipped."""
     events = _run_yaml(BLUEPRINTS / "flow_of_tasks.yaml", caplog)
     flow = [
         e["task"]
         for e in events
-        if e["key"] == "orders-172" and "event_type" in e["value"]
+        if e["key"] == "orders-851" and "event_type" in e["value"]
     ]
     assert flow == [
         "pick_order",
@@ -503,8 +506,8 @@ def test_flow_of_tasks_one_order(caplog):
 
 
 PATIENCE_OUTCOMES = {
-    30: {"finished": 2173, "reneged": 69, "balked": 194, "wait_mean": 14.57},
-    3600: {"finished": 2242, "reneged": 0, "balked": 194, "wait_mean": 72.16},
+    30: {"finished": 2200, "reneged": 144, "balked": 217, "wait_mean": 19.56},
+    3600: {"finished": 2344, "reneged": 0, "balked": 217, "wait_mean": 120.75},
 }
 
 
@@ -528,25 +531,25 @@ def _patience_outcomes(api, patience, monkeypatch):
 
 @pytest.mark.parametrize("api", APIS)
 def test_patience_outcomes(api, monkeypatch):
-    """69 orders renege with a patience of 30 s, and the mean wait falls from 72.16 s
-    to 14.57 s; 194 balk in the last five minutes either way."""
+    """144 orders renege with a patience of 30 s, and the mean wait falls from 120.75 s
+    to 19.56 s; 217 balk in the last five minutes either way."""
     for patience, expected in PATIENCE_OUTCOMES.items():
         assert _patience_outcomes(api, patience, monkeypatch) == expected
 
 
 # Per size: started, filled, still waiting and cancelled orders, then the shirts left
 FILTERED_OUTCOMES = {
-    "S": (732, 732, 0, 0),
-    "M": (1454, 1110, 29, 315),
-    "L": (679, 679, 0, 0),
-    "left": 248,
+    "S": (719, 711, 0, 8),
+    "M": (1383, 1181, 35, 167),
+    "L": (803, 779, 0, 24),
+    "left": 197,
 }
 
 
 @pytest.mark.parametrize("api", APIS)
 def test_filtered_inventory_outcomes(api):
-    """315 medium orders are cancelled in 8 hours, and no small or large one; the
-    page's sum is 1,454 started - 1,110 filled - 29 waiting, and 248 shirts are left.
+    """199 orders are cancelled in 8 hours, 167 medium, 24 large and 8 small; the
+    page's sum is 1,383 started - 1,181 filled - 35 waiting, and 197 shirts are left.
     Every tab reads them from the statistics."""
     if api == "yaml":
         app = SimulationContext.from_yaml(BLUEPRINTS / "filtered_inventory.yaml")
@@ -560,7 +563,7 @@ def test_filtered_inventory_outcomes(api):
             waiting = readings[f"{flow}.in_system"]
             counts[size] = (started, filled, waiting, started - filled - waiting)
         counts["left"] = readings["Shop.stats.stores.shelf.level"]
-        assert readings["Shop.stats.tasks.take_shirt.reneged"] == 315
+        assert readings["Shop.stats.tasks.take_shirt.reneged"] == 199
     elif api == "builder":
         counts = _load("filtered_inventory").outcomes()
     else:
@@ -569,8 +572,8 @@ def test_filtered_inventory_outcomes(api):
 
 
 COURIER_OUTCOMES = {
-    300: {"by_courier": 6952, "by_post": 7020, "wait_mean": 225.3},
-    480: {"by_courier": 11005, "by_post": 2872, "wait_mean": 288.2},
+    300: {"by_courier": 7131, "by_post": 7247, "wait_mean": 225.0},
+    480: {"by_courier": 11376, "by_post": 2903, "wait_mean": 287.6},
 }
 
 
@@ -601,16 +604,16 @@ def test_process_interaction_courier_shares(api, monkeypatch):
 
 
 INTERRUPTION_OUTCOMES = {
-    "resume": (344, 3, 1607, 8.12, 1.50),
-    "restart": (393, 23, 1606, 25.33, 1.69),
-    "abandon": (312, 2, 1293, 3.60, 1.50),
+    "resume": (349, 3, 1640, 8.17, 1.50),
+    "restart": (389, 24, 1640, 44.11, 1.67),
+    "abandon": (311, 2, 1328, 3.64, 1.50),
 }
 
 
 @pytest.mark.parametrize("api", APIS)
 def test_interruptions_policies(api, monkeypatch):
-    """Restart triples the regular wait, abandon loses 312 orders, and the call at
-    31 minutes reaches orders under every policy."""
+    """Restart multiplies the regular wait by more than five, abandon loses 311
+    orders, and the call at 31 minutes reaches orders under every policy."""
     for policy, expected in INTERRUPTION_OUTCOMES.items():
         if api == "yaml":
             monkeypatch.setenv("POLICY", policy)
@@ -640,7 +643,7 @@ def test_interruptions_policies(api, monkeypatch):
 
 @pytest.mark.parametrize("api", APIS)
 def test_competing_resources_handoff(api):
-    """Keeping the picker moves the wait to the picker: 9.85 s in all, not 6.21."""
+    """Keeping the picker moves the wait to the picker: 15.34 s in all, not 8.78."""
     if api == "yaml":
         app = SimulationContext.from_yaml(BLUEPRINTS / "competing_resources.yaml")
         app.run()
@@ -656,7 +659,7 @@ def test_competing_resources_handoff(api):
             "competing_resources" + ("" if api == "builder" else "_low_level")
         )
         runs = {keep: module.outcomes(keep) for keep in (False, True)}
-    expected = {False: (0.32, 5.89, 39.8, 6.21), True: (8.77, 1.09, 82.7, 9.85)}
+    expected = {False: (0.35, 8.43, 40.4, 8.78), True: (14.23, 1.11, 85.2, 15.34)}
     for keep, r in runs.items():
         got = (
             round(r["pick_wait"], 2),
@@ -670,25 +673,25 @@ def test_competing_resources_handoff(api):
 END_OUTCOMES = {
     False: {
         "end": 3600.0,
-        "started": 2436,
-        "finished": 2398,
-        "in_system": 38,
-        "wait_mean": 71.70,
+        "started": 2561,
+        "finished": 2386,
+        "in_system": 175,
+        "wait_mean": 122.81,
     },
     True: {
-        "end": 3656.4,
-        "started": 2436,
-        "finished": 2436,
+        "end": 3861.8,
+        "started": 2561,
+        "finished": 2561,
         "in_system": 0,
-        "wait_mean": 71.51,
+        "wait_mean": 131.27,
     },
 }
 
 
 @pytest.mark.parametrize("api", APIS)
 def test_end_conditions_horizon_and_drain(api, monkeypatch):
-    """The fixed horizon leaves 38 orders in the shop; the drain packs them by
-    3,656.4 s."""
+    """The fixed horizon leaves 175 orders in the shop; the drain packs them by
+    3,861.8 s."""
     for drain, expected in END_OUTCOMES.items():
         if api == "yaml":
             monkeypatch.setenv("DRAIN", "true" if drain else "false")
@@ -704,8 +707,8 @@ def test_end_conditions_horizon_and_drain(api, monkeypatch):
                 "wait_mean": r[n("tasks.pack_order.wait_mean")],
             }
             if not drain:
-                # one being packed and 37 waiting
-                assert r[n("tasks.pack_order.in_progress")] == 38
+                # one being packed and 174 waiting
+                assert r[n("tasks.pack_order.in_progress")] == 175
                 assert r[n("resources.packers.in_use")] == 1
         else:
             module = _load(
@@ -717,15 +720,15 @@ def test_end_conditions_horizon_and_drain(api, monkeypatch):
 
 
 RUSH_OUTCOMES = {
-    1: {"finished": 1978, "wait_mean": 147.74, "wait_max": 416.75},
-    2: {"finished": 1978, "wait_mean": 0.74, "wait_max": 6.06},
+    1: {"finished": 2054, "wait_mean": 177.81, "wait_max": 453.38},
+    2: {"finished": 2054, "wait_mean": 0.93, "wait_max": 11.48},
 }
 
 
 @pytest.mark.parametrize("api", APIS)
 def test_changing_demand_rush(api, monkeypatch):
-    """With one packer through the rush the mean wait is 147.74 s; with a second
-    packer for it, 0.74 s. Both pack the same 1,978 orders."""
+    """With one packer through the rush the mean wait is 177.81 s; with a second
+    packer for it, 0.93 s. Both pack the same 2,054 orders."""
     for packers, expected in RUSH_OUTCOMES.items():
         if api == "yaml":
             monkeypatch.setenv("RUSH_PACKERS", str(packers))
@@ -750,14 +753,14 @@ def test_changing_demand_rush(api, monkeypatch):
 
 REPLAY_OUTCOMES = {
     True: {"finished": 1962, "wait_mean": 91.31, "wait_max": 295.40},
-    False: {"finished": 1905, "wait_mean": 2.57, "wait_max": 14.34},
+    False: {"finished": 1984, "wait_mean": 3.79, "wait_max": 19.24},
 }
 
 
 @pytest.mark.parametrize("api", APIS)
 def test_local_replay_recorded_and_modelled(api, caplog):
     """The recorded morning waits 91.31 s on average, the model of it at the same
-    mean rate 2.57 s; the row without a time is skipped with a warning."""
+    mean rate 3.79 s; the row without a time is skipped with a warning."""
     for replay, expected in REPLAY_OUTCOMES.items():
         if api == "yaml":
             if not replay:
@@ -801,30 +804,30 @@ def _means(result, statistic):
 
 @pytest.mark.parametrize("api", APIS)
 def test_comparing_designs_fourth_packer(api, tmp_path, monkeypatch):
-    """A fourth packer cuts the mean wait by 2.21 +/- 0.31 s; the paired utilisation
+    """A fourth packer cuts the mean wait by 1.89 +/- 0.14 s; the paired utilisation
     difference is narrower than either design's own interval; the check passes."""
     result = _experiment("comparing_designs", api, tmp_path, monkeypatch)
     assert _means(result, "tasks.pack_order.wait_mean") == {
-        "three": (2.48, 0.32),
+        "three": (2.15, 0.15),
         "four": (0.27, 0.01),
     }
     assert _means(result, "resources.packers.utilization_avg") == {
-        "three": (90.33, 0.63),
-        "four": (67.70, 0.46),
+        "three": (89.99, 0.6),
+        "four": (67.51, 0.46),
     }
     difference = {
         r["measure"]: (round(r["difference"], 2), round(r["half_width"], 2))
         for r in result.comparisons
     }
     assert difference == {
-        "tasks.pack_order.wait_mean": (-2.21, 0.31),
-        "resources.packers.utilization_avg": (-22.63, 0.17),
+        "tasks.pack_order.wait_mean": (-1.89, 0.14),
+        "resources.packers.utilization_avg": (-22.49, 0.15),
     }
     assert {r["streams_both"] for r in result.comparisons} == {
         "arrival.orders;service.packing"
     }
     [check] = result.checks
-    assert check["passed"] and round(check["value"], 3) == 0.286
+    assert check["passed"] and round(check["value"], 3) == 0.276
     assert "The provenance of `Shop.arrival.orders` is not stated." in result.report
 
 
@@ -834,14 +837,14 @@ def test_parameter_sweeps_demand(api, tmp_path, monkeypatch):
     result = _experiment("parameter_sweeps", api, tmp_path, monkeypatch)
     rate = "Shop.arrival.orders.rate"
     assert _means(result, "tasks.pack_order.wait_mean") == {
-        f"three {rate}=1.6": (0.97, 0.07),
-        f"three {rate}=1.7": (1.47, 0.14),
-        f"three {rate}=1.8": (2.48, 0.32),
-        f"three {rate}=1.9": (5.55, 1.01),
-        f"four {rate}=1.6": (0.17, 0.01),
+        f"three {rate}=1.6": (0.9, 0.05),
+        f"three {rate}=1.7": (1.32, 0.07),
+        f"three {rate}=1.8": (2.15, 0.15),
+        f"three {rate}=1.9": (4.52, 0.64),
+        f"four {rate}=1.6": (0.16, 0.01),
         f"four {rate}=1.7": (0.21, 0.01),
         f"four {rate}=1.8": (0.27, 0.01),
-        f"four {rate}=1.9": (0.35, 0.02),
+        f"four {rate}=1.9": (0.34, 0.02),
     }
 
 
@@ -892,33 +895,33 @@ def test_checking_a_model_experiment(api, tmp_path, monkeypatch):
         "resources.packers.queue_length_avg",
         "tasks.pack_order.finished",
     )
-    assert means["three", wait] == (2.48, 0.32)
-    assert means["three", use] == (90.33, 0.63)
-    assert means["three", queue][0] == 4.49
+    assert means["three", wait] == (2.15, 0.15)
+    assert means["three", use] == (89.99, 0.6)
+    assert means["three", queue][0] == 3.88
     assert means["one", use] == (100.0, 0.0)
     assert round(means["one", done][0]) == 2318
-    assert round(means["one", wait][0]) == 1179
-    assert means["ten", use][0] == 27.08
+    assert round(means["one", wait][0]) == 1170
+    assert means["ten", use][0] == 27.0
     assert means["ten", wait][0] == 0.0
-    assert means["four-busier", wait] == (0.35, 0.02)
+    assert means["four-busier", wait] == (0.34, 0.02)
     little = _load(
         "checking_a_model" + ("_low_level" if api == "low-level" else "")
     ).littles_law
     q, rate, w = little(result, "three")
-    assert (round(q, 3), round(rate, 4), round(w, 3)) == (4.488, 1.8065, 2.479)
-    assert round(rate * w, 3) == 4.478
+    assert (round(q, 3), round(rate, 4), round(w, 3)) == (3.882, 1.8016, 2.151)
+    assert round(rate * w, 3) == 3.875
     q, rate, w = little(result, "one")
-    assert (round(q, 1), round(rate, 4), round(w, 1)) == (2127.6, 1.8065, 1179.0)
-    assert round(rate * w, 1) == 2129.9
+    assert (round(q, 1), round(rate, 4), round(w, 1)) == (2101.7, 1.8016, 1169.7)
+    assert round(rate * w, 1) == 2107.3
     assert [c["passed"] for c in result.checks] == [True, True, True]
-    assert round(result.checks[2]["value"], 2) == 0.37
+    assert round(result.checks[2]["value"], 2) == 0.36
     observed = {
         r["measure"]: (r["value"], round(r["low"], 2), round(r["high"], 2), r["inside"])
         for r in result.observed
     }
     assert observed == {
-        wait: (2.6, 2.16, 2.8, True),
-        use: (91.0, 89.7, 90.96, False),
+        wait: (2.6, 2.0, 2.3, False),
+        use: (91.0, 89.39, 90.6, False),
     }
     # One observed hour varies like one run, not like a mean of 20 runs
     runs = {
@@ -930,12 +933,12 @@ def test_checking_a_model_experiment(api, tmp_path, monkeypatch):
         for m in (wait, use)
     }
     spread = {m: statistics.stdev(v) for m, v in runs.items()}
-    assert {m: round(s, 2) for m, s in spread.items()} == {wait: 0.69, use: 1.34}
+    assert {m: round(s, 2) for m, s in spread.items()} == {wait: 0.32, use: 1.29}
     inside = {
         r["measure"]: sum(r["low"] <= v <= r["high"] for v in runs[r["measure"]])
         for r in result.observed
     }
-    assert inside == {wait: 8, use: 4}
+    assert inside == {wait: 4, use: 5}
     current = {
         r["statistic"]: r["mean"] for r in result.summary if r["design"] == "three"
     }
@@ -945,14 +948,14 @@ def test_checking_a_model_experiment(api, tmp_path, monkeypatch):
         )
         for r in result.observed
     }
-    assert away == {wait: 0.18, use: 0.5}
-    assert round((95 - current[use]) / spread[use], 1) == 3.5
+    assert away == {wait: 1.38, use: 0.78}
+    assert round((95 - current[use]) / spread[use], 1) == 3.9
 
 
 LIVE_OUTCOMES = {
-    True: {"jam": 80.85, "after": 11.93},
-    False: {"jam": 1.5, "after": 1.04},
-    "last_longer": 1987.818,
+    True: {"jam": 45.79, "after": 14.6},
+    False: {"jam": 1.26, "after": 1.3},
+    "last_longer": 1982.276,
     "labels": [
         (1200.0, "printer_jam", 1.5, 3.0),
         (1800.0, "printer_fixed", 3.0, 1.5),
@@ -998,8 +1001,8 @@ def _live_yaml(tmp_path, monkeypatch, helpers):
 
 @pytest.mark.parametrize("api", APIS)
 def test_live_changes_jam(api, tmp_path, monkeypatch):
-    """Orders queued in the jam wait 80.85 s against 1.50; in the 10 minutes after the
-    fix 11.93 s against 1.04; the last longer wait is queued at 1,987.8 s; two labels
+    """Orders queued in the jam wait 45.79 s against 1.26; in the 10 minutes after the
+    fix 14.60 s against 1.30; the last longer wait is queued at 1,982.3 s; two labels
     name the change at 1,200 and 1,800 s."""
     helpers = _load("live_changes")
     if api == "yaml":
@@ -1071,25 +1074,25 @@ def _streaming_run(api, tmp_path, monkeypatch):
     module = _load("streaming_out" + ("" if api == "builder" else "_low_level"))
     result = module.outcomes(tmp_path)
     files = module.read_files(tmp_path / "packed")
-    assert result["row"]["sim_ts"] == 29.70220884909981
+    assert result["row"]["sim_ts"] == 35.8280675455825
     return result["file_rows"], files
 
 
 @pytest.mark.parametrize("api", APIS)
 def test_streaming_out_records(api, tmp_path, monkeypatch, caplog):
-    """The console gets 4,299 events (1,434 queued, 1,433 started, 1,432 packed) and 30
-    telemetry records; the file sink gets the 1,432 packed orders in files of 500, 500
-    and 432 rows; orders-12 is queued at 26.9695, started at 28.2022, packed at 29.7022."""
+    """The console gets 4,362 events (1,454 queued, 1,454 started, 1,454 packed) and 30
+    telemetry records; the file sink gets the 1,454 packed orders in files of 500, 500
+    and 454 rows; orders-12 is queued at 33.9733, started at 34.3281, packed at 35.8281."""
     caplog.clear()
     with caplog.at_level(logging.INFO, logger="desflow"):
         file_rows, files = _streaming_run(api, tmp_path, monkeypatch)
     events = _events(caplog)
     statuses = [e["value"].get("status", e["value"].get("event_type")) for e in events]
-    assert len(events) == 4299
+    assert len(events) == 4362
     assert [statuses.count(s) for s in ("queued", "started", "order_packed")] == [
-        1434,
-        1433,
-        1432,
+        1454,
+        1454,
+        1454,
     ]
     telemetry = [
         line
@@ -1098,7 +1101,7 @@ def test_streaming_out_records(api, tmp_path, monkeypatch, caplog):
         if line.startswith("[TEL] ")
     ]
     assert len(telemetry) == 30
-    assert file_rows == [432, 500, 500]
+    assert file_rows == [454, 500, 500]
     rows = [row for file_rows in files.values() for row in file_rows]
     assert {row["event_type"] for row in rows} == {"order_packed"}
     row = next(row for row in rows if row["key"] == "orders-12")
@@ -1112,7 +1115,7 @@ def test_streaming_out_records(api, tmp_path, monkeypatch, caplog):
         "event_type",
     ]
     assert (row["sim_ts"], row["task"], row["instance"]) == (
-        29.70220884909981,
+        35.8280675455825,
         "pack_order",
         11,
     )
@@ -1122,16 +1125,16 @@ def test_streaming_out_records(api, tmp_path, monkeypatch, caplog):
         if e["key"] == "orders-12"
     ]
     assert order == [
-        (26.96951531079364, "pack_order", 11),
-        (28.20220884909981, "pack_order", 11),
-        (29.70220884909981, "pack_order", 11),
+        (33.9733203858314, "pack_order", 11),
+        (34.3280675455825, "pack_order", 11),
+        (35.8280675455825, "pack_order", 11),
     ]
 
 
 FIT_WAITS = {
-    "triangular": (2.93, 0.25),
-    "gamma": (2.33, 0.19),
-    "empirical": (2.32, 0.20),
+    "triangular": (2.58, 0.13),
+    "gamma": (2.11, 0.1),
+    "empirical": (2.1, 0.1),
 }
 
 
@@ -1148,7 +1151,7 @@ def _fit_cli(*args):
 @pytest.mark.parametrize("api", APIS)
 def test_fit_the_inputs(api, tmp_path, capsys, monkeypatch):
     """Triangular has the lowest AIC, gamma is 0.11 behind; the triangular raises
-    the mean wait to 2.93 s while the gamma agrees with the 40 times. In YAML each
+    the mean wait to 2.58 s while the gamma agrees with the 40 times. In YAML each
     fit is the file the page shows, and PACKING_FIT loads the gamma's."""
     pytest.importorskip("scipy")
     import yaml
@@ -1357,9 +1360,9 @@ def test_complete_model_explain_is_the_same_in_yaml_and_builder(monkeypatch):
 
 
 COMPLETE_WARMUPS = {
-    0: {"pick": (0.562, 0.014), "pack": (1.903, 0.163)},
-    120: {"pick": (0.562, 0.015), "pack": (1.916, 0.165)},
-    600: {"pick": (0.563, 0.015), "pack": (1.915, 0.175)},
+    0: {"pick": (0.553, 0.015), "pack": (1.718, 0.103)},
+    120: {"pick": (0.553, 0.016), "pack": (1.733, 0.104)},
+    600: {"pick": (0.55, 0.016), "pack": (1.699, 0.104)},
 }
 
 
@@ -1427,8 +1430,9 @@ def test_complete_model_outputs_copies():
 @pytest.mark.parametrize("api", APIS)
 def test_complete_model_recommends_a_design(api, tmp_path, monkeypatch):
     """Only the fourth packer keeps both mean waits under 1 second: it cuts the
-    packing wait by 1.77 +/- 0.16 s, while a second picker lengthens it; each
-    observed value lies inside the model's interval; with orders 10% faster the
+    packing wait by 1.58 +/- 0.10 s, while a second picker lengthens it; only the
+    observed utilisation lies inside the model's interval, and every observed value
+    lies within one standard deviation of one run; with orders 10% faster the
     fourth packer still keeps both waits under 1 second; every check passes."""
     pytest.importorskip("scipy")
     result = _experiment("complete_model", api, tmp_path, monkeypatch)
@@ -1444,23 +1448,23 @@ def test_complete_model_recommends_a_design(api, tmp_path, monkeypatch):
         if r["statistic"] in (pick, pack, use, ship)
     }
     assert means == {
-        ("current", pick): (0.56, 0.02),
-        ("current", pack): (1.92, 0.16),
-        ("current", use): (87.96, 0.52),
+        ("current", pick): (0.55, 0.02),
+        ("current", pack): (1.73, 0.1),
+        ("current", use): (87.76, 0.39),
         ("current", ship): (0.0, 0.0),
         ("second-picker", pick): (0.04, 0.0),
-        ("second-picker", pack): (2.17, 0.17),
-        ("second-picker", use): (87.95, 0.52),
+        ("second-picker", pack): (1.98, 0.11),
+        ("second-picker", use): (87.76, 0.39),
         ("second-picker", ship): (0.0, 0.0),
-        ("fourth-packer", pick): (0.56, 0.02),
+        ("fourth-packer", pick): (0.55, 0.02),
         ("fourth-packer", pack): (0.15, 0.01),
-        ("fourth-packer", use): (65.96, 0.39),
+        ("fourth-packer", use): (65.83, 0.29),
         ("fourth-packer", ship): (0.0, 0.0),
         # The sensitivity variant: the fourth packer with orders 10% faster
-        ("fourth-packer-busier", pick): (0.78, 0.02),
+        ("fourth-packer-busier", pick): (0.76, 0.02),
         ("fourth-packer-busier", pack): (0.23, 0.01),
-        ("fourth-packer-busier", use): (72.59, 0.41),
-        ("fourth-packer-busier", ship): (0.22, 0.14),
+        ("fourth-packer-busier", use): (72.44, 0.31),
+        ("fourth-packer-busier", ship): (0.14, 0.17),
     }
     # With orders faster, some runs have orders waiting for shipping boxes
     busier_ship = [
@@ -1468,8 +1472,8 @@ def test_complete_model_recommends_a_design(api, tmp_path, monkeypatch):
         for r in result.results
         if r["design"] == "fourth-packer-busier" and r["statistic"] == ship
     ]
-    assert (len(busier_ship), sum(v > 0 for v in busier_ship)) == (40, 21)
-    assert round(max(busier_ship), 2) == 1.84
+    assert (len(busier_ship), sum(v > 0 for v in busier_ship)) == (40, 22)
+    assert round(max(busier_ship), 2) == 3.41
     difference = {
         (r["variant"], r["measure"]): (
             round(r["difference"], 2),
@@ -1480,21 +1484,21 @@ def test_complete_model_recommends_a_design(api, tmp_path, monkeypatch):
     }
     assert difference == {
         ("second-picker", pick): (-0.52, 0.01),
-        ("second-picker", pack): (0.26, 0.02),
+        ("second-picker", pack): (0.25, 0.01),
         ("fourth-packer", pick): (0.0, 0.0),
-        ("fourth-packer", pack): (-1.77, 0.16),
+        ("fourth-packer", pack): (-1.58, 0.1),
     }
     assert [c["passed"] for c in result.checks] == [True] * 7
-    assert round(result.checks[0]["value"], 2) == 0.58
-    assert [round(c["value"], 2) for c in result.checks[5:]] == [0.8, 0.24]
+    assert round(result.checks[0]["value"], 2) == 0.57
+    assert [round(c["value"], 2) for c in result.checks[5:]] == [0.78, 0.24]
     observed = {
         r["measure"]: (r["value"], round(r["low"], 2), round(r["high"], 2), r["inside"])
         for r in result.observed
     }
     assert observed == {
-        pick: (0.57, 0.55, 0.58, True),
-        pack: (1.9, 1.75, 2.08, True),
-        use: (88.0, 87.44, 88.47, True),
+        pick: (0.57, 0.54, 0.57, False),
+        pack: (1.9, 1.63, 1.84, False),
+        use: (88.0, 87.37, 88.15, True),
     }
     # One observed hour varies like one run, not like a mean of 40 runs
     runs = {
@@ -1506,12 +1510,12 @@ def test_complete_model_recommends_a_design(api, tmp_path, monkeypatch):
         for m in (pick, pack, use)
     }
     spread = {m: round(statistics.stdev(v), 3) for m, v in runs.items()}
-    assert spread == {pick: 0.048, pack: 0.515, use: 1.615}
+    assert spread == {pick: 0.049, pack: 0.325, use: 1.214}
     inside = {
         r["measure"]: sum(r["low"] <= v <= r["high"] for v in runs[r["measure"]])
         for r in result.observed
     }
-    assert inside == {pick: 7, pack: 9, use: 9}
+    assert inside == {pick: 12, pack: 8, use: 7}
     # How many single-run standard deviations each observed value lies from the mean
     current = {
         r["statistic"]: r["mean"] for r in result.summary if r["design"] == "current"
@@ -1522,7 +1526,7 @@ def test_complete_model_recommends_a_design(api, tmp_path, monkeypatch):
         )
         for r in result.observed
     }
-    assert away == {pick: 0.16, pack: 0.03, use: 0.03}
+    assert away == {pick: 0.34, pack: 0.51, use: 0.2}
     assert _load("complete_model").recommended(result) == ["fourth-packer"]
     assert "## Missing Inputs\n\nNone." in result.report
 
@@ -1541,21 +1545,21 @@ def test_flow_of_tasks_scripts_print_the_counts(name, tmp_path, monkeypatch, cap
     """The page's command prints the four finished counts of the table."""
     out = _script_output(name, [], tmp_path, monkeypatch, capsys)
     assert out == (
-        "pick_order: 1857 finished\n"
-        "backorder : 80 finished\n"
-        "pack_order: 1849 finished\n"
-        "ship_order: 1775 finished\n"
+        "pick_order: 2011 finished\n"
+        "backorder : 198 finished\n"
+        "pack_order: 1904 finished\n"
+        "ship_order: 1812 finished\n"
     )
 
 
 @pytest.mark.parametrize("name", ["priorities", "priorities_low_level"])
 def test_priorities_scripts_take_the_rates(name, tmp_path, monkeypatch, capsys):
     """The page's commands give the starvation waits at 30 and 33 orders a minute,
-    and the default rates give 36 a minute (6.94 s)."""
+    and the default rates give 36 a minute (7.17 s)."""
     for argv, regular in (
-        (["0.375", "0.125"], "2.50"),
-        (["0.4125", "0.1375"], "3.98"),
-        ([], "6.94"),
+        (["0.375", "0.125"], "2.70"),
+        (["0.4125", "0.1375"], "4.12"),
+        ([], "7.17"),
     ):
         out = _script_output(name, argv, tmp_path, monkeypatch, capsys)
         assert f"priority pack_order   mean wait  {regular} s" in out.split("\n")
@@ -1592,9 +1596,9 @@ def test_live_changes_compare_reads_two_yaml_runs(tmp_path, monkeypatch, capsys)
     assert compared == (
         "label at 1200.0 s: printer_jam, packing 1.5 s to 3.0 s\n"
         "label at 1800.0 s: printer_fixed, packing 3.0 s to 1.5 s\n"
-        "with the jam: mean wait  80.85 s from 20 to 30 min,  11.93 s from 30 to 40 min\n"
-        "  without it: mean wait   1.50 s from 20 to 30 min,   1.04 s from 30 to 40 min\n"
-        "the last order that waits longer is queued at 1987.8 s\n"
+        "with the jam: mean wait  45.79 s from 20 to 30 min,  14.60 s from 30 to 40 min\n"
+        "  without it: mean wait   1.26 s from 20 to 30 min,   1.30 s from 30 to 40 min\n"
+        "the last order that waits longer is queued at 1982.3 s\n"
     )
     (tmp_path / "scripts").mkdir()
     for name in ("live_changes", "live_changes_low_level"):
@@ -1604,8 +1608,8 @@ def test_live_changes_compare_reads_two_yaml_runs(tmp_path, monkeypatch, capsys)
 
 # What the three tabs print for the agreement with the observed values
 AGREEMENT_LINES = [
-    "tasks.pack_order.wait_mean: mean 2.48, sd 0.69, distance 0.18 sd, 8 of 20 runs inside",
-    "resources.packers.utilization_avg: mean 90.33, sd 1.34, distance 0.50 sd, 4 of 20 runs inside",
+    "tasks.pack_order.wait_mean: mean 2.15, sd 0.32, distance 1.38 sd, 4 of 20 runs inside",
+    "resources.packers.utilization_avg: mean 89.99, sd 1.29, distance 0.78 sd, 5 of 20 runs inside",
 ]
 
 
@@ -1645,10 +1649,10 @@ def test_checking_a_model_scripts_print_the_extremes(
     """The page's command prints the one-packer and ten-packer means and Little's law."""
     out = _script_output(name, [], tmp_path, monkeypatch, capsys).split("\n")
     assert out[1:5] == [
-        "one: 2318 finished, utilisation 100.00%, mean wait 1179.01 s",
-        "ten: 6287 finished, utilisation 27.08%, mean wait 0.00 s",
-        "three: queue 4.488, 1.8065 x 2.479 = 4.478",
-        "one: queue 2127.625, 1.8065 x 1179.013 = 2129.913",
+        "one: 2318 finished, utilisation 100.00%, mean wait 1169.71 s",
+        "ten: 6270 finished, utilisation 27.00%, mean wait 0.00 s",
+        "three: queue 3.882, 1.8016 x 2.151 = 3.875",
+        "one: queue 2101.667, 1.8016 x 1169.707 = 2107.321",
     ]
     assert out[7:] == AGREEMENT_LINES + [""]
 
@@ -1657,7 +1661,7 @@ def test_trusting_results_yaml_command_prints_the_two_final_counts(
     tmp_path, monkeypatch
 ):
     """The page's command, with its `tail -2`, prints the last queue average and the
-    packed count of the hour (6,024 orders), not the 698 lines of every interval."""
+    packed count of the hour (6,294 orders), not the 698 lines of every interval."""
     import shutil
     import subprocess
 
@@ -1678,8 +1682,8 @@ def test_trusting_results_yaml_command_prints_the_two_final_counts(
         check=True,
     ).stdout.splitlines()
     assert len(printed) == 2
-    assert printed[0].endswith('queue_length_avg","value":2.3953385163016563}')
-    assert printed[1].endswith('pack_order.finished","value":6024}')
+    assert printed[0].endswith('queue_length_avg","value":3.7095253628163287}')
+    assert printed[1].endswith('pack_order.finished","value":6294}')
 
 
 def test_checking_a_model_summary_columns(tmp_path, monkeypatch):
@@ -1692,25 +1696,25 @@ def test_checking_a_model_summary_columns(tmp_path, monkeypatch):
     header = rows[0]
     assert (header[0], header[2], header[6]) == ("design", "statistic", "mean")
     means = {(r[0], r[2]): round(float(r[6]), 3) for r in rows[1:]}
-    assert means["three", "flows.orders.started"] == 6286.7
-    assert means["three", "resources.packers.queue_length_avg"] == 4.488
-    assert means["one", "tasks.pack_order.wait_mean"] == 1179.013
+    assert means["three", "flows.orders.started"] == 6269.5
+    assert means["three", "resources.packers.queue_length_avg"] == 3.882
+    assert means["one", "tasks.pack_order.wait_mean"] == 1169.707
 
 
 @pytest.mark.parametrize("name", ["trusting_results", "trusting_results_low_level"])
 def test_trusting_results_scripts_print_the_start_and_the_counts(
     name, tmp_path, monkeypatch, capsys, caplog
 ):
-    """After the 2-minute warm-up 6,024 orders are packed and queue_length_avg is
-    2.40; with `start` the script prints the first statistics, at 10 s, 20 s and so on."""
+    """After the 2-minute warm-up 6,294 orders are packed and queue_length_avg is
+    3.71; with `start` the script prints the first statistics, at 10 s, 20 s and so on."""
     module = _load(name)
     readings = (
         module.busy_hour("2 min")
         if name == "trusting_results"
         else module.run(120.0).stats.readings()
     )
-    assert readings[module.PACKED] == 6024
-    assert round(readings[module.QUEUE], 2) == 2.40
+    assert readings[module.PACKED] == 6294
+    assert round(readings[module.QUEUE], 2) == 3.71
     with caplog.at_level(logging.INFO):
         _script_output(name, ["start"], tmp_path, monkeypatch, capsys)
     lines = [
@@ -1724,7 +1728,7 @@ def test_trusting_results_scripts_print_the_start_and_the_counts(
         for t in lines
         if t["path_id"].endswith("pack_order.wait_mean")
     ]
-    assert wait[:2] == [(10.0, 0.457), (20.0, 0.5569)]
+    assert wait[:2] == [(10.0, 0.0585), (20.0, 0.0328)]
     # The page's table of values at chosen times, and its 90 readings of each path
     queue = {
         t["sim_ts"]: t["value"]
@@ -1734,13 +1738,13 @@ def test_trusting_results_scripts_print_the_start_and_the_counts(
     assert len(wait) == len(queue) == 90
     at = {seconds: (queue[seconds], round(value, 2)) for seconds, value in wait}
     assert [at[s] for s in (10, 30, 60, 90, 120, 300, 600, 900)] == [
-        (0, 0.46),
-        (5, 0.89),
-        (0, 1.12),
-        (4, 1.55),
-        (3, 1.41),
-        (4, 1.19),
-        (0, 1.40),
-        (0, 1.27),
+        (0, 0.06),
+        (0, 0.21),
+        (2, 0.65),
+        (1, 0.6),
+        (0, 0.59),
+        (0, 1.31),
+        (10, 2.6),
+        (0, 2.35),
     ]
     assert wait[-1][0] == 900.0

@@ -56,8 +56,9 @@ RESOURCE_FAMILY = "resource family"
 # An `on:` entry with a `path` of the resource's capacity changes it during the run
 CHANGED_CAPACITY = "capacity changed by an on: entry"
 # An `on:` entry with a `path` of an arrival or a service changes a rate or a time
-# during the run, so no task has the rate or the service its declaration gives
-CHANGED_DEMAND = "an arrival or a service that an on: entry changes"
+# during the run, and an `activate` or `deactivate` of a task or an `on:` entry turns an
+# arrival on or off, so no task has the rate or the service its declaration gives
+CHANGED_DEMAND = "an arrival or a service that a task or an on: entry changes"
 
 
 def arrival_features(context: "SimulationContext", name: str) -> List[str]:
@@ -268,15 +269,32 @@ def _changed_resources(context: "SimulationContext") -> Set[str]:
     return found
 
 
-def _on_paths(context: "SimulationContext") -> List[str]:
-    """The `path` of every `on:` entry of a task, a `listen` or a signal."""
+def _on_actions(context: "SimulationContext") -> List[Mapping[str, Any]]:
+    """Every `on:` entry of a task, a `listen` or a signal."""
     parts = parts_of(context)
     actions: List[Mapping[str, Any]] = [
         action for found in parts.signals.on.values() for action in found
     ]
     for spec in parts.tasks.specs.values():
         actions += [*spec.on, *(spec.listen.on if spec.listen else [])]
-    return [a["path"] for a in actions if isinstance(a.get("path"), str)]
+    return actions
+
+
+def _on_paths(context: "SimulationContext") -> List[str]:
+    """The `path` of every `on:` entry of a task, a `listen` or a signal."""
+    return [a["path"] for a in _on_actions(context) if isinstance(a.get("path"), str)]
+
+
+def _switches_arrivals(context: "SimulationContext") -> bool:
+    """Whether a task's `activate` or `deactivate`, or an `on:` entry's, turns an
+    arrival on or off during the run."""
+    parts = parts_of(context)
+    if any(spec.activate or spec.deactivate for spec in parts.tasks.specs.values()):
+        return True
+    return any(
+        "activate" in action or "deactivate" in action
+        for action in _on_actions(context)
+    )
 
 
 def queue_order(context: "SimulationContext", name: str) -> Optional[str]:
@@ -308,6 +326,8 @@ def model_features(context: "SimulationContext") -> List[str]:
     if parts.sinks.ingress:
         features.append("live ingress")
     demand = (f"{context.sim_id}.arrival.", f"{context.sim_id}.service.")
-    if any(path.startswith(demand) for path in _on_paths(context)):
+    if _switches_arrivals(context) or any(
+        path.startswith(demand) for path in _on_paths(context)
+    ):
         features.append(CHANGED_DEMAND)
     return features

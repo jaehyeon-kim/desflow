@@ -1,3 +1,4 @@
+import math
 from typing import Any, Optional, Type
 
 from simpy import Container, Environment, Event
@@ -149,9 +150,10 @@ class DynamicContainer(_WrappedHolder, Container):
             put_ties (str, optional): As `get_ties`, for the waiting puts.
 
         Raises:
-            ValueError: If `init` is above the capacity, `type` is not a subclass
-                of `ContainerBase`, or `get_ties` or `put_ties` is not `fifo` or
-                `lifo` or is given with `type`.
+            ValueError: If `init` (or the configured `level`) is a bool, NaN,
+                infinite, below 0 or above the capacity, `type` is not a subclass of
+                `ContainerBase`, or `get_ties` or `put_ties` is not `fifo` or `lifo`
+                or is given with `type`.
         """
         check_container_type(type)
         check_ties(get_ties, put_ties, type)
@@ -167,8 +169,20 @@ class DynamicContainer(_WrappedHolder, Container):
             init = getattr(config, "level", self._level_val.value)
         start = init
         # A number keeps its type, so a whole level stays an int, as SimPy keeps it
-        if isinstance(start, bool) or not isinstance(start, (int, float)):
+        if isinstance(start, bool):
+            raise ValueError(
+                f"container '{container_id}' needs a starting level that is a number, "
+                f"got {init!r}"
+            )
+        if not isinstance(start, (int, float)):
             start = float(start)
+        if not math.isfinite(start) or start < 0:
+            # NaN compares false with everything, so a container at NaN would never
+            # grant a put or a get
+            raise ValueError(
+                f"container '{container_id}' needs a starting level that is a finite "
+                f"number of 0 or more, got {init!r}"
+            )
 
         if start > initial_capacity:
             # SimPy's own check, which the capacity of 1 below would not make

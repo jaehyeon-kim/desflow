@@ -1,13 +1,14 @@
 """The SimPy program of V4: each process draws a value when it starts and asks for a
 priority resource by it. The draws come from the generator's own sequence, which the
 blueprint's seed and the place of `x` in the file name: the documented rule
-`SeedSequence(seed, spawn_key=(crc32(place),))`."""
+`SeedSequence(seed, spawn_key=stream_key(place))`."""
 
-import zlib
 from typing import Any, List, Tuple
 
 import numpy as np
 import simpy
+
+from desflow.core.sampler import stream_key
 
 SEED = 42
 PLACE = "arrivals.a.attributes.x"
@@ -18,7 +19,7 @@ def reference(n: int) -> Trace:
     """The (time, key, status) of the queued, started and done events of `n` jobs that
     start at one instant."""
     rng = np.random.default_rng(
-        np.random.SeedSequence(SEED, spawn_key=(zlib.crc32(PLACE.encode()),))
+        np.random.SeedSequence(SEED, spawn_key=stream_key(PLACE))
     )
     env = simpy.Environment()
     machine = simpy.PriorityResource(env, capacity=1)

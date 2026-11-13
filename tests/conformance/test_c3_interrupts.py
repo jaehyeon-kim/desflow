@@ -200,7 +200,7 @@ def test_c3_interrupt_while_waiting():
 # ------------------------------------------------------ interrupt service
 
 
-def _draws(seed=7, n=2):
+def _draws(seed=2, n=2):
     """The first `n` service times the seeded stream of `service.work` gives."""
     config = DistributionConfig(dist="exponential", rate=0.2)
     config.stream = "service.work"
@@ -249,7 +249,7 @@ def _reference_service(policy):
 
 
 def _builder_service(policy):
-    app = SimulationContext("C3", factor=0.0, random_seed=7)
+    app = SimulationContext("C3", factor=0.0, random_seed=2)
     app.add_resource("machine", current_cap=1, max_cap=1)
     app.add_service("work", dist="exponential", rate=0.2)
 

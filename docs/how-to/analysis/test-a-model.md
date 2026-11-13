@@ -165,7 +165,7 @@ def test_more_packers_shorten_the_wait():
     assert waits[0] > waits[1] > waits[2]
 ```
 
-The test asserts the direction of the change, not the waits themselves. The waits are **2.055**, **0.111** and **0.016** seconds, from one 10-minute run each of this shop, not the busy hour of the tutorials. A test of the direction still passes when a change to the model moves them a little.
+The test asserts the direction of the change, not the waits themselves. The waits are **2.142**, **0.158** and **0.016** seconds, from one 10-minute run each of this shop, not the busy hour of the tutorials. A test of the direction still passes when a change to the model moves them a little.
 
 ### Write a Unit Test
 
@@ -200,16 +200,16 @@ A blueprint carries tests of its own under `tests`. Each entry has these keys:
 
     ```yaml title="docs/snippets/yaml/test_a_model.yaml:tests"
     tests:
-      # The statistics of one run of the file at its seed: 319 orders packed, 0.1106 s of
+      # The statistics of one run of the file at its seed: 284 orders packed, 0.1576 s of
       # wait
       - name: two packers
         expect:
-          tasks.pack_order.finished: 319
-          tasks.pack_order.wait_mean: {value: 0.1106, within: 0.001}
+          tasks.pack_order.finished: 284
+          tasks.pack_order.wait_mean: {value: 0.1576, within: 0.001}
       # The same shop at another seed
       - name: another seed
         seed: 7
-        expect: {tasks.pack_order.finished: 313}
+        expect: {tasks.pack_order.finished: 306}
     ```
 
 === "Builder"
@@ -227,13 +227,13 @@ A blueprint carries tests of its own under `tests`. Each entry has these keys:
       - name: two packers
         until: 600
         expect:
-          tasks.pack_order.finished: 319
-          tasks.pack_order.wait_mean: {value: 0.1106, within: 0.001}
+          tasks.pack_order.finished: 284
+          tasks.pack_order.wait_mean: {value: 0.1576, within: 0.001}
       # The same shop at another seed
       - name: another seed
         seed: 7
         until: 600
-        expect: {tasks.pack_order.finished: 313}
+        expect: {tasks.pack_order.finished: 306}
     ```
 
 === "Low-level"
@@ -265,11 +265,11 @@ ok test_a_model.yaml: two packers
 ok test_a_model.yaml: another seed
 ```
 
-A test that differs prints each statistic with its expected and measured values, and the command exits with 1. With `finished: 300` in place of 319, the first test prints:
+A test that differs prints each statistic with its expected and measured values, and the command exits with 1. With `finished: 300` in place of 284, the first test prints:
 
 ```text
 FAILED test_a_model.yaml: two packers
-  tasks.pack_order.finished: expected 300, measured 319
+  tasks.pack_order.finished: expected 300, measured 284
 ok test_a_model.yaml: another seed
 ```
 
@@ -287,7 +287,7 @@ def test_results_match_the_saved_run():
     assert results() == json.loads(SAVED.read_text())
 ```
 
-The saved file holds **319** orders packed and a mean wait of **0.110574** seconds for two packers, written by `save_results`:
+The saved file holds **284** orders packed and a mean wait of **0.157602** seconds for two packers, written by `save_results`:
 
 ```python title="docs/snippets/guides/test_a_model.py:save"
 def save_results():
@@ -387,16 +387,16 @@ The times differ from run to run.
         run: {until: 600}
 
         tests:
-          # The statistics of one run of the file at its seed: 319 orders packed, 0.1106 s of
+          # The statistics of one run of the file at its seed: 284 orders packed, 0.1576 s of
           # wait
           - name: two packers
             expect:
-              tasks.pack_order.finished: 319
-              tasks.pack_order.wait_mean: {value: 0.1106, within: 0.001}
+              tasks.pack_order.finished: 284
+              tasks.pack_order.wait_mean: {value: 0.1576, within: 0.001}
           # The same shop at another seed
           - name: another seed
             seed: 7
-            expect: {tasks.pack_order.finished: 313}
+            expect: {tasks.pack_order.finished: 306}
         ```
 
         ```python title="docs/snippets/guides/test_a_model_yaml.py"
@@ -581,13 +581,13 @@ The times differ from run to run.
           - name: two packers
             until: 600
             expect:
-              tasks.pack_order.finished: 319
-              tasks.pack_order.wait_mean: {value: 0.1106, within: 0.001}
+              tasks.pack_order.finished: 284
+              tasks.pack_order.wait_mean: {value: 0.1576, within: 0.001}
           # The same shop at another seed
           - name: another seed
             seed: 7
             until: 600
-            expect: {tasks.pack_order.finished: 313}
+            expect: {tasks.pack_order.finished: 306}
         ```
 
     === "Low-level"

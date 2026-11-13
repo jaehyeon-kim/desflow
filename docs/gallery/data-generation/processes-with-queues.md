@@ -82,55 +82,81 @@ A shop has 3 packers. Orders arrive about once a minute, and packing takes a nor
     {"stream_type":"telemetry","sim_ts":20.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":0}
     {"stream_type":"telemetry","sim_ts":20.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
     {"stream_type":"telemetry","sim_ts":20.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":0.0}
+    {"stream_type":"event","sim_ts":20.943711043131454,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"queued"}}
+    {"stream_type":"event","sim_ts":20.943711043131454,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"started"}}
     {"stream_type":"telemetry","sim_ts":30.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
-    {"stream_type":"telemetry","sim_ts":30.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":0}
+    {"stream_type":"telemetry","sim_ts":30.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
     {"stream_type":"telemetry","sim_ts":30.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
-    {"stream_type":"telemetry","sim_ts":30.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":0.0}
+    {"stream_type":"telemetry","sim_ts":30.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":30.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
     {"stream_type":"telemetry","sim_ts":40.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
-    {"stream_type":"telemetry","sim_ts":40.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":0}
+    {"stream_type":"telemetry","sim_ts":40.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
     {"stream_type":"telemetry","sim_ts":40.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
-    {"stream_type":"telemetry","sim_ts":40.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":0.0}
+    {"stream_type":"telemetry","sim_ts":40.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":40.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
     {"stream_type":"telemetry","sim_ts":50.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
-    {"stream_type":"telemetry","sim_ts":50.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":0}
+    {"stream_type":"telemetry","sim_ts":50.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
     {"stream_type":"telemetry","sim_ts":50.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
-    {"stream_type":"telemetry","sim_ts":50.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":0.0}
+    {"stream_type":"telemetry","sim_ts":50.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":50.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
     {"stream_type":"telemetry","sim_ts":60.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
-    {"stream_type":"telemetry","sim_ts":60.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":0}
+    {"stream_type":"telemetry","sim_ts":60.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
     {"stream_type":"telemetry","sim_ts":60.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
-    {"stream_type":"telemetry","sim_ts":60.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":0.0}
+    {"stream_type":"telemetry","sim_ts":60.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":60.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
     {"stream_type":"telemetry","sim_ts":70.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
-    {"stream_type":"telemetry","sim_ts":70.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":0}
+    {"stream_type":"telemetry","sim_ts":70.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
     {"stream_type":"telemetry","sim_ts":70.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
-    {"stream_type":"telemetry","sim_ts":70.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":0.0}
+    {"stream_type":"telemetry","sim_ts":70.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":70.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
     {"stream_type":"telemetry","sim_ts":80.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
-    {"stream_type":"telemetry","sim_ts":80.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":0}
+    {"stream_type":"telemetry","sim_ts":80.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
     {"stream_type":"telemetry","sim_ts":80.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
-    {"stream_type":"telemetry","sim_ts":80.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":0.0}
-    {"stream_type":"event","sim_ts":85.07932922321557,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"queued"}}
-    {"stream_type":"event","sim_ts":85.07932922321557,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"started"}}
-    {"stream_type":"event","sim_ts":89.86151090482532,"timestamp":"...","key":"orders-2","task":"order","instance":1,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"queued"}}
-    {"stream_type":"event","sim_ts":89.86151090482532,"timestamp":"...","key":"orders-2","task":"order","instance":1,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"started"}}
+    {"stream_type":"telemetry","sim_ts":80.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":80.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
     {"stream_type":"telemetry","sim_ts":90.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
-    {"stream_type":"telemetry","sim_ts":90.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":2}
+    {"stream_type":"telemetry","sim_ts":90.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
     {"stream_type":"telemetry","sim_ts":90.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
-    {"stream_type":"telemetry","sim_ts":90.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":66.66666666666666}
-    {"stream_type":"telemetry","sim_ts":90.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":2}
+    {"stream_type":"telemetry","sim_ts":90.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":90.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
     {"stream_type":"telemetry","sim_ts":100.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
-    {"stream_type":"telemetry","sim_ts":100.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":2}
+    {"stream_type":"telemetry","sim_ts":100.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
     {"stream_type":"telemetry","sim_ts":100.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
-    {"stream_type":"telemetry","sim_ts":100.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":66.66666666666666}
-    {"stream_type":"telemetry","sim_ts":100.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":2}
+    {"stream_type":"telemetry","sim_ts":100.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":100.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
     {"stream_type":"telemetry","sim_ts":110.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
-    {"stream_type":"telemetry","sim_ts":110.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":2}
+    {"stream_type":"telemetry","sim_ts":110.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
     {"stream_type":"telemetry","sim_ts":110.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
-    {"stream_type":"telemetry","sim_ts":110.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":66.66666666666666}
-    {"stream_type":"telemetry","sim_ts":110.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":2}
+    {"stream_type":"telemetry","sim_ts":110.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":110.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
     {"stream_type":"telemetry","sim_ts":120.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
-    {"stream_type":"telemetry","sim_ts":120.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":2}
+    {"stream_type":"telemetry","sim_ts":120.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
     {"stream_type":"telemetry","sim_ts":120.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
-    {"stream_type":"telemetry","sim_ts":120.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":66.66666666666666}
-    {"stream_type":"telemetry","sim_ts":120.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":2}
-    {"stream_type":"event","sim_ts":124.5772823829831,"timestamp":"...","key":"orders-3","task":"order","instance":2,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"queued"}}
+    {"stream_type":"telemetry","sim_ts":120.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":120.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
+    {"stream_type":"telemetry","sim_ts":130.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
+    {"stream_type":"telemetry","sim_ts":130.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
+    {"stream_type":"telemetry","sim_ts":130.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
+    {"stream_type":"telemetry","sim_ts":130.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":130.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
+    {"stream_type":"telemetry","sim_ts":140.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
+    {"stream_type":"telemetry","sim_ts":140.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
+    {"stream_type":"telemetry","sim_ts":140.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
+    {"stream_type":"telemetry","sim_ts":140.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":140.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
+    {"stream_type":"telemetry","sim_ts":150.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
+    {"stream_type":"telemetry","sim_ts":150.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
+    {"stream_type":"telemetry","sim_ts":150.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
+    {"stream_type":"telemetry","sim_ts":150.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":150.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
+    {"stream_type":"telemetry","sim_ts":160.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
+    {"stream_type":"telemetry","sim_ts":160.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
+    {"stream_type":"telemetry","sim_ts":160.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
+    {"stream_type":"telemetry","sim_ts":160.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":160.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
+    {"stream_type":"event","sim_ts":164.4779633739713,"timestamp":"...","key":"orders-2","task":"order","instance":1,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"queued"}}
+    {"stream_type":"event","sim_ts":164.4779633739713,"timestamp":"...","key":"orders-2","task":"order","instance":1,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"started"}}
+    {"stream_type":"event","sim_ts":167.48162062711958,"timestamp":"...","key":"orders-3","task":"order","instance":2,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"queued"}}
     ```
 
 === "Builder"
@@ -365,11 +391,11 @@ A press stamps one blank at a time. Stamping takes a normal time with a mean of 
 
     <!-- records: gallery-machine_slows_as_it_wears -->
     ```text
-    {"stream_type":"event","sim_ts":3.7457111411715838,"timestamp":"...","key":"blanks-1","task":"blank","instance":0,"value":{"path_id":"Press.service.stamp","sim_id":"Press","service":"stamp","status":"queued"}}
-    {"stream_type":"event","sim_ts":3.7457111411715838,"timestamp":"...","key":"blanks-1","task":"blank","instance":0,"value":{"path_id":"Press.service.stamp","sim_id":"Press","service":"stamp","status":"started"}}
-    {"stream_type":"event","sim_ts":13.804936024928192,"timestamp":"...","key":"blanks-2","task":"blank","instance":1,"value":{"path_id":"Press.service.stamp","sim_id":"Press","service":"stamp","status":"queued"}}
-    {"stream_type":"event","sim_ts":15.795673311402926,"timestamp":"...","key":"blanks-1","task":"blank","instance":0,"value":{"event_type":"stamped"}}
-    {"stream_type":"event","sim_ts":15.795673311402926,"timestamp":"...","key":"blanks-2","task":"blank","instance":1,"value":{"path_id":"Press.service.stamp","sim_id":"Press","service":"stamp","status":"started"}}
+    {"stream_type":"event","sim_ts":21.79090305473576,"timestamp":"...","key":"blanks-1","task":"blank","instance":0,"value":{"path_id":"Press.service.stamp","sim_id":"Press","service":"stamp","status":"queued"}}
+    {"stream_type":"event","sim_ts":21.79090305473576,"timestamp":"...","key":"blanks-1","task":"blank","instance":0,"value":{"path_id":"Press.service.stamp","sim_id":"Press","service":"stamp","status":"started"}}
+    {"stream_type":"event","sim_ts":31.148971588708257,"timestamp":"...","key":"blanks-1","task":"blank","instance":0,"value":{"event_type":"stamped"}}
+    {"stream_type":"event","sim_ts":41.95644863411036,"timestamp":"...","key":"blanks-2","task":"blank","instance":1,"value":{"path_id":"Press.service.stamp","sim_id":"Press","service":"stamp","status":"queued"}}
+    {"stream_type":"event","sim_ts":41.95644863411036,"timestamp":"...","key":"blanks-2","task":"blank","instance":1,"value":{"path_id":"Press.service.stamp","sim_id":"Press","service":"stamp","status":"started"}}
     ```
 
 === "Builder"
@@ -611,15 +637,21 @@ A shop has 3 packers. An order arrives about every second, and packing takes a n
 
     <!-- records: gallery-capacity_drops_and_queue_grows -->
     ```text
+    {"stream_type":"event","sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"queued"}}
+    {"stream_type":"event","sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"started"}}
     {"stream_type":"telemetry","sim_ts":1.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
-    {"stream_type":"telemetry","sim_ts":1.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":0}
+    {"stream_type":"telemetry","sim_ts":1.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
     {"stream_type":"telemetry","sim_ts":1.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
-    {"stream_type":"telemetry","sim_ts":1.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":0.0}
-    {"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"queued"}}
-    {"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"started"}}
-    {"stream_type":"event","sim_ts":1.3479226635723796,"timestamp":"...","key":"orders-2","task":"order","instance":1,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"queued"}}
-    {"stream_type":"event","sim_ts":1.3479226635723796,"timestamp":"...","key":"orders-2","task":"order","instance":1,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"started"}}
-    {"stream_type":"event","sim_ts":1.8686592357447462,"timestamp":"...","key":"orders-3","task":"order","instance":2,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"queued"}}
+    {"stream_type":"telemetry","sim_ts":1.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":1.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
+    {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":3}
+    {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
+    {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
+    {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":33.33333333333333}
+    {"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.tasks.order.in_progress","value":1}
+    {"stream_type":"event","sim_ts":2.4671694506095694,"timestamp":"...","key":"orders-2","task":"order","instance":1,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"queued"}}
+    {"stream_type":"event","sim_ts":2.4671694506095694,"timestamp":"...","key":"orders-2","task":"order","instance":1,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"started"}}
+    {"stream_type":"event","sim_ts":2.5122243094067938,"timestamp":"...","key":"orders-3","task":"order","instance":2,"value":{"path_id":"Shop.service.pack","sim_id":"Shop","service":"pack","status":"queued"}}
     ```
 
 === "Builder"
@@ -862,11 +894,11 @@ Calls arrive at 54 an hour and two agents answer about 30 an hour, so a queue bu
 
     <!-- records: gallery-callers_hang_up_after_waiting_too_long -->
     ```text
-    {"stream_type":"event","sim_ts":92.07266563703702,"timestamp":"...","key":"calls-1","task":"answer_call","instance":0,"value":{"path_id":"Centre.service.talk","sim_id":"Centre","service":"talk","status":"queued"}}
-    {"stream_type":"event","sim_ts":92.07266563703702,"timestamp":"...","key":"calls-1","task":"answer_call","instance":0,"value":{"path_id":"Centre.service.talk","sim_id":"Centre","service":"talk","status":"started"}}
-    {"stream_type":"event","sim_ts":134.93313302955949,"timestamp":"...","key":"calls-2","task":"answer_call","instance":1,"value":{"path_id":"Centre.service.talk","sim_id":"Centre","service":"talk","status":"queued"}}
-    {"stream_type":"event","sim_ts":134.93313302955949,"timestamp":"...","key":"calls-2","task":"answer_call","instance":1,"value":{"path_id":"Centre.service.talk","sim_id":"Centre","service":"talk","status":"started"}}
-    {"stream_type":"event","sim_ts":148.1244647344069,"timestamp":"...","key":"calls-3","task":"answer_call","instance":2,"value":{"path_id":"Centre.service.talk","sim_id":"Centre","service":"talk","status":"queued"}}
+    {"stream_type":"event","sim_ts":15.924314308737758,"timestamp":"...","key":"calls-1","task":"answer_call","instance":0,"value":{"path_id":"Centre.service.talk","sim_id":"Centre","service":"talk","status":"queued"}}
+    {"stream_type":"event","sim_ts":15.924314308737758,"timestamp":"...","key":"calls-1","task":"answer_call","instance":0,"value":{"path_id":"Centre.service.talk","sim_id":"Centre","service":"talk","status":"started"}}
+    {"stream_type":"event","sim_ts":250.72846807640823,"timestamp":"...","key":"calls-2","task":"answer_call","instance":1,"value":{"path_id":"Centre.service.talk","sim_id":"Centre","service":"talk","status":"queued"}}
+    {"stream_type":"event","sim_ts":250.72846807640823,"timestamp":"...","key":"calls-2","task":"answer_call","instance":1,"value":{"path_id":"Centre.service.talk","sim_id":"Centre","service":"talk","status":"started"}}
+    {"stream_type":"event","sim_ts":312.58292688735503,"timestamp":"...","key":"calls-3","task":"answer_call","instance":2,"value":{"path_id":"Centre.service.talk","sim_id":"Centre","service":"talk","status":"queued"}}
     ```
 
 === "Builder"
@@ -1137,11 +1169,11 @@ One agent solves a ticket in about 50 seconds, and a ticket arrives about every 
 
     <!-- records: gallery-urgent_tickets_are_served_first -->
     ```text
-    {"stream_type":"event","sim_ts":125.4191949690569,"timestamp":"...","key":"tickets-1","task":"solve_ticket","instance":0,"value":{"path_id":"Support.service.solve","sim_id":"Support","service":"solve","status":"queued"}}
-    {"stream_type":"event","sim_ts":125.4191949690569,"timestamp":"...","key":"tickets-1","task":"solve_ticket","instance":0,"value":{"path_id":"Support.service.solve","sim_id":"Support","service":"solve","status":"started"}}
-    {"stream_type":"event","sim_ts":175.62029267049246,"timestamp":"...","key":"tickets-1","task":"solve_ticket","instance":0,"value":{"event_type":"solved","priority":3}}
-    {"stream_type":"event","sim_ts":211.81082044279705,"timestamp":"...","key":"tickets-2","task":"solve_ticket","instance":1,"value":{"path_id":"Support.service.solve","sim_id":"Support","service":"solve","status":"queued"}}
-    {"stream_type":"event","sim_ts":211.81082044279705,"timestamp":"...","key":"tickets-2","task":"solve_ticket","instance":1,"value":{"path_id":"Support.service.solve","sim_id":"Support","service":"solve","status":"started"}}
+    {"stream_type":"event","sim_ts":15.04613672339676,"timestamp":"...","key":"tickets-1","task":"solve_ticket","instance":0,"value":{"path_id":"Support.service.solve","sim_id":"Support","service":"solve","status":"queued"}}
+    {"stream_type":"event","sim_ts":15.04613672339676,"timestamp":"...","key":"tickets-1","task":"solve_ticket","instance":0,"value":{"path_id":"Support.service.solve","sim_id":"Support","service":"solve","status":"started"}}
+    {"stream_type":"event","sim_ts":78.19013668146923,"timestamp":"...","key":"tickets-1","task":"solve_ticket","instance":0,"value":{"event_type":"solved","priority":3}}
+    {"stream_type":"event","sim_ts":87.67926599645057,"timestamp":"...","key":"tickets-2","task":"solve_ticket","instance":1,"value":{"path_id":"Support.service.solve","sim_id":"Support","service":"solve","status":"queued"}}
+    {"stream_type":"event","sim_ts":87.67926599645057,"timestamp":"...","key":"tickets-2","task":"solve_ticket","instance":1,"value":{"path_id":"Support.service.solve","sim_id":"Support","service":"solve","status":"started"}}
     ```
 
 === "Builder"
@@ -1407,11 +1439,11 @@ A shopper adds an item every 5 to 30 seconds, and after each item 60 percent add
 
     <!-- records: gallery-shoppers_add_items_then_pay_or_abandon -->
     ```text
-    {"stream_type":"event","sim_ts":54.42291960836337,"timestamp":"...","key":"shoppers-1","task":"add_item","instance":0,"value":{"status":"started"}}
-    {"stream_type":"event","sim_ts":60.31577405999714,"timestamp":"...","key":"shoppers-2","task":"add_item","instance":1,"value":{"status":"started"}}
-    {"stream_type":"event","sim_ts":68.190399511107,"timestamp":"...","key":"shoppers-1","task":"add_item","instance":0,"value":{"event_type":"item_added","items":1}}
-    {"stream_type":"event","sim_ts":68.190399511107,"timestamp":"...","key":"shoppers-1","task":"add_item","instance":2,"value":{"status":"started"}}
-    {"stream_type":"event","sim_ts":70.6558076335413,"timestamp":"...","key":"shoppers-2","task":"add_item","instance":1,"value":{"event_type":"item_added","items":1}}
+    {"stream_type":"event","sim_ts":10.467584677592853,"timestamp":"...","key":"shoppers-1","task":"add_item","instance":0,"value":{"status":"started"}}
+    {"stream_type":"event","sim_ts":11.299271630799119,"timestamp":"...","key":"shoppers-2","task":"add_item","instance":1,"value":{"status":"started"}}
+    {"stream_type":"event","sim_ts":11.629322773869537,"timestamp":"...","key":"shoppers-3","task":"add_item","instance":2,"value":{"status":"started"}}
+    {"stream_type":"event","sim_ts":20.121210214963746,"timestamp":"...","key":"shoppers-4","task":"add_item","instance":3,"value":{"status":"started"}}
+    {"stream_type":"event","sim_ts":22.33567323143638,"timestamp":"...","key":"shoppers-5","task":"add_item","instance":4,"value":{"status":"started"}}
     ```
 
 === "Builder"
@@ -1710,11 +1742,11 @@ Of every 100 visitors, 40 sign up, 20 of those start a trial, and 5 of those pay
 
     <!-- records: gallery-visitors_drop_out_at_each_signup_step -->
     ```text
-    {"stream_type":"event","sim_ts":4.4308335170136255,"timestamp":"...","key":"visitors-1","task":"visited","instance":0,"value":{"stage":"visited"}}
-    {"stream_type":"event","sim_ts":4.4308335170136255,"timestamp":"...","key":"visitors-1","task":"signed_up","instance":0,"value":{"status":"started"}}
-    {"stream_type":"event","sim_ts":4.9198884918909815,"timestamp":"...","key":"visitors-2","task":"visited","instance":1,"value":{"stage":"visited"}}
-    {"stream_type":"event","sim_ts":4.9198884918909815,"timestamp":"...","key":"visitors-2","task":"signed_up","instance":1,"value":{"status":"started"}}
-    {"stream_type":"event","sim_ts":7.06385320403534,"timestamp":"...","key":"visitors-3","task":"visited","instance":2,"value":{"stage":"visited"}}
+    {"stream_type":"event","sim_ts":5.685646145804752,"timestamp":"...","key":"visitors-1","task":"visited","instance":0,"value":{"stage":"visited"}}
+    {"stream_type":"event","sim_ts":5.685646145804752,"timestamp":"...","key":"visitors-1","task":"left","instance":0,"value":{"stage":"left","after":"visited"}}
+    {"stream_type":"event","sim_ts":6.716550977533494,"timestamp":"...","key":"visitors-2","task":"visited","instance":1,"value":{"stage":"visited"}}
+    {"stream_type":"event","sim_ts":6.716550977533494,"timestamp":"...","key":"visitors-2","task":"left","instance":1,"value":{"stage":"left","after":"visited"}}
+    {"stream_type":"event","sim_ts":8.101630035966295,"timestamp":"...","key":"visitors-3","task":"visited","instance":2,"value":{"stage":"visited"}}
     ```
 
 === "Builder"
@@ -1972,11 +2004,11 @@ A bet is placed with a stake and odds. One to two minutes later it is settled: 4
 
     <!-- records: gallery-bets_are_settled_and_winners_paid -->
     ```text
-    {"stream_type":"event","sim_ts":10.069132531146714,"timestamp":"...","key":"bets-1","task":"place_bet","instance":0,"value":{"bet_id":1,"stake":10,"odds":3.65}}
-    {"stream_type":"event","sim_ts":10.069132531146714,"timestamp":"...","key":"bets-1","task":"settle_bet","instance":0,"value":{"status":"started"}}
-    {"stream_type":"event","sim_ts":11.270317774842844,"timestamp":"...","key":"bets-2","task":"place_bet","instance":1,"value":{"bet_id":2,"stake":50,"odds":3.06}}
-    {"stream_type":"event","sim_ts":11.270317774842844,"timestamp":"...","key":"bets-2","task":"settle_bet","instance":1,"value":{"status":"started"}}
-    {"stream_type":"event","sim_ts":14.955832826994573,"timestamp":"...","key":"bets-3","task":"place_bet","instance":2,"value":{"bet_id":3,"stake":5,"odds":3.32}}
+    {"stream_type":"event","sim_ts":5.905507390799418,"timestamp":"...","key":"bets-1","task":"place_bet","instance":0,"value":{"bet_id":1,"stake":10,"odds":3.83}}
+    {"stream_type":"event","sim_ts":5.905507390799418,"timestamp":"...","key":"bets-1","task":"settle_bet","instance":0,"value":{"status":"started"}}
+    {"stream_type":"event","sim_ts":7.5806398141048446,"timestamp":"...","key":"bets-2","task":"place_bet","instance":1,"value":{"bet_id":2,"stake":10,"odds":2.74}}
+    {"stream_type":"event","sim_ts":7.5806398141048446,"timestamp":"...","key":"bets-2","task":"settle_bet","instance":1,"value":{"status":"started"}}
+    {"stream_type":"event","sim_ts":12.491926619839258,"timestamp":"...","key":"bets-3","task":"place_bet","instance":2,"value":{"bet_id":3,"stake":5,"odds":1.5}}
     ```
 
 === "Builder"
@@ -2252,11 +2284,11 @@ An audit of one of 150 merchants is due about every 3 hours and takes an auditor
 
     <!-- records: gallery-audits_with_findings_need_a_follow_up -->
     ```text
-    {"stream_type":"event","sim_ts":3880.1977386409076,"timestamp":"...","key":"audits_due-1","task":"audit","instance":0,"value":{"path_id":"Compliance.service.audit","sim_id":"Compliance","service":"audit","status":"queued"}}
-    {"stream_type":"event","sim_ts":3880.1977386409076,"timestamp":"...","key":"audits_due-1","task":"audit","instance":0,"value":{"path_id":"Compliance.service.audit","sim_id":"Compliance","service":"audit","status":"started"}}
-    {"stream_type":"event","sim_ts":17851.26140460071,"timestamp":"...","key":"audits_due-2","task":"audit","instance":1,"value":{"path_id":"Compliance.service.audit","sim_id":"Compliance","service":"audit","status":"queued"}}
-    {"stream_type":"event","sim_ts":17851.26140460071,"timestamp":"...","key":"audits_due-2","task":"audit","instance":1,"value":{"path_id":"Compliance.service.audit","sim_id":"Compliance","service":"audit","status":"started"}}
-    {"stream_type":"event","sim_ts":22033.84299956439,"timestamp":"...","key":"audits_due-1","task":"audit","instance":0,"value":{"merchant":7,"finding":"clean"}}
+    {"stream_type":"event","sim_ts":1105.7526406613883,"timestamp":"...","key":"audits_due-1","task":"audit","instance":0,"value":{"path_id":"Compliance.service.audit","sim_id":"Compliance","service":"audit","status":"queued"}}
+    {"stream_type":"event","sim_ts":1105.7526406613883,"timestamp":"...","key":"audits_due-1","task":"audit","instance":0,"value":{"path_id":"Compliance.service.audit","sim_id":"Compliance","service":"audit","status":"started"}}
+    {"stream_type":"event","sim_ts":19750.84009484635,"timestamp":"...","key":"audits_due-1","task":"audit","instance":0,"value":{"merchant":33,"finding":"clean"}}
+    {"stream_type":"event","sim_ts":21228.07052368513,"timestamp":"...","key":"audits_due-2","task":"audit","instance":1,"value":{"path_id":"Compliance.service.audit","sim_id":"Compliance","service":"audit","status":"queued"}}
+    {"stream_type":"event","sim_ts":21228.07052368513,"timestamp":"...","key":"audits_due-2","task":"audit","instance":1,"value":{"path_id":"Compliance.service.audit","sim_id":"Compliance","service":"audit","status":"started"}}
     ```
 
 === "Builder"

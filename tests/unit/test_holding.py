@@ -50,12 +50,26 @@ REFUSED = [
         "{seize: {resource: m, nope: 1}, payload: {e: 1}}",
         "tasks.t.seize.nope: unknown key",
     ),
+    (
+        "{seize: m, resource: m, service_time: 1, payload: {e: 1}}",
+        "resource 'm' is both seized and listed in resource",
+    ),
+    (
+        "{seize: m, wait: {request: m}, payload: {e: 1}}",
+        "resource 'm' is both seized and requested in the wait",
+    ),
+    (
+        "{open: {a: {request: m}}, resource: m, service_time: 1, payload: {e: 1}}",
+        "resource 'm' is both requested in open and listed in resource",
+    ),
     ("{open: {}, payload: {e: 1}}", "open takes a mapping of names to wait branches"),
     (
         "{open: {a: {timeout: 1, each: x}}, payload: {e: 1}}",
         "a wait branch is one of",
     ),
     ("{open: {'1a': {timeout: 1}}, payload: {e: 1}}", "an open name is read as"),
+    ("{open: {if: {timeout: 1}}, payload: {e: 1}}", "not a Python keyword, got 'if'"),
+    ("{open: {None: {timeout: 1}}, payload: {e: 1}}", "not a Python keyword"),
     (
         "{open: {a: {all: {r: {request: m}}}}, payload: {e: 1}}",
         "opened under its own name, not inside a group",
@@ -744,6 +758,54 @@ def test_the_builder_warns_of_a_whole_flow_wait_for_its_own_flow(caplog):
         in r.getMessage()
         for r in caplog.records
     )
+
+
+def test_a_task_after_a_seize_that_asks_for_the_same_resource_is_warned_of(
+    tmp_path, caplog
+):
+    """`hold` keeps its unit of `m` until `job` releases it, so the `resource: m` of
+    `job` waits for a second unit, and for ever when `m` has one. The run logs one
+    warning that names the task; a release before it logs none."""
+    text = (
+        "simulation: {sim_id: S, factor: 0}\n"
+        "resources: {m: {current_cap: 1}}\n"
+        "arrivals: {a: {initial: 1, spawn: hold}}\n"
+        "tasks:\n"
+        "  hold: {seize: m, payload: {e: held}, next: job}\n"
+        "  job: {resource: m, service_time: 1, payload: {e: done}, release: m}\n"
+        "run: {until: 3}\n"
+    )
+    path = tmp_path / "model.yaml"
+    path.write_text(text)
+    with caplog.at_level("WARNING", logger="desflow.builder.context"):
+        SimulationContext.from_yaml(path).run(until=3)
+    found = [r.getMessage() for r in caplog.records if "second unit" in r.getMessage()]
+    assert len(found) == 1 and "task 'job' asks for resource 'm'" in found[0], found
+    caplog.clear()
+    path.write_text(
+        text.replace(
+            "payload: {e: held}, next: job",
+            "payload: {e: held}, release: m, next: job",
+        )
+    )
+    with caplog.at_level("WARNING", logger="desflow.builder.context"):
+        SimulationContext.from_yaml(path).run(until=3)
+    assert not [r for r in caplog.records if "second unit" in r.getMessage()]
+
+
+def test_the_builder_refuses_an_open_name_that_is_a_python_keyword():
+    app = SimulationContext("S", factor=0)
+    with pytest.raises(ValueError, match="not a Python keyword, got 'lambda'"):
+        app.task(name="t", open={"lambda": {"timeout": 5}})(lambda task_id: {})
+
+
+def test_the_builder_refuses_a_task_that_seizes_and_lists_one_resource():
+    app = SimulationContext("S", factor=0)
+    app.add_resource("m", current_cap=1)
+    app.add_arrival("a", dist="constant", value=1, spawn="t")
+    named_tasks(app, t={"seize": "m", "resource_id": "m", "service_time": 1})
+    with pytest.raises(ValueError, match="resource 'm' is both seized and listed"):
+        app.run(until=3)
 
 
 RELEASED_HOLDS = {

@@ -121,7 +121,7 @@ The command fails only when no candidate is usable, `empirical` included. `empir
       packing: !include packing_fit.yaml
     ```
 
-    An arrival also needs its `spawn`, so the include names the file and adds keys to it: `orders: !include {file: fitted/orders.yaml, spawn: pack}`. A YAML syntax error in the included file, or a file that is not a mapping, names that file and its line. A wrong key or value in it is reported at the blueprint's `!include` line, and so is a missing file. A file that includes itself, directly or through another, is refused at the `!include` that closes the loop.
+    An arrival also needs its `spawn`, so the include names the file and adds keys to it: `orders: !include {file: fitted/orders.yaml, spawn: pack}`. A key the fitted file already has is refused at the `!include` line, and the error names the key and both files. A YAML syntax error in the included file, or a file that is not a mapping, names that file and its line. A wrong key or value in it is reported at the blueprint's `!include` line, and so is a missing file. A file that includes itself, directly or through another, is refused at the `!include` that closes the loop.
 
 === "Builder"
 

@@ -109,6 +109,19 @@ def test_integer_takes_whole_numbers_only(tmp_path):
     assert "must be a whole number" in message
 
 
+def test_integer_bounds_must_fit_int64(tmp_path):
+    with pytest.raises(BlueprintError, match="integer bounds must be from"):
+        run(
+            tmp_path, "payload: {x: {gen: integer, bounds: [0, 100000000000000000000]}}"
+        )
+    assert field(tmp_path, "{gen: integer, bounds: [0, 9223372036854775807]}")
+    message = error_of(
+        tmp_path,
+        "payload: {x: {gen: integer, bounds: [0, {gen: expr, expr: 10 ** 20}]}}",
+    )
+    assert "gen integer: the bounds must be from" in message
+
+
 def test_normal_mean_and_deviation(tmp_path):
     values = field(tmp_path, "{gen: normal, mean: 50, std: 5}", n=400)
     mean = sum(values) / len(values)
@@ -250,6 +263,17 @@ def test_weighted_follows_the_weights_in_both_forms(tmp_path):
 def test_weighted_refuses_weights_that_sum_to_zero(tmp_path):
     message = error_of(tmp_path, "payload: {x: {gen: weighted, options: {a: 0, b: 0}}}")
     assert "weights must be 0 or more with a sum above 0" in message
+
+
+def test_weighted_refuses_weights_that_add_up_past_the_largest_float(tmp_path):
+    options = "{a: 1.0e+308, b: 1.0e+308, c: 1.0e+308}"
+    with pytest.raises(BlueprintError, match="weights add up past the largest float"):
+        run(tmp_path, "payload: {x: {gen: weighted, options: %s}}" % options)
+    computed = "{a: {gen: multiply, args: [1.0e+308, 1]}, b: 1.0e+308, c: 1.0e+308}"
+    message = error_of(
+        tmp_path, "payload: {x: {gen: weighted, options: %s}}" % computed
+    )
+    assert "weights add up past the largest float" in message
 
 
 def test_pick_draws_without_replacement(tmp_path):
@@ -688,7 +712,7 @@ def _records(tmp_path: Path, text: str) -> List[Dict[str, Any]]:
 
 def _write(tmp_path: Path, text: str) -> Path:
     path = tmp_path / "blueprint.yaml"
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     tmp_path.joinpath("a.csv").write_text("time\n0\n1\n2\n")
     return path
 
@@ -1771,6 +1795,22 @@ def test_a_template_made_after_another_context_took_its_key_takes_the_key_of_the
     _amounts_of_one_template(app, between)
     app.run(until=3.5)
     assert between.key == "template1"
+
+
+def test_a_template_named_with_an_empty_text_is_numbered_like_an_unnamed_one():
+    alone_app = SimulationContext(sim_id="B", random_seed=7, factor=0)
+    alone = _amounts_of_one_template(alone_app, Template(_AMOUNT, name=""))
+    alone_app.run(until=3.5)
+
+    first_app = SimulationContext(sim_id="A", random_seed=7, factor=0)
+    _amounts_of_one_template(first_app, Template(_AMOUNT))
+    first_app.run(until=3.5)
+    second_app = SimulationContext(sim_id="B", random_seed=7, factor=0)
+    template = Template(_AMOUNT, name="")
+    after_another = _amounts_of_one_template(second_app, template)
+    second_app.run(until=3.5)
+    assert after_another == alone
+    assert template.key == "template1"
 
 
 def test_unnamed_templates_made_and_freed_in_each_call_are_numbered_by_the_order_of_renders():
@@ -3630,3 +3670,15 @@ def test_step_and_peek_after_a_stop_do_not_run_the_model_on(
     while app.peek() < 20:
         app.step()
     assert app.env.now == ended
+
+
+def test_a_generator_in_a_tuple_is_evaluated_as_one_in_a_list():
+    def render(spec):
+        runtime = ValueRuntime(7, DynamicRealtimeEnvironment(factor=0))
+        return runtime.render(Template(spec, name="orders"))
+
+    record = render({"ids": ({"gen": "uuid"}, {"gen": "uuid"})})
+    assert isinstance(record["ids"], list) and len(record["ids"]) == 2
+    assert all(isinstance(value, str) and len(value) == 36 for value in record["ids"])
+    assert record["ids"][0] != record["ids"][1]
+    assert render({"ids": [{"gen": "uuid"}, {"gen": "uuid"}]}) == record

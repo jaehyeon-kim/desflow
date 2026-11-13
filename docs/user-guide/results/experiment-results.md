@@ -80,10 +80,10 @@ Each measure's mean over the replications, with its 95% confidence interval.
 
 | Design | Measure | Population | Mean | Half-width | Interval | n |
 |---|---|---|---|---|---|---|
-| two | `tasks.pack.wait_mean` | started instances | 4.872 | 0.5493 | 4.323 to 5.422 | 20 |
-| two | `resources.packers.utilization_avg` | time average | 80.56 | 1.034 | 79.53 to 81.59 | 20 |
-| three | `tasks.pack.wait_mean` | started instances | 0.5389 | 0.05297 | 0.4859 to 0.5919 | 20 |
-| three | `resources.packers.utilization_avg` | time average | 53.74 | 0.6803 | 53.06 to 54.42 | 20 |
+| two | `tasks.pack.wait_mean` | started instances | 4.524 | 0.5731 | 3.951 to 5.097 | 20 |
+| two | `resources.packers.utilization_avg` | time average | 80.14 | 1.104 | 79.04 to 81.25 | 20 |
+| three | `tasks.pack.wait_mean` | started instances | 0.534 | 0.0476 | 0.4864 to 0.5816 | 20 |
+| three | `resources.packers.utilization_avg` | time average | 53.46 | 0.7236 | 52.73 to 54.18 | 20 |
 
 ## Comparisons
 
@@ -91,8 +91,8 @@ Each difference is the variant's value minus the baseline's, seed by seed, with 
 
 | Baseline | Variant | Measure | Difference | Half-width | Interval | Random streams |
 |---|---|---|---|---|---|---|
-| two | three | `tasks.pack.wait_mean` | -4.333 | 0.5105 | -4.844 to -3.823 | 2 shared |
-| two | three | `resources.packers.utilization_avg` | -26.82 | 0.3642 | -27.18 to -26.45 | 2 shared |
+| two | three | `tasks.pack.wait_mean` | -3.99 | 0.5316 | -4.521 to -3.458 | 2 shared |
+| two | three | `resources.packers.utilization_avg` | -26.69 | 0.39 | -27.08 to -26.3 | 2 shared |
 
 ## Checks
 
@@ -100,13 +100,13 @@ Checks passed: 1 of 1.
 
 | Design | Measure | Checked | Bound | Value | Result |
 |---|---|---|---|---|---|
-| three | `tasks.pack.wait_mean` | the upper end | max 2 | 0.5919 | passed |
+| three | `tasks.pack.wait_mean` | the upper end | max 2 | 0.5816 | passed |
 
 ## Observed Comparison
 
 | Design | Measure | Observed | Unit | Simulated interval | Inside |
 |---|---|---|---|---|---|
-| two | `tasks.pack.wait_mean` | 4.6 | s | 4.323 to 5.422 | yes |
+| two | `tasks.pack.wait_mean` | 4.6 | s | 3.951 to 5.097 | yes |
 ```
 
 

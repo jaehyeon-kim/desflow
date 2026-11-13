@@ -24,6 +24,25 @@ from desflow.utils import checked_seconds, time_to_seconds
 PLAIN_NUMBER = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
 
 
+def exceeds_float(value: Any) -> bool:
+    """Whether a number is too large to convert to a float, such as `10**400`.
+
+    Python keeps such an integer exactly, but `float()`, `math.isnan` and the
+    comparisons built on them raise `OverflowError` for it, so each check refuses it
+    by name before they run.
+
+    Args:
+        value: Any value. Only a real number that is not a bool can exceed a float.
+    """
+    if isinstance(value, bool) or not isinstance(value, numbers.Real):
+        return False
+    try:
+        float(value)
+    except OverflowError:
+        return True
+    return False
+
+
 def duration_text(value: Any) -> Any:
     """Reads a time place as the runtime reads it: a duration in text becomes seconds, a
     number in text becomes that number, and other text is returned unchanged, for the
@@ -118,6 +137,11 @@ def check_capacity(
     """
     if value is None:
         return
+    if exceeds_float(value):
+        raise ValueError(
+            f"{kind} '{name}' needs a {'whole ' if whole else ''}number of 0 or "
+            f"more for {field}, got a number too large for a float"
+        )
     bad = (
         isinstance(value, bool)
         or not isinstance(value, numbers.Real)
@@ -222,6 +246,11 @@ def check_count_place(value: Any, what: str) -> None:
     """
     if isinstance(value, str):
         check_run_text(value, what, True)
+    elif exceeds_float(value):
+        raise ValueError(
+            f"{what} is a whole number of 0 or more, an expression or a generator, "
+            f"got a number too large for a float"
+        )
     elif isinstance(value, bool) or (
         isinstance(value, numbers.Real) and not float(value).is_integer()
     ):

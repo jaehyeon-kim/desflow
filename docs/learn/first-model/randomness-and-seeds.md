@@ -84,12 +84,12 @@ Repeating a run exactly is called **reproducibility**. It is what lets you check
 
 <!-- records: twelfth-order -->
 ```text
-[EVT] {'sim_ts': 5.99322562462081, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
-[EVT] {'sim_ts': 6.694551151806452, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
-[EVT] {'sim_ts': 8.442761234986172, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'event_type': 'order_packed'}}
+[EVT] {'sim_ts': 7.549626752406978, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 7.549626752406978, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
+[EVT] {'sim_ts': 8.080484400652141, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'event_type': 'order_packed'}}
 ```
 
-It is `queued` at 5.993, gets a packer at 6.695 and is packed at 8.443: a wait of 0.701 seconds.
+It is `queued` at 7.550, gets a packer at the same moment and is packed at 8.080: a wait of 0 seconds.
 
 ---
 
@@ -161,13 +161,13 @@ Run it with the seed 42. `orders-12` has the same three events as before, at the
 
 ![With the seed 42, the first run draws arrival.orders and service.packing; the second run, with returns added, draws the same numbers from those two streams and adds a stream of its own, arrival.returns](../../assets/diagrams/seed-sequences.png)
 
-With one shared stream, the returns would take some of the numbers the orders and packing used to get, and every later time would shift. The name is part of the stream. Renaming a service, an arrival or a task that routes by weights therefore gives it a new stream, and a run with the same seed then gives other results. [Busy Hour Figures](../concepts/output-analysis.md#busy-hour-figures) lists two such runs: the same measured packing times give 1.35 or 1.38 seconds of mean wait, depending on the service's name.
+With one shared stream, the returns would take some of the numbers the orders and packing used to get, and every later time would shift. The name is part of the stream. Renaming a service, an arrival or a task that routes by weights therefore gives it a new stream, and a run with the same seed then gives other results. [Busy Hour Figures](../concepts/output-analysis.md#busy-hour-figures) lists two such runs: the same measured packing times give 1.81 or 2.01 seconds of mean wait, depending on the service's name.
 
 ---
 
 ## What You Get and Why
 
-Why do runs differ, and how can you reproduce one? Runs differ because they start their random number streams from different seeds. Repeat a run by supplying the same seed: `random_seed: 42` in the blueprint, `random_seed=42` on `SimulationContext`, `Sampler(seed=42)` in the low-level API, or `desflow run --seed 42`. With it, **the twelfth order waits 0.701 seconds** on every run, and still 0.701 seconds after the returns are added.
+Why do runs differ, and how can you reproduce one? Runs differ because they start their random number streams from different seeds. Repeat a run by supplying the same seed: `random_seed: 42` in the blueprint, `random_seed=42` on `SimulationContext`, `Sampler(seed=42)` in the low-level API, or `desflow run --seed 42`. With it, **the twelfth order waits 0 seconds** on every run, and still 0 seconds after the returns are added.
 
 One stream per input means that two versions of a model run with the same seed see the same arrivals and the same service times wherever they share them. A difference between their results then comes from the change, not from different random numbers. Each node of a generated value, such as a `uniform` or a `fake` field, also has a stream of its own, so adding a generated field never moves an arrival or a service draw. This is called **common random numbers** ([Output Analysis](../concepts/output-analysis.md#comparing-designs) explains it), and it is how two designs are compared fairly. [Arrivals and Services](../../user-guide/model-parts/arrivals-and-services.md) describes how each stream is made, and [Distributions](../../reference/distributions.md) lists every family with its parameters.
 

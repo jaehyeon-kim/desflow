@@ -6166,7 +6166,7 @@
     },
     "RunningTarget": {
       "additionalProperties": false,
-      "description": "A `running` wait branch target: the task whose running instances to wait for,\nnarrowed by an optional `where` condition read in each instance's scope. The\nwait is for the end of the instance's task, or, with `whole_flow: true`, for the\nend of the whole flow the instance belongs to (its `next` chain and the tasks it\nwaits for in child flows), as `yield process` waits for a SimPy process. A flow\nselected that way is any flow of the model, and one that has ended already\nends the wait at once; its last task's payload is the branch's value.",
+      "description": "A `running` wait branch target: the task whose running instances to wait for,\nnarrowed by an optional `where` condition read in each instance's scope. The\nwait is for the end of the instance's task, or, with `whole_flow: true`, for the\nend of the whole flow the instance belongs to (its `next` chain and the tasks it\nwaits for in child flows), as `yield process` waits for a SimPy process. A flow\nselected that way is any flow of the model that is running when the wait\nbegins, or that ended while an instance of a task with such a wait was running\nand still is; a flow with no match ends the wait at once. Its last task's\npayload is the branch's value.",
       "properties": {
         "task": {
           "type": "string"

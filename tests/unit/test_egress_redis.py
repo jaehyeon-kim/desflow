@@ -1,3 +1,4 @@
+import asyncio
 import json
 import queue
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -190,3 +191,49 @@ async def test_an_empty_or_refused_batch_leaves_the_sink_running(run_until, capl
     assert pipe.xadd.call_count == 2
     assert "Error publishing batch to Redis: down" in caplog.text
     assert egress.active_tasks == 0
+
+
+@pytest.mark.asyncio
+async def test_a_stream_that_is_not_text_is_ignored_with_a_warning(run_until, caplog):
+    """redis-py refuses a stream name that is not text only when the pipeline runs,
+    which lost the whole batch. The record goes to the default stream with one
+    warning, and the rest of the batch is published."""
+    egress = RedisEgress("redis://localhost:6379", stream_name="events")
+    egress.client = AsyncMock()
+    pipe = MagicMock()
+    pipe.execute = AsyncMock()
+    egress.client.pipeline = MagicMock(return_value=pipe)
+    q: queue.Queue = queue.Queue()
+    q.put(
+        [
+            {"stream_type": "event", "key": "a", "value": {"__stream__": "custom"}},
+            {"stream_type": "event", "key": "b", "value": {"__stream__": True}},
+            {"stream_type": "event", "key": "c", "value": {"__stream__": ["x"]}},
+        ]
+    )
+
+    await run_until(egress.run(q), lambda: pipe.execute.called and q.empty())
+
+    assert [c.args[0] for c in pipe.xadd.call_args_list] == [
+        "custom",
+        "events",
+        "events",
+    ]
+    assert caplog.text.count("RedisEgress ignores __stream__") == 1
+    assert "Error publishing batch" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_setting_redis_py_refuses_ends_the_sink(caplog):
+    """A `TypeError` from redis-py, such as a misspelt keyword, ends the task with its
+    error instead of logging every batch as not published."""
+    egress = RedisEgress(
+        "redis://localhost:6379", stream_name="events", socket_timout=2
+    )
+    q: queue.Queue = queue.Queue()
+    q.put([{"stream_type": "event", "key": "a", "value": {"x": 1}}])
+
+    with pytest.raises(TypeError, match="socket_timout"):
+        await asyncio.wait_for(egress.run(q), timeout=5)
+
+    assert "Error publishing batch" not in caplog.text

@@ -1,6 +1,6 @@
 # Comparing Designs
 
-[Trusting Results](trusting-results.md) measured the busy hour with three packers: over 40 [replications](../concepts/output-analysis.md#replications) the mean wait was 2.32 ± 0.20 seconds. The shop could hire a fourth packer. This page asks: **does a fourth packer cut the mean wait, and by how much?**
+[Trusting Results](trusting-results.md) measured the busy hour with three packers: over 40 [replications](../concepts/output-analysis.md#replications) the mean wait was 2.10 ± 0.10 seconds. The shop could hire a fourth packer. This page asks: **does a fourth packer cut the mean wait, and by how much?**
 
 - **Decision:** three packers or four.
 - **Measures:** the mean wait and the packers' [utilisation](../concepts/queueing-basics.md#utilisation).
@@ -125,17 +125,17 @@ The experiment runs 40 replications, 20 of each design, and writes what it found
 
 | Design | Mean wait (s) | Utilisation (%) |
 |---|---|---|
-| three | 2.48 ± 0.32 | 90.33 ± 0.63 |
-| four | 0.27 ± 0.01 | 67.70 ± 0.46 |
+| three | 2.15 ± 0.15 | 89.99 ± 0.60 |
+| four | 0.27 ± 0.01 | 67.51 ± 0.46 |
 
-The three-packer design ran with the first 20 of the seeds that Trusting Results used. Its row therefore equals that page's figure for 20 replications, not its mean of 2.32 seconds over 40. [Busy Hour Figures](../concepts/output-analysis.md#busy-hour-figures) lists both. The comparison gives the four-packer value minus the three-packer value, seed by seed:
+The three-packer design ran with the first 20 of the seeds that Trusting Results used. Its row therefore equals that page's figure for 20 replications, not its mean of 2.10 seconds over 40. [Busy Hour Figures](../concepts/output-analysis.md#busy-hour-figures) lists both. The comparison gives the four-packer value minus the three-packer value, seed by seed:
 
 | Measure | Difference | Half-width | Random streams |
 |---|---|---|---|
-| `tasks.pack_order.wait_mean` | -2.21 s | 0.31 s | 2 shared |
-| `resources.packers.utilization_avg` | -22.63 percentage points | 0.17 percentage points | 2 shared |
+| `tasks.pack_order.wait_mean` | -1.89 s | 0.14 s | 2 shared |
+| `resources.packers.utilization_avg` | -22.49 percentage points | 0.15 percentage points | 2 shared |
 
-The difference in [utilisation](../concepts/queueing-basics.md#utilisation) has a half-width of 0.17 percentage points, although each design's own utilisation has a half-width of 0.63 or 0.46. The same seed gives both designs the same arrivals and packing times, so a busy run of one design is a busy run of the other. Their difference therefore leaves out most of the variation that comes from chance. Running every design with the same seeds is called **[common random numbers](../concepts/output-analysis.md#comparing-designs)**. The difference in waits has a half-width of 0.31 seconds, about the same as the half-width of the three-packer wait, 0.32 seconds. With four packers the wait hardly varies, so the difference varies about as much as the three-packer wait does.
+The difference in [utilisation](../concepts/queueing-basics.md#utilisation) has a half-width of 0.15 percentage points, although each design's own utilisation has a half-width of 0.60 or 0.46. The same seed gives both designs the same arrivals and packing times, so a busy run of one design is a busy run of the other. Their difference therefore leaves out most of the variation that comes from chance. Running every design with the same seeds is called **[common random numbers](../concepts/output-analysis.md#comparing-designs)**. The difference in waits has a half-width of 0.14 seconds, about the same as the half-width of the three-packer wait, 0.15 seconds. With four packers the wait hardly varies, so the difference varies about as much as the three-packer wait does.
 
 "2 shared" says both designs drew from the same two random streams, `arrival.orders` and `service.packing`. desflow records which streams each run drew from. It lists any stream that only one design used, such as the stream of a gift-wrap step that only one design has, because draws from such a stream are not paired. With `pairing: independent` each design gets seeds of its own instead. A comparison is then refused, because no seed pairs one run of each design.
 
@@ -166,7 +166,7 @@ A check states what the answer must be. This one asks for a mean wait under half
 
     The same key, in the same mapping.
 
-A check compares its bound with the end of the interval that is nearer to failing it, here the upper end. A mean that is below the bound only by chance has an upper end above the bound, so it does not pass. The upper end is 0.286 seconds, so the check passes. When a check fails, `desflow experiment` still writes every file, then exits with status 1, and `run_experiment` raises `CheckFailed`. Either way, a script or a CI job stops at the failed check.
+A check compares its bound with the end of the interval that is nearer to failing it, here the upper end. A mean that is below the bound only by chance has an upper end above the bound, so it does not pass. The upper end is 0.276 seconds, so the check passes. When a check fails, `desflow experiment` still writes every file, then exits with status 1, and `run_experiment` raises `CheckFailed`. Either way, a script or a CI job stops at the failed check.
 
 ---
 
@@ -202,9 +202,9 @@ desflow report results/four-packers-again
 
 The mean wait of each design over its 20 replications, with its 95% interval:
 
-![Bars of the busy hour's mean wait over 20 replications of each design with the same seeds: 2.48 ± 0.32 seconds with three packers and 0.27 ± 0.01 seconds with four, which is under the dashed half-second bound](../../assets/charts/comparing-waits.png)
+![Bars of the busy hour's mean wait over 20 replications of each design with the same seeds: 2.15 ± 0.15 seconds with three packers and 0.27 ± 0.01 seconds with four, which is under the dashed half-second bound](../../assets/charts/comparing-waits.png)
 
-Does a fourth packer cut the mean wait, and by how much? Yes. Over 20 replications of each design after the 2-minute warm-up, with the same seeds, a fourth packer cuts the busy hour's mean wait by **2.21 ± 0.31 seconds**, from 2.48 to 0.27 seconds. The packers are busy **22.63 ± 0.17 percentage points** less of the time. The whole interval of the difference is below zero, and the four-packer wait stays under the half-second bound.
+Does a fourth packer cut the mean wait, and by how much? Yes. Over 20 replications of each design after the 2-minute warm-up, with the same seeds, a fourth packer cuts the busy hour's mean wait by **1.89 ± 0.14 seconds**, from 2.15 to 0.27 seconds. The packers are busy **22.49 ± 0.15 percentage points** less of the time. The whole interval of the difference is below zero, and the four-packer wait stays under the half-second bound.
 
 Two designs run with different seeds differ by the design and by chance, and the chance part can hide a small effect. With the same seeds, each pair of runs has the same arrivals and the same packing times, so the chance part partly cancels in their difference, as [Output Analysis](../concepts/output-analysis.md#comparing-designs) explains. Each difference comes from a seed of its own, so the 20 differences are independent of each other, and the interval is a [Student t interval](../concepts/output-analysis.md#interval-and-half-width) on them.
 

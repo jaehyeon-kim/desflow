@@ -763,3 +763,69 @@ def test_a_weighted_router_with_no_generator_refuses_to_choose():
     router = Router({"weights": {"ship": 1, "rework": 1}})
     with pytest.raises(ValueError, match="weights need a random generator"):
         router.choose(Upstream(0, "e", {}))
+
+
+def test_a_whole_number_too_large_for_a_float_is_refused_not_a_crash(tmp_path):
+    """A weight and a wait `each` count of `10**400` raise ValueError in the Builder and
+    BlueprintError in YAML, as a number too large for a float does elsewhere."""
+    from desflow.builder.flow import Wait
+
+    big = 10**400
+    with pytest.raises(ValueError, match="weight of 'x'"):
+        Router({"weights": {"x": big, "y": 1}})
+    with pytest.raises(ValueError, match="each is a whole number"):
+        Wait({"each": big, "branch": {"timeout": 1}})
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0}\n"
+        "arrivals: {a: {gap: 1, spawn: job}}\n"
+        f"tasks: {{job: {{payload: {{}}, wait: {{each: {big}, branch: {{timeout: 1}}}}}}}}\n"
+        "run: {until: 3}\n"
+    )
+    with pytest.raises(BlueprintError, match="each is a whole number"):
+        SimulationContext.from_yaml(path)
+
+
+@pytest.mark.parametrize(
+    "tasks, named",
+    [
+        ("job: {payload: {e: 1}, next: job}", "task 'job' ran"),
+        (
+            "job: {payload: {e: 1}, next: other}\n  other: {payload: {e: 2}, next: job}",
+            "tasks 'other', 'job' ran",
+        ),
+    ],
+)
+def test_a_loop_of_tasks_that_take_no_time_stops_the_run_naming_the_tasks(
+    tmp_path, tasks, named
+):
+    """The next instance runs in the step the last ends, so a loop with no service,
+    resource, wait or get never gives the clock a turn. The run stops after as many
+    instances as a breakdown may cycle at one instant (10,000)."""
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0}\n"
+        "arrivals: {a: {initial: 1, spawn: job}}\n"
+        f"tasks:\n  {tasks}\n"
+        "run: {until: 10}\n"
+    )
+    app = SimulationContext.from_yaml(path)
+    with pytest.raises(ValueError, match=r"ran 10000 times in one flow at time 0") as e:
+        app.run()
+    assert named in str(e.value)
+
+
+def test_a_loop_with_a_way_out_or_a_service_time_is_not_stopped(tmp_path):
+    """A weighted loop leaves it with chance, and a loop whose task takes time moves
+    the clock, so neither reaches the limit."""
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "arrivals: {a: {initial: 1, spawn: job}}\n"
+        "tasks:\n"
+        "  job: {payload: {e: 1}, next: {weights: {job: 1, out: 1}}}\n"
+        "  out: {service_time: 1, payload: {e: 2}, next: slow}\n"
+        "  slow: {service_time: 1, payload: {e: 3}, next: slow}\n"
+        "run: {until: 20000}\n"
+    )
+    SimulationContext.from_yaml(path).run()

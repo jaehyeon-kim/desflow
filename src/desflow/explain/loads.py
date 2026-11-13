@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple
 from desflow.explain.capacity import capacity_rows
 from desflow.explain.formulas import status_of
 from desflow.explain.models import (
+    PROCESS_ID_PREFIX,
     VERIFY_HINT,
     Graph,
     Node,
@@ -52,7 +53,7 @@ def processes(graph: Graph) -> List[str]:
     Returns:
         List[str]: Their labels.
     """
-    return [n.label for n in graph.nodes if n.id.startswith("opaque:process.")]
+    return [n.label for n in graph.nodes if n.id.startswith(PROCESS_ID_PREFIX)]
 
 
 def load(node: Node, tasks: List[TaskResult], functions: List[str]) -> ResourceResult:

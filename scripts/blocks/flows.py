@@ -7,14 +7,14 @@ from .commands import resources_and_reasons
 
 
 def stock_out() -> List[str]:
-    """Stock: the stock's readings around the second stock-out of 40-box deliveries."""
+    """Stock: the stock's readings around the first stock-out of 40-box deliveries."""
     module = load_script("docs/snippets/tutorials/stock.py")
-    lines = capture(lambda: module.shop(40).run(until=210))
+    lines = capture(lambda: module.shop(40).run(until=310))
     keep = (".stock.level'", ".stock.getters_waiting'", ".packers.queue_length'")
     return [
         line
         for line in lines
-        if any(k in line for k in keep) and 170 <= fields(line)["sim_ts"] <= 200
+        if any(k in line for k in keep) and 270 <= fields(line)["sim_ts"] <= 300
     ]
 
 
@@ -47,9 +47,9 @@ def priorities_table() -> List[str]:
 
 
 def one_order_flow() -> List[str]:
-    """A Flow of Tasks: every event of orders-172, backordered and packed twice."""
+    """A Flow of Tasks: every event of orders-851, backordered and packed twice."""
     lines = event_lines(yaml_records("docs/snippets/yaml/flow_of_tasks.yaml"))
-    return [line for line in lines if fields(line)["key"] == "orders-172"]
+    return [line for line in lines if fields(line)["key"] == "orders-851"]
 
 
 def priorities_explain() -> List[str]:

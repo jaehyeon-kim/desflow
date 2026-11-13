@@ -38,6 +38,7 @@ from desflow.config import (
     LABELS,
     TRACE,
     STATS_LEVELS,
+    UNHANDLED_FAILURE_POLICIES,
 )
 from desflow.core.environment import (
     DynamicRealtimeEnvironment,
@@ -826,7 +827,7 @@ class SimulationContext:
                 `queue_limit` is negative or is set on a `type` with its own
                 `PutQueue`.
         """
-        self._families.claim("resource", name)
+        self._families.check_name("resource", name)
         (current_cap, max_cap), texts = _family_fields(
             "resource", name, family, members, current_cap=current_cap, max_cap=max_cap
         )
@@ -908,7 +909,7 @@ class SimulationContext:
                 subclass of `ContainerBase`, or `get_queue` or `put_queue` is
                 malformed, reads what it cannot or is given with `type`.
         """
-        self._families.claim("container", name)
+        self._families.check_name("container", name)
         if name in self._holders.stores_config:
             raise ValueError(f"'{name}' is already a store")
         (cap, top, start), texts = _family_fields(
@@ -994,7 +995,7 @@ class SimulationContext:
                 `put_queue` is malformed, reads what it cannot or is given with
                 `type`.
         """
-        self._families.claim("store", name)
+        self._families.check_name("store", name)
         if not isinstance(priority, bool):
             raise ValueError(
                 f"store '{name}': priority is true or false, got {priority!r}"
@@ -1856,17 +1857,6 @@ class SimulationContext:
                 self._bind_values(
                     spec.spawn, ("tasks", task_name, "spawn"), overwrite=False
                 )
-            self.note_values(
-                task_name,
-                *(getattr(spec, field) for field in generated),
-                spec.attribute_changes,
-                spec.on,
-                spec.interrupt,
-                spec.spawn,
-                spec.service_time,
-                spec.patience,
-                spec.key,
-            )
             for field in (*generated, "attribute_changes", "on", "interrupt"):
                 self._bind_values(
                     getattr(spec, field),
@@ -1926,6 +1916,18 @@ class SimulationContext:
                     found.expression.where = f"task '{task_name}' " + ".".join(
                         map(str, found.place)
                     )
+            # Noted after every check, so a refused task leaves no row target behind
+            self.note_values(
+                task_name,
+                *(getattr(spec, field) for field in generated),
+                spec.attribute_changes,
+                spec.on,
+                spec.interrupt,
+                spec.spawn,
+                spec.service_time,
+                spec.patience,
+                spec.key,
+            )
             self._task_functions[task_name] = wrapper
             self._tasks.specs[task_name] = spec
             return wrapper
@@ -2522,7 +2524,7 @@ class SimulationContext:
             ValueError: If `members` is given without `family`, or `defused` is not
                 True or False.
         """
-        self._families.claim("signal", name)
+        self._families.check_name("signal", name)
         _family_fields("signal", name, family, members)
         for flag, value in (("once", once), ("defused", defused)):
             if not isinstance(value, bool):
@@ -2586,11 +2588,17 @@ class SimulationContext:
 
         Raises:
             RuntimeError: If called before the run starts.
+            ValueError: If no task has that name.
         """
         if not self._env:
             raise RuntimeError(
                 "Cannot interrupt tasks before context is run; interrupt them from a "
                 "task, a process or a scenario step"
+            )
+        if task not in self._tasks.specs:
+            raise ValueError(
+                f"no task is called '{task}'"
+                + (suggestion(task, self._tasks.specs) or "; add it with @app.task()")
             )
         condition = Expression(where) if isinstance(where, str) else where
         active = self._env.active_process
@@ -2860,7 +2868,7 @@ class SimulationContext:
             raise RuntimeError(
                 f"the run ended at {env.now:g}; close() it, or start() a new run"
             )
-        if isinstance(until, (str, bool, float, int)):
+        if not isinstance(until, simpy.Event):
             until = checked_seconds(until, "until", below_zero=True)
         if isinstance(until, simpy.Event):
             if until.callbacks is None:
@@ -2952,6 +2960,12 @@ class SimulationContext:
         process = self._tasks.spawn_entity(self, self._parts, task, None, None, None)
         try:
             while not process.triggered:
+                if self.env.peek() > self.env.now:
+                    raise RuntimeError(
+                        f"the segment's look task '{task}' did not end at time "
+                        f"{self.env.now}: it takes time or waits for something that "
+                        "has not happened, and a look task runs only zero-time steps"
+                    )
                 self.env.step()
         except StopSimulation:
             pass  # _stop_run() ended the run
@@ -3160,6 +3174,11 @@ class SimulationContext:
             )
         if isinstance(run_segments, Mapping) and until is None:
             raise ValueError("segments {'every': ...} needs an until to divide")
+        if isinstance(run_segments, Mapping) and math.isinf(until):
+            raise ValueError(
+                "segments {'every': ...} needs a finite until to divide, "
+                f"and until gave {until:g}"
+            )
         previous = self.initial_time
         for entry in run_segments if isinstance(run_segments, list) else ():
             if entry.get("until") is not None:
@@ -3197,6 +3216,15 @@ class SimulationContext:
                 "when='trace' receives the records of stats.trace, so the context needs "
                 "with_stats(trace=True)"
             )
+        # Checked here, with the other settings, and not by _build(), which comes
+        # after the run that is open has been closed
+        if on_unhandled_failure not in UNHANDLED_FAILURE_POLICIES:
+            raise ValueError(
+                "on_unhandled_failure must be one of "
+                + ", ".join(UNHANDLED_FAILURE_POLICIES)
+                + f", got {on_unhandled_failure!r}"
+            )
+        self._checked_seed(seed)
         for setup in self._defaults.before_run:
             setup()
         # A run started and not closed is closed first, so its connectors stop
@@ -3297,15 +3325,24 @@ class SimulationContext:
         env_kwargs["on_unhandled_failure"] = self._run.on_unhandled_failure
         return self.environment(**env_kwargs)
 
+    def _checked_seed(self, seed: Optional[int]) -> Optional[int]:
+        """The seed `start()` was given, else `random_seed`, checked to be a whole
+        number from 0, and None when neither is set.
+
+        Raises:
+            ValueError: If the seed is not a whole number from 0.
+        """
+        if seed is not None:
+            checked_whole(seed, "seed", 0)
+            return seed
+        if self.random_seed is not None:
+            checked_whole(self.random_seed, "random_seed", 0)
+        return self.random_seed
+
     def _run_seed(self, seed: Optional[int]) -> int:
         """The run's seed: the one `start()` was given, else `random_seed`, else a
         new one, which the log names so the run can be repeated."""
-        if seed is not None:
-            checked_whole(seed, "seed", 0)
-        else:
-            seed = self.random_seed
-            if seed is not None:
-                checked_whole(seed, "random_seed", 0)
+        seed = self._checked_seed(seed)
         if seed is None:
             seed = secrets.randbelow(2**32)
             logger.info(
@@ -4161,6 +4198,9 @@ def _task_fields(
 ) -> "_TaskFields":
     """The first phase of `task()`: checks its arguments, in the order `task()`
     documents its refusals, and turns them into the fields of its `TaskSpec`."""
+    # The name is None until the decorator reads it from the function
+    place = f"task '{name}'" if name is not None else "a task's"
+    prefix = f"task '{name}': " if name is not None else ""
     resources = [
         name_of(found, "resource_id")
         for found in (
@@ -4267,7 +4307,7 @@ def _task_fields(
         except ValueError:
             pass  # not a duration, so an expression such as "attr.fuel / 2"
     if isinstance(service_time, numbers.Real):
-        service_time = checked_seconds(service_time, f"task '{name}' service_time")
+        service_time = checked_seconds(service_time, f"{place} service_time")
     if service_time is not None and not (
         isinstance(service_time, (str, Gen))
         or callable(service_time)
@@ -4308,7 +4348,7 @@ def _task_fields(
         and not (opened is not None and opened.plain_requests())
     ):
         raise ValueError(
-            f"task '{name}': priority and preempt of a task apply to a resource, a "
+            f"{prefix}priority and preempt of a task apply to a resource, a "
             "seize or a request written as a name; every request of this task is "
             "a mapping, which takes its own priority and preempt, so put them there"
         )
@@ -4322,7 +4362,7 @@ def _task_fields(
         except ValueError:
             pass  # not a duration, so an expression such as "attr.patience"
     if isinstance(patience, numbers.Real):
-        patience = checked_seconds(patience, f"task '{name}' patience")
+        patience = checked_seconds(patience, f"{place} patience")
     take = None if get is None else Transfer.of(get)
     if take is not None and take.priority != 0.0:
         raise ValueError(
@@ -4491,12 +4531,10 @@ def _parse_spawn(spec: Mapping[str, Any]) -> Dict[str, Any]:
     if not isinstance(task, str):
         raise ValueError(f"a spawn names a task, got {task!r}")
     after = spec.get("after")
-    if isinstance(after, str):
-        after = time_to_seconds(after)
-    if isinstance(after, bool):
-        raise ValueError(f"a spawn after is seconds or a duration, got {after!r}")
-    if after is not None and not after > 0:
-        raise ValueError(f"a spawn after is more than 0, got {after:g}")
+    if after is not None:
+        after = checked_seconds(after, "a spawn after", below_zero=True)
+        if not after > 0:
+            raise ValueError(f"a spawn after is more than 0, got {after:g}")
     return {
         "task": task,
         "after": after,
@@ -4583,12 +4621,10 @@ def _parse_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
             )
         if defused and not fail:
             raise ValueError("defused is for a failure, so it needs fail: true")
-        if isinstance(after, str):
-            after = time_to_seconds(after)
-        if isinstance(after, bool):
-            raise ValueError(f"a fire after is seconds or a duration, got {after!r}")
-        if after is not None and not after > 0:
-            raise ValueError(f"a fire after is more than 0, got {after:g}")
+        if after is not None:
+            after = checked_seconds(after, "a fire after", below_zero=True)
+            if not after > 0:
+                raise ValueError(f"a fire after is more than 0, got {after:g}")
         extra = set(fire) - {
             "signal",
             "value",

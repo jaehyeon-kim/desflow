@@ -133,6 +133,44 @@ async def test_kafka_ingress_pluggable_deserializers(MockConsumer):
 
 @pytest.mark.asyncio
 @patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
+async def test_a_group_commits_an_offset_only_after_its_message_is_handled(
+    MockConsumer,
+):
+    """With a `group_id` the consumer does not commit by itself, because it would
+    commit the position of a message that still waits for the registry. The offset is
+    committed after the message is put on the queue."""
+    consumer = MagicMock()
+    consumer.start = AsyncMock()
+    consumer.stop = AsyncMock()
+    committed = []
+    consumer.commit = AsyncMock(
+        side_effect=lambda offsets: committed.append((offsets, ingress_queue.qsize()))
+    )
+
+    async def messages():
+        yield MagicMock(
+            topic="t", partition=2, offset=6, value=b'{"path": "Shop.cap", "value": 1}'
+        )
+        await asyncio.sleep(999)
+
+    consumer.__aiter__ = lambda self: messages()
+    MockConsumer.return_value = consumer
+    ingress_queue = queue.Queue()
+    ingress = KafkaIngress(topic="t", bootstrap_servers="localhost:9092", group_id="g")
+
+    task = asyncio.create_task(ingress.run(ingress_queue))
+    await _wait_until(lambda: bool(committed))
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert MockConsumer.call_args.kwargs["enable_auto_commit"] is False
+    [(offsets, queued)] = committed
+    assert queued == 1
+    assert list(offsets.values()) == [7]
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
 async def test_a_slow_deserializer_does_not_hold_the_loop(MockConsumer):
     """A deserializer that waits, as a registry call retrying does, runs off the
     loop, so another task on the loop keeps running."""
@@ -374,6 +412,59 @@ async def test_a_registry_that_refuses_access_ends_the_source(
     else:
         assert ingress_queue.get_nowait() == ("A", 1)
         assert "Skipped a Kafka ingress message" in caplog.text
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
+async def test_a_temporary_registry_error_keeps_the_message_for_a_retry(
+    MockConsumer, caplog, monkeypatch
+):
+    """A registry that fails for a time (a 503 status) keeps the message, which is
+    decoded again after a wait, so the change is applied and the one after it
+    follows in order."""
+    from desflow.connectors._schema_registry.errors import SchemaRegistryError
+
+    monkeypatch.setattr(
+        "desflow.connectors.ingress.kafka.FIRST_DELAY", 0.01, raising=False
+    )
+
+    class FakeConsumer:
+        def __init__(self):
+            self.start = AsyncMock()
+            self.stop = AsyncMock()
+
+        async def __aiter__(self):
+            for payload in (b"10", b"20"):
+                yield MagicMock(topic="sim-config", value=payload)
+            await asyncio.sleep(999)
+
+    calls = []
+
+    def deserialize(topic, value):
+        calls.append(value)
+        if len(calls) == 1:
+            raise SchemaRegistryError(503, 50003, "Service Unavailable")
+        return {"path": "A", "value": int(value)}
+
+    deserializer = MagicMock()
+    deserializer.deserialize.side_effect = deserialize
+    MockConsumer.return_value = FakeConsumer()
+    ingress_queue = queue.Queue()
+    ingress = KafkaIngress(
+        topic="sim-config",
+        bootstrap_servers="localhost:9092",
+        default_deserializer=deserializer,
+        topic_policy="manual",
+    )
+
+    task = asyncio.create_task(ingress.run(ingress_queue))
+    await _wait_until(lambda: ingress_queue.qsize() >= 2)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert [ingress_queue.get_nowait() for _ in range(2)] == [("A", 10), ("A", 20)]
+    assert calls == [b"10", b"10", b"20"]
+    assert "Skipped a Kafka ingress message" not in caplog.text
 
 
 def test_topic_policy_creates_the_control_topic(mock_admin, caplog):

@@ -199,12 +199,12 @@ Run the model for 30 simulated seconds and print its first 6 records. The five p
 
 <!-- records: gd-build-on-the-last-value -->
 ```text
-{"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"product-0","task":"price","instance":0,"value":{"product":"product-0","price":20.1,"stock":334}}
-{"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"product-1","task":"price","instance":1,"value":{"product":"product-1","price":20.87,"stock":239}}
-{"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"product-2","task":"price","instance":2,"value":{"product":"product-2","price":19.97,"stock":332}}
-{"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"product-3","task":"price","instance":3,"value":{"product":"product-3","price":19.96,"stock":286}}
-{"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"product-4","task":"price","instance":4,"value":{"product":"product-4","price":19.39,"stock":221}}
-{"stream_type":"event","sim_ts":2.0,"timestamp":"...","key":"product-0","task":"price","instance":5,"value":{"product":"product-0","price":19.44,"stock":298}}
+{"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"product-0","task":"price","instance":0,"value":{"product":"product-0","price":20.07,"stock":260}}
+{"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"product-1","task":"price","instance":1,"value":{"product":"product-1","price":19.78,"stock":218}}
+{"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"product-2","task":"price","instance":2,"value":{"product":"product-2","price":20.29,"stock":323}}
+{"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"product-3","task":"price","instance":3,"value":{"product":"product-3","price":20.99,"stock":219}}
+{"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"product-4","task":"price","instance":4,"value":{"product":"product-4","price":19.28,"stock":271}}
+{"stream_type":"event","sim_ts":2.0,"timestamp":"...","key":"product-0","task":"price","instance":5,"value":{"product":"product-0","price":20.15,"stock":243}}
 ```
 
 The docs test runs the model for 5,000 simulated seconds: no price differs from the product's last price by more than 1, and the stock reaches both 0 and 500 but never leaves that range.
