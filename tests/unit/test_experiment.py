@@ -177,6 +177,25 @@ def test_one_factor_sensitivity_changes_only_that_factor(tmp_path):
     )
 
 
+def test_a_factory_that_is_a_partial_writes_the_artifacts(tmp_path):
+    """A partial has no source file, so the record holds no hash of one."""
+    import functools
+
+    out = tmp_path / "out"
+    result = run_experiment(
+        _settings(
+            model=functools.partial(shop),
+            variants={"base": {}},
+            compare=[],
+            checks=[],
+            output=str(out),
+        )
+    )
+    assert result.designs
+    recorded = json.loads((out / "experiment.json").read_text(encoding="utf-8"))
+    assert recorded["model"]["sha256"] is None
+
+
 def test_an_experiment_repeats_and_the_three_forms_agree(folder, tmp_path):
     first = run_experiment(folder / "experiment.yaml")
     again = run_experiment(folder / "experiment.yaml")
@@ -330,6 +349,22 @@ OBSERVED = "measure,value,unit,population,horizon\n{}\n"
 )
 def test_observed_values_must_match_the_measure(folder, row, error):
     (folder / "observed.csv").write_text(OBSERVED.format(row))
+    (folder / "experiment.yaml").write_text(
+        EXPERIMENT + "observed: {file: observed.csv}\n"
+    )
+    with pytest.raises(ValueError, match=error):
+        run_experiment(folder / "experiment.yaml")
+
+
+@pytest.mark.parametrize(
+    "text,error",
+    [
+        ("wrong,columns\n", "needs the columns"),
+        ("measure,value,unit,population,horizon\n", "has no rows"),
+    ],
+)
+def test_an_observed_file_with_no_rows_is_refused(folder, text, error):
+    (folder / "observed.csv").write_text(text)
     (folder / "experiment.yaml").write_text(
         EXPERIMENT + "observed: {file: observed.csv}\n"
     )

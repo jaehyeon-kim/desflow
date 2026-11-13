@@ -956,3 +956,37 @@ def test_a_capacity_clamped_to_a_whole_float_max_cap_stays_a_whole_number(regist
     registry.update("S.resources.r.current_cap", 7)
     written = registry.get("S.resources.r.current_cap").value
     assert written == 5 and isinstance(written, int)
+
+
+@pytest.mark.parametrize("value", [True, float("nan"), float("inf")])
+def test_check_value_type_still_refuses_a_distribution_value_that_is_not_a_finite_number(
+    registry, value
+):
+    from desflow.core.registry import check_value_type
+
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop",
+            service={"s": DistributionConfig(dist="exponential", rate=2)},
+        )
+    )
+    with pytest.raises(ParamRejected, match="rate"):
+        check_value_type(registry, "Shop.service.s.rate", value)
+    with pytest.raises(ParamRejected, match="rate"):
+        registry.check_value("Shop.service.s.rate", value)
+
+
+def test_check_value_type_skips_the_rules_between_distribution_parameters(registry):
+    from desflow.core.registry import check_value_type
+
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop",
+            service={"s": DistributionConfig(dist="uniform", low=1, high=2)},
+        )
+    )
+    # low above high is refused by the family rule on a live update, but a scenario
+    # step may raise `high` first, so the load check of a conditional action allows it
+    assert check_value_type(registry, "Shop.service.s.low", 5) == 5
+    with pytest.raises(ParamRejected):
+        registry.check_value("Shop.service.s.low", 5)

@@ -20,7 +20,7 @@ This page shows how to:
 This page runs `desflow fit`, or `fit_column` in Python, on the 40 packing times. It then uses the fitted settings in the busy hour of [Choosing Inputs](choosing-inputs.md), in place of the times themselves. Fitting needs the `fit` extra, which adds scipy and matplotlib:
 
 ```bash
-# The desflow command, with uv
+# desflow command, with uv
 uv tool install "desflow[fit]"
 
 # A Python file, with uv outside a project

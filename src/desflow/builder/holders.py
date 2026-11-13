@@ -384,15 +384,19 @@ class HolderRun:
     containers: Dict[str, DynamicContainer] = dataclasses.field(default_factory=dict)
 
     def starting_items(self, store_id: str) -> Optional[List[Any]]:
-        """The items a store starts with; a generator in `items` is evaluated now,
-        once for each item.
+        """The items a store starts with, as a copy of the declared ones; a generator
+        in `items` is evaluated now, once for each item.
 
         Args:
             store_id: The store's name.
         """
         items = self.holders.store_items.get(store_id)
-        if not items or not has_generator(items):
+        if not items:
             return items
+        if not has_generator(items):
+            # a copy, so a task that changes an item in place does not change the
+            # declaration, and a second run starts from the declared items
+            return copy.deepcopy(items)
         made = self.values.evaluate(items, self.values.scope_of())
         if self.holders.store_priority.get(store_id) and not all(
             isinstance(item, (tuple, list)) and len(item) == 2 for item in made

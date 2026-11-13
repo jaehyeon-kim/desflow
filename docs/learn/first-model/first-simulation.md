@@ -412,7 +412,7 @@ A discrete-event simulation keeps a list of future events, ordered by time. It t
     === "YAML"
 
         ```yaml title="docs/snippets/yaml/first_shop.yaml"
-        # The First Simulation tutorial: the shop as a blueprint.
+        # First Simulation tutorial: the shop as a blueprint.
         # Run it with: desflow run first_shop.yaml
         simulation:
           sim_id: Shop

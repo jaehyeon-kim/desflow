@@ -193,7 +193,7 @@ KafkaEgress drops the payload key '__table__': keys that start and end with two 
 
 The record itself is not changed, so a PostgreSQL sink on the same run still finds its `__table__`. A sink drops the keys it does not route by before its router sees the record, so a router cannot route by a key its sink does not use. Rename a key such as `__source__` to `source` to keep it as data.
 
-A `__table__` key that PostgreSQL and Iceberg share on one event needs the name to hold a namespace for Iceberg: a name with none is refused with "names no namespace", and Iceberg logs the error and loses that batch, where it used to drop the key and write to `default_table`. Give Iceberg a `table_router`, or write `namespace.table` in the key.
+A `__table__` key that PostgreSQL and Iceberg share on one event needs the name to hold a namespace for Iceberg: Iceberg skips a record whose name has none, with the warning "names no namespace", and writes the other records of the batch. Give Iceberg a `table_router`, or write `namespace.table` in the key.
 
 ## What Each Sink Writes
 

@@ -486,7 +486,7 @@ A spawned task cannot share its name with an arrival, because their flow statist
 
 `spawn: {task: courier, after: 3 s}` starts the new entity 3 seconds after the task finishes, as SimPy's `start_delayed` does. `context.spawn(generator, delay=3)` does the same for a process. A drain that ends during the delay ends the run before the spawned entity starts, as it does for an arrival not yet due. An `after` of 0 or less is refused.
 
-`count` starts that many entities at once: a whole number, an expression or a generator, read once in the parent's step. A `count` of 0 or less starts none. Each new entity has its own key, and `copy_attributes: true` gives each a copy of the parent's attributes:
+`count` starts that many entities at once: a whole number, an expression or a generator, read once in the parent's step. A written `count` below 0 is refused at load, and an expression or a generator that gives 0 or less starts none. Each new entity has its own key, and `copy_attributes: true` gives each a copy of the parent's attributes:
 
 === "YAML"
 

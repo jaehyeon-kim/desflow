@@ -272,6 +272,92 @@ async def test_postgres_ingress_sends_the_change_of_an_update_whose_reply_was_lo
     "desflow.connectors.ingress.postgres.asyncpg.create_pool",
     new_callable=AsyncMock,
 )
+async def test_postgres_ingress_sends_the_change_of_an_update_that_commits_late(
+    mock_create_pool, mock_pool
+):
+    """The update fails on the client, and the server commits it before the next poll
+    reads the unapplied rows. That poll reads a newer row for the same path and not
+    the first row, so the ingress sends the first row's change before the newer one,
+    each once."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    state = {"unapplied_reads": 0, "committed": False}
+
+    async def fetch(sql, *args):
+        if "id = ANY" in sql:
+            return [{"id": 1}] if state["committed"] else []
+        if "is_applied = FALSE" in sql:
+            state["unapplied_reads"] += 1
+            if state["unapplied_reads"] == 1:
+                return [{"id": 1, "path": "sim.rate", "value": "5"}]
+            if state["unapplied_reads"] == 2:
+                state["committed"] = True  # the server commits before this read
+                return [{"id": 2, "path": "sim.rate", "value": "10"}]
+        return []
+
+    async def execute(sql, *args):
+        if sql.lstrip().startswith("UPDATE") and state["unapplied_reads"] == 1:
+            raise asyncpg.ConnectionDoesNotExistError("connection was closed")
+
+    conn.fetch.side_effect = fetch
+    conn.execute.side_effect = execute
+    ingress = PostgresIngress("postgresql://localhost/db", "params", poll_interval=0.01)
+    ingress_queue = queue.Queue()
+
+    await _run_briefly(ingress, ingress_queue)
+
+    assert ingress_queue.get_nowait() == ("sim.rate", 5)
+    assert ingress_queue.get_nowait() == ("sim.rate", 10)
+    assert ingress_queue.empty()
+
+
+@pytest.mark.asyncio
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_postgres_ingress_sends_the_change_of_an_unmarked_row_once(
+    mock_create_pool, mock_pool
+):
+    """The update fails and the server never commits it, so the poll reads the row
+    again and marks it. The row is sent from that poll, and the later check that
+    finds it marked does not send it again."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    state = {"marked": False, "updates": 0}
+
+    async def fetch(sql, *args):
+        if "id = ANY" in sql:
+            return [{"id": 1}] if state["marked"] else []
+        if "is_applied = FALSE" in sql:
+            return (
+                [] if state["marked"] else [{"id": 1, "path": "sim.rate", "value": "5"}]
+            )
+        return []
+
+    async def execute(sql, *args):
+        if sql.lstrip().startswith("UPDATE"):
+            state["updates"] += 1
+            if state["updates"] == 1:
+                raise asyncpg.ConnectionDoesNotExistError("connection was closed")
+            state["marked"] = True
+
+    conn.fetch.side_effect = fetch
+    conn.execute.side_effect = execute
+    ingress = PostgresIngress("postgresql://localhost/db", "params", poll_interval=0.01)
+    ingress_queue = queue.Queue()
+
+    await _run_briefly(ingress, ingress_queue)
+
+    assert ingress_queue.get_nowait() == ("sim.rate", 5)
+    assert ingress_queue.empty()
+
+
+@pytest.mark.asyncio
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
 async def test_postgres_ingress_marks_ids_above_the_int_range(
     mock_create_pool, mock_pool
 ):

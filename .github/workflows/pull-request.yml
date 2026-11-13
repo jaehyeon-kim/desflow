@@ -8,9 +8,10 @@ name: Pull request
 # example jobs when what they cover changes. No job takes much longer than a part of
 # the unit tests. A run starts more jobs than the 20 the plan runs at once, and the
 # rest wait for the shortest to end, as scripts/ci_plan.py sets out. The plan job reads the changed
-# files, and scripts/ci_plan.py decides. Lint runs beside the plan job, and every
-# other job starts only when the plan is read and Lint has passed, so a lint failure
-# stops the run in about a minute. checks-passed collects their results.
+# files, and scripts/ci_plan.py decides. The job of pre-commit, the import contracts
+# and the strict docs build runs beside the plan job, and every other job starts only
+# when the plan is read and that job has passed, so a lint failure stops the run in
+# about a minute. checks-passed collects their results.
 on:
   pull_request:
     branches: [main, "release-*"]
@@ -56,7 +57,7 @@ jobs:
   # pipeline.yml deploys the docs from main. Material prints a notice about MkDocs 2.0
   # that strict mode counts as a warning; the variable turns that notice off.
   lint:
-    name: Lint
+    name: Pre-commit, import contracts and strict docs build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -344,7 +345,7 @@ jobs:
           if ls pin-new-*.json > /dev/null 2>&1; then
             uv run --project "$GITHUB_WORKSPACE" --all-extras python "$GITHUB_WORKSPACE/scripts/regression.py" merge --out pin-old.json pin-old-*.json
             uv run --project "$GITHUB_WORKSPACE" --all-extras python "$GITHUB_WORKSPACE/scripts/regression.py" merge --out pin-new.json pin-new-*.json
-            uv run --project "$GITHUB_WORKSPACE" --all-extras python "$GITHUB_WORKSPACE/scripts/regression.py" compare pin-old.json pin-new.json --baseline 1.0.0 --set-aside-absent
+            uv run --project "$GITHUB_WORKSPACE" --all-extras python "$GITHUB_WORKSPACE/scripts/regression.py" compare pin-old.json pin-new.json --baseline 1.0.0 --set-aside-absent --set-aside-unmatched
           fi
 
   # The one check that branch protection on main requires. A job skipped because a

@@ -290,3 +290,68 @@ def test_a_configured_level_of_nan_is_refused(env, registry):
     )
     with pytest.raises(ValueError, match="container 'tank' needs a starting level"):
         DynamicContainer(env, "Shop", "tank")
+
+
+def test_a_put_at_the_instant_of_a_level_write_keeps_the_write(
+    env, registry, sample_params
+):
+    """A restock written at t=1 and a put at the same instant, before the level
+    watcher has run: the level is the restock and the put."""
+    registry.register_sim_parameter(sample_params)
+    cont = DynamicContainer(env, "Shop", "tank1", init=5.0)
+
+    def restock():
+        yield env.timeout(1)
+        registry.update("Shop.containers.tank1.level", 40.0)
+
+    def producer():
+        yield env.timeout(1)
+        yield cont.put(2.0)
+
+    env.process(restock())
+    env.process(producer())
+    env.run(until=3)
+    assert cont.level == 42.0
+    assert registry.get("Shop.containers.tank1.level").value == 42.0
+
+
+def test_a_get_at_the_instant_of_a_level_write_takes_from_the_write(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    cont = DynamicContainer(env, "Shop", "tank1", init=10.0)
+
+    def restock():
+        yield env.timeout(1)
+        registry.update("Shop.containers.tank1.level", 40.0)
+
+    def consumer():
+        yield env.timeout(1)
+        yield cont.get(2.0)
+
+    env.process(restock())
+    env.process(consumer())
+    env.run(until=3)
+    assert cont.level == 38.0
+
+
+def test_a_put_at_the_instant_of_a_lower_capacity_waits(env, registry, sample_params):
+    """A capacity written at t=1 applies to a put at the same instant, as it does to
+    a resource request."""
+    registry.register_sim_parameter(sample_params)
+    cont = DynamicContainer(env, "Shop", "tank1", init=0.0)
+    granted = []
+
+    def closer():
+        yield env.timeout(1)
+        registry.update("Shop.containers.tank1.current_cap", 0.0)
+
+    def producer():
+        yield env.timeout(1)
+        granted.append(cont.put(10.0).triggered)
+
+    env.process(closer())
+    env.process(producer())
+    env.run(until=3)
+    assert granted == [False]
+    assert cont.level == 0.0

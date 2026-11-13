@@ -2139,10 +2139,13 @@ def _wait_request(pack="", tidy="resource: bench", queue="fifo"):
     )
 
 
-def test_a_resource_in_the_wait_and_in_resource_is_refused_in_yaml(tmp_path):
+def test_a_resource_in_the_wait_and_in_resource_warns_and_runs_in_yaml(
+    tmp_path, caplog
+):
     text = _wait_request(pack="resource: picker")
-    with pytest.raises(BlueprintError, match="holds each resource once"):
-        SimulationContext.from_yaml(write(tmp_path, text))
+    with caplog.at_level("WARNING"):
+        SimulationContext.from_yaml(write(tmp_path, text)).run(until=1)
+    assert "takes a unit of resource 'picker' twice" in caplog.text
 
 
 def test_a_wait_request_counts_in_the_acquisition_order_in_yaml(tmp_path, caplog):
@@ -2723,6 +2726,21 @@ def test_a_literal_after_a_conditional_value_of_the_same_parent_is_not_refused(
     SimulationContext.from_yaml(write(tmp_path, text(0.5), "conditional.yaml"))
     with pytest.raises(BlueprintError, match="cannot be converted"):
         SimulationContext.from_yaml(write(tmp_path, text("'x'"), "refused.yaml"))
+
+
+def test_a_conditional_value_valid_after_a_scenario_step_is_not_refused(tmp_path):
+    """The scenario raises `high` to 20 before the entry runs, so `low: 10` is valid
+    when it runs, though the declared `high` is 1."""
+    text = MINIMAL.replace(
+        "{dist: normal, mean: 3.0, std: 0.5}", "{dist: uniform, low: 0, high: 1}"
+    ).replace(
+        "    resource: packers\n",
+        "    resource: packers\n    on:\n"
+        "      - {path: Shop.service.packing.low, value: 10, when: 'True'}\n",
+        1,
+    )
+    text += "\nscenario:\n  - {at: 1, path: Shop.service.packing.high, value: 20}\n"
+    SimulationContext.from_yaml(write(tmp_path, text, "stepped.yaml"))
 
 
 def test_an_on_entry_with_a_wrong_path_or_value_is_refused_at_its_line(tmp_path):
@@ -3926,3 +3944,64 @@ def test_a_put_item_mapping_evaluates_the_generators_nested_in_it(tmp_path):
         if row.get("value", {}).get("event_type") == "got"
     ]
     assert got == [{"x": 2, "y": 3, "z": [6], "w": {"v": 7}}]
+
+
+@pytest.mark.parametrize(
+    "key, message",
+    [
+        ("${DESFLOW_UNSET_KEY_VAR}: 1", "DESFLOW_UNSET_KEY_VAR is not set"),
+        ("2026-13-01: 1", "is not a date or time"),
+    ],
+)
+def test_a_key_that_fails_to_construct_gives_its_own_error(
+    tmp_path, monkeypatch, key, message
+):
+    """The error names the key's problem, not a recursive node."""
+    monkeypatch.delenv("DESFLOW_UNSET_KEY_VAR", raising=False)
+    path = write(tmp_path, MINIMAL.replace("tasks:\n", f"extra:\n  {key}\ntasks:\n", 1))
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    assert message in str(error.value)
+    assert "recursive" not in str(error.value)
+
+
+def test_a_name_that_is_a_store_and_a_container_is_the_first_store(tmp_path):
+    """The name reported follows the file's order, not a set's order."""
+    names = ["zeta", "alpha", "mid", "beta"]
+    both = "".join(f"  {name}: {{}}\n" for name in names)
+    text = MINIMAL.replace("tasks:\n", f"stores:\n{both}containers:\n{both}tasks:\n", 1)
+    path = write(tmp_path, text)
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    assert "'zeta' is both a store and a container" in str(error.value)
+
+
+def test_reserved_gen_key_names_the_line(tmp_path):
+    """A mapping with a `gen` key is a generator, so one that names no generator is a
+    load error with its line; a `gen` key directly under `set` is a field name; and
+    `{gen: literal, value: ...}` keeps such a mapping as data (Upgrading to 1.0)."""
+    from tests.conformance.harness import run_yaml_text
+
+    head = "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+    head += "arrivals: {a: {dist: constant, value: 1, spawn: t, max_events: 1}}\n"
+    path = tmp_path / "bad.yaml"
+    path.write_text(head + "tasks:\n  t:\n    payload:\n      gen: hello\n")
+    with pytest.raises(
+        BlueprintError, match=rf"{re.escape(str(path))}:5: tasks.t.payload: "
+    ):
+        SimulationContext.from_yaml(path)
+
+    kept = run_yaml_text(
+        tmp_path,
+        head + "tasks:\n  t:\n    set: {gen: 3}\n"
+        "    payload: {kept: {gen: literal, value: {gen: 5}}, field: '${attr.gen}'}\n"
+        "run: {until: 5}\n",
+        {},
+    )
+    assert kept.error is None
+    values = [
+        r["value"]
+        for r in kept.records
+        if r["stream_type"] == "event" and "kept" in r["value"]
+    ]
+    assert values and values[0]["kept"] == {"gen": 5}

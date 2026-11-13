@@ -52,7 +52,7 @@ from desflow.builder.arrivals import ArrivalPlan
 from desflow.core.families import name_of, name_problem, references
 from desflow.builder.flow import Open, Release, Transfer, Wait, transfer_expressions
 from desflow.builder.holders import check_level, check_queue_limit
-from desflow.core.registry import ParamRejected
+from desflow.core.registry import ParamRejected, check_value_type
 from desflow.core.rules import check_capacity
 from desflow.builder.task import NO_RECORD
 from desflow.builder.task_checks import (
@@ -769,11 +769,13 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
         ],
     )
     _check_switches(blueprint, source)
-    for name in set(blueprint.stores) & set(blueprint.containers):
-        raise source.error(
-            ("stores", name),
-            f"'{name}' is both a store and a container; level.{name} needs one",
-        )
+    # In the order the file writes the stores, so the name reported is always the same
+    for name in blueprint.stores:
+        if name in blueprint.containers:
+            raise source.error(
+                ("stores", name),
+                f"'{name}' is both a store and a container; level.{name} needs one",
+            )
 
     for name, task in blueprint.tasks.items():
         _check_task_names(name, task, blueprint, source)
@@ -3299,9 +3301,11 @@ def _check_on_paths(
                 continue
             try:
                 if entry.when is not None:
-                    # A conditional entry may not run: its value is checked, and the
+                    # A conditional entry may not run, and when it runs a scenario
+                    # step may have changed the other parameters of its
+                    # distribution: its value is checked for type alone, and the
                     # entries after it do not count on it
-                    registry.check_value(entry.path, entry.value)
+                    check_value_type(registry, entry.path, entry.value)
                     unknown.add(parent)
                 else:
                     registry.change(entry.path, entry.value)

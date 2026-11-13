@@ -3,6 +3,7 @@ from __future__ import annotations
 import itertools
 import math
 import numbers
+from decimal import Decimal
 from typing import Any, Callable, ClassVar, List, Optional, Tuple, Union
 
 from simpy import Environment, Event
@@ -46,6 +47,9 @@ def _is_finite_number(value: Any) -> bool:
 def _is_orderable_number(value: Any) -> bool:
     """Whether `value` is a number that compares with every other: any real number
     but NaN, infinity included."""
+    if isinstance(value, Decimal):
+        # A `Decimal` orders against other numbers, as `priority_kind` counts it
+        return not value.is_nan()
     return (
         isinstance(value, numbers.Real)
         and not isinstance(value, bool)
@@ -117,6 +121,8 @@ class DynamicResourceRequest(PriorityRequest):
         self.usage_since: Optional[float] = None
         self.proc = resource.env.active_process
         resource._enqueue(self)
+        # Only a request the queue took sets the kind, not one it refused
+        resource._first_priority_is(priority)
         resource._called()
 
     def cancel(self) -> None:
@@ -398,9 +404,19 @@ class ResourceBase(BaseDynamicResource):
         resource. Takes the arguments of `release`."""
         return self.release(*args, **kwargs)
 
+    def _first_priority_is(self, priority: Any) -> None:
+        """Remembers the first priority a queued request gave under the `priority`
+        queue order, which `_note_priority` compares later ones with."""
+        if (
+            self.queue_order == "priority"
+            and priority_kind(priority) != "other"
+            and self._first_priority is _NO_PRIORITY
+        ):
+            self._first_priority = priority
+
     def _note_priority(self, priority: Any) -> None:
-        """Remembers the first priority a request gave under the `priority` queue
-        order, and refuses a later one that cannot be compared with it.
+        """Refuses a priority that cannot be compared with the first one a queued
+        request gave under the `priority` queue order.
 
         Raises:
             ValueError: Naming the resource and both priorities, if a number and a
@@ -409,8 +425,8 @@ class ResourceBase(BaseDynamicResource):
         if self.queue_order != "priority" or priority_kind(priority) == "other":
             return
         if self._first_priority is _NO_PRIORITY:
-            self._first_priority = priority
-        elif priority_kind(priority) != priority_kind(self._first_priority):
+            return
+        if priority_kind(priority) != priority_kind(self._first_priority):
             raise ValueError(
                 mixed_priorities(
                     f"resource '{self.obj_id}'",

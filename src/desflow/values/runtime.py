@@ -78,9 +78,22 @@ def _plain(value: Any) -> Any:
         return float(value)
     if isinstance(value, dict):
         return {k: _plain(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple, set)):
+    if isinstance(value, set):
+        return _sorted_items([_plain(v) for v in value])
+    if isinstance(value, (list, tuple)):
         return [_plain(v) for v in value]
     return value
+
+
+def _sorted_items(items: List[Any]) -> List[Any]:
+    """The items of a set in an order that does not depend on the process: sorted
+    when they compare, as they are when the set holds one kind of value, and by type
+    name and then text when they do not. A set's own order follows the string hash
+    seed, which differs from one process to the next."""
+    try:
+        return sorted(items)
+    except TypeError:
+        return sorted(items, key=lambda item: (type(item).__name__, repr(item)))
 
 
 class RunStopped(BaseException):
@@ -199,7 +212,7 @@ class ValueRuntime:
             node: The generator, or the value, to act on.
             suffix: Text added to the place, to make a second stream for the same generator.
         """
-        name = node._path + suffix
+        name = self._template_numbers.place(node._path) + suffix
         generator = self._streams.get(name)
         if generator is None:
             sequence = np.random.SeedSequence(self._entropy, spawn_key=stream_key(name))

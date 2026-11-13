@@ -69,15 +69,11 @@ Follow the file down the left column, then look at the group on the right, which
 
 ### How a Builder Script Becomes a Run
 
-Look at the two halves: the top shows where the builder keeps what a script declares, and the group below shows what `run()` does with it, in order. `run()` is `start()`, which makes steps 1 to 4, then `finish()`, which makes step 5; a script that steps through a run itself calls `start()` alone:
+Look at the two halves: the top shows where the builder keeps what a script declares, and the group below shows what `run()` does with it, in order. `run()` is `start()` then `finish()`. A script that steps through a run itself calls `start()`, then `step()` or `advance()`, and ends the run with `finish()` or `close()`:
 
 ![builder: how a builder script becomes a run. A builder script calls @app.task, add_arrival, add_resource, add_signal, add_egress and the others on context (SimulationContext), which keeps each kind in its own module: tasks, arrivals, holders and signals; holders starts breakdowns. A group, when the script calls run(), with the note that start() does steps 1 to 4 and finish() does step 5: 1. checks, model_checks then task_checks, in red; 2. keeps the run, runs (RunState); 3. builds environment, registry (green), statistics, connectors (purple) and resources; 4. starts, as SimPy processes, the arrival loops and scenario (steps), and each arrival starts task (TaskRun), which hands its entity to flow (routes the entity on) and keeps its place in a batch in batches (BatchSeat); 5. runs to until, stop or drain, then closes the run](../assets/diagrams/builder-package.png)
 
-1. **checks:** every name a declaration refers to is checked first, and a wrong model is refused with a `ValueError` before anything is built.
-2. **keeps the run:** each `start()` makes a new run state, so a second run never starts from what the first left.
-3. **builds:** the builder makes the parts a low-level script makes by hand, which the next diagram shows: the environment, its registry and statistics, the connectors and the resources.
-4. **starts:** the arrival loops and the scenario run as SimPy processes. Each arrival starts a task instance, `TaskRun` runs it, and `flow` routes its entity to the next task. A task with a `batch` keeps its place in the batch in `batches`. [What `run()` Does](tasks-and-processes/tasks.md#what-run-does) lists these steps.
-5. **runs:** the model runs to its `until`, its `stop` or the end of its drain, and the run closes: the last statistics are published and the connectors stop.
+`start()` checks the model, builds the run and starts it, and `finish()` runs it to its end and closes it. [What `run()` Does](tasks-and-processes/tasks.md#what-run-does) gives the steps in order.
 
 ### What a Low-Level Script Uses
 

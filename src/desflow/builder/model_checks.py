@@ -34,7 +34,7 @@ from desflow.builder.arrivals import Arrivals
 from desflow.core.expressions import ANY_NAME, Expression, member_name
 from desflow.core.families import Families, Reference, member_path, split_path
 from desflow.builder.holders import Holders
-from desflow.core.registry import ParamRejected, SimulationRegistry
+from desflow.core.registry import ParamRejected, SimulationRegistry, check_value_type
 from desflow.builder.runs import EndSets
 from desflow.builder.scenario import walk_steps
 from desflow.builder.signals import Signals, timing_problem
@@ -59,7 +59,6 @@ from desflow.builder.tasks import Tasks
 from desflow.models.params import DistributionConfig
 from desflow.utils import (
     mixed_priorities,
-    resource_held_twice,
     suggestion,
     written_priority_kind,
 )
@@ -733,7 +732,6 @@ class ModelChecks:
         self._check_scenario_steps(sim_id, overrides, scratch)
         self._check_on_paths(sim_id, scratch)
         self._check_spawns_and_breakdowns()
-        self._check_resources_held_once()
         self._check_priority_kinds()
         self._check_handles()
         self._warn_acquisition_order(order_warned)
@@ -969,9 +967,11 @@ class ModelChecks:
                     continue
                 try:
                     if action.get("when") is not None:
-                        # A conditional action may not run: its value is checked,
+                        # A conditional action may not run, and when it runs a
+                        # scenario step may have changed the other parameters of
+                        # its distribution: its value is checked for type alone,
                         # and the actions after it do not count on it
-                        registry.check_value(path, action["value"])
+                        check_value_type(registry, path, action["value"])
                         unknown.add(parent)
                     else:
                         registry.change(path, action["value"])
@@ -995,30 +995,6 @@ class ModelChecks:
                         resource, self._holders.resources_config, "add_resource()"
                     )
                 )
-
-    def _check_resources_held_once(self) -> None:
-        """Checks that no task takes a resource in two ways: its `seize`, a `request`
-        in its wait, a `request` in its `open`, or its `resource`; a `seize` and an
-        `open` request of one resource are allowed."""
-        for name, spec in self._tasks.specs.items():
-            seized = spec.seize.resource if spec.seize is not None else None
-            twice = resource_held_twice(
-                [] if seized is None or isinstance(seized, Reference) else [seized],
-                [
-                    r
-                    for r in (spec.wait.requests() if spec.wait else [])
-                    if not isinstance(r, Reference)
-                ],
-                [
-                    r
-                    for r in (spec.open.requests() if spec.open else [])
-                    if not isinstance(r, Reference)
-                ],
-                [r for r in spec.resources if not isinstance(r, Reference)],
-                f"task '{name}'",
-            )
-            if twice is not None:
-                raise ValueError(twice)
 
     def _check_priority_kinds(self) -> None:
         """Checks that the priorities written for one priority resource or store are

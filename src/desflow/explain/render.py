@@ -36,7 +36,13 @@ def render_terminal(explanation: Explanation, width: Optional[int] = None) -> st
         markup=False,
         soft_wrap=False,
     )
-    console.print(_tree(explanation))
+    tree = _tree(explanation)
+    # Rich indents each level of the tree by 4 characters and drops the nodes that
+    # no longer fit in what is left, so a deep graph is given the width it needs
+    narrow = console.width
+    console.width = max(narrow, 4 * _depth(tree) + _MIN_LABEL)
+    console.print(tree)
+    console.width = narrow
     console.print(resources(explanation))
     for resource in explanation.resources:
         if len(resource.capacities) > 1:
@@ -68,6 +74,21 @@ def render_terminal(explanation: Explanation, width: Optional[int] = None) -> st
         console.print(explanation.verification.note, soft_wrap=True)
     # Rich pads each table line to its width; the padding carries nothing
     return "".join(line.rstrip() + "\n" for line in out.getvalue().splitlines())
+
+
+# The columns a tree label keeps at the deepest level, which a deep graph is widened for
+_MIN_LABEL = 40
+
+
+def _depth(tree: Tree) -> int:
+    """The number of levels below `tree`."""
+    deepest = 0
+    pending = [(tree, 0)]
+    while pending:
+        node, level = pending.pop()
+        deepest = max(deepest, level)
+        pending.extend((child, level + 1) for child in node.children)
+    return deepest
 
 
 class _AsciiText(io.StringIO):

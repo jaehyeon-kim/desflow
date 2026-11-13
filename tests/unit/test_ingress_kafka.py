@@ -77,6 +77,45 @@ def mock_admin():
 
 
 @pytest.mark.asyncio
+@patch("desflow.connectors.ingress.kafka.apply_topic_policies")
+@patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
+async def test_topic_policy_is_applied_again_before_the_consumer_starts(
+    MockConsumer, apply
+):
+    """A broker that is down at the start refuses the policy. It is applied again
+    before the consumer starts, so a `drop_and_create` never meets a message the
+    consumer has read, and not a third time."""
+    applied_at_start = []
+
+    class FakeConsumer:
+        def __init__(self):
+            self.start = AsyncMock(
+                side_effect=lambda: applied_at_start.append(apply.call_count)
+            )
+            self.stop = AsyncMock()
+
+        async def __aiter__(self):
+            await asyncio.sleep(999)
+            yield None
+
+    MockConsumer.return_value = FakeConsumer()
+    apply.side_effect = [ConnectionError("broker not up yet"), None, None]
+    ingress = KafkaIngress(
+        topic="control", bootstrap_servers="localhost:9092", topic_policy="create"
+    )
+    task = asyncio.create_task(ingress.run(queue.Queue()))
+    await _wait_until(lambda: apply.call_count >= 2)
+    await asyncio.sleep(0.05)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    assert applied_at_start == [2]
+    assert apply.call_count == 2
+
+
+@pytest.mark.asyncio
 @patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
 async def test_kafka_ingress_pluggable_deserializers(MockConsumer):
     """Verify that topic_deserializers correctly route binary payloads to custom deserializers."""
@@ -132,20 +171,16 @@ async def test_kafka_ingress_pluggable_deserializers(MockConsumer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("setting", [None, False])
 @patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
-async def test_a_group_commits_an_offset_only_after_its_message_is_handled(
-    MockConsumer,
-):
-    """With a `group_id` the consumer does not commit by itself, because it would
-    commit the position of a message that still waits for the registry. The offset is
-    committed after the message is put on the queue."""
+async def test_a_group_leaves_offset_commits_to_the_consumer(MockConsumer, setting):
+    """With a `group_id` the consumer commits in the background, as aiokafka does by
+    default, and a user's `enable_auto_commit` is passed on unchanged. The ingress
+    commits no offset itself."""
     consumer = MagicMock()
     consumer.start = AsyncMock()
     consumer.stop = AsyncMock()
-    committed = []
-    consumer.commit = AsyncMock(
-        side_effect=lambda offsets: committed.append((offsets, ingress_queue.qsize()))
-    )
+    consumer.commit = AsyncMock()
 
     async def messages():
         yield MagicMock(
@@ -156,17 +191,18 @@ async def test_a_group_commits_an_offset_only_after_its_message_is_handled(
     consumer.__aiter__ = lambda self: messages()
     MockConsumer.return_value = consumer
     ingress_queue = queue.Queue()
-    ingress = KafkaIngress(topic="t", bootstrap_servers="localhost:9092", group_id="g")
+    extra = {} if setting is None else {"enable_auto_commit": setting}
+    ingress = KafkaIngress(
+        topic="t", bootstrap_servers="localhost:9092", group_id="g", **extra
+    )
 
     task = asyncio.create_task(ingress.run(ingress_queue))
-    await _wait_until(lambda: bool(committed))
+    await _wait_until(lambda: not ingress_queue.empty())
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
 
-    assert MockConsumer.call_args.kwargs["enable_auto_commit"] is False
-    [(offsets, queued)] = committed
-    assert queued == 1
-    assert list(offsets.values()) == [7]
+    assert MockConsumer.call_args.kwargs.get("enable_auto_commit") == setting
+    consumer.commit.assert_not_called()
 
 
 @pytest.mark.asyncio

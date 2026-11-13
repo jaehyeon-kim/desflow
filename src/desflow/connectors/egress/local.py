@@ -114,6 +114,7 @@ class ConsoleEgress(BaseEgress):
             If the queue is empty, the method yields control to the asyncio
             event loop for a short duration to prevent CPU pinning.
         """
+        stdout_closed = False
         while True:
             try:
                 # Receive a batch (list) of messages
@@ -125,6 +126,8 @@ class ConsoleEgress(BaseEgress):
             if not batch:
                 continue
             if self.format == "json":
+                if stdout_closed:
+                    continue
                 # sys.stdout is read at each write, so a caller that replaces it,
                 # such as a test runner, receives the lines
                 batch = drop_reserved_keys(batch, self)
@@ -136,8 +139,14 @@ class ConsoleEgress(BaseEgress):
                     # A batch that cannot be encoded is logged, and the sink goes on
                     logger.error(f"Console: batch not printed: {exc}")
                     continue
-                sys.stdout.write(text)
-                sys.stdout.flush()
+                try:
+                    sys.stdout.write(text)
+                    sys.stdout.flush()
+                except BrokenPipeError:
+                    # The reader, such as `head`, has closed the pipe. The sink goes
+                    # on taking batches and drops them, so the run does not wait for
+                    # a queue that nothing drains.
+                    stdout_closed = True
                 continue
             if not logger.isEnabledFor(logging.INFO):
                 continue

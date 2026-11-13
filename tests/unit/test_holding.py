@@ -50,18 +50,6 @@ REFUSED = [
         "{seize: {resource: m, nope: 1}, payload: {e: 1}}",
         "tasks.t.seize.nope: unknown key",
     ),
-    (
-        "{seize: m, resource: m, service_time: 1, payload: {e: 1}}",
-        "resource 'm' is both seized and listed in resource",
-    ),
-    (
-        "{seize: m, wait: {request: m}, payload: {e: 1}}",
-        "resource 'm' is both seized and requested in the wait",
-    ),
-    (
-        "{open: {a: {request: m}}, resource: m, service_time: 1, payload: {e: 1}}",
-        "resource 'm' is both requested in open and listed in resource",
-    ),
     ("{open: {}, payload: {e: 1}}", "open takes a mapping of names to wait branches"),
     (
         "{open: {a: {timeout: 1, each: x}}, payload: {e: 1}}",
@@ -799,13 +787,52 @@ def test_the_builder_refuses_an_open_name_that_is_a_python_keyword():
         app.task(name="t", open={"lambda": {"timeout": 5}})(lambda task_id: {})
 
 
-def test_the_builder_refuses_a_task_that_seizes_and_lists_one_resource():
+TAKEN_TWICE = {
+    "seized and listed": (
+        "{seize: m, resource: m, service_time: 1, payload: {e: 1}}",
+        "both seized and listed in resource",
+    ),
+    "seized and requested in the wait": (
+        "{seize: m, wait: {request: m}, payload: {e: 1}}",
+        "both seized and requested in the wait",
+    ),
+    "requested in open and listed": (
+        "{open: {a: {request: m}}, resource: m, service_time: 1, payload: {e: 1}}",
+        "both requested in open and listed in resource",
+    ),
+}
+
+
+@pytest.mark.parametrize("way", TAKEN_TWICE)
+def test_a_task_that_takes_one_resource_twice_loads_runs_and_warns(
+    tmp_path, caplog, way
+):
+    """The task runs, because the resource may have a unit for each way. A warning
+    names the task and the resource, and says the run can wait for ever."""
+    task, ways = TAKEN_TWICE[way]
+    with caplog.at_level("WARNING", logger="desflow.builder.context"):
+        load(tmp_path, task).run(until=3)
+    [warning] = [r.getMessage() for r in caplog.records if "twice" in r.getMessage()]
+    assert "task 't'" in warning and "resource 'm'" in warning and ways in warning
+    assert "wait for ever" in warning
+
+
+def test_a_seize_with_an_open_request_of_one_resource_does_not_warn(tmp_path, caplog):
+    task = "{seize: m, open: {q: {request: m}}, payload: {e: 1}}"
+    with caplog.at_level("WARNING", logger="desflow.builder.context"):
+        load(tmp_path, task).run(until=3)
+    assert not [r for r in caplog.records if "twice" in r.getMessage()]
+
+
+def test_the_builder_warns_of_a_task_that_seizes_and_lists_one_resource(caplog):
     app = SimulationContext("S", factor=0)
     app.add_resource("m", current_cap=1)
     app.add_arrival("a", dist="constant", value=1, spawn="t")
     named_tasks(app, t={"seize": "m", "resource_id": "m", "service_time": 1})
-    with pytest.raises(ValueError, match="resource 'm' is both seized and listed"):
+    with caplog.at_level("WARNING", logger="desflow.builder.context"):
         app.run(until=3)
+    [warning] = [r.getMessage() for r in caplog.records if "twice" in r.getMessage()]
+    assert "task 't'" in warning and "resource 'm'" in warning
 
 
 RELEASED_HOLDS = {

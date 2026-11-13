@@ -1,4 +1,4 @@
-# The First Simulation tutorial: the shop as a blueprint.
+# First Simulation tutorial: the shop as a blueprint.
 # Run it with: desflow run first_shop.yaml
 # --8<-- [start:shop]
 simulation:

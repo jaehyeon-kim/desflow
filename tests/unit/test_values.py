@@ -21,7 +21,7 @@ from desflow.blueprint import BlueprintError
 from desflow.builder.task import TaskFailed
 from desflow.core.environment import DynamicRealtimeEnvironment
 from desflow.values import Template, ValueRuntime, generator
-from desflow.values.template import bind
+from desflow.values.template import bind, numbers_of
 from desflow.values.check import load_rows
 from tests.conformance.harness import RecordingEgress, run_yaml_text
 
@@ -1794,7 +1794,36 @@ def test_a_template_made_after_another_context_took_its_key_takes_the_key_of_the
     app = SimulationContext(sim_id="B", random_seed=7, factor=0)
     _amounts_of_one_template(app, between)
     app.run(until=3.5)
-    assert between.key == "template1"
+    assert numbers_of(app).place(between.payload["x"]._path) == "template1.payload.x"
+
+
+def test_a_named_template_below_an_unnamed_key_keeps_its_stream_when_that_template_renders():
+    """A name such as `<key of an unnamed template>.child` must not follow the unnamed
+    template to its key in the context: its values are the same whether or not the
+    unnamed template renders between its renders."""
+
+    # The unnamed template is not the first made, so its key differs from the
+    # `template1` that the context gives the first unnamed template it renders
+    Template(_AMOUNT)
+    unnamed = Template(_AMOUNT)
+    named = Template(_AMOUNT, name=f"{unnamed.key}.child")
+
+    def named_values(also_render_unnamed: bool) -> List[Any]:
+        app = SimulationContext(sim_id="B", random_seed=7, factor=0)
+        seen: List[Any] = []
+
+        def process(context):
+            for _ in range(3):
+                seen.append(named.render(context)["x"])
+                if also_render_unnamed:
+                    unnamed.render(context)
+                yield context.env.timeout(1)
+
+        app.add_process(process)
+        app.run(until=3.5)
+        return seen
+
+    assert named_values(True) == named_values(False)
 
 
 def test_a_template_named_with_an_empty_text_is_numbered_like_an_unnamed_one():
@@ -1810,7 +1839,9 @@ def test_a_template_named_with_an_empty_text_is_numbered_like_an_unnamed_one():
     after_another = _amounts_of_one_template(second_app, template)
     second_app.run(until=3.5)
     assert after_another == alone
-    assert template.key == "template1"
+    assert numbers_of(second_app).place(template.payload["x"]._path) == (
+        "template1.payload.x"
+    )
 
 
 def test_unnamed_templates_made_and_freed_in_each_call_are_numbered_by_the_order_of_renders():
@@ -1824,13 +1855,13 @@ def test_unnamed_templates_made_and_freed_in_each_call_are_numbered_by_the_order
         for _ in range(5):
             fresh = Template(_AMOUNT)
             fresh.render(context)
-            keys.append(fresh.key)
+            keys.append(numbers_of(app).place(fresh.payload["x"]._path))
             del fresh
             yield context.env.timeout(1)
 
     app.add_process(process)
     app.run(until=6)
-    assert keys == [f"template{n}" for n in range(1, 6)]
+    assert keys == [f"template{n}.payload.x" for n in range(1, 6)]
     assert len(earlier) == 50
 
 
@@ -3653,17 +3684,24 @@ def test_step_and_peek_after_a_stop_do_not_run_the_model_on(
     path.write_text(HEAD % 1 + STOPPED_RUNS[place].replace("ROW", ROW_STOP))
     app = SimulationContext.from_yaml(path)
     if place == "run.segments":
+        # Only finish() runs the segments, and it closes the run, so step() is
+        # refused as it is after any close(), and peek() is infinity as after a stop
         app.start()
         app.finish()
-    else:
-        app.start(until=100)
-        app.advance(50)
+        ended = app.env.now
+        assert app._run.stopped
+        with pytest.raises(RuntimeError, match="needs a run that start"):
+            app.step()
+        assert app.peek() == float("inf")
+        assert app.env.now == ended
+        return
+    app.start(until=100)
+    app.advance(50)
     ended = app.env.now
     assert app._run.stopped and app.peek() == float("inf")
 
-    if place != "run.segments":  # finish() has closed that run
-        with pytest.raises(RuntimeError, match=f"the run ended at {ended:g}"):
-            app.advance(ended + 10)
+    with pytest.raises(RuntimeError, match=f"the run ended at {ended:g}"):
+        app.advance(ended + 10)
     for _ in range(3):
         with pytest.raises(RuntimeError, match=f"the run ended at {ended:g}"):
             app.step()
@@ -3682,3 +3720,39 @@ def test_a_generator_in_a_tuple_is_evaluated_as_one_in_a_list():
     assert all(isinstance(value, str) and len(value) == 36 for value in record["ids"])
     assert record["ids"][0] != record["ids"][1]
     assert render({"ids": [{"gen": "uuid"}, {"gen": "uuid"}]}) == record
+
+
+def test_an_unnamed_template_gives_one_seed_the_same_values_whatever_seed_ran_first():
+    """Two unnamed templates shared by the contexts a factory builds: a process that
+    ran seed 1 first and one that runs only seed 2 give seed 2 the same values."""
+    a = Template({"a": {"gen": "uniform", "low": 0, "high": 100}})
+    b = Template({"b": {"gen": "uniform", "low": 0, "high": 100}})
+    other_a = Template({"a": {"gen": "uniform", "low": 0, "high": 100}})
+    other_b = Template({"b": {"gen": "uniform", "low": 0, "high": 100}})
+
+    class Build:
+        pass
+
+    def run(seed, order):
+        env = DynamicRealtimeEnvironment(factor=0)
+        runtime = ValueRuntime(seed, env, context=Build())
+        return [runtime.render(t) for t in order]
+
+    run(1, [a, b])
+    after_seed_1 = run(2, [b, a])
+    alone = run(2, [other_b, other_a])
+    assert after_seed_1 == alone
+
+
+def test_a_set_a_call_returns_is_written_sorted():
+    from desflow.values.runtime import _plain
+
+    assert _plain({"cherry", "apple", "date", "banana"}) == [
+        "apple",
+        "banana",
+        "cherry",
+        "date",
+    ]
+    # Values that do not compare are ordered by their type name, then their text
+    assert _plain({1, "apple", "banana"}) == [1, "apple", "banana"]
+    assert _plain({"b", 2, "a", 1.5}) == [1.5, 2, "a", "b"]

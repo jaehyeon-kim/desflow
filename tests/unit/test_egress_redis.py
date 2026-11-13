@@ -1,9 +1,12 @@
 import asyncio
 import json
 import queue
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+from redis import exceptions as redis_exceptions
 
 from desflow.connectors.egress.redis import RedisEgress
 
@@ -191,6 +194,55 @@ async def test_an_empty_or_refused_batch_leaves_the_sink_running(run_until, capl
     assert pipe.xadd.call_count == 2
     assert "Error publishing batch to Redis: down" in caplog.text
     assert egress.active_tasks == 0
+
+
+@pytest.mark.asyncio
+async def test_a_sink_that_cannot_write_at_teardown_drops_its_backlog_at_once(
+    run_until, caplog
+):
+    """Redis is down and teardown has begun: the 8 queued batches are dropped with one
+    warning that counts them, not one for each second of back-off."""
+    egress = RedisEgress("redis://localhost:6379", stream_name="events")
+    egress.client = AsyncMock()
+    pipe = MagicMock()
+    pipe.execute = AsyncMock(side_effect=redis_exceptions.ConnectionError("down"))
+    egress.client.pipeline = MagicMock(return_value=pipe)
+    egress._ending = True
+    egress_queue = queue.Queue()
+    for n in range(8):
+        egress_queue.put([{"key": f"k{n}", "value": n}])
+
+    started = time.monotonic()
+    await run_until(egress.run(egress_queue), lambda: egress_queue.empty())
+
+    assert time.monotonic() - started < 0.5
+    assert pipe.execute.call_count == 1
+    assert caplog.text.count("RedisEgress could not write at teardown") == 1
+    assert "8 batches were dropped" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_batch_that_redis_refuses_at_teardown_does_not_drop_the_others(
+    run_until, caplog
+):
+    """Redis is up and refuses the first batch alone, during teardown: the other
+    batches are still written and nothing is dropped."""
+    egress = RedisEgress("redis://localhost:6379", stream_name="events")
+    egress.client = AsyncMock()
+    pipe = MagicMock()
+    pipe.execute = AsyncMock(
+        side_effect=[redis_exceptions.ResponseError("bad batch"), None, None]
+    )
+    egress.client.pipeline = MagicMock(return_value=pipe)
+    egress._ending = True
+    egress_queue = queue.Queue()
+    for n in range(3):
+        egress_queue.put([{"key": f"k{n}", "value": n}])
+
+    await run_until(egress.run(egress_queue), lambda: pipe.execute.call_count == 3)
+
+    assert pipe.execute.call_count == 3
+    assert "were dropped" not in caplog.text
 
 
 @pytest.mark.asyncio

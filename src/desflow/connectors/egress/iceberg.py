@@ -6,6 +6,7 @@ from collections import Counter
 from collections.abc import Mapping
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
+from desflow.connectors._threads import run_in_daemon_thread
 from desflow.connectors.egress.base import (
     BaseEgress,
     drop_reserved_keys,
@@ -191,21 +192,29 @@ def _rows_to_table(records: list, schema: Any, pa: Any) -> Any:
 
 
 def _is_bad_response(error: Exception) -> bool:
-    """Whether a `ValueError` from `load_catalog` is a catalog's answer that cannot be
+    """Whether an error from `load_catalog` is a catalog's answer that cannot be
     read, which a later try may get right, and not a setting that PyIceberg refuses.
 
     Args:
         error: The error `load_catalog` raised.
 
     Returns:
-        bool: True for text that is not JSON, or JSON that does not fit the
-            configuration a REST catalog sends.
+        bool: True for text that is not JSON, JSON that does not fit the
+            configuration a REST catalog sends, or, from a PyIceberg that unpacks
+            the answer with `**`, a list or `null` where the answer must be an
+            object.
     """
     from pydantic import ValidationError
 
     # `requests` and `simplejson` have a decoding error of their own, named the same
-    return isinstance(error, ValidationError) or any(
-        kind.__name__ == "JSONDecodeError" for kind in type(error).__mro__
+    return (
+        isinstance(error, ValidationError)
+        or any(kind.__name__ == "JSONDecodeError" for kind in type(error).__mro__)
+        or (
+            # "argument after ** must be a mapping" to Python 3.14, "Value after **
+            # must be a mapping" from Python 3.15
+            isinstance(error, TypeError) and "after ** must be a mapping" in str(error)
+        )
     )
 
 
@@ -496,15 +505,17 @@ class IcebergStorageEgress(BaseEgress):
         try:
             # A setting that PyIceberg refuses, such as an unknown catalog type, is
             # raised here at once. A catalog that cannot be reached yet is built
-            # again at the first write.
-            await asyncio.to_thread(self._check_catalog)
+            # again at the first write. Both calls run in a daemon thread: PyIceberg's
+            # REST client sets no time limit, and a catalog that never answers must not
+            # keep the process from ending.
+            await run_in_daemon_thread(self._check_catalog)
             while True:
                 try:
                     batch = egress_queue.get_nowait()
                     written = 0
                     with self._writing():
                         try:
-                            written = await asyncio.to_thread(
+                            written = await run_in_daemon_thread(
                                 self._write_batch, batch, pa
                             )
                         except Exception as exc:

@@ -1060,3 +1060,155 @@ def test_patience_used_up_at_a_tie_does_not_stop_the_run(tmp_path, text, key, la
         if r["stream_type"] == "event" and r["key"] == key and "status" in r["value"]
     ]
     assert statuses[-1] == last
+
+
+WAIT_ERRORS = {
+    "condition": (
+        "containers: {stock: {max_cap: 10, level: 0}}\n"
+        "arrivals:\n"
+        "  w: {dist: constant, value: 0, spawn: waiter, max_events: 1}\n"
+        "  p: {dist: constant, value: 1, spawn: putter, max_events: 1}\n"
+        'tasks:\n  waiter: {wait: {condition: "level.stock >= 1 and attr.missing > 0"},'
+        " payload: {e: waited}%s}\n"
+        "  putter: {put: {container: stock, amount: 1}, payload: {e: put}}\n"
+    ),
+    "when": (
+        "arrivals: {w: {dist: constant, value: 0, spawn: waiter, max_events: 1}}\n"
+        'tasks:\n  waiter: {wait: {when: "done_count >= 1 and attr.missing > 0",'
+        " of: {a: {timeout: 1}, b: {timeout: 5}}}, payload: {e: waited}%s}\n"
+    ),
+    "filter": (
+        "stores: {box: {max_cap: 10}}\n"
+        "arrivals:\n"
+        "  g: {dist: constant, value: 0, spawn: waiter, max_events: 1}\n"
+        "  p: {dist: constant, value: 1, spawn: putter, max_events: 1}\n"
+        'tasks:\n  waiter: {get: {store: box, filter: "item.size > 1"},'
+        " payload: {e: got}%s}\n"
+        "  putter: {put: {store: box}, payload: {other: 1}}\n"
+    ),
+}
+
+
+@pytest.mark.parametrize("place", WAIT_ERRORS)
+def test_an_expression_of_a_wait_that_cannot_be_evaluated_fails_the_waiting_task(
+    tmp_path, place
+):
+    """A `condition`, a `when` predicate or a store `filter` is evaluated in another
+    task's step or a callback, but the failure is the waiting task's: under stop the
+    run stops with the error, under continue the waiter publishes `failed` and goes
+    to its `on_fail`, and the task that changed the state does not fail."""
+    head = "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+    tail = "  handler: {payload: {e: handled}}\nrun: {until: 10%s}\n"
+    body = WAIT_ERRORS[place]
+    stopped = run_yaml_text(tmp_path, head + body % "" + tail % "", {})
+    assert isinstance(stopped.error, ValueError)
+    kept = run_yaml_text(
+        tmp_path,
+        head + body % ", on_fail: handler" + tail % ", on_unhandled_failure: continue",
+        {},
+    )
+    assert kept.error is None
+    events = [
+        (r.get("task") or r.get("source"), r["value"])
+        for r in kept.records
+        if r["stream_type"] == "event"
+    ]
+    failed = [task for task, value in events if value.get("status") == "failed"]
+    assert failed == ["waiter"]
+    assert ("handler", {"e": "handled"}) in events
+
+
+PRELOADED_FILTER = (
+    "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+    "stores: {box: {max_cap: 10, items: [{}, {size: 2}]}}\n"
+    "arrivals: {g: {dist: constant, value: 0, spawn: waiter, max_events: 1}}\n"
+    'tasks:\n  waiter: {get: {store: box, filter: "item.size > 1"%s},'
+    " payload: {e: got}, on_fail: handler}\n"
+    "  handler: {payload: {e: handled}}\n"
+    "run: {until: 10, on_unhandled_failure: continue}\n"
+)
+
+
+@pytest.mark.parametrize("wait", ["", ", wait: false"], ids=["waits", "no wait"])
+def test_a_filter_that_fails_on_a_stored_item_fails_the_get_and_takes_no_later_item(
+    tmp_path, wait
+):
+    """The filter cannot be evaluated on the first stored item. The task goes to its
+    `on_fail` with or without a wait, the run does not raise, and the second item,
+    which the filter accepts, stays in the store."""
+    result = run_yaml_text(tmp_path, PRELOADED_FILTER % wait, {})
+    assert result.error is None
+    events = [
+        (r.get("task") or r.get("source"), r["value"])
+        for r in result.records
+        if r["stream_type"] == "event"
+    ]
+    assert [t for t, v in events if v.get("status") == "failed"] == ["waiter"]
+    assert ("handler", {"e": "handled"}) in events
+    assert ("waiter", {"e": "got"}) not in events
+    assert result.app_or_env._run.holders.stores["box"].items == [{}, {"size": 2}]
+
+
+OFFERED_FILTER = (
+    "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+    "stores: {box: {max_cap: 10}}\n"
+    "arrivals:\n"
+    "  g: {dist: constant, value: 0, spawn: waiter, max_events: 1}\n"
+    "  p: {dist: constant, value: 1, spawn: bad, max_events: 1}\n"
+    "  q: {dist: constant, value: 1, spawn: good, max_events: 1}\n"
+    'tasks:\n  waiter: {get: {store: box, filter: "item.size > 1"},'
+    " payload: {e: got}, on_fail: handler}\n"
+    "  handler: {payload: {e: handled}}\n"
+    "  bad: {put: {store: box}, payload: {other: 1}}\n"
+    "  good: {put: {store: box}, payload: {size: 2}}\n"
+    "run: {until: 10, on_unhandled_failure: continue}\n"
+)
+
+
+def test_a_filter_that_fails_on_an_offered_item_takes_no_later_item_of_that_instant(
+    tmp_path,
+):
+    """The get waits on an empty store. At 1 an item the filter cannot evaluate is
+    put, then one it accepts. The waiting task fails, the run does not raise, and the
+    accepted item stays in the store."""
+    result = run_yaml_text(tmp_path, OFFERED_FILTER, {})
+    assert result.error is None
+    events = [
+        (r.get("task") or r.get("source"), r["value"])
+        for r in result.records
+        if r["stream_type"] == "event"
+    ]
+    assert [t for t, v in events if v.get("status") == "failed"] == ["waiter"]
+    assert ("waiter", {"e": "got"}) not in events
+    items = result.app_or_env._run.holders.stores["box"].items
+    assert len(items) == 2 and any(
+        isinstance(i, dict) and i.get("size") == 2 for i in items
+    ), items
+
+
+OPENED_FILTER = (
+    "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+    "stores: {box: {max_cap: 10, items: %s}}\n"
+    "arrivals: {g: {dist: constant, value: 0, spawn: opener, max_events: 1}}\n"
+    "tasks:\n"
+    '  opener: {open: {h: {get: {store: box, filter: "item.size > 1"}}},'
+    " payload: {e: opened}, on_fail: handler}\n"
+    "  handler: {payload: {e: handled}}\n"
+    "run: {until: 10, on_unhandled_failure: continue}\n"
+)
+
+
+def test_an_opened_get_whose_filter_fails_at_once_fails_the_task_not_the_run(tmp_path):
+    """The filter cannot be evaluated when the get is opened, on the stored item
+    `{}`. The task goes to its `on_fail` under `continue`, as a get that is not
+    waited for does, and the run does not raise."""
+    result = run_yaml_text(tmp_path, OPENED_FILTER % "[{}]", {})
+    assert result.error is None
+    events = [
+        (r.get("task") or r.get("source"), r["value"])
+        for r in result.records
+        if r["stream_type"] == "event"
+    ]
+    assert [t for t, v in events if v.get("status") == "failed"] == ["opener"]
+    assert ("opener", {"e": "opened"}) not in events
+    assert ("handler", {"e": "handled"}) in events

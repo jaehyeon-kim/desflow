@@ -172,7 +172,7 @@ A scenario step sets the variable at 1 minute. Its `record` publishes what it di
 Run `desflow run switch_a_task_on.yaml`, `python switch_a_task_on_builder.py` or `python switch_a_task_on_low_level.py`. Each runs 5 simulated minutes at once, with an order every 5 seconds:
 
 - Before 1 minute, every order goes from `pack_order` to `ship_order`, and no `gift_wrapped` event appears.
-- From 1 minute, 48 orders are packed and 9 of them are wrapped, the first `orders-12` at 65 seconds. The weights give one in four on average, and a run this short shows fewer.
+- From 1 minute, 48 orders are packed and 9 of them are wrapped, the first `orders-12` at 65 seconds. The weights give one in four on average; this one run of 48 orders wraps 9.
 - The wrapped orders are the same in every form, because each draws the route from the routing task's own random stream, `route.pack_order`, with the same seed.
 
 ---

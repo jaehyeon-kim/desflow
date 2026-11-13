@@ -1840,7 +1840,7 @@ Of every 100 visitors, 40 sign up, 20 of those start a trial, and 5 of those pay
     python examples/gallery/visitors_drop_out_at_each_signup_step_low_level.py
     ```
 
-    The Low-level file draws each value with `Sampler.generator(<place>)`, where the place is the key path of the blueprint's generator that makes the same value, such as `route.{step}` with the place of the task filled in. Each draw therefore comes from the random sequence the blueprint uses at the same place, so the draws are the blueprint's. The branch of each step is chosen by a `Router` whose random sequence is `Sampler.generator("route.{step}")`, and one more for each step, the sequence of the blueprint's `next`. The gaps between arrivals come from `Sampler.sample` on a `DistributionConfig` whose `stream` is `arrival.visitors`, the sequence the blueprint uses for its arrivals.
+    The Low-level file draws each value with `Sampler.generator(<place>)`, where the place is the key path of the blueprint's generator that makes the same value, such as `tasks.<step>.service_time` with the name of the step filled in. Each draw therefore comes from the random sequence the blueprint uses at the same place, so the draws are the blueprint's. The branch of each step is chosen by a `Router` whose random sequence is `Sampler.generator("route.<step>")`, and one more for each step, the sequence of the blueprint's `next`. The gaps between arrivals come from `Sampler.sample` on a `DistributionConfig` whose `stream` is `arrival.visitors`, the sequence the blueprint uses for its arrivals.
 
     ```python title="examples/gallery/visitors_drop_out_at_each_signup_step_low_level.py"
     """Visitors drop out at each step of a signup funnel.

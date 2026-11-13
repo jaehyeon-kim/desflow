@@ -1408,7 +1408,7 @@ Each row has three keys that are text (id1 to id3, with 100, 100 and 100,000 val
     python examples/gallery/group_by_table_low_level.py
     ```
 
-    The Low-level file draws each value with `Sampler.generator(<place>)`, where the place is the key path of the blueprint's generator that makes the same value, such as `{place}.id1.names.n` with the place of the task filled in. Each draw therefore comes from the random sequence the blueprint uses at the same place, so the draws are the blueprint's. The file waits 1 simulation second between rows, as the blueprint's constant arrival does.
+    The Low-level file draws each value with `Sampler.generator(<place>)`, where the place is the key path of the blueprint's generator that makes the same value, such as `<place>.id1.names.n` with the place of the task filled in. Each draw therefore comes from the random sequence the blueprint uses at the same place, so the draws are the blueprint's. The file waits 1 simulation second between rows, as the blueprint's constant arrival does.
 
     ```python title="examples/gallery/group_by_table_low_level.py"
     """A table for group-by benchmarks, low-level API.
@@ -1657,7 +1657,7 @@ A ride starts about every 10 seconds. Its distance is 0.5 to 20 km, its duration
     python examples/gallery/taxi_rides_low_level.py
     ```
 
-    The Low-level file draws each value with `Sampler.generator(<place>)`, where the place is the key path of the blueprint's generator that makes the same value, such as `{place}.payload.passengers` with the place of the task filled in. Each draw therefore comes from the random sequence the blueprint uses at the same place, so the draws are the blueprint's. The gaps between arrivals come from `Sampler.sample` on a `DistributionConfig` whose `stream` is `arrival.rides`, the sequence the blueprint uses for its arrivals.
+    The Low-level file draws each value with `Sampler.generator(<place>)`, where the place is the key path of the blueprint's generator that makes the same value, such as `<place>.payload.passengers` with the place of the task filled in. Each draw therefore comes from the random sequence the blueprint uses at the same place, so the draws are the blueprint's. The gaps between arrivals come from `Sampler.sample` on a `DistributionConfig` whose `stream` is `arrival.rides`, the sequence the blueprint uses for its arrivals.
 
     ```python title="examples/gallery/taxi_rides_low_level.py"
     """Taxi rides with a pickup, a drop-off, a distance and a fare, low-level API.

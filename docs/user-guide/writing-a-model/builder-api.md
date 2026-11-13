@@ -42,7 +42,7 @@ app.add_variable("conveyor_speed", 1.5)  # any other live value
 
 ### Add Distributions
 
-Each service is a distribution, given its parameters by keyword. Each arrival is a distribution too, and [Start Them from Arrivals](#start-them-from-arrivals) adds it with the task it starts. A parameter out of range, or one the family does not take, raises `ValueError` here, before the run. [Arrivals and Services](../model-parts/arrivals-and-services.md) lists the ten families.
+Each service is a distribution, given its parameters by keyword. Each arrival is a distribution too, and [Start Them from Arrivals](#start-them-from-arrivals) adds it with the task it starts. A parameter out of range, or one the family does not take, raises `ValueError` here, before the run. [Arrivals and Services](../model-parts/arrivals-and-services.md) lists the twelve families.
 
 ```python title="docs/snippets/pages/builder.py:distributions"
 app.add_service("packing", dist="triangular", low=1, mode=2, high=4)
@@ -246,7 +246,7 @@ app.with_batching(batch_size=1_000, flush_interval=5.0)  # defaults for other si
 
 `LocalIngress` counts its delays in wall-clock seconds, so the change to 3 packers is due 5 seconds after the run starts. This unpaced run ends in under a second, so the change never lands. At `factor=1.0`, it lands 5 seconds into the run. For a change at an exact simulation time, use a scenario step, `add_step(at, path=..., value=...)` or `add_scenario(steps)`, which [Live Parameters](../live-runs-and-connectors/live-parameters.md#script-an-experiment) describes. A process that waits and then updates the registry, as `speed_drift` above does, also works.
 
-`compile_parameters()` returns the `SimParameter` that `run()` will register. Call it to check the registry paths before a run. A resource has three: `current_cap`, `max_cap` and `queue_limit`, which is `None` when unset. A limit changes through its path, `<sim_id>.resources.<name>.queue_limit`, in a scenario step, an `on:` action or a low-level `set`, and not by assigning `queue_limit`, which is read-only. The new limit applies from the next request, and a smaller one removes nobody who waits. A resource with its own `PutQueue` has no `queue_limit` path:
+`compile_parameters()` returns the `SimParameter` that `run()` will register. Call it to check the registry paths before a run. A resource has three: `current_cap`, `max_cap` and `queue_limit`, which is `None` when unset. A limit changes through its path, `<sim_id>.resources.<name>.queue_limit`, in a scenario step, an `on:` action or a low-level `registry.update`, and not by assigning `queue_limit`, which is read-only. The new limit applies from the next request, and a smaller one removes nobody who waits. A resource with its own `PutQueue` has no `queue_limit` path:
 
 ```python title="docs/snippets/pages/builder.py:compile"
 paths = app.compile_parameters()  # the SimParameter that run() registers

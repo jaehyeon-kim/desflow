@@ -617,7 +617,7 @@ When a film is sold out, SimPy's `moviegoer` fires the film's event, which sends
 
 `Pulp Implementation` sells out at 21.793 seconds, `Kill Process` at 41.793 seconds and `Python Unchained` at 44.293 seconds. 18 moviegoers leave the queue for `Python Unchained`, 17 for `Kill Process` and 9 for `Pulp Implementation`. 44 sales go through, and 197 moviegoers find their film sold out and do not join a queue.
 
-SimPy's output, below, has the films selling out at 38, 43 and 28 minutes, with 16, 5 and 5 moviegoers leaving. SimPy prints no count of moviegoers who find a film sold out. Here each one has a `balked` record. desflow draws each random value from its own stream, named by the place where the value is used, such as `Movie.service.patience`. A seed of 42 therefore gives different numbers from SimPy's `random.seed(42)`. The system is the same. The figures are not.
+SimPy's output, below, has the films selling out at 38, 43 and 28 minutes, with 16, 5 and 5 moviegoers leaving. SimPy prints no count of moviegoers who find a film sold out. Here each one has a `balked` record. desflow draws each random value from its own stream, named by the place where the value is used, such as `arrivals.goers.attributes.tickets`. A seed of 42 therefore gives different numbers from SimPy's `random.seed(42)`. The system is the same. The figures are not.
 
 ```text title="docs/snippets/simpy/movie_renege.out"
 Movie renege

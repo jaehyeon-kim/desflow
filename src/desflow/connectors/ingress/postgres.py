@@ -176,20 +176,6 @@ class PostgresIngress(BaseIngress):
             try:
                 assert self.pool is not None
                 async with self.pool.acquire() as conn:
-                    if pending:
-                        marked = await conn.fetch(
-                            f"""
-                            SELECT id FROM {self.table_name}
-                            WHERE id = ANY($1::bigint[]) AND is_applied = TRUE
-                        """,
-                            [row_id for row_id, _ in pending],
-                        )
-                        # An id still unmarked was not committed, and the poll below
-                        # reads it again
-                        committed = {row["id"] for row in marked}
-                        recovered = [c for row_id, c in pending if row_id in committed]
-                        pending = []
-                        self._send(ingress_queue, recovered)
                     # Fetch all unapplied parameter updates
                     rows = await conn.fetch(f"""
                         SELECT id, path, value
@@ -197,6 +183,30 @@ class PostgresIngress(BaseIngress):
                         WHERE is_applied = FALSE
                         ORDER BY id ASC
                     """)
+
+                    if pending:
+                        # A pending row the read above does not return was marked
+                        # by the server, whose commit came late, before that read.
+                        # The check comes after the read, so a row it finds marked
+                        # is sent before the newer rows of this poll. A pending row
+                        # the read returns is marked again below. A row that is
+                        # neither returned nor marked is gone from the table.
+                        read_ids = {r["id"] for r in rows}
+                        unread = [p for p in pending if p[0] not in read_ids]
+                        if unread:
+                            marked = await conn.fetch(
+                                f"""
+                                SELECT id FROM {self.table_name}
+                                WHERE id = ANY($1::bigint[]) AND is_applied = TRUE
+                            """,
+                                [row_id for row_id, _ in unread],
+                            )
+                            committed = {row["id"] for row in marked}
+                            recovered = [
+                                c for row_id, c in unread if row_id in committed
+                            ]
+                            pending = [p for p in pending if p[0] in read_ids]
+                            self._send(ingress_queue, recovered)
 
                     if rows:
                         applied_ids = []
@@ -214,7 +224,10 @@ class PostgresIngress(BaseIngress):
                         # Mark the rows as applied before the changes are sent, so a
                         # failed update sends nothing and the next poll reads the
                         # rows again, instead of sending the same changes at every poll
-                        pending = changes
+                        # A pending id the poll reads again is sent from here, so it
+                        # leaves the pending list
+                        unrecovered = [p for p in pending if p[0] not in applied_ids]
+                        pending = unrecovered + changes
                         await conn.execute(
                             f"""
                             UPDATE {self.table_name}
@@ -223,7 +236,7 @@ class PostgresIngress(BaseIngress):
                         """,
                             applied_ids,
                         )
-                        pending = []
+                        pending = unrecovered
 
                         # Send to the simulation registry queue
                         self._send(ingress_queue, [change for _, change in changes])

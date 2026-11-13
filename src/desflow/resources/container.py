@@ -259,6 +259,12 @@ class DynamicContainer(_WrappedHolder, Container):
         self._level_val.track(self._holder.level)
         self._changed()
 
+    def _sync_from_registry(self) -> None:
+        """Applies a level and a capacity written in this step before a put or get."""
+        self._holder._level = self._level_val.value
+        max_cap = self._max_cap_val.value
+        self._holder._capacity = max(0, min(self._current_cap_val.value, max_cap))
+
     def _watch_level(self):
         """Applies a live update to the level path, such as a restock."""
         while True:

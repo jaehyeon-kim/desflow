@@ -6,7 +6,7 @@ Run from this folder with: pytest test_model.py
 import json
 import subprocess
 import sys
-import zlib
+import hashlib
 from collections import Counter
 from pathlib import Path
 
@@ -41,8 +41,9 @@ def records(runs):
 
 def expected_sizes():
     """The 40 group sizes drawn from the stream of `arrivals.a.group`, seed 42."""
+    digest = hashlib.sha256(b"arrivals.a.group").digest()
     rng = np.random.default_rng(
-        np.random.SeedSequence(42, spawn_key=(zlib.crc32(b"arrivals.a.group"),))
+        np.random.SeedSequence(42, spawn_key=tuple(np.frombuffer(digest, "<u4")))
     )
     return [int(rng.poisson(2)) for _ in FIRINGS]
 
