@@ -166,7 +166,9 @@ jobs:
       - name: Run the tests
         env:
           TEST_SHARD: ${{ matrix.shard }}
-        run: uv run --python ${{ matrix.python }} --all-extras pytest ${{ matrix.paths }} -m "${{ matrix.marks }}" -q -n auto --tb=short --junitxml=junit.xml
+        # uv_args and pytest_args are empty except in the Python 3.11 jobs, which
+        # install the lowest Pydantic (scripts/ci_plan.py)
+        run: uv run --python ${{ matrix.python }} --all-extras ${{ matrix.uv_args }} pytest ${{ matrix.paths }} -m "${{ matrix.marks }}" -q -n auto --tb=short --junitxml=junit.xml ${{ matrix.pytest_args }}
 
       - name: Upload the test times
         if: always()

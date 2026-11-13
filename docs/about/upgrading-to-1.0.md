@@ -129,7 +129,7 @@ These changes make a task go on in the same step as the SimPy process it stands 
 
 ## Command Line and Installs
 
-- **desflow needs pydantic 2.6.1 or later,** where it accepted 2.6.0.
+- **desflow needs pydantic 2.7.0 or later,** where it accepted 2.6.0.
 - **`desflow run` refuses `--measure`, `--level` and `--workers` without `--replications`.** 0.28.0 ignored them and ran a single run. Add `--replications`, or remove the option.
 - **An experiment file refuses three things:** an `experiment` name that is not one folder name (empty, `.`, `..`, or with `/` or `\`), because the name is the folder `results/<name>`; a `seed` that is not a whole number of 0 or more; and a check with `min` above `max`, which no value passes. In 0.28.0 the name `../x` wrote outside `results/`, `seed: true` ran as seed 1 and `seed: -1` failed with a NumPy error that names no line. Rename the experiment, write the seed as a number and swap the bounds.
 - **`replicate` and an experiment refuse a warm-up at or after `until`,** where 0.28.0 gave every value for the whole run, and the report showed a negative measured horizon. `replicate(measures=[])` raises `ValueError`, where it ran every replication and measured nothing, and `None` still means every statistic. Lower the warm-up, and name at least one measure.

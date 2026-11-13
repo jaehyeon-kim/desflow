@@ -1,6 +1,6 @@
 """scripts/ci_plan.py picks the test jobs of the workflows.
 
-A pull request tests Python 3.11 to 3.15, and manual.yml every test on Python 3.11,
+A pull request tests Python 3.11 to 3.15, 3.11 at the lowest Pydantic, and manual.yml every test on Python 3.11,
 3.12 and 3.15 (or the versions it is given) on Ubuntu and on Python 3.12 on Windows.
 A pull request skips the code jobs when it changes only files no code job reads, and
 runs the docs and service jobs only when it changes what they cover. Each job's
@@ -40,6 +40,25 @@ def test_a_pull_request_runs_each_version_in_3_parts():
     """scripts/ci_plan.py sizes the run by these 15 test jobs: with the other jobs a
     pull request starts 27, and the 7 above the 20 the plan runs at once wait."""
     assert len(_plan("pull_request", SRC)["unit"]["include"]) == 15
+
+
+def test_a_pull_request_tests_the_lowest_pydantic_on_python_3_11():
+    """The 3.11 jobs install the floor in pyproject.toml and leave out the tests that
+    need the newest Pydantic; the other versions run those tests at the locked one."""
+    floor = ci_plan.pydantic_floor()
+    pyproject = (SCRIPT.parents[1] / "pyproject.toml").read_text()
+    assert f'"pydantic>={floor}"' in pyproject
+    for leg in _plan("pull_request", SRC)["unit"]["include"]:
+        if leg["python"] == "3.11":
+            assert leg["uv_args"] == f"--with pydantic=={floor}"
+            assert "lowest Pydantic" in leg["name"]
+            for test in ci_plan.NEWEST_PYDANTIC_ONLY:
+                assert f"--deselect {test}" in leg["pytest_args"]
+                assert (SCRIPT.parents[1] / test.split("::")[0]).is_file()
+        else:
+            assert leg["uv_args"] == "" and leg["pytest_args"] == ""
+    for leg in _plan("manual", [])["unit"]["include"]:
+        assert leg["uv_args"] == "" and leg["pytest_args"] == ""
 
 
 def test_a_pull_request_leaves_out_the_every_model_tests_and_known_cases():

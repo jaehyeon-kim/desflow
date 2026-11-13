@@ -16,7 +16,10 @@ There are two sets (issue #90):
 In `pr`, the docs tests run only when the files they read change, and the service
 jobs only when what they cover changes: the connectors, the modules that build,
 start and stop them, the examples, the gallery pages they read, their tests or the
-dependencies.
+dependencies. The Python 3.11 jobs of `pr` install the lowest Pydantic that
+pyproject.toml allows, so a pull request also tests the floor. They leave out the
+three tests that compare a committed file with one the newest Pydantic writes, which
+the other versions run.
 
     python scripts/ci_plan.py manual "3.11 3.12 3.15" < /dev/null
     git diff --name-only <base>...HEAD | python scripts/ci_plan.py pull_request
@@ -37,7 +40,10 @@ takes about 145 minutes of test time, which `manual` runs in 7 parts.
 
 import fnmatch
 import json
+import re
 import sys
+import tomllib
+from pathlib import Path
 from typing import Dict, List, Optional
 
 ALL = "tests/unit tests/conformance tests/benchtop tests/known_cases"
@@ -49,6 +55,16 @@ PR_VERSIONS = ["3.11", "3.12", "3.13", "3.14", "3.15"]
 MANUAL_VERSIONS = ["3.11", "3.12", "3.15"]
 UNIT_PARTS = 3
 ALL_PARTS = 7
+# The pull request runs this version at the lowest Pydantic
+FLOOR_VERSION = "3.11"
+# Tests that compare a committed file with one the installed Pydantic writes, which
+# another release may write differently
+NEWEST_PYDANTIC_ONLY = [
+    "tests/unit/test_schema.py::test_committed_schema_is_current",
+    "tests/unit/test_explain.py::test_json_validates_and_the_committed_schema_is_current",
+    "tests/unit/test_public_api.py::test_public_api_matches_the_snapshot",
+]
+PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 # Files no code job reads, whose change alone runs only the docs jobs. The pages and
 # snippets under docs/ are not among them: the unit tests check each page's imports
@@ -104,21 +120,41 @@ SYSTEMS = {
 }
 
 
-def _leg(os: str, python: str, everything: bool) -> List[Dict]:
+def pydantic_floor() -> str:
+    """The lowest Pydantic that pyproject.toml allows, such as `2.7.0`."""
+    with open(PYPROJECT, "rb") as file:
+        dependencies = tomllib.load(file)["project"]["dependencies"]
+    for dependency in dependencies:
+        found = re.fullmatch(r"pydantic>=([0-9.]+)", dependency)
+        if found:
+            return found.group(1)
+    raise ValueError("pyproject.toml has no pydantic>= requirement")
+
+
+def _leg(os: str, python: str, everything: bool, floor: bool = False) -> List[Dict]:
     """The parts of one test job: the unit, conformance and benchtop tests, or with
-    `everything` also the tests marked `every_model` and the known cases."""
+    `everything` also the tests marked `every_model` and the known cases. With
+    `floor`, the job installs the lowest Pydantic and leaves out the tests that need
+    the newest."""
     label = "All tests" if everything else "Unit and conformance tests"
     paths = ALL if everything else UNIT
     marks = "not paced" if everything else "not paced and not every_model"
     count = ALL_PARTS if everything else UNIT_PARTS
+    setting = ", lowest Pydantic" if floor else ""
+    uv_args = f"--with pydantic=={pydantic_floor()}" if floor else ""
+    pytest_args = (
+        " ".join(f"--deselect {t}" for t in NEWEST_PYDANTIC_ONLY) if floor else ""
+    )
     return [
         {
-            "name": f"{label}, Python {python}, {SYSTEMS[os]}, part {part} of {count}",
+            "name": f"{label}, Python {python}{setting}, {SYSTEMS[os]}, part {part} of {count}",
             "os": os,
             "python": python,
             "paths": paths,
             "marks": marks,
             "shard": f"{part}/{count}",
+            "uv_args": uv_args,
+            "pytest_args": pytest_args,
         }
         for part in range(1, count + 1)
     ]
@@ -129,7 +165,9 @@ def unit_legs(tier: str, versions: Optional[List[str]] = None) -> List[Dict]:
         return [
             leg
             for python in PR_VERSIONS
-            for leg in _leg("ubuntu-latest", python, False)
+            for leg in _leg(
+                "ubuntu-latest", python, False, floor=python == FLOOR_VERSION
+            )
         ]
     # Every test, on Ubuntu for each version and on Windows for 3.12, the version in
     # .python-version

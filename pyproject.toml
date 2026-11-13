@@ -47,10 +47,11 @@ dependencies = [
     "simpy>=4.1.2",
     "numpy>=1.26.0",
     "orjson>=3.10.0",
-    # 2.6.1 is the oldest release desflow supports: 2.0 to 2.4 have no Discriminator,
-    # 2.5 no inf_nan_mode in to_jsonable_python, and 2.6.0 ignores a nested
-    # Discriminator, which the generators need. The pydantic-floor CI job tests it
-    "pydantic>=2.6.1",
+    # 2.7.0 is the oldest release desflow supports: 2.0 to 2.4 have no Discriminator,
+    # 2.5 no inf_nan_mode in to_jsonable_python, and 2.6 loses the `gen` Discriminator
+    # of a generator inside a payload, so a `gen` that names no generator is reported
+    # once for every generator. The pydantic-floor CI job tests it
+    "pydantic>=2.7.0",
     "pyyaml>=6.0.1",
     "typer>=0.16.0,<0.30",
     # TypeAliasType, which the recursive Value type of the generators uses; Python
