@@ -147,7 +147,7 @@ A store with `priority` returns the item with the lowest `priority` value first,
 - a list such as `[1, 2]`, ordered element by element, as a tuple is;
 - any other value that can be ordered against the others, such as a text.
 
-A priority keeps the value it is given, so the text `'10'` sorts as text, before `'9'`. In YAML a string is an expression, so a text priority such as `'P1'` comes from `attr.grade` or `payload.grade`. Priorities that cannot be compared, such as a number and a text, raise `TypeError` at the put, as in SimPy.
+A priority keeps the value it is given, so a text priority given in Python, such as `"10"`, sorts as text, before `"9"`. In YAML a string is an expression, so a text priority such as `'P1'` comes from `attr.grade` or `payload.grade`. Priorities that cannot be compared, such as a number and a text, raise `TypeError` at the put, as in SimPy.
 
 === "YAML"
 

@@ -2,15 +2,6 @@
 
 Releases come in the order shown, without dates: a release ships when it is ready. Each item links to its GitHub issue.
 
-## Before 1.0
-
-::timeline::
-- title: '1.0.0: Stable'
-  content: '1.0.0 sets the version number and the Production/Stable classifier, with only the fixes of the checks. From here the format, the command, the public API and the record format stay compatible across 1.x, as the [Compatibility Policy](compatibility.md) sets out. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
-  icon: ':material-play:'
-  key: now
-::/timeline::
-
 ## What 1.0 means
 
 From 1.0, the YAML blueprint format, the `desflow` command, the public Python API and the published record format stay compatible across every 1.x release. The public Python API is the set of promised import paths, which the [Compatibility Policy](compatibility.md) lists. The package status moves from Beta to Production/Stable. The names kept for compatibility, `dynamic_des`, `ddes` and the old registry settings, are removed in 1.0, and [Upgrading to 1.0](upgrading-to-1.0.md#removed-names) lists each.
@@ -76,22 +67,9 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 
 ## Released
 
-??? note "1.0.0rc4: Fixes from a review of the whole code"
+??? note "1.0.0: Stable"
 
-    - **Fixes from an adversarial review:** reviewers tried to break each part of the code, from the Builder and the YAML loader to the connectors, the command line and the docs tools. The fixes make a model that ran wrong or failed in the middle of a run refuse at load or work. A few records change, such as `utilization` at capacity 0, and [Upgrading to 1.0](upgrading-to-1.0.md) lists each change. No YAML key, command or record field is removed. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)
-
-??? note "1.0.0rc3: Fixes from the checks"
-
-    - **Fixes from the checks:** an interrupt with `on_interrupt: resume`, or a batch closing, at the instant a task's patience ran out no longer stops the run. A YAML file and the Builder refuse a name a place cannot read, and a batch size of `true`, with one text, and a refusal names the first unknown name in sorted order on every run. No format, command or record changes. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)
-    - **Docs:** SimPy Compatibility says where desflow differs in a detail for a native feature, YAML Keys says what `Value` and `Generator` mean, and Upgrading to 1.0 lists the new logger names.
-
-??? note "1.0.0rc2: A cleaner internal structure"
-
-    - **Reorganised code:** the packages sit in layers that an import contract checks, the code that declares and runs a model moves to its own package, and the largest classes are split by their groups, with no change of behaviour. No format, command or record changes. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)
-    - **How desflow Works:** diagrams of the core, builder and blueprint packages, and one task instance's steps on Tasks and Processes.
-
-??? note "1.0.0rc1: What 1.0 brings"
-
+    - **Stable:** the YAML blueprint format, the `desflow` command, the public Python API and the record format stay compatible across 1.x, as the [Compatibility Policy](compatibility.md) sets out. The package status is Production/Stable. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)
     - **SimPy's rules:** a run ends when no event is left, as in SimPy, and `strict` and `on_unhandled_failure` default to SimPy's values. The SimPy Compatibility page shows each SimPy feature in YAML, Builder and Low-level with its status.
     - **SimPy's step order at a tie:** a task with one `wait` branch, the task after `next`, the actions of `on:` and a resumed job go on in the same simulation step as SimPy's process, so records at one instant can change order. [#105](https://github.com/jaehyeon-kim/desflow/issues/105)
     - **YAML with no Python:** every known case runs in YAML alone, with `--var`, `--watch`, generated values, `desflow check` and `desflow test`.
@@ -99,7 +77,8 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
     - **Record contract frozen:** the records 1.x keeps. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
     - **Old names removed:** `dynamic_des`, `ddes` and the other names kept for compatibility. [#84](https://github.com/jaehyeon-kim/desflow/issues/84)
     - **Pydantic 2.6.1 or later.** [#104](https://github.com/jaehyeon-kim/desflow/issues/104)
-    - **Rewritten docs.** Each change that alters records is listed under Upgrading to 1.0.
+    - **Rewritten docs.** The Gallery, the Generate Data group and the Agent Skill section are new, and every page is rewritten for 1.0.
+    - **Fixes from reviews of the whole code:** the release candidates 1.0.0rc1 to 1.0.0rc4 and two full reads of the code fixed models that ran wrong, hung or failed in the middle of a run. [Upgrading to 1.0](upgrading-to-1.0.md) lists each change that alters records or refuses input.
 
 ??? note "0.28.0: Library hooks for the server"
 

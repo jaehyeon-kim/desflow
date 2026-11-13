@@ -1,7 +1,8 @@
 """The public roadmap follows the version in `pyproject.toml`.
 
 The release commit bumps the version and, in the same commit, moves that release from
-the timeline to Released and makes the next release the current entry. These tests fail
+the timeline to Released and makes the next release the current entry. From 1.0.0 the
+roadmap may plan no version, because nothing after 1.0 has a set order. These tests fail
 when a release is tagged with the roadmap still showing it as planned or current.
 """
 
@@ -52,7 +53,12 @@ def test_no_planned_entry_is_a_released_version():
 
 
 def test_one_entry_is_current_and_it_is_the_next_release():
+    """From 1.0.0 no release after it has a set order, so the roadmap may plan no
+    version; a planned version is then the current entry and the next release."""
     now = [title for title, body in _ENTRIES if "  key: now\n" in body]
+    if not [title for title, _ in _ENTRIES if _version(title)]:
+        assert now == [] and _version(_VERSION) >= (1, 0, 0, 1, 0)
+        return
     assert len(now) == 1
     assert _version(now[0]) > _version(_VERSION)
     versions = [v for title, _ in _ENTRIES if (v := _version(title))]

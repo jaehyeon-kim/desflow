@@ -73,7 +73,7 @@ Each task gives its requests a priority. Express orders get 0, so they are serve
         payload: {event_type: express_packed}
     ```
 
-    Here each task has a fixed number. A priority can also be an expression that reads the entity's attributes, such as `priority: attr.priority`, so each order gets its own. [Task Flow](../../user-guide/model-parts/task-flow.md#attributes) describes attributes. A `priority` on a task whose resource does not have `queue: priority` is refused when the file loads. So to run the shop under `fifo`, remove `queue: priority` and both `priority` lines. A resource can also rank its line by a rule of its own: `queue: {rank: attr.priority, ties: fifo}` serves the lowest rank first, and `ties` orders equal ranks as `fifo` or `lifo`. A `priority` on a task is refused on a resource that has a `rank`. A rank or priority that is NaN, or text for a ranked queue, is refused with the resource and the task named. A priority is not an expression of the order's payload, because the payload exists only when the task finishes.
+    Here each task has a fixed number. A priority can also be an expression that reads the entity's attributes, such as `priority: attr.priority`, so each order gets its own. [Task Flow](../../user-guide/model-parts/task-flow.md#attributes) describes attributes. A `priority` on a task whose resource does not have `queue: priority` is refused when the file loads. So to run the shop under `fifo`, remove `queue: priority` and both `priority` lines. A resource can also rank its line by a rule of its own: `queue: {rank: attr.priority, ties: fifo}` serves the lowest rank first, and `ties` orders equal ranks as `fifo` or `lifo`. A `priority` on a task is refused on a resource that has a `rank`. A rank or priority that is NaN or text is refused with the resource and the task named. A priority is not an expression of the order's payload, because the payload exists only when the task finishes.
 
 === "Builder"
 
@@ -148,7 +148,7 @@ Run the hour once with the seed 42 at each of three total arrival rates, with a 
     priority pack_order   mean wait  2.70 s
     ```
 
-Use the rates `0.4125` and `0.1375`, as variables in YAML and as arguments in the scripts, for 33 a minute (0.55), and no rates for 36 a minute (0.6). The mean wait of a regular order is 2.70 seconds at 30 orders a minute, 4.12 seconds at 33 a minute and 7.17 seconds at 36 a minute. Express orders wait less than a second on average at all three rates. If express orders alone kept the packer busy, regular orders would never be served at all: they would **starve**.
+Use the rates `0.4125` and `0.1375`, as variables in YAML and as arguments in the scripts, for 33 a minute (0.55). For 36 a minute (0.6), leave the rates out, because those are the file's own rates. The mean wait of a regular order is 2.70 seconds at 30 orders a minute, 4.12 seconds at 33 a minute and 7.17 seconds at 36 a minute. Express orders wait less than a second on average at all three rates. If express orders alone kept the packer busy, regular orders would never be served at all: they would **starve**.
 
 `desflow explain` shows how busy the packer is at the default 36 orders a minute, without a run. Its output includes these lines:
 

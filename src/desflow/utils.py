@@ -278,13 +278,14 @@ def resource_held_twice(
     listed: Iterable[str],
     task: str = "a task",
 ) -> Optional[str]:
-    """The message for a task that takes one resource in two ways, or None.
+    """The warning for a task that takes one resource in two ways, or None.
 
     A task takes a resource by a `seize`, a `request` in its `wait`, a `request` in
     its `open`, or its `resource` list. Each way takes a unit, so naming one resource
-    in two ways queues the second behind the first. A `seize` and an `open` request
-    of one resource are allowed: the opened request is made first, so a task can
-    queue its seize behind its own opened request on purpose.
+    in two ways queues the second behind the first, and the task waits for ever when
+    the resource has fewer units than the task asks for. A `seize` and an `open`
+    request of one resource are not reported: the opened request is made first, so a
+    task can queue its seize behind its own opened request on purpose.
 
     Args:
         seized: The resource of the task's `seize`, as a list.
@@ -294,7 +295,7 @@ def resource_held_twice(
         task: How the message names the task.
 
     Returns:
-        The message, which names the resource and both ways, or None.
+        The message, which names the task, the resource and both ways, or None.
     """
     ways = {
         "seized": list(seized),
@@ -310,9 +311,9 @@ def resource_held_twice(
             for resource in ways[first]:
                 if resource in ways[second]:
                     return (
-                        f"{task} holds each resource once, but resource "
-                        f"'{resource}' is both {first} and {second}; list it in "
-                        f"only one"
+                        f"{task} takes a unit of resource '{resource}' twice, because "
+                        f"it is both {first} and {second}; the run can wait for ever "
+                        f"when '{resource}' has fewer units than the task asks for"
                     )
     return None
 

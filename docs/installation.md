@@ -9,7 +9,7 @@ Install the core library with uv or pip:
 === "uv"
 
     ```bash
-    # The desflow command
+    # desflow command
     uv tool install desflow
 
     # Or the library, in a uv project

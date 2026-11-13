@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from functools import partial
 from typing import Any, Callable, Dict, Optional, Protocol, Tuple, Union
 
-from aiokafka import AIOKafkaConsumer, TopicPartition
+from aiokafka import AIOKafkaConsumer
 
 from desflow.connectors._retry import FIRST_DELAY, next_delay
 from desflow.connectors._threads import run_in_daemon_thread
@@ -935,22 +935,12 @@ class KafkaIngress(BaseIngress):
         # messages.
         topic_failed = await asyncio.to_thread(self._create_topic)
         backoff = 1.0
-        # With a group, aiokafka commits the position of every message it has handed
-        # on in the background, also while a message waits for the registry, and at
-        # stop. A run that ends then would lose that message, so the offset is
-        # committed here once the message is handled.
-        settings = dict(self.kwargs)
-        by_hand = settings.get("group_id") is not None and settings.get(
-            "enable_auto_commit", True
-        )
-        if by_hand:
-            settings["enable_auto_commit"] = False
         while True:
             try:
                 if topic_failed:
                     topic_failed = await asyncio.to_thread(self._create_topic)
                 consumer = AIOKafkaConsumer(
-                    self.topic, bootstrap_servers=self.bootstrap_servers, **settings
+                    self.topic, bootstrap_servers=self.bootstrap_servers, **self.kwargs
                 )
                 try:
                     # Started inside the try, so a failed start also closes the
@@ -981,14 +971,6 @@ class KafkaIngress(BaseIngress):
                             if refuses_access(e):
                                 raise
                             logger.warning(f"Skipped a Kafka ingress message: {e}")
-                        if by_hand:
-                            await consumer.commit(
-                                {
-                                    TopicPartition(msg.topic, msg.partition): (
-                                        msg.offset + 1
-                                    )
-                                }
-                            )
                 finally:
                     await consumer.stop()
 

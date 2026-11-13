@@ -598,7 +598,7 @@ def other_jobs(env, repairman):
 
 In the 40320 seconds the ten machines make 33906 parts. Machine 8 makes the most, 3494, and Machine 9 the fewest, 3284. In SimPy's output, below, the machines make between 3185 and 3387 parts each.
 
-1040 machines break down and 1039 repairs finish, because the last repair is still running when the run ends. The repairman finishes 304 other jobs, and a repair preempts a job 269 times. SimPy's example does not print these counts. Here each one is a record with the machine's key, and the preempted job's record names the repair that preempted it. desflow draws each random value from its own stream, named by the place where the value is used, such as `MachineShop.service.patience`. A seed of 42 therefore gives different numbers from SimPy's `random.seed(42)`. The system is the same. The figures are not.
+1040 machines break down and 1039 repairs finish, because the last repair is still running when the run ends. The repairman finishes 304 other jobs, and a repair preempts a job 269 times. SimPy's example does not print these counts. Here each one is a record with the machine's key, and the preempted job's record names the repair that preempted it. desflow draws each random value from its own stream, named by the place where the value is used, such as `tasks.part.service_time`. A seed of 42 therefore gives different numbers from SimPy's `random.seed(42)`. The system is the same. The figures are not.
 
 ```text title="docs/snippets/simpy/machine_shop.out"
 Machine shop

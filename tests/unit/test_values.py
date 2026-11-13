@@ -3684,15 +3684,15 @@ def test_step_and_peek_after_a_stop_do_not_run_the_model_on(
     path.write_text(HEAD % 1 + STOPPED_RUNS[place].replace("ROW", ROW_STOP))
     app = SimulationContext.from_yaml(path)
     if place == "run.segments":
-        # Only finish() runs the segments, and it closes the run, so step() and
-        # peek() are refused as they are after any close()
+        # Only finish() runs the segments, and it closes the run, so step() is
+        # refused as it is after any close(), and peek() is infinity as after a stop
         app.start()
         app.finish()
         ended = app.env.now
         assert app._run.stopped
-        for call in (app.step, app.peek):
-            with pytest.raises(RuntimeError, match="needs a run that start"):
-                call()
+        with pytest.raises(RuntimeError, match="needs a run that start"):
+            app.step()
+        assert app.peek() == float("inf")
         assert app.env.now == ended
         return
     app.start(until=100)

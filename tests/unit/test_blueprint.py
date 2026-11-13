@@ -2139,10 +2139,13 @@ def _wait_request(pack="", tidy="resource: bench", queue="fifo"):
     )
 
 
-def test_a_resource_in_the_wait_and_in_resource_is_refused_in_yaml(tmp_path):
+def test_a_resource_in_the_wait_and_in_resource_warns_and_runs_in_yaml(
+    tmp_path, caplog
+):
     text = _wait_request(pack="resource: picker")
-    with pytest.raises(BlueprintError, match="holds each resource once"):
-        SimulationContext.from_yaml(write(tmp_path, text))
+    with caplog.at_level("WARNING"):
+        SimulationContext.from_yaml(write(tmp_path, text)).run(until=1)
+    assert "takes a unit of resource 'picker' twice" in caplog.text
 
 
 def test_a_wait_request_counts_in_the_acquisition_order_in_yaml(tmp_path, caplog):

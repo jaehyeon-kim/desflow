@@ -170,7 +170,7 @@ Customers sign up with a tier, and each order reads one sign-up row, so its cust
     python examples/gallery/orders_carry_the_customers_tier_low_level.py
     ```
 
-    The Low-level file draws each value with `Sampler.generator(<place>)`, where the place is the key path of the blueprint's generator that makes the same value, such as `tasks.sign_up.payload.tier`, `tasks.place_order.vars.customer` and `tasks.place_order.payload.amount`. Each draw therefore comes from the random sequence the blueprint uses at the same place, so the draws are the blueprint's. The gaps between arrivals come from `Sampler.sample` on a `DistributionConfig` whose `stream` is `arrival.signups` and `arrival.orders`, the sequence the blueprint uses for its arrivals.
+    The Low-level file draws each value with `Sampler.generator(<place>)`, where the place is the key path of the blueprint's generator that makes the same value, such as `tasks.sign_up.payload.tier`, `tasks.place_order.vars.customer` and `tasks.place_order.payload.amount`. Each draw therefore comes from the random sequence the blueprint uses at the same place, so the draws are the blueprint's. The gaps between arrivals come from `Sampler.sample` on a `DistributionConfig` whose `stream` is `arrival.signups` and `arrival.orders`, the sequences the blueprint uses for its arrivals.
 
     ```python title="examples/gallery/orders_carry_the_customers_tier_low_level.py"
     """Each order carries the tier of the customer who placed it.

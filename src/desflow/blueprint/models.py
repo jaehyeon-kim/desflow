@@ -101,7 +101,6 @@ from desflow.utils import (
     checked_priority,
     checked_seconds,
     checked_whole,
-    resource_held_twice,
     suggestion,
     time_to_seconds,
 )
@@ -2345,14 +2344,6 @@ class Task(StrictModel):
             )
         if len(set(plain)) != len(plain):
             raise ValueError("a task lists each resource once")
-        twice = resource_held_twice(
-            [r for r in self.seized() if not isinstance(r, Reference)],
-            [r for r in self.wait_requests() if not isinstance(r, Reference)],
-            [r for r in self.open_requests() if not isinstance(r, Reference)],
-            plain,
-        )
-        if twice is not None:
-            raise ValueError(twice)
         if self.on_interrupt_next is not None and self.on_interrupt != "abandon":
             raise ValueError("on_interrupt_next needs on_interrupt: abandon")
         if self.on_interrupt_run is not None:

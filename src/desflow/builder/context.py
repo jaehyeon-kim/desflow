@@ -81,6 +81,7 @@ from desflow.builder.signals import Signal, Signals, event_priority
 from desflow.builder.task import Batch, TaskRun, TaskSpec
 from desflow.builder.task_checks import (
     family_read_problem,
+    resource_held_twice_warning,
 )
 from desflow.core.registry import ParamChange, SimulationRegistry
 from desflow.core.rules import check_capacity, checked_datetime
@@ -1931,6 +1932,9 @@ class SimulationContext:
                 spec.patience,
                 spec.key,
             )
+            twice = resource_held_twice_warning(task_name, spec)
+            if twice is not None:
+                logger.warning(twice)
             self._task_functions[task_name] = wrapper
             self._tasks.specs[task_name] = spec
             return wrapper
@@ -3566,12 +3570,14 @@ class SimulationContext:
 
         The events of desflow's own, such as a statistics reading or a flush timer,
         are not counted. It is infinity once a `row` with `on_end: stop` or the last
-        entry of `run.segments` has ended the run, because `step()` runs no more.
+        entry of `run.segments` has ended the run, because `step()` runs no more. After
+        `close()` it still gives the time of the next event, which `step()` no longer
+        runs.
 
         Raises:
-            RuntimeError: If the run has not started or is closed.
+            RuntimeError: If the run has not started.
         """
-        env = self._started_env("peek()")
+        env = self.env
         return math.inf if self._run.stopped else env.peek()
 
     def _started_env(self, call: str) -> DynamicRealtimeEnvironment:

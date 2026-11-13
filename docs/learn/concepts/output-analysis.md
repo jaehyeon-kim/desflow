@@ -43,7 +43,7 @@ The same model can be either, because the choice depends on the question and on 
 
 ### In the Tutorial
 
-Trusting Results plots the busy hour from its start. The mean wait so far climbs from 0.06 seconds to 0.65 seconds in the first minute, because the first orders found free packers, and stays near 0.6 seconds until two minutes. After that it climbs in steps, each after a burst of orders, to about 2.5 seconds at eight minutes, and then moves up and down with no trend.
+The mean wait so far of the busy hour climbs in the first minute, because the first orders found free packers, and then in steps until about eight minutes, after which it moves up and down with no trend. [Trusting Results](../studies/trusting-results.md#compare-warm-ups) has the plot and the numbers.
 
 ![One run from an empty shop: a warm-up (left out of the statistics), then the measured period, then the end of the run at until](../../assets/diagrams/run-phases.png)
 
@@ -87,7 +87,7 @@ The warm-up resets every statistic once at that time, as [Run Length](../../user
 
 ### What the Result Means
 
-[Trusting Results](../studies/trusting-results.md#compare-warm-ups) compares warm-ups of 1, 2 and 4 minutes over five seeds. The longer ones move the mean by 0.004 and 0.005 seconds, far less than the half-widths of 0.43 and 0.49 seconds, so all pass. The first climb ends at about a minute, and 2 minutes covers it with a minute to spare. The running mean goes on rising in steps after two minutes. Leaving out up to 4 minutes moves the mean by at most 0.005 seconds, so that rise changes the estimate little, although the comparison does not show whether it is part of the start-up. In the run with the seed 42, the warm-up changes the mean wait only from 2.007 to 2.050 seconds: an hour is long enough that its first minutes hardly count. A shorter run, or one that starts far from the usual state, needs the warm-up much more. A warm-up is not a fix for a model that never settles: if [utilisation](queueing-basics.md#utilisation) is 1 or more, there is no steady state for a warm-up to find.
+[Trusting Results](../studies/trusting-results.md#compare-warm-ups) compares warm-ups of 1, 2 and 4 minutes over five seeds, and all pass. The first climb ends at about a minute, and 2 minutes covers it with a minute to spare. The running mean goes on rising in steps after two minutes. Leaving out up to 4 minutes moves the mean by at most 0.005 seconds, so that rise changes the estimate little, although the comparison does not show whether it is part of the start-up. In the run with the seed 42, the warm-up changes the mean wait only from 2.007 to 2.050 seconds: an hour is long enough that its first minutes hardly count. A shorter run, or one that starts far from the usual state, needs the warm-up much more. A warm-up is not a fix for a model that never settles: if [utilisation](queueing-basics.md#utilisation) is 1 or more, there is no steady state for a warm-up to find.
 
 ---
 
@@ -182,7 +182,7 @@ Over many studies, about 95% of the intervals built this way contain the true me
 
 ### In the Tutorial
 
-Trusting Results asks for a half-width within 10% of the mean. Utilisation meets it with 5 replications. The mean wait first meets it at 40: its half-width is 21.2% of the mean after 5 replications, 11.0% after 10, 13.0% after 20 and 8.4% after 40.
+Trusting Results asks for a half-width within 10% of the mean. Utilisation meets it with 5 replications. The mean wait first meets it at 20: its half-width is 21.4% of the mean after 5 replications, 14.0% after 10, 7.1% after 20 and 4.8% after 40.
 
 ### Why It Matters
 
@@ -190,11 +190,11 @@ There is no fixed number that is enough, such as 30. Waits vary far more from ru
 
 ### How to Use It
 
-Decide the precision each output needs, then run until the least precise output has it. The half-width shrinks with √n, so a half-width k times smaller needs about k² times as many replications. A first set of a few replications suggests how many are needed: 10 replications gave 11.0%, so 10% needs about 10 × (11.0 ÷ 10)² ≈ 12.
+Decide the precision each output needs, then run until the least precise output has it. The half-width shrinks with √n, so a half-width k times smaller needs about k² times as many replications. A first set of a few replications suggests how many are needed: 10 replications gave 14.0%, so 10% needs about 10 × (14.0 ÷ 10)² ≈ 20.
 
 ### What the Result Means
 
-That estimate is a guide, not a promise: 20 replications gave 13.0%, because the half-width of the first set is itself an estimate. Add replications, then read the half-width again. A longer run is the other way to gain precision. It reduces the effect of the start, but its mean is still one sample.
+That estimate is a guide, not a promise: the half-width of the first set is itself an estimate, so the number needed can differ (here 20 replications gave 7.1%). Add replications, then read the half-width again. A longer run is the other way to gain precision. It reduces the effect of the start, but its mean is still one sample.
 
 ---
 
@@ -210,7 +210,7 @@ A mean is over some orders, and two runs of the same hour can cover different or
 
 ### How to Use It
 
-Report the counts beside the means. The warm-up adds a third group: orders that were in the shop when the warm-up ended. An order that started before the warm-up ended and finished after it counts as finished, and its whole wait counts in the wait and service times. It does not count as started. [Statistics](../../user-guide/results/statistics.md) has the table of which orders each count covers.
+Report the counts beside the means. The warm-up adds a third group: orders that were in the shop when the warm-up ended. An order that started before the warm-up ended and finished after it counts as finished, and it does not count as started. An order still queued when the warm-up ended adds its whole wait to the wait times, and an order in service adds its whole service time and no wait. [Statistics](../../user-guide/results/statistics.md) has the table of which orders each count covers.
 
 ### What the Result Means
 

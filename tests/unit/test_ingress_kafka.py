@@ -171,20 +171,16 @@ async def test_kafka_ingress_pluggable_deserializers(MockConsumer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("setting", [None, False])
 @patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
-async def test_a_group_commits_an_offset_only_after_its_message_is_handled(
-    MockConsumer,
-):
-    """With a `group_id` the consumer does not commit by itself, because it would
-    commit the position of a message that still waits for the registry. The offset is
-    committed after the message is put on the queue."""
+async def test_a_group_leaves_offset_commits_to_the_consumer(MockConsumer, setting):
+    """With a `group_id` the consumer commits in the background, as aiokafka does by
+    default, and a user's `enable_auto_commit` is passed on unchanged. The ingress
+    commits no offset itself."""
     consumer = MagicMock()
     consumer.start = AsyncMock()
     consumer.stop = AsyncMock()
-    committed = []
-    consumer.commit = AsyncMock(
-        side_effect=lambda offsets: committed.append((offsets, ingress_queue.qsize()))
-    )
+    consumer.commit = AsyncMock()
 
     async def messages():
         yield MagicMock(
@@ -195,17 +191,18 @@ async def test_a_group_commits_an_offset_only_after_its_message_is_handled(
     consumer.__aiter__ = lambda self: messages()
     MockConsumer.return_value = consumer
     ingress_queue = queue.Queue()
-    ingress = KafkaIngress(topic="t", bootstrap_servers="localhost:9092", group_id="g")
+    extra = {} if setting is None else {"enable_auto_commit": setting}
+    ingress = KafkaIngress(
+        topic="t", bootstrap_servers="localhost:9092", group_id="g", **extra
+    )
 
     task = asyncio.create_task(ingress.run(ingress_queue))
-    await _wait_until(lambda: bool(committed))
+    await _wait_until(lambda: not ingress_queue.empty())
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
 
-    assert MockConsumer.call_args.kwargs["enable_auto_commit"] is False
-    [(offsets, queued)] = committed
-    assert queued == 1
-    assert list(offsets.values()) == [7]
+    assert MockConsumer.call_args.kwargs.get("enable_auto_commit") == setting
+    consumer.commit.assert_not_called()
 
 
 @pytest.mark.asyncio

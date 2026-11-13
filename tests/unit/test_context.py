@@ -1711,9 +1711,10 @@ def test_add_resource_checks_its_capacity_and_type():
         app.add_resource("limited", queue_limit=-2)
 
 
-def test_a_resource_in_the_wait_and_in_resource_is_refused():
-    """A task holds a resource once: naming it in a wait request and in resource would
-    queue the task behind its own unit for ever."""
+def test_a_resource_in_the_wait_and_in_resource_warns_and_runs(caplog):
+    """Naming a resource in a wait request and in resource takes two units of it, so
+    the run can wait for ever when it has one. The model still runs, and a warning
+    names the task and the resource."""
     app = _two_resources()
 
     @app.task(
@@ -1722,8 +1723,9 @@ def test_a_resource_in_the_wait_and_in_resource_is_refused():
     def a(task_id):
         return {}
 
-    with pytest.raises(ValueError, match="holds each resource once"):
+    with caplog.at_level("WARNING"):
         app.run(until=1)
+    assert "task 'a' takes a unit of resource 'picker' twice" in caplog.text
 
 
 def test_a_wait_request_counts_in_the_acquisition_order(caplog):
@@ -3687,17 +3689,18 @@ def test_a_drain_with_no_limit_ends_when_no_entity_can_move(stats, caplog):
     assert "1 entities still in the model" in caplog.text
 
 
-def test_step_and_peek_after_close_raise():
+def test_step_after_close_raises_and_peek_gives_the_time_of_the_next_event():
     app = SimulationContext("S", factor=0, random_seed=1)
     app.add_arrival("a", "constant", value=1.0, spawn="t")
     app.task(name="t")(lambda task_id, entity=None: {})
     app.add_egress(RecordingEgress())
     app.start(until=3)
     app.step()
+    before = app.peek()
     app.close()
-    for call in (app.step, app.peek):
-        with pytest.raises(RuntimeError, match="needs a run that start"):
-            call()
+    with pytest.raises(RuntimeError, match="needs a run that start"):
+        app.step()
+    assert app.peek() == before < float("inf")
 
 
 def test_an_initial_arrival_with_an_empty_name_is_refused_when_it_is_added():

@@ -29,7 +29,7 @@ The model puts picking before packing, as in [A Flow of Tasks](../shop-logic/flo
 Fitting needs the `fit` extra, which adds scipy and matplotlib:
 
 ```bash
-# The desflow command, with uv
+# desflow command, with uv
 uv tool install "desflow[fit]"
 
 # A Python file, with uv outside a project

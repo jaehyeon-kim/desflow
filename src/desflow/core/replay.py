@@ -261,14 +261,7 @@ def plain_value(value: Any) -> Any:
         return value
     for kind in (int, float):
         try:
-            number = kind(value)
+            return kind(value)
         except ValueError:
-            continue
-        # Digits past what a float holds read as infinity or overflow: they stay text,
-        # as the time column refuses them
-        try:
-            if math.isfinite(number):
-                return number
-        except OverflowError:
             pass
     return value

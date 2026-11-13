@@ -8,9 +8,10 @@ name: Pull request
 # example jobs when what they cover changes. No job takes much longer than a part of
 # the unit tests. A run starts more jobs than the 20 the plan runs at once, and the
 # rest wait for the shortest to end, as scripts/ci_plan.py sets out. The plan job reads the changed
-# files, and scripts/ci_plan.py decides. Lint runs beside the plan job, and every
-# other job starts only when the plan is read and Lint has passed, so a lint failure
-# stops the run in about a minute. checks-passed collects their results.
+# files, and scripts/ci_plan.py decides. The job of pre-commit, the import contracts
+# and the strict docs build runs beside the plan job, and every other job starts only
+# when the plan is read and that job has passed, so a lint failure stops the run in
+# about a minute. checks-passed collects their results.
 on:
   pull_request:
     branches: [main, "release-*"]
@@ -56,7 +57,7 @@ jobs:
   # pipeline.yml deploys the docs from main. Material prints a notice about MkDocs 2.0
   # that strict mode counts as a warning; the variable turns that notice off.
   lint:
-    name: Lint
+    name: Pre-commit, import contracts and strict docs build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
