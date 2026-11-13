@@ -146,23 +146,29 @@ def checked_seconds(
 
 
 def has_nan_priority(value: Any) -> bool:
-    """Whether a priority is NaN, or a list or tuple that holds NaN.
+    """Whether a priority is NaN, or a list or tuple that holds NaN at any depth.
 
     Args:
         value: The priority.
 
     Returns:
-        True if it is a number that is NaN, or a list or tuple with one.
+        True if it is a number that is NaN, a `Decimal` NaN included, or a list or
+        tuple that holds one.
     """
-    parts = value if isinstance(value, (list, tuple)) else [value]
-    return any(
-        isinstance(part, numbers.Real) and not isinstance(part, bool) and part != part
-        for part in parts
+    if isinstance(value, (list, tuple)):
+        return any(has_nan_priority(part) for part in value)
+    if isinstance(value, Decimal):
+        return value.is_nan()
+    return (
+        isinstance(value, numbers.Real)
+        and not isinstance(value, bool)
+        and value != value
     )
 
 
 def checked_priority(value: Any, what: str) -> Any:
-    """A literal priority, refused when it is NaN or a list or tuple that holds NaN.
+    """A literal priority, refused when it is NaN or a list or tuple that holds NaN
+    at any depth.
 
     NaN compares false with every priority, so one request with it breaks the order
     of the requests around it. Infinity orders correctly and is accepted, as it is

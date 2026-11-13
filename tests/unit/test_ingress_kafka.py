@@ -173,6 +173,8 @@ async def test_a_slow_deserializer_does_not_hold_the_loop(MockConsumer):
     deadline = loop.time() + 5
     while ingress_queue.empty() and loop.time() < deadline:
         await asyncio.sleep(0.01)
+    # The ticker may be cancelled before it wakes after a block, so the last gap ends now
+    ticks.append(loop.time())
     task.cancel()
     watcher.cancel()
     await asyncio.gather(task, watcher, return_exceptions=True)

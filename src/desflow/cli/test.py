@@ -2,6 +2,7 @@
 
 import functools
 import logging
+import math
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Mapping, Optional, Tuple
 
@@ -147,13 +148,13 @@ def _test_file(file: Path, fix: bool, variables: Mapping[str, str]) -> bool:
             if value is not None:
                 found[name] = value
         measured.append(found)
-        differing, missing = _differences(test.expect, found)
-        if missing or (differing and not fix):
+        differing, unfixable = _differences(test.expect, found)
+        if unfixable or (differing and not fix):
             failed = True
             typer.echo(f"FAILED {holder}: {test.name}")
-            for line in missing + (differing if not fix else []):
+            for line in unfixable + (differing if not fix else []):
                 typer.echo(f"  {line}")
-        elif fix and (differing or not test.expect):
+        elif fix and (differing or (not test.expect and _has_number(found))):
             typer.echo(f"fixed {holder}: {test.name}")
         else:
             typer.echo(f"ok {holder}: {test.name}")
@@ -200,19 +201,30 @@ def _measure(
     }
 
 
+def _has_number(found: Mapping[str, Any]) -> bool:
+    """Whether a run published a statistic that is not NaN, which `--fix` can write
+    into a test with no `expect`."""
+    return not all(map(_is_nan, found.values()))
+
+
+def _is_nan(value: Any) -> bool:
+    """Whether a statistic is NaN; an integer, of any size, never is."""
+    return isinstance(value, float) and math.isnan(value)
+
+
 def _differences(
     expect: Mapping[str, Any], found: Mapping[str, Any]
 ) -> Tuple[List[str], List[str]]:
     """The lines for the expected statistics that differ from the run, and for those
-    the run did not publish at all."""
+    that `--fix` cannot write: not published at all, or published as NaN."""
     from desflow.blueprint.expectations import holds, number_text
     from desflow.blueprint.models import ExpectedWithin
 
     differing: List[str] = []
-    missing: List[str] = []
+    unfixable: List[str] = []
     for name, expected in expect.items():
         if name not in found:
-            missing.append(
+            unfixable.append(
                 f"{name}: the run publishes no such statistic{suggestion(name, found)}"
             )
             continue
@@ -225,5 +237,9 @@ def _differences(
             )
         else:
             want = number_text(expected)
-        differing.append(f"{name}: expected {want}, measured {number_text(measured)}")
-    return differing, missing
+        line = f"{name}: expected {want}, measured {number_text(measured)}"
+        if _is_nan(measured):
+            unfixable.append(f"{line}, which --fix cannot write")
+        else:
+            differing.append(line)
+    return differing, unfixable

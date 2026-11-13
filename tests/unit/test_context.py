@@ -8,6 +8,7 @@ import pytest
 
 from desflow import Entity, SimulationContext
 from desflow.blueprint import BlueprintError
+from desflow.core.expressions import Expression
 from desflow.values import generator
 from tests.conformance.harness import run_yaml_text
 
@@ -1220,22 +1221,28 @@ def test_a_scenario_step_at_until_does_not_apply():
         assert app.get_resource("packers").capacity == expected
 
 
-def test_a_scenario_interrupt_whose_where_does_not_parse_is_refused_when_added():
-    """`add_step` refuses an interrupt `where` that is no expression, as a task's
-    interrupt action does when it is declared, and the low-level `run_scenario`
-    does too."""
+@pytest.mark.parametrize(
+    "where, refusal",
+    [("attr.x ==", "interrupt where: 'attr.x ==' is not a valid"), (False, "False")],
+    ids=["text that does not parse", "not text"],
+)
+def test_a_scenario_interrupt_whose_where_is_no_expression_is_refused_when_added(
+    where, refusal
+):
+    """`add_step` and `add_scenario` refuse an interrupt `where` that is no
+    expression, as a task's interrupt action does when it is declared, and the
+    low-level `run_scenario` does too."""
     app = SimulationContext("S", factor=0.0)
-    with pytest.raises(ValueError, match="interrupt where: 'attr.x ==' is not a valid"):
-        app.add_step(at=3, interrupt={"task": "t", "where": "attr.x =="})
+    step = {"at": 3, "interrupt": {"task": "t", "where": where}}
+    with pytest.raises(ValueError, match=refusal):
+        app.add_step(at=3, interrupt=step["interrupt"])
+    with pytest.raises(ValueError, match=refusal):
+        app.add_scenario([step])
     assert app._scenario_steps == []
     from desflow.builder.scenario import run_scenario
 
-    with pytest.raises(ValueError, match="interrupt where: 'attr.x ==' is not a valid"):
-        next(
-            run_scenario(
-                None, [{"at": 3, "interrupt": {"task": "t", "where": "attr.x =="}}]
-            )
-        )
+    with pytest.raises(ValueError, match=refusal):
+        next(run_scenario(None, [step]))
 
 
 def test_an_interval_given_as_a_duration_is_kept_in_seconds():
@@ -3169,6 +3176,28 @@ def test_the_scenario_check_refuses_the_first_step_in_time_order(steps, message)
     with pytest.raises(ValueError) as refused:
         app.run(until=1)
     assert str(refused.value) == message
+
+
+@pytest.mark.parametrize("form", [str, Expression], ids=["text", "an Expression"])
+def test_the_registry_paths_a_scenario_interrupt_where_reads_are_checked(form):
+    """A scenario interrupt's `where` is checked before the run, as text and as an
+    `Expression`, as a YAML scenario's is; the attributes it reads are not."""
+
+    def model(where):
+        app = SimulationContext("S", factor=0, random_seed=1)
+        app.add_variable("v", 0)
+        app.add_arrival_replay("a", [{"time": 0}], spawn="t")
+        app.task(name="t", service_time=5)(lambda task_id: {})
+        app.add_scenario([{"at": 1, "interrupt": {"task": "t", "where": form(where)}}])
+        return app
+
+    with pytest.raises(ValueError) as refused:
+        model("registry['S.variables.missing'] == 1").start(until=2)
+    assert str(refused.value).startswith(
+        "scenario step at 1 s interrupt where reads "
+        'registry["S.variables.missing"], which is not a registry path'
+    ), refused.value
+    model("registry['S.variables.v'] == 0 or attr.n == 1").run(until=2)
 
 
 def test_the_scenario_walk_yields_each_step_with_its_problem():

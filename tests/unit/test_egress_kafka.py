@@ -889,6 +889,8 @@ async def test_a_registry_or_encoding_error_skips_only_its_record(
     "kind",
     [
         pytest.param("registry-503", id="registry-503"),
+        pytest.param("registry-429", id="registry-429"),
+        pytest.param("glue-throttling", id="glue-throttling"),
         pytest.param("timeout", id="timeout"),
         pytest.param("glue-connection", id="glue-connection"),
     ],
@@ -898,9 +900,10 @@ async def test_a_registry_or_encoding_error_skips_only_its_record(
 async def test_a_temporary_registry_error_keeps_the_batch_for_a_retry(
     MockProducer, run_until, caplog, monkeypatch, kind
 ):
-    """A registry that answers 5xx, times out or drops the connection does not skip
-    its record: the whole batch is encoded again after a wait, every record is sent
-    once and in order, and the producer is not restarted."""
+    """A registry that answers 5xx, throttles the call, times out or drops the
+    connection does not skip its record: the whole batch is encoded again after a
+    wait, every record is sent once and in order, and the producer is not
+    restarted."""
     import httpx
     from botocore.exceptions import EndpointConnectionError
 
@@ -909,6 +912,10 @@ async def test_a_temporary_registry_error_keeps_the_batch_for_a_retry(
     def temporary():
         if kind == "registry-503":
             return SchemaRegistryError(503, 50301, "unavailable")
+        if kind == "registry-429":
+            return SchemaRegistryError(429, 42901, "too many requests")
+        if kind == "glue-throttling":
+            return SchemaRegistryError(400, "ThrottlingException", "Rate exceeded")
         if kind == "timeout":
             return httpx.ConnectTimeout("timed out")
         error = SchemaRegistryError(-1, -1, "could not connect")
@@ -969,6 +976,8 @@ async def test_a_slow_serializer_does_not_hold_the_loop(MockProducer, run_until)
 
     watcher = asyncio.create_task(ticker())
     await run_until(egress.run(batches), lambda: producer.send.call_count >= 1)
+    # The ticker may be cancelled before it wakes after a block, so the last gap ends now
+    ticks.append(loop.time())
     watcher.cancel()
 
     gaps = [later - earlier for earlier, later in zip(ticks, ticks[1:])]

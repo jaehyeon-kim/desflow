@@ -184,7 +184,8 @@ def _rows_to_table(records: list, schema: Any, pa: Any) -> Any:
                     f"its fraction. Iceberg cannot change the type of a column that "
                     f"exists. Name the column double in schemas before the table is "
                     f"created (for a list or struct column, in a PyArrow schema), or "
-                    f"create the table again with table_policy: drop_and_create"
+                    f"create the table again: run once with table_policy: "
+                    f"drop_and_create, then set it back to create"
                 )
     return pa.Table.from_pylist(records, schema=schema)
 
@@ -244,8 +245,10 @@ class IcebergStorageEgress(BaseEgress):
     exception. A table whose column takes fractions, or whose consumer expects a real
     timestamp, needs an explicit schema. A table with `upsert_keys` cannot gain a
     column, because PyIceberg's `upsert` compares the batch with the matching rows of
-    the old data files, which lack it, so a batch that brings a column the table lacks
-    is refused: name every column in `schemas`. An
+    the old data files, which lack it. When the table is not named in `schemas`, a
+    batch that brings a column the table lacks is refused. A table named in `schemas`
+    writes only the columns listed there and leaves any other field out, so name every
+    column of an upsert table in `schemas`. An
     ISO string bound for a timestamp or date column of the table is converted to a
     `datetime` or `date` before the write, because PyArrow rejects the string itself.
 
@@ -579,8 +582,9 @@ class IcebergStorageEgress(BaseEgress):
                     f"{identifier} has upsert_keys, which cannot update a row "
                     f"written before a column was added, and this batch brings "
                     f"the columns {names} that the table lacks. Name every column "
-                    f"in schemas and create the table again with table_policy: "
-                    f"drop_and_create, which deletes its rows"
+                    f"in schemas and create the table again: run once with "
+                    f"table_policy: drop_and_create, which deletes its rows, then "
+                    f"set it back to create"
                 )
             if new:
                 with table.update_schema() as update:

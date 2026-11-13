@@ -4613,6 +4613,8 @@ def _parse_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
         return {"resume": _parse_resume(entry["resume"])}
     if "value" not in entry:
         raise ValueError("a path needs a value")
+    if not isinstance(entry["path"], str):
+        raise ValueError(f"an on: action's path is text, not {entry['path']!r}")
     return {"path": entry["path"], "value": entry["value"]}
 
 

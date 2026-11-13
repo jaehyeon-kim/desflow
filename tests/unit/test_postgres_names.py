@@ -4,12 +4,13 @@ PostgreSQL folds an unquoted name to lower case and looks a name without a schem
 through the search path. The fake catalogue holds `public.orders(order_id, status)` and
 `archive.orders(order_id, archived_at)`, and answers a column lookup the way PostgreSQL
 does for the query the sink sends: `pg_attribute` through a `regclass`, or the columns
-of every table `information_schema` finds by the name as written.
+of every table `information_schema` finds by the name as written. It answers the
+sink's schema lookup with the schema each name resolves to.
 """
 
 import asyncio
 import queue
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from unittest.mock import patch
 
 import pytest
@@ -46,15 +47,31 @@ class FakeConn:
             return self._information_schema(sql, args)
         return []
 
+    async def fetchrow(self, sql: str, *args: Any) -> dict:
+        """The schemas the sink reads at start: the schema of the table its name
+        resolves to, and that of the table its name without a schema resolves to."""
+        return {
+            "table_schema": self._schema_of(args[0]),
+            "bare_schema": self._schema_of(args[1]) or SEARCH_PATH[0],
+        }
+
     @staticmethod
-    def _regclass(name: str) -> List[str]:
-        """The columns of the one table a name resolves to, as `::regclass` does."""
+    def _schema_of(name: str) -> Optional[str]:
+        """The schema of the one table a name resolves to, as `to_regclass` finds it."""
         schema, dot, table = name.lower().rpartition(".")
         schemas = [schema] if dot else SEARCH_PATH
         for found in schemas:
             if table in CATALOGUE.get(found, {}):
-                return CATALOGUE[found][table]
-        raise LookupError(f'relation "{name}" does not exist')
+                return found
+        return None
+
+    @staticmethod
+    def _regclass(name: str) -> List[str]:
+        """The columns of the one table a name resolves to, as `::regclass` does."""
+        schema = FakeConn._schema_of(name)
+        if schema is None:
+            raise LookupError(f'relation "{name}" does not exist')
+        return CATALOGUE[schema][name.lower().rpartition(".")[2]]
 
     @staticmethod
     def _information_schema(sql: str, args: tuple) -> list:

@@ -928,9 +928,10 @@ class Store(StrictModel):
             for item in self.items
         ):
             raise ValueError("a priority store starts with [priority, item] pairs")
-        for item in self.items:
-            if isinstance(item, list):
-                checked_priority(item[0], "the priority of a starting item")
+        if self.priority:
+            for item in self.items:
+                if isinstance(item, list):
+                    checked_priority(item[0], "the priority of a starting item")
         return self
 
 

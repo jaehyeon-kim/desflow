@@ -50,6 +50,37 @@ async def test_postgres_ingress_waits_for_a_database_that_is_not_up(
     assert "PostgresIngress could not connect: refused" in caplog.text
 
 
+@pytest.mark.parametrize("refused", ["table_name", "certificate"])
+@pytest.mark.asyncio
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_postgres_ingress_stops_on_an_error_that_no_wait_fixes(
+    mock_create_pool, mock_pool, refused
+):
+    """A table name the server refuses, or a server certificate that does not verify,
+    ends the ingress with its error at once, while a refused connection is waited
+    out. A failed verification is both an `OSError`, as a refused connection is, and
+    a `ValueError`."""
+    import ssl
+
+    pool, conn = mock_pool
+    if refused == "table_name":
+        error: Exception = asyncpg.PostgresSyntaxError('syntax error at "-"')
+        mock_create_pool.return_value = pool
+        conn.execute.side_effect = error
+    else:
+        error = ssl.SSLCertVerificationError("certificate verify failed")
+        mock_create_pool.side_effect = error
+    ingress = PostgresIngress("postgresql://u:p@localhost/db", "bad-name")
+
+    with pytest.raises(type(error)):
+        await asyncio.wait_for(ingress.run(queue.Queue()), timeout=2)
+
+    mock_create_pool.assert_called_once()
+
+
 @pytest.mark.asyncio
 @patch(
     "desflow.connectors.ingress.postgres.asyncpg.create_pool",

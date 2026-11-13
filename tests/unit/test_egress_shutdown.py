@@ -69,7 +69,13 @@ async def test_postgres_reports_the_batch_it_is_sending():
     from desflow.connectors.egress.postgres import PostgresEgress
 
     entered, release, wait = _gate()
-    conn = MagicMock(executemany=wait, fetch=AsyncMock(return_value=[]))
+    conn = MagicMock(
+        executemany=wait,
+        fetch=AsyncMock(return_value=[]),
+        fetchrow=AsyncMock(
+            return_value={"table_schema": "public", "bare_schema": "public"}
+        ),
+    )
     acquire = MagicMock()
     acquire.__aenter__ = AsyncMock(return_value=conn)
     acquire.__aexit__ = AsyncMock(return_value=False)

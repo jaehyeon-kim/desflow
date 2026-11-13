@@ -4,7 +4,8 @@ name: Docs
 # alone, because only a pull request runs the docs tests. This workflow, started by
 # hand, runs the docs tests in the same 5 parts as pull-request.yml and the strict
 # build, and deploys the docs when both pass: `gh workflow run docs.yml --ref main`.
-# It deploys only from main, because the deploy publishes the docs as `latest`.
+# It deploys only from main, and deploy_docs.sh skips a commit that is no longer the
+# head of main, because the deploy publishes the docs as `latest`.
 on:
   workflow_dispatch:
 

@@ -7,7 +7,7 @@ from typing import Any, Mapping, Tuple
 import asyncpg
 
 from desflow.connectors._checks import checked_poll
-from desflow.connectors._retry import connect_with_retry
+from desflow.connectors._retry import connect_with_retry, is_temporary_postgres_error
 from desflow.connectors.ingress.base import BaseIngress, parse_change
 
 logger = logging.getLogger(__name__)
@@ -95,15 +95,23 @@ class PostgresIngress(BaseIngress):
         Main execution loop fetching dynamic parameter updates from PostgreSQL.
 
         If PostgreSQL does not answer at start, the ingress retries with a back-off
-        that grows to one minute, as the Kafka ingress does.
+        that grows to one minute, as the Kafka ingress does. An error that no wait
+        fixes, such as a `table_name` the server refuses, ends the task at once.
 
         Args:
             ingress_queue: A thread-safe queue used to transmit (path, value)
                 tuples to the SimulationRegistry.
+
+        Raises:
+            asyncpg.PostgresError: If the server refuses a setting, such as the
+                password or `table_name`.
         """
         try:
             await connect_with_retry(
-                self._init_pool, self._close_pool, "PostgresIngress"
+                self._init_pool,
+                self._close_pool,
+                "PostgresIngress",
+                is_temporary_postgres_error,
             )
             await self._ingest(ingress_queue)
         finally:

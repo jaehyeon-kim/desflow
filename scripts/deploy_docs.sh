@@ -12,6 +12,15 @@ git config --global user.email "1023748+jaehyeon-kim@users.noreply.github.com"
 VERSION=$(grep -m 1 '^version = ' pyproject.toml | cut -d '"' -f 2)
 echo "Extracted version: $VERSION"
 
+# The deploys of pipeline.yml and docs.yml wait for each other in the docs-deploy
+# group, but in the order they started, not by commit. A run whose commit is no longer
+# the head of main would replace newer docs as `latest`, so it stops here.
+git fetch --quiet origin main
+if [ "$(git rev-parse FETCH_HEAD)" != "$(git rev-parse HEAD)" ]; then
+  echo "Skipped: $(git rev-parse --short HEAD) is not the head of main ($(git rev-parse --short FETCH_HEAD)), whose own run deploys the docs."
+  exit 0
+fi
+
 # Deploy the version and tag it as 'latest'
 uv run mike deploy --update-aliases "$VERSION" latest
 

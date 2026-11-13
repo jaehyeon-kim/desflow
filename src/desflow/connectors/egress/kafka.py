@@ -1168,7 +1168,7 @@ class KafkaEgress(BaseEgress):
                 raise
             # A record the serializer cannot encode is skipped, as the other sinks
             # skip a record they cannot write: a refused value, an integer too
-            # large for the schema or a registry that answers with a 4xx status.
+            # large for the schema or a registry that refuses it with a 4xx status.
             # The connection to Kafka is not the cause, so it is not restarted,
             # and the rest of the batch is sent. A registry that fails for a time
             # is a temporary error, which `_messages_with_retry` waits out.
@@ -1206,8 +1206,8 @@ class KafkaEgress(BaseEgress):
         """
         Returns the messages of a batch, waiting while the schema registry is down.
 
-        A temporary registry error (a 5xx answer, a timeout or a lost connection)
-        keeps the batch: nothing of it is sent yet, so it is encoded again after a
+        A temporary registry error (a 5xx answer, a throttled call, a timeout or a
+        lost connection) keeps the batch: nothing of it is sent yet, so it is encoded again after a
         longer wait, and the Kafka producer is not restarted.
 
         Args:
@@ -1248,10 +1248,11 @@ class KafkaEgress(BaseEgress):
         topic based on the 'stream_type', and performs asynchronous sends using
         the configured serializers, which run in a worker thread. A record that its
         serializer refuses, with a `SerializationError`, a value error or a
-        `SchemaRegistryError` with a 4xx status, is skipped with a warning that
-        names its key and the reason, and the rest of the batch is sent. A registry
-        that fails for a time (a 5xx status, a timeout or a lost connection) keeps
-        the batch, which is tried again after a longer wait.
+        `SchemaRegistryError` with a 4xx status other than a throttled call, is
+        skipped with a warning that names its key and the reason, and the rest of
+        the batch is sent. A registry that fails for a time (a 5xx status, a
+        throttled call, a timeout or a lost connection) keeps the batch, which is
+        tried again after a longer wait.
 
         Args:
             egress_queue: A thread-safe queue containing lists of dictionaries

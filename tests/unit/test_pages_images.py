@@ -124,3 +124,23 @@ def test_a_text_run_that_names_two_images_keeps_both(tmp_path):
 
     kept = {path.name for path in (tmp_path / "1.0" / "img").iterdir()}
     assert kept == {"a.png", "b.png"}
+
+
+def test_an_image_a_template_literal_names_is_kept(tmp_path):
+    """A backtick, and the brace that ends a `${...}` in front of a name, separate the
+    name from the text before it, so the check before deleting finds both images."""
+    versions = [("2.0", ["latest"]), ("1.0", [])]
+    (tmp_path / "versions.json").write_text(
+        json.dumps([{"version": v, "title": v, "aliases": a} for v, a in versions])
+    )
+    (tmp_path / "1.0" / "img").mkdir(parents=True)
+    for name in ("plot.png", "chart.png"):
+        (tmp_path / "1.0" / "img" / name).write_bytes(name.encode())
+    (tmp_path / "1.0" / "app.js").write_text(
+        "a.src = `plot.png`; b.src = `${base}chart.png`;"
+    )
+
+    pages_images.rewrite_site(tmp_path)
+
+    kept = {path.name for path in (tmp_path / "1.0" / "img").iterdir()}
+    assert kept == {"plot.png", "chart.png"}

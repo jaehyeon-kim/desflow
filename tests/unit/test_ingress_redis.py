@@ -23,6 +23,7 @@ async def test_redis_ingress():
 
         # Mock get_message to return a valid message, then None to sleep
         mock_pubsub.get_message.side_effect = [
+            {"type": "subscribe", "data": 1},
             {
                 "type": "message",
                 "data": orjson.dumps({"path": "a.b", "value": 42}),
@@ -72,6 +73,7 @@ async def test_redis_ingress_connects_again_when_the_connection_fails(
             pubsub.get_message.side_effect = redis.exceptions.ConnectionError("reset")
         else:
             pubsub.get_message.side_effect = [
+                {"type": "subscribe", "data": 1},
                 {
                     "type": "message",
                     "data": orjson.dumps({"path": "a.b", "value": 1}),
@@ -92,6 +94,49 @@ async def test_redis_ingress_connects_again_when_the_connection_fails(
     assert len(pubsubs) == 3
     assert "RedisIngress connection failed: down" in caplog.text
     assert "RedisIngress connection failed: reset" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_redis_ingress_waits_longer_while_redis_refuses_the_subscription(
+    caplog, run_until
+):
+    """Redis answers SUBSCRIBE after `subscribe()` returns, so a refusal, such as an
+    ACL that denies the channel, comes from the first read. Until Redis confirms the
+    subscription, each wait is twice the one before."""
+    import redis
+
+    update_queue = queue.Queue()
+    ingress = RedisIngress(url="redis://localhost:6379/0", poll_interval=0.01)
+    pubsubs = []
+
+    def client_for_attempt(url, **kwargs):
+        pubsub = AsyncMock()
+        pubsubs.append(pubsub)
+        if len(pubsubs) <= 3:
+            pubsub.get_message.side_effect = redis.exceptions.ResponseError("NOPERM")
+        else:
+            pubsub.get_message.side_effect = [
+                {"type": "subscribe", "data": 1},
+                {"type": "message", "data": orjson.dumps({"path": "a.b", "value": 1})},
+                *[None] * 1000,
+            ]
+        client = AsyncMock()
+        client.pubsub = MagicMock(return_value=pubsub)
+        return client
+
+    with (
+        patch("desflow.connectors.ingress.redis.redis.from_url", client_for_attempt),
+        patch("desflow.connectors.ingress.redis.FIRST_DELAY", 0.01),
+    ):
+        await run_until(ingress.run(update_queue), lambda: not update_queue.empty())
+
+    assert update_queue.get_nowait() == ("a.b", 1)
+    waits = [
+        r.getMessage().rpartition(" ")[2]
+        for r in caplog.records
+        if "NOPERM" in r.getMessage()
+    ]
+    assert waits == ["0.01s", "0.02s", "0.04s"]
 
 
 @pytest.mark.asyncio
@@ -126,6 +171,7 @@ async def test_redis_ingress_reconnects_after_a_value_error_while_reading(
             )
         else:
             pubsub.get_message.side_effect = [
+                {"type": "subscribe", "data": 1},
                 {
                     "type": "message",
                     "data": orjson.dumps({"path": "a.b", "value": 1}),
@@ -174,6 +220,7 @@ async def test_redis_ingress_logs_and_skips_bad_messages(caplog):
         mock_client.pubsub = MagicMock(return_value=mock_pubsub)
         mock_from_url.return_value = mock_client
         mock_pubsub.get_message.side_effect = [
+            {"type": "subscribe", "data": 1},
             *({"type": "message", "data": data} for data in messages),
             asyncio.CancelledError(),
         ]

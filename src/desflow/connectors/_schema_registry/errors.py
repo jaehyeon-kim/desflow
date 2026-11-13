@@ -39,8 +39,10 @@ def is_temporary(error: BaseException) -> bool:
     A temporary failure is a 5xx answer, a timeout or a lost connection, to a
     Confluent registry (an `httpx.TransportError`) or to AWS Glue (a botocore
     connection error, which `GlueSchemaRegistryClient` wraps in a
-    `SchemaRegistryError` with the status -1). A 4xx answer, a payload the schema
-    cannot encode and any other error are permanent: the same record fails again.
+    `SchemaRegistryError` with the status -1). A throttled call is temporary too: a
+    408 or 429 answer, or the Glue error `ThrottlingException`. Any other 4xx
+    answer, a payload the schema cannot encode and any other error are permanent:
+    the same record fails again.
 
     Args:
         error: The exception a serializer raised.
@@ -53,9 +55,16 @@ def is_temporary(error: BaseException) -> bool:
         return True
     if not isinstance(error, SchemaRegistryError):
         return False
-    if 500 <= error.http_status <= 599:
+    if 500 <= error.http_status <= 599 or error.http_status in _THROTTLED_STATUS:
+        return True
+    if error.error_code == "ThrottlingException":
         return True
     return isinstance(error.__cause__, transport)
+
+
+# The answers a registry gives when it asks the caller to wait: a request timeout and
+# too many requests. The Confluent client retries them a few times first.
+_THROTTLED_STATUS = (408, 429)
 
 
 def _transport_errors() -> tuple[type[BaseException], ...]:

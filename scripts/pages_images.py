@@ -56,7 +56,7 @@ _LINK = re.compile(
 # name may hold a space, a parenthesis or a comma, so the text runs back to a slash or
 # a quote and `_spellings` lists the names it may end with.
 _NAME = re.compile(r"[^\"'<>/\\]{1,300}\.(?:png|gif|jpe?g|webp)\b", re.IGNORECASE)
-_NAME_STARTS = " (),="
+_NAME_STARTS = " (),=`}"
 _IMAGE_END = re.compile(r"\.(?:png|gif|jpe?g|webp)\b")
 
 

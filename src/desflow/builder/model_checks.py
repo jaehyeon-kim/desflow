@@ -266,6 +266,14 @@ def generator_reads(spec: TaskSpec) -> List[Tuple[str, Expression]]:
     return found
 
 
+def _interrupt_where(step: Mapping[str, Any]) -> Optional[Expression]:
+    """The `where` of a scenario step's interrupt as an expression, or None when the
+    step has none. `check_step` has refused text that does not parse."""
+    action = step.get("interrupt")
+    where = action.get("where") if action is not None else None
+    return Expression(where, names=ANY_NAME) if isinstance(where, str) else where
+
+
 def written_paths(
     scenario_steps: List[Dict[str, Any]], tasks: Tasks, signals: Signals
 ) -> Set[str]:
@@ -1368,7 +1376,8 @@ class ModelChecks:
     def _run_reads(self) -> Iterator[Tuple[str, Expression]]:
         """Yields each expression the run places of an arrival and the values of a
         scenario step hold, with the place for a message: an `Expression` given as the
-        value, and the text of each `expr`, `when` or `omit_when` of a generator in it.
+        value, the text of each `expr`, `when` or `omit_when` of a generator in it,
+        and the `where` of a scenario step's interrupt, as text or an `Expression`.
         Text that does not parse is left to the check of the value."""
         places: List[Tuple[str, Any]] = []
         for name, plan in self._arrivals.plans.items():
@@ -1386,6 +1395,7 @@ class ModelChecks:
             where = f"scenario step at {step['at']:g} s"
             places += [(f"{where} {key}", step.get(key)) for key in ("value", "record")]
             places.append((f"{where} interrupt", step.get("interrupt")))
+            places.append((f"{where} interrupt where", _interrupt_where(step)))
         for place, value in places:
             if isinstance(value, Expression):
                 yield place, value

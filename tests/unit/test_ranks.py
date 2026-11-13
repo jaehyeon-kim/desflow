@@ -2,6 +2,8 @@
 
 Infinity orders correctly, so it is accepted."""
 
+from decimal import Decimal
+
 import pytest
 
 from desflow.blueprint.loader import BlueprintError
@@ -212,6 +214,35 @@ def test_a_nan_priority_of_a_starting_item_is_refused_on_every_path(tmp_path, ba
     with pytest.raises(ValueError, match="store 's' starting item priority"):
         app.add_store("s", priority=True, items=[(5, "y"), (float("nan"), "x")])
     app.add_store("t", priority=True, items=[(float("inf"), "y"), (1, "x")])
+
+
+@pytest.mark.parametrize("item", ["[]", "[.nan, x]"])
+def test_a_list_item_of_a_store_that_is_not_a_priority_store_loads(tmp_path, item):
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        f"stores: {{s: {{items: [{item}]}}}}\n"
+        "arrivals: {a: {gap: 1, max_events: 1, spawn: t}}\n"
+        "tasks: {t: {get: {store: s}, payload: {}}}\n"
+        "run: {until: 5}\n"
+    )
+    SimulationContext.from_yaml(path)
+
+
+@pytest.mark.parametrize(
+    "nan", [Decimal("NaN"), [1, [float("nan")]]], ids=["Decimal", "nested in a list"]
+)
+def test_a_decimal_or_nested_nan_priority_is_refused_where_any_order_is_taken(nan):
+    """A task's priority and a priority store's items take any value that orders, so
+    a NaN of another type, or one inside a nested list, is refused there too."""
+    app = SimulationContext("S", factor=0)
+    app.add_resource("desk", current_cap=1, queue="priority")
+    with pytest.raises(ValueError, match="task 'serve' priority must be a number"):
+        app.task(name="serve", service_time=1, resource_id="desk", priority=nan)(
+            lambda task_id: {}
+        )
+    with pytest.raises(ValueError, match="store 's' starting item priority"):
+        app.add_store("s", priority=True, items=[(nan, "x")])
 
 
 def test_a_priority_pair_that_holds_nan_is_refused_when_put_in_a_priority_store(

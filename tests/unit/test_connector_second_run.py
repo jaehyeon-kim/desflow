@@ -252,6 +252,10 @@ class _FakeConn:
     async def fetchval(self, sql: str, *args: Any) -> int:
         return 1
 
+    async def fetchrow(self, sql: str, *args: Any) -> dict:
+        # The schemas `PostgresEgress` reads at start, for the default `search_path`
+        return {"table_schema": "public", "bare_schema": "public"}
+
 
 @contextlib.contextmanager
 def _hold_ingress_until(event: threading.Event):

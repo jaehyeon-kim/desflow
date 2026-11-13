@@ -198,6 +198,8 @@ _NUMBERS = {
         {"name": "i", "type": "int"},
         {"name": "list", "type": {"type": "array", "items": "int"}},
         {"name": "inner", "type": {"type": "map", "values": "long"}},
+        {"name": "maybe", "type": ["null", "int"]},
+        {"name": "either", "type": ["null", "Numbers2"]},
     ],
 }
 
@@ -214,6 +216,8 @@ _NUMBERS = {
         ({"inner": {"a": 0.5}}, "holds 0.5 for a field of the Avro type long"),
         ({"first": {"m": 0.5}}, "field 'm' holds 0.5"),
         ({"again": {"m": 0.5}}, "field 'm' holds 0.5"),
+        ({"maybe": ("int", 1.5)}, "field 'maybe' holds 1.5 for a field of the Avro"),
+        ({"either": ("Numbers2", {"m": 0.5})}, "field 'm' holds 0.5"),
     ],
 )
 def test_avro_refuses_a_number_its_integer_field_would_change(
@@ -222,7 +226,8 @@ def test_avro_refuses_a_number_its_integer_field_would_change(
     """A fraction, nan, infinity or an out-of-range number for an `int` or `long`
     field is refused as a `SerializationError`, by the Confluent codec and by
     `encode_standard`, which Glue uses, instead of written as another number. A whole
-    float is still written."""
+    float is still written. A union value in fastavro's tuple notation, which names
+    its branch, is checked against that branch."""
     registry_transport(
         FakeRegistry({("POST", "/subjects/t-value/versions"): (200, {"id": 1})})
     )
@@ -233,6 +238,8 @@ def test_avro_refuses_a_number_its_integer_field_would_change(
         "i": 1,
         "list": [1],
         "inner": {"a": 1},
+        "maybe": ("int", 2),
+        "either": ("Numbers2", {"m": 2}),
     }
     schema = json.dumps(_NUMBERS)
 

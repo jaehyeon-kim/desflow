@@ -48,7 +48,8 @@ def check_step(step: Mapping[str, Any]) -> dict:
         ValueError: If a key is unknown, `at` is missing or negative, a path has no
             value, a value has no path, the step does nothing, an interrupt names
             no task (a `handle` is the interrupt key of a task, not of a step), or
-            an interrupt's `where` is not a valid expression.
+            an interrupt's `where` is not text or an `Expression`, or is text that
+            is not a valid expression.
     """
     unknown = set(step) - set(STEP_KEYS)
     if unknown:
@@ -88,6 +89,11 @@ def check_step(step: Mapping[str, Any]) -> dict:
             Expression(where)
         except ValueError as exc:
             raise ValueError(f"a scenario step's interrupt where: {exc}") from None
+    elif where is not None and not isinstance(where, Expression):
+        raise ValueError(
+            "a scenario step's interrupt where is a condition, as text or an "
+            f"Expression, not {where!r}"
+        )
     return {**step, "at": seconds}
 
 

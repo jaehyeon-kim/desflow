@@ -11,6 +11,8 @@ import fastavro
 from desflow.connectors._schema_registry.errors import SerializationError
 
 _INTEGER_RANGES = {"int": (-(2**31), 2**31 - 1), "long": (-(2**63), 2**63 - 1)}
+# The types fastavro names by their `name` in a union's tuple notation.
+_NAMED_TYPES = {"record", "enum", "fixed", "error"}
 
 
 def load_schema_str(schema_str: str) -> str:
@@ -139,7 +141,10 @@ def _check_integers(schema: Any, value: Any, named: Mapping[str, Any], at: str) 
 
     `fastavro` writes 1.5 into a `long` field as 1, and 2**40 into an `int` field
     without an error. A whole float such as 3.0 is written as 3, as the Iceberg sink
-    does. A union is left to the writer, which refuses a value that no branch takes.
+    does. A union value in fastavro's tuple notation, such as `("int", 2)`, names its
+    branch, and the writer does not check it, so it is checked against that branch.
+    Any other union value is left to the writer, which refuses a value that no branch
+    takes.
 
     Args:
         schema (Any): The parsed schema, or one part of it.
@@ -152,6 +157,11 @@ def _check_integers(schema: Any, value: Any, named: Mapping[str, Any], at: str) 
     """
     if isinstance(schema, str) and schema in named:
         schema = named[schema]
+    if isinstance(schema, list):
+        branch = _named_branch(schema, value)
+        if branch is not None:
+            _check_integers(branch, value[1], named, at)
+        return
     kind = schema.get("type") if isinstance(schema, dict) else schema
     if not isinstance(kind, str):
         return
@@ -186,6 +196,32 @@ def _check_integers(schema: Any, value: Any, named: Mapping[str, Any], at: str) 
     elif kind == "map" and isinstance(value, Mapping):
         for item in value.values():
             _check_integers(schema["values"], item, named, at)
+
+
+def _named_branch(union: list, value: Any) -> Any:
+    """Returns the branch of a union that a value in tuple notation names.
+
+    fastavro reads a two-item tuple for a union as the branch's name and the value,
+    and writes the value with that branch. A named type is named by its full name,
+    any other type by its type, as fastavro matches them.
+
+    Args:
+        union (list): The branches of the union.
+        value (Any): The value for the union.
+
+    Returns:
+        Any: The branch `value` names, or None when `value` is not in tuple notation
+            or names no branch, which the writer then refuses.
+    """
+    if not (isinstance(value, tuple) and len(value) == 2):
+        return None
+    for branch in union:
+        kind = branch.get("type") if isinstance(branch, dict) else branch
+        named_type = isinstance(kind, str) and kind in _NAMED_TYPES
+        name = branch["name"] if named_type else kind
+        if name == value[0]:
+            return branch
+    return None
 
 
 def decode(parsed: Any, data: bytes | memoryview) -> Any:

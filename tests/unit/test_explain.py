@@ -901,15 +901,29 @@ def test_json_validates_and_the_committed_schema_is_current():
     )
 
 
-def test_an_arrival_rate_too_small_for_a_float_is_refused_without_a_traceback(tmp_path):
+@pytest.mark.parametrize(
+    "gap, refusal",
+    [
+        ("dist: exponential, rate: 1e-200", "exponential with rate 1e-200"),
+        (f"dist: constant, value: {10**160}", f"constant with value {10**160}"),
+        (
+            f"dist: normal, mean: {10**160}, std: 1",
+            f"normal with mean {10**160}, std 1",
+        ),
+    ],
+    ids=["a float rate", "an integer constant", "an integer normal mean"],
+)
+def test_an_arrival_gap_too_large_for_a_float_is_refused_without_a_traceback(
+    tmp_path, gap, refusal
+):
     (tmp_path / "tiny.yaml").write_text(
-        MM1.replace("rate: 0.8", "rate: 1e-200"), encoding="utf-8"
+        MM1.replace("dist: exponential, rate: 0.8", gap), encoding="utf-8"
     )
     result = CliRunner().invoke(cli, ["explain", str(tmp_path / "tiny.yaml")])
     assert result.exit_code == 1, result.output
     assert (
-        "arrival orders: exponential with rate 1e-200 has a mean or variance too "
-        "large for a float" in result.output
+        f"arrival orders: {refusal} has a mean or variance too large for a float"
+        in result.output
     )
     assert "Traceback" not in result.output
 

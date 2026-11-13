@@ -95,6 +95,18 @@ def test_fix_writes_an_empty_expect_that_is_the_first_key_of_a_test(tmp_path):
     assert holds(tests[0].expect["a"], 3), path.read_text()
 
 
+@pytest.mark.parametrize(
+    "test",
+    ["- name: t\n  expect: {}\n", "- name: t\n  until: 5\n"],
+    ids=["empty expect", "no expect"],
+)
+def test_fix_leaves_a_test_unchanged_when_its_run_published_no_number(test, tmp_path):
+    text = "tests:\n" + textwrap.indent(test, "  ")
+    path = _fix(tmp_path, text, [{"a": float("nan")}])
+    assert path.read_text() == text
+    read_tests_file(path)
+
+
 def test_fix_refuses_an_expect_that_two_tests_share_through_an_anchor(tmp_path):
     with pytest.raises(BlueprintError) as error:
         _fix(

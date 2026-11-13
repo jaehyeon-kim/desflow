@@ -193,7 +193,7 @@ repos:
         files: ^models/.*\.ya?ml$
 ```
 
-`desflow test` runs the tests that a file holds under `tests`. A test names a seed, an end time and the statistics its run must give. It runs the model once, unpaced, with no ingress and no egress, so a test contacts no service. It prints `ok` for each passing test and each difference of a failing one, and exits 1 if any test fails. A file with no tests prints `no tests`. A builder file reads its tests from a `tests.yaml` in its folder. `--fix` writes the measured statistics into the values that differ, and into a test with none, in place of reporting the differences. Read the changes before you keep them, because a test states its numbers at one seed of one desflow version. [Test a Model](../how-to/analysis/test-a-model.md#write-tests-in-the-blueprint) writes tests step by step.
+`desflow test` runs the tests that a file holds under `tests`. A test names a seed, an end time and the statistics its run must give. It runs the model once, unpaced, with no ingress and no egress, so a test contacts no service. It prints `ok` for each passing test and each difference of a failing one, and exits 1 if any test fails. A file with no tests prints `no tests`. A builder file reads its tests from a `tests.yaml` in its folder. `--fix` writes the measured statistics into the values that differ, and into a test with none, in place of reporting the differences. A statistic the run published as NaN cannot be written, so `--fix` reports that test as failed. Read the changes before you keep them, because a test states its numbers at one seed of one desflow version. [Test a Model](../how-to/analysis/test-a-model.md#write-tests-in-the-blueprint) writes tests step by step.
 
 ```bash
 desflow test shop.yaml

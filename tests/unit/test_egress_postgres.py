@@ -12,6 +12,8 @@ def mock_pool():
     acquire_ctx.__aenter__.return_value = conn
     pool.acquire.return_value = acquire_ctx
     pool.close = AsyncMock()
+    # The schemas of the default `search_path`
+    conn.fetchrow.return_value = {"table_schema": "public", "bare_schema": "public"}
     return pool, conn
 
 
@@ -67,6 +69,38 @@ def test_a_table_route_is_compared_as_postgresql_reads_it(caplog):
     assert "'ordrs_misspelt'" in warnings[0]
     assert "of this process writes" in warnings[0]
     assert other.table_name == "Items"
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_a_table_route_is_resolved_through_the_search_path(
+    mock_create_pool, mock_pool
+):
+    """With `search_path` set to `shop, public` and a table `orders` in both schemas,
+    `orders` is `shop.orders`, so the sink for `orders` writes a record routed to
+    `shop.orders` and skips one routed to `public.orders`. The sink for
+    `public.orders` does the opposite."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.return_value = [{"column_name": "id"}]
+
+    def kept(sink):
+        routes = ("orders", "shop.orders", "public.orders")
+        records = [
+            {"stream_type": "event", "key": "k", "value": {"__table__": r, "id": 1}}
+            for r in routes
+        ]
+        return [r for r, record in zip(routes, records) if sink._rows([record])]
+
+    conn.fetchrow.return_value = {"table_schema": "shop", "bare_schema": "shop"}
+    unqualified = PostgresEgress("postgresql://u:p@localhost/db", "orders")
+    await unqualified._init_pool()
+    assert kept(unqualified) == ["orders", "shop.orders"]
+
+    conn.fetchrow.return_value = {"table_schema": "public", "bare_schema": "shop"}
+    qualified = PostgresEgress("postgresql://u:p@localhost/db", "public.orders")
+    await qualified._init_pool()
+    assert kept(qualified) == ["public.orders"]
 
 
 def test_default_query_skips_conflicts():
@@ -580,6 +614,26 @@ async def test_keyed_entry_skips_a_record_without_its_key_columns(
     assert values == [(1, "new"), (2, "new")]
     [warning] = [r for r in caplog.records if "skipped records" in r.getMessage()]
     assert "2 had a null or missing key column of their table" in warning.getMessage()
+
+
+def test_a_key_column_is_found_in_any_case():
+    """PostgreSQL folds `upsert_keys: [OrderId]` and a payload key `orderid` to one
+    column, so the record is kept. A null key is skipped. When two keys name the key
+    column, the first is the one written, so the first decides."""
+    egress = PostgresEgress(
+        "postgresql://u:p@localhost/db", "orders", upsert_keys=["OrderId"]
+    )
+
+    rows = egress._rows(
+        [
+            _event({"orderid": 1, "status": "new"}),
+            _event({"orderid": None, "status": "lost"}),
+            _event({"ORDERID": None, "OrderId": 2, "status": "lost"}),
+            _event({"ORDERID": 3, "OrderId": None, "status": "new"}),
+        ]
+    )
+
+    assert [row["status"] for row in rows] == ["new", "new"]
 
 
 @pytest.mark.asyncio

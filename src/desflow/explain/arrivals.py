@@ -33,15 +33,19 @@ def moments(parameters: Dict, owner: str) -> Tuple[float, float]:
     from desflow.models.params import DistributionConfig
 
     config = DistributionConfig(**parameters)
-    if config.dist == "normal":
-        assert config.mean is not None
-        return clamped_normal_moments(config.mean, config.std or 0.0)
-    family = get_distribution(config.dist)
     try:
-        mean, variance = family.mean(config), family.variance(config)
+        if config.dist == "normal":
+            assert config.mean is not None
+            mean, variance = clamped_normal_moments(config.mean, config.std or 0.0)
+        else:
+            family = get_distribution(config.dist)
+            mean, variance = family.mean(config), family.variance(config)
+        # Beyond the float range, integer arithmetic raises OverflowError and float
+        # arithmetic gives inf; both are refused below
+        finite = all(map(math.isfinite, (mean, variance, mean * mean)))
     except ArithmeticError:
-        mean = variance = math.inf
-    if not all(map(math.isfinite, (mean, variance, mean * mean))):
+        finite = False
+    if not finite:
         options = ", ".join(f"{k} {v}" for k, v in parameters.items() if k != "dist")
         raise ValueError(
             f"{owner}: {parameters['dist']} with {options} has a mean or variance "

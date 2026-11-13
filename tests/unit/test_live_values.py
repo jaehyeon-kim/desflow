@@ -189,12 +189,15 @@ def test_the_builder_refuses_a_step_with_a_fraction_in_start(field):
         app.start(until=3)
 
 
-def test_the_builder_refuses_an_on_path_with_no_value():
+@pytest.mark.parametrize(
+    "action, refusal",
+    [
+        ({"path": "S.resources.desk.current_cap"}, "a path needs a value"),
+        ({"path": 123, "value": 2}, "an on: action's path is text, not 123"),
+    ],
+    ids=["no value", "a path that is not text"],
+)
+def test_the_builder_refuses_an_on_path_when_the_task_is_added(action, refusal):
     app = SimulationContext("S", factor=0)
-    app.add_resource("desk", current_cap=2)
-    app.add_arrival("a", "constant", value=1, spawn="job")
-    with pytest.raises(ValueError, match="a path needs a value"):
-        app.task(
-            service_time=0, name="job", on=[{"path": "S.resources.desk.current_cap"}]
-        )(lambda task_id: {})
-        app.start(until=3)
+    with pytest.raises(ValueError, match=refusal):
+        app.task(service_time=0, name="job", on=[action])(lambda task_id: {})

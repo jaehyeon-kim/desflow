@@ -1521,7 +1521,13 @@ def test_teardown_flushes_and_stops_threads_when_the_last_publication_raises():
     with pytest.raises(ValueError, match="when: cannot evaluate"):
         env.teardown()
 
-    assert sum(len(batch) for batch in plain.received_batches) > 0
+    received = [
+        (record["stream_type"], record.get("key"))
+        for batch in plain.received_batches
+        for record in batch
+    ]
+    events = [key for stream_type, key in received if stream_type == "event"]
+    assert events == [f"k{index}" for index in range(5)]
     env._egress_thread.join(timeout=5)
     assert not env._egress_thread.is_alive()
 

@@ -61,9 +61,10 @@ class RedisIngress(BaseIngress):
 
         Continuously polls the Pub/Sub channel for incoming JSON messages containing
         `path` and `value`, placing successfully parsed updates onto the
-        internal update queue. When Redis is down or the connection fails, it logs
-        the error and connects again with a back-off that grows to one minute, as the
-        Kafka ingress does.
+        internal update queue. When Redis is down, refuses the subscription or the
+        connection fails, it logs the error and connects again with a back-off that
+        grows to one minute, as the Kafka ingress does. The back-off starts again
+        from the first wait once Redis confirms a subscription.
 
         Args:
             update_queue: A thread-safe queue where incoming parameters are pushed
@@ -81,6 +82,7 @@ class RedisIngress(BaseIngress):
                     self.client = redis.from_url(self.url, **self.kwargs)
                     self.pubsub = self.client.pubsub()
                     await self.pubsub.subscribe(self.channel_name)
+                    await self._confirm_subscription()
                     logger.info(
                         f"RedisIngress subscribed to channel '{self.channel_name}'"
                     )
@@ -100,6 +102,19 @@ class RedisIngress(BaseIngress):
             pass
         finally:
             await self._disconnect()
+
+    async def _confirm_subscription(self) -> None:
+        """Reads the answer to SUBSCRIBE until Redis confirms the subscription.
+
+        `subscribe()` sends the command without reading the answer, so a refusal,
+        such as an ACL that denies the channel, is raised by the first read. Reading
+        it here keeps the back-off growing while Redis refuses.
+        """
+        assert self.pubsub is not None
+        while True:
+            message = await self.pubsub.get_message(timeout=self.poll_interval)
+            if message and message["type"] == "subscribe":
+                return
 
     async def _receive(self, update_queue: queue.Queue) -> None:
         """Reads messages from the subscription until an error or a cancel ends it."""

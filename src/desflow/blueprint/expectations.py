@@ -61,8 +61,9 @@ def fix_expectations(
     """Returns `text` with each test's `expect` values replaced by the measured ones.
 
     A value that already holds is left as written. A test with no `expect` gets one
-    key for each measured statistic, in name order. A statistic that a test expects
-    and the run did not publish keeps its text.
+    key for each measured statistic that is not NaN, in name order, and is left as
+    written when the run published none. A statistic that a test expects and the run
+    did not publish keeps its text.
 
     Args:
         text: The file's text.
@@ -205,6 +206,9 @@ def _add_expect(
         for name in sorted(found)
         if not math.isnan(found[name])
     ]
+    if len(block) == 1:
+        # A bare `expect:` reads as null, which the next load refuses
+        return
     own = _where(source, "tests", index, "expect")
     if re.match(r"^\s*(?:-\s+)?expect\s*:", lines[own]):
         # An expect with no keys: replaced by the block, after the dash when `expect`
