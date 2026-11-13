@@ -13,7 +13,7 @@ Two building blocks set the timing of every simulation. An **arrival** decides h
 
 An arrival draws each gap afresh from its distribution, so the gaps differ and entities arrive at uneven times. Look at the first five orders of the shop in [First Simulation](../../learn/first-model/first-simulation.md):
 
-![The first five orders arrive at 2.552, 2.696, 3.737, 4.020 and 6.196 seconds; each gap, from 0.14 to 2.55 seconds, is a new draw from an exponential distribution with rate 0.5, one order every 2 seconds on average](../../assets/diagrams/arrival-timeline.png)
+![The first five orders arrive at 0.628, 4.934, 5.024, 6.250 and 9.548 seconds; each gap, from 0.09 to 4.31 seconds, is a new draw from an exponential distribution with rate 0.5, one order every 2 seconds on average](../../assets/diagrams/arrival-timeline.png)
 
 ---
 
@@ -404,7 +404,7 @@ A second `add_arrival` of one name replaces the first entirely. `count`, `keys`,
 
 **A draw reads the live configuration.** A `DistributionConfig` holds the family and its parameters. `Sampler.sample(config)` reads the parameters at the moment it is called, so a change made while the run goes on applies from the next draw. A task draws its service time once it has its resource and has published `started`. The arrival loop draws the next gap when it starts waiting. A draw below 0 is raised to 0, so a time is never negative.
 
-**One random stream per distribution.** A seeded `Sampler` makes one generator for each name: NumPy's `SeedSequence(seed, spawn_key=(CRC32 of the name,))`. When the registry registers a distribution, it names it by its path without the sim id, such as `arrival.orders` or `service.packing`, and every draw from that distribution comes from that stream. Probability routing draws from `route.<task>` in the same way, as [Task Flow](task-flow.md) describes. Each stream depends only on the seed and the distribution's name. Adding a distribution therefore leaves every other one's draws unchanged. The name leaves out the sim id, so renaming the simulation does not change them either:
+**One random stream per distribution.** A seeded `Sampler` makes one generator for each name: NumPy's `SeedSequence(seed, spawn_key=(the SHA-256 hash of the name, as eight 32-bit numbers))`. When the registry registers a distribution, it names it by its path without the sim id, such as `arrival.orders` or `service.packing`, and every draw from that distribution comes from that stream. Probability routing draws from `route.<task>` in the same way, as [Task Flow](task-flow.md) describes. Each stream depends only on the seed and the distribution's name. Adding a distribution therefore leaves every other one's draws unchanged. The name leaves out the sim id, so renaming the simulation does not change them either:
 
 ![With the seed 42, the first run draws arrival.orders and service.packing; the second run, with returns added, draws the same numbers from those two streams and adds a stream of its own, arrival.returns](../../assets/diagrams/seed-sequences.png)
 

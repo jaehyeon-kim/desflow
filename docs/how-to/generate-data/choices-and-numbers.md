@@ -191,11 +191,11 @@ Run the model for 30 simulated seconds and print its first 5 records. A payment 
 
 <!-- records: gd-choices-and-numbers -->
 ```text
-{"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"payments-1","task":"payment","instance":0,"value":{"method":"card"}}
-{"stream_type":"event","sim_ts":1.5718762452079822,"timestamp":"...","key":"purchases-1","task":"purchase","instance":0,"value":{"price":185.68,"items":4,"delivery_minutes":92.8,"channel":"web","gift":false}}
-{"stream_type":"event","sim_ts":2.0,"timestamp":"...","key":"payments-2","task":"payment","instance":1,"value":{"method":"card"}}
-{"stream_type":"event","sim_ts":2.3292479456462027,"timestamp":"...","key":"purchases-2","task":"purchase","instance":1,"value":{"price":68.32,"items":4,"delivery_minutes":115.8,"channel":"store","gift":false}}
-{"stream_type":"event","sim_ts":3.0,"timestamp":"...","key":"payments-3","task":"payment","instance":2,"value":{"method":"card"}}
+{"stream_type":"event","sim_ts":0.0481932736040453,"timestamp":"...","key":"purchases-1","task":"purchase","instance":0,"value":{"price":207.6,"items":3,"delivery_minutes":129.4,"channel":"app","gift":false}}
+{"stream_type":"event","sim_ts":0.28749618102439023,"timestamp":"...","key":"purchases-2","task":"purchase","instance":1,"value":{"price":7.37,"items":4,"delivery_minutes":116.1,"channel":"app","gift":false}}
+{"stream_type":"event","sim_ts":0.3531899394224852,"timestamp":"...","key":"purchases-3","task":"purchase","instance":2,"value":{"price":85.27,"items":5,"delivery_minutes":135.1,"channel":"web","gift":false}}
+{"stream_type":"event","sim_ts":1.0,"timestamp":"...","key":"payments-1","task":"payment","instance":0,"value":{"method":"cash"}}
+{"stream_type":"event","sim_ts":1.3952758689946312,"timestamp":"...","key":"purchases-4","task":"purchase","instance":3,"value":{"price":95.97,"items":4,"delivery_minutes":100.3,"channel":"web","gift":false}}
 ```
 
 Over a long run the shares follow the settings. The docs test runs the model for 10,000 simulated seconds: about 60 payments in 100 are by card, the prices reach both ends of 1 to 250, the delivery times average 120 minutes with a standard deviation of 15, and about 1 purchase in 10 is a gift.

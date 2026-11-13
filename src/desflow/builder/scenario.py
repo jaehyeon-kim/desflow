@@ -46,8 +46,9 @@ def check_step(step: Mapping[str, Any]) -> dict:
 
     Raises:
         ValueError: If a key is unknown, `at` is missing or negative, a path has no
-            value, a value has no path, the step does nothing, an interrupt names
-            no task (a `handle` is the interrupt key of a task, not of a step), or
+            value, a value has no path, a path is not text, a record is not a mapping,
+            the step does nothing, an interrupt names no task (a `handle` is the
+            interrupt key of a task, not of a step) or a task that is not text, or
             an interrupt's `where` is not text or an `Expression`, or is text that
             is not a valid expression.
     """
@@ -73,6 +74,16 @@ def check_step(step: Mapping[str, Any]) -> dict:
         raise ValueError(
             "a scenario step needs a path and value, a record or an interrupt"
         )
+    if "path" in step and not isinstance(step["path"], str):
+        raise ValueError(
+            f"a scenario step's path is text, such as 'S.arrival.a.rate', got "
+            f"{step['path']!r}"
+        )
+    if "record" in step and not isinstance(step["record"], Mapping):
+        raise ValueError(
+            f"a scenario step's record is a mapping of names to values, got "
+            f"{step['record']!r}"
+        )
     action = step.get("interrupt")
     if action is not None and (
         not isinstance(action, Mapping) or action.get("task") is None
@@ -82,6 +93,11 @@ def check_step(step: Mapping[str, Any]) -> dict:
             "a task, which knows the names it opened"
             if isinstance(action, Mapping) and action.get("handle") is not None
             else "a scenario step's interrupt names the task to interrupt"
+        )
+    if action is not None and not isinstance(action["task"], str):
+        raise ValueError(
+            f"a scenario step's interrupt names the task by its text, got "
+            f"{action['task']!r}"
         )
     where = action.get("where") if action is not None else None
     if isinstance(where, str):

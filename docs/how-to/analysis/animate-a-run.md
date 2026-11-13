@@ -93,7 +93,7 @@ def make(out: Path, run_shop=run) -> Figure:
     return animation(vidigi_log(out))
 ```
 
-The 2-minute run makes **61** frames, named 0, 2, 4 and on to 120, and the figure draws all **64** orders. Passing `run_yaml`, or the `run` of `analyse_the_event_log_low_level.py`, makes the same frames.
+The 2-minute run makes **61** frames, named 0, 2, 4 and on to 120, and the figure draws all **45** orders. Passing `run_yaml`, or the `run` of `analyse_the_event_log_low_level.py`, makes the same frames.
 
 `figure.write_html("animate_a_run.html", include_plotlyjs="cdn", config={"responsive": True})` saves the figure as a page that fits the width of its window. This is the animation of the script below. Press play, or drag the slider:
 

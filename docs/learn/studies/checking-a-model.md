@@ -177,12 +177,12 @@ Run the experiment and print the means of the two extremes:
     ```
 
     ```text
-    one tasks.pack_order.wait_mean 1179.01
+    one tasks.pack_order.wait_mean 1169.71
     one resources.packers.utilization_avg 100.00
-    one tasks.pack_order.finished 2318.05
+    one tasks.pack_order.finished 2318.10
     ten tasks.pack_order.wait_mean 0.00
-    ten resources.packers.utilization_avg 27.08
-    ten tasks.pack_order.finished 6287.00
+    ten resources.packers.utilization_avg 27.00
+    ten tasks.pack_order.finished 6269.90
     ```
 
 === "Builder"
@@ -194,8 +194,8 @@ Run the experiment and print the means of the two extremes:
     The script prints the fixed run first. Then it prints one line for each extreme, and the lines of the later sections:
 
     ```text
-    one: 2318 finished, utilisation 100.00%, mean wait 1179.01 s
-    ten: 6287 finished, utilisation 27.08%, mean wait 0.00 s
+    one: 2318 finished, utilisation 100.00%, mean wait 1169.71 s
+    ten: 6270 finished, utilisation 27.00%, mean wait 0.00 s
     ```
 
 === "Low-level"
@@ -206,7 +206,7 @@ Run the experiment and print the means of the two extremes:
 
     It prints the same lines as the Builder script.
 
-One packer takes 1.5 seconds an order on average, so it can finish at most 3,480 ÷ 1.5 = 2,320 orders in the 3,480 seconds after the warm-up. Over the experiment's 20 replications, the one-packer design finishes **2,318** orders on average, with the packer busy **100%** of the time and a mean wait of about **1,179** seconds. Ten packers would be busy 1.8 orders a second × 1.5 seconds ÷ 10 packers = 27% of the time. The experiment measures **27.08%** on average, and the mean wait rounds to **0.00** seconds.
+One packer takes 1.5 seconds an order on average, so it can finish at most 3,480 ÷ 1.5 = 2,320 orders in the 3,480 seconds after the warm-up. Over the experiment's 20 replications, the one-packer design finishes **2,318** orders on average, with the packer busy **100%** of the time and a mean wait of about **1,170** seconds. Ten packers would be busy 1.8 orders a second × 1.5 seconds ÷ 10 packers = 27% of the time. The experiment measures **27.00%** on average, and the mean wait rounds to **0.00** seconds.
 
 Turn each extreme into a check, so a later change that breaks it fails. A check tests the far end of the interval, so it passes only when the whole interval is within the bound:
 
@@ -250,19 +250,19 @@ Two checks compare the run with queueing theory: Little's law, which holds for a
 
 === "YAML"
 
-    Print the means of `flows.orders.started`, `resources.packers.queue_length_avg` and `tasks.pack_order.wait_mean` from `summary.csv`, and multiply by hand. The arrival rate is 6286.7 ÷ 3480 = 1.8065 orders a second:
+    Print the means of `flows.orders.started`, `resources.packers.queue_length_avg` and `tasks.pack_order.wait_mean` from `summary.csv`, and multiply by hand. The arrival rate is 6269.5 ÷ 3480 = 1.8016 orders a second:
 
     ```bash
     awk -F, '($1=="three"||$1=="one") && $3 ~ /flows\.orders\.started|queue_length_avg|pack_order\.wait_mean/ {printf "%s %s %.3f\n", $1, $3, $7}' results/checking-a-model/summary.csv
     ```
 
     ```text
-    three tasks.pack_order.wait_mean 2.479
-    three resources.packers.queue_length_avg 4.488
-    three flows.orders.started 6286.700
-    one tasks.pack_order.wait_mean 1179.013
-    one resources.packers.queue_length_avg 2127.625
-    one flows.orders.started 6286.700
+    three tasks.pack_order.wait_mean 2.151
+    three resources.packers.queue_length_avg 3.882
+    three flows.orders.started 6269.500
+    one tasks.pack_order.wait_mean 1169.707
+    one resources.packers.queue_length_avg 2101.667
+    one flows.orders.started 6269.500
     ```
 
 === "Builder"
@@ -286,9 +286,9 @@ Two checks compare the run with queueing theory: Little's law, which holds for a
 
     The same function, with `HORIZON = 3600 - WARMUP`.
 
-The Builder and Low-level scripts print this check as the `three:` and `one:` lines `queue 4.488, 1.8065 x 2.479 = 4.478` and `queue 2127.625, 1.8065 x 1179.013 = 2129.913`, after the lines of the extremes.
+The Builder and Low-level scripts print this check as the `three:` and `one:` lines `queue 3.882, 1.8016 x 2.151 = 3.875` and `queue 2101.667, 1.8016 x 1169.707 = 2107.321`, after the lines of the extremes.
 
-Over the 20 replications with three packers, the queue averages **4.488** orders, and 1.8065 orders a second × 2.479 seconds = **4.478** orders. The two agree. With one packer they also roughly agree: a queue of **2,127.6** orders against 1.8065 × 1,179.0 = **2,129.9**. One packer's queue grows through the whole run and never settles, so its mean depends on how long the run lasts. The agreement there therefore proves less than it does for three packers. Agreement with the law shows the statistics are consistent with each other. It does not show the model is right for the shop: a model with the wrong packing times would agree just as well.
+Over the 20 replications with three packers, the queue averages **3.882** orders, and 1.8016 orders a second × 2.151 seconds = **3.875** orders. The two agree. With one packer they also roughly agree: a queue of **2,101.7** orders against 1.8016 × 1,169.7 = **2,107.3**. One packer's queue grows through the whole run and never settles, so its mean depends on how long the run lasts. The agreement there therefore proves less than it does for three packers. Agreement with the law shows the statistics are consistent with each other. It does not show the model is right for the shop: a model with the wrong packing times would agree just as well.
 
 ### Queueing Formulas With explain
 
@@ -322,14 +322,14 @@ Hints for utilisation 0.85:
   packers with 4 units: utilisation 0.675, at most 0.85
   packers with 3 units: utilisation 0.85 at 1.7 requests a second
 Verify: 10 runs to 3600 s, seed 42
-+---------------------------------------------------------------------------+
-| node       | measure      | analysis | measured |        ± | result       |
-|------------+--------------+----------+----------+----------+--------------|
-| packers    | utilization  |      0.9 |   0.9034 | 0.009148 | agrees       |
-| packers    | queue_length |        - |    4.066 |    0.469 | not compared |
-| pack_order | wait         |        - |    2.252 |   0.2476 | not compared |
-| orders     | throughput   |      1.8 |    1.807 |  0.01546 | agrees       |
-+---------------------------------------------------------------------------+
++--------------------------------------------------------------------------+
+| node       | measure      | analysis | measured |       ± | result       |
+|------------+--------------+----------+----------+---------+--------------|
+| packers    | utilization  |      0.9 |      0.9 | 0.01084 | agrees       |
+| packers    | queue_length |        - |    3.879 |  0.5873 | not compared |
+| pack_order | wait         |        - |    2.147 |  0.3011 | not compared |
+| orders     | throughput   |      1.8 |    1.803 | 0.02181 | agrees       |
++--------------------------------------------------------------------------+
 Not compared:
   packers queue_length: no closed formula for c > 1 with non-exponential times
   pack_order wait: no closed formula for c > 1 with non-exponential times
@@ -338,7 +338,7 @@ Not compared:
 
 The utilisation of 0.9 and the throughput of 1.8 orders a second agree with the replications. `explain` and `--verify` give the utilisation as a fraction, so 0.9034 is 90.34%, while the experiment's statistics give a percentage.
 
-The measured wait, 2.252 ± 0.2476 seconds, is the mean of the 10 replications after the blueprint's 2-minute warm-up. The replications use the seeds of Trusting Results, so the figure equals that page's figure for 10 replications, as [Busy Hour Figures](../concepts/output-analysis.md#busy-hour-figures) lists. The wait and the queue length have no analytical value, and the `Not estimated` line says why: three packers with measured packing times have no closed formula. For them the interval of the experiment is the check, as the next section shows.
+The measured wait, 2.147 ± 0.3011 seconds, is the mean of the 10 replications after the blueprint's 2-minute warm-up. The replications use the seeds of Trusting Results, so the figure equals that page's figure for 10 replications, as [Busy Hour Figures](../concepts/output-analysis.md#busy-hour-figures) lists. The wait and the queue length have no analytical value, and the `Not estimated` line says why: three packers with measured packing times have no closed formula. For them the interval of the experiment is the check, as the next section shows.
 
 Agreement shows that the program computes what the model on paper says. It says nothing about whether the model is close enough to the real shop. [Check Against Theory](../../how-to/analysis/check-against-theory.md) runs the same check on a shop the formulas describe in full.
 
@@ -371,12 +371,12 @@ Only data from the real shop can show that the model is adequate. The observed v
 
     The same key, in the same mapping as the model.
 
-The busy-hour wait with three packers and measured packing times has no closed formula in [Queueing Basics](../concepts/queueing-basics.md), so the model's runs are the check. Each interval below is the 95% interval of the model's mean over the 20 replications with three packers. An interval for a mean is narrow, and one observed period is not a mean: it varies about as much as one run does, so only 8 and 4 of the 20 single runs fall inside these two intervals. Compare each observed value with the standard deviation of one run instead. A value more than about two of these from the model's mean is a [disagreement](../concepts/checking-and-validating.md#compare-with-the-real-shop) that the study must explain before it trusts the model for the decision:
+The busy-hour wait with three packers and measured packing times has no closed formula in [Queueing Basics](../concepts/queueing-basics.md), so the model's runs are the check. Each interval below is the 95% interval of the model's mean over the 20 replications with three packers. An interval for a mean is narrow, and one observed period is not a mean: it varies about as much as one run does, so only 4 and 5 of the 20 single runs fall inside these two intervals. Compare each observed value with the standard deviation of one run instead. A value more than about two of these from the model's mean is a [disagreement](../concepts/checking-and-validating.md#compare-with-the-real-shop) that the study must explain before it trusts the model for the decision:
 
 | Measure | Observed in the shop | Interval for the model's mean | Standard deviation of one run | Distance from the model's mean | Result |
 |---|---|---|---|---|---|
-| Mean wait | 2.6 seconds | **2.16 to 2.80** seconds | 0.69 seconds | 0.18 standard deviations | agrees |
-| Utilisation | 91% | **89.70 to 90.96%** | 1.34 points | 0.5 standard deviations | agrees |
+| Mean wait | 2.6 seconds | **2.00 to 2.30** seconds | 0.32 seconds | 1.38 standard deviations | agrees |
+| Utilisation | 91% | **89.39 to 90.60%** | 1.29 points | 0.78 standard deviations | agrees |
 
 Each tab prints the mean, the standard deviation of one run, the distance and the number of the 20 runs inside the interval, for the two measures:
 
@@ -403,8 +403,8 @@ Each tab prints the mean, the standard deviation of one run, the distance and th
     ```
 
     ```text
-    tasks.pack_order.wait_mean: mean 2.48, sd 0.69, distance 0.18 sd, 8 of 20 runs inside
-    resources.packers.utilization_avg: mean 90.33, sd 1.34, distance 0.50 sd, 4 of 20 runs inside
+    tasks.pack_order.wait_mean: mean 2.15, sd 0.32, distance 1.38 sd, 4 of 20 runs inside
+    resources.packers.utilization_avg: mean 89.99, sd 1.29, distance 0.78 sd, 5 of 20 runs inside
     ```
 
 === "Builder"
@@ -432,15 +432,15 @@ Each tab prints the mean, the standard deviation of one run, the distance and th
     The script prints one line for each measure, after the lines of the earlier sections:
 
     ```text
-    tasks.pack_order.wait_mean: mean 2.48, sd 0.69, distance 0.18 sd, 8 of 20 runs inside
-    resources.packers.utilization_avg: mean 90.33, sd 1.34, distance 0.50 sd, 4 of 20 runs inside
+    tasks.pack_order.wait_mean: mean 2.15, sd 0.32, distance 1.38 sd, 4 of 20 runs inside
+    resources.packers.utilization_avg: mean 89.99, sd 1.29, distance 0.78 sd, 5 of 20 runs inside
     ```
 
 === "Low-level"
 
     The same function and the same two lines, from `checking_a_model_low_level.py`.
 
-The utilisation lies outside the interval for the mean and still agrees, because one observed hour is not a mean. An observed utilisation of 95% would be (95 - 90.33) ÷ 1.34 = 3.5 standard deviations away. The study would then check how the shop measured its utilisation, or whether the packing times are right.
+Both observed values lie outside the interval for the mean and still agree, because one observed hour is not a mean. An observed utilisation of 95% would be (95 - 89.99) ÷ 1.29 = 3.9 standard deviations away. The study would then check how the shop measured its utilisation, or whether the packing times are right.
 
 ---
 
@@ -493,7 +493,7 @@ Then bound it:
 
     The same keys, in the same mapping as the model.
 
-At 1.9 orders a second, the mean wait with four packers is **0.35 ± 0.02** seconds over 20 replications. The upper end of its interval, 0.37 seconds, is under the bound of 0.5 seconds, so the check passes.
+At 1.9 orders a second, the mean wait with four packers is **0.34 ± 0.02** seconds over 20 replications. The upper end of its interval, 0.36 seconds, is under the bound of 0.5 seconds, so the check passes.
 
 ---
 
@@ -546,16 +546,16 @@ Run the checks after every change to the model, in the same way as the tests of 
 
 Each value observed in the real shop beside the three-packer interval of the experiment:
 
-![Two panels for three packers. On the left, the model's mean wait of 2.48 seconds over 20 replications with its 95% interval from 2.16 to 2.80 seconds, and the observed 2.6 seconds inside it. On the right, the model's utilisation of 90.33% with its interval from 89.70 to 90.96%, and the observed 91% above it](../../assets/charts/checking-observed.png)
+![Two panels for three packers. On the left, the model's mean wait of 2.15 seconds over 20 replications with its 95% interval from 2.00 to 2.30 seconds, and the observed 2.6 seconds above it. On the right, the model's utilisation of 89.99% with its interval from 89.39 to 90.60%, and the observed 91% above it](../../assets/charts/checking-observed.png)
 
 Does the program do what the model on paper says, and is the model good enough to decide the number of packers? The program does what the model on paper says:
 
 - The fixed run, 10 seconds with fixed inputs, matches the trace by hand: **4** orders finished, **5** still in the shop and a mean wait of **0.714** seconds.
-- Over the experiment's 20 replications after the 2-minute warm-up, one packer finishes **2,318** orders on average against 2,320 by hand, and ten packers are busy **27.08%** of the time against 27%.
-- Over the same replications, Little's law holds for three packers, with a mean queue of **4.488** orders against 4.478, and the measured utilisation agrees with the formula's 0.9.
-- With four packers at a rate 6% higher, the mean wait over 20 replications is **0.35 ± 0.02** seconds, and all three checks pass.
+- Over the experiment's 20 replications after the 2-minute warm-up, one packer finishes **2,318** orders on average against 2,320 by hand, and ten packers are busy **27.00%** of the time against 27%.
+- Over the same replications, Little's law holds for three packers, with a mean queue of **3.882** orders against 3.875, and the measured utilisation agrees with the formula's 0.9.
+- With four packers at a rate 6% higher, the mean wait over 20 replications is **0.34 ± 0.02** seconds, and all three checks pass.
 
-The observed values are illustrative, and a real check uses the shop's own records. Against them, the mean wait of 2.6 seconds is **0.18** standard deviations of one run from the model's mean, and the utilisation of 91% is **0.5**, so both agree. The utilisation lies outside the interval for the mean, **89.70 to 90.96**, because that interval is for a mean of 20 runs and not for one observed hour.
+The observed values are illustrative, and a real check uses the shop's own records. Against them, the mean wait of 2.6 seconds is **1.38** standard deviations of one run from the model's mean, and the utilisation of 91% is **0.78**, so both agree. Both lie outside the intervals for the mean, **2.00 to 2.30** and **89.39 to 90.60**, because those intervals are for a mean of 20 runs and not for one observed hour.
 
 The trace, the extremes, Little's law and the queueing formulas test the program against the model on paper. [Checking and Validating](../concepts/checking-and-validating.md#verification-and-validation) calls these checks verification. The observed values and the sensitivity check test the model against the shop and the decision, and that page calls them validation. Written as tests, the checks run again after every change, so a model that was checked once stays checked.
 

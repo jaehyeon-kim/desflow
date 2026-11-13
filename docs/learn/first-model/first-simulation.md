@@ -313,18 +313,15 @@ At `factor: 1.0` one simulated second takes one real second. The run stops at si
 
 <!-- records: first-trace -->
 ```text
-[EVT] {'sim_ts': 2.5523798766964667, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
-[EVT] {'sim_ts': 2.5523798766964667, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
-[EVT] {'sim_ts': 2.695845327144759, 'timestamp': '...', 'key': 'orders-2', 'task': 'pack_order', 'instance': 1, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
-[EVT] {'sim_ts': 3.7373184714894925, 'timestamp': '...', 'key': 'orders-3', 'task': 'pack_order', 'instance': 2, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
-[EVT] {'sim_ts': 4.019540612543443, 'timestamp': '...', 'key': 'orders-4', 'task': 'pack_order', 'instance': 3, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
-[EVT] {'sim_ts': 4.052379876696467, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'event_type': 'order_packed'}}
-[EVT] {'sim_ts': 4.052379876696467, 'timestamp': '...', 'key': 'orders-2', 'task': 'pack_order', 'instance': 1, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
-[EVT] {'sim_ts': 5.552379876696467, 'timestamp': '...', 'key': 'orders-2', 'task': 'pack_order', 'instance': 1, 'value': {'event_type': 'order_packed'}}
-[EVT] {'sim_ts': 5.552379876696467, 'timestamp': '...', 'key': 'orders-3', 'task': 'pack_order', 'instance': 2, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
+[EVT] {'sim_ts': 0.6283113312939436, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 0.6283113312939436, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
+[EVT] {'sim_ts': 2.1283113312939435, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'event_type': 'order_packed'}}
+[EVT] {'sim_ts': 4.934338901219139, 'timestamp': '...', 'key': 'orders-2', 'task': 'pack_order', 'instance': 1, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 4.934338901219139, 'timestamp': '...', 'key': 'orders-2', 'task': 'pack_order', 'instance': 1, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
+[EVT] {'sim_ts': 5.0244486188135875, 'timestamp': '...', 'key': 'orders-3', 'task': 'pack_order', 'instance': 2, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
 ```
 
-Read `sim_ts`, the simulation time of each record. It does not count up in small steps: it jumps from 2.552 to 2.696, then to 3.737, 4.02 and 4.052. The simulation clock moves straight to the time of the next event, because nothing changes between two events. At `factor: 0` the same run takes a fraction of a second, with the same records.
+Read `sim_ts`, the simulation time of each record. It does not count up in small steps: it jumps from 0.628 to 2.128, then to 4.934 and 5.024. The simulation clock moves straight to the time of the next event, because nothing changes between two events. At `factor: 0` the same run takes a fraction of a second, with the same records.
 
 `timestamp` is the date and time of the record: it counts from the moment the simulation is created, so it differs on every run, and this page shows it as `...`. [Logical Start Time](../../user-guide/time-and-pacing/clocks-and-pacing.md#logical-start-time) sets a fixed date instead.
 
@@ -336,11 +333,11 @@ desflow run first_shop.yaml --sample 5
 
 <!-- records: first-sample -->
 ```text
-{"stream_type":"event","sim_ts":2.5523798766964667,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":2.5523798766964667,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
-{"stream_type":"event","sim_ts":2.695845327144759,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":3.7373184714894925,"timestamp":"...","key":"orders-3","task":"pack_order","instance":2,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
-{"stream_type":"event","sim_ts":4.019540612543443,"timestamp":"...","key":"orders-4","task":"pack_order","instance":3,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.6283113312939436,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.6283113312939436,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
+{"stream_type":"event","sim_ts":2.1283113312939435,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"event_type":"order_packed"}}
+{"stream_type":"event","sim_ts":4.934338901219139,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"queued"}}
+{"stream_type":"event","sim_ts":4.934338901219139,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"started"}}
 ```
 
 They are the first five events above, each printed as the whole record, with its `stream_type`. The run's log stays on stderr, so a pipe such as `| jq .key` reads only the records. [YAML Blueprints](../../user-guide/writing-a-model/blueprints.md#preview-the-records) lists the other ways to run a blueprint.
@@ -362,8 +359,8 @@ A blueprint can hold the answers you expect from it. A `tests` entry names a see
     ```yaml title="docs/snippets/yaml/first_shop.yaml:tests"
     tests:
       # Run with: desflow test first_shop.yaml
-      - name: nine_orders_in_20_seconds
-        expect: {tasks.pack_order.finished: 9}
+      - name: seven_orders_in_20_seconds
+        expect: {tasks.pack_order.finished: 7}
     ```
 
 === "Builder"
@@ -379,10 +376,10 @@ desflow test first_shop.yaml
 ```
 
 ```text
-ok first_shop.yaml: nine_orders_in_20_seconds
+ok first_shop.yaml: seven_orders_in_20_seconds
 ```
 
-Nine orders are packed in the first 20 seconds with the seed 42. A number is compared exactly. `{value: 9, within: 1}` allows a difference. The seed and the desflow version are part of the answer: after an upgrade, `desflow test --fix` writes the new numbers, and you read them before you keep them. [Test a Model](../../how-to/analysis/test-a-model.md) shows more.
+Seven orders are packed in the first 20 seconds with the seed 42. A number is compared exactly. `{value: 7, within: 1}` allows a difference. The seed and the desflow version are part of the answer: after an upgrade, `desflow test --fix` writes the new numbers, and you read them before you keep them. [Test a Model](../../how-to/analysis/test-a-model.md) shows more.
 
 ---
 
@@ -390,9 +387,9 @@ Nine orders are packed in the first 20 seconds with the seed 42. A number is com
 
 How long does an order wait with one packer? It depends on how many orders are ahead of it, as the same records on a timeline show: each order waits (yellow) until the packer is free, then holds it for 1.5 seconds of packing (blue).
 
-![orders-1 arrives at 2.552 and is packed at once; orders-2 arrives at 2.696 and waits 1.357 seconds until orders-1 finishes at 4.052; orders-3 arrives at 3.737 and waits until 5.552](../../assets/diagrams/first-trace.png)
+![orders-3 arrives at 5.024 and waits 1.410 seconds until orders-2 finishes at 6.434; orders-4 arrives at 6.250 and waits until 7.934](../../assets/diagrams/first-trace.png)
 
-These records come from one run of the first 20 seconds, with the seed 42. `orders-1` finds the packer free, so its `queued` and `started` events have the same time. `orders-2` is the first order that has to wait: it is `queued` at 2.696 and `started` at 4.052, when `orders-1` finishes. **It waits 1.357 seconds.** `orders-3` arrives while `orders-2` is waiting and waits longer, 1.815 seconds, because two orders are ahead of it.
+These records come from one run of the first 20 seconds, with the seed 42. `orders-1` and `orders-2` find the packer free, so their `queued` and `started` events have the same time. `orders-3` is the first order that has to wait: it is `queued` at 5.024 and `started` at 6.434, when `orders-2` finishes. **It waits 1.410 seconds.** `orders-4` arrives while `orders-3` is waiting and waits longer, 1.684 seconds, because two orders are ahead of it.
 
 So with one packer, an order that arrives while the packer is busy waits until every order ahead of it has been packed. The wait depends on when orders happen to arrive, which is why the next pages measure it over many orders.
 
@@ -447,8 +444,8 @@ A discrete-event simulation keeps a list of future events, ordered by time. It t
 
         tests:
           # Run with: desflow test first_shop.yaml
-          - name: nine_orders_in_20_seconds
-            expect: {tasks.pack_order.finished: 9}
+          - name: seven_orders_in_20_seconds
+            expect: {tasks.pack_order.finished: 7}
         ```
 
     === "Builder"

@@ -1011,6 +1011,66 @@ def test_a_file_loaded_from_inside_an_import_uses_the_modules_of_its_own_folder(
         sys.modules.pop(name, None)
 
 
+def test_a_file_does_not_import_the_module_of_a_file_loaded_earlier(
+    tmp_path, monkeypatch
+):
+    """`fa` has `helpers.py` and `fb` has none, so `fb/bp.yaml` is refused whether or
+    not `fa/bp.yaml` was loaded before it in the process."""
+    import sys
+
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    monkeypatch.delitem(sys.modules, "helpers_not_in_fb", raising=False)
+    text = MINIMAL.replace("sim_id: Shop", "sim_id: !python helpers_not_in_fb.SIM_ID")
+    (tmp_path / "fa").mkdir()
+    (tmp_path / "fa" / "helpers_not_in_fb.py").write_text(
+        "SIM_ID = 'fa'\n", encoding="utf-8"
+    )
+    (tmp_path / "fb").mkdir()
+    write(tmp_path / "fa", text)
+    write(tmp_path / "fb", text)
+
+    assert (
+        SimulationContext.from_yaml(tmp_path / "fa" / "blueprint.yaml").sim_id == "fa"
+    )
+    with pytest.raises(BlueprintError, match="no module named 'helpers_not_in_fb'"):
+        SimulationContext.from_yaml(tmp_path / "fb" / "blueprint.yaml")
+    assert (
+        SimulationContext.from_yaml(tmp_path / "fa" / "blueprint.yaml").sim_id == "fa"
+    )
+    sys.modules.pop("helpers_not_in_fb", None)
+
+
+def test_an_included_file_from_another_folder_uses_the_modules_of_its_own_folder(
+    tmp_path, monkeypatch
+):
+    """`x/main.yaml` and `y/part.yaml`, which it includes, each import `helpers_inc`
+    from their own folder, and `main.yaml` imports its own again after the include."""
+    import sys
+
+    from desflow.blueprint.loader import read_document
+
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    monkeypatch.delitem(sys.modules, "helpers_inc", raising=False)
+    for folder in ("x", "y"):
+        (tmp_path / folder).mkdir()
+        (tmp_path / folder / "helpers_inc.py").write_text(
+            f"WHO = '{folder}'\n", encoding="utf-8"
+        )
+    (tmp_path / "y" / "part.yaml").write_text(
+        "who: !python helpers_inc.WHO\n", encoding="utf-8"
+    )
+    (tmp_path / "x" / "main.yaml").write_text(
+        "first: !python helpers_inc.WHO\npart: !include ../y/part.yaml\n"
+        "last: !python helpers_inc.WHO\n",
+        encoding="utf-8",
+    )
+
+    data, _source = read_document(tmp_path / "x" / "main.yaml")
+
+    assert data == {"first": "x", "part": {"who": "y"}, "last": "x"}
+    sys.modules.pop("helpers_inc", None)
+
+
 @pytest.mark.parametrize(
     "reference,fragment",
     [
@@ -2184,13 +2244,14 @@ def test_on_stays_a_string_key_in_an_included_task_or_section_file(tmp_path):
     from desflow.blueprint.loader import read_document
 
     (tmp_path / "pack.yaml").write_text("payload: {e: 1}\non:\n  - fire: {signal: s}\n")
+    (tmp_path / "plain.yaml").write_text("payload: {e: 1}\n")
     (tmp_path / "tasks.yaml").write_text(
         "pack:\n  payload: {e: 1}\n  on:\n    - fire: {signal: s}\n"
     )
     (tmp_path / "signal.yaml").write_text("once: true\n")
     path = tmp_path / "doc.yaml"
     path.write_text(
-        "tasks:\n  pack: !include pack.yaml\n  more: !include {file: pack.yaml, On: []}\n"
+        "tasks:\n  pack: !include pack.yaml\n  more: !include {file: plain.yaml, On: []}\n"
     )
     data, _ = read_document(path)
     assert "on" in data["tasks"]["pack"]
@@ -2201,6 +2262,76 @@ def test_on_stays_a_string_key_in_an_included_task_or_section_file(tmp_path):
     path.write_text("signals:\n  closing: !include {file: signal.yaml, on: []}\n")
     data, _ = read_document(path)
     assert data["signals"]["closing"] == {"once": True, "on": []}
+
+
+def test_a_collection_that_holds_itself_through_an_alias_is_refused_at_its_line(
+    tmp_path,
+):
+    from desflow.blueprint.loader import read_document
+
+    path = tmp_path / "doc.yaml"
+    path.write_text("x: 1\na: &x [1, *x]\n", encoding="utf-8")
+
+    with pytest.raises(
+        BlueprintError, match=r"doc.yaml:2: this collection holds itself"
+    ):
+        read_document(path)
+
+
+def test_an_alias_is_walked_once_so_a_short_file_of_aliases_reads_at_once(tmp_path):
+    """Eight lines of ten aliases each have 10^8 leaves when every alias is walked
+    again; the line map walked them all."""
+    from desflow.blueprint.loader import read_document
+
+    lines = ["l0: &l0 [x, x, x, x, x, x, x, x, x, x]"]
+    for n in range(1, 8):
+        aliases = ", ".join([f"*l{n - 1}"] * 10)
+        lines.append(f"l{n}: &l{n} [{aliases}]")
+    path = tmp_path / "doc.yaml"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    started = time.perf_counter()
+    data, source = read_document(path)
+
+    assert time.perf_counter() - started < 5
+    assert len(data["l7"]) == 10
+    assert source.line(("l7",)) == 8
+
+
+def test_a_default_that_holds_another_variable_is_refused_at_its_line(
+    tmp_path, monkeypatch
+):
+    """A nested default left the text of the inner reference in the value."""
+    monkeypatch.delenv("DESFLOW_NOPE", raising=False)
+    monkeypatch.setenv("DESFLOW_B", "bee")
+    nested = "sim_id: ${DESFLOW_NOPE:-${DESFLOW_B}}"
+    path = write(tmp_path, MINIMAL.replace("sim_id: Shop", nested))
+
+    with pytest.raises(BlueprintError, match=r"blueprint.yaml:2: .*holds another"):
+        SimulationContext.from_yaml(path)
+    plain = "sim_id: ${DESFLOW_NOPE:-plain}"
+    path = write(tmp_path, MINIMAL.replace("sim_id: Shop", plain))
+    assert SimulationContext.from_yaml(path).sim_id == "plain"
+
+
+def test_an_include_refuses_a_key_the_included_file_already_has(tmp_path):
+    """`!include {file: fit.yaml, rate: 9}` replaced the fitted `rate` with no sign."""
+    from desflow.blueprint.loader import read_document
+
+    (tmp_path / "fit.yaml").write_text("dist: exponential\nrate: 0.5\n")
+    path = tmp_path / "doc.yaml"
+    path.write_text("a: !include {file: fit.yaml, spawn: pack, rate: 9}\n")
+
+    with pytest.raises(
+        BlueprintError,
+        match=r"doc.yaml:1: !include fit.yaml: the key 'rate' is in .*doc.yaml and in "
+        r".*fit.yaml",
+    ):
+        read_document(path)
+    path.write_text("a: !include {file: fit.yaml, spawn: pack}\n")
+    assert read_document(path)[0] == {
+        "a": {"dist": "exponential", "rate": 0.5, "spawn": "pack"}
+    }
 
 
 def test_from_yaml_context_reports_the_source_of_each_change(tmp_path):
@@ -2527,6 +2658,71 @@ def test_a_bad_sink_option_names_the_line(tmp_path):
         match=rf"{re.escape(str(path))}:21: KafkaEgress rejected its config: .*mode 'sometimes' is not one of",
     ):
         SimulationContext.from_yaml(path)
+
+
+def test_an_on_list_is_checked_against_the_state_its_earlier_actions_make(tmp_path):
+    """Setting `high` to 3 and then `low` to 2 is valid after a `low` of 0 and a `high`
+    of 1; the reverse order is refused, as the run would refuse it."""
+
+    def text(first, second):
+        return MINIMAL.replace(
+            "{dist: normal, mean: 3.0, std: 0.5}", "{dist: uniform, low: 0, high: 1}"
+        ).replace(
+            "    resource: packers\n",
+            "    resource: packers\n    on:\n"
+            f"      - {{path: Shop.service.packing.{first[0]}, value: {first[1]}}}\n"
+            f"      - {{path: Shop.service.packing.{second[0]}, value: {second[1]}}}\n",
+            1,
+        )
+
+    SimulationContext.from_yaml(
+        write(tmp_path, text(("high", 3), ("low", 2)), "ordered.yaml")
+    )
+    with pytest.raises(Exception, match="low"):
+        SimulationContext.from_yaml(
+            write(tmp_path, text(("low", 2), ("high", 3)), "reversed.yaml")
+        )
+
+
+def test_a_literal_after_a_generated_value_of_the_same_parent_is_not_refused(
+    tmp_path,
+):
+    """A generated `high` is not known before the run, so a literal `low` after it is
+    not checked against the `high` the model starts with."""
+    text = MINIMAL.replace(
+        "{dist: normal, mean: 3.0, std: 0.5}", "{dist: uniform, low: 0, high: 1}"
+    ).replace(
+        "    resource: packers\n",
+        "    resource: packers\n    on:\n"
+        "      - {path: Shop.service.packing.high, "
+        "value: {gen: integer, bounds: [3, 3]}}\n"
+        "      - {path: Shop.service.packing.low, value: 2}\n",
+        1,
+    )
+    SimulationContext.from_yaml(write(tmp_path, text, "generated.yaml"))
+
+
+def test_a_literal_after_a_conditional_value_of_the_same_parent_is_not_refused(
+    tmp_path,
+):
+    """An entry with `when` may not run, so a later literal is not checked against
+    its value; the conditional value itself is still checked."""
+
+    def text(conditional):
+        return MINIMAL.replace(
+            "{dist: normal, mean: 3.0, std: 0.5}", "{dist: uniform, low: 0, high: 1}"
+        ).replace(
+            "    resource: packers\n",
+            "    resource: packers\n    on:\n"
+            f"      - {{path: Shop.service.packing.high, value: {conditional}, "
+            "when: 'False'}\n"
+            "      - {path: Shop.service.packing.low, value: 0.75}\n",
+            1,
+        )
+
+    SimulationContext.from_yaml(write(tmp_path, text(0.5), "conditional.yaml"))
+    with pytest.raises(BlueprintError, match="cannot be converted"):
+        SimulationContext.from_yaml(write(tmp_path, text("'x'"), "refused.yaml"))
 
 
 def test_an_on_entry_with_a_wrong_path_or_value_is_refused_at_its_line(tmp_path):
@@ -2954,6 +3150,105 @@ def test_names_are_refused_in_a_generator_outside_a_task(
         + top
         + "tasks:\n  t: {payload: {}}\n"
     )
+    with pytest.raises(BlueprintError, match=message):
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
+@pytest.mark.parametrize(
+    "section, entry, message",
+    [
+        ("tasks", "{payload: {x: 1}}", "the name of a task is at least one"),
+        ("arrivals", "{gap: 1, max_events: 2, spawn: t}", "the name of an arrival is"),
+    ],
+)
+def test_an_empty_task_or_arrival_name_is_refused_at_its_line(
+    tmp_path, section, entry, message
+):
+    """The empty name ran as no name: a task was stored under another key, and an
+    arrival passed `desflow check` and failed when the run started."""
+    other = "arrivals: {a: {gap: 1, max_events: 2, spawn: ''}}\n" * (section == "tasks")
+    text = (
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        + other
+        + f"{section}:\n  '': {entry}\n"
+        + "tasks:\n  t: {payload: {}}\n" * (section == "arrivals")
+    )
+    with pytest.raises(BlueprintError, match=rf"blueprint.yaml:\d+: {message}"):
+        SimulationContext.from_yaml(write(tmp_path, text, "blueprint.yaml"))
+
+
+@pytest.mark.parametrize("signals", ["[{closing: {once: false}}]", "[[x]]"])
+def test_signals_written_as_a_list_hold_names_only(tmp_path, signals):
+    """A mapping or a list in the list of signals was a raw TypeError."""
+    text = MINIMAL + f"signals: {signals}\n"
+    with pytest.raises(BlueprintError, match="a list of signals holds names only"):
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
+@pytest.mark.parametrize(
+    "name, read", [("on", "True"), ("no", "False"), ("1", "1"), ("null", "None")]
+)
+def test_a_name_that_yaml_reads_as_another_type_is_reported_as_written(
+    tmp_path, name, read
+):
+    """An unquoted task called `on` was reported as `tasks.1`, at the `tasks` line."""
+    text = (
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "tasks:\n"
+        "  part: {payload: {x: 1}}\n"
+        f"  {name}: {{payload: {{}}}}\n"
+    )
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+    assert f"tasks.{name}: YAML reads the name {name} as {read}" in str(error.value)
+    assert f'write it in quotes, "{name}"' in str(error.value)
+    assert ":4:" in str(error.value)
+
+
+_TEXT_PLACES = {
+    "family members": "resources: {desk: {family: true, members: '%s'}}\n"
+    "tasks:\n  t: {payload: {}}\n",
+    "family current_cap": "resources: {desk: {family: true, current_cap: '%s'}}\n"
+    "tasks:\n  t: {payload: {}}\n",
+    "container family level": "containers: {k: {family: true, members: 2, max_cap: 10, "
+    "level: '%s'}}\ntasks:\n  t: {payload: {}}\n",
+    "spawn count": "tasks:\n  t: {spawn: {task: u, count: '%s'}, payload: {}}\n",
+    "on spawn count": "tasks:\n  t: {on: [{spawn: {task: u, count: '%s'}}], "
+    "payload: {}}\n",
+    "signal on spawn count": "signals: {go: {on: [{spawn: {task: u, count: '%s'}}]}}\n"
+    "tasks:\n  t: {payload: {}}\n",
+    "wait get amount": "containers: {c: {max_cap: 10, level: 5}}\n"
+    "tasks:\n  t: {wait: {get: {container: c, amount: '%s'}}, payload: {}}\n",
+    "wait put priority": "stores: {p: {priority: true}}\n"
+    "tasks:\n  t: {wait: {put: {store: p, item: 1, priority: '%s'}}, payload: {}}\n",
+    "open get amount": "containers: {c: {max_cap: 10, level: 5}}\n"
+    "tasks:\n  t: {open: {h: {get: {container: c, amount: '%s'}}}, payload: {}}\n",
+}
+
+
+@pytest.mark.parametrize("place", sorted(_TEXT_PLACES))
+@pytest.mark.parametrize(
+    "expression, message",
+    [
+        ("level.nothere", "level.nothere names no store or container"),
+        ('registry["S.no.path"]', 'registry\\["S.no.path"\\] is not a registry path'),
+    ],
+)
+def test_names_are_refused_in_every_expression_text_place(
+    tmp_path, place, expression, message
+):
+    """The `count` of a spawn, the `amount` and `priority` of a `get` or `put` branch of
+    a `wait` or an `open`, and the `members`, capacity and `level` of a family are
+    checked for names at load, as the same text is in a task's own `get`."""
+    text = (
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "arrivals: {a: {gap: 1, max_events: 1, spawn: t}}\n"
+        + _TEXT_PLACES[place]
+        % expression
+    )
+    if "u:" not in text and "spawn: {task: u" in text:
+        text += "  u: {payload: {}}\n"
     with pytest.raises(BlueprintError, match=message):
         SimulationContext.from_yaml(write(tmp_path, text))
 

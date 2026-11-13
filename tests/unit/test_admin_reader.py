@@ -157,10 +157,7 @@ def _environment(rename: bool):
                     )
                 )
                 stack.enter_context(
-                    patch.object(dotted.sampler_module, "zlib", dotted._MappedCrc())
-                )
-                stack.enter_context(
-                    patch.object(dotted.runtime_module, "zlib", dotted._MappedCrc())
+                    patch.object(dotted.sampler_module, "hashlib", dotted._MappedHash())
                 )
             yield
     finally:

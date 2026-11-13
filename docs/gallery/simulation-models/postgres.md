@@ -241,7 +241,7 @@ The three tabs write the same records, which [a test](https://github.com/jaehyeo
 docker exec postgres psql -U user -d odctl -c "SELECT order_id, customer_id, total_amount, status, timestamp FROM orders ORDER BY order_id LIMIT 3;"
 ```
 
-It prints `(3 rows)` with `order_id` 0, 1 and 2, and `customer_id` 42, `total_amount` 59.97 and `status` `pending` in every row. The `timestamp` values are the wall-clock times of your run, the first gap 0.07 seconds and the second 0.52 seconds, because the first two orders are 0.072 simulation seconds apart and the next 0.521. `SELECT count(*) FROM orders` prints the number of orders the run wrote. When you have checked the result, stop the service:
+It prints `(3 rows)` with `order_id` 0, 1 and 2, and `customer_id` 42, `total_amount` 59.97 and `status` `pending` in every row. The `timestamp` values are the wall-clock times of your run, the first gap 2.15 seconds and the second 0.05 seconds, because the first two orders are 2.153 simulation seconds apart and the next 0.045. `SELECT count(*) FROM orders` prints the number of orders the run wrote. When you have checked the result, stop the service:
 
 ```bash
 odctl down postgres --volumes
@@ -251,9 +251,9 @@ In `postgres/yaml`, which `desflow examples get postgres --api yaml` creates, `d
 
 <!-- records: postgres-sample -->
 ```text
-{"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"place_order","instance":0,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":0}}
-{"stream_type":"event","sim_ts":1.3479226635723796,"timestamp":"...","key":"orders-2","task":"place_order","instance":1,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":1}}
-{"stream_type":"event","sim_ts":1.8686592357447462,"timestamp":"...","key":"orders-3","task":"place_order","instance":2,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":2}}
+{"stream_type":"event","sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":"place_order","instance":0,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":0}}
+{"stream_type":"event","sim_ts":2.4671694506095694,"timestamp":"...","key":"orders-2","task":"place_order","instance":1,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":1}}
+{"stream_type":"event","sim_ts":2.5122243094067938,"timestamp":"...","key":"orders-3","task":"place_order","instance":2,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":2}}
 ```
 
 The fields of `value` and the `timestamp` fill the columns of `orders`. The task id is `order_id`, the table's primary key.

@@ -288,7 +288,8 @@ def warn_skipped(sink: Any, skipped: Counter, route_key: Optional[str] = None) -
         skipped (Counter): The records skipped, by reason: `no_route` for a record
             without its routing key, `no_key` for a record whose table has a key
             column it lacks or holds as null, `no_namespace` for a table name with no
-            namespace, and `not_mapping` for a value that is not a mapping, which is
+            namespace, `not_text` for a record whose routing key holds something other
+            than text, and `not_mapping` for a value that is not a mapping, which is
             warned about once per sink.
         route_key (Optional[str]): The routing key a `no_route` record lacks.
     """
@@ -297,6 +298,7 @@ def warn_skipped(sink: Any, skipped: Counter, route_key: Optional[str] = None) -
         "no_key": "had a null or missing key column of their table, which a rerun "
         "would insert again because a null key never matches",
         "no_namespace": "named a table with no namespace",
+        "not_text": f"had a {route_key} that is not text",
         "not_mapping": "had a value that is not a mapping, which this sink cannot "
         "write as a row",
     }

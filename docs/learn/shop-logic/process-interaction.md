@@ -192,9 +192,9 @@ The task publishes `queued` when it starts waiting and `started` when the wait e
 
 ## What You Get and Why
 
-When does a waiting order resume? It resumes when the courier leaves, if the courier leaves within the order's limit, and at the limit otherwise. Each figure here comes from one run of the 8-hour day with the seed 42. With a limit of 5 minutes, **6,952** orders go by courier and **7,020** by post. With a limit of 8 minutes, **11,005** go by courier and **2,872** by post, and the mean wait for dispatch rises from **225.3** to **288.2** seconds. How long must an order be allowed to wait? Of the two limits, **8 minutes** is the one at which most orders go by courier, 79% of them. At 5 minutes, fewer than half do:
+When does a waiting order resume? It resumes when the courier leaves, if the courier leaves within the order's limit, and at the limit otherwise. Each figure here comes from one run of the 8-hour day with the seed 42. With a limit of 5 minutes, **7,131** orders go by courier and **7,247** by post. With a limit of 8 minutes, **11,376** go by courier and **2,903** by post, and the mean wait for dispatch rises from **225.0** to **287.6** seconds. How long must an order be allowed to wait? Of the two limits, **8 minutes** is the one at which most orders go by courier, 80% of them. At 5 minutes, fewer than half do:
 
-![With a limit of 5 minutes, 6952 orders by courier and 7020 by post; with 8 minutes, 11005 by courier and 2872 by post](../../assets/charts/courier-shares.png)
+![With a limit of 5 minutes, 7131 orders by courier and 7247 by post; with 8 minutes, 11376 by courier and 2903 by post](../../assets/charts/courier-shares.png)
 
 Each tab prints both runs: the orders sent by courier and by post, and the mean wait for dispatch.
 
@@ -209,12 +209,12 @@ Each tab prints both runs: the orders sent by courier and by post, and the mean 
 
     <!-- records: courier-yaml -->
     ```text
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.tasks.dispatch.wait_mean","value":225.3020846603822}
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.tasks.by_post.finished","value":7020}
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.tasks.by_courier.finished","value":6952}
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.tasks.dispatch.wait_mean","value":288.1526479841932}
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.tasks.by_post.finished","value":2872}
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.tasks.by_courier.finished","value":11005}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.tasks.dispatch.wait_mean","value":225.0344900431784}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.tasks.by_post.finished","value":7247}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.tasks.by_courier.finished","value":7131}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.tasks.dispatch.wait_mean","value":287.5709842609553}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.tasks.by_post.finished","value":2903}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.tasks.by_courier.finished","value":11376}
     ```
 
 === "Builder"
@@ -224,8 +224,8 @@ Each tab prints both runs: the orders sent by courier and by post, and the mean 
     ```
 
     ```text
-    limit 5 min: 6952 by courier, 7020 by post, mean wait  225.3 s
-    limit 8 min: 11005 by courier, 2872 by post, mean wait  288.2 s
+    limit 5 min: 7131 by courier, 7247 by post, mean wait  225.0 s
+    limit 8 min: 11376 by courier, 2903 by post, mean wait  287.6 s
     ```
 
 === "Low-level"
@@ -235,11 +235,11 @@ Each tab prints both runs: the orders sent by courier and by post, and the mean 
     ```
 
     ```text
-    limit 5 min: 6952 by courier, 7020 by post, mean wait  225.3 s
-    limit 8 min: 11005 by courier, 2872 by post, mean wait  288.2 s
+    limit 5 min: 7131 by courier, 7247 by post, mean wait  225.0 s
+    limit 8 min: 11376 by courier, 2903 by post, mean wait  287.6 s
     ```
 
-Orders are packed at random moments, so the time from packing to the next courier is spread evenly over the 10 minutes between couriers. A limit of 5 minutes catches the courier for half the orders, and a limit of 8 minutes for 8 in 10. The runs show these shares: 49.8% and 79.3% of the orders go by courier. Every waiting order resumes at the same firing, so the courier takes them all at once. The mean wait for dispatch rises with the limit for the same reason: an order waits for the smaller of the time to the courier, spread evenly from 0 to 10 minutes, and the limit. Its mean is the limit less the limit squared divided by 20 minutes: 3.75 minutes (225 seconds) for a limit of 5 minutes and 4.8 minutes (288 seconds) for 8 minutes. These shares come from one run, and [Replications](../concepts/output-analysis.md#replications) explains how runs with other seeds would give each share an interval.
+Orders are packed at random moments, so the time from packing to the next courier is spread evenly over the 10 minutes between couriers. A limit of 5 minutes catches the courier for half the orders, and a limit of 8 minutes for 8 in 10. The runs show these shares: 49.6% and 79.7% of the orders go by courier. Every waiting order resumes at the same firing, so the courier takes them all at once. The mean wait for dispatch rises with the limit for the same reason: an order waits for the smaller of the time to the courier, spread evenly from 0 to 10 minutes, and the limit. Its mean is the limit less the limit squared divided by 20 minutes: 3.75 minutes (225 seconds) for a limit of 5 minutes and 4.8 minutes (288 seconds) for 8 minutes. These shares come from one run, and [Replications](../concepts/output-analysis.md#replications) explains how runs with other seeds would give each share an interval.
 
 [SimPy and desflow](../../simpy/index.md#waiting-for-one-or-all) shows the plain SimPy forms. [Signals and Waiting](../../user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows) describes every kind of wait, and [Wait for One or All](../../how-to/modelling/wait-for-one-or-all.md) shows ties and failures.
 

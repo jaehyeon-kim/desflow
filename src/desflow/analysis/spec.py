@@ -223,6 +223,12 @@ class ExperimentSpec(_Model):
                 "by seed"
             )
         for index, entry in enumerate(self.compare):
+            if entry.baseline == entry.variant:
+                raise _At(
+                    ("compare", index, "variant"),
+                    f"compare sets {entry.variant} against itself; the variant "
+                    f"needs a baseline that differs",
+                )
             for key in ("baseline", "variant"):
                 name = getattr(entry, key)
                 if name not in names:

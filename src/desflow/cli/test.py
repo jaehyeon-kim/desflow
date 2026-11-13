@@ -101,7 +101,9 @@ def _test_file(file: Path, fix: bool, variables: Mapping[str, str]) -> bool:
     from desflow.blueprint.expectations import fix_expectations
     from desflow.builder.context import SimulationContext, parts_of
     from desflow.core.statistics import published_value
-    from desflow.loading import is_builder_file, load_context
+    from desflow.blueprint.loader import BlueprintError
+    from desflow.cli.check import error_place
+    from desflow.loading import NoContextError, is_builder_file, load_context
 
     model: Any
     if is_builder_file(file):
@@ -117,7 +119,13 @@ def _test_file(file: Path, fix: bool, variables: Mapping[str, str]) -> bool:
                 f"{holder}"
             )
         tests, source = read_tests_file(holder)
-        context = load_context(file.parent, file.name)
+        try:
+            context = load_context(file.parent, file.name)
+        except (BlueprintError, NoContextError):
+            raise
+        except (Exception, SystemExit) as exc:
+            # A builder file runs code of its own, so any error or exit is the file's
+            raise ValueError(error_place(file, exc)) from None
         end = parts_of(context).defaults.until
         model = functools.partial(load_context, file.parent, file.name)
     else:

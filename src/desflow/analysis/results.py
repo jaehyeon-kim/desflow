@@ -389,8 +389,9 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
 
     Raises:
         ValueError: If a column is missing, a measure is not one of the experiment's,
-            a horizon is not a number or a duration, or a row's unit, population or
-            horizon differs from the simulated measure's.
+            a row has more or fewer cells than the header, a value is not a finite
+            number, a horizon is not a number or a duration, or a row's unit,
+            population or horizon differs from the simulated measure's.
     """
     if spec.observed is None:
         return []
@@ -407,6 +408,10 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
     found = []
     for number, row in enumerate(rows, start=2):
         where = f"{path}:{number}"
+        if None in row or any(cell is None for cell in row.values()):
+            raise ValueError(
+                f"{where}: the row has more or fewer cells than the header has columns"
+            )
         measure = row["measure"].strip()
         if measure not in spec.measures:
             raise ValueError(
@@ -437,13 +442,24 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
         found.append(
             {
                 "measure": measure,
-                "value": float(row["value"]),
+                "value": _observed_value(row["value"], where),
                 "unit": unit,
                 "population": population,
                 "horizon": horizon,
             }
         )
     return found
+
+
+def _observed_value(text: str, where: str) -> float:
+    """An observed value as a finite number; the refusal names the file and row."""
+    try:
+        value = float(text)
+    except ValueError:
+        value = math.nan
+    if not math.isfinite(value):
+        raise ValueError(f"{where}: the observed value {text!r} is not a finite number")
+    return value
 
 
 def _horizon_seconds(text: str, where: str) -> float:

@@ -101,3 +101,16 @@ def test_a_scenario_step_refuses_a_parameter_at_its_line(written, tmp_path):
     )
     with pytest.raises(Exception, match=r"m\.yaml:5: .*rate"):
         SimulationContext.from_yaml(path)
+
+
+def test_a_lognormal_whole_number_mean_past_int64_draws_as_its_float_does():
+    import numpy as np
+
+    from desflow.models.distributions import get_distribution
+
+    rng = np.random.default_rng(1)
+    config = DistributionConfig(dist="lognormal", mean=10**10, std=1)
+    same = DistributionConfig(dist="lognormal", mean=1e10, std=1)
+    family = get_distribution("lognormal")
+    first = family.draw(config, rng)
+    assert first == family.draw(same, np.random.default_rng(1))

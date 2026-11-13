@@ -5,7 +5,6 @@ import logging
 import math
 import re
 import shlex
-import zlib
 
 import numpy as np
 import pytest
@@ -14,7 +13,7 @@ from desflow import SimulationContext
 from desflow.blueprint.models import Distribution
 from desflow.models.distributions import DISTRIBUTIONS
 from desflow.core.environment import DynamicRealtimeEnvironment
-from desflow.core.sampler import Sampler
+from desflow.core.sampler import Sampler, stream_key
 from desflow.models.params import DistributionConfig, SimParameter, check_distribution
 
 # One valid set of parameters per family
@@ -195,7 +194,7 @@ def test_each_sequence_comes_from_the_seed_and_its_path():
     config = DistributionConfig(dist="uniform", low=0, high=1)
     config.stream = "arrival.orders"
     expected = np.random.default_rng(
-        np.random.SeedSequence(42, spawn_key=(zlib.crc32(b"arrival.orders"),))
+        np.random.SeedSequence(42, spawn_key=stream_key("arrival.orders"))
     ).uniform(0, 1)
     assert Sampler(seed=42).sample(config) == expected
     # A seeded generator gives the same sequences, so older code keeps working

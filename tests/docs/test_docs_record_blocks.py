@@ -34,7 +34,7 @@ def test_block_is_up_to_date(name):
         for page in record_blocks.used()[name]
         for match in record_blocks._MARKER.finditer(page.read_text(encoding="utf-8"))
         if match["name"] == name
-        and match["body"] != "\n".join(match["indent"] + line for line in lines)
+        and (match["body"] or "") != "\n".join(match["indent"] + line for line in lines)
     ]
     assert stale == [], (
         f"Run python scripts/record_blocks.py to regenerate {name} on: "
@@ -60,3 +60,23 @@ def test_a_block_does_not_read_the_callers_environment(monkeypatch):
 )
 def test_a_marker_that_matches_no_block_is_found(text, lines):
     assert record_blocks.unmatched_markers(text) == lines
+
+
+def test_an_empty_block_is_filled_without_deleting_the_page_after_it(monkeypatch):
+    """A marker with an empty ```text fence, how a new block is added, matches as an
+    empty block, so the rewrite keeps the paragraph and the code block after it."""
+    page = (
+        "<!-- records: first-trace -->\n```text\n```\n\nA paragraph the page needs.\n\n"
+        "```python\nprint('kept?')\n```\n"
+    )
+    monkeypatch.setitem(record_blocks.BLOCKS, "first-trace", lambda: ["NEW"])
+    assert record_blocks.unmatched_markers(page) == []
+    assert [m["name"] for m in record_blocks._MARKER.finditer(page)] == ["first-trace"]
+
+    class _Page:
+        def read_text(self, encoding):
+            return page
+
+    assert record_blocks._rewrite(_Page(), {}) == page.replace(
+        "```text\n```", "```text\nNEW\n```"
+    )

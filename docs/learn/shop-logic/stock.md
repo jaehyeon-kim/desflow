@@ -183,25 +183,25 @@ At the `minimal` level and above, the built-in statistics publish each container
     env.setup_stats("Shop", "typical", interval=10)
     ```
 
-With deliveries of 40, the shelf runs out before the second delivery. Each reading publishes every statistic of the level. The block keeps three of them, around the stock-out: the packer queue, the level and the orders waiting for a box:
+With deliveries of 40, the shelf runs out before the third delivery. Each reading publishes every statistic of the level. The block keeps three of them, around the stock-out: the packer queue, the level and the orders waiting for a box:
 
 <!-- records: stock-out -->
 ```text
-[TEL] {'sim_ts': 170.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 0}
-[TEL] {'sim_ts': 170.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 1}
-[TEL] {'sim_ts': 170.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 0}
-[TEL] {'sim_ts': 180.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 3}
-[TEL] {'sim_ts': 180.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 0}
-[TEL] {'sim_ts': 180.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 1}
-[TEL] {'sim_ts': 190.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 8}
-[TEL] {'sim_ts': 190.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 0}
-[TEL] {'sim_ts': 190.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 1}
-[TEL] {'sim_ts': 200.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 12}
-[TEL] {'sim_ts': 200.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 40}
-[TEL] {'sim_ts': 200.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 1}
+[TEL] {'sim_ts': 270.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 2}
+[TEL] {'sim_ts': 270.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 7}
+[TEL] {'sim_ts': 270.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 0}
+[TEL] {'sim_ts': 280.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 1}
+[TEL] {'sim_ts': 280.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 3}
+[TEL] {'sim_ts': 280.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 0}
+[TEL] {'sim_ts': 290.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 3}
+[TEL] {'sim_ts': 290.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 0}
+[TEL] {'sim_ts': 290.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 1}
+[TEL] {'sim_ts': 300.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 6}
+[TEL] {'sim_ts': 300.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 40}
+[TEL] {'sim_ts': 300.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 1}
 ```
 
-At 180 seconds the shelf is empty, one order waits for a box, and three more wait behind it for the packer. The delivery at 200 seconds puts 40 boxes on the shelf. The waiting order takes its box at that same moment, just after the reading.
+At 290 seconds the shelf is empty, one order waits for a box, and three more wait behind it for the packer. The delivery at 300 seconds puts 40 boxes on the shelf. The waiting order takes its box at that same moment, just after the reading.
 
 The level is also a registry path, `Shop.containers.stock.level`, so a scenario step or a message from outside can set it during a run, as a stock count would. [Stores and Containers](../../user-guide/model-parts/stores-and-containers.md) describes what such an update does.
 
@@ -211,9 +211,9 @@ The level is also a registry path, `Shop.containers.stock.level`, so a scenario 
 
 What happens when stock runs out? Orders wait for boxes, and when deliveries cannot keep up, the wait grows all hour. The level over the first 30 minutes, for both delivery sizes:
 
-![With deliveries of 60 every 100 seconds, the level climbs in a saw-tooth from 50 to about 200 over 30 minutes; with deliveries of 40, it falls to 0 before each delivery and stays there for about 40 seconds, while orders wait](../../assets/charts/stock-level.png)
+![With deliveries of 60 every 100 seconds, the level climbs in a saw-tooth from 50 to about 200 over 30 minutes; with deliveries of 40, it falls to 0 before each delivery from the third on, for about 15 seconds the first time and about 40 seconds each time after, while orders wait](../../assets/charts/stock-level.png)
 
-These figures come from one run of the hour for each delivery size, with the seed 42. With deliveries of 60, the mean wait for packing is **1.93 seconds**, and stock runs out only once, just before the first delivery. With deliveries of 40, the mean wait is **341.89 seconds**, and the shelf is empty for about 40 of every 100 seconds. Deliveries of 40 boxes every 100 seconds allow at most 40 orders to be packed in 100 seconds, while 50 arrive on average. So the packer queue grows all hour, as with too few packers on [Queues and Capacity](../first-model/queues-and-capacity.md).
+These figures come from one run of the hour for each delivery size, with the seed 42. With deliveries of 60, the mean wait for packing is **2.54 seconds**, and stock never runs out. With deliveries of 40, the mean wait is **330.02 seconds**, and the shelf is empty for about 40 of every 100 seconds. Deliveries of 40 boxes every 100 seconds allow at most 40 orders to be packed in 100 seconds, while 50 arrive on average. So the packer queue grows all hour, as with too few packers on [Queues and Capacity](../first-model/queues-and-capacity.md).
 
 Each tab prints the mean wait for deliveries of 60, then of 40:
 
@@ -226,8 +226,8 @@ Each tab prints the mean wait for deliveries of 60, then of 40:
 
     <!-- records: stock-yaml -->
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.934162567558525}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":341.89333540143383}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":2.5353067783084926}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":330.02115687302364}
     ```
 
 === "Builder"
@@ -238,8 +238,8 @@ Each tab prints the mean wait for deliveries of 60, then of 40:
 
     <!-- records: stock-table -->
     ```text
-    deliveries of 60: mean wait   1.93 s
-    deliveries of 40: mean wait 341.89 s
+    deliveries of 60: mean wait   2.54 s
+    deliveries of 40: mean wait 330.02 s
     ```
 
 === "Low-level"
@@ -250,8 +250,8 @@ Each tab prints the mean wait for deliveries of 60, then of 40:
 
     <!-- records: stock-table -->
     ```text
-    deliveries of 60: mean wait   1.93 s
-    deliveries of 40: mean wait 341.89 s
+    deliveries of 60: mean wait   2.54 s
+    deliveries of 40: mean wait 330.02 s
     ```
 
 Stock adds a second queue: orders wait at the shelf as well as at the packer. Packing takes its packer before its box. So the shelf's queue is never longer than the number of packers, and the other orders wait in the packer queue behind it. An empty shelf therefore also stops the packer. A task whose resource is scarce can take the box first instead: the `get` goes in a task of its own, with no resource, and that task names the packing task in `next`. The long queue then forms at the shelf, and the packer stays free:

@@ -27,7 +27,7 @@ A `next` function or a hand-written arrival loop already makes every rate unknow
 from typing import Dict, Iterable, List
 
 from desflow.explain.loads import mixed_priorities, users
-from desflow.explain.models import VERIFY_HINT, Graph
+from desflow.explain.models import PROCESS_ID_PREFIX, VERIFY_HINT, Graph
 
 
 def static_marks(graph: Graph) -> Dict[str, str]:
@@ -43,7 +43,7 @@ def static_marks(graph: Graph) -> Dict[str, str]:
     nodes = {node.id: node for node in graph.nodes}
     tasks = [node for node in graph.nodes if node.kind == "task"]
     whole = list(graph.features) + [
-        n.label for n in graph.nodes if n.id.startswith("opaque:process.")
+        n.label for n in graph.nodes if n.id.startswith(PROCESS_ID_PREFIX)
     ]
     if whole:
         reason = f"the formulas leave out {', '.join(whole)}, which can change any work"

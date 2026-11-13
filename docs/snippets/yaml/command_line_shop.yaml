@@ -26,5 +26,5 @@ run: {until: 10 min}
 tests:
   - name: two packers
     expect:
-      tasks.pack.finished: 254
-      tasks.pack.wait_mean: {value: 4.592, within: 0.001}
+      tasks.pack.finished: 224
+      tasks.pack.wait_mean: {value: 2.299, within: 0.001}

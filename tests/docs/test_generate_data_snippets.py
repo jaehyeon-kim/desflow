@@ -262,7 +262,7 @@ def test_send_data_to_a_sink_page_commands_run_each_sink_without_editing_a_file(
     tmp_path,
 ):
     """Every `SINK=<name>` command of the page names a sink of both scripts. The console
-    and file variants run as the page says, and print or write the page's 10 records. The
+    and file variants run as the page says, and print or write the page's 7 records. The
     Kafka and PostgreSQL variants make their connectors, and the YAML files load."""
     page = (ROOT / "docs/how-to/generate-data/send-data-to-a-sink.md").read_text(
         encoding="utf-8"
@@ -286,7 +286,7 @@ def test_send_data_to_a_sink_page_commands_run_each_sink_without_editing_a_file(
             text=True,
             check=True,
         )
-        assert run.stdout.count("[EVT]") + run.stderr.count("[EVT]") == 10, form
+        assert run.stdout.count("[EVT]") + run.stderr.count("[EVT]") == 7, form
         subprocess.run(
             [sys.executable, str(script)],
             env={**environment, "SINK": "file"},
@@ -294,7 +294,7 @@ def test_send_data_to_a_sink_page_commands_run_each_sink_without_editing_a_file(
             text=True,
             check=True,
         )
-        assert len(_json_rows(tmp_path / form, "orders")) == 10, form
+        assert len(_json_rows(tmp_path / form, "orders")) == 7, form
     for slug in ("send_data_to_kafka", "send_data_to_postgres", "send_data_to_a_file"):
         assert f"docs/snippets/generate-data/{slug}.yaml" in page, slug
         SimulationContext.from_yaml(SNIPPETS / f"{slug}.yaml")
@@ -746,6 +746,7 @@ def test_look_up_other_records_lookup_upstream_and_aggregate():
     for report in reports:
         recent = [o["value"]["total"] for o in orders if o["sim_ts"] < report["sim_ts"]]
         recent = recent[-10:]
-        assert len(recent) == 10
-        assert report["value"]["mean_total"] == pytest.approx(sum(recent) / 10)
+        # The first report comes when 7 orders have been written, fewer than 10
+        assert len(recent) == (7 if report["sim_ts"] == 10.0 else 10)
+        assert report["value"]["mean_total"] == pytest.approx(sum(recent) / len(recent))
         assert report["value"]["largest_total"] == max(recent)

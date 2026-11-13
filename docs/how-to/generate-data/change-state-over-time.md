@@ -188,9 +188,9 @@ Run the model for 2 simulated hours and print its first 8 records. Each station 
 {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"station-2","task":"running","instance":1,"value":{"status":"started"}}
 {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"station-3","task":"running","instance":2,"value":{"status":"started"}}
 {"stream_type":"event","sim_ts":300.0,"timestamp":"...","key":"station-1","task":"running","instance":0,"value":{"station":"station-1","state":"running"}}
-{"stream_type":"event","sim_ts":300.0,"timestamp":"...","key":"station-1","task":"running","instance":3,"value":{"status":"started"}}
+{"stream_type":"event","sim_ts":300.0,"timestamp":"...","key":"station-1","task":"slow","instance":0,"value":{"status":"started"}}
 {"stream_type":"event","sim_ts":300.0,"timestamp":"...","key":"station-2","task":"running","instance":1,"value":{"station":"station-2","state":"running"}}
-{"stream_type":"event","sim_ts":300.0,"timestamp":"...","key":"station-2","task":"running","instance":4,"value":{"status":"started"}}
+{"stream_type":"event","sim_ts":300.0,"timestamp":"...","key":"station-2","task":"running","instance":3,"value":{"status":"started"}}
 {"stream_type":"event","sim_ts":300.0,"timestamp":"...","key":"station-3","task":"running","instance":2,"value":{"station":"station-3","state":"running"}}
 ```
 

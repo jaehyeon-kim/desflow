@@ -11,27 +11,25 @@ from tests.conformance.harness import run_yaml
 
 # (time, key, u, n) of every courier, in the order the records are published
 COURIERS = [
-    (1.0, "courier-1", 0.8146182150880799, -0.7691257892060109),
-    (1.0, "courier-2", 0.5668287477754712, -0.07613804615064032),
-    (1.0, "courier-3", 0.11445755409801073, -0.36479276651297565),
-    (1.0, "courier-4", 0.30728673097618175, -1.336376170293762),
-    (1.0, "courier-5", 0.9878825202083326, 0.0920282698481228),
-    (1.0, "courier-6", 0.37896584927779176, -0.8417411032218027),
-    (2.0, "courier-7", 0.46918160441808865, -0.2115849001554326),
-    (2.0, "courier-8", 0.1401486272319371, -0.7743956531184715),
-    (2.0, "courier-9", 0.07918013216562547, -0.9251803135105392),
-    (2.0, "courier-10", 0.4292375498489196, -0.26662493290079803),
+    (1.0, "courier-1", 0.0009891876378977926, -0.3928484415288612),
+    (1.0, "courier-2", 0.7991988384887363, -0.4850482360448896),
+    (1.0, "courier-3", 0.7707324186431405, 0.6582942994382386),
+    (1.0, "courier-4", 0.1303755650713605, 0.3346342593241817),
+    (1.0, "courier-5", 0.5354507128525459, -0.3208464208154382),
+    (1.0, "courier-6", 0.7887062563971784, -0.07120582104419047),
+    (2.0, "courier-7", 0.37278383017430783, -1.8581219169813468),
+    (2.0, "courier-8", 0.9770788351967868, -1.0065033363528475),
 ]
 
 
 def test_group_spawn_count_and_spawn_args_draws_are_fixed_by_the_seed():
-    """Two entities arrive at 1 and at 2 (the `group`). Their `pack` tasks spawn 3 and 3
-    couriers at 1, and 1 and 3 at 2 (the `count`), each with a `u` and an `n`."""
+    """Three entities arrive at 1 and two at 2 (the `group`). Their `pack` tasks spawn 6
+    couriers at 1 and 2 at 2 (the `count`), each with a `u` and an `n`."""
     records, _ = run_yaml("generator_streams.yaml")
     events = [r for r in records if r["stream_type"] == "event"]
 
     packs = [r["sim_ts"] for r in events if r["task"] == "pack"]
-    assert packs == [1.0, 1.0, 2.0, 2.0]
+    assert packs == [1.0, 1.0, 1.0, 2.0, 2.0]
     couriers = [
         (r["sim_ts"], r["key"], r["value"]["u"], r["value"]["n"])
         for r in events

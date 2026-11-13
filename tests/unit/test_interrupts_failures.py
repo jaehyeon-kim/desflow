@@ -485,6 +485,8 @@ UNEVALUABLE = {
     "an each of -3": "wait: {each: '1 - 4', branch: {timeout: 1}}",
     "a wait timeout": "wait: {timeout: 'attr.zz'}",
     "a service_time": "service_time: 'attr.zz'",
+    "a key that is a fraction": "key: {gen: expr, expr: '1.5'}",
+    "a key that reads a missing attribute": "key: {gen: expr, expr: 'attr.zz'}",
 }
 
 
@@ -516,7 +518,7 @@ def test_an_expression_that_cannot_be_evaluated_stops_the_run_under_stop_and_fai
         if r["stream_type"] == "event" and r["value"].get("status") == "failed"
     ]
     assert len(reasons) == 2 and all(
-        reason.startswith("ValueError") for reason in reasons
+        reason.startswith(("ValueError", "ValueGenerationError")) for reason in reasons
     )
 
 
@@ -604,6 +606,53 @@ def test_a_failing_on_interrupt_run_flow_with_no_on_fail_stops_the_run(tmp_path)
     outcome = run_yaml_text(tmp_path, CHILD_FAILS.replace("ON_FAIL", ""), {})
     assert outcome.error is not None
     assert "broken" in str(outcome.error)
+
+
+def test_a_loop_of_tasks_with_no_time_in_an_on_interrupt_run_flow_stops_the_run(
+    tmp_path,
+):
+    """The hand-off loop of the repair flow counts instances at one instant as a flow
+    does, and its error is not a failure of the child that goes to `on_fail`."""
+    yaml = """
+simulation: {sim_id: S, factor: 0}
+arrivals:
+  a: {initial: 1, spawn: work}
+  c: {initial: 1, spawn: cutter}
+tasks:
+  work: {service_time: 10, on_interrupt_run: ping, on_fail: handle, payload: {e: 1}}
+  ping: {payload: {e: 2}, next: pong}
+  pong: {payload: {e: 3}, next: ping}
+  handle: {payload: {e: handled}}
+  cutter: {wait: {timeout: 2}, payload: null, interrupt: {task: work}}
+run: {until: 30}
+"""
+    outcome = run_yaml_text(tmp_path, yaml, {})
+    assert "ran 10000 times in one flow at time 2" in str(outcome.error)
+
+
+def test_a_loop_of_tasks_with_no_time_while_waiting_for_a_unit_stops_the_run(
+    tmp_path,
+):
+    """An interrupt that reaches a task in a line runs its `on_interrupt_run` flow in
+    the holding step; a loop there stops the run and does not go to `on_fail`."""
+    yaml = """
+simulation: {sim_id: S, factor: 0}
+resources: {m: {current_cap: 1}}
+arrivals:
+  b: {initial: 1, spawn: blocker}
+  a: {initial: 1, spawn: work}
+  c: {initial: 1, spawn: cutter}
+tasks:
+  blocker: {service_time: 100, resource: m, payload: {e: 0}}
+  work: {service_time: 10, seize: m, on_interrupt_run: ping, on_fail: handle, payload: {e: 1}}
+  ping: {payload: {e: 2}, next: pong}
+  pong: {payload: {e: 3}, next: ping}
+  handle: {payload: {e: handled}}
+  cutter: {wait: {timeout: 2}, payload: null, interrupt: {task: work}}
+run: {until: 30}
+"""
+    outcome = run_yaml_text(tmp_path, yaml, {})
+    assert "ran 10000 times in one flow at time 2" in str(outcome.error)
 
 
 def test_a_unit_an_earlier_seize_took_stays_held_while_the_on_interrupt_run_flow_runs(

@@ -228,9 +228,9 @@ When a shirt arrives, it is offered to the waiting orders one at a time, oldest 
 
 ## What You Get and Why
 
-Which waiting order can use the shirt that arrives? The oldest order of the shirt's size, and no other. In one run of 8 hours with the seed 42, **315** medium orders are cancelled, and no small or large one. Medium orders are half of all orders, but medium shirts are only 4 in 10:
+Which waiting order can use the shirt that arrives? The oldest order of the shirt's size, and no other. In one run of 8 hours with the seed 42, **199** orders are cancelled: **167** medium, 24 large and 8 small. Medium orders are half of all orders, but medium shirts are only 4 in 10:
 
-![Over 8 hours: size S 732 filled and 0 cancelled; size M 1110 filled and 315 cancelled; size L 679 filled and 0 cancelled](../../assets/charts/filtered-outcomes.png)
+![Over 8 hours: size S 711 filled and 8 cancelled; size M 1181 filled and 167 cancelled; size L 779 filled and 24 cancelled](../../assets/charts/filtered-outcomes.png)
 
 Each tab prints the counts:
 
@@ -250,13 +250,13 @@ Each tab prints the counts:
 
     <!-- records: filtered-yaml -->
     ```text
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.tasks.take_shirt.reneged","value":315}
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.flows.orders_s.finished","value":732}
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.flows.orders_l.finished","value":679}
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.flows.orders_m.finished","value":1110}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.tasks.take_shirt.reneged","value":199}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.flows.orders_s.finished","value":711}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.flows.orders_m.finished","value":1181}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.flows.orders_l.finished","value":779}
     ```
 
-    Each `flows.orders_<size>.finished` is the number of filled orders of that size. `tasks.take_shirt.reneged` counts the cancelled orders of every size together. A cancelled order leaves its flow without finishing it, so a size's cancelled orders are its flow's `started` minus `finished` minus `in_system`, the orders still waiting at the end. For medium orders that is 1,454 − 1,110 − 29 = 315, all of the cancelled orders.
+    Each `flows.orders_<size>.finished` is the number of filled orders of that size. `tasks.take_shirt.reneged` counts the cancelled orders of every size together. A cancelled order leaves its flow without finishing it, so a size's cancelled orders are its flow's `started` minus `finished` minus `in_system`, the orders still waiting at the end. For medium orders that is 1,383 − 1,181 − 35 = 167, most of the 199 cancelled orders.
 
     The started and waiting counts of the medium orders, and the shirts left on the shelf, come from the same run:
 
@@ -265,9 +265,9 @@ Each tab prints the counts:
     ```
 
     ```text
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.stores.shelf.level","value":248}
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.flows.orders_m.started","value":1454}
-    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.flows.orders_m.in_system","value":29}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.stores.shelf.level","value":197}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.flows.orders_m.started","value":1383}
+    {"stream_type":"telemetry","sim_ts":28800.0,"timestamp":"...","path_id":"Shop.stats.flows.orders_m.in_system","value":35}
     ```
 
 === "Builder"
@@ -284,10 +284,10 @@ Each tab prints the counts:
     ```
 
     ```text
-    size S:  732 started,  732 filled,  0 waiting,   0 cancelled
-    size M: 1454 started, 1110 filled, 29 waiting, 315 cancelled
-    size L:  679 started,  679 filled,  0 waiting,   0 cancelled
-    shirts left on the shelf: 248
+    size S:  719 started,  711 filled,  0 waiting,   8 cancelled
+    size M: 1383 started, 1181 filled, 35 waiting, 167 cancelled
+    size L:  803 started,  779 filled,  0 waiting,  24 cancelled
+    shirts left on the shelf: 197
     ```
 
 === "Low-level"
@@ -304,10 +304,10 @@ Each tab prints the counts:
     ```
 
     ```text
-    size S:  732 started,  732 filled,  0 waiting,   0 cancelled
-    size M: 1454 started, 1110 filled, 29 waiting, 315 cancelled
-    size L:  679 started,  679 filled,  0 waiting,   0 cancelled
-    shirts left on the shelf: 248
+    size S:  719 started,  711 filled,  0 waiting,   8 cancelled
+    size M: 1383 started, 1181 filled, 35 waiting, 167 cancelled
+    size L:  803 started,  779 filled,  0 waiting,  24 cancelled
+    shirts left on the shelf: 197
     ```
 
 A filtered store works like one shelf with a separate queue for each kind of item. Orders and shirts of each size arrive at their own rates, on average:
@@ -318,7 +318,7 @@ A filtered store works like one shelf with a separate queue for each kind of ite
 | Medium | every 20 seconds (3 a minute, `rate: 0.05`) | every 25 seconds (2.4 a minute, `rate: 0.04`) |
 | Large | every 40 seconds (1.5 a minute, `rate: 0.025`) | every 33 seconds (1.8 a minute, `rate: 0.03`) |
 
-Medium orders outnumber medium shirts all day: they ask for 0.05 shirts a second and get 0.04, a [utilisation](../concepts/queueing-basics.md#utilisation) of 1.25. So their queue would grow without end if customers did not cancel after 10 minutes. There are more small and large shirts than orders of those sizes, so every small and large order is filled before its customer cancels. The shirts left over, 248 at the end of the run, wait on the shelf, which has room for 1,000.
+Medium orders outnumber medium shirts all day: they ask for 0.05 shirts a second and get 0.04, a [utilisation](../concepts/queueing-basics.md#utilisation) of 1.25. So their queue would grow without end if customers did not cancel after 10 minutes. There are more small and large shirts than orders of those sizes, so nearly every small and large order is filled before its customer cancels. The few that cancel (8 small and 24 large in this run) are orders that waited for a shirt of their size for more than 10 minutes, because shirts arrive at random times. The shirts left over, 197 at the end of the run, wait on the shelf, which has room for 1,000.
 
 The mix of sizes is therefore not right for the orders: the shop should stock more medium shirts, and fewer small and large ones, until medium shirts are as large a share of the deliveries as medium orders are of the orders.
 

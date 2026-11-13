@@ -174,7 +174,7 @@ class FitResult:
         name = kind or self.best
         for candidate in self.candidates:
             if candidate.family == name and candidate.usable:
-                return {"dist": name, **_settings_digits(name, candidate.parameters)}
+                return {"dist": name, **settings_digits(name, candidate.parameters)}
         usable = [c.family for c in self.candidates if c.usable]
         if not usable:
             raise ValueError(
@@ -314,11 +314,19 @@ def _rounded(value: Any) -> float:
     return float(_short(value))
 
 
-def _settings_digits(family: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+def settings_digits(family: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
     """The parameters with six significant digits for each number, or with every
     digit when the six-digit settings would not load, or would move the mean or std
     by more than `_DIGITS_TOLERANCE` of the std, as for values that differ in their
-    fifth decimal place at a size of 100000. A list keeps every digit."""
+    fifth decimal place at a size of 100000. A list keeps every digit.
+
+    Args:
+        family: The distribution family, such as `"normal"`.
+        parameters: The fitted parameters, by name.
+
+    Returns:
+        Dict[str, Any]: The parameters to write, as numbers or lists.
+    """
     exact: Dict[str, Any] = {
         key: value if isinstance(value, list) else float(value)
         for key, value in parameters.items()

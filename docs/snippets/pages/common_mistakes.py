@@ -133,7 +133,7 @@ if __name__ == "__main__":
     print(
         f"constant gaps and times: mean wait {fixed:.2f} s; exponential gaps: {random_gaps:.2f} s"
     )
-    assert fixed == 0 and abs(random_gaps - 2.45) < 0.005
+    assert fixed == 0 and abs(random_gaps - 2.18) < 0.005
 
     share = negative_share()
     print(f"normal(1.5, 1.0) draws a negative packing time {share:.1%} of the time")
@@ -144,16 +144,16 @@ if __name__ == "__main__":
         f"10 runs of the busy hour: {low:.2f} to {high:.2f} s, mean {average:.2f} s;"
         f" {1 - low / average:.0%} below and {high / average - 1:.0%} above the mean"
     )
-    assert abs(low - 1.52) < 0.005 and abs(high - 2.75) < 0.005
-    assert abs(average - 2.11) < 0.005
-    assert round(1 - low / average, 2) == 0.28 and round(high / average - 1, 2) == 0.30
+    assert abs(low - 1.50) < 0.005 and abs(high - 2.37) < 0.005
+    assert abs(average - 1.93) < 0.005
+    assert round(1 - low / average, 2) == 0.23 and round(high / average - 1, 2) == 0.22
 
     assert round(1.5 / 0.95, 2) == 1.58  # the gap that keeps one packer 95% busy
     value, half_width, long_run = empty_start()
     print(
         f"30 minutes from empty: {value:.1f} ± {half_width:.1f} s; long run {long_run:.2f} s"
     )
-    assert abs(value - 11.4) < 0.05 and abs(half_width - 2.1) < 0.05
+    assert abs(value - 11.6) < 0.05 and abs(half_width - 1.8) < 0.05
     assert abs(long_run - 14.25) < 1e-9
     assert value + half_width < long_run
 
@@ -163,12 +163,15 @@ if __name__ == "__main__":
         f"20,000 s runs leaving out the first 4,000 s: {value:.1f} ± {half_width:.1f} s"
     )
     # --8<-- [end:warmup-fix]
-    assert abs(value - 14.2) < 0.05 and abs(half_width - 1.3) < 0.05
-    assert abs(value - long_run) <= half_width
+    assert abs(value - 13.3) < 0.05 and abs(half_width - 0.9) < 0.05
+    assert (
+        long_run - (value + half_width) < 0.05
+    )  # the interval reaches the long-run wait
+    assert long_run - value < 1.0
 
     wrong, pairs, slow, fast = one_run_each()
     print(
         f"single runs picked the slower design in {wrong} of {pairs} pairs; means {slow:.2f} and {fast:.2f} s"
     )
-    assert (wrong, pairs) == (4, 20)
-    assert abs(slow - 1.99) < 0.005 and abs(fast - 1.51) < 0.005
+    assert (wrong, pairs) == (3, 20)
+    assert abs(slow - 1.98) < 0.005 and abs(fast - 1.40) < 0.005

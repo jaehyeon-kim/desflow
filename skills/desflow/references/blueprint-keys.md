@@ -558,7 +558,7 @@ A `wait` branch for the running instances of a task: done when they all end.
 
 ### RunningTarget
 
-A `running` wait branch target: the task whose running instances to wait for, narrowed by an optional `where` condition read in each instance's scope. The wait is for the end of the instance's task, or, with `whole_flow: true`, for the end of the whole flow the instance belongs to (its `next` chain and the tasks it waits for in child flows), as `yield process` waits for a SimPy process. A flow selected that way is any flow of the model, and one that has ended already ends the wait at once; its last task's payload is the branch's value.
+A `running` wait branch target: the task whose running instances to wait for, narrowed by an optional `where` condition read in each instance's scope. The wait is for the end of the instance's task, or, with `whole_flow: true`, for the end of the whole flow the instance belongs to (its `next` chain and the tasks it waits for in child flows), as `yield process` waits for a SimPy process. A flow selected that way is any flow of the model that is running when the wait begins, or that ended while an instance of a task with such a wait was running and still is; a flow with no match ends the wait at once. Its last task's payload is the branch's value.
 
 | Key | Type | Default |
 |---|---|---|

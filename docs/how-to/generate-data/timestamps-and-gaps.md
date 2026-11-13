@@ -145,9 +145,9 @@ Run the model for 10 simulated seconds and print its first 3 records. `placed_at
 
 <!-- records: gd-timestamps-and-gaps -->
 ```text
-{"stream_type":"event","sim_ts":0.42657339329429356,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"placed_at":"2026-01-01T00:00:00.426+00:00","deliver_by":"2026-01-01T18:31:03.590+00:00","epoch_ms":1767225600426}}
-{"stream_type":"event","sim_ts":0.8902423871403649,"timestamp":"...","key":"orders-2","task":"order","instance":1,"value":{"placed_at":"2026-01-01T00:00:00.890+00:00","deliver_by":"2026-01-02T07:57:50.425+00:00","epoch_ms":1767225600890}}
-{"stream_type":"event","sim_ts":1.2975278008631643,"timestamp":"...","key":"orders-3","task":"order","instance":2,"value":{"placed_at":"2026-01-01T00:00:01.297+00:00","deliver_by":"2026-01-01T12:04:22.699+00:00","epoch_ms":1767225601297}}
+{"stream_type":"event","sim_ts":0.4011254569293608,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"placed_at":"2026-01-01T00:00:00.401+00:00","deliver_by":"2026-01-02T16:48:58.408+00:00","epoch_ms":1767225600401}}
+{"stream_type":"event","sim_ts":0.8052480450909607,"timestamp":"...","key":"orders-2","task":"order","instance":1,"value":{"placed_at":"2026-01-01T00:00:00.805+00:00","deliver_by":"2026-01-01T18:49:05.992+00:00","epoch_ms":1767225600805}}
+{"stream_type":"event","sim_ts":1.2311827841058256,"timestamp":"...","key":"orders-3","task":"order","instance":2,"value":{"placed_at":"2026-01-01T00:00:01.231+00:00","deliver_by":"2026-01-01T10:51:01.624+00:00","epoch_ms":1767225601231}}
 ```
 
 The times repeat from run to run, because `now` counts from the fixed `logical_start_time` and not from the wall clock. The docs test runs the model for 2,000 simulated seconds: the gaps average 0.4 seconds with a standard deviation of 0.03, and `deliver_by` reaches both ends of 0 to 2 days after `placed_at`.

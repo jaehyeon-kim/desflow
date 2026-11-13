@@ -109,17 +109,17 @@ def test_latency_page_states_the_run():
 
 def test_bank_renege_page_states_the_run():
     reneged = [r["key"] for r in _of("bank_renege", "reneged")]
-    assert reneged == ["Customer01", "Customer02", "Customer04"]
+    assert reneged == ["Customer04", "Customer03"]
     finished = {r["key"]: round(r["sim_ts"], 3) for r in _of("bank_renege", "finished")}
-    assert finished == {"Customer00": 24.981, "Customer03": 37.245}
-    started = [r for r in _of("bank_renege", "started") if r["key"] == "Customer03"]
-    assert round(started[0]["sim_ts"], 3) == 29.312
+    assert finished == {"Customer00": 3.536, "Customer01": 10.53, "Customer02": 18.266}
+    started = [r for r in _of("bank_renege", "started") if r["key"] == "Customer02"]
+    assert round(started[0]["sim_ts"], 3) == 10.53
     _stated(
         "bank-renege",
-        "`Customer01`, `Customer02` and `Customer04`",
-        "24.981",
-        "29.312",
-        "37.245",
+        "`Customer03` and `Customer04`",
+        "3.536",
+        "10.53 seconds and finishes at 18.266",
+        "5.384",
     )
 
 
@@ -130,8 +130,8 @@ def test_carwash_page_states_the_run():
         ("Car 1", 0.0),
         ("Car 2", 0.0),
         ("Car 3", 0.0),
-        ("Car 4", 5.0),
-        ("Car 5", 14.0),
+        ("Car 4", 9.0),
+        ("Car 5", 15.0),
     ]
     washed = {r["key"]: r["sim_ts"] for r in _of("carwash", "washed")}
     assert washed == {
@@ -140,44 +140,43 @@ def test_carwash_page_states_the_run():
         "Car 2": 10.0,
         "Car 3": 10.0,
         "Car 4": 15.0,
-        "Car 5": 19.0,
     }
     _stated(
         "carwash",
         "Six cars",
-        "car 4 arrives at 5 seconds",
-        "car 5 at 14 seconds",
-        "car 5 at 19 seconds",
+        "car 4 arrives at 9 seconds",
+        "car 5 at 15 seconds",
+        "Car 5 starts its wash at 15 seconds",
     )
 
 
 def test_gas_station_page_states_the_run():
     assert len(_of("gas_station_refuel", "refueled")) == 5
-    assert [r["sim_ts"] for r in _of("gas_station_refuel", "truck_called")] == [970.0]
+    assert [r["sim_ts"] for r in _of("gas_station_refuel", "truck_called")] == [820.0]
     assert _of("gas_station_refuel", "truck_arrived") == []
     _stated(
-        "gas-station-refuel", "Five cars", "970 seconds", "1270 seconds", "460 seconds"
+        "gas-station-refuel", "Five cars", "820 seconds", "1120 seconds", "460 seconds"
     )
 
 
 def test_machine_shop_page_states_the_run():
     parts = Counter(r["key"] for r in _of("machine_shop", "part_made"))
-    assert sum(parts.values()) == 32637
-    assert parts.most_common(1) == [("Machine 0", 3329)]
-    assert min(parts.items(), key=lambda item: item[1]) == ("Machine 3", 3194)
-    assert len(_of("machine_shop", "broken")) == 1124
-    assert len(_of("machine_shop", "repaired")) == 1123
-    assert len(_of("machine_shop", "other_done")) == 220
-    assert len(_of("machine_shop", "preempted")) == 223
+    assert sum(parts.values()) == 33906
+    assert parts.most_common(1) == [("Machine 8", 3494)]
+    assert min(parts.items(), key=lambda item: item[1]) == ("Machine 9", 3284)
+    assert len(_of("machine_shop", "broken")) == 1040
+    assert len(_of("machine_shop", "repaired")) == 1039
+    assert len(_of("machine_shop", "other_done")) == 304
+    assert len(_of("machine_shop", "preempted")) == 269
     _stated(
         "machine-shop",
-        "32637 parts",
-        "3329",
-        "3194",
-        "1124 machines",
-        "1123 repairs",
-        "220 other jobs",
-        "223 times",
+        "33906 parts",
+        "3494",
+        "3284",
+        "1040 machines",
+        "1039 repairs",
+        "304 other jobs",
+        "269 times",
     )
 
 
@@ -187,49 +186,47 @@ def test_movie_renege_page_states_the_run():
         for r in _of("movie_renege", "sold_out")
     }
     assert sold == {
-        "Kill Process": 36.662,
-        "Python Unchained": 39.662,
-        "Pulp Implementation": 43.662,
+        "Pulp Implementation": 21.793,
+        "Kill Process": 41.793,
+        "Python Unchained": 44.293,
     }
     left = Counter(r["value"]["movie"] for r in _of("movie_renege", "reneged"))
-    assert left == {"Python Unchained": 17, "Kill Process": 8, "Pulp Implementation": 8}
-    assert len(_of("movie_renege", "bought")) == 43
-    assert len(_of("movie_renege", "balked")) == 154
+    assert left == {
+        "Python Unchained": 18,
+        "Kill Process": 17,
+        "Pulp Implementation": 9,
+    }
+    assert len(_of("movie_renege", "bought")) == 44
+    assert len(_of("movie_renege", "balked")) == 197
     _stated(
         "movie-renege",
-        "36.662",
-        "39.662",
-        "43.662",
-        "17 moviegoers",
-        "43 sales",
-        "154 moviegoers",
+        "21.793",
+        "41.793",
+        "44.293",
+        "18 moviegoers",
+        "44 sales",
+        "197 moviegoers",
     )
 
 
 def test_process_communication_page_states_the_run():
     said = _of("process_communication", "said")
     received = _of("process_communication", "received")
-    assert (len(said), len(received)) == (12, 12)
+    assert (len(said), len(received)) == (13, 12)
     assert len(_of("process_communication", "handled")) == 11
     late = [(r["value"]["text"], r["sim_ts"]) for r in received if r["value"]["late"]]
-    assert late == [
-        ("Generator A says hello at 38", 39.0),
-        ("Generator A says hello at 63", 65.0),
-    ]
+    assert late == []
     both = _of("process_communication_broadcast", "received")
     assert Counter(r["key"].split("-")[0] for r in both) == {
         "consumer_a": 12,
         "consumer_b": 12,
     }
-    assert Counter(r["key"].split("-")[0] for r in both if r["value"]["late"]) == {
-        "consumer_a": 2,
-        "consumer_b": 4,
-    }
+    assert [r for r in both if r["value"]["late"]] == []
     _stated(
         "process-communication",
-        "12 messages",
-        "38 and at 63 seconds",
-        "39 and at 65 seconds",
+        "13 messages",
+        "sent at 8 seconds",
+        "No message is late",
         "11 of them",
-        "6 receipts",
+        "No receipt is late",
     )

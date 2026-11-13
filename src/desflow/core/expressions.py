@@ -417,7 +417,7 @@ def normal_key(key: Any) -> Union[int, str]:
     if isinstance(key, _Integral):
         return int(key)
     if isinstance(key, str):
-        return key
+        return str(key)  # a `str` subclass, such as NumPy text, is a plain `str`
     raise TypeError(f"a family key is an integer or text, got {key!r}")
 
 

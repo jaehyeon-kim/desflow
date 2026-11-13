@@ -101,6 +101,7 @@ from desflow.utils import (
     checked_priority,
     checked_seconds,
     checked_whole,
+    resource_held_twice,
     suggestion,
     time_to_seconds,
 )
@@ -762,7 +763,11 @@ class Resource(StrictModel):
     @field_validator("queue_limit", mode="before")
     @classmethod
     def _queue_limit_not_boolean(cls, value: Any) -> Any:
-        if isinstance(value, bool):
+        # Pydantic before 2.7 reads the text `4.` as 4, where later versions and the
+        # schema refuse it, so it is refused here for every supported version
+        if isinstance(value, bool) or (
+            isinstance(value, str) and value.strip().endswith(".")
+        ):
             raise ValueError(
                 f"queue_limit is a whole number of 0 or more, or null, got {value!r}"
             )
@@ -1473,8 +1478,10 @@ class RunningTarget(StrictModel):
     wait is for the end of the instance's task, or, with `whole_flow: true`, for the
     end of the whole flow the instance belongs to (its `next` chain and the tasks it
     waits for in child flows), as `yield process` waits for a SimPy process. A flow
-    selected that way is any flow of the model, and one that has ended already
-    ends the wait at once; its last task's payload is the branch's value."""
+    selected that way is any flow of the model that is running when the wait
+    begins, or that ended while an instance of a task with such a wait was running
+    and still is; a flow with no match ends the wait at once. Its last task's
+    payload is the branch's value."""
 
     task: str
     where: Optional[str] = None
@@ -2338,16 +2345,14 @@ class Task(StrictModel):
             )
         if len(set(plain)) != len(plain):
             raise ValueError("a task lists each resource once")
-        both = [
-            name
-            for name in self.wait_requests()
-            if not isinstance(name, Reference) and name in plain
-        ]
-        if both:
-            raise ValueError(
-                f"a task holds each resource once, but resource '{both[0]}' is both "
-                "requested in the wait and listed in resource; list it in only one"
-            )
+        twice = resource_held_twice(
+            [r for r in self.seized() if not isinstance(r, Reference)],
+            [r for r in self.wait_requests() if not isinstance(r, Reference)],
+            [r for r in self.open_requests() if not isinstance(r, Reference)],
+            plain,
+        )
+        if twice is not None:
+            raise ValueError(twice)
         if self.on_interrupt_next is not None and self.on_interrupt != "abandon":
             raise ValueError("on_interrupt_next needs on_interrupt: abandon")
         if self.on_interrupt_run is not None:
@@ -3106,6 +3111,11 @@ class Blueprint(StrictModel):
         """Lets `signals` be written as a list of names, as before, or a mapping of
         name to `{once, on}`; a name alone is a one-shot signal."""
         if isinstance(value, list):
+            if not all(isinstance(name, str) for name in value):
+                raise ValueError(
+                    "a list of signals holds names only; write a signal with once or "
+                    "on as a mapping, `name: {once: false}`"
+                )
             repeated = sorted({str(name) for name in value if value.count(name) > 1})
             if repeated:
                 raise ValueError(

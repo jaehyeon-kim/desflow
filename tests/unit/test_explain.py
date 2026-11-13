@@ -436,6 +436,26 @@ def test_a_hand_written_arrival_loop_and_a_process_are_opaque():
     )
 
 
+@pytest.mark.parametrize("name", ["pack", "process.pack"])
+def test_a_task_named_like_a_process_is_not_read_as_one(name):
+    app = (
+        SimulationContext(sim_id="Shop", factor=0, random_seed=1)
+        .add_resource("packers", current_cap=2, max_cap=4)
+        .add_service("packing", dist="exponential", rate=1.0)
+        .add_arrival("orders", dist="exponential", rate=0.5, spawn=name)
+    )
+
+    @app.task(
+        service_id="packing", resource_id="packers", name=name, next=lambda up: None
+    )
+    def pack(task_id, context):
+        return {"event_type": "packed"}
+
+    explanation = app.analyze()
+    assert explanation.arrivals[0].rate == 0.5
+    assert explanation.arrivals[0].reason is None
+
+
 def test_a_process_makes_the_resources_unsupported():
     app = _shop()
 

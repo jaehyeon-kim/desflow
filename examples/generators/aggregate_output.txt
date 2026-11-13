@@ -1,6 +1,6 @@
-[EVT] {'sim_ts': 0.0, 'timestamp': '...', 'key': 'readings-1', 'task': 'reading', 'instance': 0, 'value': {'level': 18}}
-[EVT] {'sim_ts': 0.0, 'timestamp': '...', 'key': 'readings-2', 'task': 'reading', 'instance': 1, 'value': {'level': 11}}
-[EVT] {'sim_ts': 0.0, 'timestamp': '...', 'key': 'readings-3', 'task': 'reading', 'instance': 2, 'value': {'level': 16}}
-[EVT] {'sim_ts': 60.0, 'timestamp': '...', 'key': 'orders-1', 'task': 'order', 'instance': 0, 'value': {'average': 15.0}}
-[EVT] {'sim_ts': 120.0, 'timestamp': '...', 'key': 'orders-2', 'task': 'order', 'instance': 1, 'value': {'average': 15.0}}
-[EVT] {'sim_ts': 180.0, 'timestamp': '...', 'key': 'orders-3', 'task': 'order', 'instance': 2, 'value': {'average': 15.0}}
+[EVT] {'sim_ts': 0.0, 'timestamp': '...', 'key': 'readings-1', 'task': 'reading', 'instance': 0, 'value': {'level': 15}}
+[EVT] {'sim_ts': 0.0, 'timestamp': '...', 'key': 'readings-2', 'task': 'reading', 'instance': 1, 'value': {'level': 18}}
+[EVT] {'sim_ts': 0.0, 'timestamp': '...', 'key': 'readings-3', 'task': 'reading', 'instance': 2, 'value': {'level': 13}}
+[EVT] {'sim_ts': 60.0, 'timestamp': '...', 'key': 'orders-1', 'task': 'order', 'instance': 0, 'value': {'average': 15.333333333333334}}
+[EVT] {'sim_ts': 120.0, 'timestamp': '...', 'key': 'orders-2', 'task': 'order', 'instance': 1, 'value': {'average': 15.333333333333334}}
+[EVT] {'sim_ts': 180.0, 'timestamp': '...', 'key': 'orders-3', 'task': 'order', 'instance': 2, 'value': {'average': 15.333333333333334}}

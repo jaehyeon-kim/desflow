@@ -36,6 +36,8 @@ def build(env: DynamicRealtimeEnvironment) -> None:
     def order_source():
         for number in itertools.count(1):
             yield env.timeout(sampler.sample(order_gap))
+            if not customers:  # no sign-up yet: the blueprint drops this start
+                continue
             customer = customers[int(pick.integers(len(customers)))]
             env.publish_event(
                 f"orders-{number}",

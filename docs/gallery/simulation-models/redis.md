@@ -224,9 +224,9 @@ In `redis/yaml`, which `desflow examples get redis --api yaml` creates, `desflow
 
 <!-- records: redis-sample -->
 ```text
-{"stream_type":"event","sim_ts":0.6380949691741167,"timestamp":"...","key":"orders-1","task":"record_order","instance":0,"value":{"channel":"web","status":"placed","order_id":0}}
-{"stream_type":"event","sim_ts":0.6739613317861898,"timestamp":"...","key":"orders-2","task":"record_order","instance":1,"value":{"channel":"web","status":"placed","order_id":1}}
-{"stream_type":"event","sim_ts":0.9343296178723731,"timestamp":"...","key":"orders-3","task":"record_order","instance":2,"value":{"channel":"web","status":"placed","order_id":2}}
+{"stream_type":"event","sim_ts":0.1570778328234859,"timestamp":"...","key":"orders-1","task":"record_order","instance":0,"value":{"channel":"web","status":"placed","order_id":0}}
+{"stream_type":"event","sim_ts":1.2335847253047847,"timestamp":"...","key":"orders-2","task":"record_order","instance":1,"value":{"channel":"web","status":"placed","order_id":1}}
+{"stream_type":"event","sim_ts":1.2561121547033969,"timestamp":"...","key":"orders-3","task":"record_order","instance":2,"value":{"channel":"web","status":"placed","order_id":2}}
 ```
 
 This command leaves out the `__stream__` key that names the stream, because only a Redis sink uses it. It logs a warning that says so. `RedisEgress` also removes the key before it writes, so the stored records have the same fields.

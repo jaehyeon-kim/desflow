@@ -19,6 +19,7 @@ after the modifiers have been applied.
 """
 
 import keyword
+import math
 import numbers
 import uuid
 from dataclasses import replace
@@ -310,11 +311,30 @@ class Uniform(Gen):
         return rounded(float(low + (high - low) * draw), self.decimals)
 
 
+# The range of the whole numbers NumPy draws between
+_INT64_LOW = -(2**63)
+_INT64_HIGH = 2**63 - 1
+
+
 class Integer(Gen):
     """`integer`: a whole number between `bounds[0]` and `bounds[1]`, both included."""
 
     gen: Literal["integer"]
     bounds: List["Value"] = Field(min_length=2, max_length=2)
+
+    @model_validator(mode="after")
+    def _bounds_fit(self) -> "Integer":
+        for bound in self.bounds:
+            if (
+                isinstance(bound, int)
+                and not isinstance(bound, bool)
+                and not _INT64_LOW <= bound <= _INT64_HIGH
+            ):
+                raise ValueError(
+                    f"integer bounds must be from {_INT64_LOW} to {_INT64_HIGH}, "
+                    f"got {bound}"
+                )
+        return self
 
     def evaluate(self, run: "ValueRuntime", scope: Scope) -> Any:
         """The value of this generator.
@@ -330,6 +350,11 @@ class Integer(Gen):
         high = self.whole(run.evaluate(self.bounds[1], scope), "the upper bound")
         if high < low:
             raise self.fail(f"the upper bound {high} is below the lower bound {low}")
+        if not (_INT64_LOW <= low and high <= _INT64_HIGH):
+            raise self.fail(
+                f"the bounds must be from {_INT64_LOW} to {_INT64_HIGH}, got "
+                f"{low} and {high}"
+            )
         return int(run.rng(self).integers(low, high + 1))
 
 
@@ -551,6 +576,25 @@ class Weighted(Gen):
             raise ValueError("weighted takes options or choices, not both or neither")
         if self.options is not None and not self.options:
             raise ValueError("weighted needs at least one option")
+        literals = [
+            value
+            for _place, value in self._argument_values(
+                "options" if self.options is not None else "choices"
+            )
+        ]
+        if all(
+            isinstance(value, (int, float)) and not isinstance(value, bool)
+            for value in literals
+        ):
+            try:
+                total = float(sum(literals))
+            except OverflowError:
+                total = math.inf
+            if not math.isfinite(total):
+                raise ValueError(
+                    "weighted weights add up past the largest float; use smaller "
+                    "weights"
+                )
         return self
 
     def evaluate(self, run: "ValueRuntime", scope: Scope) -> Any:
@@ -574,6 +618,10 @@ class Weighted(Gen):
         if any(not w >= 0 for w in weights) or not sum(weights) > 0:
             raise self.fail(
                 f"weights must be 0 or more with a sum above 0, got {weights!r}"
+            )
+        if not math.isfinite(sum(weights)):
+            raise self.fail(
+                "the weights add up past the largest float; use smaller weights"
             )
         point = run.rng(self).random() * sum(weights)
         total = 0.0
@@ -1721,7 +1769,7 @@ def _kind(value: Any) -> str:
         return "<gen>"
     if isinstance(value, dict):
         return "<gen>" if "gen" in value else "<map>"
-    return "<list>" if isinstance(value, list) else "<const>"
+    return "<list>" if isinstance(value, (list, tuple)) else "<const>"
 
 
 _NOT_A_PAYLOAD = (
@@ -1779,7 +1827,7 @@ GENERATORS: Dict[str, type] = {
 
 def has_generator(value: Any) -> bool:
     """Whether a value holds a generator at any depth, so it must be evaluated; a
-    constant mapping or list can be copied as it is.
+    constant mapping or list can be copied as it is. A tuple is read as a list.
 
     Args:
         value: The value.
@@ -1788,7 +1836,7 @@ def has_generator(value: Any) -> bool:
         return True
     if isinstance(value, dict):
         return any(has_generator(v) for v in value.values())
-    if isinstance(value, list):
+    if isinstance(value, (list, tuple)):
         return any(has_generator(v) for v in value)
     return False
 

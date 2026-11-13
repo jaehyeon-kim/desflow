@@ -1,6 +1,6 @@
 # Parameter Sweeps
 
-[Comparing Designs](comparing-designs.md) found that a fourth packer cuts the busy hour's mean wait from 2.48 to 0.27 seconds over 20 [replications](../concepts/output-analysis.md#replications) of each, at 1.8 orders a second. That rate is an estimate, and demand moves from day to day. This page asks: **how much does the answer depend on the arrival rate?**
+[Comparing Designs](comparing-designs.md) found that a fourth packer cuts the busy hour's mean wait from 2.15 to 0.27 seconds over 20 [replications](../concepts/output-analysis.md#replications) of each, at 1.8 orders a second. That rate is an estimate, and demand moves from day to day. This page asks: **how much does the answer depend on the arrival rate?**
 
 - **Decision:** whether the choice of a fourth packer holds if demand differs from the estimate.
 - **Measures:** the mean wait of each design at each rate.
@@ -58,10 +58,10 @@ Save the files from [Full Files](#full-files) in one folder and run the commands
 
 | Orders a second | Three packers (s) | Four packers (s) |
 |---|---|---|
-| 1.6 | 0.97 ± 0.07 | 0.17 ± 0.01 |
-| 1.7 | 1.47 ± 0.14 | 0.21 ± 0.01 |
-| 1.8 | 2.48 ± 0.32 | 0.27 ± 0.01 |
-| 1.9 | 5.55 ± 1.01 | 0.35 ± 0.02 |
+| 1.6 | 0.90 ± 0.05 | 0.16 ± 0.01 |
+| 1.7 | 1.32 ± 0.07 | 0.21 ± 0.01 |
+| 1.8 | 2.15 ± 0.15 | 0.27 ± 0.01 |
+| 1.9 | 4.52 ± 0.64 | 0.34 ± 0.02 |
 
 ---
 
@@ -69,9 +69,9 @@ Save the files from [Full Files](#full-files) in one folder and run the commands
 
 The mean wait of each design against the arrival rate, with its 95% interval:
 
-![The busy hour's mean wait over 20 replications at 1.6, 1.7, 1.8 and 1.9 orders a second. With three packers it rises from 0.97 to 1.47, 2.48 and 5.55 seconds, and its interval widens with the rate. With four packers it stays between 0.17 and 0.35 seconds](../../assets/charts/sweep-waits.png)
+![The busy hour's mean wait over 20 replications at 1.6, 1.7, 1.8 and 1.9 orders a second. With three packers it rises from 0.90 to 1.32, 2.15 and 4.52 seconds, and its interval widens with the rate. With four packers it stays between 0.16 and 0.34 seconds](../../assets/charts/sweep-waits.png)
 
-Each point is the mean of 20 replications after the 2-minute warm-up, with seeds spawned from 42, the same for every rate and design. How much does the answer depend on the arrival rate? With three packers, a great deal. A rate of 1.9 orders a second, about 6% above the estimate, more than doubles the mean wait, to **5.55 seconds**. A rate of 1.6 orders a second cuts it to 0.97 seconds. With four packers the mean wait stays under **0.35 seconds** at every rate. The decision to add a packer therefore holds at every rate in this range. The three-packer wait, on the other hand, cannot be predicted well without a better estimate of the rate.
+Each point is the mean of 20 replications after the 2-minute warm-up, with seeds spawned from 42, the same for every rate and design. How much does the answer depend on the arrival rate? With three packers, a great deal. A rate of 1.9 orders a second, about 6% above the estimate, more than doubles the mean wait, to **4.52 seconds**. A rate of 1.6 orders a second cuts it to 0.90 seconds. With four packers the mean wait stays at most **0.34 seconds** at every rate. The decision to add a packer therefore holds at every rate in this range. The three-packer wait, on the other hand, cannot be predicted well without a better estimate of the rate.
 
 Three packers that take 1.5 seconds an order on average pack 2 orders a second at most. At 1.9 orders a second they are busy 95% of the time. Close to that limit, a small rise in demand makes the queue much longer, so the wait grows faster than the rate, as [Queueing Basics](../concepts/queueing-basics.md#waits-near-full-use) explains. Four packers stay below 72% busy at every rate in the sweep, far from their limit. Every design ran with the same seeds, so the differences between rows come from the rate, not from different random draws. The intervals widen with the rate, because a busier shop varies more from run to run.
 

@@ -90,7 +90,7 @@ def test_a_name_an_expression_cannot_read_is_refused_in_both(
     tmp_path, kind, name, word
 ):
     with pytest.raises(ValueError, match=f"has a {word} in its name"):
-        _app()._families.claim(kind, name)
+        _app()._families.check_name(kind, name)
     section = {"resource": "resources", "store": "stores"}.get(kind, kind + "s")
     body = "{}" if kind == "signal" else "{current_cap: 5}"
     path = tmp_path / "m.yaml"
@@ -112,7 +112,7 @@ def test_a_name_read_as_another_name_is_refused_in_both(tmp_path, kind):
     """`ﬁve` (a ligature) is read as `five` by every expression, so the Builder and
     YAML refuse it, naming the name read."""
     with pytest.raises(ValueError, match="'ﬁve' is read as 'five'"):
-        _app()._families.claim(kind, "ﬁve")
+        _app()._families.check_name(kind, "ﬁve")
     section = {"resource": "resources", "store": "stores"}.get(kind, kind + "s")
     body = "{}" if kind == "signal" else "{current_cap: 5}"
     path = tmp_path / "m.yaml"
@@ -121,7 +121,8 @@ def test_a_name_read_as_another_name_is_refused_in_both(tmp_path, kind):
         f"{section}: {{ﬁve: {body}}}\n"
         "arrivals: {a: {gap: 1, max_events: 1, spawn: t}}\n"
         "tasks: {t: {service_time: 1, payload: {}}}\n"
-        "run: {until: 3}\n"
+        "run: {until: 3}\n",
+        encoding="utf-8",
     )
     with pytest.raises(Exception) as refused:
         SimulationContext.from_yaml(path)

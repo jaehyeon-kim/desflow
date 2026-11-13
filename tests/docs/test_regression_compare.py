@@ -291,3 +291,16 @@ def test_every_left_out_file_of_the_repository_exists_and_has_a_reason():
     assert left_out
     missing = [name for name in left_out if not (ROOT / name).is_file()]
     assert not missing, f"left out but not a file: {missing}"
+
+
+def test_the_cache_key_of_the_last_release_capture_names_the_number_of_parts():
+    """Parts 1 and 2 of 3 and parts 1 and 2 of 2 hold different runs, so a capture
+    cached for one count must not be restored for the other, or the runs of the old
+    part 3 would be in no baseline part and compare as added."""
+    workflow = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "pull-request.yml").read_text()
+    )
+    steps = workflow["jobs"]["regression-capture"]["steps"]
+    keys = [s["with"]["key"] for s in steps if "cache" in s.get("uses", "")]
+    assert len(keys) == 1
+    assert "${{ strategy.job-total }}" in keys[0]

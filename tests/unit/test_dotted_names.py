@@ -31,7 +31,7 @@ import importlib.util
 import logging
 import os
 import re
-import zlib
+import hashlib
 from pathlib import Path
 from typing import Any, Dict, Iterator, Set, Tuple
 from unittest.mock import MagicMock, patch
@@ -41,7 +41,6 @@ import pytest
 from desflow.blueprint.loader import SourceMap
 from desflow.core import sampler as sampler_module
 from desflow.core.statistics import LEFT_OUT_AT_ZERO, published_value
-from desflow.values import runtime as runtime_module
 
 # It runs every model the regression capture runs, so CI runs it on one Python
 # version on each system (scripts/ci_plan.py).
@@ -310,12 +309,12 @@ def _renaming_read(original):
     return read
 
 
-class _MappedCrc:
-    """`zlib` for the random sequences: a place's name is mapped back before its
-    CRC32 is taken, so the renamed run draws what the plain run draws."""
+class _MappedHash:
+    """`hashlib` for the random sequences: a place's name is mapped back before its
+    SHA-256 hash is taken, so the renamed run draws what the plain run draws."""
 
-    def crc32(self, data: bytes, *args: Any) -> int:
-        return zlib.crc32(mapped_back(data.decode()).encode(), *args)
+    def sha256(self, data: bytes) -> Any:
+        return hashlib.sha256(mapped_back(data.decode()).encode())
 
 
 def _counts(readings: Dict[str, Any], sim_id: str) -> Dict[str, Any]:
@@ -383,8 +382,7 @@ def test_a_model_with_every_name_dotted_runs_as_written(name, make, until, run):
                 "read_document",
                 _renaming_read(build_module.read_document),
             ),
-            patch.object(sampler_module, "zlib", _MappedCrc()),
-            patch.object(runtime_module, "zlib", _MappedCrc()),
+            patch.object(sampler_module, "hashlib", _MappedHash()),
         ):
             renamed = mapped_back(_outcome(make, until, run))
     finally:

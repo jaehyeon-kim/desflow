@@ -6,6 +6,7 @@ import queue
 import threading
 import time
 from dataclasses import dataclass, field
+from decimal import Decimal
 from datetime import datetime, timedelta, tzinfo
 from datetime import timezone as dt_timezone
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
@@ -31,7 +32,12 @@ from desflow.core.registry import SimulationRegistry
 from desflow.core.rules import checked_datetime
 from desflow.core.sinks import Sink
 from desflow.core.statistics import Statistics
-from desflow.utils import checked_count, checked_interval
+from desflow.utils import (
+    checked_count,
+    checked_factor,
+    checked_interval,
+    checked_seconds,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,14 +131,20 @@ _PLAIN = (str, int, float, bool, type(None))
 
 def _numpy_to_python(value: Any) -> Any:
     """A NumPy scalar as its Python value and an array as a list, at any depth of a
-    mapping, list or tuple, because `to_jsonable_python` knows no NumPy type."""
+    mapping, list, tuple or set, because `to_jsonable_python` knows no NumPy type.
+
+    A `Decimal` NaN or infinity becomes None here, because `to_jsonable_python` writes
+    a `Decimal` as text, so the text "NaN" would reach the record."""
+    if isinstance(value, Decimal) and not value.is_finite():
+        return None
     if isinstance(value, np.generic):
-        return value.item()
+        value = value.item()
+        return None if isinstance(value, Decimal) and not value.is_finite() else value
     if isinstance(value, np.ndarray):
         return value.tolist()
     if isinstance(value, dict):
         return {key: _numpy_to_python(part) for key, part in value.items()}
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, (list, tuple, set, frozenset)):
         return [_numpy_to_python(part) for part in value]
     return value
 
@@ -160,6 +172,8 @@ _STARVED_BATCH_RATIO = 0.25
 # How many of those in a row before saying so. High enough that a slow opening or a
 # brief lull is not mistaken for a misconfiguration.
 _STARVED_FLUSHES_BEFORE_WARNING = 20
+# How long teardown waits for the ingress thread to cancel its connectors and end
+_INGRESS_STOP_SECONDS = 5.0
 
 
 class RegistryMixIn:
@@ -221,6 +235,7 @@ class IngressMixIn:
         self._ingress_loop: Optional[asyncio.AbstractEventLoop] = (
             None  # Store loop reference
         )
+        self._ingress_stop = threading.Event()
         self._ingress_thread = threading.Thread(
             target=self._run_ingress_loop, daemon=True
         )
@@ -244,16 +259,29 @@ class IngressMixIn:
             task.add_done_callback(_report_stopped("Ingress", provider))
 
         try:
-            # Run the loop until teardown() calls loop.stop()
-            loop.run_forever()
+            # Run the loop until teardown() calls loop.stop(). A teardown that came
+            # before the loop was stored found nothing to stop, and left the flag
+            if not self._ingress_stop.is_set():
+                loop.run_forever()
         finally:
-            # Cancel all pending tasks
-            for task in tasks:
-                task.cancel()
-            # Briefly run the loop again to let the CancelledError propagate cleanly
-            loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
-            # Safely close the loop
-            loop.close()
+            try:
+                # Cancel all pending tasks
+                for task in tasks:
+                    task.cancel()
+                # Briefly run the loop again to let the CancelledError propagate
+                # cleanly. A stop that teardown queued before this thread skipped
+                # `run_forever` ends the first attempt early, so it runs again
+                cancelled = asyncio.gather(*tasks, return_exceptions=True)
+                for _ in range(3):
+                    try:
+                        loop.run_until_complete(cancelled)
+                        break
+                    except RuntimeError:
+                        if cancelled.done():
+                            break
+            finally:
+                # Safely close the loop
+                loop.close()
 
     def _ingress_monitor(self):
         """Internal: A SimPy process that checks the thread-safe queue for new data."""
@@ -273,9 +301,21 @@ class IngressMixIn:
     def teardown_ingress(self):
         """Safely stops the background ingress event loop."""
         logger.info("Tearing down ingress connectors...")
-        loop = getattr(self, "_ingress_loop", None)
-        if loop and loop.is_running():
-            loop.call_soon_threadsafe(loop.stop)
+        stop = getattr(self, "_ingress_stop", None)
+        if stop is None:
+            return
+        # The flag first, then the loop: a thread that has not stored its loop yet
+        # reads the flag after storing it, and a thread that has stored it is stopped
+        # here, also when it has not started running it (`stop` then ends its first
+        # pass)
+        stop.set()
+        loop = self._ingress_loop
+        if loop is not None:
+            try:
+                loop.call_soon_threadsafe(loop.stop)
+            except RuntimeError:
+                pass  # the loop is closed: the thread has already ended
+        self._ingress_thread.join(timeout=_INGRESS_STOP_SECONDS)
 
 
 @dataclass
@@ -1353,9 +1393,14 @@ class DynamicRealtimeEnvironment(
         whole run real time, which is the degenerate case of the same rule.
 
         Raises:
-            ValueError: If `timezone` is not an IANA time zone name, or
-                `on_unhandled_failure` is not `stop` or `continue`.
+            ValueError: If `factor` is not a finite number of 0 or more, `initial_time`
+                is not a number of seconds, `timezone` is not an IANA time zone name,
+                or `on_unhandled_failure` is not `stop` or `continue`.
         """
+        factor = checked_factor(factor)
+        initial_time = checked_seconds(
+            initial_time, "initial_time", ends=True, below_zero=True
+        )
         if on_unhandled_failure not in UNHANDLED_FAILURE_POLICIES:
             raise ValueError(
                 "on_unhandled_failure must be one of "

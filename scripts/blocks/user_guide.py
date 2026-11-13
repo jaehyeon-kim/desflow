@@ -72,12 +72,19 @@ def gift_flow() -> List[str]:
 def task_values() -> List[str]:
     """Task Flow: the records that carry the key, the draws and the carried values."""
     lines = event_lines(yaml_records("docs/snippets/yaml/task_values.yaml"))
+    # The first order of the customer that signs up first, whatever its number is
+    first_order = next(
+        fields(line)["key"]
+        for line in lines
+        if fields(line)["task"] == "place_order"
+        and fields(line)["value"].get("customer_id") == "c-0"
+    )
     return [
         line
         for line in lines
         if (fields(line)["key"] == "c-0" and fields(line)["task"] == "sign_up")
         or (
-            fields(line)["key"] == "orders-1"
+            fields(line)["key"] == first_order
             and fields(line)["task"] in ("place_order", "pack")
             and "status" not in fields(line)["value"]
         )

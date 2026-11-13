@@ -24,6 +24,14 @@ class SchemaRegistryError(RuntimeError):
         )
 
 
+class SchemaVersionPendingError(SchemaRegistryError):
+    """A new schema version is still PENDING after the checks, which Glue may finish.
+
+    It is temporary, as `is_temporary` decides: a sink keeps its batch and tries it
+    again after a wait, instead of skipping each record after a wait of its own.
+    """
+
+
 class SerializationError(ValueError):
     """A payload or a schema cannot be written or read.
 
@@ -39,7 +47,8 @@ def is_temporary(error: BaseException) -> bool:
     A temporary failure is a 5xx answer, a timeout or a lost connection, to a
     Confluent registry (an `httpx.TransportError`) or to AWS Glue (a botocore
     connection error, which `GlueSchemaRegistryClient` wraps in a
-    `SchemaRegistryError` with the status -1). A throttled call is temporary too: a
+    `SchemaRegistryError` with the status -1). A Glue schema version that is still
+    PENDING after the checks is temporary too. A throttled call is temporary too: a
     408 or 429 answer, or the Glue error `ThrottlingException`. Any other 4xx
     answer, a payload the schema cannot encode and any other error are permanent:
     the same record fails again.
@@ -51,7 +60,7 @@ def is_temporary(error: BaseException) -> bool:
         bool: Whether waiting and trying the same record again can succeed.
     """
     transport = _transport_errors()
-    if isinstance(error, transport):
+    if isinstance(error, (*transport, SchemaVersionPendingError)):
         return True
     if not isinstance(error, SchemaRegistryError):
         return False

@@ -423,7 +423,7 @@ def read_order(topic: str, payload: bytes) -> dict:
 
 ## Check the Result
 
-Run `desflow run json_schema_and_protobuf.yaml`, `python json_schema_and_protobuf.py` or `python json_schema_and_protobuf_low_level.py` while `kafka-lite` is up, beside the files of the page. Each runs for one simulated minute and ends at once. Each form sends 14 orders to `orders-json` and 14 to `orders-protobuf`, and the other events to `sim-events` as JSON.
+Run `desflow run json_schema_and_protobuf.yaml`, `python json_schema_and_protobuf.py` or `python json_schema_and_protobuf_low_level.py` while `kafka-lite` is up, beside the files of the page. Each runs for one simulated minute and ends at once. Each form sends 10 orders to `orders-json` and 10 to `orders-protobuf`, and the other events to `sim-events` as JSON.
 
 To read the first order of each topic back, run the serializers file after a shop has run. It prints what `read_order` decodes:
 
@@ -456,8 +456,8 @@ python json_schema_and_protobuf_serializers.py
 ```
 
 ```text
-orders-json {'sim_ts': 4.052379876696467, 'timestamp': '2026-11-09T00:00:00.000+00:00', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'order_id': 0, 'amount': 19.99}}
-orders-protobuf {'key': 'orders-2', 'task': 'pack_order', 'instance': '1', 'sim_ts': 5.552379876696467, 'timestamp': '2026-11-09T00:00:00.000+00:00', 'value': {'order_id': '1', 'amount': 19.99}}
+orders-json {'sim_ts': 2.1283113312939435, 'timestamp': '2026-11-09T00:00:00.000+00:00', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'order_id': 0, 'amount': 19.99}}
+orders-protobuf {'key': 'orders-2', 'task': 'pack_order', 'instance': '1', 'sim_ts': 6.434338901219139, 'timestamp': '2026-11-09T00:00:00.000+00:00', 'value': {'order_id': '1', 'amount': 19.99}}
 ```
 
 The `timestamp` is the clock time of your run. A 64 bit integer field of Protobuf, such as `order_id` and `instance`, comes back from a deserializer as a string, so the Protobuf record shows `'1'` for `order_id` and `instance` where the JSON record shows numbers.

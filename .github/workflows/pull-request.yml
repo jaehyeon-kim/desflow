@@ -1,17 +1,19 @@
 name: Pull request
 
-# A pull request to main (issue #90). It tests Python 3.11, the lowest version desflow
-# supports; a push to main (pipeline.yml) tests 3.12 to 3.15 on the merged code, and
-# manual.yml runs the long tests. It runs the docs tests when the files they read
-# change, and the integration and service example jobs when what they cover changes.
-# The jobs are sized so a run has at most 20 at once, the limit of the plan, and so no
-# job takes much longer than a part of the unit tests. The plan job reads the changed
+# A pull request to main, or to a release branch whose parts merge into it before it
+# merges to main (issue #90). It runs every test of CI: the unit and
+# conformance tests on Python 3.11 to 3.15, every version desflow supports. A push to
+# main (pipeline.yml) only deploys the docs, and manual.yml runs the long tests. It
+# runs the docs tests when the files they read change, and the integration and service
+# example jobs when what they cover changes. No job takes much longer than a part of
+# the unit tests. A run starts more jobs than the 20 the plan runs at once, and the
+# rest wait for the shortest to end, as scripts/ci_plan.py sets out. The plan job reads the changed
 # files, and scripts/ci_plan.py decides. Lint runs beside the plan job, and every
 # other job starts only when the plan is read and Lint has passed, so a lint failure
 # stops the run in about a minute. checks-passed collects their results.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, "release-*"]
 
 # Read-only, so a pull request build cannot write to the repository
 permissions:
@@ -42,6 +44,8 @@ jobs:
         id: plan
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
+        # With pipefail, the step fails when ci_plan.py fails, not only when tee does
+        shell: bash
         # The files the pull request changes against its base
         run: |
           git diff --name-only "$BASE...HEAD" > changed.txt
@@ -246,16 +250,16 @@ jobs:
       - name: Capture this commit
         run: uv run --all-extras python scripts/regression.py capture --root . --shard ${{ matrix.part }}/3 --out "$RUNNER_TEMP/capture/new-${{ matrix.part }}.json"
 
-      # The last release's capture is kept between runs. It changes only with the tag
-      # and the files of this commit that the capture reads: the scenarios, cases.py
-      # (each scenario's until, processes and run), the list of left-out files and the
-      # script, so those are its key.
+      # The last release's capture is kept between runs. It changes only with the tag,
+      # the number of parts and the files of this commit that the capture reads: the
+      # scenarios, cases.py (each scenario's until, processes and run), the list of
+      # left-out files and the script, so those are its key.
       - name: Restore the capture of the last release
         id: baseline
         uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/capture/old-${{ matrix.part }}.json
-          key: regression-${{ env.BASELINE }}-${{ matrix.part }}-${{ hashFiles('tests/regression/scenarios/**', 'tests/regression/cases.py', 'tests/regression/left_out.yaml', 'scripts/regression.py') }}
+          key: regression-${{ env.BASELINE }}-${{ matrix.part }}-of-${{ strategy.job-total }}-${{ hashFiles('tests/regression/scenarios/**', 'tests/regression/cases.py', 'tests/regression/left_out.yaml', 'scripts/regression.py') }}
 
       - name: Capture the last release
         if: steps.baseline.outputs.cache-hit != 'true'
