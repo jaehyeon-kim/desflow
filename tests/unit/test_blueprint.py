@@ -3956,3 +3956,34 @@ def test_a_name_that_is_a_store_and_a_container_is_the_first_store(tmp_path):
     with pytest.raises(BlueprintError) as error:
         SimulationContext.from_yaml(path)
     assert "'zeta' is both a store and a container" in str(error.value)
+
+
+def test_reserved_gen_key_names_the_line(tmp_path):
+    """A mapping with a `gen` key is a generator, so one that names no generator is a
+    load error with its line; a `gen` key directly under `set` is a field name; and
+    `{gen: literal, value: ...}` keeps such a mapping as data (Upgrading to 1.0)."""
+    from tests.conformance.harness import run_yaml_text
+
+    head = "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+    head += "arrivals: {a: {dist: constant, value: 1, spawn: t, max_events: 1}}\n"
+    path = tmp_path / "bad.yaml"
+    path.write_text(head + "tasks:\n  t:\n    payload:\n      gen: hello\n")
+    with pytest.raises(
+        BlueprintError, match=rf"{re.escape(str(path))}:5: tasks.t.payload: "
+    ):
+        SimulationContext.from_yaml(path)
+
+    kept = run_yaml_text(
+        tmp_path,
+        head + "tasks:\n  t:\n    set: {gen: 3}\n"
+        "    payload: {kept: {gen: literal, value: {gen: 5}}, field: '${attr.gen}'}\n"
+        "run: {until: 5}\n",
+        {},
+    )
+    assert kept.error is None
+    values = [
+        r["value"]
+        for r in kept.records
+        if r["stream_type"] == "event" and "kept" in r["value"]
+    ]
+    assert values and values[0]["kept"] == {"gen": 5}
