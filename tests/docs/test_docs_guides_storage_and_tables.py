@@ -225,7 +225,11 @@ def test_the_first_batch_sets_the_columns_of_an_iceberg_table(tmp_path, caplog):
         "utf-8"
     )
     assert message in page
-    assert "`schemas: {shop.events: {key: string, amount: double}}`" in page
+    assert (
+        "`schemas: {shop.events: {stream_type: string, sim_ts: double, timestamp: "
+        "string, key: string, task: string, instance: long, path_id: string, sim_id: "
+        "string, service: string, status: string, order_id: long, amount: double}}`"
+    ) in page
     assert sorted(_iceberg_rows(tmp_path / "b", "shop.fixed", fixed, caplog)) == [
         1.0,
         2.0,

@@ -30,8 +30,10 @@ on:
 permissions:
   contents: read
 
+# A run started by another label joins its own group, because GitHub cancels the run
+# that waits in a group when a newer one joins it, and that run would skip every job
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'pull_request' && github.event.label.name || '' }}
 
 jobs:
   plan:
@@ -48,6 +50,8 @@ jobs:
         id: plan
         env:
           PYTHON_VERSIONS: ${{ inputs.python || '3.11 3.12 3.15' }}
+        # With pipefail, the step fails when ci_plan.py fails, not only when tee does
+        shell: bash
         run: python3 scripts/ci_plan.py manual "$PYTHON_VERSIONS" < /dev/null | tee -a "$GITHUB_OUTPUT"
 
   # Every test of the unit, conformance, benchtop and known case suites, with those
@@ -88,13 +92,13 @@ jobs:
           name: junit-${{ runner.os }}-${{ matrix.python }}-${{ strategy.job-index }}
           path: junit.xml
 
-  # The known cases that run against the wall clock, in a job of their own, so the
-  # CPU time of other tests cannot make a strict case late. They time themselves
-  # below one tick of the Windows clock, which is 15.6 ms before Python 3.13 and 1
-  # microsecond from it (the Python 3.13 changelog, "time"), so the Windows runner
-  # runs them on 3.13.
+  # The known cases and unit tests that run against the wall clock, in a job of their
+  # own, so the CPU time of other tests cannot make a strict case late. They time
+  # themselves below one tick of the Windows clock, which is 15.6 ms before Python
+  # 3.13 and 1 microsecond from it (the Python 3.13 changelog, "time"), so the
+  # Windows runner runs them on 3.13.
   paced:
-    name: Paced known cases, Python ${{ matrix.python }}, ${{ matrix.os }}
+    name: Paced tests, Python ${{ matrix.python }}, ${{ matrix.os }}
     if: github.event_name != 'pull_request' || github.event.label.name == 'manual tests'
     strategy:
       fail-fast: false
@@ -115,8 +119,8 @@ jobs:
       - name: Fetch Python ${{ matrix.python }}
         run: uv python install ${{ matrix.python }}
 
-      - name: Run the paced known cases
-        run: uv run --python ${{ matrix.python }} --all-extras pytest tests/known_cases -m paced -q --tb=short
+      - name: Run the paced tests
+        run: uv run --python ${{ matrix.python }} --all-extras pytest tests/known_cases tests/unit -m paced -q --tb=short
 
   # The conformance tests, with those marked every_model, at both ends of the `simpy`
   # requirement: the floor in pyproject.toml, and the newest release, which may be

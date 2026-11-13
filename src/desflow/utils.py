@@ -1,12 +1,13 @@
+import ast
 import difflib
 import math
 import numbers
 import re
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Iterable, Union
+from typing import Any, Iterable, Optional, Union
 
-from desflow.connectors._checks import checked_whole  # noqa: F401
+from desflow.connectors._checks import checked_whole, is_finite  # noqa: F401
 
 MULTIPLIERS = {
     "s": 1,
@@ -137,7 +138,7 @@ def checked_seconds(
     if math.isnan(seconds):
         raise ValueError(f"{what} gave nan, which is not a number of seconds")
     if seconds < 0 and not below_zero:
-        raise ValueError(f"{what} gave {seconds:g}, which is below 0")
+        raise ValueError(f"{what} gave {float(seconds):g}, which is below 0")
     if ends and math.isinf(seconds):
         raise ValueError(
             f"{what} gave {'inf' if seconds > 0 else '-inf'}, and it must end"
@@ -190,6 +191,133 @@ def checked_priority(value: Any, what: str) -> Any:
     return value
 
 
+def priority_kind(value: Any) -> str:
+    """What kind of priority a value is, for the check that one queue ranks one kind.
+
+    A number and a list, or a list and a tuple, cannot be compared in Python, so a
+    queue that ranks both stops with a `TypeError` at the first request that waits
+    behind the other kind.
+
+    Args:
+        value: A priority.
+
+    Returns:
+        `"number"` for a real number or a `Decimal`, `"list"`, `"tuple"`, or `"other"`
+        for any other type, such as text, whose comparison Python decides.
+    """
+    if isinstance(value, (numbers.Real, Decimal)):
+        return "number"
+    if isinstance(value, list):
+        return "list"
+    if isinstance(value, tuple):
+        return "tuple"
+    return "other"
+
+
+def written_priority_kind(value: Any) -> Optional[str]:
+    """The kind of a priority as a model writes it, or None when it depends on a
+    value read at run time.
+
+    A number, list or tuple is its own kind. A text or an `Expression` is an
+    expression, whose kind is known when it is a number, a list or a tuple written
+    out, such as `"[0, 1]"`; any other expression, such as `payload.rank`, and a
+    function give None.
+
+    Args:
+        value: A priority as written: a number, a list, a tuple, an expression or an
+            `Expression`.
+
+    Returns:
+        The kind that `priority_kind` gives, or None if it is not known before the run.
+    """
+    text = value if isinstance(value, str) else getattr(value, "text", None)
+    if not isinstance(text, str):
+        kind = priority_kind(value)
+        return None if callable(value) or kind == "other" else kind
+    try:
+        node = ast.parse(text.strip(), mode="eval").body
+    except SyntaxError:
+        return None
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        node = node.operand
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return None if isinstance(node.value, bool) else "number"
+    if isinstance(node, ast.List):
+        return "list"
+    if isinstance(node, ast.Tuple):
+        return "tuple"
+    return None
+
+
+def mixed_priorities(
+    what: str, first: Any, first_kind: str, second: Any, second_kind: str
+) -> str:
+    """The message for a queue that is given two priorities that cannot be compared.
+
+    Args:
+        what: The queue, such as `"resource 'desk'"`.
+        first: The priority it ranked first.
+        first_kind: The kind of `first`, from `priority_kind` or `written_priority_kind`.
+        second: The priority that cannot be ranked with it.
+        second_kind: The kind of `second`.
+
+    Returns:
+        The message, which names the queue and both priorities.
+    """
+    return (
+        f"{what} cannot rank the priority {first!r} (a {first_kind}) with "
+        f"{second!r} (a {second_kind}), because Python cannot compare them; give "
+        f"every priority of one queue the same form, all numbers or all lists"
+    )
+
+
+def resource_held_twice(
+    seized: Iterable[str],
+    waited: Iterable[str],
+    opened: Iterable[str],
+    listed: Iterable[str],
+    task: str = "a task",
+) -> Optional[str]:
+    """The warning for a task that takes one resource in two ways, or None.
+
+    A task takes a resource by a `seize`, a `request` in its `wait`, a `request` in
+    its `open`, or its `resource` list. Each way takes a unit, so naming one resource
+    in two ways queues the second behind the first, and the task waits for ever when
+    the resource has fewer units than the task asks for. A `seize` and an `open`
+    request of one resource are not reported: the opened request is made first, so a
+    task can queue its seize behind its own opened request on purpose.
+
+    Args:
+        seized: The resource of the task's `seize`, as a list.
+        waited: The resources its `wait` requests.
+        opened: The resources its `open` requests.
+        listed: The resources of its `resource` list.
+        task: How the message names the task.
+
+    Returns:
+        The message, which names the task, the resource and both ways, or None.
+    """
+    ways = {
+        "seized": list(seized),
+        "requested in the wait": list(waited),
+        "requested in open": list(opened),
+        "listed in resource": list(listed),
+    }
+    labels = list(ways)
+    for i, first in enumerate(labels):
+        for second in labels[i + 1 :]:
+            if (first, second) == ("seized", "requested in open"):
+                continue
+            for resource in ways[first]:
+                if resource in ways[second]:
+                    return (
+                        f"{task} takes a unit of resource '{resource}' twice, because "
+                        f"it is both {first} and {second}; the run can wait for ever "
+                        f"when '{resource}' has fewer units than the task asks for"
+                    )
+    return None
+
+
 def checked_factor(value: Any) -> Union[float, int]:
     """A run's `factor`: a real number of 0 or more, or a plain number in text.
 
@@ -217,6 +345,13 @@ def checked_factor(value: Any) -> Union[float, int]:
         raise ValueError(f"factor is a number, got {value!r}")
     if isinstance(number, Decimal):
         number = float(number)
+    try:
+        float(number)
+    except OverflowError:
+        raise ValueError(
+            "factor gave a whole number too large for a float, and it must be a "
+            "finite number of 0 or more"
+        ) from None
     if not 0 <= number < math.inf:
         raise ValueError(
             f"factor gave {value!r}, and it must be a finite number of 0 or more"
@@ -246,7 +381,7 @@ def checked_interval(value: Any, what: str) -> Union[float, int]:
     """
     seconds = checked_seconds(value, what)
     if seconds <= 0:
-        raise ValueError(f"{what} gave {seconds:g}, and it must be above 0")
+        raise ValueError(f"{what} gave {float(seconds):g}, and it must be above 0")
     return seconds
 
 

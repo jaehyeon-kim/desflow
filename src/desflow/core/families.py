@@ -489,10 +489,12 @@ class Families:
         """
         return FamilyRun(self, values, holder_run, signal_run)
 
-    def claim(self, kind: str, name: str) -> None:
-        """Records that a resource, store, container or signal has this name, and
-        refuses a name another kind holds or one an expression cannot read. A name
-        declared again in its own kind replaces the first.
+    def check_name(self, kind: str, name: str) -> None:
+        """Refuses a name another kind holds or one an expression cannot read, for a
+        resource, store, container or signal about to be declared. It changes nothing,
+        so a declaration that a later check refuses leaves no trace; `declare` records
+        the name once the declaration is whole. A name declared again in its own kind
+        replaces the first.
 
         Args:
             kind: `resource`, `store`, `container` or `signal`.
@@ -505,7 +507,6 @@ class Families:
         problem = name_problem(kind, name, self.kinds.get(name))
         if problem is not None:
             raise ValueError(problem)
-        self.kinds[name] = kind
 
     def declare(
         self,
@@ -516,8 +517,9 @@ class Families:
         texts: Mapping[str, str],
         start: Any = 0,
     ) -> None:
-        """Keeps or drops the family of an entry that `add_resource`, `add_store`,
-        `add_container` or `add_signal` registered, as it was written.
+        """Records the kind of a whole declaration, and keeps or drops the family of an
+        entry that `add_resource`, `add_store`, `add_container` or `add_signal`
+        registered, as it was written.
 
         Args:
             kind: `resource`, `store`, `container` or `signal`.
@@ -528,6 +530,7 @@ class Families:
             texts: The capacities written as text, by field.
             start: The starting level of a container member.
         """
+        self.kinds[name] = kind
         if not family:
             self.by_name.pop(name, None)
             return

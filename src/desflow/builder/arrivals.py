@@ -9,6 +9,7 @@ that starts one entity at each gap, `start_entities` for one with `count` or `ke
 and a plain loop for an arrival with no plan.
 """
 
+import collections.abc
 import functools
 import logging
 import numbers
@@ -192,21 +193,46 @@ def defuse_stopped(event: Any) -> None:
 
 
 class _Counter:
-    """The next number of an arrival's entities, which a dropped arrival gives back."""
+    """The next number of an arrival's entities, which a dropped arrival gives back
+    while no entity has taken a later number."""
 
-    __slots__ = ("last",)
+    __slots__ = ("last", "holder")
 
     def __init__(self) -> None:
         self.last = 0
+        # the entity that took the last number
+        self.holder: Optional[Entity] = None
 
     def take(self) -> int:
-        """The next number."""
+        """The next number. `hold` records who took it."""
         self.last += 1
+        self.holder = None
         return self.last
 
-    def give_back(self) -> None:
-        """Frees the number taken last."""
-        self.last -= 1
+    def hold(self, entity: Entity) -> None:
+        """Records the entity that took the number `take` returned last.
+
+        Args:
+            entity: The entity that took it.
+        """
+        self.holder = entity
+
+    def give_back(self, entity: Entity) -> None:
+        """Frees the number `entity` took, when it is still the last one taken, so
+        that no two entities share a number.
+
+        Args:
+            entity: The dropped entity.
+        """
+        if self.holder is entity:
+            self.last -= 1
+            self.holder = None
+
+
+def _check_name(name: str) -> None:
+    """Refuses an empty arrival name, which the startup loops read as no arrival."""
+    if name == "":
+        raise ValueError("an arrival name is at least one character, got ''")
 
 
 def _replaces_whole_or_nothing(method: Callable[..., None]) -> Callable[..., None]:
@@ -326,7 +352,11 @@ class Arrivals:
             bind: Binds the generators of a place at the place a blueprint gives it (the
                 context's `_bind_values`). The others are as for
                 `SimulationContext.add_arrival`.
+
+        Raises:
+            ValueError: If `name` is empty.
         """
+        _check_name(name)
         self.forget(name)
         params = {
             k: v
@@ -376,8 +406,16 @@ class Arrivals:
                     f"arrival '{name}': gap is a number of seconds, a duration, "
                     f"an expression or a generator, got {gap!r}"
                 )
-            if isinstance(gap, numbers.Real) and not float(gap) >= 0:
-                raise ValueError(f"arrival '{name}': gap is 0 or more, got {gap!r}")
+            if isinstance(gap, numbers.Real):
+                try:
+                    from_zero = float(gap) >= 0
+                except OverflowError:
+                    raise ValueError(
+                        f"arrival '{name}': gap is a whole number too large for a "
+                        "float, so it is not a number of seconds"
+                    ) from None
+                if not from_zero:
+                    raise ValueError(f"arrival '{name}': gap is 0 or more, got {gap!r}")
         else:
             assert dist is not None
             self.configs[name] = distribution(dist, params)
@@ -515,6 +553,7 @@ class Arrivals:
                 context's `_bind_values`). The others are as for
                 `SimulationContext.add_initial_arrival`.
         """
+        _check_name(name)
         if (
             isinstance(initial, bool)
             or not isinstance(initial, numbers.Integral)
@@ -623,7 +662,11 @@ class Arrivals:
             bind: Binds the generators of a place at the place a blueprint gives it (the
                 context's `_bind_values`). The others are as for
                 `SimulationContext.add_arrival_replay`.
+
+        Raises:
+            ValueError: If `name` is empty.
         """
+        _check_name(name)
         self.forget(name)
         if unit not in UNITS and unit != "timestamp":
             raise ValueError(
@@ -632,6 +675,9 @@ class Arrivals:
         if on_invalid not in ("error", "skip"):
             raise ValueError(f"on_invalid must be error or skip, got '{on_invalid}'")
         check_fields(fields)
+        if isinstance(source, collections.abc.Iterator):
+            # an iterator is spent by one run, and every later run replays its rows
+            source = list(source)
         self.replays[name] = dict(
             source=source, time=time, unit=unit, fields=fields, on_invalid=on_invalid
         )
@@ -890,6 +936,7 @@ class ArrivalRun:
                 for name, value in attributes.items()
             },
         )
+        counter.hold(entity)
         if generate:
             self._generate_attributes(entity, attributes)
         return entity
@@ -919,7 +966,7 @@ class ArrivalRun:
             pending.dropped = True  # type: ignore[attr-defined]
         counter = self.entity_counters.get(arrival)
         if counter is not None:
-            counter.give_back()
+            counter.give_back(entity)
 
     def _change(self, arrival: str) -> simpy.Event:
         """The event that succeeds when the arrival's source is next turned on or

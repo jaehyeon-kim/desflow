@@ -1,6 +1,9 @@
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
+
+import numpy as np
 
 from desflow.models.distributions import (
     LIST_PARAMETERS,
@@ -113,6 +116,12 @@ class DistributionConfig:
                 continue
             try:
                 if name in LIST_PARAMETERS:
+                    if isinstance(value, (str, bytes)) or not isinstance(
+                        value, (Sequence, np.ndarray)
+                    ):
+                        # Read item by item, a text or a mapping would give numbers
+                        # its writer never meant
+                        raise TypeError(f"{value!r} is not a list")
                     setattr(self, name, [_number(item) for item in value])
                 else:
                     setattr(self, name, _number(value))
@@ -220,9 +229,15 @@ class ContainerConfig(CapacityConfig):
 
 def _always_zero(config: DistributionConfig) -> bool:
     """Whether every draw of `config` is 0: no spread, and a mean of 0 or below, which
-    the sampler raises to 0."""
+    the sampler raises to 0. A variance too large or too small to compute (an
+    exponential `rate` of 1e-170 squares to 0, a uniform range of 1e200 squares past
+    the largest float) is a spread, not a draw of 0."""
     family = get_distribution(config.dist)
-    return family.variance(config) == 0 and family.mean(config) <= 0
+    try:
+        spread = family.variance(config)
+    except ArithmeticError:
+        return False
+    return spread == 0 and family.mean(config) <= 0
 
 
 def check_breakdown_advances(

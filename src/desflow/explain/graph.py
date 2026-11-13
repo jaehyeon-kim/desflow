@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from desflow.explain import features
 from desflow.explain.edges import EXIT, node_id, signal_edges, task_edges
-from desflow.explain.models import Edge, Graph, Node
+from desflow.explain.models import PROCESS_ID_PREFIX, Edge, Graph, Node
 
 from desflow.builder.context import parts_of
 
@@ -170,7 +170,7 @@ def _add_opaque(
         name = getattr(function, "__name__", type(function).__name__)
         nodes.append(
             Node(
-                id=node_id("opaque", f"process.{number}.{name}"),
+                id=f"{PROCESS_ID_PREFIX}{number}.{name}",
                 kind="opaque",
                 label=f"process {name}",
                 opaque=True,

@@ -96,6 +96,26 @@ def test_builder_initial_time_refuses_nan_infinity_and_true(bad):
         SimulationContext("S", initial_time=bad)
 
 
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"factor": -1}, "factor gave -1"),
+        ({"factor": float("nan")}, "factor gave nan"),
+        ({"factor": True}, "factor is a number"),
+        ({"factor": 0, "initial_time": float("nan")}, "initial_time gave nan"),
+        ({"factor": 0, "initial_time": True}, "initial_time"),
+        ({"factor": 0, "initial_time": float("inf")}, "initial_time"),
+    ],
+)
+def test_the_low_level_environment_refuses_what_the_builder_refuses(kwargs, message):
+    """`DynamicRealtimeEnvironment` checks `factor` and `initial_time` as
+    `SimulationContext` does, with the same messages, not at its first step."""
+    from desflow.core.environment import DynamicRealtimeEnvironment
+
+    with pytest.raises(ValueError, match=message):
+        DynamicRealtimeEnvironment(**kwargs)
+
+
 def _app():
     app = SimulationContext("S", factor=0, random_seed=1)
     app.add_arrival("orders", "constant", value=1, spawn="job", max_events=3)
@@ -240,3 +260,20 @@ def test_yaml_refuses_true_for_a_size_or_an_interval(tmp_path, edit):
     path.write_text(pyyaml.safe_dump(_model(edit)))
     with pytest.raises(Exception, match="m.yaml"):
         SimulationContext.from_yaml(path)
+
+
+def test_a_negative_fraction_is_refused_with_a_value_error_where_a_fraction_cannot_format():
+    """Python 3.11's `Fraction` has no float-style format; the message formats the
+    float of it."""
+    from fractions import Fraction
+
+    from desflow.utils import checked_interval, checked_seconds
+
+    class NoFormat(Fraction):
+        def __format__(self, spec):
+            raise TypeError("unsupported format string passed to Fraction.__format__")
+
+    with pytest.raises(ValueError, match="below 0"):
+        checked_seconds(NoFormat(-1, 2), "x")
+    with pytest.raises(ValueError, match="above 0"):
+        checked_interval(NoFormat(0), "x")

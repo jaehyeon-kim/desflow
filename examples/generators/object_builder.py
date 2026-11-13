@@ -29,7 +29,7 @@ def build() -> SimulationContext:
         {
             "address": {
                 "gen": "object",
-                "null_rate": 0.5,
+                "null_rate": 0.4,
                 "fields": {
                     "city": {"gen": "one_of", "choices": ["Perth", "Hobart"]},
                     "postcode": {"gen": "integer", "bounds": [1000, 9999]},

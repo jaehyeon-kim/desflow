@@ -126,6 +126,23 @@ def test_fix_refuses_an_expect_that_two_tests_share_through_an_anchor(tmp_path):
     assert "tests 'one', 'two' share" in message
 
 
+def test_fix_resolves_an_alias_to_its_anchor_and_not_to_an_equal_expect(tmp_path):
+    text = """\
+        tests:
+          - name: a
+            expect: {x: 1}
+          - name: b
+            expect: &e {x: 1}
+          - name: c
+            expect: *e
+        """
+    with pytest.raises(BlueprintError) as error:
+        _fix(tmp_path, text, [{"x": 1}, {"x": 2}, {"x": 1}])
+    assert "tests 'b', 'c' share" in str(error.value)
+    path = _fix(tmp_path, text, [{"x": 2}, {"x": 1}, {"x": 1}])
+    assert "name: a\n    expect: {x: 2}" in path.read_text()
+
+
 def test_the_capture_blueprint_with_tests_is_fixed_to_its_measured_values(tmp_path):
     from desflow.blueprint.build import load_blueprint
 

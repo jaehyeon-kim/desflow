@@ -22,10 +22,15 @@ def _confluent(value):
     return ConfluentRegistryClient("http://registry", max_retries=value)
 
 
+def _confluent_timeout(value):
+    return ConfluentRegistryClient("http://registry", timeout=value)
+
+
 # The builder of each connector, the argument's name, and the values it refuses
 ARGUMENTS = [
     (_admin, "max_tasks", [0, -1, 2.5, NAN, True]),
     (_confluent, "max_retries", [-1, 2.5, NAN, True]),
+    (_confluent_timeout, "timeout", [0, -1, NAN, True, float("inf")]),
 ]
 
 
@@ -41,8 +46,32 @@ def test_a_bad_numeric_argument_is_refused_by_name(build, name, value):
 
 @pytest.mark.parametrize(
     "build,value",
-    [(_admin, 1), (_confluent, 0), (_confluent, 3)],
-    ids=["admin-1", "confluent-0", "confluent-3"],
+    [
+        (_admin, 1),
+        (_confluent, 0),
+        (_confluent, 3),
+        (_confluent_timeout, None),
+        (_confluent_timeout, 0.5),
+    ],
+    ids=[
+        "admin-1",
+        "confluent-0",
+        "confluent-3",
+        "timeout-none",
+        "timeout-half-second",
+    ],
 )
 def test_a_good_numeric_argument_is_accepted(build, value):
     build(value)
+
+
+@pytest.mark.parametrize("url", ["HTTPS://registry.example:8081", "Http://registry"])
+def test_a_registry_url_scheme_is_read_in_any_case(url):
+    """A URL scheme is case-insensitive (RFC 3986, section 3.1)."""
+    ConfluentRegistryClient(url)
+
+
+@pytest.mark.parametrize("url", ["httpfoo://registry", "registry:8081", "ftp://x"])
+def test_a_registry_url_scheme_other_than_http_or_https_is_refused(url):
+    with pytest.raises(ValueError, match="Invalid url"):
+        ConfluentRegistryClient(url)

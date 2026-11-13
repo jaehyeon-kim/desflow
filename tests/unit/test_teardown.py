@@ -51,3 +51,41 @@ def test_a_healthy_sink_gets_every_record_in_both_orders(stuck_first, caplog):
     keeper = _run(stuck_first, caplog)
     events = [r for r in keeper.records if r.get("stream_type") == "event"]
     assert len(events) == 16, len(events)
+
+
+def test_teardown_returns_after_a_sink_has_run_its_close_code():
+    import queue
+
+    from desflow.core.environment import DynamicRealtimeEnvironment
+
+    closed = []
+
+    class Closing(BaseEgress):
+        async def run(self, egress_queue):
+            try:
+                while True:
+                    try:
+                        egress_queue.get_nowait()
+                    except queue.Empty:
+                        await asyncio.sleep(0.01)
+            finally:
+                await asyncio.sleep(0.3)
+                closed.append(True)
+
+    env = DynamicRealtimeEnvironment(factor=0)
+    env.setup_egress([Closing()])
+    env.publish_event("k", {"v": 1})
+    env.teardown()
+    assert closed == [True]
+    assert not env._egress_thread.is_alive()
+
+
+def test_a_provider_reused_with_the_envelope_back_on_gets_whole_records():
+    from desflow.core.environment import DynamicRealtimeEnvironment
+
+    keeper = _Keeper()
+    for envelopes, expected in (([False], False), (None, True)):
+        env = DynamicRealtimeEnvironment(factor=0)
+        env.setup_egress([keeper], envelopes=envelopes)
+        env.teardown()
+        assert keeper.envelope is expected

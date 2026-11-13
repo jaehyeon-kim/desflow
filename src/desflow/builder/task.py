@@ -12,8 +12,8 @@ context keeps the decorator and the checks made before the clock starts.
 
 from __future__ import annotations
 
+import collections
 import functools
-import math
 import numbers
 from collections.abc import Mapping
 import dataclasses
@@ -22,6 +22,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Deque,
     Dict,
     List,
     NamedTuple,
@@ -32,11 +33,12 @@ from typing import (
 )
 
 from simpy import Interrupt
-from simpy.events import Condition, Event
+from simpy.events import PENDING, Condition, Event
 from simpy.resources.resource import Preempted
 
 from desflow.core.expressions import ANY_NAME, Expression, Scope, boolean_word
 from desflow.builder.batches import BatchSeat
+from desflow.builder.breakdowns import MAX_CYCLES_AT_ONE_INSTANT
 from desflow.builder.flow import (
     Listen,
     Open,
@@ -57,6 +59,7 @@ from desflow.utils import (
     checked_priority,
     checked_seconds,
     has_nan_priority,
+    is_finite,
     suggestion,
 )
 from desflow.values.check import names_read
@@ -238,6 +241,49 @@ Example:
 _NO_TIME_LEFT = 1e-9
 
 
+class _CycleLimit(ValueError):
+    """A flow ran as many instances at one instant as a breakdown cycle may."""
+
+
+class _InstantCycles:
+    """Counts the instances a flow hands on to at one simulated instant, so tasks that
+    take no time and lead back to each other end the run with an error and not never.
+
+    Args:
+        env: The environment whose clock is read.
+    """
+
+    def __init__(self, env: Any) -> None:
+        self._env = env
+        self._instant = env.now
+        self._cycles = 0
+        self._recent: Deque[str] = collections.deque(maxlen=50)
+
+    def count(self, task: str) -> None:
+        """Counts one more instance, of `task`, handed on to.
+
+        Args:
+            task: The name of the task the flow hands on to.
+
+        Raises:
+            _CycleLimit: A `ValueError` when the count at this instant reaches
+                `MAX_CYCLES_AT_ONE_INSTANT`.
+        """
+        if self._env.now != self._instant:
+            self._instant, self._cycles = self._env.now, 0
+        self._cycles += 1
+        self._recent.append(task)
+        if self._cycles >= MAX_CYCLES_AT_ONE_INSTANT:
+            looped = list(dict.fromkeys(self._recent))
+            names = ", ".join(f"'{name}'" for name in looped)
+            raise _CycleLimit(
+                f"{'task' if len(looped) == 1 else 'tasks'} {names} ran "
+                f"{MAX_CYCLES_AT_ONE_INSTANT} times in one flow at time "
+                f"{self._instant:g}, so the clock does not move; give one of them a "
+                f"service_time above 0, or take the loop out of next"
+            )
+
+
 class _HandlerFailed(Exception):
     """The flow `on_interrupt_run` names failed. The task has published `failed`
     already."""
@@ -245,6 +291,30 @@ class _HandlerFailed(Exception):
     def __init__(self, reason: Any):
         super().__init__(reason)
         self.reason = reason
+
+
+class _ExpressionFailed(Exception):
+    """An expression of a task's wait that could not be evaluated, such as a
+    `condition`, a `when` predicate or a store `filter`. Another task's step or a
+    SimPy callback evaluates it, so the event the task waits on fails with this, and
+    the waiting task raises `error` in its own step."""
+
+    def __init__(self, error: Exception):
+        super().__init__(error)
+        self.error = error
+
+
+class _WhenCondition(Condition):
+    """The SimPy condition of a `when` group, which fails with `_ExpressionFailed`
+    when its predicate cannot be evaluated as a branch is processed."""
+
+    def _check(self, event: Event) -> None:
+        try:
+            super()._check(event)
+        except Exception as error:
+            if self._value is not PENDING:
+                raise
+            self.fail(_ExpressionFailed(error))
 
 
 class _Suspension(Event):
@@ -771,6 +841,7 @@ class TaskRun:
         self._finish: Dict[str, Any] = {}
         self._once_made = self._vars_made = False
         self._instance_key: Optional[str] = None
+        self._key_refused = False
         # The instance's place in a batch of its task
         self._seat = BatchSeat(self)
         # An instance whose task needs an end event (for `running`, `subscribe`, a
@@ -806,7 +877,7 @@ class TaskRun:
             lifecycle: True for `queued` and `started`, which a plain-output sink
                 does not receive.
         """
-        if key is None and self.spec.key is not None:
+        if key is None and self.spec.key is not None and not self._key_refused:
             key = self._record_key()
         self.env.publish_event(
             self.entity.key,
@@ -822,9 +893,13 @@ class TaskRun:
         record and kept, as text.
 
         Raises:
-            ValueError: If the key is not an integer or text.
+            ValueError: If the key is not an integer or text. The instance's later
+                records then take its entity's key.
         """
         if self._instance_key is None:
+            # A key that fails leaves the instance's `failed` record to be published
+            # under its entity's key
+            self._key_refused = True
             self._ensure_once()
             made = self.context.values.evaluate(self.spec.key, self.scope())
             if isinstance(made, bool) or not isinstance(made, (int, str)):
@@ -832,6 +907,7 @@ class TaskRun:
                     f"task '{self.spec.name}' key gave {made!r}, which is not an "
                     f"integer or text"
                 )
+            self._key_refused = False
             self._instance_key = str(made)
         return self._instance_key
 
@@ -1092,9 +1168,10 @@ class TaskRun:
         target = node.target
         where = target["where"]
         if target.get("whole_flow"):
-            # Every flow of the model that has an instance of the task, ended ones too,
-            # waited for as a SimPy process is: the wait ends in the step after the
-            # flow's process ends
+            # Every flow of the model that has an instance of the task, waited for as a
+            # SimPy process is: the wait ends in the step after the flow's process
+            # ends. The run keeps an ended flow only while an instance of a task with
+            # such a wait is running (`flow_waiters_changed`).
             flows: List[Any] = []
             chosen: List["TaskRun"] = []
             for run in self.parts.run.flow_runs.get(target["task"], []):
@@ -1175,8 +1252,14 @@ class TaskRun:
         next statement of a SimPy process does. A root flow's process ends with the
         first payload, a child flow's with the last. The process is named after the
         task it runs now (P6).
+
+        Raises:
+            ValueError: If the flow runs as many instances as a breakdown cycle may
+                at one instant without the clock moving, which tasks that take no
+                time and lead back to each other do for ever.
         """
         run, first, kept = self, True, None
+        cycles = _InstantCycles(self.env)
         while True:
             value = yield from run._run_one()
             if first:
@@ -1188,6 +1271,7 @@ class TaskRun:
             # The instance that ended keeps no link, so a long flow frees each one.
             following, run._following = run._following, None
             run = following
+            cycles.count(run.spec.name)
             self.env.active_process._generator.__name__ = run.spec.name  # type: ignore[attr-defined]
 
     def reach(self, process: Any) -> None:
@@ -1203,6 +1287,9 @@ class TaskRun:
         self.flow.process = process
         self.parts.run.running.setdefault(self.spec.name, []).append(self)
         self._listed = True
+        self.parts.run.flow_waiters_changed(
+            self.parts.ends.flow_waiters.get(self.spec.name, ()), 1
+        )
 
     def _run_one(self):
         """One instance: everything from the balk check to the next task.
@@ -1223,6 +1310,11 @@ class TaskRun:
         except RunStopped:
             # A `row` with on_end: stop ended the run; this instance ends quietly
             return None
+        except _CycleLimit as error:
+            # A loop of tasks that take no time in an `on_interrupt_run` flow is no
+            # failure of this task, so it does not go to `on_fail`
+            self._end_default(ok=False, error=error, actions=False)
+            raise
         except BaseException as error:
             if not self._send_to_on_fail(error):
                 # An error ends the instance: the end event fails with it, so a waiter
@@ -1345,6 +1437,9 @@ class TaskRun:
         running = self.parts.run.running.get(self.spec.name, [])
         if self in running:
             running.remove(self)
+            self.parts.run.flow_waiters_changed(
+                self.parts.ends.flow_waiters.get(self.spec.name, ()), -1
+            )
             # A wait on `running(task)` reads the count again now it has changed
             notify = getattr(self.env, "notify_change", None)
             if notify is not None:
@@ -1526,10 +1621,14 @@ class TaskRun:
                             return None
                 if spec.get is not None and not got_item and not spec.get.wait:
                     # Made and not waited for: it takes an item later and discards it
-                    self._transfer_event(spec.get, "get", None)
+                    event = self._transfer_event(spec.get, "get", None)
+                    if event.triggered and not event.ok:
+                        # A filter that cannot be evaluated is the task's own failure
+                        event.defused = True
+                        raise event.value.error from None
                     got_item = True
                 if spec.get is not None and not got_item:
-                    self._target = f"get.{spec.get.target}"
+                    self._target = f"get.{self._named(spec.get.target)}"
                     got = yield from self._transfer(
                         spec.get, "get", None, self._deadline()
                     )
@@ -1607,7 +1706,7 @@ class TaskRun:
                 if failure is None:
                     if spec.put is not None and not put_done:
                         if spec.put.wait:
-                            self._target = f"put.{spec.put.target}"
+                            self._target = f"put.{self._named(spec.put.target)}"
                             yield from self._transfer(spec.put, "put", payload, None)
                         else:
                             # Made and not waited for, and never set as pending, so
@@ -1766,6 +1865,8 @@ class TaskRun:
                 holding = yield from self._holding_steps()
             except _HandlerFailed as stopped:
                 failure = stopped.reason
+            except _CycleLimit:
+                raise  # a loop of tasks that take no time is no failure of the task
             except Exception as error:  # a task's failure
                 failure = self._fail_with(error)
             else:
@@ -1832,6 +1933,8 @@ class TaskRun:
             except _HandlerFailed as stopped:
                 failure = stopped.reason
                 break
+            except _CycleLimit:
+                raise  # a loop of tasks that take no time is no failure of the task
             except Exception as error:  # a size, timeout or close_when that failed
                 failure = self._fail_with(error)
                 break
@@ -1948,7 +2051,7 @@ class TaskRun:
         if (
             isinstance(value, bool)
             or not isinstance(value, numbers.Real)
-            or not math.isfinite(value)
+            or not is_finite(value)
         ):
             raise TypeError(
                 f"task '{self.spec.name}' batch size gave {value!r}, which is not a "
@@ -2597,7 +2700,7 @@ class TaskRun:
         if node.kind == "all":
             return env.all_of(members)
         if node.kind == "when":
-            return Condition(
+            return _WhenCondition(
                 env, lambda evs, c, n=node: self._holds(n, c, built), members
             )
         return Condition(env, lambda evs, c, n=node.count: c >= n, members)
@@ -2949,12 +3052,16 @@ class TaskRun:
         run.cause_values = self._cause_values(interrupt, left)
         run.flow.name = name
         self._target = f"task.{name}"
+        cycles = _InstantCycles(self.env)
         try:
             while True:
                 yield from run._run_one()
                 if run._following is None:
                     break
                 run, run._following = run._following, None  # type: ignore[assignment]
+                cycles.count(run.spec.name)
+        except _CycleLimit:
+            raise  # a loop of tasks that take no time is no failure of the child
         except Exception as error:  # the child's failure
             reason = _reason_of(error)
             self._fail_error = error
@@ -3216,16 +3323,66 @@ class TaskRun:
         """
         event = self._transfer_event(transfer, direction, payload)
         self._pending = event
-        if deadline is None:
-            yield event
-        else:
-            yield event | deadline
+        try:
+            if deadline is None:
+                yield event
+            else:
+                yield event | deadline
+        except _ExpressionFailed as wrapped:
+            # the filter of this get cannot be evaluated: the task's own failure
+            self._pending = None
+            raise wrapped.error from None
+        if deadline is not None:
             if not _won(event):
                 event.cancel()
                 self._pending = None
                 return _RENEGED
         self._pending = None
         return self._transfer_value(transfer, direction, event)
+
+    def _filtered_get(
+        self,
+        store: Any,
+        matches: Optional[Callable[[Any], bool]],
+        ranked: Dict[str, Any],
+    ) -> Any:
+        """Makes a store's get event. A filter that cannot be evaluated, whichever
+        task's step offers it an item, fails this event, so the waiting task fails and
+        the task that put the item does not.
+
+        Args:
+            store: The store.
+            matches: The get's filter, or None for any item.
+            ranked: The `rank` keyword of the get.
+
+        Returns:
+            Any: The get event.
+        """
+        if matches is None:
+            return store.get(None, **ranked)
+        made: List[Any] = []
+        failed: List[Exception] = []
+
+        def guarded(item: Any) -> bool:
+            if failed:
+                # The first error fails the get; no later item is taken for it
+                return False
+            try:
+                return matches(item)
+            except Exception as error:
+                # Recorded first, so no later item of this or any step is offered
+                failed.append(error)
+                if made and not made[0].triggered:
+                    # An item offered after the get was made, in another step
+                    made[0].fail(_ExpressionFailed(error))
+                return False
+
+        event = store.get(guarded, **ranked)
+        made.append(event)
+        if failed:
+            event.cancel()
+            event.fail(_ExpressionFailed(failed[0]))
+        return event
 
     def _transfer_event(self, transfer: Transfer, direction: str, payload: Any) -> Any:
         """Makes the SimPy get or put event, without waiting for it. A wait branch
@@ -3236,7 +3393,9 @@ class TaskRun:
             store = self.parts.run.holders.stores[held_name]
             ranked = self._queue_rank(store, direction, scope)
             if direction == "get":
-                event = store.get(transfer.filter_for(scope, self.entity), **ranked)
+                event = self._filtered_get(
+                    store, transfer.filter_for(scope, self.entity), ranked
+                )
             else:
                 if transfer.item is not None:
                     # The item of a `put`, read as the put is made
@@ -3342,6 +3501,11 @@ class TaskRun:
             yield joined if deadline is None else joined | deadline
         except Interrupt:
             raise
+        except _CycleLimit:
+            raise  # a loop of tasks that take no time is no failure of the task
+        except _ExpressionFailed as wrapped:
+            # an expression of this wait cannot be evaluated: the task's own failure
+            raise wrapped.error from None
         except Exception as error:  # a branch failed
             failure = _reason_of(error)
         finally:
@@ -3752,12 +3916,21 @@ class TaskRun:
                 event.succeed(True)
                 stop()
 
+        def check_later() -> None:
+            """The check as another task's step calls it: an expression that cannot
+            be evaluated fails the event, so the waiting task fails, not that task."""
+            try:
+                check()
+            except Exception as error:
+                event.fail(_ExpressionFailed(error))
+                stop()
+
         def stop() -> None:
-            env.unwatch_changes(check)
+            env.unwatch_changes(check_later)
 
         check()
         if not event.triggered:
-            env.watch_changes(check, queues=condition.reads_queues)
+            env.watch_changes(check_later, queues=condition.reads_queues)
         return event, stop
 
 

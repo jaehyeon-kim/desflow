@@ -177,6 +177,25 @@ def test_one_factor_sensitivity_changes_only_that_factor(tmp_path):
     )
 
 
+def test_a_factory_that_is_a_partial_writes_the_artifacts(tmp_path):
+    """A partial has no source file, so the record holds no hash of one."""
+    import functools
+
+    out = tmp_path / "out"
+    result = run_experiment(
+        _settings(
+            model=functools.partial(shop),
+            variants={"base": {}},
+            compare=[],
+            checks=[],
+            output=str(out),
+        )
+    )
+    assert result.designs
+    recorded = json.loads((out / "experiment.json").read_text(encoding="utf-8"))
+    assert recorded["model"]["sha256"] is None
+
+
 def test_an_experiment_repeats_and_the_three_forms_agree(folder, tmp_path):
     first = run_experiment(folder / "experiment.yaml")
     again = run_experiment(folder / "experiment.yaml")
@@ -314,10 +333,38 @@ OBSERVED = "measure,value,unit,population,horizon\n{}\n"
             "tasks.pack.service_mean,4,s,finished instances,27 min",
             "not one of the experiment's measures; add it to measures, or remove",
         ),
+        (
+            "tasks.pack.wait_mean,4.5,s",
+            "observed.csv:2: the row has more or fewer cells than the header",
+        ),
+        (
+            "tasks.pack.wait_mean,,s,started instances,27 min",
+            "observed.csv:2: the observed value '' is not a finite number",
+        ),
+        (
+            "tasks.pack.wait_mean,nan,s,started instances,27 min",
+            "observed.csv:2: the observed value 'nan' is not a finite number",
+        ),
     ],
 )
 def test_observed_values_must_match_the_measure(folder, row, error):
     (folder / "observed.csv").write_text(OBSERVED.format(row))
+    (folder / "experiment.yaml").write_text(
+        EXPERIMENT + "observed: {file: observed.csv}\n"
+    )
+    with pytest.raises(ValueError, match=error):
+        run_experiment(folder / "experiment.yaml")
+
+
+@pytest.mark.parametrize(
+    "text,error",
+    [
+        ("wrong,columns\n", "needs the columns"),
+        ("measure,value,unit,population,horizon\n", "has no rows"),
+    ],
+)
+def test_an_observed_file_with_no_rows_is_refused(folder, text, error):
+    (folder / "observed.csv").write_text(text)
     (folder / "experiment.yaml").write_text(
         EXPERIMENT + "observed: {file: observed.csv}\n"
     )
@@ -611,6 +658,44 @@ def test_a_report_without_a_summary_row_names_the_file_and_the_row(folder):
     run = CliRunner().invoke(cli, ["report", str(out)])
     assert run.exit_code == 2
     assert "summary.csv has no row for design" in " ".join(run.output.split())
+
+
+def test_a_model_warm_up_at_or_after_until_is_refused_before_any_run(folder):
+    (folder / "shop.yaml").write_text(
+        SHOP.replace("factor: 0}", "factor: 0, warmup: 20 min}")
+    )
+    text = EXPERIMENT.replace("warmup: 3 min\n", "").replace(
+        "until: 30 min", "until: 10 min"
+    )
+    (folder / "experiment.yaml").write_text(text)
+    with pytest.raises(BlueprintError) as caught:
+        run_experiment(folder / "experiment.yaml")
+    assert "experiment.yaml:" in str(caught.value)
+    assert "until (600 s) must be after the model's own warm-up (1200 s)" in str(
+        caught.value
+    )
+    assert not (folder / "results").exists()
+
+
+@pytest.mark.parametrize("name", ["checks.csv", "comparisons.csv"])
+def test_a_report_without_the_file_of_a_listed_entry_is_refused(folder, name):
+    run_experiment(folder / "experiment.yaml")
+    out = folder / "results" / "packers"
+    (out / name).unlink()
+    run = CliRunner().invoke(cli, ["report", str(out)])
+    assert run.exit_code == 2
+    assert f"{name} has no rows" in " ".join(run.output.split())
+
+
+def test_a_report_of_a_csv_row_cut_off_before_its_last_cell_is_refused(folder):
+    run_experiment(folder / "experiment.yaml")
+    out = folder / "results" / "packers"
+    lines = (out / "checks.csv").read_text().splitlines()
+    lines[-1] = lines[-1].rsplit(",", 1)[0]
+    (out / "checks.csv").write_text("\n".join(lines) + "\n")
+    run = CliRunner().invoke(cli, ["report", str(out)])
+    assert run.exit_code == 2
+    assert "checks.csv line 2 has fewer cells" in " ".join(run.output.split())
 
 
 def test_a_pipe_in_a_variant_name_stays_inside_its_table_cell(folder):

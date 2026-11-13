@@ -7,6 +7,7 @@ import simpy
 
 from desflow.internal import internal_process
 from desflow.models.params import CapacityConfig
+from desflow.utils import checked_priority
 
 if TYPE_CHECKING:
     from desflow.core.registry import DynamicValue
@@ -108,7 +109,8 @@ class _Ranked:
 
     def __init__(self, resource: Any, *args: Any, rank: Any = None, **kwargs: Any):
         if rank is not None:
-            self.rank = rank
+            # NaN compares false with every rank, so one would break the order
+            self.rank = checked_priority(rank, "rank")
         super().__init__(resource, *args, **kwargs)  # type: ignore[call-arg]
 
 
@@ -124,6 +126,8 @@ def _notifying(method: Callable[..., Any]) -> Callable[..., Any]:
     def wrapper(self: Any, event: Any) -> Optional[bool]:
         if self._depth:
             return method(self, event)
+        if self._sync is not None:
+            self._sync()
         before = self._state()
         self._depth += 1
         try:
@@ -151,6 +155,9 @@ class _Notifier:
 
     _on_change: Optional[Callable[[], None]] = None
     """Called after the state changed; set by the holder after construction."""
+    _sync: Optional[Callable[[], None]] = None
+    """Called before a put or get is tried, to apply a registry write the holder's
+    watcher has not applied yet; set by the holder after construction."""
     _depth = 0
     _queue_lens = (0, 0)
 
@@ -297,6 +304,7 @@ class _WrappedHolder(BaseDynamicResource):
         # capacity change sets it
         self._holder = build(capacity or smallest)
         self._holder._on_change = on_change
+        self._holder._sync = self._sync_from_registry
         self._holder._capacity = capacity
         if get_ties is not None:
             self._holder.get_queue = RankedQueue(ties=get_ties)
@@ -304,6 +312,16 @@ class _WrappedHolder(BaseDynamicResource):
             self._holder.put_queue = RankedQueue(ties=put_ties)
         self.PutQueue = self._holder.put_queue.__class__
         self.GetQueue = self._holder.get_queue.__class__
+
+    def _sync_from_registry(self) -> None:
+        """Applies the registry values the holder's watchers have not applied yet.
+
+        A write made earlier in the same step, such as a restock or a lower
+        capacity, reaches the holder only when its watcher process runs, which can
+        be after a put or get at the same instant. Each put or get calls this first,
+        as a resource reads its capacity at every grant.
+        """
+        raise NotImplementedError
 
     @property
     def put_queue(self) -> list:

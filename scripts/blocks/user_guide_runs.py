@@ -22,7 +22,15 @@ from .capture import (
 def replications_telemetry() -> List[str]:
     """Replications: the telemetry a sink receives from three replications."""
     module = load_script("docs/snippets/pages/replications.py")
-    return capture(module.builder)
+    # The last digits of a mean differ between macOS and Linux, so the page shows 10
+    return [
+        re.sub(
+            r"('value': )(-?\d+\.\d+(?:e[+-]?\d+)?)",
+            lambda m: m.group(1) + f"{float(m.group(2)):.10g}",
+            line,
+        )
+        for line in capture(module.builder)
+    ]
 
 
 def replications_summary() -> List[str]:

@@ -32,7 +32,7 @@ def build(env: DynamicRealtimeEnvironment) -> None:
 
     def make(number):
         """Draws the payload of order `number`."""
-        if missing.random() < 0.5:
+        if missing.random() < 0.4:
             return {"address": None}
         return {
             "address": {

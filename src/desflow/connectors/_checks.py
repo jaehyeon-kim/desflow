@@ -2,6 +2,7 @@
 
 import math
 import numbers
+from typing import Any
 
 
 def checked_whole(
@@ -50,15 +51,24 @@ def checked_poll(value: object, what: str) -> float:
         float: The seconds.
 
     Raises:
-        ValueError: If `value` is not a number, or is not above 0, or is not finite.
+        ValueError: If `value` is not a number, or is not above 0, or is not finite, or
+            is an integer too large for a float.
     """
     if (
         isinstance(value, bool)
         or not isinstance(value, numbers.Real)
-        or not math.isfinite(value)
+        or not is_finite(value)
         or value <= 0
     ):
         raise ValueError(
             f"{what} is a number of seconds above 0 that is not infinite, got {value!r}"
         )
     return float(value)
+
+
+def is_finite(number: Any) -> bool:
+    """Returns whether a real number is finite; an integer too large for a float is not."""
+    try:
+        return math.isfinite(number)
+    except OverflowError:
+        return False

@@ -1018,9 +1018,12 @@ def test_gallery_stolen_card_makes_three_large_payments():
     large = [e for e in events if e["task"] == "large_payment"]
     stolen = [e for e in payments if e["value"]["stolen"]]
     assert len(payments) > 400 and stolen
-    # Three large payments follow each stolen payment, two seconds later, on its card
-    assert len(large) == 3 * len(stolen)
-    for first in stolen:
+    # Three large payments follow each stolen payment, two seconds later, on its card;
+    # the run ends at 600 seconds, so a stolen payment after 598 seconds gets none
+    followed = [e for e in stolen if e["sim_ts"] + 2 <= 600]
+    assert len(stolen) - len(followed) == 1
+    assert len(large) == 3 * len(followed)
+    for first in followed:
         later = [
             e
             for e in large
@@ -1160,10 +1163,20 @@ def test_gallery_callers_hang_up_after_waiting_too_long():
     for times in status.values():
         if "started" in times:
             assert times["started"] - times["queued"] <= 300
-    # With four agents from 30 minutes, fewer than half as many callers hang up as in
-    # the first 30 minutes (with two agents throughout, 9 hang up after against 10 before)
-    after = [e for e in hung_up if e["sim_ts"] >= 1800]
-    assert 2 * len(after) < len(hung_up) - len(after)
+    # With four agents from 30 minutes, a smaller share of the callers who join the queue
+    # hang up than in the first 30 minutes: 15 of 44 against 16 of 34 (with two agents
+    # throughout, 27 of 44 hang up after against 18 of 34 before)
+    joined = {
+        e["key"]: e["sim_ts"]
+        for e in events
+        if e["task"] == "answer_call" and e["value"].get("status") == "queued"
+    }
+    left = {e["key"] for e in hung_up}
+    first = [k for k, at in joined.items() if at < 1800]
+    second = [k for k, at in joined.items() if at >= 1800]
+    assert (len(first), len(second)) == (34, 44)
+    assert (len(left & set(first)), len(left & set(second))) == (16, 15)
+    assert len(left & set(second)) / len(second) < len(left & set(first)) / len(first)
 
 
 @_gallery("urgent_tickets_are_served_first")

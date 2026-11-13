@@ -1,4 +1,5 @@
 import functools
+import threading
 
 import pytest
 import simpy
@@ -828,7 +829,10 @@ def test_a_queue_limit_counts_waiting_requests_after_a_lowered_capacity(
         res.request()
 
 
-@pytest.mark.parametrize("limit", [float("nan"), float("inf"), 2.5, True])
+@pytest.mark.parametrize(
+    "limit",
+    [float("nan"), float("inf"), 2.5, True, pytest.param(10**400, id="huge-int")],
+)
 def test_a_queue_limit_that_is_not_a_whole_number_is_refused(
     env, registry, sample_params, limit
 ):
@@ -847,10 +851,10 @@ def test_a_request_priority_that_does_not_compare_is_refused(
     with pytest.raises(ValueError, match="priority must be a number that is not NaN"):
         res.request(priority=priority)
     assert len(res.put_queue) == 0 and len(res.users) == 0
-    res.request(priority=(1, 2))
     res.request(priority=0.5)
     res.request(priority=float("-inf"))
     res.request(priority=float("inf"))
+    DynamicResource(env, "Shop", "boxes", queue="priority").request(priority=(1, 2))
 
 
 def test_a_resource_type_and_queue_limit_are_checked(env, registry, sample_params):
@@ -927,3 +931,133 @@ def test_a_subclass_changes_the_grant_with_do_put(env, registry, sample_params):
     env.run(until=1)
     assert first.triggered and second.triggered and not third.triggered
     assert res.count == 2 and len(res.queue) == 1
+
+
+def test_a_number_and_a_list_priority_in_one_queue_are_refused(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    registry.update("Shop.resources.packers.current_cap", 1)
+    flush_events(env)
+    res = DynamicResource(env, "Shop", "packers", queue="priority")
+    res.request(priority=1)
+    with pytest.raises(ValueError) as caught:
+        res.request(priority=[0, 1])
+    assert (
+        "resource 'packers' cannot rank the priority 1 (a number) with [0, 1]"
+        in str(caught.value)
+    )
+    res.request(priority=2.5)
+    assert len(res.queue) + len(res.users) == 2
+
+
+def test_a_list_and_a_tuple_priority_in_one_queue_are_refused(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    registry.update("Shop.resources.packers.current_cap", 1)
+    flush_events(env)
+    res = DynamicResource(env, "Shop", "packers", queue="priority")
+    res.request(priority=[0, 1])
+    with pytest.raises(ValueError, match="\\(a list\\) with \\(0, 1\\) \\(a tuple\\)"):
+        res.request(priority=(0, 1))
+
+
+def test_a_list_priority_is_accepted_when_every_priority_is_a_list(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    registry.update("Shop.resources.packers.current_cap", 1)
+    flush_events(env)
+    res = DynamicResource(env, "Shop", "packers", queue="priority")
+    for priority in ([1, 0], [0, 1], [0, 0]):
+        res.request(priority=priority)
+    assert [request.priority for request in res.queue] == [[0, 0], [0, 1]]
+
+
+@pytest.mark.parametrize(
+    "spread",
+    [
+        {"dist": "exponential", "rate": 1.0e-170},
+        {"dist": "uniform", "low": 0, "high": 1e200},
+    ],
+    ids=["variance-underflows", "variance-overflows"],
+)
+def test_a_breakdown_whose_variance_cannot_be_computed_is_not_always_zero(spread):
+    from desflow.models.params import DistributionConfig, check_breakdown_advances
+
+    check_breakdown_advances(
+        DistributionConfig(**spread),
+        DistributionConfig(dist="constant", value=0),
+        "resource 'm' breakdown",
+    )
+
+
+def test_a_breakdown_rate_set_to_a_tiny_value_during_a_run_does_not_stop_it(tmp_path):
+    from desflow.builder.context import SimulationContext
+
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "egress: []\n"
+        "resources:\n"
+        "  m:\n"
+        "    current_cap: 1\n"
+        "    breakdown:\n"
+        "      time_to_failure: {dist: exponential, rate: 1}\n"
+        "      repair: {dist: constant, value: 1}\n"
+        "arrivals: {a: {dist: constant, value: 1, spawn: t, max_events: 3}}\n"
+        "tasks: {t: {resource: m, service_time: 1, payload: {e: done}}}\n"
+        "scenario:\n"
+        "  - {at: 0.1, path: S.breakdown.m.time_to_failure.rate, value: 1.0e-170}\n"
+        "run: {until: 10}\n"
+    )
+    SimulationContext.from_yaml(path).run(until=10)
+
+
+def test_a_busy_clock_with_less_time_left_than_the_clock_can_move_still_fails():
+    """At 2e8 s a float cannot move by 5e-9 s, so a timer for the 5e-9 s left of a
+    busy time to failure ends with the clock where it was. The resource then fails,
+    and the run ends, where it made the same timer for ever."""
+    from desflow.builder.context import SimulationContext
+
+    app = SimulationContext("S", factor=0)
+    app.add_resource("m", current_cap=1)
+    app.add_breakdown(
+        "m",
+        time_to_failure={"dist": "constant", "value": 1.000000005},
+        repair={"dist": "constant", "value": 1},
+        clock="busy",
+    )
+    app.task(name="t", resource_id="m", service_time=1)(lambda task_id: {"e": 1})
+    app.add_arrival("a", "constant", value=1e8, spawn="t", max_events=2)
+    thread = threading.Thread(target=app.run, kwargs={"until": 3e8}, daemon=True)
+    thread.start()
+    thread.join(20)
+    assert not thread.is_alive()
+    assert app.env.now == 3e8
+
+
+def test_a_request_refused_for_a_full_line_does_not_fix_the_kind_of_priority(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    _set_cap(registry, 0)
+    flush_events(env)
+    res = DynamicResource(env, "Shop", "packers", queue="priority", queue_limit=0)
+    with pytest.raises(RuntimeError, match="Queue is full"):
+        res.request(priority=[1, 2])
+    registry.update("Shop.resources.packers.queue_limit", None)
+    flush_events(env)
+    res.request(priority=5)
+    assert len(res.queue) == 1
+
+
+def test_a_decimal_priority_is_accepted_as_a_number(env, registry, sample_params):
+    from decimal import Decimal
+
+    registry.register_sim_parameter(sample_params)
+    res = DynamicResource(env, "Shop", "packers", queue="priority")
+    assert res.request(priority=Decimal("1")).triggered
+    with pytest.raises(ValueError, match="not NaN"):
+        res.request(priority=Decimal("NaN"))

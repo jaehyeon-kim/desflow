@@ -13,7 +13,10 @@ from desflow.resources.base import (
     _Ranked,
     _WrappedHolder,
 )
-from desflow.utils import checked_priority
+from desflow.utils import checked_priority, mixed_priorities, priority_kind
+
+# Stands for "no item has given a priority yet"
+_NO_PRIORITY = object()
 
 
 def _whole(value: float) -> Union[int, float]:
@@ -199,8 +202,9 @@ class DynamicStore(_WrappedHolder, Store):
         Raises:
             ValueError: If there are more items than the capacity, a priority
                 store's item is not a `(priority, item)` pair, `type` is not a
-                subclass of `StoreBase`, `type` is given with `priority`, or `get_ties`
-                or `put_ties` is not `fifo` or `lifo` or is given with `type`.
+                subclass of `StoreBase`, `type` is given with `priority`, `get_ties`
+                or `put_ties` is not `fifo` or `lifo` or is given with `type`, or the
+                starting priorities of a priority store are a number and a list.
         """
         check_store_type(type, priority)
         check_ties(get_ties, put_ties, type)
@@ -212,6 +216,9 @@ class DynamicStore(_WrappedHolder, Store):
 
         # Dynamically select the underlying SimPy storage engine
         self.priority = priority
+        # The first priority a priority store ranked, which every later one must
+        # compare with
+        self._first_priority: Any = _NO_PRIORITY
         kind = type or (_PriorityStore if priority else _Store)
         self._build_holder(
             lambda capacity: kind(env, capacity=capacity),
@@ -235,10 +242,36 @@ class DynamicStore(_WrappedHolder, Store):
                         f"{item!r}"
                     )
                 checked_priority(item[0], f"store '{store_id}' starting item priority")
+                self._note_priority(item[0])
                 heapq.heappush(self._holder.items, self.wrap(item[1], item[0]))
             else:
                 self._holder.items.append(item)
         self._register()
+
+    def _note_priority(self, priority: Any) -> None:
+        """Remembers the first priority this store ranked, and refuses a later one
+        that cannot be compared with it.
+
+        Raises:
+            ValueError: If the priority is NaN or holds NaN, which breaks the order
+                of the items, or, naming the store and both priorities, if a number
+                and a list, or a list and a tuple, meet in this store.
+        """
+        checked_priority(priority, f"store '{self.obj_id}' item priority")
+        if priority_kind(priority) == "other":
+            return
+        if self._first_priority is _NO_PRIORITY:
+            self._first_priority = priority
+        elif priority_kind(priority) != priority_kind(self._first_priority):
+            raise ValueError(
+                mixed_priorities(
+                    f"store '{self.obj_id}'",
+                    self._first_priority,
+                    priority_kind(self._first_priority),
+                    priority,
+                    priority_kind(priority),
+                )
+            )
 
     def wrap(self, item: Any, priority: float) -> PriorityItem:
         """
@@ -254,7 +287,12 @@ class DynamicStore(_WrappedHolder, Store):
 
         Returns:
             PriorityItem: The item, ranked by `priority`; `.item` is the item.
+
+        Raises:
+            ValueError: If `priority` cannot be compared with the first priority the
+                store ranked, such as a list after a number.
         """
+        self._note_priority(priority)
         return PriorityItem(priority, item)
 
     @property
@@ -319,6 +357,9 @@ class DynamicStore(_WrappedHolder, Store):
         Returns:
             simpy.events.Event: A SimPy event that triggers when a slot is available.
         """
+        item = args[0] if args else kwargs.get("item")
+        if self.priority and isinstance(item, PriorityItem):
+            self._note_priority(item.priority)
         return self._holder.put(*args, **kwargs)
 
     def get(self, *args: Any, **kwargs: Any) -> StoreGet:
@@ -355,6 +396,13 @@ class DynamicStore(_WrappedHolder, Store):
                 "ranks and filters its items"
             )
         return self._holder.get(*args, **kwargs)
+
+    def _sync_from_registry(self) -> None:
+        """Applies a capacity written in this step before a put or get."""
+        max_cap = _whole(self._max_cap_val.value)
+        self._holder._capacity = max(
+            0, min(_whole(self._current_cap_val.value), max_cap)
+        )
 
     def _handle_capacity_change(self, new_target: float):
         """

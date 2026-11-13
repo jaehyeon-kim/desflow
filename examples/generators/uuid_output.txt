@@ -1,3 +1,3 @@
-[EVT] {'sim_ts': 60.0, 'timestamp': '...', 'key': 'orders-1', 'task': 'order', 'instance': 0, 'value': {'order_id': '06b1853a-cba6-4dc7-943c-d8ec60965917'}}
-[EVT] {'sim_ts': 120.0, 'timestamp': '...', 'key': 'orders-2', 'task': 'order', 'instance': 1, 'value': {'order_id': 'd7a5fb8e-9c34-46c3-935f-e50a2e95279a'}}
-[EVT] {'sim_ts': 180.0, 'timestamp': '...', 'key': 'orders-3', 'task': 'order', 'instance': 2, 'value': {'order_id': '88c290a0-156f-4cbd-87df-1dcee0d18461'}}
+[EVT] {'sim_ts': 60.0, 'timestamp': '...', 'key': 'orders-1', 'task': 'order', 'instance': 0, 'value': {'order_id': 'e770f19e-f419-4749-9cf9-9551739f102d'}}
+[EVT] {'sim_ts': 120.0, 'timestamp': '...', 'key': 'orders-2', 'task': 'order', 'instance': 1, 'value': {'order_id': 'a3b69289-469e-4be2-b8ec-41e32b1d0fed'}}
+[EVT] {'sim_ts': 180.0, 'timestamp': '...', 'key': 'orders-3', 'task': 'order', 'instance': 2, 'value': {'order_id': '97215c05-1e3e-4ff7-b54a-b0380a902655'}}

@@ -1350,3 +1350,140 @@ async def test_the_run_logs_a_batch_it_cannot_write_and_goes_on(
     assert written == [[{"a": 2}]]
     assert "Iceberg Writer: batch not written: catalog down" in caplog.text
     assert egress.active_tasks == 0
+
+
+@pytest.mark.asyncio
+async def test_a_catalog_setting_pyiceberg_refuses_ends_the_sink(caplog):
+    """An unknown catalog type is a setting no wait fixes, so the task ends with
+    PyIceberg's error at the start of the run instead of logging every batch as
+    not written."""
+    import asyncio
+    import queue
+
+    egress = IcebergStorageEgress(
+        catalog={"type": "sqll", "uri": "sqlite:///unused.db"},
+        default_table="shop.orders",
+    )
+    batches: queue.Queue = queue.Queue()
+    batches.put([{"stream_type": "event", "key": "a", "value": {"n": 1}}])
+
+    with pytest.raises(ValueError, match="sqll"):
+        await asyncio.wait_for(egress.run(batches), timeout=5)
+
+    assert "could not write" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_catalog_answer_that_cannot_be_read_does_not_end_the_sink(
+    monkeypatch, caplog
+):
+    """A REST catalog's configuration answer that is not JSON is a `ValueError` from
+    `load_catalog`, but a later try may get a good answer, so the sink goes on."""
+    import asyncio
+    import json
+    import queue
+
+    import pyiceberg.catalog
+
+    fake = FakeCatalog()
+    attempts = []
+
+    def load_catalog(name=None, **properties):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise json.JSONDecodeError("Expecting value", "<html>", 0)
+        return fake
+
+    monkeypatch.setattr(pyiceberg.catalog, "load_catalog", load_catalog)
+    egress = IcebergStorageEgress(
+        catalog={"uri": "http://localhost:8181"}, default_table="sim.events"
+    )
+    batches: queue.Queue = queue.Queue()
+    batches.put([{"stream_type": "event", "key": "a", "value": {"n": 1}}])
+
+    task = asyncio.create_task(egress.run(batches))
+    for _ in range(100):
+        if "sim.events" in fake.tables and fake.tables["sim.events"].appended:
+            break
+        await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert len(attempts) == 2
+    assert "could not build the catalog yet: Expecting value" in caplog.text
+    assert len(fake.tables["sim.events"].appended) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_catalog_that_does_not_answer_yet_is_built_again_at_the_first_write(
+    monkeypatch, caplog
+):
+    """An error other than a refused setting is logged, and the sink goes on: the first
+    write builds the catalog again."""
+    import asyncio
+    import queue
+
+    import pyiceberg.catalog
+
+    fake = FakeCatalog()
+    attempts = []
+
+    def flaky_load_catalog(name=None, **properties):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise ConnectionError("catalog is down")
+        return fake
+
+    monkeypatch.setattr(pyiceberg.catalog, "load_catalog", flaky_load_catalog)
+    egress = IcebergStorageEgress(
+        catalog={"uri": "http://localhost:8181"}, default_table="sim.events"
+    )
+    batches: queue.Queue = queue.Queue()
+    batches.put([{"stream_type": "event", "key": "a", "value": {"n": 1}}])
+
+    task = asyncio.create_task(egress.run(batches))
+    for _ in range(100):
+        if "sim.events" in fake.tables and fake.tables["sim.events"].appended:
+            break
+        await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert len(attempts) == 2
+    assert "could not build the catalog yet: catalog is down" in caplog.text
+    assert len(fake.tables["sim.events"].appended) == 1
+
+
+def test_a_catalog_that_never_answers_does_not_keep_the_process_alive():
+    """The catalog is built in a daemon thread, so a call that never returns does not
+    stop the process from ending after the sink is cancelled."""
+    import subprocess
+    import sys
+    import textwrap
+
+    code = textwrap.dedent(
+        """
+        import asyncio, queue, threading
+        from desflow.connectors.egress.iceberg import IcebergStorageEgress
+
+        started = threading.Event()
+
+        class Silent(IcebergStorageEgress):
+            def _check_catalog(self):
+                started.set()
+                threading.Event().wait()
+
+        async def main():
+            sink = Silent(catalog={"type": "rest", "uri": "http://x"}, default_table="t.e")
+            task = asyncio.create_task(sink.run(queue.Queue()))
+            # The cancel must come while the call that never returns is running
+            assert await asyncio.to_thread(started.wait, 10), "the call did not start"
+            task.cancel()
+            (result,) = await asyncio.gather(task, return_exceptions=True)
+            # The sink ends on a cancel, as itself or as the cancel; a setup error fails
+            assert result is None or isinstance(result, asyncio.CancelledError), result
+
+        asyncio.run(main())
+        """
+    )
+    subprocess.run([sys.executable, "-c", code], timeout=30, check=True)

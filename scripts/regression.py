@@ -37,7 +37,8 @@ file is left out by the list in `tests/regression/left_out.yaml` of the checkout
 its reason, when it is not a blueprint, has no end, needs a running service, gives only
 an import error because its `!python` module is neither beside it nor in a folder it
 names, or gives a different capture on two runs of one commit. `--left-out` names another list, and the baseline
-side passes the working tree's, as it does the scenarios. A file that does not end
+side passes the working tree's, as it does the scenarios, and also leaves out what its
+own checkout's list names. A file that does not end
 within 180 s stops the capture and is named, so give it `run.until` or list it.
 
 The regression scenarios (`tests/regression/scenarios`, listed in `cases.py` beside
@@ -54,6 +55,9 @@ records, fails unless an entry lists its key with a `since` above the baseline; 
 entry that matches no difference fails too, so the file keeps no stale entries.
 `--set-aside-absent` first sets aside the entries whose run is in neither capture, for
 the comparison of the files of one release, which holds no run added later.
+`--set-aside-unmatched` also lets an entry that matches no difference stand, because an
+edit of an example is listed for the main comparison and changes nothing in the
+comparison of the files of one release.
 """
 
 import argparse
@@ -132,8 +136,10 @@ def _blueprints(root: Path, twins, harness) -> Dict[str, Any]:
             records, _ = harness.run_yaml(path.name)
             captured[f"blueprint:{path.name}"] = twins._records(records)
         except Exception as exc:  # the exception is the captured value
+            text = f"{type(exc).__name__}: {exc}"
+            # The checkout's own place is not part of the message
             captured[f"blueprint:{path.name}"] = {
-                "error": f"{type(exc).__name__}: {exc}"
+                "error": text.replace(root.as_posix(), "<root>")
             }
     return captured
 
@@ -158,6 +164,28 @@ def _left_out(path: Path) -> Dict[str, str]:
     if empty:
         raise SystemExit(f"{path}: no reason for {empty}")
     return {str(name): str(reason) for name, reason in entries.items()}
+
+
+def _skipped_files(root: Path, left_out: Optional[str]) -> Dict[str, str]:
+    """The files a capture of `root` leaves out: the list it is given, and the list of
+    its own checkout when that has one.
+
+    A commit that deletes a file with no end drops the file from the working tree's
+    list, and the baseline checkout still has the file, so the baseline side leaves it
+    out by its own list too.
+
+    Args:
+        root: The checkout that is captured.
+        left_out: The list to use; `<root>/tests/regression/left_out.yaml` when None.
+
+    Returns:
+        Dict[str, str]: The reason of each file.
+    """
+    own = root / "tests" / "regression" / "left_out.yaml"
+    skipped = _left_out(Path(left_out) if left_out else own)
+    if left_out and own.is_file() and own.resolve() != Path(left_out).resolve():
+        skipped = {**_left_out(own), **skipped}
+    return skipped
 
 
 def _run_by_another_capture(name: str, path: Path, taken: set) -> bool:
@@ -364,9 +392,7 @@ def capture(
     folder = Path(scenarios or root_path / "tests" / "regression" / "scenarios")
     if not folder.is_dir():
         raise SystemExit(f"no scenarios folder at {folder}; pass --scenarios")
-    skipped = _left_out(
-        Path(left_out or root_path / "tests" / "regression" / "left_out.yaml")
-    )
+    skipped = _skipped_files(root_path, left_out)
     with patch("pyiceberg.catalog.rest.RestCatalog", MagicMock()):
         captured = {**_examples(twins), **_blueprints(root_path, twins, harness)}
         captured.update(_all_blueprints(root_path, twins, skipped))
@@ -457,6 +483,7 @@ def compare(
     baseline: Optional[str] = None,
     expected: Path = EXPECTED,
     set_aside_absent: bool = False,
+    set_aside_unmatched: bool = False,
 ) -> int:
     """Compares two capture files and prints each difference.
 
@@ -469,6 +496,11 @@ def compare(
             run is in neither capture. The comparison of the files of one release
             needs it, because an entry for a file added in a later release has no run
             there.
+        set_aside_unmatched: Do not fail on a listed entry that matches no difference.
+            The comparison of the files of one release needs it: an edit of an example
+            changes the records of the main comparison, which lists it, and changes
+            nothing here, where both sides run the same files. A difference that is
+            not listed still fails.
 
     Returns:
         int: 1 when a difference is not expected or an expected one is missing, else 0.
@@ -498,7 +530,7 @@ def compare(
         print(f"{len(added)} runs added:")
         for line in added:
             print(f"  {line}")
-    stale = sorted(set(listed) - matched)
+    stale = [] if set_aside_unmatched else sorted(set(listed) - matched)
     if stale:
         print(f"{len(stale)} expected entries match no difference:")
         for key in stale:
@@ -556,6 +588,11 @@ def main() -> int:
         action="store_true",
         help="set aside the entries whose run is in neither capture",
     )
+    cmp.add_argument(
+        "--set-aside-unmatched",
+        action="store_true",
+        help="do not fail on an entry that matches no difference",
+    )
     args = parser.parse_args()
     if args.command == "capture":
         global SHARD
@@ -569,7 +606,12 @@ def main() -> int:
         merge(args.parts, args.out)
         return 0
     return compare(
-        args.old, args.new, args.baseline, args.expected, args.set_aside_absent
+        args.old,
+        args.new,
+        args.baseline,
+        args.expected,
+        args.set_aside_absent,
+        args.set_aside_unmatched,
     )
 
 

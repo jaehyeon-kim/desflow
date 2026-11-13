@@ -18,6 +18,12 @@ from typing import (
 
 import orjson
 from aiokafka import AIOKafkaProducer
+from aiokafka.errors import (
+    InvalidTopicError,
+    MessageSizeTooLargeError,
+    TopicAuthorizationFailedError,
+    UnknownTopicOrPartitionError,
+)
 
 from desflow.connectors.admin.kafka import (
     KafkaAdminConnector,
@@ -28,6 +34,7 @@ from desflow.connectors.admin.kafka import (
 from desflow.connectors.admin.kafka import topic_policy as read_topic_policy
 from desflow.connectors._schema_registry.unset import UNSET
 from desflow.connectors._retry import FIRST_DELAY, next_delay
+from desflow.connectors._threads import run_in_daemon_thread
 from desflow.connectors._schema_registry.errors import (  # noqa: F401
     SchemaRegistryError,
     SerializationError,
@@ -42,6 +49,21 @@ from desflow.connectors.egress.base import (
 )
 
 logger = logging.getLogger(__name__)
+
+# What `AIOKafkaProducer.send` raises for one record, not for the connection: a
+# record larger than `max_request_size`, and a topic the broker does not have,
+# refuses or does not accept as a name.
+RECORD_ERRORS = (
+    MessageSizeTooLargeError,
+    UnknownTopicOrPartitionError,
+    TopicAuthorizationFailedError,
+    InvalidTopicError,
+)
+
+# How many times the sink applies its topic policy again, once the producer has
+# connected, when the first try failed. No record is sent until the tries end.
+TOPIC_POLICY_RETRIES = 3
+
 
 # ==========================================
 # Pluggable Serializer Interfaces
@@ -260,8 +282,9 @@ class GlueAvroSerializer:
         self._client = GlueRegistryClient(registry_name, boto3_kwargs)
         self._avro = avro
         self._frame = frame_glue
-        # Glue finds a version by the exact definition string, so the same schema
-        # written with other spacing or key order is the same version.
+        # Glue finds a version by the exact definition string. Writing it through
+        # json makes the spacing the same, so a schema written with other spacing is
+        # the same version; one written with its keys in another order is not.
         self._definition = json.dumps(json.loads(schema_str))
         self._parsed = avro.parse_writer_schema(schema_str, (), no_references)
 
@@ -1041,7 +1064,7 @@ class KafkaEgress(BaseEgress):
             **kwargs,
         }
 
-    def _create_topics(self) -> None:
+    def _create_topics(self) -> bool:
         """
         Creates, recreates or leaves alone the sink's topics, as `topic_policy` and
         `topics` say. They are the event and telemetry topics, when no `topic_router`
@@ -1050,8 +1073,11 @@ class KafkaEgress(BaseEgress):
         Uses `KafkaAdminConnector`, which ignores a topic that already exists when
         the mode is `create`. The
         producer settings the admin client also understands, such as the security
-        settings, are passed on to it. A failure is logged rather than raised,
-        because the producer loop that follows retries the connection itself.
+        settings, are passed on to it. A failure is logged rather than raised, and
+        `run` applies the policy again once the producer has connected.
+
+        Returns:
+            bool: True when the topics could not be created.
         """
         # The event and telemetry topics, unless a topic_router names the topics, and
         # every topic in `topics`; each follows the sink's policy with its own
@@ -1074,6 +1100,8 @@ class KafkaEgress(BaseEgress):
             )
         except Exception as e:
             logger.warning(f"Could not create the topics {topics}: {e}")
+            return True
+        return False
 
     def _warn_topic_field(self, chosen: Any) -> None:
         """Warns once that `__topic__` held something other than a topic name."""
@@ -1095,6 +1123,19 @@ class KafkaEgress(BaseEgress):
             error,
         )
 
+    def _warn_not_sent(
+        self, key: Optional[bytes], topic: Optional[str], error: Exception
+    ) -> None:
+        """Warns that Kafka refused to take one record, which is not sent."""
+        logger.warning(
+            "KafkaEgress skipped the record with key %s for topic %s: Kafka "
+            "refused it: %s: %s",
+            None if key is None else key.decode(errors="replace"),
+            topic,
+            type(error).__name__,
+            error,
+        )
+
     def _message(
         self, data: dict
     ) -> Optional[Tuple[str, Optional[bytes], Optional[bytes]]]:
@@ -1112,8 +1153,9 @@ class KafkaEgress(BaseEgress):
 
         Returns:
             Optional[Tuple[str, Optional[bytes], Optional[bytes]]]: The topic, the
-                key and the value, or None when the serializer refuses the record,
-                which is then skipped with a warning.
+                key and the value, or None when the router returns no topic, which
+                drops the record, or the topic is not a name, or the serializer
+                refuses the record, which are then skipped with a warning.
 
         Raises:
             Exception: The serializer's error when it is temporary, as
@@ -1129,6 +1171,17 @@ class KafkaEgress(BaseEgress):
             # Use externalized logic if provided
             topic = self.topic_router(data)
             stream = data.get("stream_type", "event")
+            if topic is None:
+                # As a storage router does, a router that returns no topic drops
+                # the record
+                return None
+            if type(topic) is not str or not topic:
+                logger.warning(
+                    "KafkaEgress skipped a record: its topic_router returned %r, "
+                    "which is not a topic name.",
+                    topic,
+                )
+                return None
         else:
             # Fallback to standard desflow routing
             stream = data["stream_type"]
@@ -1206,6 +1259,85 @@ class KafkaEgress(BaseEgress):
         messages = (self._message(data) for data in batch)
         return [message for message in messages if message is not None]
 
+    @staticmethod
+    def _warn_dropped(unsent: list) -> None:
+        """Warns how many held records are dropped because the sink was cancelled.
+
+        Args:
+            unsent: The records a broker error left unconfirmed.
+        """
+        if unsent:
+            logger.warning(
+                "Kafka Egress was cancelled with %d unconfirmed records not sent; "
+                "they are dropped.",
+                len(unsent),
+            )
+
+    async def _send_messages(
+        self,
+        producer: Any,
+        messages: List[Tuple[str, Optional[bytes], Optional[bytes]]],
+        unsent: list,
+    ) -> None:
+        """Sends the messages of one batch and waits for the broker to confirm them.
+
+        A record that Kafka refuses is skipped with a warning. Any other error ends
+        the call with the error, and `unsent` then holds the records the broker has
+        not confirmed, for `run` to send once the producer is back. A record sent
+        before the error whose delivery was not confirmed is among them, so it can
+        arrive twice.
+
+        Args:
+            producer: The started producer.
+            messages: The topic, key and bytes of each record.
+            unsent: Receives the unconfirmed records when the call fails.
+        """
+        done: set = set()
+        # A topic Kafka does not have or refuses is not asked again for the rest of
+        # the batch: each ask waits for the metadata
+        refused: dict = {}
+        # The broker refuses a record after `send` returns, by failing the delivery
+        # future it returned
+        deliveries = []
+        try:
+            for index, (topic, key, payload_bytes) in enumerate(messages):
+                if topic in refused:
+                    self._warn_not_sent(key, topic, refused[topic])
+                    done.add(index)
+                    continue
+                try:
+                    delivery = await producer.send(topic, value=payload_bytes, key=key)
+                    if asyncio.isfuture(delivery):
+                        deliveries.append((index, topic, key, delivery))
+                    else:
+                        done.add(index)
+                except RECORD_ERRORS as error:
+                    # Kafka refuses this record, not the connection: the producer is
+                    # not restarted and the rest of the batch is sent.
+                    self._warn_not_sent(key, topic, error)
+                    done.add(index)
+                    if not isinstance(error, MessageSizeTooLargeError):
+                        refused[topic] = error
+
+            # Every record is sent before any delivery is awaited, so the batch stays
+            # batched
+            for index, topic, key, delivery in deliveries:
+                try:
+                    await delivery
+                except RECORD_ERRORS as error:
+                    self._warn_not_sent(key, topic, error)
+                done.add(index)
+        except Exception:
+            unsent.extend(m for i, m in enumerate(messages) if i not in done)
+            logger.warning(
+                "Kafka Egress keeps %d of %d records of the batch and sends them "
+                "again when the producer is back; a record that was on its way can "
+                "arrive twice.",
+                len(unsent),
+                len(messages),
+            )
+            raise
+
     async def _messages_with_retry(
         self, batch: list
     ) -> List[Tuple[str, Optional[bytes], Optional[bytes]]]:
@@ -1231,7 +1363,7 @@ class KafkaEgress(BaseEgress):
         delay = FIRST_DELAY
         while True:
             try:
-                return await asyncio.to_thread(self._messages, batch)
+                return await run_in_daemon_thread(self._messages, batch)
             except Exception as error:
                 if not is_temporary(error):
                     raise
@@ -1257,7 +1389,13 @@ class KafkaEgress(BaseEgress):
         serializer refuses, with a `SerializationError`, a value error or a
         `SchemaRegistryError` with a 4xx status other than a throttled call, is
         skipped with a warning that names its key and the reason, and the rest of
-        the batch is sent. A registry that fails for a time (a 5xx status, a
+        the batch is sent. A record that Kafka refuses (larger than
+        `max_request_size`, or for a topic Kafka does not have or refuses) is
+        skipped the same way, and a `topic_router` that returns None drops its
+        record. Any other error of a send or a delivery, such as a broker that
+        restarts, restarts the producer, and the records of the batch the broker has
+        not confirmed are sent again first; a record that was on its way at the error
+        can arrive twice. A registry that fails for a time (a 5xx status, a
         throttled call, a timeout or a lost connection) keeps the batch, which is
         tried again after a longer wait. A registry that refuses the sink's
         credentials or access (a 401 or 403 status, or the Glue error
@@ -1276,8 +1414,14 @@ class KafkaEgress(BaseEgress):
             The loop exits gracefully upon receiving an `asyncio.CancelledError`,
             ensuring the Kafka producer is stopped correctly.
         """
+        # A broker that is down at the start refuses the topic policy. It is applied
+        # again once the producer connects and before the first batch is sent, never
+        # after that: a `drop_and_create` would delete the records of the run.
+        topics_failed = False
+        # The records of a batch that a broker error interrupted, sent again first
+        unsent: list = []
         if self.topic_router is None or self.topics:
-            await asyncio.to_thread(self._create_topics)
+            topics_failed = await asyncio.to_thread(self._create_topics)
 
         backoff = 1.0
         max_backoff = 60.0
@@ -1291,23 +1435,46 @@ class KafkaEgress(BaseEgress):
                     await producer.start()
                     logger.info("Kafka Egress producer connected successfully.")
                     backoff = 1.0  # Reset backoff on successful connection
+                    delay = FIRST_DELAY
+                    for attempt in range(TOPIC_POLICY_RETRIES):
+                        if not topics_failed:
+                            break
+                        topics_failed = await asyncio.to_thread(self._create_topics)
+                        if topics_failed and attempt < TOPIC_POLICY_RETRIES - 1:
+                            await asyncio.sleep(delay)
+                            delay = next_delay(delay)
+                    if topics_failed:
+                        # The sink sends to the topics as they are, as it did when
+                        # one try failed. The policy is not tried again, so a
+                        # reconnect never runs a `drop_and_create` after a record
+                        # was sent.
+                        logger.warning(
+                            "The topic policy of the Kafka sink failed %d times; "
+                            "sending to the topics as they are.",
+                            TOPIC_POLICY_RETRIES + 1,
+                        )
+                        topics_failed = False
 
                     while True:
                         try:
-                            # 'batch' is a list of dictionaries from the EgressMixIn
-                            batch = egress_queue.get_nowait()
+                            if unsent:
+                                # What a broker error left of the last batch
+                                messages = list(unsent)
+                                unsent.clear()
+                            else:
+                                # 'batch' is a list of dictionaries from the
+                                # EgressMixIn
+                                batch = egress_queue.get_nowait()
+                                messages = None
                             with self._writing():
-                                # Kafka routes by __topic__, and writes no other
-                                # reserved key
-                                batch = drop_reserved_keys(
-                                    batch, self, keep=("__topic__",)
-                                )
-
-                                messages = await self._messages_with_retry(batch)
-                                for topic, key, payload_bytes in messages:
-                                    await producer.send(
-                                        topic, value=payload_bytes, key=key
+                                if messages is None:
+                                    # Kafka routes by __topic__, and writes no
+                                    # other reserved key
+                                    batch = drop_reserved_keys(
+                                        batch, self, keep=("__topic__",)
                                     )
+                                    messages = await self._messages_with_retry(batch)
+                                await self._send_messages(producer, messages, unsent)
 
                         except queue.Empty:
                             # Yield to loop if queue is empty
@@ -1317,6 +1484,7 @@ class KafkaEgress(BaseEgress):
 
             except asyncio.CancelledError:
                 logger.info("Kafka Egress shut down requested. Exiting loop.")
+                self._warn_dropped(unsent)
                 break
             except Exception as e:
                 if refuses_access(e):
@@ -1324,5 +1492,9 @@ class KafkaEgress(BaseEgress):
                 logger.error(
                     f"Kafka Egress connection failed: {e}. Retrying in {backoff} seconds..."
                 )
-                await asyncio.sleep(backoff)
+                try:
+                    await asyncio.sleep(backoff)
+                except asyncio.CancelledError:
+                    self._warn_dropped(unsent)
+                    raise
                 backoff = min(backoff * 2, max_backoff)

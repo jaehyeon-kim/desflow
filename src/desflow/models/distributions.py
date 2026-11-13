@@ -148,7 +148,9 @@ def _check_lognormal(c: Any) -> None:
 
 def _lognormal_log_parameters(c: Any) -> Tuple[float, float]:
     """The mean and standard deviation of the logarithm of a lognormal draw."""
-    m, s = c.mean, c.std
+    # A whole number is converted first: its square can pass the largest int64, and
+    # NumPy then fails on an object array
+    m, s = float(c.mean), float(c.std)
     mu = np.log(m**2 / np.sqrt(s**2 + m**2))
     sigma = np.sqrt(np.log(1 + (s**2 / m**2)))
     return mu, sigma
@@ -176,6 +178,18 @@ def _check_truncated_normal(c: Any) -> None:
             f"truncated_normal with std 0 needs a mean of at least low "
             f"{c.low}, got {c.mean}"
         )
+    if c.std > 0:
+        try:
+            distance = (float(c.low) - float(c.mean)) / float(c.std)
+            reachable = math.isfinite(distance * distance)
+        except (OverflowError, ZeroDivisionError):
+            reachable = False
+        if not reachable and float(c.low) > float(c.mean):
+            raise ValueError(
+                f"truncated_normal low {c.low:g} is too far above mean {c.mean:g} "
+                f"for std {c.std:g}: the distance in std squared passes the largest "
+                f"float, so no value can be drawn"
+            )
 
 
 def _draw_truncated_normal(c: Any, rng: np.random.Generator) -> float:

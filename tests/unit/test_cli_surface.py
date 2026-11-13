@@ -60,9 +60,10 @@ import contextlib
 import copy
 import io
 import json
+import types
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Any, Dict, List, Optional, Tuple
+from typing import Annotated, Any, Dict, List, Optional, Tuple, get_args
 
 import pytest
 import typer
@@ -100,7 +101,36 @@ UPKEEP_MESSAGE = (
 #   "value:<path>.<name>"                       new value: the new value as JSON
 # Each value is (new, release, reason). A path reads as in a failure, for example
 # "desflow run.callback".
-TYPER_CHANGES: Dict[str, Tuple[str, str, str]] = {}
+TYPER_CHANGES: Dict[str, Tuple[str, str, str]] = {
+    **{
+        f"class:{old}": (
+            f"typer._coercion.TypeDescriptor:{kind}",
+            "typer 0.29.0",
+            "Typer moved the validation of parameters to Pydantic and dropped the "
+            "Click type objects, so a parameter keeps no type object. "
+            "`_type_of` reads the same facts from `param.min`, `param.max` and "
+            "`param.type_descriptor`, and names the type by its kind.",
+        )
+        for old, kind in (
+            ("typer._click.types.StringParamType", "String"),
+            ("typer._click.types.IntParamType", "Int"),
+            ("typer._click.types.FloatParamType", "Float"),
+            ("typer._click.types.BoolParamType", "Bool"),
+            ("typer._click.types.IntRange", "IntRange"),
+            ("typer.models.TyperPath", "Path"),
+        )
+    },
+    **{
+        f"attr:type.{name}": (
+            "",
+            "typer 0.29.0",
+            "The range is validated by Pydantic, which has no open limit and no "
+            "clamping. Typer 0.28 set both to false for every range of desflow, and "
+            "the replay shows that a value outside a limit is still refused.",
+        )
+        for name in ("min_open", "max_open", "clamp")
+    },
+}
 
 # The names of the files and the folder that the argument lists name.
 FILES = ("file_1.txt", "file_2.txt", "file_3.txt")
@@ -169,8 +199,45 @@ def _walk(command: Any, path: List[str]) -> List[Tuple[List[str], Any]]:
 # The argument lists of one command, made from its parameters.
 
 
+def _type_of(param: Any) -> Any:
+    """What Typer 0.29 keeps of the type of a parameter, named as Click named it: its
+    kind, and the limits of a range, the checks of a path or the choices, which are
+    the attributes that the type has only when it is that kind. Typer 0.29 keeps them
+    in `param.type_descriptor` (typer/core.py), its `parameter_info` and, for the
+    limits, `param.min` and `param.max`; it has no type object."""
+    desc = param.type_descriptor
+    annotation = desc.annotation
+    if desc.is_list:
+        (annotation,) = get_args(annotation)
+    info = desc.parameter_info
+    if desc.is_choice:
+        choices = [c.value if isinstance(c, Enum) else c for c in desc.choices]
+        return types.SimpleNamespace(kind="Choice", choices=choices)
+    if desc.is_path or (isinstance(annotation, type) and issubclass(annotation, Path)):
+        return types.SimpleNamespace(
+            kind="Path",
+            name={"dir": "directory"}.get(desc.path_type, desc.path_type),
+            exists=info.exists,
+            file_okay=info.file_okay,
+            dir_okay=info.dir_okay,
+            writable=info.writable,
+            readable=info.readable,
+            resolve_path=info.resolve_path,
+            allow_dash=info.allow_dash,
+            type=info.path_type,
+        )
+    if desc.is_ranged:
+        return types.SimpleNamespace(
+            kind=f"{annotation.__name__.capitalize()}Range",
+            min=param.min,
+            max=param.max,
+        )
+    names = {int: "Int", float: "Float", bool: "Bool"}
+    return types.SimpleNamespace(kind=names.get(annotation, "String"))
+
+
 def _kind(param_type: Any) -> str:
-    return type(param_type).__name__.removeprefix("Typer")
+    return param_type.kind
 
 
 def _numbers(param_type: Any) -> List[str]:
@@ -194,7 +261,8 @@ def _numbers(param_type: Any) -> List[str]:
 
 def _samples(param: Any) -> List[List[str]]:
     """The values to try for one parameter, each as the tokens that give it."""
-    param_type, kind = param.type, _kind(param.type)
+    param_type = _type_of(param)
+    kind = _kind(param_type)
     if getattr(param_type, "choices", None) is not None:
         values = [str(choice) for choice in param_type.choices]
     elif hasattr(param_type, "min") and hasattr(param_type, "max"):
@@ -212,18 +280,20 @@ def _samples(param: Any) -> List[List[str]]:
 
 def _valid(param: Any) -> List[str]:
     """Tokens that give the parameter a value that 1.0 accepts."""
-    if hasattr(param.type, "exists") and not param.type.file_okay:
+    param_type = _type_of(param)
+    if hasattr(param_type, "exists") and not param_type.file_okay:
         return [FOLDER]
-    if hasattr(param.type, "exists"):
+    if hasattr(param_type, "exists"):
         return [FILES[0]]
     return _samples(param)[0]
 
 
 def _three(param: Any) -> List[str]:
     """Three values for a variadic argument."""
-    if hasattr(param.type, "exists"):
+    param_type = _type_of(param)
+    if hasattr(param_type, "exists"):
         return list(FILES)
-    if hasattr(param.type, "min") or _kind(param.type)[:3] in ("Int", "Flo"):
+    if hasattr(param_type, "min") or _kind(param_type)[:3] in ("Int", "Flo"):
         return _valid(param) * 3
     return ["a", "b", "c"]
 
@@ -233,7 +303,9 @@ def _is_argument(param: Any) -> bool:
 
 
 def _is_flag(param: Any) -> bool:
-    return bool(getattr(param, "is_flag", False)) and not hasattr(param.type, "choices")
+    return bool(getattr(param, "is_flag", False)) and not hasattr(
+        _type_of(param), "choices"
+    )
 
 
 def _required(
@@ -455,9 +527,13 @@ CHOICE = ("choices", "case_sensitive")  # click.Choice(choices, case_sensitive)
 TYPES = {
     "IntRange": INT_RANGE,
     "FloatRange": FLOAT_RANGE,
-    "TyperPath": PATH,
-    "TyperChoice": CHOICE,
+    "Path": PATH,
+    "Choice": CHOICE,
 }
+
+
+def _type_class(param: Any) -> str:
+    return f"typer._coercion.TypeDescriptor:{_type_of(param).kind}"
 
 
 def _class_path(obj: Any) -> str:
@@ -475,10 +551,8 @@ def _describe_param(param: Any) -> Dict[str, Any]:
         "class": _class_path(param),
         "attrs": _declared(param, names),
         "type": {
-            "class": _class_path(param.type),
-            "attrs": _declared(
-                param.type, TYPES.get(type(param.type).__qualname__, ())
-            ),
+            "class": _type_class(param),
+            "attrs": _declared(_type_of(param), TYPES.get(_type_of(param).kind, ())),
         },
     }
 

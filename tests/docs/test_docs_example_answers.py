@@ -37,7 +37,7 @@ def _blueprint(tmp_path: Path, name: str, folder: str = "yaml") -> Path:
 
 
 def test_parquet_rows_and_files_are_the_pages_figures(tmp_path):
-    """A week of the shop is 3621530 rows in 725 files, as the page says."""
+    """A week of the shop is 3627756 rows in 726 files, as the page says."""
     import pyarrow.dataset as ds
 
     _blueprint(tmp_path, "parquet.yaml")
@@ -45,7 +45,7 @@ def test_parquet_rows_and_files_are_the_pages_figures(tmp_path):
     files = list((tmp_path / "data").glob("*.parquet"))
     rows = ds.dataset(tmp_path / "data", format="parquet").count_rows()
     page = _page("parquet.md")
-    assert (rows, len(files)) == (3621530, 725)
+    assert (rows, len(files)) == (3627756, 726)
     assert f"It prints `{rows}`" in page
     assert f"`ls data | wc -l` prints `{len(files)}`" in page
 
@@ -60,8 +60,8 @@ def _backfill_without_kafka(tmp_path: Path) -> Path:
 
 
 def test_backfill_live_history_rows_and_first_live_event(tmp_path):
-    """957 history rows, and the first event at or after go-live is orders-320 queued
-    at 600.1107008261746, as the page says. The rows stay below batch_size, so the page's 10
+    """854 history rows, and the first event at or after go-live is orders-285 finished
+    at 601.9874667777033, as the page says. The rows stay below batch_size, so the page's 10
     seconds rests on the flush_interval setting, which this checks. The timing itself
     was measured once and is not checked here."""
     import pyarrow.parquet as pq
@@ -71,7 +71,7 @@ def test_backfill_live_history_rows_and_first_live_event(tmp_path):
     _desflow(tmp_path, "run", path.name, "--until", "600")
     rows = pq.read_table(tmp_path / "data" / "backfill").num_rows
     page = _page("backfill-live.md")
-    assert rows == 957
+    assert rows == 854
     assert f"It prints `{rows}`" in page
     batching = yaml.safe_load(path.read_text())["batching"]
     assert rows < batching["batch_size"] and batching["flush_interval"] == 10.0
@@ -84,15 +84,15 @@ def test_backfill_live_history_rows_and_first_live_event(tmp_path):
         e for e in events if e["stream_type"] == "event" and e["sim_ts"] >= 600
     )
     assert (first["key"], first["value"]["status"], first["sim_ts"]) == (
-        "orders-320",
-        "queued",
-        600.1107008261746,
+        "orders-285",
+        "finished",
+        601.9874667777033,
     )
-    assert "(`orders-320` queued, at `sim_ts` 600.1107008261746)" in page
+    assert "(`orders-285` finished, at `sim_ts` 601.9874667777033)" in page
 
 
 def test_iceberg_rows_and_snapshots_are_the_pages_figures(tmp_path):
-    """A day of the shop is 515786 rows in 3 snapshots, as the page says, here in a
+    """A day of the shop is 518773 rows in 3 snapshots, as the page says, here in a
     SQLite catalog with a local warehouse in place of the REST catalog."""
     from pyiceberg.catalog import load_catalog
 
@@ -111,7 +111,7 @@ def test_iceberg_rows_and_snapshots_are_the_pages_figures(tmp_path):
     _desflow(tmp_path, "run", "iceberg.yaml")
     table = load_catalog("local", **properties).load_table("simulation.events")
     rows, snapshots = table.scan().to_arrow().num_rows, len(table.snapshots())
-    assert (rows, snapshots) == (515786, 3)
+    assert (rows, snapshots) == (518773, 3)
     assert f"`{rows} {snapshots}`" in _page("iceberg.md")
 
 

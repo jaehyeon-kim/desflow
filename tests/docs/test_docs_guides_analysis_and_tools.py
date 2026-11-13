@@ -47,21 +47,21 @@ def test_desflow_test_passes_the_tests_of_each_form(form, tmp_path, monkeypatch)
 def test_a_test_that_differs_prints_the_page_lines_and_fix_repairs_it(
     tmp_path, monkeypatch
 ):
-    """`finished: 300` in place of 319 fails with the lines the page shows, and
+    """`finished: 300` in place of 284 fails with the lines the page shows, and
     `--fix` writes the measured value."""
     monkeypatch.chdir(tmp_path)
     blueprint = tmp_path / "test_a_model.yaml"
     blueprint.write_text(
         (YAML / "test_a_model.yaml")
         .read_text("utf-8")
-        .replace("finished: 319", "finished: 300")
+        .replace("finished: 284", "finished: 300")
     )
     code, output = _desflow("test_a_model.yaml")
     assert code == 1
     assert f"```text\n{output}```" in PAGE
     code, output = _desflow("--fix", "test_a_model.yaml")
     assert code == 0 and output.startswith("fixed test_a_model.yaml: two packers")
-    assert "finished: 319" in blueprint.read_text("utf-8")
+    assert "finished: 284" in blueprint.read_text("utf-8")
     assert _desflow("test_a_model.yaml")[0] == 0
 
 
@@ -249,7 +249,7 @@ def test_the_recommender_forms_rank_alike_and_match_a_reference_score(
 @pytest.mark.parametrize("form", ["yaml", "builder", "low_level"])
 def test_the_pipeline_tests_pass_in_each_form(form, tmp_path):
     """The saved files of a form run under pytest, 4 tests pass, and every form flags the
-    windows at 330, 340 and 350 seconds that the page names."""
+    windows at 320, 330 and 340 seconds that the page names."""
     import subprocess
 
     copy_into(
@@ -291,7 +291,7 @@ def test_the_pipeline_tests_pass_in_each_form(form, tmp_path):
     events = pipeline.read_lines(f"{tmp_path}/again/data")
     labels = pipeline.read_lines(f"{tmp_path}/again/labels")
     flagged = pipeline.find_surges(events)
-    assert flagged == [330, 340, 350]
+    assert flagged == [320, 330, 340]
     assert pipeline.score(flagged, labels) == {"caught": 1, "missed": 0, "false": 0}
     # The page states the windows the run flags and the score it gives
     page = (ROOT / "docs/how-to/analysis/test-a-pipeline.md").read_text("utf-8")

@@ -47,6 +47,7 @@ from desflow.core import rules
 from desflow.config import INTERRUPT_POLICIES, STATS_LEVELS
 from desflow.explain.models import Explanation
 from desflow.utils import MULTIPLIERS
+from desflow.values import models as value_models
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_FILE = ROOT / "src" / "desflow" / "blueprint" / "blueprint.schema.json"
@@ -220,6 +221,12 @@ INPUT_FORMS: Dict[Tuple[str, str], Any] = {
     # An `on:` value that is a mapping with no `gen` is data, as the Value type says
     ("_generator_or_data", "_value_form"): None,
     ("_capacity_text", "_capacity_numbers"): None,
+    # The generator models refuse a boolean, or a float where a whole number is read
+    ("_number_fields", "_plain_rates"): None,
+    ("_number_fields", "_plain_numbers"): None,
+    ("_number_fields", "_plain_bounds"): None,
+    ("_whole_number_fields", "_whole_decimals"): None,
+    ("_whole_number_fields", "_whole_counts"): None,
 }
 
 _OUTSIDE = ("default", "description", "title")
@@ -270,8 +277,15 @@ class _Schema(GenerateJsonSchema):
 def model_classes() -> Dict[str, Type[BaseModel]]:
     """Every blueprint model, by class name: the subclasses of `StrictModel` and `StrictModel`'s
     own subclasses in turn, with `Blueprint`, from `blueprint.models` and from
-    `core.rules`, which holds the models the builder shares."""
-    found: Dict[str, Type[BaseModel]] = {}
+    `core.rules`, which holds the models the builder shares, and the generator models
+    of `values.models`."""
+    found: Dict[str, Type[BaseModel]] = {
+        name: model
+        for name, model in vars(value_models).items()
+        if isinstance(model, type)
+        and issubclass(model, BaseModel)
+        and model.__module__ == value_models.__name__
+    }
     pending: List[Type[BaseModel]] = [rules.StrictModel]
     while pending:
         for sub in pending.pop().__subclasses__():

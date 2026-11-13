@@ -6,7 +6,7 @@ both; low-level code uses `Router` directly and calls `get` and `put` itself.
 """
 
 import inspect
-import math
+import keyword
 import numbers
 import re
 from dataclasses import dataclass
@@ -17,7 +17,7 @@ import numpy as np
 from desflow.core.expressions import ANY_NAME, Expression, Scope, boolean_word
 from desflow.core.families import Reference, name_of
 from desflow.models.flow import Upstream, payload_of
-from desflow.utils import checked_priority
+from desflow.utils import checked_priority, is_finite
 
 NextSpec = Union[None, str, Mapping[str, Any], Callable[[Upstream], Optional[str]]]
 Amount = Union[float, str, Callable[[Any, Dict[str, Any]], float]]
@@ -410,7 +410,7 @@ def check_batch_size(size: Any) -> None:
         ValueError: Naming the value.
     """
     if isinstance(size, bool) or (
-        isinstance(size, numbers.Real) and not math.isfinite(size)
+        isinstance(size, numbers.Real) and not is_finite(size)
     ):
         raise ValueError(f"batch size gave {size!r}, which is not a finite number")
 
@@ -420,7 +420,7 @@ def _checked_amount(amount: Any, what: str) -> None:
     if (
         isinstance(amount, bool)
         or not isinstance(amount, numbers.Real)
-        or not math.isfinite(amount)
+        or not is_finite(amount)
         or amount <= 0
     ):
         raise ValueError(
@@ -438,7 +438,7 @@ def _checked_weight(name: Any, weight: Any) -> Union[int, float]:
         raise ValueError(f"the weight of '{name}' must be a number")
     if not weight >= 0:
         raise ValueError(f"the weight of '{name}' must be 0 or more")
-    if not math.isfinite(weight):
+    if not is_finite(weight):
         raise ValueError(f"the weight of '{name}' must be a finite number")
     return weight
 
@@ -1397,7 +1397,7 @@ def _each_elements(value: Any) -> Any:
     if isinstance(value, float):
         raise ValueError(f"each is a whole number of 0 or more, got {value!r}")
     if isinstance(value, numbers.Real):
-        count = int(float(value))
+        count = int(float(value)) if is_finite(value) else -1
         if value < 0 or count != value:
             raise ValueError(f"each is a whole number of 0 or more, got {value!r}")
         return count
@@ -1469,10 +1469,15 @@ class Open:
                 f"open takes a mapping of names to wait branches, got {spec!r}"
             )
         for name in spec:
-            if not isinstance(name, str) or not name.isidentifier():
+            if (
+                not isinstance(name, str)
+                or not name.isidentifier()
+                or keyword.iskeyword(name)
+            ):
                 raise ValueError(
                     f"an open name is read as handle.<name>, so it is letters, "
-                    f"digits and _, not starting with a digit, got {name!r}"
+                    f"digits and _, not starting with a digit and not a Python "
+                    f"keyword, got {name!r}"
                 )
         self.wait = Wait({"all": dict(spec)})
         self.nodes: Dict[str, WaitNode] = {n.name: n for n in self.wait.root.children}  # type: ignore[misc]

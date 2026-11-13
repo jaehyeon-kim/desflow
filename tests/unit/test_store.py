@@ -238,3 +238,65 @@ def test_a_store_and_a_container_start_at_capacity_0():
     env.run(until=20)
     env.teardown()
     assert done == [("box", 5), ("oil", 10)]
+
+
+def test_a_number_and_a_list_priority_in_one_store_are_refused(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    store = DynamicStore(env, "Shop", "buffer1", priority=True)
+    store.put(simpy.PriorityItem(priority=1, item="a"))
+    with pytest.raises(ValueError, match="store 'buffer1' cannot rank the priority 1"):
+        store.put(simpy.PriorityItem(priority=[0, 1], item="b"))
+    with pytest.raises(ValueError, match="store 'buffer1' cannot rank the priority 1"):
+        store.put(item=simpy.PriorityItem(priority=[0, 1], item="b"))
+    with pytest.raises(ValueError, match="\\(a number\\) with \\[0, 1\\] \\(a list\\)"):
+        store.wrap("b", [0, 1])
+
+
+def test_starting_priorities_of_a_number_and_a_list_are_refused(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    with pytest.raises(ValueError, match="store 'buffer1' cannot rank the priority 1"):
+        DynamicStore(
+            env, "Shop", "buffer1", priority=True, items=[(1, "a"), ([0, 1], "b")]
+        )
+
+
+def test_a_put_at_the_instant_of_a_lower_capacity_waits(env, registry, sample_params):
+    """A capacity written at t=1 applies to a put at the same instant, as it does to
+    a resource request."""
+    registry.register_sim_parameter(sample_params)
+    store = DynamicStore(env, "Shop", "buffer1")
+    granted = []
+
+    def closer():
+        yield env.timeout(1)
+        registry.update("Shop.stores.buffer1.current_cap", 0)
+
+    def producer():
+        yield env.timeout(1)
+        granted.append(store.put("x").triggered)
+
+    env.process(closer())
+    env.process(producer())
+    env.run(until=3)
+    assert granted == [False]
+    assert store.level == 0
+
+
+def test_a_get_with_a_nan_rank_is_refused(env, registry, sample_params):
+    registry.register_sim_parameter(sample_params)
+    store = DynamicStore(env, "Shop", "buffer1", get_ties="fifo")
+    with pytest.raises(ValueError, match="rank must be a number that is not NaN"):
+        store.get(rank=float("nan"))
+
+
+def test_a_priority_item_with_a_nan_priority_is_refused(env, registry, sample_params):
+    from simpy import PriorityItem
+
+    registry.register_sim_parameter(sample_params)
+    store = DynamicStore(env, "Shop", "buffer1", priority=True)
+    with pytest.raises(ValueError, match="not NaN"):
+        store.put(PriorityItem(float("nan"), "x"))

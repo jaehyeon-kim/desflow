@@ -388,25 +388,35 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
         List[Dict[str, Any]]: The observed rows, checked.
 
     Raises:
-        ValueError: If a column is missing, a measure is not one of the experiment's,
-            a horizon is not a number or a duration, or a row's unit, population or
-            horizon differs from the simulated measure's.
+        ValueError: If a column is missing, the file has no rows, a measure is not one of the experiment's,
+            a row has more or fewer cells than the header, a value is not a finite
+            number, a horizon is not a number or a duration, or a row's unit,
+            population or horizon differs from the simulated measure's.
     """
     if spec.observed is None:
         return []
     path = folder / spec.observed.file
     # utf-8-sig skips the byte order mark that Excel's "CSV UTF-8" writes
     with path.open(newline="", encoding="utf-8-sig") as handle:
-        rows = list(csv.DictReader(handle))
+        reader = csv.DictReader(handle)
+        rows = list(reader)
     needed = ("measure", "value", "unit", "population", "horizon")
-    if rows and any(column not in rows[0] for column in needed):
+    if any(column not in (reader.fieldnames or []) for column in needed):
         raise ValueError(
             f"{path} needs the columns {', '.join(needed)}; add the missing ones"
+        )
+    if not rows:
+        raise ValueError(
+            f"{path} has no rows; add the observed values, or remove observed"
         )
     horizon = spec.until - (spec.warmup or 0.0)
     found = []
     for number, row in enumerate(rows, start=2):
         where = f"{path}:{number}"
+        if None in row or any(cell is None for cell in row.values()):
+            raise ValueError(
+                f"{where}: the row has more or fewer cells than the header has columns"
+            )
         measure = row["measure"].strip()
         if measure not in spec.measures:
             raise ValueError(
@@ -437,13 +447,24 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
         found.append(
             {
                 "measure": measure,
-                "value": float(row["value"]),
+                "value": _observed_value(row["value"], where),
                 "unit": unit,
                 "population": population,
                 "horizon": horizon,
             }
         )
     return found
+
+
+def _observed_value(text: str, where: str) -> float:
+    """An observed value as a finite number; the refusal names the file and row."""
+    try:
+        value = float(text)
+    except ValueError:
+        value = math.nan
+    if not math.isfinite(value):
+        raise ValueError(f"{where}: the observed value {text!r} is not a finite number")
+    return value
 
 
 def _horizon_seconds(text: str, where: str) -> float:

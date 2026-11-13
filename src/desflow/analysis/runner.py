@@ -13,7 +13,7 @@ import logging
 import platform
 import re
 import secrets
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import FIRST_EXCEPTION, ProcessPoolExecutor, wait
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import (
@@ -227,11 +227,17 @@ def replicate(
 
     Raises:
         ValueError: If `n` is below 2, `until` is missing, the level is not between
-            0 and 1, a measure is not a statistic of the model, or the model cannot
-            be sent to another process when `workers` is above 1.
+            0 and 1, `measures` is an empty list, a measure is not a statistic of the
+            model, or the model cannot be sent to another process when `workers` is
+            above 1.
     """
     if n < 2:
         raise ValueError(f"replications need n of 2 or more, got {n}")
+    if measures is not None and len(measures) == 0:
+        raise ValueError(
+            "measures is empty, so nothing would be measured; name the statistics, "
+            "or pass None for every one"
+        )
     if not 0.0 < level < 1.0:
         raise ValueError(f"level must be between 0 and 1, got {level}")
     if seed is not None:
@@ -316,12 +322,32 @@ def run_replications(
     )
     if workers > 1 and len(seeds) > 1:
         check_importable(model)
-        with ProcessPoolExecutor(max_workers=workers) as pool:
+        pool = ProcessPoolExecutor(max_workers=workers)
+        try:
             futures = [
                 pool.submit(run_once, model, seed=s, **options)  # type: ignore[arg-type]
                 for s in seeds
             ]
-            return [future.result() for future in futures]
+            wait(futures, return_when=FIRST_EXCEPTION)
+            for future in futures:
+                if (
+                    future.done()
+                    and not future.cancelled()
+                    and (future.exception() is not None)
+                ):
+                    future.result()
+            results = [future.result() for future in futures]
+        except BaseException:
+            # The first failure is raised now. Cancelling drops only the runs that
+            # were not sent to a worker, so the workers are ended too: each would
+            # start the run it was sent, and the process cannot exit until it ends.
+            workers_running = list((getattr(pool, "_processes", None) or {}).values())
+            pool.shutdown(wait=False, cancel_futures=True)
+            for process in workers_running:
+                process.terminate()
+            raise
+        pool.shutdown()
+        return results
     return [run_once(model, seed=s, **options) for s in seeds]  # type: ignore[arg-type]
 
 
@@ -540,9 +566,14 @@ def _checked_settings(spec: Union[str, Path, Mapping[str, Any], Any]) -> _Checke
     if settings.warmup is None:
         # The model's own warm-up, so the measured horizon is stated correctly
         context = context_of(model)
-        settings = settings.model_copy(
-            update={"warmup": context.warmup if context is not None else None}
-        )
+        own = context.warmup if context is not None else None
+        if own is not None and own >= settings.until:
+            raise located(
+                ("until",),
+                f"until ({settings.until:g} s) must be after the model's own warm-up "
+                f"({own:g} s); the measured window is until minus the warm-up",
+            )
+        settings = settings.model_copy(update={"warmup": own})
     observed = found.read_observed(settings, folder)
     return _Checked(
         settings=settings,
@@ -625,7 +656,11 @@ def _evidence(
         form = "low-level" if isinstance(model, LowLevelModel) else "builder"
         source = describe(model)
         target = model.function if isinstance(model, LowLevelModel) else model
-        name = inspect.getsourcefile(target) if callable(target) else None
+        try:
+            name = inspect.getsourcefile(target) if callable(target) else None
+        except TypeError:
+            # A `functools.partial` or an object with `__call__` has no source file
+            name = None
         source_file = Path(name) if name else None
     digest = (
         hashlib.sha256(source_file.read_bytes()).hexdigest()

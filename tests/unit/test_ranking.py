@@ -106,7 +106,7 @@ def test_a_bad_request_option_is_refused_at_load_with_its_line(tmp_path, task, m
 GOOD_MAPPING_TASKS = [
     "{priority: 2, wait: {request: p}, payload: {e: 1}}",
     "{priority: 2, wait: {all: {a: {request: p}, b: {request: {resource: p}}}}, payload: {e: 1}}",
-    "{preempt: false, seize: p, wait: {request: {resource: p}}, payload: {e: 1}}",
+    "{preempt: false, seize: p, wait: {request: {resource: m}}, payload: {e: 1}}",
     "{priority: 2, open: {k: {request: p}}, payload: {e: 1}}",
     "{preempt: true, wait: {request: {resource: p}}, payload: {e: 1}}",
 ]

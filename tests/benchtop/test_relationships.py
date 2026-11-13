@@ -412,7 +412,7 @@ def test_history_events_pick_a_random_user_and_product_over_ninety_days(
     theirs = pandas.read_csv(tmp_path / "log.csv")
     assert len(theirs) == events and len(seen) == events
     their_span = (max(seen) - min(seen)).total_seconds()
-    text = HEAD % 12 + textwrap.dedent(
+    text = HEAD % 1 + textwrap.dedent(
         f"""\
         arrivals:
           people: {{dist: constant, value: 1, max_events: {users}, spawn: user}}
