@@ -1060,3 +1060,59 @@ def test_patience_used_up_at_a_tie_does_not_stop_the_run(tmp_path, text, key, la
         if r["stream_type"] == "event" and r["key"] == key and "status" in r["value"]
     ]
     assert statuses[-1] == last
+
+
+WAIT_ERRORS = {
+    "condition": (
+        "containers: {stock: {max_cap: 10, level: 0}}\n"
+        "arrivals:\n"
+        "  w: {dist: constant, value: 0, spawn: waiter, max_events: 1}\n"
+        "  p: {dist: constant, value: 1, spawn: putter, max_events: 1}\n"
+        'tasks:\n  waiter: {wait: {condition: "level.stock >= 1 and attr.missing > 0"},'
+        " payload: {e: waited}%s}\n"
+        "  putter: {put: {container: stock, amount: 1}, payload: {e: put}}\n"
+    ),
+    "when": (
+        "arrivals: {w: {dist: constant, value: 0, spawn: waiter, max_events: 1}}\n"
+        'tasks:\n  waiter: {wait: {when: "done_count >= 1 and attr.missing > 0",'
+        " of: {a: {timeout: 1}, b: {timeout: 5}}}, payload: {e: waited}%s}\n"
+    ),
+    "filter": (
+        "stores: {box: {max_cap: 10}}\n"
+        "arrivals:\n"
+        "  g: {dist: constant, value: 0, spawn: waiter, max_events: 1}\n"
+        "  p: {dist: constant, value: 1, spawn: putter, max_events: 1}\n"
+        'tasks:\n  waiter: {get: {store: box, filter: "item.size > 1"},'
+        " payload: {e: got}%s}\n"
+        "  putter: {put: {store: box}, payload: {other: 1}}\n"
+    ),
+}
+
+
+@pytest.mark.parametrize("place", WAIT_ERRORS)
+def test_an_expression_of_a_wait_that_cannot_be_evaluated_fails_the_waiting_task(
+    tmp_path, place
+):
+    """A `condition`, a `when` predicate or a store `filter` is evaluated in another
+    task's step or a callback, but the failure is the waiting task's: under stop the
+    run stops with the error, under continue the waiter publishes `failed` and goes
+    to its `on_fail`, and the task that changed the state does not fail."""
+    head = "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+    tail = "  handler: {payload: {e: handled}}\nrun: {until: 10%s}\n"
+    body = WAIT_ERRORS[place]
+    stopped = run_yaml_text(tmp_path, head + body % "" + tail % "", {})
+    assert isinstance(stopped.error, ValueError)
+    kept = run_yaml_text(
+        tmp_path,
+        head + body % ", on_fail: handler" + tail % ", on_unhandled_failure: continue",
+        {},
+    )
+    assert kept.error is None
+    events = [
+        (r.get("task") or r.get("source"), r["value"])
+        for r in kept.records
+        if r["stream_type"] == "event"
+    ]
+    failed = [task for task, value in events if value.get("status") == "failed"]
+    assert failed == ["waiter"]
+    assert ("handler", {"e": "handled"}) in events

@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, Optional, Protocol, Tuple, Union
 from aiokafka import AIOKafkaConsumer, TopicPartition
 
 from desflow.connectors._retry import FIRST_DELAY, next_delay
+from desflow.connectors._threads import run_in_daemon_thread
 from desflow.connectors._schema_registry.unset import UNSET
 from desflow.connectors._schema_registry.errors import (  # noqa: F401
     SchemaRegistryError,
@@ -847,13 +848,16 @@ class KafkaIngress(BaseIngress):
         self.topic_policy = read_topic_policy(topic_policy)
         self.kwargs = with_security(kwargs, ssl, sasl_oauth_token_provider)
 
-    def _create_topic(self) -> None:
+    def _create_topic(self) -> bool:
         """
         Creates, recreates or leaves alone the control topic, as `topic_policy` says.
 
         The consumer settings the admin client also understands, such as the security
-        settings, are passed on to it. A failure is logged rather than raised,
-        because the consumer loop that follows retries the connection itself.
+        settings, are passed on to it. A failure is logged rather than raised, and
+        `run` applies the policy again once the consumer has connected.
+
+        Returns:
+            bool: True when the topic could not be created.
         """
         try:
             apply_topic_policies(
@@ -865,6 +869,8 @@ class KafkaIngress(BaseIngress):
             )
         except Exception as e:
             logger.warning(f"Could not create the topic {self.topic}: {e}")
+            return True
+        return False
 
     async def _deserialize(self, deserializer: Any, topic: str, value: Any) -> Any:
         """Returns the decoded message, waiting while the schema registry is down.
@@ -888,7 +894,9 @@ class KafkaIngress(BaseIngress):
         delay = FIRST_DELAY
         while True:
             try:
-                return await asyncio.to_thread(deserializer.deserialize, topic, value)
+                return await run_in_daemon_thread(
+                    deserializer.deserialize, topic, value
+                )
             except Exception as error:
                 if not is_temporary(error):
                     raise
@@ -921,7 +929,10 @@ class KafkaIngress(BaseIngress):
             SchemaRegistryError: If the registry refuses the deserializer's
                 credentials or access.
         """
-        await asyncio.to_thread(self._create_topic)
+        # A broker that is down at the start refuses the topic policy. It is applied
+        # again once the consumer connects, and not again after that: a
+        # `drop_and_create` would delete the control topic's messages.
+        topic_failed = await asyncio.to_thread(self._create_topic)
         backoff = 1.0
         # With a group, aiokafka commits the position of every message it has handed
         # on in the background, also while a message waits for the registry, and at
@@ -944,6 +955,8 @@ class KafkaIngress(BaseIngress):
                     await consumer.start()
                     logger.info(f"Connected to Kafka Ingress topic: {self.topic}")
                     backoff = 1.0
+                    if topic_failed:
+                        topic_failed = await asyncio.to_thread(self._create_topic)
 
                     async for msg in consumer:
                         try:

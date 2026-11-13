@@ -1097,6 +1097,9 @@ class SimulationContext:
         if not self._scenario_added:
             self._scenario_added = True
             self.add_process(self._run_scenario)
+            # It starts before every other startup process, so a step at time 0 applies
+            # before an arrival draws its first gap, whatever the order of declaration
+            self._startup_loops.insert(0, self._startup_loops.pop())
         self._scenario_steps.extend(checked)
         return self
 
@@ -1461,8 +1464,8 @@ class SimulationContext:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If `initial` is not a whole number above 0, or `gap` or
-                `vars` is refused as for `add_arrival`.
+            ValueError: If `name` is empty, `initial` is not a whole number above 0, or
+                `gap` or `vars` is refused as for `add_arrival`.
         """
         self._arrivals.add_initial_arrival(
             self._bind_values,
@@ -2207,7 +2210,8 @@ class SimulationContext:
         Args:
             name: The arrival's name.
             source: A CSV or Parquet file (Parquet needs the `parquet` extra), or
-                an iterable of mappings.
+                an iterable of mappings. An iterator is read into a list when it is
+                added, so every run replays its rows.
             time: The column of each row's time.
             unit: `ms`, `s`, `min` or `h` from the start of the run, or `timestamp`
                 for a date and time, which arrives when the run's records carry
@@ -3540,12 +3544,12 @@ class SimulationContext:
         reading or a flush timer, run in the same call and are not counted.
 
         Raises:
-            RuntimeError: If the run has not started, or it was ended by a `row` with
-                `on_end: stop` or by the last entry of `run.segments`, as `advance()`
-                raises (`close()` it, or `start()` a new run).
+            RuntimeError: If the run has not started or is closed, or it was ended by a
+                `row` with `on_end: stop` or by the last entry of `run.segments`, as
+                `advance()` raises (`close()` it, or `start()` a new run).
             simpy.core.EmptySchedule: If no model event is left.
         """
-        env = self.env
+        env = self._started_env("step()")
         if self._run.stopped:
             raise RuntimeError(
                 f"the run ended at {env.now:g}; close() it, or start() a new run"
@@ -3565,10 +3569,23 @@ class SimulationContext:
         entry of `run.segments` has ended the run, because `step()` runs no more.
 
         Raises:
-            RuntimeError: If the run has not started.
+            RuntimeError: If the run has not started or is closed.
         """
-        env = self.env
+        env = self._started_env("peek()")
         return math.inf if self._run.stopped else env.peek()
+
+    def _started_env(self, call: str) -> DynamicRealtimeEnvironment:
+        """The environment of a started run, for the calls that need one.
+
+        Args:
+            call: The call's name, as the refusal names it.
+
+        Raises:
+            RuntimeError: If the run has not started or is closed.
+        """
+        if self._env is None or not self.started:
+            raise RuntimeError(f"{call} needs a run that start() has started")
+        return self._env
 
     def close(self) -> None:
         """
@@ -3643,6 +3660,18 @@ class SimulationContext:
                     elif limit is not None:
                         timer = schedule_urgent(env, env.internal_event(), limit)
                         timer.callbacks.append(finish)
+                    else:
+
+                        def end_idle_drain() -> None:
+                            logger.warning(
+                                "the drain ended with %d entities still in the model, "
+                                "which no event can move",
+                                self._run.in_system,
+                            )
+                            finish()
+
+                        # no model event is left and no limit will end the drain
+                        env._when_idle = end_idle_drain
 
                 horizon.callbacks.append(begin_drain)
             else:
@@ -3655,6 +3684,8 @@ class SimulationContext:
     def _mark_end(self, _event: Any) -> None:
         """Records that the end event has been processed, for `advance()`."""
         self._run.end_done = True
+        if self._env is not None:
+            self._env._when_idle = None
 
     def _stop_event(self, stop: Any) -> simpy.Event:
         """The event a `stop` names: a signal's next firing, a condition, or an event."""

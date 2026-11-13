@@ -171,36 +171,43 @@ def _next_serial() -> int:
 class TemplateNumbers:
     """The keys of the unnamed templates that one model's runs have rendered.
 
-    The first run that renders an unnamed template gives it the key
-    `template<n>`, where `n` counts the unnamed templates rendered so far. For one
-    model and seed the order of first renders is the same in every process, so the
-    keys, and with them the random sequences, do not depend on what else the
-    process built or ran before. Two unnamed templates of one model never share a
-    key. A template that two models share keeps the key the first gave it, and can
-    then share it with an unnamed template of the second model: give it a `name`.
+    The first render of an unnamed template in a context gives it the key
+    `template<n>` for this context, where `n` counts the unnamed templates the
+    context has rendered so far, and the random sequences of its generators are
+    named by that key (`place`). The template itself is not changed, so two contexts
+    that share it each number it by their own order of renders. For one model and
+    seed that order is the same in every process, so the keys, and with them the
+    random sequences, do not depend on what else the process built or ran before,
+    or on which seed a process ran first.
     """
 
     def __init__(self) -> None:
-        self._seen: "weakref.WeakSet[Template]" = weakref.WeakSet()
-        self._taken: Set[str] = set()
+        # The key each unnamed template has in this context, by the key it was made with
+        self._keys: Dict[str, str] = {}
 
     def number(self, template: "Template") -> None:
-        """Gives an unnamed template its key, once, and keeps it from the next one.
-
-        A template that an earlier run or another model numbered keeps its key.
+        """Gives an unnamed template its key in this context, once.
 
         Args:
             template: The template being rendered.
         """
-        if template.name or template in self._seen:
+        if template.name or template.key in self._keys:
             return
-        self._seen.add(template)
-        if not template._numbered:
-            n = len(self._taken) + 1
-            while f"template{n}" in self._taken:
-                n += 1
-            template._take_key(f"template{n}")
-        self._taken.add(template.key)
+        self._keys[template.key] = f"template{len(self._keys) + 1}"
+
+    def place(self, path: str) -> str:
+        """The place of a generator, with the key of its unnamed template in this
+        context where it starts with one.
+
+        Args:
+            path: The generator's place, such as `template57.payload.amount`.
+
+        Returns:
+            str: The place that names its random sequence.
+        """
+        head, dot, rest = path.partition(".")
+        key = self._keys.get(head)
+        return path if key is None else f"{key}{dot}{rest}"
 
 
 _NUMBERS_OF: "weakref.WeakKeyDictionary[Any, TemplateNumbers]" = (
@@ -294,13 +301,11 @@ class Template:
             ValueError: If a check finds a problem, such as a `row` file that does not
                 exist (a relative path is read from the working directory).
         """
-        # An unnamed template starts with a key from the process's creation order, so
-        # two never share a random sequence or a counter before a run renders them.
-        # The first run that renders it
-        # numbers it by the order of renders (`TemplateNumbers`), so two builds of one
-        # code give one key.
+        # An unnamed template has a key from the process's creation order, so two
+        # never share a counter or a row cursor. A run names the random sequences of
+        # its generators by the order of renders instead (`TemplateNumbers`), so two
+        # builds of one code give one sequence.
         self.name = name
-        self._numbered = bool(name)
         self.key: str = _key_of(name, None if name else _next_serial())
         # A name is a path: "tasks.wash" gives the generators the places a blueprint's
         # `tasks.wash.payload` has, and so the same random sequences
@@ -326,23 +331,6 @@ class Template:
         }
         if check:
             self._check(base)
-
-    def _take_key(self, key: str) -> None:
-        """Gives an unnamed template its key and binds its generators to it, so their
-        random sequences and counters do not depend on how many templates the process
-        made before.
-
-        Args:
-            key: The key, `template<n>`.
-        """
-        self._numbered = True
-        if key == self.key:
-            return
-        self.key = key
-        base = (key,)
-        bind(self.payload, base + ("payload",), overwrite=True)
-        bind(self.vars, base + ("vars",), overwrite=True)
-        bind(self.vars_once, base + ("vars_once",), overwrite=True)
 
     def _check(self, base: Tuple[str, ...]) -> None:
         problems: List[str] = []

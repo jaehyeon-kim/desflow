@@ -189,6 +189,22 @@ def test_mm1_mean_wait_lies_in_its_interval():
     assert abs(row["mean"] - 1.0) <= row["half_width"]
 
 
+def test_a_warmup_at_or_after_until_is_refused(blueprint):
+    """The warm-up would never end, so every value would cover the whole run."""
+    for model in (blueprint, shop, LowLevelModel(low_level, "Shop")):
+        with pytest.raises(ValueError, match="warm-up ends at 500 s"):
+            replicate(model, 2, seed=1, until=100, warmup=500)
+
+
+def test_a_blueprints_own_warmup_after_until_is_refused(tmp_path):
+    path = tmp_path / "late.yaml"
+    path.write_text(
+        BLUEPRINT.replace("factor: 0}", "factor: 0, warmup: 500}"), encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="warm-up ends at 500 s"):
+        replicate(path, 2, seed=1, until=100)
+
+
 def test_a_replication_reruns_with_its_seed(blueprint):
     """The third replication's value is what a run with its seed measures."""
     result = replicate(blueprint, 3, seed=5, until=None, measures=MEASURES)
@@ -469,6 +485,39 @@ def test_workers_refuse_a_function_from_an_interactive_session(monkeypatch):
         replicate(typed_in, 2, seed=1, until=100, workers=2)
     with pytest.raises(ValueError, match="Put the function in a file"):
         replicate(LowLevelModel(typed_in, "Shop"), 2, seed=1, until=100, workers=2)
+
+
+def _fails_once_then_sleeps(env, sampler):
+    """The first run that reaches it fails; the others take 3 s of wall time."""
+    import os
+
+    try:
+        os.close(os.open(os.environ["DESFLOW_FIRST_RUN_MARK"], os.O_CREAT | os.O_EXCL))
+    except FileExistsError:
+        time.sleep(3)
+    else:
+        raise RuntimeError("first run fails")
+    return None
+
+
+def test_a_failed_replication_ends_the_workers_that_are_running(tmp_path, monkeypatch):
+    """The runs already sent to a worker would start after the failure, and the
+    process could not exit until they ended."""
+    import multiprocessing
+
+    monkeypatch.setenv("DESFLOW_FIRST_RUN_MARK", str(tmp_path / "first"))
+    with pytest.raises(RuntimeError, match="first run fails"):
+        replicate(
+            LowLevelModel(_fails_once_then_sleeps, "P"),
+            12,
+            seed=1,
+            until=10,
+            workers=2,
+        )
+    deadline = time.monotonic() + 2.0
+    while multiprocessing.active_children() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert multiprocessing.active_children() == []
 
 
 def test_a_lower_max_cap_that_would_clamp_current_cap_is_refused(blueprint):

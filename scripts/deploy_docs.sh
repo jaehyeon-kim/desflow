@@ -13,12 +13,16 @@ VERSION=$(grep -m 1 '^version = ' pyproject.toml | cut -d '"' -f 2)
 echo "Extracted version: $VERSION"
 
 # The deploys of pipeline.yml and docs.yml wait for each other in the docs-deploy
-# group, but in the order they started, not by commit. A run whose commit is no longer
-# the head of main would replace newer docs as `latest`, so it stops here.
+# group, but in the order they started, not by commit, and GitHub cancels the deploy
+# that waits in the group when a newer one joins it. A run whose commit is no longer
+# the head of main would replace newer docs as `latest`, and the head's own deploy may
+# have been cancelled, so this run deploys the head of main instead.
 git fetch --quiet origin main
 if [ "$(git rev-parse FETCH_HEAD)" != "$(git rev-parse HEAD)" ]; then
-  echo "Skipped: $(git rev-parse --short HEAD) is not the head of main ($(git rev-parse --short FETCH_HEAD)), whose own run deploys the docs."
-  exit 0
+  echo "$(git rev-parse --short HEAD) is not the head of main ($(git rev-parse --short FETCH_HEAD)), so the head's docs are deployed."
+  git checkout --quiet --detach FETCH_HEAD
+  VERSION=$(grep -m 1 '^version = ' pyproject.toml | cut -d '"' -f 2)
+  echo "Extracted version: $VERSION"
 fi
 
 # Deploy the version and tag it as 'latest'

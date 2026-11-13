@@ -1,8 +1,9 @@
 import asyncio
 import logging
 import queue
+import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import yaml
 
@@ -10,6 +11,9 @@ from desflow.connectors._checks import checked_poll
 from desflow.connectors.ingress.base import BaseIngress, parse_change
 
 logger = logging.getLogger(__name__)
+
+# How long after a modification time the file's bytes are still compared at each check
+_RECENT_NS = 2_000_000_000
 
 
 def _same(previous: Any, value: Any) -> bool:
@@ -72,22 +76,34 @@ class FileIngress(BaseIngress):
             ingress_queue: A thread-safe queue used to transmit the (path, value)
                 updates to the SimulationRegistry.
         """
-        modified: Optional[int] = None
+        modified: Optional[Tuple[int, int]] = None
+        seen: Optional[bytes] = None
         previous: Dict[Any, Any] = {}
         try:
             while True:
                 try:
-                    current = self.path.stat().st_mtime_ns
+                    stat = self.path.stat()
                 except FileNotFoundError:
                     # Waited for without a log line; a file created later is read
                     modified = None
                 else:
-                    if current != modified:
-                        modified = current
-                        entries = self._read()
-                        if entries is not None:
-                            self._put_changes(entries, previous, ingress_queue)
-                            previous = entries
+                    stamp = (stat.st_mtime_ns, stat.st_size)
+                    # A second save within one tick of the file system's clock keeps
+                    # the modification time, and can keep the size. While the file
+                    # is that new, its bytes are compared at each check.
+                    recent = time.time_ns() - stat.st_mtime_ns < _RECENT_NS
+                    if stamp != modified or recent:
+                        try:
+                            content: Optional[bytes] = self.path.read_bytes()
+                        except OSError:
+                            content = None
+                        if stamp != modified or content != seen:
+                            modified = stamp
+                            seen = content
+                            entries = self._read()
+                            if entries is not None:
+                                self._put_changes(entries, previous, ingress_queue)
+                                previous = entries
                 await asyncio.sleep(self.poll)
         except asyncio.CancelledError:
             pass

@@ -5,6 +5,7 @@ of the installed release, such as `v0.17.0`, so an example always matches the co
 runs on. A development install has no tag and downloads from `main`.
 """
 
+import http.client
 import shlex
 import urllib.error
 import urllib.request
@@ -407,6 +408,11 @@ def download(
             ) from None
         except urllib.error.URLError as exc:
             raise RuntimeError(f"could not reach {url}: {exc.reason}") from None
+        except (OSError, http.client.HTTPException) as exc:
+            # A read that times out or is cut off after the answer began
+            raise RuntimeError(
+                f"could not download {url}: {exc or type(exc).__name__}"
+            ) from None
     # A shared file another version downloaded is kept when it is unchanged, so
     # versions can share a folder; one that differs is refused like any other
     shared_targets = {target for _, target in shared}

@@ -3582,3 +3582,125 @@ def test_interrupt_refuses_a_task_the_model_does_not_have():
 def test_a_factor_too_large_for_a_float_is_refused_when_the_context_is_made(factor):
     with pytest.raises(ValueError, match="factor gave a whole number too large"):
         SimulationContext(sim_id="S", factor=factor)
+
+
+@pytest.mark.parametrize("scenario_first", [False, True])
+def test_a_scenario_step_at_time_0_applies_before_an_arrival_draws_its_first_gap(
+    scenario_first,
+):
+    """The scenario starts before the arrivals, whatever the order they are added in,
+    so the first gap is drawn at the new rate."""
+    app = SimulationContext("S", factor=0, random_seed=1)
+    times = []
+
+    def add_step():
+        app.add_step(0, path="S.arrival.a.value", value=1.0)
+
+    if scenario_first:
+        add_step()
+    app.add_arrival("a", "constant", value=10.0, spawn="t")
+
+    @app.task(name="t")
+    def t(task_id, entity=None):
+        times.append(app.env.now)
+        return {}
+
+    if not scenario_first:
+        add_step()
+    app.run(until=5.5)
+    assert times == [1.0, 2.0, 3.0, 4.0, 5.0]
+
+
+def test_a_dropped_arrival_does_not_give_back_a_key_another_entity_took():
+    """A call of a task that shares an arrival's name takes the next number of that
+    arrival's keys, so the arrival dropped before it cannot give its number back."""
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_arrival("a", "constant", value=10.0, spawn="a", active=False)
+    keys = []
+
+    @app.task(name="a")
+    def a(task_id, entity=None):
+        keys.append(entity.key)
+        return {}
+
+    @app.task(name="switch_on", activate="a")
+    def switch_on(task_id, entity=None):
+        return {}
+
+    def driver(context):
+        yield context.env.timeout(5)
+        context.call("a")
+        yield context.env.timeout(7)
+        context.call("switch_on")
+
+    app.add_process(driver)
+    app.run(until=25)
+    assert len(keys) == len(set(keys))
+
+
+def test_rows_given_as_an_iterator_are_replayed_by_every_run():
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_arrival_replay("a", ({"time": t} for t in (1, 2, 3)), spawn="t")
+    runs = []
+
+    @app.task(name="t")
+    def t(task_id, entity=None):
+        runs[-1].append(app.env.now)
+        return {}
+
+    for _ in range(2):
+        runs.append([])
+        app.run(until=10)
+    assert runs == [[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]
+
+
+@pytest.mark.parametrize("stats", [False, True])
+def test_a_drain_with_no_limit_ends_when_no_entity_can_move(stats, caplog):
+    """The entity waits for a signal nothing fires. With or without statistics the
+    run ends, with a warning, and does not run for ever or raise SimPy's error."""
+    import threading
+
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_signal("never")
+    app.add_arrival("a", "constant", value=1.0, spawn="t", max_events=1)
+
+    @app.task(name="t", wait={"signal": "never"})
+    def t(task_id, entity=None):
+        return {}
+
+    app.add_egress(RecordingEgress())
+    if stats:
+        app.with_stats("basic", interval=1)
+    errors = []
+
+    def run():
+        try:
+            app.run(until=5, drain=True)
+        except BaseException as error:
+            errors.append(error)
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    thread.join(20)
+    assert not thread.is_alive()
+    assert errors == []
+    assert "1 entities still in the model" in caplog.text
+
+
+def test_step_and_peek_after_close_raise():
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_arrival("a", "constant", value=1.0, spawn="t")
+    app.task(name="t")(lambda task_id, entity=None: {})
+    app.add_egress(RecordingEgress())
+    app.start(until=3)
+    app.step()
+    app.close()
+    for call in (app.step, app.peek):
+        with pytest.raises(RuntimeError, match="needs a run that start"):
+            call()
+
+
+def test_an_initial_arrival_with_an_empty_name_is_refused_when_it_is_added():
+    app = SimulationContext("S", factor=0, random_seed=1)
+    with pytest.raises(ValueError, match="an arrival name is at least one character"):
+        app.add_initial_arrival("", 2, spawn="t")

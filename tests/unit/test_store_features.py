@@ -658,3 +658,28 @@ class _PlainGetChild(_PlainGetFilterStore):
 @pytest.mark.parametrize("cls", [_PlainGetFilterStore, _PlainGetChild])
 def test_a_filter_store_type_that_sets_a_default_get_keeps_it(cls):
     assert cls.get is StoreGet
+
+
+def test_a_second_run_of_one_context_starts_from_the_declared_items():
+    """A task that changes a starting item in place changes the run's copy, so every
+    run of the context starts from the items as declared."""
+    app = SimulationContext("S", factor=0)
+    app.add_store("box", items=[{"n": 0}])
+
+    @app.task(name="t", get={"store": "box"})
+    def t(task_id, item):
+        item["n"] += 1
+        return dict(item)
+
+    app.add_arrival("a", "constant", value=1, max_events=1, spawn="t")
+    runs = []
+    for _ in range(2):
+        records = run_builder(app, 5)
+        runs.append(
+            [
+                r["value"]
+                for r in records
+                if r["stream_type"] == "event" and "n" in r["value"]
+            ]
+        )
+    assert runs == [[{"n": 1}], [{"n": 1}]]

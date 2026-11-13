@@ -388,7 +388,7 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
         List[Dict[str, Any]]: The observed rows, checked.
 
     Raises:
-        ValueError: If a column is missing, a measure is not one of the experiment's,
+        ValueError: If a column is missing, the file has no rows, a measure is not one of the experiment's,
             a row has more or fewer cells than the header, a value is not a finite
             number, a horizon is not a number or a duration, or a row's unit,
             population or horizon differs from the simulated measure's.
@@ -398,11 +398,16 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
     path = folder / spec.observed.file
     # utf-8-sig skips the byte order mark that Excel's "CSV UTF-8" writes
     with path.open(newline="", encoding="utf-8-sig") as handle:
-        rows = list(csv.DictReader(handle))
+        reader = csv.DictReader(handle)
+        rows = list(reader)
     needed = ("measure", "value", "unit", "population", "horizon")
-    if rows and any(column not in rows[0] for column in needed):
+    if any(column not in (reader.fieldnames or []) for column in needed):
         raise ValueError(
             f"{path} needs the columns {', '.join(needed)}; add the missing ones"
+        )
+    if not rows:
+        raise ValueError(
+            f"{path} has no rows; add the observed values, or remove observed"
         )
     horizon = spec.until - (spec.warmup or 0.0)
     found = []

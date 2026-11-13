@@ -1,4 +1,5 @@
 import functools
+import threading
 
 import pytest
 import simpy
@@ -1012,3 +1013,51 @@ def test_a_breakdown_rate_set_to_a_tiny_value_during_a_run_does_not_stop_it(tmp_
         "run: {until: 10}\n"
     )
     SimulationContext.from_yaml(path).run(until=10)
+
+
+def test_a_busy_clock_with_less_time_left_than_the_clock_can_move_still_fails():
+    """At 2e8 s a float cannot move by 5e-9 s, so a timer for the 5e-9 s left of a
+    busy time to failure ends with the clock where it was. The resource then fails,
+    and the run ends, where it made the same timer for ever."""
+    from desflow.builder.context import SimulationContext
+
+    app = SimulationContext("S", factor=0)
+    app.add_resource("m", current_cap=1)
+    app.add_breakdown(
+        "m",
+        time_to_failure={"dist": "constant", "value": 1.000000005},
+        repair={"dist": "constant", "value": 1},
+        clock="busy",
+    )
+    app.task(name="t", resource_id="m", service_time=1)(lambda task_id: {"e": 1})
+    app.add_arrival("a", "constant", value=1e8, spawn="t", max_events=2)
+    thread = threading.Thread(target=app.run, kwargs={"until": 3e8}, daemon=True)
+    thread.start()
+    thread.join(20)
+    assert not thread.is_alive()
+    assert app.env.now == 3e8
+
+
+def test_a_request_refused_for_a_full_line_does_not_fix_the_kind_of_priority(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    _set_cap(registry, 0)
+    flush_events(env)
+    res = DynamicResource(env, "Shop", "packers", queue="priority", queue_limit=0)
+    with pytest.raises(RuntimeError, match="Queue is full"):
+        res.request(priority=[1, 2])
+    registry.update("Shop.resources.packers.queue_limit", None)
+    flush_events(env)
+    res.request(priority=5)
+    assert len(res.queue) == 1
+
+
+def test_a_decimal_priority_is_accepted_as_a_number(env, registry, sample_params):
+    from decimal import Decimal
+
+    registry.register_sim_parameter(sample_params)
+    res = DynamicResource(env, "Shop", "packers", queue="priority")
+    assert res.request(priority=Decimal("1")).triggered
+    with pytest.raises(ValueError, match="not NaN"):
+        res.request(priority=Decimal("NaN"))

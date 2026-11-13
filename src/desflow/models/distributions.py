@@ -178,6 +178,18 @@ def _check_truncated_normal(c: Any) -> None:
             f"truncated_normal with std 0 needs a mean of at least low "
             f"{c.low}, got {c.mean}"
         )
+    if c.std > 0:
+        try:
+            distance = (float(c.low) - float(c.mean)) / float(c.std)
+            reachable = math.isfinite(distance * distance)
+        except (OverflowError, ZeroDivisionError):
+            reachable = False
+        if not reachable and float(c.low) > float(c.mean):
+            raise ValueError(
+                f"truncated_normal low {c.low:g} is too far above mean {c.mean:g} "
+                f"for std {c.std:g}: the distance in std squared passes the largest "
+                f"float, so no value can be drawn"
+            )
 
 
 def _draw_truncated_normal(c: Any, rng: np.random.Generator) -> float:

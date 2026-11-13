@@ -260,3 +260,20 @@ def test_yaml_refuses_true_for_a_size_or_an_interval(tmp_path, edit):
     path.write_text(pyyaml.safe_dump(_model(edit)))
     with pytest.raises(Exception, match="m.yaml"):
         SimulationContext.from_yaml(path)
+
+
+def test_a_negative_fraction_is_refused_with_a_value_error_where_a_fraction_cannot_format():
+    """Python 3.11's `Fraction` has no float-style format; the message formats the
+    float of it."""
+    from fractions import Fraction
+
+    from desflow.utils import checked_interval, checked_seconds
+
+    class NoFormat(Fraction):
+        def __format__(self, spec):
+            raise TypeError("unsupported format string passed to Fraction.__format__")
+
+    with pytest.raises(ValueError, match="below 0"):
+        checked_seconds(NoFormat(-1, 2), "x")
+    with pytest.raises(ValueError, match="above 0"):
+        checked_interval(NoFormat(0), "x")

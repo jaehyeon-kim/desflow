@@ -129,6 +129,10 @@ def _busy_time(
             # The timer won: drop the event, so a resource that never goes idle does
             # not collect one for each failure
             resource._forget_waiter(idle)
+            if env.now == began:
+                # The timer ended and the clock did not move: the time left is below
+                # the precision of the clock at this time, so no later timer moves it
+                return
         left -= env.now - began
         if left <= _BUSY_EPSILON:
             return

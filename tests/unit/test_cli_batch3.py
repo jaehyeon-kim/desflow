@@ -441,6 +441,18 @@ def test_test_fix_fills_an_empty_expect(tmp_path):
     assert "tasks.pack_order.finished: 3" in path.read_text(encoding="utf-8")
 
 
+def test_test_fix_refuses_a_test_written_as_a_flow_mapping(tmp_path):
+    """A test written as `- {name: t1}` cannot take an `expect` block below it, so
+    `--fix` refuses it and leaves the file as it is."""
+    text = textwrap.dedent(SHOP) + "tests:\n  - {name: t1, seed: 3}\n"
+    path = _write(tmp_path, "shop.yaml", text)
+    result = CliRunner().invoke(cli, ["test", str(path), "--fix"])
+    assert result.exit_code != 0
+    assert "block mapping that starts with `- `" in result.output
+    assert path.read_text(encoding="utf-8") == text
+    assert CliRunner().invoke(cli, ["check", str(path)]).exit_code == 0
+
+
 def test_test_of_a_builder_file_reads_tests_yaml(tmp_path):
     """A builder file with a `tests.yaml` beside it gives the result its YAML twin
     gives."""

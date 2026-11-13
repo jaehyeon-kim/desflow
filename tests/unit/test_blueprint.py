@@ -3926,3 +3926,33 @@ def test_a_put_item_mapping_evaluates_the_generators_nested_in_it(tmp_path):
         if row.get("value", {}).get("event_type") == "got"
     ]
     assert got == [{"x": 2, "y": 3, "z": [6], "w": {"v": 7}}]
+
+
+@pytest.mark.parametrize(
+    "key, message",
+    [
+        ("${DESFLOW_UNSET_KEY_VAR}: 1", "DESFLOW_UNSET_KEY_VAR is not set"),
+        ("2026-13-01: 1", "is not a date or time"),
+    ],
+)
+def test_a_key_that_fails_to_construct_gives_its_own_error(
+    tmp_path, monkeypatch, key, message
+):
+    """The error names the key's problem, not a recursive node."""
+    monkeypatch.delenv("DESFLOW_UNSET_KEY_VAR", raising=False)
+    path = write(tmp_path, MINIMAL.replace("tasks:\n", f"extra:\n  {key}\ntasks:\n", 1))
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    assert message in str(error.value)
+    assert "recursive" not in str(error.value)
+
+
+def test_a_name_that_is_a_store_and_a_container_is_the_first_store(tmp_path):
+    """The name reported follows the file's order, not a set's order."""
+    names = ["zeta", "alpha", "mid", "beta"]
+    both = "".join(f"  {name}: {{}}\n" for name in names)
+    text = MINIMAL.replace("tasks:\n", f"stores:\n{both}containers:\n{both}tasks:\n", 1)
+    path = write(tmp_path, text)
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    assert "'zeta' is both a store and a container" in str(error.value)

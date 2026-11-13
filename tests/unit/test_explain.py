@@ -1205,3 +1205,25 @@ def test_computed_times_and_arrivals_leave_the_formulas_out(tmp_path):
     reasons = {a.name: a.reason for a in result.arrivals}
     assert reasons["gapped"].startswith("computed gaps")
     assert reasons["limited"].startswith("count, keys, key or max_events")
+
+
+def test_a_deep_graph_prints_every_task_at_width_80(tmp_path):
+    """Rich drops the nodes that no longer fit beside the indent of a deep tree."""
+    from desflow.explain.render import render_terminal
+
+    count = 30
+    tasks = "".join(
+        f"  t{i}: {{payload: {{}}"
+        + (f", next: t{i + 1}" if i < count - 1 else "")
+        + "}\n"
+        for i in range(count)
+    )
+    path = tmp_path / "chain.yaml"
+    path.write_text(
+        "simulation: {sim_id: Chain, factor: 0, random_seed: 1}\n"
+        "arrivals:\n  a: {dist: constant, value: 1, spawn: t0}\n"
+        f"tasks:\n{tasks}run: {{until: 50}}\n"
+    )
+    text = render_terminal(SimulationContext.from_yaml(path).analyze(), width=80)
+    for i in range(count):
+        assert f"-> t{i} (task" in text or f"t{i} (task" in text

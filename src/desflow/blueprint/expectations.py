@@ -200,7 +200,7 @@ def _add_expect(
     """Writes an `expect` block for a test that has none, or an empty one."""
     start = _where(source, "tests", index)
     dash = re.match(r"^(\s*)-\s+", lines[start])
-    if dash is None:
+    if dash is None or lines[start][dash.end() :].lstrip().startswith("{"):
         raise BlueprintError(
             f"{source.path}:{start + 1}: --fix writes expect into a test written as a "
             f"block mapping that starts with `- `; write this test that way"

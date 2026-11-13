@@ -138,7 +138,7 @@ def checked_seconds(
     if math.isnan(seconds):
         raise ValueError(f"{what} gave nan, which is not a number of seconds")
     if seconds < 0 and not below_zero:
-        raise ValueError(f"{what} gave {seconds:g}, which is below 0")
+        raise ValueError(f"{what} gave {float(seconds):g}, which is below 0")
     if ends and math.isinf(seconds):
         raise ValueError(
             f"{what} gave {'inf' if seconds > 0 else '-inf'}, and it must end"
@@ -380,7 +380,7 @@ def checked_interval(value: Any, what: str) -> Union[float, int]:
     """
     seconds = checked_seconds(value, what)
     if seconds <= 0:
-        raise ValueError(f"{what} gave {seconds:g}, and it must be above 0")
+        raise ValueError(f"{what} gave {float(seconds):g}, and it must be above 0")
     return seconds
 
 

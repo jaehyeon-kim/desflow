@@ -6,6 +6,7 @@ from collections import Counter
 from collections.abc import Mapping
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
+from desflow.connectors._threads import run_in_daemon_thread
 from desflow.connectors.egress.base import (
     BaseEgress,
     drop_reserved_keys,
@@ -496,15 +497,17 @@ class IcebergStorageEgress(BaseEgress):
         try:
             # A setting that PyIceberg refuses, such as an unknown catalog type, is
             # raised here at once. A catalog that cannot be reached yet is built
-            # again at the first write.
-            await asyncio.to_thread(self._check_catalog)
+            # again at the first write. Both calls run in a daemon thread: PyIceberg's
+            # REST client sets no time limit, and a catalog that never answers must not
+            # keep the process from ending.
+            await run_in_daemon_thread(self._check_catalog)
             while True:
                 try:
                     batch = egress_queue.get_nowait()
                     written = 0
                     with self._writing():
                         try:
-                            written = await asyncio.to_thread(
+                            written = await run_in_daemon_thread(
                                 self._write_batch, batch, pa
                             )
                         except Exception as exc:

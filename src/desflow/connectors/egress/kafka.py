@@ -34,6 +34,7 @@ from desflow.connectors.admin.kafka import (
 from desflow.connectors.admin.kafka import topic_policy as read_topic_policy
 from desflow.connectors._schema_registry.unset import UNSET
 from desflow.connectors._retry import FIRST_DELAY, next_delay
+from desflow.connectors._threads import run_in_daemon_thread
 from desflow.connectors._schema_registry.errors import (  # noqa: F401
     SchemaRegistryError,
     SerializationError,
@@ -1058,7 +1059,7 @@ class KafkaEgress(BaseEgress):
             **kwargs,
         }
 
-    def _create_topics(self) -> None:
+    def _create_topics(self) -> bool:
         """
         Creates, recreates or leaves alone the sink's topics, as `topic_policy` and
         `topics` say. They are the event and telemetry topics, when no `topic_router`
@@ -1067,8 +1068,11 @@ class KafkaEgress(BaseEgress):
         Uses `KafkaAdminConnector`, which ignores a topic that already exists when
         the mode is `create`. The
         producer settings the admin client also understands, such as the security
-        settings, are passed on to it. A failure is logged rather than raised,
-        because the producer loop that follows retries the connection itself.
+        settings, are passed on to it. A failure is logged rather than raised, and
+        `run` applies the policy again once the producer has connected.
+
+        Returns:
+            bool: True when the topics could not be created.
         """
         # The event and telemetry topics, unless a topic_router names the topics, and
         # every topic in `topics`; each follows the sink's policy with its own
@@ -1091,6 +1095,8 @@ class KafkaEgress(BaseEgress):
             )
         except Exception as e:
             logger.warning(f"Could not create the topics {topics}: {e}")
+            return True
+        return False
 
     def _warn_topic_field(self, chosen: Any) -> None:
         """Warns once that `__topic__` held something other than a topic name."""
@@ -1273,7 +1279,7 @@ class KafkaEgress(BaseEgress):
         delay = FIRST_DELAY
         while True:
             try:
-                return await asyncio.to_thread(self._messages, batch)
+                return await run_in_daemon_thread(self._messages, batch)
             except Exception as error:
                 if not is_temporary(error):
                     raise
@@ -1321,8 +1327,12 @@ class KafkaEgress(BaseEgress):
             The loop exits gracefully upon receiving an `asyncio.CancelledError`,
             ensuring the Kafka producer is stopped correctly.
         """
+        # A broker that is down at the start refuses the topic policy. It is applied
+        # again once the producer connects, and not again after that: a
+        # `drop_and_create` would delete the records of the run.
+        topics_failed = False
         if self.topic_router is None or self.topics:
-            await asyncio.to_thread(self._create_topics)
+            topics_failed = await asyncio.to_thread(self._create_topics)
 
         backoff = 1.0
         max_backoff = 60.0
@@ -1336,6 +1346,8 @@ class KafkaEgress(BaseEgress):
                     await producer.start()
                     logger.info("Kafka Egress producer connected successfully.")
                     backoff = 1.0  # Reset backoff on successful connection
+                    if topics_failed:
+                        topics_failed = await asyncio.to_thread(self._create_topics)
 
                     while True:
                         try:

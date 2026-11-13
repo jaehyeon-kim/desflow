@@ -35,7 +35,13 @@ def _entry(run, since="0.23.0", changelog="A line of the changelog."):
 
 
 def _compare(
-    tmp_path, old, new, entries=None, baseline="0.22.0", set_aside_absent=False
+    tmp_path,
+    old,
+    new,
+    entries=None,
+    baseline="0.22.0",
+    set_aside_absent=False,
+    set_aside_unmatched=False,
 ):
     (tmp_path / "old.json").write_text(json.dumps(old))
     (tmp_path / "new.json").write_text(json.dumps(new))
@@ -47,6 +53,7 @@ def _compare(
         baseline,
         expected,
         set_aside_absent,
+        set_aside_unmatched,
     )
 
 
@@ -304,3 +311,32 @@ def test_the_cache_key_of_the_last_release_capture_names_the_number_of_parts():
     keys = [s["with"]["key"] for s in steps if "cache" in s.get("uses", "")]
     assert len(keys) == 1
     assert "${{ strategy.job-total }}" in keys[0]
+
+
+def test_the_baseline_side_also_leaves_out_what_its_own_checkout_lists(tmp_path):
+    """A commit that deletes a file with no end drops it from the working tree's
+    list, and the baseline checkout still has the file."""
+    baseline = tmp_path / "baseline"
+    (baseline / "tests" / "regression").mkdir(parents=True)
+    (baseline / "tests" / "regression" / "left_out.yaml").write_text(
+        "docs/old.yaml: has no end\n"
+    )
+    working = tmp_path / "left_out.yaml"
+    working.write_text("docs/new.yaml: has no end\n")
+    assert regression._skipped_files(baseline, str(working)) == {
+        "docs/old.yaml": "has no end",
+        "docs/new.yaml": "has no end",
+    }
+    assert regression._skipped_files(baseline, None) == {"docs/old.yaml": "has no end"}
+
+
+def test_an_entry_that_matches_no_difference_stands_when_set_aside(tmp_path, capsys):
+    """An example edit is listed for the main comparison and changes nothing when both
+    sides run the same files. An unlisted difference still fails."""
+    same = {"example:local:yaml": ["a"], "other": ["b"]}
+    entries = [_entry("example:local:yaml", since="1.0.1")]
+    assert _compare(tmp_path, same, same, entries, "1.0.0", True) == 1
+    assert "match no difference" in capsys.readouterr().out
+    assert _compare(tmp_path, same, same, entries, "1.0.0", True, True) == 0
+    changed = {**same, "other": ["c"]}
+    assert _compare(tmp_path, same, changed, entries, "1.0.0", True, True) == 1

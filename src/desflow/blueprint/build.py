@@ -769,11 +769,13 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
         ],
     )
     _check_switches(blueprint, source)
-    for name in set(blueprint.stores) & set(blueprint.containers):
-        raise source.error(
-            ("stores", name),
-            f"'{name}' is both a store and a container; level.{name} needs one",
-        )
+    # In the order the file writes the stores, so the name reported is always the same
+    for name in blueprint.stores:
+        if name in blueprint.containers:
+            raise source.error(
+                ("stores", name),
+                f"'{name}' is both a store and a container; level.{name} needs one",
+            )
 
     for name, task in blueprint.tasks.items():
         _check_task_names(name, task, blueprint, source)

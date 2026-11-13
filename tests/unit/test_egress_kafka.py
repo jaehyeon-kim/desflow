@@ -128,6 +128,37 @@ def test_avro_serializers_construct_with_extras_installed():
 
 
 @pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.apply_topic_policies")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_topic_policy_is_applied_again_once_the_producer_connects(
+    MockProducer, apply, run_until
+):
+    """A broker that is down at the start refuses the policy. It is applied again when
+    the producer connects, and not a third time."""
+    producer = AsyncMock()
+    MockProducer.return_value = producer
+    apply.side_effect = [ConnectionError("broker not up yet"), None, None]
+    egress = KafkaEgress(bootstrap_servers="localhost:9092", topic_policy="create")
+    await run_until(egress.run(queue.Queue()), lambda: apply.call_count >= 2)
+    await asyncio.sleep(0.05)
+    assert apply.call_count == 2
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.apply_topic_policies")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_topic_policy_that_worked_is_not_applied_again(
+    MockProducer, apply, run_until
+):
+    producer = AsyncMock()
+    MockProducer.return_value = producer
+    egress = KafkaEgress(bootstrap_servers="localhost:9092", topic_policy="create")
+    await run_until(egress.run(queue.Queue()), lambda: producer.start.called)
+    await asyncio.sleep(0.05)
+    assert apply.call_count == 1
+
+
+@pytest.mark.asyncio
 @patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_kafka_egress_pluggable_serializers(MockProducer, run_until):
     """Verify that topic_serializers correctly route payloads to custom serializers."""

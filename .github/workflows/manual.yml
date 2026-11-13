@@ -30,8 +30,10 @@ on:
 permissions:
   contents: read
 
+# A run started by another label joins its own group, because GitHub cancels the run
+# that waits in a group when a newer one joins it, and that run would skip every job
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'pull_request' && github.event.label.name || '' }}
 
 jobs:
   plan:

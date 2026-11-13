@@ -833,3 +833,26 @@ def test_a_lowest_reads_the_member_names():
     assert read.references["member"] == {"queue", "users", "key"}
     with pytest.raises(ValueError, match=re.escape("member.nothing")):
         Expression("member.nothing", member=True)
+
+
+def test_two_threads_each_count_only_their_own_items():
+    """Two evaluations of 600,000 items each run in two threads: each passes alone,
+    so together they must pass."""
+    import threading
+
+    expression = Expression("len(range(600000)) + len([x for x in range(1) if x == 0])")
+    errors = []
+
+    def work():
+        for _ in range(10):
+            try:
+                expression.evaluate(Scope())
+            except ValueError as exc:
+                errors.append(str(exc))
+
+    threads = [threading.Thread(target=work) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert errors == []

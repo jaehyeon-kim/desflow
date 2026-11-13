@@ -174,6 +174,7 @@ _STARVED_BATCH_RATIO = 0.25
 _STARVED_FLUSHES_BEFORE_WARNING = 20
 # How long teardown waits for the ingress thread to cancel its connectors and end
 _INGRESS_STOP_SECONDS = 5.0
+_EGRESS_STOP_SECONDS = 5.0
 
 
 class RegistryMixIn:
@@ -560,8 +561,10 @@ class EgressMixIn:
             )
         ]
         for provider, envelope in zip(providers, envelope_flags):
+            # Set for every provider, so one reused from an earlier run with
+            # `envelope=False` writes whole records again
+            provider.envelope = envelope
             if not envelope:
-                provider.envelope = False
                 logger.info(
                     "%s has envelope: false, so it skips telemetry and the queued "
                     "and started records, and writes each event's value alone.",
@@ -1144,6 +1147,12 @@ class EgressMixIn:
         loop = getattr(self, "_egress_loop", None)
         if loop and loop.is_running():
             loop.call_soon_threadsafe(loop.stop)
+            # The thread cancels each provider task after the loop stops, so a
+            # sink's close code (a producer stop, a pool close) runs after this
+            # point; wait for it, as `teardown_ingress` does
+            thread = getattr(self, "_egress_thread", None)
+            if thread is not None:
+                thread.join(timeout=_EGRESS_STOP_SECONDS)
 
 
 def _after_warmup(
@@ -1431,6 +1440,9 @@ class DynamicRealtimeEnvironment(
         # True while a run has no end of its own: `step()` then ends the run when
         # no model event is left
         self._until_none = False
+        # Called once when no model event is left in a run that has an end of its own
+        # to reach, so a drain with no limit ends when no entity can move
+        self._when_idle: Optional[Callable[[], None]] = None
         # True while a run has an end of its own that `run()` does not see: set by
         # `SimulationContext` while it runs, as it sets `_until_none` itself, and by
         # `_run_low_level` of `analysis.models` while a model with a `stop` runs to
@@ -1641,10 +1653,14 @@ class DynamicRealtimeEnvironment(
                 Inside a run with no end of its own, `run()` ends there too.
         """
         if self._in_run:
-            if self._until_none and math.isinf(self.peek()) and not self._ending():
-                # A run with no end of its own ends when no model event is left,
-                # as SimPy's does; the events of desflow's own would go on for ever
-                raise EmptySchedule
+            if math.isinf(self.peek()) and not self._ending():
+                if self._until_none:
+                    # A run with no end of its own ends when no model event is left,
+                    # as SimPy's does; the events of desflow's own would go on for ever
+                    raise EmptySchedule
+                if self._when_idle is not None:
+                    idle, self._when_idle = self._when_idle, None
+                    idle()
             if self._factor or self._go_live_sim_time is not None or self.strict:
                 self._step_event()
             else:
