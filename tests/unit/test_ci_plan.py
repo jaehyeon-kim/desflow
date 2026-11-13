@@ -164,3 +164,13 @@ def test_every_extra_has_an_install_check():
         for p in (SCRIPT.parent / "install_checks").glob("check_*.py")
     }
     assert checks == extras | {"core"}
+
+
+def test_the_all_extra_names_every_other_extra():
+    import tomllib
+
+    extras = tomllib.loads((SCRIPT.parents[1] / "pyproject.toml").read_text())[
+        "project"
+    ]["optional-dependencies"]
+    named = extras["all"][0].removeprefix("desflow[").removesuffix("]").split(",")
+    assert sorted(named) == sorted(set(extras) - {"all"})

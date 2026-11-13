@@ -17,6 +17,16 @@ from desflow.connectors.ingress.kafka import (
 )
 
 
+async def _wait_until(condition, timeout=5.0):
+    """Waits until `condition()` holds, or `timeout` seconds pass. The ingress first
+    tries to create its topic in a worker thread, which takes longer on a slow runner
+    than any fixed wait."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while not condition() and loop.time() < deadline:
+        await asyncio.sleep(0.01)
+
+
 def test_missing_avro_deserializer_dependencies():
     """Verify that using Avro deserializers without the extras raises an explicit ImportError."""
     # Hide fastavro and httpx
@@ -101,7 +111,7 @@ async def test_kafka_ingress_pluggable_deserializers(MockConsumer):
     )
 
     task = asyncio.create_task(ingress.run(ingress_queue))
-    await asyncio.sleep(0.1)
+    await _wait_until(lambda: not ingress_queue.empty())
 
     task.cancel()
     try:
@@ -119,6 +129,59 @@ async def test_kafka_ingress_pluggable_deserializers(MockConsumer):
     path, value = ingress_queue.get_nowait()
     assert path == "Shop.packers.current_cap"
     assert value == 10
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
+async def test_a_slow_deserializer_does_not_hold_the_loop(MockConsumer):
+    """A deserializer that waits, as a registry call retrying does, runs off the
+    loop, so another task on the loop keeps running."""
+    import time
+
+    class FakeConsumer:
+        def __init__(self):
+            self.start = AsyncMock()
+            self.stop = AsyncMock()
+
+        async def __aiter__(self):
+            class FakeMessage:
+                topic = "t"
+                value = b"x"
+
+            yield FakeMessage()
+            await asyncio.sleep(999)
+
+    MockConsumer.return_value = FakeConsumer()
+    deserializer = MagicMock()
+    deserializer.deserialize.side_effect = lambda topic, value: (
+        time.sleep(0.5) or {"path": "Shop.cap", "value": 1}
+    )
+    ingress_queue = queue.Queue()
+    ingress = KafkaIngress(
+        topic="t", bootstrap_servers="localhost:9092", default_deserializer=deserializer
+    )
+    loop = asyncio.get_running_loop()
+    ticks = []
+
+    async def ticker():
+        while True:
+            ticks.append(loop.time())
+            await asyncio.sleep(0.02)
+
+    watcher = asyncio.create_task(ticker())
+    task = asyncio.create_task(ingress.run(ingress_queue))
+    deadline = loop.time() + 5
+    while ingress_queue.empty() and loop.time() < deadline:
+        await asyncio.sleep(0.01)
+    # The ticker may be cancelled before it wakes after a block, so the last gap ends now
+    ticks.append(loop.time())
+    task.cancel()
+    watcher.cancel()
+    await asyncio.gather(task, watcher, return_exceptions=True)
+
+    assert ingress_queue.get_nowait() == ("Shop.cap", 1)
+    gaps = [later - earlier for earlier, later in zip(ticks, ticks[1:])]
+    assert max(gaps) < 0.25
 
 
 @pytest.mark.asyncio
@@ -148,7 +211,7 @@ async def test_kafka_ingress_success(MockConsumer):
     ingress = KafkaIngress(topic="test-topic", bootstrap_servers="localhost:9092")
 
     task = asyncio.create_task(ingress.run(ingress_queue))
-    await asyncio.sleep(0.1)
+    await _wait_until(lambda: not ingress_queue.empty())
 
     task.cancel()
     try:
@@ -193,7 +256,8 @@ async def test_kafka_ingress_logs_and_skips_bad_messages(MockConsumer, caplog):
 
     with caplog.at_level("WARNING", logger="desflow.connectors.ingress.kafka"):
         task = asyncio.create_task(ingress.run(ingress_queue))
-        await asyncio.sleep(0.1)
+        # The valid message is the last, so the three before it have been read
+        await _wait_until(lambda: not ingress_queue.empty())
         task.cancel()
         try:
             await task
@@ -236,7 +300,7 @@ async def test_kafka_ingress_skips_a_payload_that_is_not_glue_framed(
 
     with caplog.at_level("WARNING", logger="desflow.connectors.ingress.kafka"):
         task = asyncio.create_task(ingress.run(ingress_queue))
-        await asyncio.sleep(0.1)
+        await _wait_until(lambda: any(r.levelname == "WARNING" for r in caplog.records))
         task.cancel()
         try:
             await task
@@ -248,6 +312,68 @@ async def test_kafka_ingress_skips_a_payload_that_is_not_glue_framed(
     assert len(skipped) == 1
     assert skipped[0].startswith("Skipped a Kafka ingress message")
     assert "Invalid header version byte" in skipped[0]
+
+
+@pytest.mark.parametrize(
+    ("status", "code", "ends"),
+    [
+        pytest.param(403, 40301, True, id="registry-403"),
+        pytest.param(400, "AccessDeniedException", True, id="glue-access-denied"),
+        pytest.param(404, 40403, False, id="registry-404"),
+    ],
+)
+@pytest.mark.asyncio
+@patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
+async def test_a_registry_that_refuses_access_ends_the_source(
+    MockConsumer, caplog, status, code, ends
+):
+    """A registry that refuses the source's credentials or access ends the task with
+    that error, so the messages after it are not read and lost one by one. Any other
+    registry error skips its message, and the next one is applied."""
+    from desflow.connectors._schema_registry.errors import SchemaRegistryError
+
+    payloads = [b"refused", b'{"path": "A", "value": 1}']
+
+    class FakeConsumer:
+        def __init__(self):
+            self.start = AsyncMock()
+            self.stop = AsyncMock()
+
+        async def __aiter__(self):
+            for payload in payloads:
+                yield MagicMock(topic="sim-config", value=payload)
+            await asyncio.sleep(999)
+
+    def deserialize(topic, value):
+        if value == b"refused":
+            raise SchemaRegistryError(status, code, "refused")
+        return json.loads(value)
+
+    deserializer = MagicMock()
+    deserializer.deserialize.side_effect = deserialize
+    consumer = MockConsumer.return_value = FakeConsumer()
+    ingress_queue = queue.Queue()
+    ingress = KafkaIngress(
+        topic="sim-config",
+        bootstrap_servers="localhost:9092",
+        default_deserializer=deserializer,
+        topic_policy="manual",
+    )
+
+    task = asyncio.create_task(ingress.run(ingress_queue))
+    await _wait_until(lambda: task.done() or not ingress_queue.empty())
+    task.cancel()
+    outcome = (await asyncio.gather(task, return_exceptions=True))[0]
+
+    if ends:
+        assert isinstance(outcome, SchemaRegistryError)
+        assert ingress_queue.empty()
+        consumer.stop.assert_awaited_once()
+        assert MockConsumer.call_count == 1
+        assert "Skipped a Kafka ingress message" not in caplog.text
+    else:
+        assert ingress_queue.get_nowait() == ("A", 1)
+        assert "Skipped a Kafka ingress message" in caplog.text
 
 
 def test_topic_policy_creates_the_control_topic(mock_admin, caplog):

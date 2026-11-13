@@ -48,6 +48,7 @@ from desflow.core.environment import (
 from desflow.core.expressions import (
     ANY_NAME,
     Expression,
+    Scope,
     boolean_word,
     rank_problem,
 )
@@ -81,7 +82,7 @@ from desflow.builder.task_checks import (
     family_read_problem,
 )
 from desflow.core.registry import ParamChange, SimulationRegistry
-from desflow.core.rules import check_capacity
+from desflow.core.rules import check_capacity, checked_datetime
 from desflow.builder.holders import (
     _run_copy,
     _within_max,
@@ -110,6 +111,7 @@ from desflow.values.models import Row as RowGenerator
 from desflow.values.template import bind as bind_values, looked_up
 from desflow.models.params import (
     BreakdownConfig,
+    check_breakdown_advances,
     CapacityConfig,
     ContainerConfig,
     DistributionConfig,
@@ -132,6 +134,7 @@ from desflow.utils import (
     checked_count,
     checked_factor,
     checked_interval,
+    checked_priority,
     checked_seconds,
     checked_whole,
     suggestion,
@@ -338,9 +341,10 @@ class SimulationContext:
                 By default `DynamicRealtimeEnvironment`.
 
         Raises:
-            ValueError: If `warmup` or `lag_interval` is negative or not a duration,
-                `timezone` is not an IANA time zone name, or `environment` is not a
-                subclass of `DynamicRealtimeEnvironment`.
+            ValueError: If `sim_id` is not text or is empty, `warmup` or
+                `lag_interval` is negative or not a duration, `timezone` is not an
+                IANA time zone name, or `environment` is not a subclass of
+                `DynamicRealtimeEnvironment`.
         """
         if environment is not None and not (
             isinstance(environment, type)
@@ -350,6 +354,8 @@ class SimulationContext:
                 "environment must be a subclass of DynamicRealtimeEnvironment, "
                 f"got {environment!r}"
             )
+        if not isinstance(sim_id, str) or not sim_id:
+            raise ValueError(f"sim_id is text that is not empty, got {sim_id!r}")
         self.sim_id = sim_id
         self.factor = checked_factor(factor)
         self.strict = strict
@@ -361,8 +367,10 @@ class SimulationContext:
             if random_seed is None
             else checked_whole(random_seed, "random_seed", 0)
         )
-        self.logical_start_time = logical_start_time
-        self.go_live_at = go_live_at
+        self.logical_start_time = checked_datetime(
+            logical_start_time, "logical_start_time"
+        )
+        self.go_live_at = checked_datetime(go_live_at, "go_live_at")
         self.initial_time = checked_seconds(
             initial_time, "initial_time", ends=True, below_zero=True
         )
@@ -639,7 +647,7 @@ class SimulationContext:
     def with_stats(
         self,
         level: str = "basic",
-        interval: float = DEFAULT_STATS_INTERVAL,
+        interval: Union[float, str] = DEFAULT_STATS_INTERVAL,
         on_change: bool = False,
         trace: bool = False,
     ) -> "SimulationContext":
@@ -654,7 +662,8 @@ class SimulationContext:
 
         Args:
             level: `none`, `minimal`, `basic`, `typical` or `all`.
-            interval: Simulation seconds between publications; they are also
+            interval: Simulation seconds, or a duration such as `"10 s"`, between
+                publications; they are also
                 published once at the end of the run, except the values unchanged
                 since a reading at that same time. Defaults to 10.
             on_change: True also publishes a resource's readings, the names it
@@ -683,7 +692,8 @@ class SimulationContext:
             raise ValueError(
                 f"stats level must be one of {', '.join(STATS_LEVELS)}, got '{level}'"
             )
-        if checked_seconds(interval, "stats interval") <= 0:
+        seconds = checked_seconds(interval, "stats interval")
+        if seconds <= 0:
             raise ValueError(f"stats interval must be greater than 0, got {interval}")
         if on_change and level == "none":
             raise ValueError(
@@ -691,7 +701,7 @@ class SimulationContext:
                 "it needs a level above none"
             )
         self._sinks.stats_level = level
-        self._sinks.stats_interval = interval
+        self._sinks.stats_interval = seconds
         self._sinks.stats_on_change = bool(on_change)
         self._sinks.stats_trace = bool(trace)
         return self
@@ -1014,6 +1024,10 @@ class SimulationContext:
                 f"priority store '{name}' starts with (priority, item) pairs; give "
                 f"each item as a pair, such as (1, item)"
             )
+        if priority:
+            for item in start:
+                if not isinstance(item, Gen):
+                    checked_priority(item[0], f"store '{name}' starting item priority")
         self._bind_values(start, ("stores", name, "items"), overwrite=False)
         config = CapacityConfig(
             current_cap=_within_max("store", name, current_cap, max_cap),
@@ -1071,7 +1085,10 @@ class SimulationContext:
 
         Raises:
             ValueError: If a step is malformed. A path the model does not have is
-                refused when the run starts.
+                refused when the run starts, a path on a member of a family too when
+                the family can never have it: no task names the family with a `key`,
+                and the key is not one of 0 to `members` - 1 (none, when the family
+                has no `members`).
         """
         checked = [check_step(step) for step in steps]
         for index, step in enumerate(checked, len(self._scenario_steps)):
@@ -1166,14 +1183,19 @@ class SimulationContext:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If a distribution, `work` or `clock` is invalid.
+            ValueError: If a distribution, `work` or `clock` is invalid, or the time
+                to failure and the repair both always give 0.
         """
-        self._holders.breakdowns_config[resource] = BreakdownConfig(
+        config = BreakdownConfig(
             time_to_failure=distribution_of(time_to_failure),
             repair=distribution_of(repair),
             work=work,
             clock=clock,
         )
+        check_breakdown_advances(
+            config.time_to_failure, config.repair, f"resource '{resource}' breakdown"
+        )
+        self._holders.breakdowns_config[resource] = config
         return self
 
     def add_variable(self, name: str, value: Any) -> "SimulationContext":
@@ -1278,7 +1300,7 @@ class SimulationContext:
         attributes: Optional[Mapping[str, Any]] = None,
         key: Any = None,
         spawn: Optional[str] = None,
-        first_at: Optional[float] = None,
+        first_at: Union[float, str, None] = None,
         group: Any = 1,
         active: bool = True,
         off_mode: str = "drop",
@@ -1327,7 +1349,8 @@ class SimulationContext:
             spawn: The task each arrival starts, with the arrival's entity and the
                 task's next instance id, as YAML's `spawn` key does. None leaves
                 the arrival to an `arrival_loop` written by hand.
-            first_at: The simulation time of the first arrival, which the first
+            first_at: The simulation time of the first arrival, in seconds or as a
+                duration such as `"5 s"`, which the first
                 `wait_for_arrival` waits for in place of a gap. The gaps after it
                 come from the distribution. A time already past arrives at once.
             group: How many entities one arrival starts, with `spawn`: a whole number,
@@ -1361,8 +1384,8 @@ class SimulationContext:
             ValueError: If the family is unknown, or a parameter is missing, out of
                 range or not one the family takes, or both or neither of `dist` and
                 `gap` are given, or `gap` is a negative number or neither a number,
-                an expression nor a generator, or `first_at` is below 0 or not a
-                number, or `off_mode`, `active`, `group`, `initial`, `max_events` or
+                an expression nor a generator, or `first_at` is below 0 or is neither
+                seconds nor a duration, or `off_mode`, `active`, `group`, `initial`, `max_events` or
                 `vars` is malformed, or `group`, `active`, `off_mode`, `initial` or
                 `max_events` is given with no `spawn`, or `gap`, `group` or
                 `max_events` is an expression that reads the entity, or a `vars`
@@ -1974,7 +1997,7 @@ class SimulationContext:
 
         return decorator
 
-    def telemetry_loop(self, interval: float) -> Callable:
+    def telemetry_loop(self, interval: Union[float, str]) -> Callable:
         """
         Registers an infinite background daemon loop for periodic data publishing.
 
@@ -1982,12 +2005,14 @@ class SimulationContext:
         (like wear containers) at strict intervals.
 
         Args:
-            interval: The simulation time (in seconds) to wait between iterations.
+            interval: Simulation seconds, or a duration such as `"10 s"`, to wait
+                between iterations.
 
         Raises:
             ValueError: If `interval` is not above 0.
         """
-        if checked_seconds(interval, "telemetry_loop interval") <= 0:
+        seconds = checked_seconds(interval, "telemetry_loop interval")
+        if seconds <= 0:
             raise ValueError(f"telemetry_loop interval must be above 0, got {interval}")
 
         def decorator(user_func):
@@ -1996,7 +2021,7 @@ class SimulationContext:
                     raise RuntimeError("Simulation has not been built yet.")
                 while True:
                     user_func(self)
-                    yield self._env.timeout(interval)
+                    yield self._env.timeout(seconds)
 
             self._startup_loops.append((wrapper, None))
             return user_func
@@ -2004,7 +2029,7 @@ class SimulationContext:
         return decorator
 
     def add_readings(
-        self, interval: float, readings: Mapping[str, str]
+        self, interval: Union[float, str], readings: Mapping[str, str]
     ) -> "SimulationContext":
         """
         Publishes expressions of the run as telemetry every `interval` seconds.
@@ -2019,7 +2044,8 @@ class SimulationContext:
         readings of one interval are all evaluated before the first is published.
 
         Args:
-            interval: Simulation seconds between two publications.
+            interval: Simulation seconds, or a duration such as `"10 s"`, between
+                two publications.
             readings: A reading name mapped to an expression, such as
                 `{"waiting_per_packer": "queue.packers / 2"}`.
 
@@ -2032,7 +2058,8 @@ class SimulationContext:
                 entity. A name that is not in the model, or an expression that cannot
                 be evaluated, is refused when the run is built or stops the run.
         """
-        if checked_seconds(interval, "the interval of readings") <= 0:
+        seconds = checked_seconds(interval, "the interval of readings")
+        if seconds <= 0:
             raise ValueError(
                 f"the interval of readings must be above 0, got {interval}"
             )
@@ -2073,7 +2100,7 @@ class SimulationContext:
             for name, value in values.items():
                 context.publish(name, value)
 
-        self.telemetry_loop(interval)(report)
+        self.telemetry_loop(seconds)(report)
         return self
 
     def add_process(self, func: Callable, **kwargs: Any) -> "SimulationContext":
@@ -2548,8 +2575,9 @@ class SimulationContext:
 
         Args:
             task: The task's name.
-            where: A condition read for each instance, such as `"attr.order == 3"`;
-                None interrupts every instance.
+            where: A condition read for each instance, such as `"attr.order == 3"`,
+                in that instance's scope; a branch of its wait reads as not done
+                until the wait has ended. None interrupts every instance.
             cause: What the instances receive as the interrupt's cause, published
                 as the record's `cause`.
 
@@ -2571,7 +2599,7 @@ class SimulationContext:
             process = run.flow.process
             if process is None or process is active or not process.is_alive:
                 continue
-            if condition is not None and not condition.evaluate(run.scope()):
+            if condition is not None and not condition.evaluate(_wait_so_far(run)):
                 continue
             process.interrupt(cause)
             count += 1
@@ -3106,7 +3134,7 @@ class SimulationContext:
         )
         # Read before any connector starts its thread, so a bad value stops the run
         # with nothing to tear down
-        if until is not None and not isinstance(until, simpy.Event):
+        if until is not None:
             until = checked_seconds(until, "until", below_zero=True)
         if until is not None and until <= self.initial_time:
             # SimPy's run(until=) refuses it; with stop or drain the end is an
@@ -3243,8 +3271,9 @@ class SimulationContext:
         self._register_parameters(self._env, settings)
         self._connect(self._env, settings.egress, settings.ingress)
         self._make_holders(self._env)
-        self._start_loops(self._env)
+        # Set before the loops start: the scenario process reads it as it starts
         self._run.until = settings.until
+        self._start_loops(self._env)
         self._run.end = self._end_event(settings.until, settings.stop, settings.drain)
         self._closed = False
         self.started = True
@@ -3355,16 +3384,31 @@ class SimulationContext:
 
     def _read_replay_rows(self, env: DynamicRealtimeEnvironment) -> None:
         """Reads the rows of each replayed arrival into the run's arrivals."""
-        self._run.arrivals.replay_rows = {
-            name: collections.deque(
-                read_trace(
-                    **spec,
-                    start=env.start_datetime,
-                    initial_time=float(self.initial_time),
+        rows: Dict[str, Any] = {}
+        for name, spec in self._arrivals.replays.items():
+            try:
+                rows[name] = collections.deque(
+                    read_trace(
+                        **spec,
+                        start=env.start_datetime,
+                        initial_time=float(self.initial_time),
+                    )
                 )
-            )
-            for name, spec in self._arrivals.replays.items()
-        }
+            except ValueError as error:
+                raise ValueError(f"{self._replay_place(name)}: {error}") from None
+        self._run.arrivals.replay_rows = rows
+
+    def _replay_place(self, name: str) -> str:
+        """What starts the refusal of a replayed arrival's rows: where a blueprint
+        writes its `replay.path`, or the arrival and its file. Rows given in memory
+        are not printed."""
+        place = self._arrivals.replay_places.get(name)
+        if place is not None:
+            return place
+        source = self._arrivals.replays[name]["source"]
+        if isinstance(source, (str, Path)):
+            return f"arrival '{name}' replays {source}"
+        return f"arrival '{name}' replays its rows"
 
     def _register_parameters(
         self, env: DynamicRealtimeEnvironment, settings: _RunSettings
@@ -3659,6 +3703,24 @@ class SimulationContext:
         )
 
 
+def _wait_so_far(run: Any) -> Scope:
+    """The scope of a task instance that an interrupt `where` is read in. An instance
+    records its wait's branches only when the wait ends, so an instance that has not
+    reached its wait, or is still in it, reads each branch as not done, as a branch
+    that did not happen before the wait ended reads. An `each` branch has no elements
+    then, so its `values` and `flags` are empty."""
+    scope = run.scope()
+    wait = run.spec.wait
+    if wait is None or all(name in scope.waits for name in wait.branches):
+        return scope
+    waits: Dict[str, Dict[str, Any]] = {}
+    for name, node in wait.branches.items():
+        waits[name] = {"done": False, "ok": None, "value": None}
+        if node.template is not None:
+            waits[name].update(values=[], flags=[])
+    return dataclasses.replace(scope, waits={**waits, **scope.waits})
+
+
 def _queue_rule(rule: Mapping[str, Any], what: str) -> Tuple[Expression, str]:
     """Checks a `queue`, `get_queue` or `put_queue` rank: `{rank, ties}`.
 
@@ -3942,6 +4004,8 @@ def _check_end(
     families: Iterable[str] = (),
 ) -> None:
     """Checks `stop` and `drain` before anything is built."""
+    if drain is not None and not isinstance(drain, (bool, Mapping)):
+        raise ValueError(f"drain is True, False or {{'limit': seconds}}, got {drain!r}")
     if drain and until is None:
         raise ValueError("a drain starts at until, so it needs until")
     if isinstance(drain, Mapping) and {*drain} - {"limit"}:
@@ -4412,13 +4476,14 @@ def _parse_spawn(spec: Mapping[str, Any]) -> Dict[str, Any]:
     if isinstance(count, str):
         count = Expression(count)
     elif not callable(count) and not isinstance(count, Gen):
-        if isinstance(count, bool) or not isinstance(count, int):
+        if isinstance(count, bool) or not isinstance(count, numbers.Integral):
             raise ValueError(
                 f"a spawn count is a whole number, an expression, a generator or a "
                 f"function of the entity, got {count!r}"
             )
         if count < 0:
             raise ValueError(f"a spawn count must be 0 or more, got {count!r}")
+        count = int(count)
     copy_attributes = spec.get("copy_attributes", False)
     if not isinstance(copy_attributes, bool):
         raise ValueError(f"copy_attributes is true or false, got {copy_attributes!r}")
@@ -4568,6 +4633,8 @@ def _parse_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
         return {"resume": _parse_resume(entry["resume"])}
     if "value" not in entry:
         raise ValueError("a path needs a value")
+    if not isinstance(entry["path"], str):
+        raise ValueError(f"an on: action's path is text, not {entry['path']!r}")
     return {"path": entry["path"], "value": entry["value"]}
 
 

@@ -23,7 +23,9 @@ from desflow.models.params import (
 logger = logging.getLogger(__name__)
 
 
-_AS_GIVEN_KINDS = ("service", "arrival", "containers")
+_DISTRIBUTION_KINDS = ("service", "arrival", "breakdown")
+_AS_GIVEN_KINDS = (*_DISTRIBUTION_KINDS, "containers")
+_SEQUENCE_TYPES = (list, tuple, set, frozenset, dict)
 _CAPACITY_KINDS = ("resources", "containers", "stores")
 _CAPACITY_ATTRS = ("current_cap", "max_cap")
 
@@ -52,10 +54,11 @@ class _PathKind:
 def _stored_as_given(kind: str, current: Any, new: Any) -> bool:
     """Whether a live update is stored as written, with no cast to the current type.
 
-    That holds for a distribution parameter or a container value that gets a number or
-    a bool, and for a variable that gets a finite number, when the current value is a
-    number. Infinity and NaN are not finite, so they go to the cast to the current
-    type, which refuses them over an integer variable.
+    That holds for a distribution parameter (of an arrival, a service step or a
+    breakdown) or a container value that gets a number or a bool, and for a variable
+    that gets a finite number, when the current value is a number. Infinity and NaN
+    are not finite, so they go to the cast to the current type, which refuses them
+    over an integer variable.
     """
     if not _is_number(current):
         return False
@@ -68,13 +71,26 @@ def _stored_as_given(kind: str, current: Any, new: Any) -> bool:
     return False
 
 
+def _same_container(current: Any, new: Any) -> bool:
+    """Whether `new` is a container that converts to the type of `current` whole.
+
+    A list, tuple or set converts to another of them; a mapping stays a mapping.
+    Text, bytes, numbers and a mapping over a list would lose or reshape their
+    content in a cast.
+    """
+    return isinstance(new, _SEQUENCE_TYPES) and isinstance(current, dict) == isinstance(
+        new, dict
+    )
+
+
 def queue_limit_value(path: str, value: Any) -> Optional[int]:
     """The waiting-line limit a write to a `queue_limit` path means.
 
     Args:
         path: The path, for the message.
         value: None for no limit, a whole number of 0 or more (a NumPy integer or a
-            whole float too), or text that is one.
+            whole float too), or text that is one, such as `4`, `4.0` or `1e3`, as
+            a capacity reads text.
 
     Returns:
         Optional[int]: The limit, or None for no limit.
@@ -86,7 +102,7 @@ def queue_limit_value(path: str, value: Any) -> Optional[int]:
     number = value
     if isinstance(value, str):
         text = value.strip()
-        number = int(text) if _WHOLE_TEXT.fullmatch(text) else value
+        number = _read_number(text)
     if value is None:
         return None
     if (
@@ -108,6 +124,18 @@ def queue_limit_value(path: str, value: Any) -> Optional[int]:
 def _is_capacity(registered: _PathKind) -> bool:
     """Whether a path is a `current_cap` or `max_cap` of a resource, container or store."""
     return registered.kind in _CAPACITY_KINDS and registered.attr in _CAPACITY_ATTRS
+
+
+def _within(registered: _PathKind, written: Any, bound: Any) -> Any:
+    """A capacity clamped to `bound`, in the type a capacity of its holder has.
+
+    A resource's or a store's capacity is a whole number, so a finite bound, even one
+    given as `5.0`, clamps to that whole number, not to a float. A container's keeps
+    the type of the value written.
+    """
+    if registered.kind == "containers":
+        return type(written)(bound)
+    return int(bound) if bound != written and math.isfinite(bound) else bound
 
 
 def _infinite_capacity(registered: _PathKind, value: Any) -> bool:
@@ -583,7 +611,7 @@ class SimulationRegistry:
             # distribution's own check refuses; over any other number it is 1
             validated_value = (
                 int(new_value)
-                if isinstance(new_value, bool) and kind not in ("service", "arrival")
+                if isinstance(new_value, bool) and kind not in _DISTRIBUTION_KINDS
                 else new_value
             )
         elif current_val is not None:
@@ -595,6 +623,13 @@ class SimulationRegistry:
             # If types don't match, attempt a safe cast (e.g., "5" -> 5)
             if not isinstance(new_value, expected_type):
                 try:
+                    if isinstance(current_val, _SEQUENCE_TYPES) and not _same_container(
+                        current_val, new_value
+                    ):
+                        # list("c3") is ['c', '3'] and list({"x": 1}) is ['x']: only
+                        # a list, tuple or set is cast to another of them, and only
+                        # a mapping stays a mapping
+                        raise ValueError(new_value)
                     validated_value = expected_type(new_value)
                     logger.debug(
                         f"Cast '{new_value}' to {expected_type.__name__} for '{path}'"
@@ -663,7 +698,9 @@ class SimulationRegistry:
         # Keep current_cap within [0, max_cap], the range the resource uses
         if isinstance(parent_obj, CapacityConfig) and attr == "current_cap":
             max_cap = self._values[f"{parent_path}.max_cap"].value
-            clamped = type(validated_value)(min(max(validated_value, 0), max_cap))
+            clamped = _within(
+                registered, validated_value, min(max(validated_value, 0), max_cap)
+            )
             if clamped != validated_value:
                 logger.warning(
                     f"current_cap {validated_value} for '{path}' is outside "
@@ -778,7 +815,8 @@ class SimulationRegistry:
         sibling = f"{registered.config}.current_cap"
         if _is_capacity(registered) and registered.attr == "max_cap":
             current = self._values[sibling].value
-            if value is not None and current is not None and current > value:
+            wanted = None if value is None else _capacity_value(path, registered, value)
+            if wanted is not None and current is not None and current > wanted:
                 # update would lower current_cap to it without a word
                 raise ParamRejected(
                     path,
@@ -786,6 +824,27 @@ class SimulationRegistry:
                     f"'{path}' cannot be set to {value!r}: '{sibling}' is "
                     f"{current!r}; set current_cap first, to {value!r} or less",
                 )
+        if isinstance(value, float) and math.isnan(value):
+            raise ParamRejected(
+                path,
+                value,
+                f"'{path}' cannot be set to nan, which is not equal to itself, so "
+                f"the registry could not show it was stored",
+            )
+        stored = self.check_value(path, value)
+        if stored != value:
+            raise ParamRejected(
+                path,
+                value,
+                f"'{path}' would store {stored!r} for {value!r}; write {stored!r}",
+            )
+        outside = self._outside_range(path, stored)
+        if outside is not None:
+            raise ParamRejected(
+                path,
+                value,
+                f"'{path}' cannot be set to {value!r}: it must be within {outside}",
+            )
         self.update(path, value, source=source, actor=actor, reason=reason)
         kept = self._values[path].value
         if kept != value:
@@ -794,6 +853,23 @@ class SimulationRegistry:
                 value,
                 f"'{path}' cannot be set to {value!r}; the registry kept {kept!r}",
             )
+
+    def _outside_range(self, path: str, value: Any) -> Optional[str]:
+        """The range a `current_cap` or a container `level` must be within, such as
+        `[0, max_cap 5]`, when `value` is outside it, which `update` would clamp it
+        to; None otherwise."""
+        registered = self._kinds[path]
+        if not isinstance(self._configs.get(registered.config), CapacityConfig):
+            return None
+        bound_name = {"current_cap": "max_cap", "level": "current_cap"}.get(
+            registered.attr
+        )
+        if bound_name is None or value is None:
+            return None
+        bound = self._values[f"{registered.config}.{bound_name}"].value
+        if bound is None or 0 <= value <= bound:
+            return None
+        return f"[0, {bound_name} {bound}]"
 
     def _clamp_current_cap(
         self, parent_path: str, config: CapacityConfig, max_cap: Any
@@ -807,7 +883,7 @@ class SimulationRegistry:
         current = self._values[path].value
         if current is None or current <= max_cap:
             return None
-        clamped = type(current)(max_cap)
+        clamped = _within(self._kinds[path], current, max_cap)
         logger.warning(
             f"current_cap {current} for '{path}' is above the new max_cap {max_cap}. "
             f"Stored as {clamped}."
@@ -999,7 +1075,11 @@ class SimulationRegistry:
         capacity the run uses.
         """
         current_cap, max_cap = cap_config.current_cap, cap_config.max_cap
-        clamped = type(current_cap)(min(max(current_cap, 0), max_cap))
+        clamped = _within(
+            _PathKind(kind, path_prefix, "current_cap"),
+            current_cap,
+            min(max(current_cap, 0), max_cap),
+        )
         if clamped != current_cap:
             logger.warning(
                 f"current_cap {current_cap} for '{path_prefix}.current_cap' is "

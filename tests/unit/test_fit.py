@@ -89,11 +89,13 @@ def test_zeros_skip_the_positive_only_families():
     assert result.best not in ("gamma", "weibull", "lognormal")
 
 
-def test_a_constant_column_offers_constant_only():
-    result = fit_column([2.0] * 30)
+@pytest.mark.parametrize("value", [2.0, 0.1])
+def test_a_constant_column_offers_constant_only(value):
+    """30 copies of 0.1 have a float std of 2.8e-17, which is still no spread."""
+    result = fit_column([value] * 30)
     assert result.best == "constant" and result.settings() == {
         "dist": "constant",
-        "value": 2.0,
+        "value": value,
     }
     others = [r for r in result.table if r["family"] not in ("constant", "empirical")]
     assert {r["status"] for r in others} == {"skipped"}
@@ -197,6 +199,32 @@ def test_a_histogram_with_bins():
     assert len(settings["edges"]) == 5 and sum(settings["counts"]) == 40
 
 
+@pytest.mark.parametrize("bins", [10, None])
+def test_the_empirical_settings_keep_values_that_six_digits_would_make_equal(bins):
+    """200 values within 1 s of 100000 s: six digits leave 2 distinct values."""
+    values = [str(100000 + v) for v in np.random.default_rng(1).uniform(0, 1, 200)]
+    settings = fit_column(values, candidates=["empirical"], bins=bins).settings()
+    DistributionConfig(**settings)
+    if bins is None:
+        assert len(set(settings["values"])) == 200
+
+
+@pytest.mark.parametrize("family", ["uniform", "triangular", "normal"])
+def test_a_parameter_keeps_every_digit_when_six_would_move_the_fit(family):
+    """300 values within 0.3 s of 100000 s: six digits make `low` and `high` equal,
+    and move a normal's mean by more than a thousandth of its std."""
+    values = [str(100000.1 + v) for v in np.random.default_rng(1).uniform(0, 0.3, 300)]
+    settings = fit_column(values, candidates=[family]).settings()
+    DistributionConfig(**settings)
+    assert any(v != float(f"{v:.6g}") for v in settings.values() if v != family)
+
+
+def test_a_constant_keeps_every_digit_when_six_would_move_it():
+    """A std of 0 allows no move of the mean: 1234567.8 rounds to 1234570."""
+    settings = fit_column(["1234567.8"] * 30).settings()
+    assert settings == {"dist": "constant", "value": 1234567.8}
+
+
 def test_the_fit_extra_is_named_when_scipy_is_missing(monkeypatch):
     monkeypatch.setitem(sys.modules, "scipy", None)
     monkeypatch.setitem(sys.modules, "scipy.stats", None)
@@ -268,6 +296,15 @@ def test_the_fitted_settings_are_in_the_blueprint_layout(tmp_path, source):
         files.append(tmp_path / f"{kind}.yaml")
         files[-1].write_text(text)
     assert blueprint_layout.main(["--check", *map(str, files)]) == 0
+
+
+def test_read_column_drops_the_byte_order_mark_of_a_csv(tmp_path):
+    """Excel's "CSV UTF-8" starts the file with a byte order mark, which is not part
+    of the first column's name."""
+    path = tmp_path / "gaps.csv"
+    path.write_bytes("gap,sku\r\n1.5,a\r\n2,b\r\n".encode("utf-8-sig"))
+
+    assert fitting.read_column(path, "gap") == ["1.5", "2"]
 
 
 def test_include_errors_name_the_file_and_line(tmp_path):

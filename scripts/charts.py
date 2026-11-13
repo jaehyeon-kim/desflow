@@ -904,6 +904,31 @@ def jam_waits() -> None:
     _save(fig, "jam-waits")
 
 
+FILE_COLOURS = (BLUE, GREEN, ORANGE)
+
+
+def coloured_files(files: Dict[str, list]) -> List[Tuple[list, str]]:
+    """The rows of each file in the order it was written, by its first packed order,
+    with the colour of its line.
+
+    Args:
+        files: The rows of each file, by file name.
+
+    Returns:
+        List[Tuple[list, str]]: The rows and the colour of each file.
+
+    Raises:
+        ValueError: If there are more files than colours, so a file is not left out.
+    """
+    ordered = sorted(files.values(), key=lambda rows: rows[0]["sim_ts"])
+    if len(ordered) > len(FILE_COLOURS):
+        raise ValueError(
+            f"{len(ordered)} files but {len(FILE_COLOURS)} colours: add a colour to "
+            "FILE_COLOURS"
+        )
+    return list(zip(ordered, FILE_COLOURS))
+
+
 def streaming_rows() -> None:
     """Streaming Out: the rows the file sink writes over the hour, counted by the
     time each order was packed, one colour for each file."""
@@ -914,11 +939,10 @@ def streaming_rows() -> None:
     with tempfile.TemporaryDirectory() as folder:
         module.shop(Path(folder)).run(until="1 h")
         files = module.read_files(Path(folder) / "packed")
-    # The files in the order they were written, by their first packed order
-    ordered = sorted(files.values(), key=lambda rows: rows[0]["sim_ts"])
+    coloured = coloured_files(files)
     fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
     written = 0
-    for number, (rows, colour) in enumerate(zip(ordered, (BLUE, GREEN, ORANGE)), 1):
+    for number, (rows, colour) in enumerate(coloured, 1):
         times = [row["sim_ts"] / 60 for row in rows]
         counts = range(written + 1, written + len(rows) + 1)
         ax.plot(
@@ -935,7 +959,7 @@ def streaming_rows() -> None:
     # Two lines, so the label fits the height of the chart
     ax.set_ylabel("packed orders,\nby the file that holds them")
     ax.set_title(
-        f"Packed orders: {written:,} in {len(ordered)} files of at most 500 rows"
+        f"Packed orders: {written:,} in {len(coloured)} files of at most 500 rows"
     )
     ax.legend(frameon=False, loc="upper left")
     _save(fig, "streaming-rows")

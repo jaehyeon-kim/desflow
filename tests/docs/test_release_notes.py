@@ -48,6 +48,25 @@ def test_relative_links_point_at_the_latest_docs():
     assert "](https://jaehyeon.me/desflow/latest/)" in body
 
 
+def test_a_link_with_a_title_or_to_a_file_that_is_not_a_page_is_made_absolute():
+    text = (
+        '## Version 1.0.0\n\nSee [keys](../reference/yaml-keys.md "YAML Keys") '
+        "and ![chart](../assets/x.png).\n"
+    )
+    body = release_notes.section("1.0.0", text)
+    assert (
+        '[keys](https://jaehyeon.me/desflow/latest/reference/yaml-keys/ "YAML Keys")'
+        in body
+    )
+    assert "![chart](https://jaehyeon.me/desflow/latest/assets/x.png)" in body
+
+
+def test_a_link_that_leaves_the_docs_folder_is_an_error_that_names_it():
+    text = "## Version 1.0.0\n\nSee [the page](../../outside.md).\n"
+    with pytest.raises(ValueError, match=r"\.\./\.\./outside\.md"):
+        release_notes.section("1.0.0", text)
+
+
 def test_a_missing_version_is_an_error():
     with pytest.raises(ValueError):
         release_notes.section("9.9.9", CHANGELOG)

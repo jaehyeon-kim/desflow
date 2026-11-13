@@ -9,6 +9,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    List,
     Optional,
     Protocol,
     Tuple,
@@ -26,9 +27,12 @@ from desflow.connectors.admin.kafka import (
 )
 from desflow.connectors.admin.kafka import topic_policy as read_topic_policy
 from desflow.connectors._schema_registry.unset import UNSET
+from desflow.connectors._retry import FIRST_DELAY, next_delay
 from desflow.connectors._schema_registry.errors import (  # noqa: F401
     SchemaRegistryError,
     SerializationError,
+    is_temporary,
+    refuses_access,
 )
 from desflow.connectors.egress.base import (
     BaseEgress,
@@ -1110,6 +1114,12 @@ class KafkaEgress(BaseEgress):
             Optional[Tuple[str, Optional[bytes], Optional[bytes]]]: The topic, the
                 key and the value, or None when the serializer refuses the record,
                 which is then skipped with a warning.
+
+        Raises:
+            Exception: The serializer's error when it is temporary, as
+                `is_temporary` decides, so the caller can keep the record.
+            SchemaRegistryError: When the registry refuses the sink's credentials
+                or access, as `refuses_access` decides.
         """
         data, chosen = take_route(data, "__topic__")
         if chosen is not None and (type(chosen) is not str or not chosen):
@@ -1156,15 +1166,84 @@ class KafkaEgress(BaseEgress):
             payload_bytes = (
                 None if payload is None else serializer.serialize(topic, payload)
             )
-        except (TypeError, ValueError) as error:
-            # A record the serializer refuses is
-            # skipped, as the other sinks skip a record
-            # they cannot write; a registry or network
-            # error still retries the connection
+        except Exception as error:
+            if is_temporary(error) or refuses_access(error):
+                raise
+            # A record the serializer cannot encode is skipped, as the other sinks
+            # skip a record they cannot write: a refused value, an integer too
+            # large for the schema or a registry that refuses it with a 4xx status.
+            # The connection to Kafka is not the cause, so it is not restarted,
+            # and the rest of the batch is sent. A registry that fails for a time
+            # is a temporary error, which `_messages_with_retry` waits out. A
+            # registry that refuses the sink's credentials would refuse every
+            # record, so `run` ends with that error.
             self._warn_refused(key, topic, error)
             return None
 
         return topic, key, payload_bytes
+
+    def _messages(
+        self, batch: list
+    ) -> List[Tuple[str, Optional[bytes], Optional[bytes]]]:
+        """
+        Returns the messages of a batch, without the records the serializer refuses.
+
+        It runs in a worker thread, because a serializer may call a schema registry,
+        which waits and retries, and must not hold the loop that every other sink of
+        the run shares.
+
+        Args:
+            batch: The records, with the reserved keys other than `__topic__` dropped.
+
+        Returns:
+            List[Tuple[str, Optional[bytes], Optional[bytes]]]: The topic, the key
+                and the value of each record that was encoded.
+
+        Raises:
+            Exception: A serializer's temporary error, as `is_temporary` decides, or
+                a registry's refusal of the sink's credentials or access.
+        """
+        messages = (self._message(data) for data in batch)
+        return [message for message in messages if message is not None]
+
+    async def _messages_with_retry(
+        self, batch: list
+    ) -> List[Tuple[str, Optional[bytes], Optional[bytes]]]:
+        """
+        Returns the messages of a batch, waiting while the schema registry is down.
+
+        A temporary registry error (a 5xx answer, a throttled call, a timeout or a
+        lost connection) keeps the batch: nothing of it is sent yet, so it is encoded again after a
+        longer wait, and the Kafka producer is not restarted.
+
+        Args:
+            batch: The records, with the reserved keys other than `__topic__` dropped.
+
+        Returns:
+            List[Tuple[str, Optional[bytes], Optional[bytes]]]: The topic, the key
+                and the value of each record that was encoded.
+
+        Raises:
+            Exception: A serializer's error that is not temporary and that
+                `_message` does not skip, such as a record without `stream_type` or
+                a registry that refuses the sink's credentials or access.
+        """
+        delay = FIRST_DELAY
+        while True:
+            try:
+                return await asyncio.to_thread(self._messages, batch)
+            except Exception as error:
+                if not is_temporary(error):
+                    raise
+                logger.warning(
+                    "KafkaEgress could not reach the schema registry: %s. "
+                    "Trying the batch of %d records again in %ss.",
+                    error,
+                    len(batch),
+                    delay,
+                )
+                await asyncio.sleep(delay)
+                delay = next_delay(delay)
 
     async def run(self, egress_queue: queue.Queue) -> None:
         """
@@ -1174,13 +1253,24 @@ class KafkaEgress(BaseEgress):
         is lost, it implements an exponential backoff retry strategy. It polls
         the internal `egress_queue` for batches of data, determines the target
         topic based on the 'stream_type', and performs asynchronous sends using
-        the configured serializers. A record that its serializer refuses, with a
-        `TypeError` or `ValueError` such as a `SerializationError`, is skipped with a
-        warning that names its key and the reason, and the rest of the batch is sent.
+        the configured serializers, which run in a worker thread. A record that its
+        serializer refuses, with a `SerializationError`, a value error or a
+        `SchemaRegistryError` with a 4xx status other than a throttled call, is
+        skipped with a warning that names its key and the reason, and the rest of
+        the batch is sent. A registry that fails for a time (a 5xx status, a
+        throttled call, a timeout or a lost connection) keeps the batch, which is
+        tried again after a longer wait. A registry that refuses the sink's
+        credentials or access (a 401 or 403 status, or the Glue error
+        `AccessDeniedException`) ends the task with that error, and nothing of that
+        batch is sent.
 
         Args:
             egress_queue: A thread-safe queue containing lists of dictionaries
                 or Pydantic models generated by the EgressMixIn.
+
+        Raises:
+            SchemaRegistryError: If the registry refuses the sink's credentials or
+                access.
 
         Note:
             The loop exits gracefully upon receiving an `asyncio.CancelledError`,
@@ -1213,11 +1303,8 @@ class KafkaEgress(BaseEgress):
                                     batch, self, keep=("__topic__",)
                                 )
 
-                                for data in batch:
-                                    message = self._message(data)
-                                    if message is None:
-                                        continue
-                                    topic, key, payload_bytes = message
+                                messages = await self._messages_with_retry(batch)
+                                for topic, key, payload_bytes in messages:
                                     await producer.send(
                                         topic, value=payload_bytes, key=key
                                     )
@@ -1232,6 +1319,8 @@ class KafkaEgress(BaseEgress):
                 logger.info("Kafka Egress shut down requested. Exiting loop.")
                 break
             except Exception as e:
+                if refuses_access(e):
+                    raise
                 logger.error(
                     f"Kafka Egress connection failed: {e}. Retrying in {backoff} seconds..."
                 )

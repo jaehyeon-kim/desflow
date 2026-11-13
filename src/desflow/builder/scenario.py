@@ -22,6 +22,7 @@ from typing import (
 from simpy.events import Event
 
 from desflow.core.environment import schedule_urgent
+from desflow.core.expressions import Expression
 from desflow.core.registry import ParamRejected
 from desflow.utils import checked_seconds, suggestion
 from desflow.values.models import has_generator
@@ -45,8 +46,10 @@ def check_step(step: Mapping[str, Any]) -> dict:
 
     Raises:
         ValueError: If a key is unknown, `at` is missing or negative, a path has no
-            value, a value has no path, the step does nothing, or an interrupt names
-            no task (a `handle` is the interrupt key of a task, not of a step).
+            value, a value has no path, the step does nothing, an interrupt names
+            no task (a `handle` is the interrupt key of a task, not of a step), or
+            an interrupt's `where` is not text or an `Expression`, or is text that
+            is not a valid expression.
     """
     unknown = set(step) - set(STEP_KEYS)
     if unknown:
@@ -79,6 +82,17 @@ def check_step(step: Mapping[str, Any]) -> dict:
             "a task, which knows the names it opened"
             if isinstance(action, Mapping) and action.get("handle") is not None
             else "a scenario step's interrupt names the task to interrupt"
+        )
+    where = action.get("where") if action is not None else None
+    if isinstance(where, str):
+        try:
+            Expression(where)
+        except ValueError as exc:
+            raise ValueError(f"a scenario step's interrupt where: {exc}") from None
+    elif where is not None and not isinstance(where, Expression):
+        raise ValueError(
+            "a scenario step's interrupt where is a condition, as text or an "
+            f"Expression, not {where!r}"
         )
     return {**step, "at": seconds}
 

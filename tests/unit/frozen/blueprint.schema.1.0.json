@@ -2628,7 +2628,7 @@
               "$ref": "#/$defs/Placeholder"
             }
           ],
-          "ge": 0
+          "minimum": 0
         }
       },
       "required": [
@@ -5647,7 +5647,7 @@
                   "$ref": "#/$defs/Placeholder"
                 }
               ],
-              "gt": 0
+              "exclusiveMinimum": 0
             },
             {
               "type": "null"
@@ -6602,7 +6602,7 @@
                   "$ref": "#/$defs/Placeholder"
                 }
               ],
-              "ge": 0
+              "minimum": 0
             },
             {
               "type": "null"
@@ -6798,7 +6798,7 @@
             }
           ],
           "default": 10.0,
-          "gt": 0
+          "exclusiveMinimum": 0
         },
         "on_change": {
           "default": false,

@@ -1,6 +1,6 @@
 [project]
 name = "desflow"
-version = "1.0.0rc3"
+version = "1.0.0rc4"
 description = "Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg."
 readme = "README.md"
 authors = [
@@ -153,7 +153,7 @@ fake = [
     "faker>=20.0.0",
 ]
 all = [
-    "desflow[kafka,redis,postgres,confluent,glue,parquet,iceberg,fit,fake]"
+    "desflow[kafka,redis,postgres,confluent,glue,parquet,iceberg,fit,watch,fake]"
 ]
 [build-system]
 requires = ["uv_build>=0.9.16,<0.14.0"]

@@ -15,12 +15,26 @@ from another file, relative to the file that names it, such as the settings
 other node is constructed by `yaml.SafeLoader`, as `yaml.safe_load` would.
 """
 
+import contextlib
+import functools
 import importlib
 import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Tuple, Union
+from types import ModuleType
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import yaml
 
@@ -107,6 +121,123 @@ def _construct_str(loader: yaml.SafeLoader, node: yaml.ScalarNode) -> Any:
     return loader.construct_object(
         yaml.ScalarNode(tag, text, node.start_mark, node.end_mark)
     )
+
+
+# The modules each entry file's folder gave the process, by folder, and the folders
+# whose entry files are loading now, the outermost first. `_before_any_entry` holds the
+# modules the process had when the first entry file began loading, which no folder owns.
+_folder_modules: Dict[Path, Dict[str, ModuleType]] = {}
+_loading_folders: List[Path] = []
+_before_any_entry: Dict[str, ModuleType] = {}
+_INSTALLED_PARTS = ("site-packages", "dist-packages")
+_OWN_PACKAGES = ("desflow", "desflow_entry_")
+
+
+def _owner(name: str, module: ModuleType) -> Optional[Path]:
+    """The entry folder whose file `module` is: the most specific folder that holds
+    its top-level module or package directly. None for a module of the process before
+    the first entry file, a desflow module, an installed package, a module reached
+    through another `sys.path` entry that lies under a folder (an editable install,
+    the standard library), and a module that is not a file."""
+    if _before_any_entry.get(name) is module or name.startswith(_OWN_PACKAGES):
+        return None
+    origin = getattr(getattr(module, "__spec__", None), "origin", None)
+    if not origin or not os.path.isabs(origin):
+        return None
+    parts = _resolved_parts(origin)
+    if any(part in _INSTALLED_PARTS for part in parts):
+        return None
+    top = name.partition(".")[0]
+    # The deepest folder first, each looked up in the entry folders, so the cost
+    # does not grow with the number of entry folders a long process has loaded
+    for depth in range(len(parts) - 1, 0, -1):
+        if parts[depth].partition(".")[0] == top:
+            folder = Path(*parts[:depth])
+            if folder in _folder_modules:
+                return folder
+    return None
+
+
+@functools.lru_cache(maxsize=None)
+def _resolved_parts(origin: str) -> Tuple[str, ...]:
+    """The parts of a module file's resolved path, worked out once per file."""
+    return Path(origin).resolve().parts
+
+
+def _remember_modules() -> None:
+    """Records each module of `sys.modules` under the entry folder that holds its
+    file, whenever it was imported, so a module a run imported after its load is kept
+    for the next load of its folder."""
+    for name, module in list(sys.modules.items()):
+        owner = _owner(name, module)
+        if owner is not None:
+            _folder_modules[owner].setdefault(name, module)
+
+
+def _holds(folder: Path, top: str) -> bool:
+    """Whether `folder` has its own module or package called `top`, directly in it."""
+    return (folder / f"{top}.py").is_file() or (folder / top).is_dir()
+
+
+def _swap_in_modules(folder: Path) -> None:
+    """Takes out of `sys.modules` each module of another entry folder whose name
+    `folder` also has a file or package for, and puts the modules of `folder` back, so
+    `import helpers` finds the `helpers.py` of `folder`. A module whose name `folder`
+    does not have stays, as Python keeps it."""
+    _remember_modules()
+    for name, module in list(sys.modules.items()):
+        owner = _owner(name, module)
+        if (
+            owner is not None
+            and owner != folder
+            and _holds(folder, name.partition(".")[0])
+        ):
+            del sys.modules[name]
+    for name, module in _folder_modules.get(folder, {}).items():
+        current = sys.modules.get(name)
+        if current is None or _before_any_entry.get(name) is not current:
+            sys.modules[name] = module
+
+
+@contextlib.contextmanager
+def entry_modules(folder: Path) -> Iterator[None]:
+    """Makes the Python modules an entry file imports the ones of its own folder.
+
+    Python keeps one module for each name for the whole process. Two files in
+    different folders that each import `helpers` would share the first
+    `helpers.py`. Inside this block, the modules of the other entry folders are out
+    of `sys.modules` when `folder` has a file or a package of the same name, and the
+    modules of `folder` that an earlier load or run imported are back in it. A module
+    is the folder's when the first part of its name is a file or a package directly
+    in the folder, so one that a run imported later, or that a file imported before
+    it loaded another file from inside its own import, is swapped out too. A module
+    whose name `folder` does not have is never taken out. An installed package, a package reached through
+    another `sys.path` entry that lies under the folder (an editable install, the
+    standard library), and a module the process had before the first entry file are
+    never touched.
+
+    Args:
+        folder: The folder of the blueprint or builder file being loaded.
+
+    Yields:
+        None: Once the modules are set.
+    """
+    folder = folder.resolve()
+    if not _before_any_entry and not _folder_modules:
+        _before_any_entry.update(sys.modules)
+    _folder_modules.setdefault(folder, {})
+    _loading_folders.append(folder)
+    _swap_in_modules(folder)
+    try:
+        yield
+    finally:
+        _loading_folders.pop()
+        if _loading_folders:
+            # A file that loads another file from inside its own import goes on
+            # with its own folder's modules
+            _swap_in_modules(_loading_folders[-1])
+        else:
+            _remember_modules()
 
 
 def resolve(reference: str) -> Any:
@@ -213,9 +344,22 @@ def _construct_include(loader: yaml.SafeLoader, node: yaml.Node) -> Any:
     return {**data, **extra}
 
 
+def _construct_timestamp(loader: yaml.SafeLoader, node: yaml.ScalarNode) -> Any:
+    """A YAML date or datetime, with a value that is no date, such as `2026-13-01`,
+    reported at the line of `node`."""
+    try:
+        return yaml.SafeLoader.construct_yaml_timestamp(loader, node)
+    except ValueError as exc:
+        raise BlueprintError(
+            f"{loader.name}:{node.start_mark.line + 1}: '{node.value}' is not a date "
+            f"or time: {exc}"
+        ) from None
+
+
 BlueprintLoader.add_constructor("!python", _construct_python)
 BlueprintLoader.add_constructor("!include", _construct_include)
 BlueprintLoader.add_constructor("tag:yaml.org,2002:str", _construct_str)
+BlueprintLoader.add_constructor("tag:yaml.org,2002:timestamp", _construct_timestamp)
 
 
 class SourceMap:
@@ -268,6 +412,46 @@ class SourceMap:
         return BlueprintError(f"{self.path}:{self.line(location)}: {message}")
 
 
+def _value_read(
+    key_node: yaml.ScalarNode,
+    name: Any,
+    key_of: Optional[Callable[[yaml.Node], Any]],
+) -> Any:
+    """The value YAML reads from a key, so `yes` and `true` are the same key. A key
+    that cannot be read is compared by its text, and the load reports it."""
+    if key_of is None:
+        return name
+    try:
+        read = key_of(key_node)
+        hash(read)
+    except (BlueprintError, yaml.YAMLError, ValueError, TypeError):
+        return name
+    return read
+
+
+def _written_twice(
+    first: Tuple[str, Any],
+    second: Tuple[str, Any],
+    first_line: int,
+    second_line: int,
+) -> str:
+    """The message for two keys of one mapping that read as the same value. Each key
+    is its text with the value YAML reads it as."""
+    (first_text, first_read), (second_text, second_read) = first, second
+    where = f"at lines {first_line} and {second_line}; keep one"
+    if first_text == second_text:
+        return f"the key '{second_text}' is written twice in this mapping, {where}"
+    if type(first_read) is type(second_read):
+        return (
+            f"the keys '{first_text}' and '{second_text}' both read as "
+            f"{second_read!r} in this mapping, {where}"
+        )
+    return (
+        f"the keys '{first_text}' and '{second_text}' read as {first_read!r} and "
+        f"{second_read!r}, which a mapping holds as one key, {where}"
+    )
+
+
 def _record_lines(
     node: yaml.Node,
     location: Location,
@@ -280,7 +464,7 @@ def _record_lines(
     which `key_of` gives, as the built mapping holds it."""
     lines.setdefault(location, node.start_mark.line + 1)
     if isinstance(node, yaml.MappingNode):
-        seen: Dict[Any, int] = {}
+        seen: Dict[Any, Tuple[str, Any, int]] = {}
         for key_node, value_node in node.value:
             name = key_node.value
             if key_of is not None and "${" in str(name):
@@ -289,17 +473,24 @@ def _record_lines(
                 except BlueprintError:
                     pass  # the load reports it
             if isinstance(key_node, yaml.ScalarNode) and name != "<<":
-                # A key written twice would keep only the last value, with no sign
-                # that the first was dropped
-                if name in seen:
+                # Two keys that read as one value keep only the last value, with no
+                # sign that the first was dropped
+                read = _value_read(key_node, name, key_of)
+                line = key_node.start_mark.line + 1
+                if read in seen:
+                    first, first_read, first_line = seen[read]
                     raise yaml.constructor.ConstructorError(
                         None,
                         None,
-                        f"the key '{name}' is written twice in this mapping, at lines "
-                        f"{seen[name]} and {key_node.start_mark.line + 1}; keep one",
+                        _written_twice(
+                            (first, first_read),
+                            (str(name), read),
+                            first_line,
+                            line,
+                        ),
                         key_node.start_mark,
                     )
-                seen[name] = key_node.start_mark.line + 1
+                seen[read] = (str(name), read, line)
             child = location + (name,)
             # A key's own line is where a reader looks, even when its value is a
             # block starting on the next line.
@@ -388,34 +579,52 @@ def _keep_on_keys(
                 item(member)
 
 
-def _keep_switch_on(node: yaml.Node) -> None:
-    """Keeps the key `on` a string in a `{gen: switch, on: ...}` mapping.
+# The words YAML 1.1 reads as booleans that a case or an option key takes as text
+_BOOLEAN_WORDS = ("yes", "no", "on", "off")
 
-    YAML 1.1 reads the bare word `on` as the boolean True, so the `on` of a `switch`
-    generator would be refused as a key that is not a string. Only a mapping whose
-    `gen` is `switch` changes; every other mapping keeps today's reading.
+
+def _keep_generator_keys(node: yaml.Node) -> None:
+    """Keeps the keys a generator reads as text from becoming booleans.
+
+    YAML 1.1 reads the words `yes`, `no`, `on` and `off` as booleans, so the `on` of a
+    `{gen: switch, on: ...}` mapping would be refused as a key that is not a string, a
+    case `yes:` would never match the text `yes`, and an option `on:` of `weighted`
+    would be written as `True`. In a mapping whose `gen` is `switch`, the key `on` is
+    the string `on` and every key of `cases` that is one of those four words is a
+    string written as it is in the file. In a mapping whose `gen` is `weighted`, the same holds
+    for the keys of `options`. A key `true` or `false`, and every other mapping, keep
+    today's reading.
     """
     if isinstance(node, yaml.SequenceNode):
         for member in node.value:
-            _keep_switch_on(member)
+            _keep_generator_keys(member)
     elif isinstance(node, yaml.MappingNode):
-        switch = any(
-            isinstance(key, yaml.ScalarNode)
-            and key.value == "gen"
-            and isinstance(value, yaml.ScalarNode)
-            and value.value == "switch"
-            for key, value in node.value
+        kind = next(
+            (
+                value.value
+                for key, value in node.value
+                if isinstance(key, yaml.ScalarNode)
+                and key.value == "gen"
+                and isinstance(value, yaml.ScalarNode)
+            ),
+            None,
         )
+        keyed = {"switch": "cases", "weighted": "options"}.get(kind or "")
         for key, value in node.value:
-            if (
-                switch
-                and isinstance(key, yaml.ScalarNode)
-                and key.tag == _BOOL_TAG
-                and key.value.lower() == "on"
-            ):
+            if not isinstance(key, yaml.ScalarNode):
+                continue
+            if kind == "switch" and key.tag == _BOOL_TAG and key.value.lower() == "on":
                 key.tag = _STR_TAG
                 key.value = "on"
-            _keep_switch_on(value)
+            if key.value == keyed and isinstance(value, yaml.MappingNode):
+                for case, _ in value.value:
+                    if (
+                        isinstance(case, yaml.ScalarNode)
+                        and case.tag == _BOOL_TAG
+                        and case.value.lower() in _BOOLEAN_WORDS
+                    ):
+                        case.tag = _STR_TAG
+            _keep_generator_keys(value)
 
 
 def read_document(
@@ -426,8 +635,11 @@ def read_document(
 ) -> Tuple[Dict[str, Any], SourceMap]:
     """Parses a blueprint file into a mapping and its source map.
 
-    The folder of the file is added to the front of `sys.path` before `!python`
+    The folder of the file is moved to the front of `sys.path` before `!python`
     references are resolved, and stays there so later imports find the same modules.
+    A file that no `!include` led to resolves them against its own folder's Python
+    modules, not those of a file loaded earlier from another folder
+    (`entry_modules`).
 
     Args:
         path: The file.
@@ -448,10 +660,34 @@ def read_document(
     # `!python` references resolve against the folder of the file first, so a
     # blueprint and the module beside it work from any working directory.
     folder = str(path.resolve().parent)
-    if folder not in sys.path:
-        sys.path.insert(0, folder)
+    if including:
+        if folder not in sys.path:
+            sys.path.insert(0, folder)
+        return _parse_document(path, including, at, variables)
+    if folder in sys.path:
+        sys.path.remove(folder)
+    sys.path.insert(0, folder)
+    with entry_modules(Path(folder)):
+        return _parse_document(path, including, at, variables)
 
-    loader = BlueprintLoader(path.read_text(encoding="utf-8"))
+
+def _parse_document(
+    path: Path,
+    including: Tuple[Path, ...],
+    at: Optional[str],
+    variables: Optional[Mapping[str, str]],
+) -> Tuple[Dict[str, Any], SourceMap]:
+    """Parses `path` once its folder is on `sys.path`. `read_document` explains the
+    arguments."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        line = exc.object[: exc.start].count(b"\n") + 1
+        raise BlueprintError(
+            f"{path}:{line}: the file is not UTF-8 text ({exc.reason} at byte "
+            f"{exc.start}); save it as UTF-8"
+        ) from None
+    loader = BlueprintLoader(text)
     loader.name = str(path)
     # The files being read, so an !include of one of them is refused, not followed
     loader.including = (*including, path.resolve())  # type: ignore[attr-defined]
@@ -463,7 +699,7 @@ def read_document(
             raise BlueprintError(f"{path}:1: the file is empty")
         includes: Dict[yaml.Node, str] = {}
         _keep_on_keys(node, includes, at)
-        _keep_switch_on(node)
+        _keep_generator_keys(node)
         loader.includes = includes  # type: ignore[attr-defined]
         _record_lines(node, (), lines, loader.construct_object)
         data = loader.construct_document(node)

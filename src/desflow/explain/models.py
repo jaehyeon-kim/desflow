@@ -246,7 +246,8 @@ class Verification(_Model):
     """What `--verify` ran and found.
 
     Attributes:
-        until: The end of each run.
+        until: The end of each run, or where the arrivals stop when `stopped`.
+        stopped: True when the model's `run.stop` can end a run before `until`.
         warmup: The model's warm-up; the measures leave it out.
         seed: The seed, or the seed the replications' seeds come from.
         replications: The number of runs, or None for one.
@@ -255,6 +256,7 @@ class Verification(_Model):
     """
 
     until: float
+    stopped: bool = False
     warmup: Optional[float] = None
     seed: int
     replications: Optional[int] = None

@@ -416,6 +416,37 @@ run: {until: 20}
     assert "which is above the 2 events it waits for" in str(outcome.error)
 
 
+@pytest.mark.parametrize(
+    "place, each",
+    [
+        ("wait: {each: 'attr.i - 3', branch: {timeout: 1}}", "each"),
+        ("open: {p: {each: 'attr.i - 3', branch: {timeout: 1}}}", "p"),
+    ],
+    ids=["wait", "open"],
+)
+def test_a_negative_each_count_from_an_expression_is_a_run_failure(
+    tmp_path, place, each
+):
+    """A literal count below 0 is refused at load. A count an expression gives is read
+    when the wait or the open starts, and below 0 it fails the run, naming the each
+    and the number, instead of making no elements."""
+    _rows(tmp_path, 1)
+    text = (
+        HEAD
+        + f"""
+arrivals: {{a: {{replay: {{path: a.csv}}, spawn: job}}}}
+tasks:
+  job:
+    {place}
+    payload: {{e: done}}
+run: {{until: 20}}
+"""
+    )
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is not None
+    assert f"each of '{each}' gave -3" in str(outcome.error)
+
+
 def test_an_index_outside_the_elements_of_an_opened_each_is_a_run_failure(tmp_path):
     """Y4: `{handle, index}` outside the elements is an `IndexError`, as for a list, and
     the message names the task, the key and the number of elements."""

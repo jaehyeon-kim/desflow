@@ -3,6 +3,7 @@
 Each value is refused with the holder's name before the clock moves, in YAML (with
 the file and line) and in the Builder."""
 
+import numpy as np
 import pytest
 
 from desflow.builder.context import SimulationContext
@@ -118,6 +119,24 @@ def test_builder_refuses_a_bad_container_amount(amount):
     with pytest.raises(ValueError, match="amount"):
         app.task(
             name="take", service_time=0, get={"container": "tank", "amount": amount}
+        )(lambda task_id: {})
+
+
+@pytest.mark.parametrize("make", [np.int32, np.int64, np.float32, np.float64])
+def test_builder_takes_a_numpy_container_amount_as_the_plain_number(make):
+    """A NumPy number stands for the plain one in a container `get` and `put`, as it
+    does in a batch size and a seize priority, and a bad one is still refused."""
+    app = SimulationContext("S", factor=0)
+    app.add_container("tank", current_cap=5, level=5)
+    app.task(name="take", service_time=0, get={"container": "tank", "amount": make(2)})(
+        lambda task_id: {}
+    )
+    app.task(name="give", service_time=0, put={"container": "tank", "amount": make(2)})(
+        lambda task_id: {}
+    )
+    with pytest.raises(ValueError, match="amount"):
+        app.task(
+            name="none", service_time=0, get={"container": "tank", "amount": make(0)}
         )(lambda task_id: {})
 
 

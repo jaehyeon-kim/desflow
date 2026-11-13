@@ -131,8 +131,8 @@ def yaml_keys_page() -> str:
         "of it takes, and a section follows for each entry nested in it. Where a "
         "value is a number, a whole number, `true` or `false`, or one of a fixed "
         "set of names, a `${VAR}` or `${VAR:-default}` reference is also "
-        "accepted, and a duration such as `5 min` is accepted where the type says "
-        "Duration.",
+        "accepted, and a number can also be written in quotes, such as `'1000'`. "
+        "A duration such as `5 min` is accepted where the type says Duration.",
         "",
         "A key typed `Value` takes a constant or a generator, and `Generator` is the "
         "generator part of a type: a mapping with a `gen` key that names its kind, "

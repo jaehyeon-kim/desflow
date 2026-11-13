@@ -6,6 +6,8 @@ validates it with the same models, so a mistake raises Pydantic's `ValidationErr
 `looked_up` finds what some values, templates among them, read from other records.
 """
 
+import re
+import weakref
 from pathlib import Path
 from typing import (
     Any,
@@ -34,6 +36,33 @@ from desflow.values.models import (
 
 _PATH = Tuple[Any, ...]
 
+_WHOLE_NUMBER = re.compile(r"-?\d+")
+# The keys of unnamed templates, and the names that a prefix keeps away from them
+_UNNAMED_LOOKALIKE = re.compile(r"(named:)*template\d+")
+
+
+def _escaped(text: str) -> str:
+    return text.replace("\\", "\\\\").replace(".", "\\.")
+
+
+def _segment(part: Any) -> str:
+    """One step of a generator's dotted path, written so that no two different steps
+    give the same text and no two different paths give the same dotted text.
+
+    A step that is a whole number or a text without a dot, a backslash or a number
+    shape is written as it is, so the sequence of a common path does not change. A dot
+    or a backslash in a text is escaped. A text that looks like a whole number starts
+    with a backslash, which tells it from the number key, and a key that is neither a
+    text nor a whole number starts with its type name, which tells it from the text.
+    """
+    if isinstance(part, str):
+        return (
+            "\\" + _escaped(part) if _WHOLE_NUMBER.fullmatch(part) else _escaped(part)
+        )
+    if isinstance(part, int) and not isinstance(part, bool):
+        return str(part)
+    return f"\\{type(part).__name__}:{_escaped(str(part))}"
+
 
 def bind(
     node: Any,
@@ -41,11 +70,18 @@ def bind(
     locate: Optional[Callable[[_PATH], str]] = None,
     *,
     overwrite: bool = True,
+    text: Optional[str] = None,
 ) -> None:
     """Gives every generator under `node` its place in the file.
 
     The place is a dotted path, which names the generator's random sequence, and a
-    "file:line: path" text for the messages of a failure during the run.
+    "file:line: path" text for the messages of a failure during the run. The parts of
+    `path` are joined as written, because they are the names of the model's elements.
+    A key of a mapping under `node` is escaped where it holds a dot, so that a key
+    `a.b` and the keys `a` then `b` have different paths. An element name is not
+    escaped, so a name with a dot and a section word, such as a task `a.payload.b`,
+    can give a generator the path of a key nested in another element, and the two
+    then share a random sequence and a counter.
 
     Args:
         node: A value: a generator, a mapping, a list, or a constant.
@@ -53,26 +89,43 @@ def bind(
         locate: Gives the "file:line: path" text for a path; without it the dotted
             path alone is used.
         overwrite: Whether a generator that already has a place gets a new one.
+        text: The dotted path of `node`; the parts of `path` joined, when left out.
     """
+    if text is None:
+        text = ".".join(str(part) for part in path)
     if isinstance(node, BaseModel):
         if isinstance(node, Gen) and (overwrite or not node._path):
-            node._path = ".".join(str(part) for part in path)
+            node._path = text
             node._where = locate(path) if locate else node._path
         for name, field in type(node).model_fields.items():
             if name in ("null_rate", "unique", "omit_rate", "omit_when", "gen"):
                 continue
+            part = field.alias or name
             bind(
                 getattr(node, name),
-                path + (field.alias or name,),
+                path + (part,),
                 locate,
                 overwrite=overwrite,
+                text=f"{text}.{part}",
             )
     elif isinstance(node, Mapping):
         for key, item in node.items():
-            bind(item, path + (key,), locate, overwrite=overwrite)
+            bind(
+                item,
+                path + (key,),
+                locate,
+                overwrite=overwrite,
+                text=f"{text}.{_segment(key)}",
+            )
     elif isinstance(node, (list, tuple)):
         for index, item in enumerate(node):
-            bind(item, path + (index,), locate, overwrite=overwrite)
+            bind(
+                item,
+                path + (index,),
+                locate,
+                overwrite=overwrite,
+                text=f"{text}.{index}",
+            )
 
 
 def generator(spec: Any) -> Any:
@@ -104,10 +157,8 @@ def _runtime(context: Any) -> Any:
     return values
 
 
-# How many unnamed templates the process has made, and that count when the last
-# `ValueRuntime` was made: the templates made since belong to the next run's build
+# How many unnamed templates the process has made: each takes a first key from it
 _made = 0
-_window_start = 0
 
 
 def _next_serial() -> int:
@@ -117,17 +168,70 @@ def _next_serial() -> int:
     return _made
 
 
-def start_window() -> int:
-    """Marks the start of a new run's build and returns the count of unnamed templates
-    made before the previous mark, which the runtime numbers its templates from.
+class TemplateNumbers:
+    """The keys of the unnamed templates that one model's runs have rendered.
 
-    A `ValueRuntime` calls it when it is made. The unnamed templates made since the
-    previous runtime belong to this one's build, so a template made `n`-th in a build
-    takes the key `template<n>` whatever was built earlier in the process.
+    The first run that renders an unnamed template gives it the key
+    `template<n>`, where `n` counts the unnamed templates rendered so far. For one
+    model and seed the order of first renders is the same in every process, so the
+    keys, and with them the random sequences, do not depend on what else the
+    process built or ran before. Two unnamed templates of one model never share a
+    key. A template that two models share keeps the key the first gave it, and can
+    then share it with an unnamed template of the second model: give it a `name`.
     """
-    global _window_start
-    start, _window_start = _window_start, _made
-    return start
+
+    def __init__(self) -> None:
+        self._seen: "weakref.WeakSet[Template]" = weakref.WeakSet()
+        self._taken: Set[str] = set()
+
+    def number(self, template: "Template") -> None:
+        """Gives an unnamed template its key, once, and keeps it from the next one.
+
+        A template that an earlier run or another model numbered keeps its key.
+
+        Args:
+            template: The template being rendered.
+        """
+        if template.name or template in self._seen:
+            return
+        self._seen.add(template)
+        if not template._numbered:
+            n = len(self._taken) + 1
+            while f"template{n}" in self._taken:
+                n += 1
+            template._take_key(f"template{n}")
+        self._taken.add(template.key)
+
+
+_NUMBERS_OF: "weakref.WeakKeyDictionary[Any, TemplateNumbers]" = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def numbers_of(context: Any) -> TemplateNumbers:
+    """The numbering that all runs of a context share; a run with no context has its own.
+
+    Args:
+        context: The context the run belongs to, or None.
+
+    Returns:
+        TemplateNumbers: The context's numbering, or a new one for a run with no
+            context or a context that cannot be a mapping key.
+    """
+    try:
+        return _NUMBERS_OF.setdefault(context, TemplateNumbers())
+    except TypeError:
+        return TemplateNumbers()
+
+
+def _key_of(name: Optional[str], serial: Optional[int]) -> str:
+    """The key a template's random sequences are named by: its name, or `template<n>`
+    for the `n`-th unnamed template. A name that looks like an unnamed key gets
+    `named:` in front, so no name takes the key of an unnamed template.
+    """
+    if not name:
+        return f"template{serial}"
+    return f"named:{name}" if _UNNAMED_LOOKALIKE.fullmatch(name) else name
 
 
 class Template:
@@ -154,7 +258,11 @@ class Template:
 
     Attributes:
         name (Optional[str]): What the template is called; it names the random
-            sequences of its generators, so give two templates different names.
+            sequences of its generators, so give two templates different names. A name
+            with dots is a path: `tasks.wash` gives its generators the random
+            sequences of a blueprint's `tasks.wash.payload`. A name with a dot and a
+            section word can share a sequence and a counter with a key nested in
+            another element.
         payload: The validated mapping.
         vars: The named values a `vars` key would hold, evaluated before the payload.
         vars_once: The same, evaluated once for each entity.
@@ -186,14 +294,17 @@ class Template:
             ValueError: If a check finds a problem, such as a `row` file that does not
                 exist (a relative path is read from the working directory).
         """
-        # An unnamed template is numbered in creation order, so two never share a
-        # random sequence or a counter. The first run that renders it numbers it from
-        # the start of its build (`_renumber`), so two builds of one code give one key.
+        # An unnamed template starts with a key from the process's creation order, so
+        # two never share a random sequence or a counter before a run renders them.
+        # The first run that renders it
+        # numbers it by the order of renders (`TemplateNumbers`), so two builds of one
+        # code give one key.
         self.name = name
-        self._serial: Optional[int] = None if name else _next_serial()
-        self._renumbered = name is not None
-        self.key: str = name or f"template{self._serial}"
-        base = (self.key,)
+        self._numbered = name is not None
+        self.key: str = _key_of(name, None if name else _next_serial())
+        # A name is a path: "tasks.wash" gives the generators the places a blueprint's
+        # `tasks.wash.payload` has, and so the same random sequences
+        base = tuple(self.key.split("."))
         self.payload: Any = payload_adapter().validate_python(payload)
         self.vars: Dict[str, Any] = values_adapter().validate_python(dict(vars or {}))
         self.vars_once: Dict[str, Any] = values_adapter().validate_python(
@@ -216,23 +327,15 @@ class Template:
         if check:
             self._check(base)
 
-    def _renumber(self, start: int) -> None:
-        """Numbers an unnamed template from the start of the build it was made in,
-        once, and binds its generators to that key, so their random sequences and
-        counters do not depend on how many templates the process made before.
-
-        A template made before `start` keeps its key, as it belongs to an earlier
-        build. Later runs keep the key the first one gave.
+    def _take_key(self, key: str) -> None:
+        """Gives an unnamed template its key and binds its generators to it, so their
+        random sequences and counters do not depend on how many templates the process
+        made before.
 
         Args:
-            start: The count of unnamed templates made before the build began.
+            key: The key, `template<n>`.
         """
-        if self._renumbered:
-            return
-        self._renumbered = True
-        if self._serial is None or self._serial <= start:
-            return
-        key = f"template{self._serial - start}"
+        self._numbered = True
         if key == self.key:
             return
         self.key = key

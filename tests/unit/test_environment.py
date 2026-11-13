@@ -377,6 +377,45 @@ def watch_factor(env, until, interval=0.25):
     return seen
 
 
+@pytest.mark.parametrize("setting", ["logical_start_time", "go_live_at"])
+def test_a_number_is_refused_as_a_start_or_go_live_time(setting):
+    with pytest.raises(
+        ValueError,
+        match=f"{setting} is 20260101 of type int, .*must be a datetime such as datetime",
+    ):
+        DynamicRealtimeEnvironment(**{setting: 20260101})
+
+
+@pytest.mark.parametrize("setting", ["logical_start_time", "go_live_at"])
+@pytest.mark.parametrize(
+    "value,fragment",
+    [
+        ("numpy", "of type int64"),
+        ("decimal", "of type Decimal"),
+        ("date", "of type date"),
+        ("text", "'hello'"),
+    ],
+)
+def test_a_value_that_is_not_a_datetime_is_refused_as_a_start_or_go_live_time(
+    setting, value, fragment
+):
+    from datetime import date
+    from decimal import Decimal
+
+    import numpy
+
+    given = {
+        "numpy": numpy.int64(20260101),
+        "decimal": Decimal(5),
+        "date": date(2026, 1, 1),
+        "text": "hello",
+    }[value]
+    with pytest.raises(
+        ValueError, match=f"{setting} is .*{fragment}.*must be a datetime"
+    ):
+        DynamicRealtimeEnvironment(**{setting: given})
+
+
 def test_factor_switches_when_the_logical_clock_reaches_go_live():
     """One run, two speeds: unpaced history, then real time from the go-live instant."""
     env = DynamicRealtimeEnvironment(
@@ -1448,3 +1487,67 @@ def test_envelope_false_provider_skips_telemetry_and_lifecycle_records(caplog):
     assert shown(labels) == [("label", None)]
     assert plain.envelope is False and full.envelope is True
     assert "TrackingEgress has envelope: false" in caplog.text
+
+
+def test_teardown_flushes_and_stops_threads_when_the_last_publication_raises():
+    """The last statistics publication runs `when` on a telemetry record, which can
+    raise. The first sink still receives its buffered records, the egress thread
+    stops, and the error reaches the caller."""
+
+    def fails_on_the_last_telemetry(record):
+        if record["stream_type"] == "telemetry" and record["sim_ts"] >= 5:
+            raise ValueError("when: cannot evaluate")
+        return True
+
+    plain, filtered = TrackingEgress(), TrackingEgress()
+    env = DynamicRealtimeEnvironment(factor=0)
+    env.setup_egress(
+        [plain, filtered],
+        batch_size=1000,
+        predicates=[None, fails_on_the_last_telemetry],
+        lag_monitor_interval=0,
+    )
+    env.setup_stats("S", "minimal", interval=100)
+
+    def work(env):
+        for index in range(5):
+            env.publish_event(f"k{index}", {"i": index})
+            env.stats.task_queued("t", index)
+            yield env.timeout(1)
+
+    env.process(work(env))
+    env.run()
+
+    with pytest.raises(ValueError, match="when: cannot evaluate"):
+        env.teardown()
+
+    received = [
+        (record["stream_type"], record.get("key"))
+        for batch in plain.received_batches
+        for record in batch
+    ]
+    events = [key for stream_type, key in received if stream_type == "event"]
+    assert events == [f"k{index}" for index in range(5)]
+    env._egress_thread.join(timeout=5)
+    assert not env._egress_thread.is_alive()
+
+
+@pytest.mark.parametrize(
+    "settings, name",
+    [
+        ({"flush_interval": 0}, "egress flush_interval"),
+        ({"flush_interval": -1}, "egress flush_interval"),
+        ({"drain_stall_seconds": -1}, "egress drain_stall_seconds"),
+        ({"batch_size": 0}, "egress batch_size"),
+        ({"flush_intervals": [None, 0]}, r"egress flush_intervals\[1\]"),
+        ({"batch_sizes": [10, -1]}, r"egress batch_sizes\[1\]"),
+    ],
+)
+def test_setup_egress_refuses_the_batching_values_the_other_apis_refuse(settings, name):
+    """A zero interval would hold a paced run at time 0, so the low-level API refuses
+    each value `add_egress` and `with_batching` refuse, naming the setting."""
+    env = DynamicRealtimeEnvironment(strict=False)
+
+    with pytest.raises(ValueError, match=name):
+        env.setup_egress([TrackingEgress(), TrackingEgress()], **settings)
+    assert not hasattr(env, "_egress_sinks")

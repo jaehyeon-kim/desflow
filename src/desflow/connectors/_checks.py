@@ -1,5 +1,6 @@
 """Checks that connector arguments share."""
 
+import math
 import numbers
 
 
@@ -32,3 +33,32 @@ def checked_whole(
     if value < minimum:  # type: ignore[operator]
         raise ValueError(f"{what} is a whole number of {minimum} or more, got {value}")
     return int(value)  # type: ignore[call-overload]
+
+
+def checked_poll(value: object, what: str) -> float:
+    """Returns `value` when it is a positive, finite number of seconds, else refuses it.
+
+    A poll of 0 or below would make the connector check its source in a loop with
+    no wait, and `nan` or infinity would make it wait for ever. Text such as `"1"`
+    is not a number here.
+
+    Args:
+        value: The seconds between two checks.
+        what: The name the refusal gives, such as `poll_interval`.
+
+    Returns:
+        float: The seconds.
+
+    Raises:
+        ValueError: If `value` is not a number, or is not above 0, or is not finite.
+    """
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, numbers.Real)
+        or not math.isfinite(value)
+        or value <= 0
+    ):
+        raise ValueError(
+            f"{what} is a number of seconds above 0 that is not infinite, got {value!r}"
+        )
+    return float(value)

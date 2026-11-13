@@ -3,6 +3,7 @@
 import logging
 from pathlib import Path
 from typing import Annotated, Optional
+from urllib.parse import unquote
 
 import typer
 
@@ -93,7 +94,7 @@ def _explain(
     from desflow.blueprint.loader import BlueprintError
     from desflow.builder.context import parts_of
     from desflow.explain.render import render_terminal, to_json
-    from desflow.loading import load_context
+    from desflow.loading import EntryNotFoundError, load_context
 
     if not 0 < target <= 10:
         refuse(f"--target must be above 0 and at most 10, got {target:g}")
@@ -111,6 +112,9 @@ def _explain(
     elif not entry:
         # A URI that ends in a folder names no file, so nothing is copied
         refuse(f"no file {source}")
+    else:
+        # pyarrow decodes the folder of a URI, so the file name is decoded too
+        entry = unquote(entry)
     # A warning while loading, such as a capacity clamped to max_cap, is shown on
     # stderr; the explanation stays alone on stdout
     setup_logging(logging.WARNING)
@@ -118,6 +122,9 @@ def _explain(
         context = load_context(folder, entry)
     except BlueprintError as exc:
         fail(str(exc))
+    except EntryNotFoundError:
+        # The folder in the message is decoded, the URI the user typed is not
+        refuse(f"no file {source}")
     except ValueError as exc:
         # A Python file with no SimulationContext, such as a low-level script
         refuse(str(exc))

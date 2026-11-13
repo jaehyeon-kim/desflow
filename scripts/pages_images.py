@@ -19,8 +19,9 @@ With `--compress`, each PNG it stores is shrunk with pngquant (`--quality 70-95`
 which must be installed. The `latest` version keeps its images as they are.
 
 An image stays in place when any page of the site links to it by an absolute or root
-path, or when a page of its version still names it after the rewrite, such as a link
-the rewrite could not read. Links are matched without regard to case, and a
+path, when a page of another version links to it by a relative path, or when a page of
+its version still names it after the rewrite, such as a link the rewrite could not
+read. Links and file suffixes are matched without regard to case, and a
 percent-encoded link is decoded before it is resolved.
 """
 
@@ -51,8 +52,12 @@ _LINK = re.compile(
     r"(?<=[\"'(\s=,])([^\"'()\s<>,]{1,300}\.(?:png|gif|jpe?g|webp))(?=[?#\"')\s,])",
     re.IGNORECASE,
 )
-# Any word that ends like an image file name, for the check before deleting
-_NAME = re.compile(r"[^\s\"'()<>,/\\]{1,300}\.(?:png|gif|jpe?g|webp)\b", re.IGNORECASE)
+# Any text that ends like an image file name, for the check before deleting. A file
+# name may hold a space, a parenthesis or a comma, so the text runs back to a slash or
+# a quote and `_spellings` lists the names it may end with.
+_NAME = re.compile(r"[^\"'<>/\\]{1,300}\.(?:png|gif|jpe?g|webp)\b", re.IGNORECASE)
+_NAME_STARTS = " (),=`}"
+_IMAGE_END = re.compile(r"\.(?:png|gif|jpe?g|webp)\b")
 
 
 def _is_relative(link):
@@ -69,7 +74,9 @@ def _versions_to_rewrite(site):
 
 
 def _files(folder, suffixes):
-    return [p for p in folder.rglob("*") if p.suffix in suffixes and p.is_file()]
+    return [
+        p for p in folder.rglob("*") if p.suffix.lower() in suffixes and p.is_file()
+    ]
 
 
 def _images(folder):
@@ -90,22 +97,51 @@ def _absolute_links(site):
     }
 
 
-def _pinned(site, version, absolute_links):
-    """Returns the images of a version that some page links to by an absolute path."""
+def _relative_links(site):
+    """Returns each relative link to an image as the page and the file it reaches."""
+    return [
+        (page, _resolve(page, link))
+        for page in _files(site, PAGE_SUFFIXES)
+        for link in _LINK.findall(page.read_text(errors="ignore"))
+        if _is_relative(link)
+    ]
+
+
+def _pinned(site, version, absolute_links, relative_links):
+    """Returns the images of a version that a page links to by an absolute path, or
+    that a page of another version links to by a relative path."""
     marker = f"/{version}/"
-    return {
-        Path(os.path.normpath(site / version / link.split(marker, 1)[1]))
+    folder = site / version
+    by_root = {
+        Path(os.path.normpath(folder / link.split(marker, 1)[1]))
         for link in absolute_links
         if marker in link
     }
+    from_outside = {
+        target
+        for page, target in relative_links
+        if folder in target.parents and folder not in page.parents
+    }
+    return by_root | from_outside
+
+
+def _spellings(text):
+    """Returns the file names that the text may hold, in lower case: what runs from the
+    start of the text, or from each character that may separate a name from other
+    words, to each place where an image suffix ends."""
+    text = unquote(text).lower()
+    starts = [0] + [at + 1 for at, char in enumerate(text) if char in _NAME_STARTS]
+    ends = [match.end() for match in _IMAGE_END.finditer(text)]
+    return {text[at:end] for end in ends for at in starts if at < end}
 
 
 def _names_left(folder):
     """Returns the image file names the version's files still mention, in lower case."""
     return {
-        unquote(Path(name).name).lower()
+        spelling
         for page in _files(folder, TEXT_SUFFIXES)
         for name in _NAME.findall(page.read_text(errors="ignore"))
+        for spelling in _spellings(name)
     }
 
 
@@ -145,7 +181,8 @@ def _rewrite_page(page, moved):
         target = _resolve(page, link) if _is_relative(link) else None
         if target not in moved:
             return link
-        return os.path.relpath(moved[target], page.parent)
+        # A link in a page uses "/" on every system, and relpath uses "\\" on Windows
+        return Path(os.path.relpath(moved[target], page.parent)).as_posix()
 
     new = _LINK.sub(_swap, text)
     if new != text:
@@ -188,9 +225,10 @@ def rewrite_site(site, compress=False):
         The images kept in place because a file of their version still names them.
     """
     absolute_links = _absolute_links(site)
+    relative_links = _relative_links(site)
     kept = []
     for version in _versions_to_rewrite(site):
-        pinned = _pinned(site, version, absolute_links)
+        pinned = _pinned(site, version, absolute_links, relative_links)
         kept += rewrite_version(site, version, pinned, compress)
     return kept
 

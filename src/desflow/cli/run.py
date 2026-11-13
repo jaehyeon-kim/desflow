@@ -106,6 +106,7 @@ def _run_options(options: _RunOptions) -> str:
 # Each command is private: typer shows its docstring as the help text, so it
 # carries no Args section, and register() gives the command its name
 def _run(
+    ctx: typer.Context,
     file: Annotated[
         Path,
         typer.Argument(
@@ -214,6 +215,8 @@ def _run(
     file with a module-level `SimulationContext`, which is imported as `desflow
     test` imports it, so its `if __name__ == "__main__":` block does not run.
     """
+    from desflow.loading import is_builder_file
+
     parse_until(until, ends=replications is not None)
     options = _RunOptions(
         until,
@@ -229,7 +232,15 @@ def _run(
     )
     if (sample is not None or stdout) and replications is not None:
         refuse("--sample and --stdout print one run; leave out --replications")
-    if file.suffix == ".py" and (sample is None or stdout or watch or var):
+    # The source's name, because typer 0.28 carries its own copy of click's enum
+    ignored = [
+        f"--{name}"
+        for name in ("measure", "level", "workers")
+        if getattr(ctx.get_parameter_source(name), "name", "") == "COMMANDLINE"
+    ]
+    if ignored and replications is None:
+        refuse(f"{', '.join(ignored)} can only be used with --replications; add it")
+    if is_builder_file(file) and (sample is None or stdout or watch or var):
         refuse(
             "desflow run takes a builder Python file only with --sample, and "
             "without --stdout, --var or --watch; run a Python file with python FILE"
@@ -408,11 +419,13 @@ class _BlueprintFilter:
         self._folder = self._file.parent
 
     def __call__(self, change: Any, path: str) -> bool:
+        from desflow.loading import is_builder_file
+
         if not self._default(change, path):
             return False
         changed = Path(path).resolve()
         return changed == self._file or (
-            changed.suffix == ".py" and self._folder in changed.parents
+            is_builder_file(changed) and self._folder in changed.parents
         )
 
 

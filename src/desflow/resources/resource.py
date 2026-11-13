@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import itertools
 import math
+import numbers
 from typing import Any, Callable, ClassVar, List, Optional, Tuple, Union
 
 from simpy import Environment, Event
@@ -23,6 +24,42 @@ class QueueFull(RuntimeError):
 def _whole(value: float) -> Union[int, float]:
     """A capacity as a whole number; infinity, a resource with no limit, stays."""
     return value if math.isinf(value) else int(value)
+
+
+def _is_finite_number(value: Any) -> bool:
+    return (
+        isinstance(value, numbers.Real)
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
+
+
+def _is_orderable_number(value: Any) -> bool:
+    """Whether `value` is a number that compares with every other: any real number
+    but NaN, infinity included."""
+    return (
+        isinstance(value, numbers.Real)
+        and not isinstance(value, bool)
+        and value == value
+    )
+
+
+def check_priority(priority: Any) -> None:
+    """Refuses a request priority that does not compare: a number other than NaN, or
+    a list or tuple of them, is accepted. Infinity orders correctly and is accepted.
+
+    Args:
+        priority: The priority a request gives.
+
+    Raises:
+        ValueError: If `priority` is NaN, a boolean, text or an empty list.
+    """
+    parts = priority if isinstance(priority, (list, tuple)) else [priority]
+    if not parts or not all(_is_orderable_number(part) for part in parts):
+        raise ValueError(
+            f"priority must be a number that is not NaN, or a list of them, got "
+            f"{priority!r}"
+        )
 
 
 class DynamicResourceRequest(PriorityRequest):
@@ -58,6 +95,7 @@ class DynamicResourceRequest(PriorityRequest):
     def __init__(
         self, resource: ResourceBase, priority: float = 0, preempt: bool = True
     ):
+        check_priority(priority)
         Event.__init__(self, resource.env)
         self.resource = resource
         self.priority = priority
@@ -247,10 +285,14 @@ class ResourceBase(BaseDynamicResource):
 
         Raises:
             ValueError: If `queue` is not one of the three orders, `preempt` is set
-                without `queue="priority"`, or `queue_limit` is negative or is set on a
-                class whose `PutQueue` is not the default.
+                without `queue="priority"`, or `queue_limit` is not a whole number, is
+                negative, or is set on a class whose `PutQueue` is not the default.
         """
         check_resource_queue(queue, preempt, ties)
+        if queue_limit is not None and not (
+            _is_finite_number(queue_limit) and float(queue_limit).is_integer()
+        ):
+            raise ValueError(f"queue_limit must be a whole number, got {queue_limit!r}")
         check_resource_type(type(self), queue_limit)
         self.preempt = bool(preempt)
         self.preempt_rule = preempt if isinstance(preempt, PreemptRule) else None
@@ -583,7 +625,9 @@ class ResourceBase(BaseDynamicResource):
         Puts the resource down: its capacity is 0 until `repair()`.
 
         `current_cap` in the registry keeps the planned capacity, so a change during
-        the repair sets the capacity the resource returns to.
+        the repair sets the capacity the resource returns to. Calling it again while
+        the resource is down keeps the first start of the outage, counts no new
+        failure, and interrupts the tasks still being served when `interrupt_work`.
 
         Args:
             interrupt_work: True interrupts every task being served, with the cause
@@ -593,9 +637,10 @@ class ResourceBase(BaseDynamicResource):
         Returns:
             int: How many tasks were interrupted.
         """
+        if not self.down:
+            self.failures += 1
+            self._down_since = self.env.now
         self.down = True
-        self.failures += 1
-        self._down_since = self.env.now
         self._capacity = 0
         self._changed()
         interrupted = 0

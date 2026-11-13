@@ -180,7 +180,7 @@ The gaps fit an exponential distribution at about 1.5 orders a second, which is 
     .add_service("packing", **FITS["packing"])
     ```
 
-    `FITS` holds `result.settings()` of each fit. It keeps the same six significant digits as the fitted files that the blueprint reads, so the builder draws the same values as the blueprint.
+    `FITS` holds `result.settings()` of each fit. It holds the same numbers as the fitted files that the blueprint reads, so the builder draws the same values as the blueprint.
 
 === "Low-level"
 

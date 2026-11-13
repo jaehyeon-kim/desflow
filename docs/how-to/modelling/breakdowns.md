@@ -85,7 +85,7 @@ With the default `clock: calendar`, the next failure is drawn at the start and a
 - Its `current_cap` keeps the planned value. A scenario step or an ingress message that changes it during the repair sets the capacity the station returns to. It does not end the repair.
 - The station publishes an event keyed by its name at each failure, `{"status": "down", "reason": "failure"}`, and at each repair, `{"status": "repaired", "reason": "failure"}`.
 
-The two distributions are registry paths, `Shop.breakdown.station.time_to_failure` and `.repair`, so a live change can make failures more or less frequent.
+The two distributions are registry paths, `Shop.breakdown.station.time_to_failure` and `.repair`, so a live change can make failures more or less frequent. The two cannot both always give 0, because the station would then fail and be repaired for ever at one instant. The load refuses a pair that always gives 0. A live change that makes both 0 stops the run with an error that names the station. So does a pair that gives only 0 although its distribution has a spread, such as a normal time whose mean is many times its std below 0: the run stops after 10,000 failures at one instant.
 
 A breakdown that lets work finish and then holds the resource for a fixed time each day is a capacity schedule. [Vary Arrivals by Time](time-varying-arrivals.md) writes it as scenario steps.
 

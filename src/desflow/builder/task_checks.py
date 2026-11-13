@@ -17,6 +17,7 @@ from typing import (
     List,
     NamedTuple,
     Optional,
+    Set,
     Tuple,
 )
 from pydantic import BaseModel
@@ -530,8 +531,12 @@ def _note_handoffs(
                     raise ValueError(
                         f"task '{task}' keeps resource '{kept}' for '{after}', which "
                         f"requests '{kept}' in its wait, so the request would wait "
-                        f"for the unit kept for it; list '{kept}' in the resource of "
-                        f"'{after}' instead"
+                        f"for the unit kept for it. The kept unit goes back only "
+                        f"once '{after}' starts, and '{after}' cannot start before "
+                        f"it has its own unit. Take '{kept}' out of the keep of "
+                        f"'{task}', so '{after}' asks for a unit after '{task}' "
+                        f"gives its unit back, or hold the unit with a seize of "
+                        f"'{kept}' in '{task}' and a release of '{kept}' in '{after}'"
                     )
                 for second in [*notes.requested(after), *resources.get(after, [])]:
                     if second != kept:
@@ -609,6 +614,32 @@ def _name_places(spec: "TaskSpec") -> List[Tuple[str, str, Any]]:
             if "fire" in action:
                 found.append(("listen", "signal", action["fire"]["signal"]))
     return found
+
+
+def families_made_at_first_use(
+    specs: Mapping[str, "TaskSpec"],
+    signal_actions: Optional[Mapping[str, List[Dict[str, Any]]]] = None,
+) -> Set[str]:
+    """The families a task or an `on:` action names with a `key`, which makes the
+    member of that key at its first use, whatever the family's `members` is.
+
+    Args:
+        specs: The tasks, by name.
+        signal_actions: The `on:` actions of each signal.
+
+    Returns:
+        Set[str]: The names of the families.
+    """
+    places = [place for spec in specs.values() for place in _name_places(spec)]
+    for actions in (signal_actions or {}).values():
+        places += [
+            ("on", "signal", a["fire"]["signal"]) for a in actions if "fire" in a
+        ]
+    return {
+        str(name.of)
+        for _key, _kind, name in places
+        if isinstance(name, Reference) and not name.listed and name.key is not None
+    }
 
 
 def family_problem(

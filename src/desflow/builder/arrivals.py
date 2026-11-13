@@ -9,6 +9,7 @@ that starts one entity at each gap, `start_entities` for one with `count` or `ke
 and a plain loop for an arrival with no plan.
 """
 
+import functools
 import logging
 import numbers
 
@@ -208,6 +209,22 @@ class _Counter:
         self.last -= 1
 
 
+def _replaces_whole_or_nothing(method: Callable[..., None]) -> Callable[..., None]:
+    """Makes a method that declares an arrival under a name keep the arrival the name
+    held before when the call is refused, so a refused call changes nothing."""
+
+    @functools.wraps(method)
+    def declare(self: "Arrivals", bind: Bind, name: str, *args: Any, **kwargs: Any):
+        before = self.snapshot(name)
+        try:
+            return method(self, bind, name, *args, **kwargs)
+        except Exception:
+            self.restore(name, before)
+            raise
+
+    return declare
+
+
 class Arrivals:
     """The arrivals of a model: how each makes its entities and when.
 
@@ -222,6 +239,8 @@ class Arrivals:
         plans: Per arrival, the keys of a blueprint that limit or repeat it, or take
             its gaps from an expression.
         replays: Per replayed arrival, how to read its rows.
+        replay_places: Per replayed arrival of a blueprint, where its `replay.path` is
+            written, to start a refusal of its rows with.
     """
 
     def __init__(self) -> None:
@@ -232,6 +251,7 @@ class Arrivals:
         self.spawns: Dict[str, str] = {}
         self.plans: Dict[str, ArrivalPlan] = {}
         self.replays: Dict[str, Dict[str, Any]] = {}
+        self.replay_places: Dict[str, str] = {}
 
     def new_run(
         self,
@@ -267,6 +287,7 @@ class Arrivals:
             on={name: plan.active for name, plan in self.plans.items()},
         )
 
+    @_replaces_whole_or_nothing
     def add_arrival(
         self,
         bind: Bind,
@@ -291,7 +312,7 @@ class Arrivals:
         attributes: Optional[Mapping[str, Any]] = None,
         key: Any = None,
         spawn: Optional[str] = None,
-        first_at: Optional[float] = None,
+        first_at: Union[float, str, None] = None,
         group: Any = 1,
         active: bool = True,
         off_mode: str = "drop",
@@ -364,12 +385,13 @@ class Arrivals:
         value_key, key = self._key_and_vars(bind, name, key, vars)
         self.entities[name] = (dict(attributes or {}), key)
         if first_at is not None:
-            if (
-                isinstance(first_at, bool)
-                or not isinstance(first_at, numbers.Real)
-                or not first_at >= 0
-            ):
-                raise ValueError(f"first_at is a time of 0 or more, got {first_at!r}")
+            try:
+                seconds = checked_seconds(first_at, "first_at")
+            except ValueError:
+                raise ValueError(
+                    f"first_at is a time of 0 or more, got {first_at!r}"
+                ) from None
+            first_at = seconds
         from desflow.core.rules import check_count_place
 
         for what, count in (("group", group), ("max_events", max_events)):
@@ -473,6 +495,7 @@ class Arrivals:
             plan.vars = dict(vars or {})
         return plan
 
+    @_replaces_whole_or_nothing
     def add_initial_arrival(
         self,
         bind: Bind,
@@ -492,8 +515,14 @@ class Arrivals:
                 context's `_bind_values`). The others are as for
                 `SimulationContext.add_initial_arrival`.
         """
-        if isinstance(initial, bool) or not isinstance(initial, int) or initial < 1:
+        if (
+            isinstance(initial, bool)
+            or not isinstance(initial, numbers.Integral)
+            or initial < 1
+        ):
             raise ValueError(f"initial is a whole number above 0, got {initial!r}")
+        # a NumPy integer too, as `group` and `max_events` take it
+        initial = int(initial)
         self.forget(name)
         if gap is not None:
             return self.add_arrival(
@@ -516,6 +545,42 @@ class Arrivals:
         self.plans[name] = plan
         self._add_spawn(name, spawn)
 
+    def _tables(self) -> Tuple[Dict[str, Any], ...]:
+        """The tables that hold what is declared under an arrival's name."""
+        return (
+            self.configs,
+            self.entities,
+            self.spawns,
+            self.plans,
+            self.replays,
+            self.replay_places,
+        )
+
+    def snapshot(self, name: str) -> List[Tuple[bool, Any]]:
+        """What each table holds under an arrival's name, for `restore`.
+
+        Args:
+            name: The arrival's name.
+
+        Returns:
+            List[Tuple[bool, Any]]: For each table, whether it holds the name and the
+                value it holds.
+        """
+        return [(name in table, table.get(name)) for table in self._tables()]
+
+    def restore(self, name: str, saved: List[Tuple[bool, Any]]) -> None:
+        """Puts back what `snapshot` found under an arrival's name.
+
+        Args:
+            name: The arrival's name.
+            saved: The result of `snapshot`.
+        """
+        for table, (had, value) in zip(self._tables(), saved):
+            if had:
+                table[name] = value
+            else:
+                table.pop(name, None)
+
     def forget(self, name: str) -> None:
         """Drops everything declared under an arrival's name, so a second declaration
         of the name replaces the first entirely.
@@ -523,13 +588,7 @@ class Arrivals:
         Args:
             name: The arrival's name.
         """
-        for table in (
-            self.configs,
-            self.entities,
-            self.spawns,
-            self.plans,
-            self.replays,
-        ):
+        for table in self._tables():
             table.pop(name, None)
 
     def _add_spawn(self, arrival: str, task: Optional[str]) -> None:
@@ -540,6 +599,7 @@ class Arrivals:
             return
         self.spawns[arrival] = task
 
+    @_replaces_whole_or_nothing
     def add_arrival_replay(
         self,
         bind: Bind,
@@ -782,7 +842,9 @@ class ArrivalRun:
         options = (attributes, self.arrivals.entities[arrival_id][1])
         entity = self.new_entity(arrival_id, options, generate=False)
         if row.time <= self.env.now:
-            self._make_entity(entity, attributes)
+            # A row that starts nobody draws nothing, as one due later does
+            if self.on.get(arrival_id, True):
+                self._make_entity(entity, attributes)
             return self._next_replayed_tied(entity)
         event = self.env.timeout(row.time - self.env.now, value=entity)
         self._generate_when_due(event, entity, options)
@@ -1185,8 +1247,13 @@ def _source_plan(
         raise ValueError(f"active is true or false, got {active!r}")
     if off_mode not in ("drop", "restart"):
         raise ValueError(f"off_mode is 'drop' or 'restart', got {off_mode!r}")
-    if isinstance(initial, bool) or not isinstance(initial, int) or initial < 0:
+    if (
+        isinstance(initial, bool)
+        or not isinstance(initial, numbers.Integral)
+        or initial < 0
+    ):
         raise ValueError(f"initial is a whole number of 0 or more, got {initial!r}")
+    initial = int(initial)
     if group == 1 and active and off_mode == "drop" and not initial:
         return None
     if spawn is None:

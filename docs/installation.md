@@ -38,7 +38,7 @@ Connectors and input fitting are optional extras. For example, `uv add "desflow[
 | `fit` | scipy and matplotlib, for [input fitting](user-guide/model-parts/input-fitting.md) with `desflow fit` |
 | `fake` | Faker, for the `fake` generator of realistic names, addresses and dates |
 | `watch` | watchfiles, for `desflow run --watch`, which runs the file again each time it changes |
-| `all` | Every extra above except `watch` |
+| `all` | Every extra above |
 
 Two cautions apply to the `fake` extra. A seeded `fake` field gives the same values again only with the same version of Faker, because 1.0 does not record the version. A Faker method that reads the date, such as `date_between`, reads the wall clock and not the simulation clock, so it gives other values on another day.
 

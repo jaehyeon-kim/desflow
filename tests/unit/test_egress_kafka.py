@@ -835,18 +835,33 @@ async def test_a_null_value_with_the_envelope_on_is_written_or_skipped(
         assert message.key == "k2" and not message.HasField("value")
 
 
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(("registry", 422, 42201, "invalid schema"), id="registry-422"),
+        pytest.param(
+            ("registry", 400, "InvalidInputException", "bad definition"), id="glue-400"
+        ),
+        pytest.param(OverflowError("int too big for 64 bits"), id="overflow"),
+    ],
+)
 @pytest.mark.asyncio
 @patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
-async def test_a_registry_error_ends_the_batch_and_retries_the_connection(
-    MockProducer, run_until, caplog
+async def test_a_registry_or_encoding_error_skips_only_its_record(
+    MockProducer, run_until, caplog, error
 ):
-    """A `SchemaRegistryError` is not a refusal of the record: it ends the batch,
-    whose rest is not sent, and the sink retries the connection."""
+    """A `SchemaRegistryError` with a 4xx status that does not refuse access, or an
+    `OverflowError`, skips its record with a warning that names the error, as a
+    `ValueError` does. The records after it are sent and the connection is not
+    restarted."""
     from desflow.connectors._schema_registry.errors import SchemaRegistryError
+
+    if isinstance(error, tuple):
+        error = SchemaRegistryError(*error[1:])
 
     def serialize(topic, payload):
         if payload["key"] == "k2":
-            raise SchemaRegistryError(409, 409, "incompatible schema")
+            raise error
         return payload["key"].encode()
 
     serializer = MagicMock()
@@ -857,19 +872,173 @@ async def test_a_registry_error_ends_the_batch_and_retries_the_connection(
     )
     batches = queue.Queue()
     batches.put(
-        [
-            {"stream_type": "event", "key": "k1", "value": {"n": 1}},
-            {"stream_type": "event", "key": "k2", "value": {"n": 2}},
-            {"stream_type": "event", "key": "k3", "value": {"n": 3}},
-        ]
+        [{"stream_type": "event", "key": f"k{n}", "value": {"n": n}} for n in (1, 2, 3)]
     )
 
-    await run_until(egress.run(batches), lambda: "connection failed" in caplog.text)
+    await run_until(
+        egress.run(batches),
+        lambda: batches.empty() and producer.send.call_count >= 2,
+    )
 
     sent = [call.kwargs["key"] for call in producer.send.call_args_list]
-    assert sent == [b"k1"]
-    assert "incompatible schema" in caplog.text
+    assert sent == [b"k1", b"k3"]
+    assert "skipped the record with key k2" in caplog.text
+    assert str(error) in caplog.text
+    assert "connection failed" not in caplog.text
+    assert MockProducer.call_count == 1
+
+
+@pytest.mark.parametrize(
+    ("status", "code", "cause"),
+    [
+        pytest.param(401, 40101, None, id="registry-401"),
+        pytest.param(403, 40301, None, id="registry-403"),
+        pytest.param(400, "AccessDeniedException", None, id="glue-access-denied"),
+        pytest.param(-1, -1, "no-credentials", id="glue-no-credentials"),
+    ],
+)
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_a_registry_that_refuses_access_ends_the_sink(
+    MockProducer, caplog, status, code, cause
+):
+    """A registry that refuses the sink's credentials or access ends the sink's task
+    with that error, so the queue is not drained record by record. Nothing of the
+    batch is sent, the producer is stopped and no reconnection is tried."""
+    from botocore.exceptions import NoCredentialsError
+
+    from desflow.connectors._schema_registry.errors import SchemaRegistryError
+
+    # A Glue client with no credentials fails before it calls Glue, and
+    # `GlueSchemaRegistryClient` wraps botocore's error with the status -1
+    origin = NoCredentialsError() if cause == "no-credentials" else None
+
+    def serialize(topic, payload):
+        if payload["key"] == "k2":
+            raise SchemaRegistryError(status, code, "refused") from origin
+        return payload["key"].encode()
+
+    serializer = MagicMock()
+    serializer.serialize.side_effect = serialize
+    producer = MockProducer.return_value = AsyncMock()
+    egress = KafkaEgress(
+        bootstrap_servers="b:9092", topic_policy="manual", serializer=serializer
+    )
+    batches = queue.Queue()
+    batches.put(
+        [{"stream_type": "event", "key": f"k{n}", "value": {"n": n}} for n in (1, 2, 3)]
+    )
+    batches.put([{"stream_type": "event", "key": "k4", "value": {"n": 4}}])
+
+    with pytest.raises(SchemaRegistryError) as raised:
+        await asyncio.wait_for(egress.run(batches), timeout=5)
+
+    assert raised.value.http_status == status
+    producer.send.assert_not_called()
+    producer.stop.assert_awaited_once()
+    assert batches.qsize() == 1
+    assert MockProducer.call_count == 1
     assert "skipped the record" not in caplog.text
+    assert "connection failed" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        pytest.param("registry-503", id="registry-503"),
+        pytest.param("registry-429", id="registry-429"),
+        pytest.param("glue-throttling", id="glue-throttling"),
+        pytest.param("timeout", id="timeout"),
+        pytest.param("glue-connection", id="glue-connection"),
+    ],
+)
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_a_temporary_registry_error_keeps_the_batch_for_a_retry(
+    MockProducer, run_until, caplog, monkeypatch, kind
+):
+    """A registry that answers 5xx, throttles the call, times out or drops the
+    connection does not skip its record: the whole batch is encoded again after a
+    wait, every record is sent once and in order, and the producer is not
+    restarted."""
+    import httpx
+    from botocore.exceptions import EndpointConnectionError
+
+    from desflow.connectors._schema_registry.errors import SchemaRegistryError
+
+    def temporary():
+        if kind == "registry-503":
+            return SchemaRegistryError(503, 50301, "unavailable")
+        if kind == "registry-429":
+            return SchemaRegistryError(429, 42901, "too many requests")
+        if kind == "glue-throttling":
+            return SchemaRegistryError(400, "ThrottlingException", "Rate exceeded")
+        if kind == "timeout":
+            return httpx.ConnectTimeout("timed out")
+        error = SchemaRegistryError(-1, -1, "could not connect")
+        error.__cause__ = EndpointConnectionError(endpoint_url="https://glue")
+        return error
+
+    failures = [temporary(), temporary()]
+
+    def serialize(topic, payload):
+        if payload["key"] == "k2" and failures:
+            raise failures.pop()
+        return payload["key"].encode()
+
+    monkeypatch.setattr("desflow.connectors.egress.kafka.FIRST_DELAY", 0.01)
+    serializer = MagicMock()
+    serializer.serialize.side_effect = serialize
+    producer = MockProducer.return_value = AsyncMock()
+    egress = KafkaEgress(
+        bootstrap_servers="b:9092", topic_policy="manual", serializer=serializer
+    )
+    batches = queue.Queue()
+    batches.put(
+        [{"stream_type": "event", "key": f"k{n}", "value": {"n": n}} for n in (1, 2, 3)]
+    )
+    batches.put([{"stream_type": "event", "key": "k4", "value": {"n": 4}}])
+
+    await run_until(egress.run(batches), lambda: producer.send.call_count >= 4)
+
+    sent = [call.kwargs["key"] for call in producer.send.call_args_list]
+    assert sent == [b"k1", b"k2", b"k3", b"k4"]
+    assert "skipped the record" not in caplog.text
+    assert "could not reach the schema registry" in caplog.text
+    assert MockProducer.call_count == 1
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_a_slow_serializer_does_not_hold_the_loop(MockProducer, run_until):
+    """A serializer that waits, as a registry call retrying does, runs off the loop,
+    so another task on the loop keeps running."""
+    import time
+
+    serializer = MagicMock()
+    serializer.serialize.side_effect = lambda topic, payload: time.sleep(0.5) or b"x"
+    producer = MockProducer.return_value = AsyncMock()
+    egress = KafkaEgress(
+        bootstrap_servers="b:9092", topic_policy="manual", serializer=serializer
+    )
+    batches = queue.Queue()
+    batches.put([{"stream_type": "event", "key": "k1", "value": {"n": 1}}])
+    loop = asyncio.get_running_loop()
+    ticks = []
+
+    async def ticker():
+        while True:
+            ticks.append(loop.time())
+            await asyncio.sleep(0.02)
+
+    watcher = asyncio.create_task(ticker())
+    await run_until(egress.run(batches), lambda: producer.send.call_count >= 1)
+    # The ticker may be cancelled before it wakes after a block, so the last gap ends now
+    ticks.append(loop.time())
+    watcher.cancel()
+
+    gaps = [later - earlier for earlier, later in zip(ticks, ticks[1:])]
+    assert max(gaps) < 0.25
 
 
 def test_topic_policy_modes_are_read(mock_admin):

@@ -213,6 +213,25 @@ def test_a_filter_needs_a_filter_store_type():
         app.run(until=1)
 
 
+def test_a_filter_on_a_list_of_stores_is_refused_when_one_of_them_ranks_by_priority():
+    app = SimulationContext("Shop")
+    app.add_store("plain")
+    app.add_store("ranked", priority=True)
+
+    @app.task(
+        name="pick",
+        get={
+            "store": {"of": ["plain", "ranked"], "key": "attr.w"},
+            "filter": "item > 0",
+        },
+    )
+    def pick(task_id):
+        return {}
+
+    with pytest.raises(ValueError, match="filters priority store 'ranked'"):
+        app.run(until=1)
+
+
 # ------------------------------------------------------------ transfers
 
 

@@ -11,7 +11,8 @@ There are three sets (issue #90):
   `manual tests` on a pull request): every test, with the tests marked `every_model`
   and the known cases, on Ubuntu for each Python version it is given (by default
   3.11, 3.12 and 3.15, the lowest, the one in .python-version and the newest) and on
-  Windows for Python 3.12. `manual.yml` holds its other long jobs itself.
+  Windows for Python 3.12. `manual.yml` holds its other long jobs itself, and runs the
+  integration tests and service examples (`services.yml`) whatever the change.
 
 In `pr`, the docs tests run only when the files they read change, and the service
 jobs only when what they cover changes: the connectors, the modules that build,
@@ -92,6 +93,7 @@ SERVICES = [
     "pyproject.toml",
     "uv.lock",
     ".github/workflows/pull-request.yml",
+    ".github/workflows/services.yml",
     "scripts/ci_plan.py",
 ]
 

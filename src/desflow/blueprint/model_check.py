@@ -5,6 +5,7 @@ from typing import Mapping, NamedTuple, Optional
 
 from desflow.blueprint.models import Run
 from desflow.builder.context import SimulationContext
+from desflow.utils import is_builder_file
 
 
 class ModelCheck(NamedTuple):
@@ -53,7 +54,7 @@ def check_model(
     from desflow.cli.check import check_file
 
     checked = check_file(file, variables)
-    if checked.context is None or file.suffix == ".py":
+    if checked.context is None or is_builder_file(file):
         return ModelCheck(checked.context, checked.problem, checked.no_context)
     run = load_blueprint(file, variables=variables).run
     data = read_document(file, variables=variables)[0]

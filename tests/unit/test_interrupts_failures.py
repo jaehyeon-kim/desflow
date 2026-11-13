@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from desflow import SimulationContext, replicate
+from desflow.builder.task import TaskFailed
 from desflow.blueprint.loader import BlueprintError
 from desflow.values.models import Expr
 from tests.conformance.harness import run_builder, run_yaml_text
@@ -480,12 +481,43 @@ def test_a_failure_goes_to_on_fail_and_the_task_reads_upstream_status_and_reason
     assert handled[0][0] == "failed" and reason in handled[0][1]
 
 
-def test_a_failure_with_no_on_fail_still_stops_the_run(tmp_path):
-    text = FAIL_TEXT.replace(
-        "TASK", "{service_time: {gen: expr, expr: '1 / 0'}, payload: {e: t}}"
+UNEVALUABLE = {
+    "an each of -3": "wait: {each: '1 - 4', branch: {timeout: 1}}",
+    "a wait timeout": "wait: {timeout: 'attr.zz'}",
+    "a service_time": "service_time: 'attr.zz'",
+}
+
+
+@pytest.mark.parametrize("step", UNEVALUABLE)
+def test_an_expression_that_cannot_be_evaluated_stops_the_run_under_stop_and_fails_the_task_under_continue(
+    tmp_path, step
+):
+    """Under stop the error stops the run with no `failed` record, as in plain SimPy.
+    Under continue `failed` is published with the error as its reason, and only the
+    flow ends."""
+    text = (
+        "simulation: {sim_id: S, factor: 0, random_seed: 1}\n"
+        "arrivals: {a: {dist: constant, value: 1, spawn: t, max_events: 2}}\n"
+        f"tasks: {{t: {{{UNEVALUABLE[step]}, payload: {{e: done}}}}}}\n"
+        "run: {until: 10%s}\n"
     )
-    outcome = run_yaml_text(tmp_path, text, {})
-    assert outcome.error is not None
+    stopped = run_yaml_text(tmp_path, text % "", {})
+    assert isinstance(stopped.error, ValueError)
+    assert not any(
+        r["value"].get("status") == "failed"
+        for r in stopped.records
+        if r["stream_type"] == "event"
+    )
+    kept = run_yaml_text(tmp_path, text % ", on_unhandled_failure: continue", {})
+    assert kept.error is None
+    reasons = [
+        r["value"]["reason"]
+        for r in kept.records
+        if r["stream_type"] == "event" and r["value"].get("status") == "failed"
+    ]
+    assert len(reasons) == 2 and all(
+        reason.startswith("ValueError") for reason in reasons
+    )
 
 
 def test_on_renege_and_on_balk_leave_nothing_in_the_line(tmp_path):
@@ -656,6 +688,42 @@ run: {{until: 20}}
 """
         marks = run_marks(tmp_path, text)
         assert [m[3] for m in marks if m[2] == "end"] == [[0, 0]], task
+
+
+def _failing_task(app: SimulationContext, fail: Any) -> None:
+    app.add_arrival("a", dist="constant", value=1, spawn="t", max_events=3, first_at=0)
+    app.task(name="t", service_time=0.5, fail=fail)(lambda task_id: {"e": "done"})
+
+
+def _raises(task_id, payload):
+    raise ZeroDivisionError("x")
+
+
+def test_a_builder_fail_function_that_raises_is_the_failure_of_the_task():
+    """As a task function that raises is: `failed` with the error as its reason, a
+    TaskFailed under stop, and only the flow ends under continue."""
+    app = SimulationContext("S", factor=0)
+    _failing_task(app, _raises)
+    stopped = run_builder(app, 10, raises=True)
+    assert isinstance(stopped.error, TaskFailed)
+    assert stopped.error.reason == "ZeroDivisionError: x"
+    failed = [
+        r["value"]
+        for r in stopped.records
+        if r["stream_type"] == "event" and r["value"].get("status") == "failed"
+    ]
+    assert failed[0]["reason"] == "ZeroDivisionError: x"
+
+    app = SimulationContext("S", factor=0)
+    _failing_task(app, _raises)
+    kept = run_builder(app, 10, raises=True, on_unhandled_failure="continue")
+    assert kept.error is None
+    reasons = [
+        r["value"]["reason"]
+        for r in kept.records
+        if r["stream_type"] == "event" and r["value"].get("status") == "failed"
+    ]
+    assert reasons == ["ZeroDivisionError: x"] * 3
 
 
 def test_a_step_that_raises_fails_the_signal_of_the_task(tmp_path):

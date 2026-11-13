@@ -3,11 +3,12 @@ name: Manual tests
 # The long tests, which pull-request.yml and pipeline.yml do not run: every test, with
 # the tests marked every_model and the known cases, on Python 3.11, 3.12 and 3.15 on
 # Ubuntu and on Python 3.12 on Windows; the paced cases; the conformance tests at the
-# lowest and newest SimPy; the unit and conformance tests at the lowest Pydantic; and
-# the core install's time zone on Ubuntu and Windows. The integration and service
-# example jobs are in pull-request.yml. macOS is not run: development is on a Mac,
-# whose local pipeline runs the tests. Every day at 17:00 UTC (03:00 or 04:00 in
-# Melbourne), and by hand before a release: gh workflow run manual.yml --ref
+# lowest and newest SimPy; the unit and conformance tests at the lowest Pydantic; the
+# core install's time zone on Ubuntu and Windows; and the integration tests and
+# service examples (services.yml), which pull-request.yml runs only when a change
+# touches what they cover. macOS is not run: development is on a Mac, whose local
+# pipeline runs the tests. Every day at 16:23 UTC (02:23 or 03:23 in
+# Sydney), and by hand before a release: gh workflow run manual.yml --ref
 # <branch>, with -f python="3.13" to test other versions on Ubuntu. GitHub starts a
 # workflow by hand only when its file is on the default branch, so a pull request
 # starts it from its own branch with the label `manual tests` (remove the label and
@@ -16,7 +17,7 @@ name: Manual tests
 # runner.
 on:
   schedule:
-    - cron: "0 17 * * *"
+    - cron: "23 16 * * *"
   workflow_dispatch:
     inputs:
       python:
@@ -219,3 +220,11 @@ jobs:
 
       - name: Resolve a time zone
         run: uv run --no-project --python core-venv python -c "from desflow.core.environment import resolve_zone; print(resolve_zone('Australia/Sydney'))"
+
+  # The integration tests and the service examples, which a pull request runs only
+  # when a change touches the files scripts/ci_plan.py lists. A change to another
+  # module, such as the Builder's tasks, is tested here.
+  services:
+    name: Service tests
+    if: github.event_name != 'pull_request' || github.event.label.name == 'manual tests'
+    uses: ./.github/workflows/services.yml

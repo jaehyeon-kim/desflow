@@ -662,11 +662,16 @@
     },
     "Verification": {
       "additionalProperties": false,
-      "description": "What `--verify` ran and found.\n\nAttributes:\n    until: The end of each run.\n    warmup: The model's warm-up; the measures leave it out.\n    seed: The seed, or the seed the replications' seeds come from.\n    replications: The number of runs, or None for one.\n    comparisons: Every comparison.\n    note: What the check does and does not show.",
+      "description": "What `--verify` ran and found.\n\nAttributes:\n    until: The end of each run, or where the arrivals stop when `stopped`.\n    stopped: True when the model's `run.stop` can end a run before `until`.\n    warmup: The model's warm-up; the measures leave it out.\n    seed: The seed, or the seed the replications' seeds come from.\n    replications: The number of runs, or None for one.\n    comparisons: Every comparison.\n    note: What the check does and does not show.",
       "properties": {
         "until": {
           "title": "Until",
           "type": "number"
+        },
+        "stopped": {
+          "default": false,
+          "title": "Stopped",
+          "type": "boolean"
         },
         "warmup": {
           "anyOf": [

@@ -6,6 +6,7 @@ it again from the same files, so the two never differ. Every section says so whe
 it has nothing to report, rather than inventing content.
 """
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
@@ -38,9 +39,14 @@ def _number(value: Any) -> str:
     return f"{number:.4g}"
 
 
+def _cell(value: Any) -> str:
+    """A table cell, with each `|` escaped so it stays inside its cell."""
+    return str(value).replace("|", "\\|")
+
+
 def _table(heading: Sequence[str], rows: Sequence[Sequence[Any]]) -> List[str]:
-    lines = ["| " + " | ".join(heading) + " |", "|" + "---|" * len(heading)]
-    lines += ["| " + " | ".join(str(c) for c in row) + " |" for row in rows]
+    lines = ["| " + " | ".join(map(_cell, heading)) + " |", "|" + "---|" * len(heading)]
+    lines += ["| " + " | ".join(map(_cell, row)) + " |" for row in rows]
     return lines
 
 
@@ -214,6 +220,20 @@ def _run_settings(artifacts: _Artifacts) -> List[str]:
     return lines
 
 
+class _MissingRow(KeyError):
+    """A row that the report reads is not in `summary.csv`."""
+
+
+def _mean_cell(means: Dict[Tuple[str, str], str], design: str, name: str) -> str:
+    """The mean of a count for a design, as a table cell; a row that `summary.csv`
+    lacks raises `_MissingRow`, which names the file and the row."""
+    if (design, name) not in means:
+        raise _MissingRow(
+            f"{SUMMARY_FILE} has no row for design {design!r} and statistic {name!r}"
+        )
+    return _number(means[design, name])
+
+
 def _counts(artifacts: _Artifacts) -> List[str]:
     """The lines of the Counts section, below its heading."""
     summary = artifacts.summary
@@ -234,7 +254,8 @@ def _counts(artifacts: _Artifacts) -> List[str]:
         means = {(r["design"], r["statistic"]): r["mean"] for r in summary}
         rows = []
         for design in designs:
-            rows.append([design, *[_number(means[design, name]) for name in counts]])
+            cells = [_mean_cell(means, design, name) for name in counts]
+            rows.append([design, *cells])
         lines += _table(["Design", *(f"`{c}`" for c in counts)], rows)
     else:
         lines.append("The statistics published no counts of tasks or flows.")
@@ -416,11 +437,33 @@ def build_report(folder: Union[str, Path]) -> str:
 
     Raises:
         FileNotFoundError: If the folder has no `experiment.json`.
+        ValueError: If `experiment.json` is not valid JSON, or it or a CSV file lacks
+            what the report reads, as a file cut off while it was written does.
     """
-    artifacts = _artifacts(Path(folder))
-    lines = [f"# Experiment: {artifacts.experiment['experiment']}"]
-    for heading, section in _SECTIONS:
-        lines += ["", f"## {heading}", "", *section(artifacts)]
+    path = Path(folder) / EXPERIMENT_FILE
+    try:
+        artifacts = _artifacts(Path(folder))
+        lines = [f"# Experiment: {artifacts.experiment['experiment']}"]
+        for heading, section in _SECTIONS:
+            lines += ["", f"## {heading}", "", *section(artifacts)]
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"{path} is not an experiment's evidence file: it is not valid JSON ({exc})"
+        ) from None
+    except _MissingRow as exc:
+        raise ValueError(
+            f"{folder} does not hold an experiment's evidence: {exc.args[0]}"
+        ) from None
+    except KeyError as exc:
+        raise ValueError(
+            f"{folder} does not hold an experiment's evidence: {exc.args[0]!r} is "
+            f"missing from its files"
+        ) from None
+    except (AttributeError, TypeError) as exc:
+        raise ValueError(
+            f"{folder} does not hold an experiment's evidence: a value in its files "
+            f"has the wrong form ({exc})"
+        ) from None
     return "\n".join(lines) + "\n"
 
 

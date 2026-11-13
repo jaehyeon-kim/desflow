@@ -581,6 +581,181 @@ def test_two_failures_in_a_row_restart_the_failure_clock():
     assert readings["S1.stats.resources.machine.down"] == 0
 
 
+def test_a_second_fail_while_down_keeps_the_start_of_the_outage(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    res = DynamicResource(env, "Shop", "packers")
+
+    def script():
+        res.fail()
+        yield env.timeout(5)
+        res.fail()
+        assert res.downtime == 5
+        yield env.timeout(5)
+        res.repair()
+        yield env.timeout(5)
+        res.fail()
+
+    env.process(script())
+    env.run(until=20)
+    assert res.downtime == 15, "10 s for the first outage, 5 s of the second so far"
+    assert res.failures == 2
+
+
+def test_a_second_fail_while_down_interrupts_the_work_the_first_left_running(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    res = DynamicResource(env, "Shop", "packers")
+    causes = []
+
+    def worker():
+        with res.request() as request:
+            yield request
+            try:
+                yield env.timeout(100)
+            except simpy.Interrupt as interrupt:
+                causes.append(interrupt.cause)
+
+    def script():
+        yield env.timeout(1)
+        res.fail(interrupt_work=False)
+        yield env.timeout(1)
+        assert causes == []
+        assert res.fail(interrupt_work=True) == 1
+
+    env.process(worker())
+    env.process(script())
+    env.run(until=5)
+    assert causes == ["breakdown"]
+
+
+BREAKDOWN_LOOP = """\
+simulation: {{sim_id: S, factor: 0, random_seed: 1}}
+resources:
+  m:
+    current_cap: 1
+    breakdown:
+      time_to_failure: {{dist: constant, value: {failure}}}
+      repair: {{dist: constant, value: {repair}}}
+      clock: {clock}
+arrivals: {{a: {{dist: constant, value: 1, spawn: t, max_events: 3}}}}
+tasks:
+  t: {{resource: m, service_time: 2, payload: {{e: done}}}}
+run: {{until: 10}}
+"""
+
+
+@pytest.mark.parametrize("clock", ["calendar", "busy"])
+def test_a_breakdown_that_cannot_move_the_clock_is_refused_at_load_with_its_line(
+    tmp_path, clock
+):
+    from desflow.blueprint.loader import BlueprintError
+    from desflow.builder.context import SimulationContext
+
+    text = BREAKDOWN_LOOP.format(failure=0, repair=0, clock=clock)
+    path = tmp_path / "m.yaml"
+    path.write_text(text)
+    line = next(i for i, row in enumerate(text.splitlines(), 1) if "breakdown:" in row)
+    with pytest.raises(BlueprintError) as caught:
+        SimulationContext.from_yaml(path)
+    message = str(caught.value)
+    assert message.startswith(f"{path}:{line}:"), message
+    assert "time_to_failure and repair both always give 0" in message, message
+    # A zero in only one of the two still moves the clock
+    for failure, repair in [(0, 1), (1, 0)]:
+        path.write_text(
+            BREAKDOWN_LOOP.format(failure=failure, repair=repair, clock=clock)
+        )
+        SimulationContext.from_yaml(path)
+
+
+@pytest.mark.parametrize(
+    "always_zero",
+    [
+        {"dist": "constant", "value": 0},
+        {"dist": "normal", "mean": 0, "std": 0},
+        {"dist": "poisson", "mean": 0},
+    ],
+    ids=["constant", "normal", "poisson"],
+)
+def test_the_builder_refuses_a_breakdown_that_cannot_move_the_clock(always_zero):
+    from desflow.builder.context import SimulationContext
+
+    app = SimulationContext("S", factor=0)
+    app.add_resource("m", current_cap=1)
+    with pytest.raises(ValueError, match="resource 'm' breakdown: time_to_failure"):
+        app.add_breakdown("m", time_to_failure=always_zero, repair=always_zero)
+
+
+def _error_of_a_run_that_may_loop(app, until):
+    """Runs `app` in a thread that ends with the test, and returns the error it
+    raised. A run that loops at one instant fails here, not by hanging the suite."""
+    import threading
+
+    raised = []
+
+    def run():
+        try:
+            app.run(until=until)
+        except ValueError as error:
+            raised.append(error)
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    thread.join(timeout=10)
+    assert not thread.is_alive(), "the run loops at one instant"
+    return raised[0] if raised else None
+
+
+def test_a_scenario_step_that_makes_the_cycle_empty_stops_the_run_with_an_error():
+    """The values are registry paths, so a step can set both to 0 during the run. The
+    run stops at the next cycle, naming the resource, instead of looping at one
+    instant for ever."""
+    from desflow.builder.context import SimulationContext
+
+    app = SimulationContext("S", factor=0.0)
+    app.add_resource("m", current_cap=1, max_cap=1)
+    app.add_breakdown(
+        "m",
+        time_to_failure={"dist": "constant", "value": 5},
+        repair={"dist": "constant", "value": 0},
+    )
+    app.add_scenario(
+        [{"at": 3, "path": "S.breakdown.m.time_to_failure.value", "value": 0}]
+    )
+    error = _error_of_a_run_that_may_loop(app, 20)
+    assert error is not None and "resource 'm' breakdown" in str(error)
+
+
+def test_a_breakdown_whose_draws_are_all_0_but_whose_variance_is_not_stops_the_run(
+    monkeypatch,
+):
+    """A normal time with a mean below 0 is raised to 0 by the sampler, so every draw
+    is 0 although the variance is above 0. No static check covers every
+    distribution, so the run stops after 10,000 cycles at one instant."""
+    from desflow.builder.context import SimulationContext
+
+    failures = []
+    fail = DynamicResource.fail
+    monkeypatch.setattr(
+        DynamicResource,
+        "fail",
+        lambda self, **kwargs: failures.append(1) or fail(self, **kwargs),
+    )
+    always_zero = {"dist": "normal", "mean": -1, "std": 0.1}
+    app = SimulationContext("S", factor=0.0)
+    app.add_resource("m", current_cap=1, max_cap=1)
+    app.add_breakdown("m", time_to_failure=always_zero, repair=always_zero)
+    error = _error_of_a_run_that_may_loop(app, 10)
+    assert error is not None
+    assert "resource 'm' breakdown: it failed and was repaired 10000 times" in str(
+        error
+    )
+    assert len(failures) == 10000
+
+
 def test_a_resource_with_no_registry_entry_registers_itself(env, registry):
     """A resource built with no entry for it has one unit, as `simpy.Resource(env)`,
     and the registry holds its paths."""
@@ -651,6 +826,31 @@ def test_a_queue_limit_counts_waiting_requests_after_a_lowered_capacity(
     res.request()  # both units are busy, one is owed: it waits
     with pytest.raises(RuntimeError, match="Queue is full"):
         res.request()
+
+
+@pytest.mark.parametrize("limit", [float("nan"), float("inf"), 2.5, True])
+def test_a_queue_limit_that_is_not_a_whole_number_is_refused(
+    env, registry, sample_params, limit
+):
+    registry.register_sim_parameter(sample_params)
+    with pytest.raises(ValueError, match="queue_limit must be a whole number"):
+        DynamicResource(env, "Shop", "packers", queue_limit=limit)
+    DynamicResource(env, "Shop", "packers", queue_limit=2.0)
+
+
+@pytest.mark.parametrize("priority", [float("nan"), True, "high", []])
+def test_a_request_priority_that_does_not_compare_is_refused(
+    env, registry, sample_params, priority
+):
+    registry.register_sim_parameter(sample_params)
+    res = DynamicResource(env, "Shop", "packers", queue="priority")
+    with pytest.raises(ValueError, match="priority must be a number that is not NaN"):
+        res.request(priority=priority)
+    assert len(res.put_queue) == 0 and len(res.users) == 0
+    res.request(priority=(1, 2))
+    res.request(priority=0.5)
+    res.request(priority=float("-inf"))
+    res.request(priority=float("inf"))
 
 
 def test_a_resource_type_and_queue_limit_are_checked(env, registry, sample_params):

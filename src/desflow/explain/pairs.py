@@ -15,6 +15,9 @@ from desflow.explain.models import VERIFY_HINT, Explanation, Graph
 from desflow.explain.support import after
 
 _UNSTABLE = "unstable: it has no steady state to compare with"
+_STOPPED = (
+    "run.stop can end a run before until, so a run has no fixed time to divide by"
+)
 _APPROX = "Kingman's formula approximates the wait when the gaps are not exponential"
 
 
@@ -39,12 +42,14 @@ class Pair(NamedTuple):
     reason: Optional[str]
 
 
-def pairs(explanation: Explanation, window: float) -> List[Pair]:
+def pairs(explanation: Explanation, window: float, stopped: bool = False) -> List[Pair]:
     """Each measure to compare, per resource, per task and per arrival.
 
     Args:
         explanation: The analysis.
         window: The seconds measured: the end less the start and the warm-up.
+        stopped: True when the model's `run.stop` can end a run before the end of
+            the window, so no throughput has a window to be divided by.
 
     Returns:
         List[Pair]: The measures.
@@ -95,6 +100,8 @@ def pairs(explanation: Explanation, window: float) -> List[Pair]:
     for a in explanation.arrivals:
         reason = a.reason
         flow = after(graph, [f"arrival:{a.name}"])
+        if stopped:
+            reason = reason or _STOPPED
         if not flow:
             reason = reason or "it starts no task the graph shows"
         for node in sorted(flow):

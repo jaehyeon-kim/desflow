@@ -74,8 +74,11 @@ import desflow
 # The seed and the two after it: a form that draws differently can match at one
 # seed by chance, and three seeds show it
 RUNS_PER_FORM = 3
-# More events than a model under test makes, so each run ends at its until
+# More events than a model under test makes, so each run ends at its until, or
+# when no event is left
 SAMPLE = 100000
+# The start of the RuntimeError SimPy raises when no event is left before the end
+EMPTY_SCHEDULE = "No scheduled events left"
 # How long one unpaced run may take, in seconds, before it counts as endless
 TIMEOUT = 300
 # Readings of the wall clock, which differ between any two runs
@@ -279,11 +282,12 @@ def _arguments(argv: List[str]) -> Arguments:
     for path in given.files:
         if not path.is_file():
             parser.error(f"{path} is not a file")
-        if path.suffix in (".yaml", ".yml"):
+        suffix = path.suffix.lower()
+        if suffix in (".yaml", ".yml"):
             if blueprint is not None:
                 parser.error(f"{blueprint} and {path} are both YAML files; give one")
             blueprint = path
-        elif path.suffix == ".py":
+        elif suffix == ".py":
             python.append(path)
         else:
             parser.error(f"{path} is neither a YAML blueprint nor a Python file")
@@ -925,6 +929,36 @@ def _watch(seen: Dict[str, Any], seed: Optional[int]) -> None:
             used = self.sampler.seed if self.sampler is not None else None
             seen["used"].append(used)
 
+    end_event = context._end_event
+    # The contexts whose run has a stop or a drain of its own, whose end `python
+    # FILE` also waits for
+    own_end: Set[int] = set()
+
+    def end_event_context(self: Any, until: Any, stop: Any, drain: Any) -> Any:
+        if stop is not None or drain:
+            own_end.add(id(self))
+        else:
+            own_end.discard(id(self))
+        return end_event(self, until, stop, drain)
+
+    finish = context.finish
+
+    def finish_context(self: Any) -> Any:
+        try:
+            return finish(self)
+        except RuntimeError as exc:
+            # A sample of a model with no run end ends when no event is left, as
+            # `python FILE` ends it; SimPy raises this when the schedule empties
+            # before the sample's end event. A stop of the file's own that is never
+            # reached fails `python FILE` too, so it fails here.
+            if (
+                id(self) not in previewed
+                or id(self) in own_end
+                or not str(exc).startswith(EMPTY_SCHEDULE)
+            ):
+                raise
+            return None
+
     built = environment.__init__
     built_signature = inspect.signature(built)
 
@@ -971,6 +1005,8 @@ def _watch(seen: Dict[str, Any], seed: Optional[int]) -> None:
 
     context.__init__ = init_context  # type: ignore[method-assign]
     context.start = start_context  # type: ignore[method-assign]
+    context.finish = finish_context  # type: ignore[method-assign]
+    context._end_event = end_event_context  # type: ignore[method-assign]
     environment.__init__ = init_environment  # type: ignore[method-assign]
     environment.setup_egress = setup_egress  # type: ignore[method-assign]
     sampler.__init__ = init_sampler  # type: ignore[method-assign]

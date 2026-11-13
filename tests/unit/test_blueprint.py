@@ -737,6 +737,281 @@ def test_the_blueprint_folder_is_on_sys_path(tmp_path, logic, monkeypatch):
 
 
 @pytest.mark.parametrize(
+    "wait",
+    [
+        "{timeout: {after: 1, value: {gen: var, name: nosuch}}}",
+        "{any: {x: {timeout: {after: 1, value: {gen: var, name: nosuch}}}}}",
+        "{each: 2, branch: {timeout: {after: 1, value: {gen: var, name: nosuch}}}}",
+    ],
+    ids=["plain", "inside any", "inside each"],
+)
+def test_a_generator_in_a_timeout_value_is_refused_at_load_wherever_it_sits(
+    tmp_path, wait
+):
+    text = MINIMAL.replace("    resource: packers\n", f"    wait: {wait}\n")
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(write(tmp_path, text))
+    message = str(error.value)
+    assert message.startswith(f"{tmp_path / 'blueprint.yaml'}:14: "), message
+    assert "'nosuch' is not a var that has a value here" in message
+
+
+@pytest.mark.parametrize(
+    "wait",
+    [
+        {"timeout": {"after": 1, "value": {"gen": "var", "name": "nosuch"}}},
+        {
+            "any": {
+                "x": {
+                    "timeout": {"after": 1, "value": {"gen": "var", "name": "nosuch"}}
+                }
+            }
+        },
+        {
+            "each": 2,
+            "branch": {
+                "timeout": {"after": 1, "value": {"gen": "var", "name": "nosuch"}}
+            },
+        },
+    ],
+    ids=["plain", "inside any", "inside each"],
+)
+def test_a_generator_in_a_timeout_value_is_refused_before_the_run_in_the_builder(wait):
+    from desflow.values import generator
+
+    def with_generators(node):
+        if isinstance(node, dict):
+            if node.get("gen") == "var":
+                return generator(node)
+            return {key: with_generators(value) for key, value in node.items()}
+        return node
+
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_arrival("a", spawn="t", dist="constant", value=1, max_events=1)
+    app.task(name="t", wait=with_generators(wait))(lambda task_id: {"x": 1})
+    with pytest.raises(ValueError) as error:
+        app.run(until=5)
+    assert type(error.value) is ValueError
+    assert "'nosuch' is not a var that has a value here" in str(error.value)
+
+
+def test_a_filter_on_a_priority_store_is_refused_at_load_through_a_list(tmp_path):
+    text = MINIMAL.replace(
+        "tasks:\n",
+        "stores: {plain: {items: [1, 2]}, ranked: {priority: true, items: [[1, 5]]}}\n"
+        "tasks:\n",
+    ).replace(
+        "    resource: packers\n",
+        "    item_field: got\n"
+        "    get: {store: {of: [plain, ranked], key: attr.w}, filter: 'item > 0'}\n",
+    )
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(write(tmp_path, text))
+    message = str(error.value)
+    assert message.startswith(f"{tmp_path / 'blueprint.yaml'}:"), message
+    assert "store 'ranked' serves by priority" in message
+
+
+def test_a_store_list_with_a_filter_and_an_undeclared_name_is_refused_by_name(tmp_path):
+    text = MINIMAL.replace(
+        "tasks:\n",
+        "stores: {plain: {items: [1, 2]}}\ntasks:\n",
+    ).replace(
+        "    resource: packers\n",
+        "    item_field: got\n"
+        "    get: {store: {of: [plain, nosuch], key: attr.w}, filter: 'item > 0'}\n",
+    )
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(write(tmp_path, text))
+    message = str(error.value)
+    assert message.startswith(f"{tmp_path / 'blueprint.yaml'}:"), message
+    assert "'nosuch', which is not a declared store" in message
+
+
+def test_two_blueprints_in_different_folders_each_use_their_own_module(
+    tmp_path, monkeypatch
+):
+    """`desflow check a/shop.yaml b/shop.yaml` loads both in one process."""
+    import sys
+
+    monkeypatch.delitem(sys.modules, "shared_settings_two_folders", raising=False)
+    names = {}
+    for folder, sim_id in (("a", "Shop_a"), ("b", "Shop_b")):
+        (tmp_path / folder).mkdir()
+        (tmp_path / folder / "shared_settings_two_folders.py").write_text(
+            f"SIM_ID = {sim_id!r}\n", encoding="utf-8"
+        )
+        text = MINIMAL.replace(
+            "sim_id: Shop", "sim_id: !python shared_settings_two_folders.SIM_ID"
+        )
+        write(tmp_path / folder, text, "shop.yaml")
+    for folder in ("a", "b", "a"):
+        loaded = SimulationContext.from_yaml(tmp_path / folder / "shop.yaml")
+        names.setdefault(folder, []).append(loaded.sim_id)
+
+    assert names == {"a": ["Shop_a", "Shop_a"], "b": ["Shop_b"]}
+    sys.modules.pop("shared_settings_two_folders", None)
+
+
+def test_a_module_a_run_imports_is_not_shared_with_the_next_folder(
+    tmp_path, monkeypatch
+):
+    """The payload function of each file imports `table_at_run_time` when it runs,
+    after its load is over, as `desflow test a/m.yaml b/m.yaml` does one file after
+    the other."""
+    import sys
+
+    monkeypatch.delitem(sys.modules, "table_at_run_time", raising=False)
+    for folder, value in (("a", 1), ("b", 5)):
+        (tmp_path / folder).mkdir()
+        (tmp_path / folder / "table_at_run_time.py").write_text(
+            f"V = {value}\n", encoding="utf-8"
+        )
+        (tmp_path / folder / "logic_at_run_time.py").write_text(
+            "def pay(task_id, context):\n"
+            "    import table_at_run_time\n"
+            "    return {'v': table_at_run_time.V}\n",
+            encoding="utf-8",
+        )
+        text = MINIMAL.replace(
+            "    payload: {status: finished}\n    id_field: order_id\n",
+            "    payload: !python logic_at_run_time.pay\n",
+        )
+        write(tmp_path / folder, text, "shop.yaml")
+    seen = []
+    for folder in ("a", "b", "a"):
+        app = SimulationContext.from_yaml(tmp_path / folder / "shop.yaml")
+        capture = _Capture()
+        app.add_egress(capture)
+        app.run()
+        values = {
+            r["value"]["v"]
+            for r in capture.records
+            if r["stream_type"] == "event" and "v" in r["value"]
+        }
+        seen.append((folder, values))
+
+    assert seen == [("a", {1}), ("b", {5}), ("a", {1})]
+    for name in ("table_at_run_time", "logic_at_run_time"):
+        sys.modules.pop(name, None)
+
+
+def test_a_package_on_another_path_entry_under_an_entry_folder_is_not_swapped_out(
+    tmp_path, monkeypatch
+):
+    """An editable install puts `proj/src` on `sys.path`. A package imported from it
+    after a load of `proj/shop.yaml` is not the folder's, because `src` is not a file
+    or a package directly in `proj`, so a load from `proj/sub` keeps the same module."""
+    import sys
+
+    monkeypatch.delitem(sys.modules, "editable_pkg_under_folder", raising=False)
+    package = tmp_path / "src" / "editable_pkg_under_folder"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("SEEN = []\n", encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+    monkeypatch.syspath_prepend(str(tmp_path / "src"))
+    write(tmp_path, MINIMAL, "shop.yaml")
+    write(tmp_path / "sub", MINIMAL, "shop.yaml")
+
+    SimulationContext.from_yaml(tmp_path / "shop.yaml")
+    import editable_pkg_under_folder as first
+
+    first.SEEN.append("first run")
+    SimulationContext.from_yaml(tmp_path / "sub" / "shop.yaml")
+    import editable_pkg_under_folder as second
+
+    assert second is first
+    assert second.SEEN == ["first run"]
+    sys.modules.pop("editable_pkg_under_folder", None)
+
+
+def test_a_package_of_one_entry_folder_stays_for_a_folder_without_that_name(
+    tmp_path, monkeypatch
+):
+    """A flat-layout project: `proj/flat_pkg_beside_models/` is the package of
+    `proj`, and `proj/models` has no module of that name, so a load from `proj/models`
+    keeps the module a script imported after the load of `proj/shop.yaml`."""
+    import sys
+
+    monkeypatch.delitem(sys.modules, "flat_pkg_beside_models", raising=False)
+    package = tmp_path / "flat_pkg_beside_models"
+    package.mkdir()
+    (package / "__init__.py").write_text("SEEN = []\n", encoding="utf-8")
+    (tmp_path / "models").mkdir()
+    monkeypatch.syspath_prepend(str(tmp_path))
+    write(tmp_path, MINIMAL, "shop.yaml")
+    write(tmp_path / "models", MINIMAL, "shop.yaml")
+
+    SimulationContext.from_yaml(tmp_path / "shop.yaml")
+    import flat_pkg_beside_models as first
+
+    first.SEEN.append("first run")
+    SimulationContext.from_yaml(tmp_path / "models" / "shop.yaml")
+    import flat_pkg_beside_models as second
+
+    assert second is first
+    assert second.SEEN == ["first run"]
+    sys.modules.pop("flat_pkg_beside_models", None)
+
+
+def test_finding_the_folder_of_a_module_does_not_go_through_every_entry_folder(
+    tmp_path, monkeypatch
+):
+    """A long process, such as a test run, loads files from thousands of folders.
+    The folder of each module is looked up from the module's own path, so a load
+    does not cost more with every folder loaded before it."""
+    from desflow.blueprint import loader
+
+    class Folders(dict):
+        def __iter__(self):
+            raise AssertionError("the entry folders were walked one by one")
+
+    folders = Folders({tmp_path / f"f{n}": {} for n in range(2000)})
+    monkeypatch.setattr(loader, "_folder_modules", folders)
+    write(tmp_path, MINIMAL, "shop.yaml")
+    SimulationContext.from_yaml(tmp_path / "shop.yaml")
+
+
+def test_a_file_loaded_from_inside_an_import_uses_the_modules_of_its_own_folder(
+    tmp_path, monkeypatch
+):
+    """`a/outer_loader.py` imports `helpers_nested` of `a`, then loads `a/sub/x.yaml`,
+    whose `!python helpers_nested.SIM_ID` is the one of `a/sub`."""
+    import sys
+
+    for name in ("helpers_nested", "outer_loader"):
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "helpers_nested.py").write_text("SIM_ID = 'outer'\n", encoding="utf-8")
+    (tmp_path / "sub" / "helpers_nested.py").write_text(
+        "SIM_ID = 'inner'\n", encoding="utf-8"
+    )
+    write(
+        tmp_path / "sub",
+        MINIMAL.replace("sim_id: Shop", "sim_id: !python helpers_nested.SIM_ID"),
+        "x.yaml",
+    )
+    (tmp_path / "outer_loader.py").write_text(
+        "import helpers_nested\n"
+        "from desflow import SimulationContext\n"
+        f"INNER = SimulationContext.from_yaml({str(tmp_path / 'sub' / 'x.yaml')!r}).sim_id\n"
+        "OUTER = helpers_nested.SIM_ID\n",
+        encoding="utf-8",
+    )
+    write(
+        tmp_path,
+        MINIMAL.replace("sim_id: Shop", "sim_id: !python outer_loader.OUTER"),
+        "outer.yaml",
+    )
+    outer = SimulationContext.from_yaml(tmp_path / "outer.yaml")
+    inner = sys.modules["outer_loader"].INNER
+
+    assert (outer.sim_id, inner) == ("outer", "inner")
+    for name in ("helpers_nested", "outer_loader"):
+        sys.modules.pop(name, None)
+
+
+@pytest.mark.parametrize(
     "reference,fragment",
     [
         ("no_such_module_xyz.func", "no module named 'no_such_module_xyz'"),
@@ -1096,7 +1371,13 @@ def test_times_take_python_objects(tmp_path, logic):
 
 
 @pytest.mark.parametrize(
-    "value,fragment", [("-1 fortnight", "not a duration"), ("yesterday", "not a time")]
+    "value,fragment",
+    [
+        ("-1 fortnight", "not a duration"),
+        ("yesterday", "not a time"),
+        ("20260101", "a number is not a time"),
+        ("'0'", "a number is not a time"),
+    ],
 )
 def test_a_bad_time_names_the_line(tmp_path, value, fragment):
     path = write(tmp_path, _with_times(value, "now"))
@@ -1105,6 +1386,27 @@ def test_a_bad_time_names_the_line(tmp_path, value, fragment):
         match=rf"{re.escape(str(path))}:5: simulation.logical_start_time: .*{fragment}",
     ):
         SimulationContext.from_yaml(path)
+
+
+def test_a_date_that_does_not_exist_is_refused_at_its_line(tmp_path):
+    path = write(
+        tmp_path,
+        MINIMAL.replace(
+            "  random_seed: 7\n", "  random_seed: 7\n  logical_start_time: 2026-13-01\n"
+        ),
+    )
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    assert str(error.value).startswith(f"{path}:5: '2026-13-01' is not a date or time")
+
+
+def test_a_file_that_is_not_utf8_is_refused_with_the_line_of_the_bad_byte(tmp_path):
+    path = tmp_path / "blueprint.yaml"
+    path.write_bytes((MINIMAL + "# caf\xe9\n").encode("latin-1"))
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    line = MINIMAL.count("\n") + 1
+    assert str(error.value).startswith(f"{path}:{line}: the file is not UTF-8 text")
 
 
 # ---------------------------------------------------------------------------
@@ -1962,6 +2264,25 @@ ingress:
     ]
 
 
+def test_a_yaml_ingress_poll_of_zero_is_refused_at_its_line(tmp_path):
+    """`poll: 0` would check the file in a loop with no wait, so the load refuses it
+    and names the setting and the line."""
+    path = write(
+        tmp_path,
+        MINIMAL
+        + """\
+ingress:
+  - type: File
+    config:
+      path: params.yaml
+      poll: 0
+""",
+    )
+
+    with pytest.raises(BlueprintError, match=r"blueprint.yaml:21: .*poll is a number"):
+        SimulationContext.from_yaml(path)
+
+
 def test_registry_paths_of_a_yaml_model_match_its_run(tmp_path):
     """`registry_paths()` of a YAML model equals the registry of its run."""
     app = SimulationContext.from_yaml(write(tmp_path, MINIMAL))
@@ -2208,12 +2529,9 @@ def test_a_bad_sink_option_names_the_line(tmp_path):
         SimulationContext.from_yaml(path)
 
 
-def test_an_on_entry_with_a_wrong_path_warns_and_a_wrong_value_is_refused(
-    tmp_path, caplog
-):
-    """`on:` entries load as before; one whose path is not in the registry logs a
-    warning with the entry's line, and one whose value the path cannot hold is
-    refused at the entry's line."""
+def test_an_on_entry_with_a_wrong_path_or_value_is_refused_at_its_line(tmp_path):
+    """`on:` entries load when their path is in the registry; one whose path is not,
+    or whose value the path cannot hold, is refused at the entry's line."""
     text = MINIMAL.replace(
         "    resource: packers\n",
         "    resource: packers\n"
@@ -2222,10 +2540,15 @@ def test_an_on_entry_with_a_wrong_path_warns_and_a_wrong_value_is_refused(
         1,
     )
     path = write(tmp_path, text)
-    with caplog.at_level("WARNING", logger="desflow.blueprint.build"):
+    line = text.splitlines().index(
+        "      - {path: Shop.resources.lath.current_cap, value: 3}"
+    )
+    with pytest.raises(
+        BlueprintError,
+        match=rf"{re.escape(str(path))}:{line + 1}: .*'Shop.resources.lath.current_cap' "
+        "is not a registry path",
+    ):
         SimulationContext.from_yaml(path)
-    assert "'Shop.resources.lath.current_cap' is not a registry path" in caplog.text
-    assert f"{path}:" in caplog.text
     refused = MINIMAL.replace(
         "    resource: packers\n",
         "    resource: packers\n"
@@ -2235,16 +2558,70 @@ def test_an_on_entry_with_a_wrong_path_warns_and_a_wrong_value_is_refused(
     )
     with pytest.raises(Exception, match="whole number of 0 or more.*'many'"):
         SimulationContext.from_yaml(write(tmp_path, refused, "refused.yaml"))
-    caplog.clear()
     ok = MINIMAL.replace(
         "    resource: packers\n",
         "    resource: packers\n"
         "    on:\n      - {path: Shop.resources.packers.current_cap, value: 3}\n",
         1,
     )
-    with caplog.at_level("WARNING", logger="desflow.blueprint.build"):
-        SimulationContext.from_yaml(write(tmp_path, ok, "ok.yaml"))
-    assert "registry path" not in caplog.text
+    SimulationContext.from_yaml(write(tmp_path, ok, "ok.yaml"))
+
+
+def test_a_scenario_step_on_a_family_member_with_no_such_attribute_names_the_line(
+    tmp_path,
+):
+    """A member's path is checked at load, at the step's line, for the attributes a
+    member has."""
+    text = MINIMAL + (
+        "scenario:\n"
+        "  - {at: 3, path: 'Shop.resources.desk[0].current_cap', value: 1}\n"
+        "  - {at: 4, path: 'Shop.resources.desk[0].curent_cap', value: 1}\n"
+    )
+    text = text.replace(
+        "resources:\n",
+        "resources:\n  desk: {family: true, members: 2, current_cap: 1}\n",
+        1,
+    )
+    path = write(tmp_path, text)
+    line = text.splitlines().index(
+        "  - {at: 4, path: 'Shop.resources.desk[0].curent_cap', value: 1}"
+    )
+    with pytest.raises(
+        BlueprintError,
+        match=rf"{re.escape(str(path))}:{line + 1}: .*desk\[0\].curent_cap' is not a "
+        "registry path",
+    ):
+        SimulationContext.from_yaml(path)
+
+
+def test_a_step_on_a_member_the_family_can_never_have_names_the_line(tmp_path):
+    """`desk[7]` of a family with `members: 2` is refused at load, at the step's line,
+    and is taken when a task picks the family by `key`, which makes it at first use."""
+    step = "  - {at: 4, path: 'Shop.resources.desk[7].current_cap', value: 1}"
+    text = MINIMAL + "scenario:\n" + step + "\n"
+    text = text.replace(
+        "resources:\n",
+        "resources:\n  desk: {family: true, members: 2, current_cap: 1}\n",
+        1,
+    )
+    path = write(tmp_path, text)
+    line = text.splitlines().index(step)
+    with pytest.raises(
+        BlueprintError,
+        match=rf"{re.escape(str(path))}:{line + 1}: .*desk\[7\].current_cap' is "
+        r"not a registry path.*'desk\[7\]' is a member the family 'desk' never "
+        r"makes: `members: 2` makes desk\[0\] to desk\[1\], and no task or `on:` action "
+        r"picks a member by `key`",
+    ):
+        SimulationContext.from_yaml(path)
+    ok = text.replace(
+        "tasks:\n",
+        "tasks:\n  pick:\n    service: packing\n    resource: {of: desk, key: attr.i}\n"
+        "    payload: {status: finished}\n    id_field: order_id\n",
+        1,
+    )
+    assert ok != text
+    SimulationContext.from_yaml(write(tmp_path, ok, "ok.yaml"))
 
 
 _COMPUTED = """\

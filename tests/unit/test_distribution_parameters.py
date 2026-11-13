@@ -25,6 +25,11 @@ SERVICES = [
     "{dist: weibull, shape: 0.005, scale: 1}",
     "{dist: poisson, mean: 1.0e+20}",
     "{dist: lognormal, mean: 1.0e+200, std: 1}",
+    "{dist: lognormal, mean: 1.0e-200, std: 1}",
+    "{dist: lognormal, mean: 1.0e-150, std: 1.0e+150}",
+    "{dist: empirical, values: [1, 2], weights: [1.0e+308, 1.0e+308]}",
+    "{dist: empirical, edges: [0, 1, 2], counts: [1.0e+308, 1.0e+308]}",
+    "{dist: exponential, rate: 1" + "0" * 400 + "}",
 ]
 
 
@@ -47,11 +52,19 @@ def test_yaml_refuses_the_parameter_with_the_line(tmp_path, service):
         {"dist": "weibull", "shape": 0.005, "scale": 1},
         {"dist": "poisson", "mean": 1e20},
         {"dist": "lognormal", "mean": 1e200, "std": 1},
+        {"dist": "lognormal", "mean": 1e-200, "std": 1},
+        {"dist": "empirical", "values": [1, 2], "weights": [1e308, 1e308]},
+        {"dist": "exponential", "rate": 10**400},
     ],
 )
 def test_the_config_refuses_the_parameter_by_name(kwargs):
     with pytest.raises(ValueError, match=kwargs["dist"]):
         DistributionConfig(**kwargs)
+
+
+def test_a_weibull_that_overflows_names_the_scale_as_well_as_the_shape():
+    with pytest.raises(ValueError, match="shape 1 with scale 1e\\+200"):
+        DistributionConfig(dist="weibull", shape=1, scale=1e200)
 
 
 def test_ordinary_parameters_still_load():

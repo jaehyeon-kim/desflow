@@ -9,6 +9,8 @@ seconds, so the YAML load, the Builder and the CLI give the same refusal. Each c
 runs under a wall-clock limit: a run that hangs fails the test.
 """
 
+from decimal import Decimal
+
 import pytest
 import yaml as pyyaml
 
@@ -160,6 +162,38 @@ def test_a_plain_number_in_text_is_seconds():
     assert _seconds("1e-3") == 0.001
     assert _seconds("5") == 5.0
     assert checked_seconds("10 min", "x") == 600
+
+
+def test_a_whole_number_too_large_for_a_float_is_refused_with_a_message():
+    from desflow.utils import checked_seconds
+
+    with pytest.raises(ValueError, match="until is a whole number too large"):
+        checked_seconds(10**400, "until")
+
+
+def test_a_decimal_factor_becomes_a_float_and_the_run_finishes():
+    app = SimulationContext("S", factor=Decimal("0"), random_seed=1)
+    assert app.factor == 0.0 and isinstance(app.factor, float)
+    app.add_arrival("orders", "constant", value=1, spawn="job", max_events=2)
+    app.task(service_time=0, name="job")(lambda task_id: {})
+    app.run(until=3)
+
+
+def test_a_decimal_factor_that_is_not_a_number_is_refused_by_name():
+    with pytest.raises(ValueError, match="factor"):
+        SimulationContext("S", factor=Decimal("NaN"))
+
+
+def test_a_negative_duration_is_accepted_where_a_negative_number_is():
+    from desflow.utils import checked_seconds
+
+    assert checked_seconds("-5 min", "x", below_zero=True) == -300
+    assert checked_seconds("-90", "x", below_zero=True) == -90
+    assert SimulationContext("S", initial_time="-5 min").initial_time == -300
+    with pytest.raises(ValueError, match="x gave -300, which is below 0"):
+        checked_seconds("-5 min", "x")
+    with pytest.raises(ValueError, match="seconds or a duration"):
+        checked_seconds("--5 min", "x", below_zero=True)
 
 
 @pytest.mark.parametrize(

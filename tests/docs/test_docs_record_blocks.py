@@ -40,3 +40,23 @@ def test_block_is_up_to_date(name):
         f"Run python scripts/record_blocks.py to regenerate {name} on: "
         + ", ".join(stale)
     )
+
+
+def test_a_block_does_not_read_the_callers_environment(monkeypatch):
+    """The default run of a block shows the blueprint's own default, whatever the
+    shell that runs the generator sets."""
+    before = record_blocks.BLOCKS["stock-yaml"]()
+    monkeypatch.setenv("DELIVERY", "40")
+    assert record_blocks.BLOCKS["stock-yaml"]() == before
+
+
+@pytest.mark.parametrize(
+    "text, lines",
+    [
+        ("<!-- records: a -->\n```text\nx\n```\n", []),
+        ("intro\n<!-- records: a -->\n```txt\nx\n```\n", [2]),
+    ],
+    ids=["matched", "another fence word"],
+)
+def test_a_marker_that_matches_no_block_is_found(text, lines):
+    assert record_blocks.unmatched_markers(text) == lines

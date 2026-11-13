@@ -41,6 +41,6 @@ def _report(
 
     try:
         path = write_report(folder)
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, ValueError) as exc:
         refuse(str(exc))
     typer.echo(f"Wrote {path}")

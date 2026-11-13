@@ -73,8 +73,11 @@ def comparisons(explanation: Explanation) -> Table:
     verification = explanation.verification
     assert verification is not None
     runs = verification.replications or 1
+    end = f"{verification.until:g} s"
+    if verification.stopped:
+        end = f"run.stop or {end}"
     table = Table(
-        title=f"Verify: {runs} run{'s' if runs > 1 else ''} to {verification.until:g} s, seed {verification.seed}",
+        title=f"Verify: {runs} run{'s' if runs > 1 else ''} to {end}, seed {verification.seed}",
         box=box.SIMPLE_HEAD,
         title_justify="left",
     )

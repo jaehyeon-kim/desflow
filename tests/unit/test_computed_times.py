@@ -396,6 +396,7 @@ def test_a_max_events_expression_is_read_once_at_the_start(tmp_path):
         ("{gap: 'nonsense +', spawn: t}", "gap"),
         ("{gap: 1, vars: {'1x': 2}, spawn: t}", "is not a name an expression can read"),
         ("{gap: 1, vars: {t: 2}, spawn: t}", "a name an expression already uses"),
+        ("{gap: 1, vars: {µs: 2}, spawn: t}", "'µs' is read as 'μs'"),
         ("{gap: {gen: entity}, spawn: t}", "there is no task here"),
         (
             "{replay: {path: r.csv}, count: 2, spawn: t}",

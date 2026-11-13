@@ -131,7 +131,8 @@ def blueprint_keys() -> str:
         "[../assets/blueprint.schema.json](../assets/blueprint.schema.json). Where a "
         "value is a number, a whole number, `true` or `false`, or one of a fixed set "
         "of names, a `${VAR}` or `${VAR:-default}` reference is also accepted, and "
-        "a Duration is a number and a unit such as `5 min`.",
+        "a number can also be written in quotes, such as `'1000'`. A Duration is a "
+        "number and a unit such as `5 min`.",
         "",
     ]
     return contents("\n".join(lines + gen_pages.yaml_keys_body(2)).rstrip("\n") + "\n")

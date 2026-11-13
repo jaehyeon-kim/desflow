@@ -78,6 +78,10 @@ class Check(_Model):
     def _a_bound(self) -> "Check":
         if self.max is None and self.min is None:
             raise ValueError("a check needs max, min or both")
+        if self.max is not None and self.min is not None and self.min > self.max:
+            raise ValueError(
+                f"min ({self.min:g}) is above max ({self.max:g}), so no value passes"
+            )
         return self
 
 
@@ -131,6 +135,37 @@ class ExperimentSpec(_Model):
     limits: List[str] = Field(default_factory=list)
     output: Optional[str] = None
     workers: int = Field(default=1, ge=1)
+
+    @field_validator("experiment")
+    @classmethod
+    def _folder_name(cls, value: str) -> str:
+        # The name is the folder `results/<name>`, so it must be one folder name
+        if value.strip() in ("", ".", "..") or "/" in value or "\\" in value:
+            raise ValueError(
+                f"experiment names the folder results/<experiment>, so it is a "
+                f"single folder name, not '{value}'"
+            )
+        return value
+
+    @field_validator("seed", mode="before")
+    @classmethod
+    def _seed_is_not_a_bool(cls, value: Any) -> Any:
+        # YAML `yes` and `on` are true, which an int field would take as seed 1
+        if isinstance(value, bool):
+            raise ValueError(f"seed is a whole number of 0 or more, got {value}")
+        return value
+
+    @field_validator("seed")
+    @classmethod
+    def _seed_is_not_negative(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError(f"seed is a whole number of 0 or more, got {value}")
+        return value
+
+    @field_validator("measures")
+    @classmethod
+    def _each_measure_once(cls, value: List[str]) -> List[str]:
+        return list(dict.fromkeys(value))
 
     @field_validator("until", "warmup", mode="before")
     @classmethod

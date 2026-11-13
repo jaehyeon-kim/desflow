@@ -11,6 +11,8 @@ the checks that every image is used on a page leave the stills out.
 
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 DIAGRAMS = ROOT / "docs" / "assets" / "diagrams"
 IMAGE_SUFFIXES = (".png", ".gif")
@@ -113,6 +115,28 @@ def test_every_chart_is_drawn_by_the_script_and_used_on_a_page():
     pages = "\n".join(p.read_text() for p in (ROOT / "docs").rglob("*.md"))
     unused = [name for name in sorted(images) if f"charts/{files[name]}" not in pages]
     assert not unused, f"No page uses these charts: {unused}"
+
+
+def _script(name):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / f"{name}.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_a_misspelt_diagram_name_is_an_error_that_names_it():
+    with pytest.raises(SystemExit, match="no-such-diagram"):
+        _script("diagrams").main(["no-such-diagram"])
+
+
+def test_more_files_than_colours_is_an_error():
+    charts = _script("charts")
+    files = {f"file{n}": [{"sim_ts": n}] for n in range(len(charts.FILE_COLOURS) + 1)}
+    with pytest.raises(ValueError, match=r"4 files"):
+        charts.coloured_files(files)
 
 
 def test_every_tape_is_recorded_by_the_script_and_its_gif_used_on_command_line():

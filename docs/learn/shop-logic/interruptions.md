@@ -258,7 +258,7 @@ The statistics count each `preempted`, `interrupted` and `resumed`. A resumed or
 
 ## Interrupt a Task
 
-Preemption is one source of interrupts, and a model can send others. An `interrupt` names a task. Every instance of that task that is running, waiting or being served receives an interrupt with the given `cause`, and follows its `on_interrupt`. A `where` condition, such as `attr.order == 3`, limits the interrupt to the instances for which the condition holds. Here a recall at 31 minutes interrupts every regular order:
+Preemption is one source of interrupts, and a model can send others. An `interrupt` names a task. Every instance of that task that is running, waiting or being served receives an interrupt with the given `cause`, and follows its `on_interrupt`. A `where` condition, such as `attr.order == 3`, is read in the scope of each instance, and limits the interrupt to the instances for which it holds. It reads what the instance's own expressions read. `wait.<branch>.done` is false until the instance's wait has ended. Here a recall at 31 minutes interrupts every regular order:
 
 === "YAML"
 

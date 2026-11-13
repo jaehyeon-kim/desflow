@@ -13,6 +13,7 @@ from desflow.resources.base import (
     _Ranked,
     _WrappedHolder,
 )
+from desflow.utils import checked_priority
 
 
 def _whole(value: float) -> Union[int, float]:
@@ -233,6 +234,7 @@ class DynamicStore(_WrappedHolder, Store):
                         f"a priority store starts with (priority, item) pairs, got "
                         f"{item!r}"
                     )
+                checked_priority(item[0], f"store '{store_id}' starting item priority")
                 heapq.heappush(self._holder.items, self.wrap(item[1], item[0]))
             else:
                 self._holder.items.append(item)

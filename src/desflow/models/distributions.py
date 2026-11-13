@@ -130,12 +130,33 @@ def _check_lognormal(c: Any) -> None:
             f"lognormal mean {c.mean:g} and std {c.std:g} are too large: their "
             f"squares pass the largest float"
         ) from None
+    if float(c.mean) ** 2 == 0:
+        raise ValueError(
+            f"lognormal mean {c.mean:g} is too small: its square rounds to 0"
+        )
+    try:
+        with np.errstate(all="ignore"):
+            usable = all(math.isfinite(v) for v in _lognormal_log_parameters(c))
+    except (ZeroDivisionError, OverflowError):
+        usable = False
+    if not usable:
+        raise ValueError(
+            f"lognormal mean {c.mean:g} and std {c.std:g} are out of range: the "
+            f"ratio of std to mean passes the largest float"
+        )
+
+
+def _lognormal_log_parameters(c: Any) -> Tuple[float, float]:
+    """The mean and standard deviation of the logarithm of a lognormal draw."""
+    m, s = c.mean, c.std
+    mu = np.log(m**2 / np.sqrt(s**2 + m**2))
+    sigma = np.sqrt(np.log(1 + (s**2 / m**2)))
+    return mu, sigma
 
 
 def _draw_lognormal(c: Any, rng: np.random.Generator) -> float:
     m, s = c.mean, c.std
-    mu = np.log(m**2 / np.sqrt(s**2 + m**2))
-    sigma = np.sqrt(np.log(1 + (s**2 / m**2)))
+    mu, sigma = _lognormal_log_parameters(c)
     value = rng.lognormal(mu, sigma)
     # With a std of 0 the draw is the mean up to rounding, so return the mean
     # exactly. The draw is still made, so later draws stay the same.
@@ -274,8 +295,9 @@ def _check_weibull(c: Any) -> None:
         _weibull_variance(c)
     except OverflowError:
         raise ValueError(
-            f"weibull shape {c.shape:g} is too small: the mean and variance pass "
-            f"the largest float"
+            f"weibull shape {c.shape:g} with scale {c.scale:g} is out of range: the "
+            f"mean and variance pass the largest float; use a smaller scale or a "
+            f"larger shape"
         ) from None
 
 
@@ -330,8 +352,11 @@ def _check_empirical(c: Any) -> None:
 def _check_frequencies(name: str, numbers: Any) -> None:
     if any(not n >= 0 for n in numbers):
         raise ValueError(f"empirical {name} must be 0 or more")
-    if not sum(numbers) > 0:
+    total = sum(numbers)
+    if not total > 0:
         raise ValueError(f"empirical {name} must add up to more than 0")
+    if not math.isfinite(total):
+        raise ValueError(f"empirical {name} must add up to a finite number")
 
 
 def _probabilities(numbers: Any) -> np.ndarray:

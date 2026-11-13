@@ -80,6 +80,35 @@ def test_a_builder_file_imports_from_its_folder_without_its_main_guard(tmp_path)
     assert load_context(tmp_path, "main.py") is not first
 
 
+def test_builder_files_in_different_folders_each_import_their_own_module(
+    tmp_path, monkeypatch
+):
+    """`desflow check a/shop.py b/shop.py` loads both in one process."""
+    monkeypatch.delitem(sys.modules, "shop_settings", raising=False)
+    for folder, sim_id in (("a", "Shop_a"), ("b", "Shop_b")):
+        _write(tmp_path / folder, "shop_settings.py", f"SIM_ID = {sim_id!r}\n")
+        _write(tmp_path / folder, "main.py", BUILDER)
+    sim_ids = [
+        load_context(tmp_path / folder, "main.py").sim_id for folder in ("a", "b", "a")
+    ]
+
+    assert sim_ids == ["Shop_a", "Shop_b", "Shop_a"]
+    sys.modules.pop("shop_settings", None)
+
+
+def test_a_builder_file_with_an_upper_case_suffix_is_a_builder_file(tmp_path):
+    from typer.testing import CliRunner
+
+    from desflow.cli import app
+
+    _write(tmp_path, "shop_settings.py", 'SIM_ID = "Shop"\n')
+    path = _write(tmp_path, "main.PY", BUILDER)
+    assert load_context(tmp_path, "main.PY").sim_id == "Shop"
+    result = CliRunner().invoke(app, ["check", str(path)])
+    assert result.exit_code == 0, result.output
+    assert "sim_id Shop" in result.output
+
+
 def test_desflow_app_chooses_between_contexts(tmp_path):
     text = (
         "from desflow import SimulationContext\n"
@@ -171,6 +200,33 @@ def test_explain_of_a_uri_that_ends_in_a_folder_is_refused_with_the_uri(tmp_path
     folder = tmp_path / "sims" / "shop"
     _write(folder, "main.yaml", BLUEPRINT)
     uri = folder.as_uri() + "/"
+    result = CliRunner().invoke(app, ["explain", uri])
+    assert result.exit_code == 2, result.output
+    assert f"no file {uri}" in result.output
+
+
+def test_explain_of_a_uri_decodes_the_file_name_as_it_decodes_the_folder(tmp_path):
+    from typer.testing import CliRunner
+
+    from desflow.cli import app
+
+    folder = tmp_path / "my dir"
+    _write(folder, "my shop.yaml", BLUEPRINT)
+    uri = (folder / "my shop.yaml").as_uri()
+    assert "my%20dir/my%20shop.yaml" in uri
+    result = CliRunner().invoke(app, ["explain", uri])
+    assert result.exit_code == 0, result.output
+
+
+def test_explain_of_a_missing_percent_encoded_file_names_the_uri_as_typed(tmp_path):
+    from typer.testing import CliRunner
+
+    from desflow.cli import app
+
+    folder = tmp_path / "my dir"
+    _write(folder, "my shop.yaml", BLUEPRINT)
+    uri = (folder / "no such.yaml").as_uri()
+    assert "my%20dir/no%20such.yaml" in uri
     result = CliRunner().invoke(app, ["explain", uri])
     assert result.exit_code == 2, result.output
     assert f"no file {uri}" in result.output

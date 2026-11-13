@@ -1,6 +1,6 @@
 # Blueprint keys
 
-Every key a desflow blueprint takes, from the JSON Schema in [../assets/blueprint.schema.json](../assets/blueprint.schema.json). Where a value is a number, a whole number, `true` or `false`, or one of a fixed set of names, a `${VAR}` or `${VAR:-default}` reference is also accepted, and a Duration is a number and a unit such as `5 min`.
+Every key a desflow blueprint takes, from the JSON Schema in [../assets/blueprint.schema.json](../assets/blueprint.schema.json). Where a value is a number, a whole number, `true` or `false`, or one of a fixed set of names, a `${VAR}` or `${VAR:-default}` reference is also accepted, and a number can also be written in quotes, such as `'1000'`. A Duration is a number and a unit such as `5 min`.
 
 - [simulation](#simulation)
 - [resources](#resources)
@@ -1320,7 +1320,7 @@ One bin of a `lookup` histogram: `bin` is the share of the rows it covers, in th
 
 ### Switch
 
-`switch`: the value of the first case that matches `on`, evaluated only when picked. `cases` is a mapping from a value to its result, or a list of ranges; `default` is used when none matches (null when it is left out).
+`switch`: the value of the first case that matches `on`, evaluated only when picked. `cases` is a mapping from a value to its result, or a list of ranges; `default` is used when none matches (null when it is left out). In a blueprint, a key written `yes`, `no`, `on` or `off` is that text, not a boolean.
 
 | Key | Type | Default |
 |---|---|---|
@@ -1413,7 +1413,7 @@ One range case of `switch`: the first case whose `min` is at or below `on` and w
 
 ### Weighted
 
-`weighted`: one choice, by weight. `options` maps each value to its weight, or `choices` lists `{value, weight}` for values that are mappings or generators. Each weight is 0 or more and at least one is above 0; weights are divided by their sum. Only the value picked is evaluated.
+`weighted`: one choice, by weight. `options` maps each value to its weight, or `choices` lists `{value, weight}` for values that are mappings or generators. Each weight is 0 or more and at least one is above 0; weights are divided by their sum. Only the value picked is evaluated. In a blueprint, an option key written `yes`, `no`, `on` or `off` is that text, not a boolean.
 
 | Key | Type | Default |
 |---|---|---|

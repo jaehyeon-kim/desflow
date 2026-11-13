@@ -1,5 +1,6 @@
 """Experiments: designs, pairing, comparisons, checks, observed values, the report."""
 
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -572,6 +573,58 @@ def test_report_needs_an_experiment_folder(tmp_path):
     assert run.exit_code == 2 and "experiment.json" in run.output
 
 
+@pytest.mark.parametrize(
+    "text, message",
+    [
+        (
+            '{"experiment": "packers",',
+            "experiment.json is not an experiment's evidence file",
+        ),
+        ('{"experiment": "packers"}', "'settings' is missing from its files"),
+    ],
+)
+def test_a_report_of_a_broken_experiment_json_is_refused(folder, text, message):
+    run_experiment(folder / "experiment.yaml")
+    out = folder / "results" / "packers"
+    (out / found.EXPERIMENT_FILE).write_text(text)
+    run = CliRunner().invoke(cli, ["report", str(out)])
+    assert run.exit_code == 2
+    assert message in " ".join(run.output.split())
+
+
+def test_a_report_of_an_experiment_json_with_a_wrong_form_is_refused(folder):
+    run_experiment(folder / "experiment.yaml")
+    out = folder / "results" / "packers"
+    data = json.loads((out / found.EXPERIMENT_FILE).read_text())
+    data["inputs"] = [1]
+    (out / found.EXPERIMENT_FILE).write_text(json.dumps(data))
+    run = CliRunner().invoke(cli, ["report", str(out)])
+    assert run.exit_code == 2
+    assert "has the wrong form" in " ".join(run.output.split())
+    assert "Traceback" not in run.output
+
+
+def test_a_report_without_a_summary_row_names_the_file_and_the_row(folder):
+    run_experiment(folder / "experiment.yaml")
+    out = folder / "results" / "packers"
+    (out / "summary.csv").unlink()
+    run = CliRunner().invoke(cli, ["report", str(out)])
+    assert run.exit_code == 2
+    assert "summary.csv has no row for design" in " ".join(run.output.split())
+
+
+def test_a_pipe_in_a_variant_name_stays_inside_its_table_cell(folder):
+    settings = _settings(
+        model=str(folder / "shop.yaml"),
+        variants={"two|packers": {}},
+        compare=[],
+        checks=[],
+    )
+    result = run_experiment(settings, output=folder / "out")
+    rows = [line for line in result.report.splitlines() if "two" in line]
+    assert rows and all("two\\|packers" in line for line in rows)
+
+
 def test_the_output_argument_takes_the_place_of_the_experiment_s_folder(tmp_path):
     result = run_experiment(
         _settings(model=shop, checks=[], output=str(tmp_path / "named")),
@@ -580,6 +633,36 @@ def test_the_output_argument_takes_the_place_of_the_experiment_s_folder(tmp_path
     assert result.output == tmp_path / "given"
     assert (tmp_path / "given" / found.REPORT_FILE).is_file()
     assert not (tmp_path / "named").exists()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "measure,value,unit,population,horizon\ntasks.pack.wait_mean,4.5,s,started instances,1.62e3\n",
+        "measure,value,unit,population,horizon\ntasks.pack.wait_mean,4.5,s,started instances,27 MIN\n",
+        "\ufeffmeasure,value,unit,population,horizon\ntasks.pack.wait_mean,4.5,s,started instances,27 min\n",
+    ],
+    ids=["exponent", "unit in capitals", "byte order mark"],
+)
+def test_an_observed_file_in_another_spelling_is_read(folder, text):
+    (folder / "observed.csv").write_text(text, encoding="utf-8")
+    (folder / "experiment.yaml").write_text(
+        EXPERIMENT + "observed: {file: observed.csv}\n"
+    )
+    assert run_experiment(folder / "experiment.yaml").observed[0]["horizon"] == 1620
+
+
+def test_an_observed_horizon_that_is_not_a_duration_names_its_row(folder):
+    (folder / "observed.csv").write_text(
+        OBSERVED.format("tasks.pack.wait_mean,4.5,s,started instances,about 27 min")
+    )
+    (folder / "experiment.yaml").write_text(
+        EXPERIMENT + "observed: {file: observed.csv}\n"
+    )
+    with pytest.raises(
+        ValueError, match=r"observed.csv:2: the observed horizon 'about"
+    ):
+        run_experiment(folder / "experiment.yaml")
 
 
 def test_a_model_with_no_distributions_is_reported_as_such(folder):
@@ -658,3 +741,15 @@ def test_a_mean_is_read_as_a_wait_or_a_service_by_its_statistic():
     has its service mean measured on finished instances."""
     assert found._population_of("tasks.a.wait_b.service_mean") == "finished instances"
     assert found._population_of("tasks.a.service_b.wait_mean") == "started instances"
+
+
+@pytest.mark.parametrize("name", ["builder.py", "builder.PY"])
+def test_a_model_that_is_a_python_file_is_refused_with_its_line(folder, name):
+    """A builder model is a `!python` factory; a `.py` path would be read as YAML."""
+    (folder / name).write_text("app = None\n")
+    experiment = folder / "experiment.yaml"
+    experiment.write_text(EXPERIMENT.replace("model: shop.yaml", f"model: {name}"))
+    run = CliRunner().invoke(cli, ["experiment", str(experiment)])
+    assert run.exit_code == 2
+    assert f"experiment.yaml:3: model {name} is a Python file" in run.output
+    assert "!python module.function" in run.output

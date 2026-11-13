@@ -44,7 +44,8 @@ line; under 1.2 they are strings, written back as they were.
 
 The result is composed with PyYAML, as desflow's loader reads it, and compared with
 the original: tags, scalar values and quoting, shared nodes and anchor names. A file
-whose result differs is reported and left as it is.
+whose result differs, or loses a comment, as one inside an inline collection does, is
+reported and left as it is.
 
 `--check` writes nothing, prints each file that would change, and exits 1 if any
 would.
@@ -55,6 +56,7 @@ import io
 import re
 import sys
 import textwrap
+from collections import Counter
 from pathlib import Path
 from typing import Any, NamedTuple, TypeAlias
 
@@ -524,6 +526,44 @@ def _comment_column(
     return None
 
 
+def _comments(text: str) -> list[tuple[int, str]]:
+    """Every comment in the text, as its line number (the first line is 1) and its text
+    from the `#`."""
+    scalars = _scalar_spans(text)
+    found: list[tuple[int, str]] = []
+    row_start = 0
+    for number, row in enumerate(text.split("\n"), start=1):
+        column = _comment_column(row, row_start, scalars)
+        row_start += len(row) + 1
+        if column is not None:
+            found.append((number, row[column:].strip()))
+    return found
+
+
+def _comment_words(text: str) -> Counter[str]:
+    """How many times each word of a comment occurs in the text, so that wrapping a
+    comment or moving it to its own line changes nothing."""
+    return Counter(
+        word for _, comment in _comments(text) for word in comment[1:].split()
+    )
+
+
+def _comment_refusal(text: str, out: str) -> str:
+    """Says which comment of `text` the layout `out` loses: the first one whose words
+    `out` no longer holds."""
+    kept = _comment_words(out)
+    for number, comment in _comments(text):
+        for word in comment[1:].split():
+            if kept[word] == 0:
+                return (
+                    f"line {number}: the layout would lose the comment `{comment}`, "
+                    "as it loses one inside an inline collection; move it above the "
+                    "collection; not changed"
+                )
+            kept[word] -= 1
+    return "the layout would change a comment; not changed"
+
+
 def _long_content_lines(text: str) -> set[int]:
     """The numbers of the lines whose content, without an end-of-line comment, passes
     MAX_WIDTH."""
@@ -803,8 +843,8 @@ def _layout(text: str) -> str:
         The same document in the layout. A second call returns it unchanged.
 
     Raises:
-        ValueError: If the result would mean something else than `text`, or if
-            opening long collections does not finish.
+        ValueError: If the result would mean something else than `text`, would lose a
+            comment, or if opening long collections does not finish.
     """
     yaml = _make_yaml()
     data = yaml.load(text)
@@ -828,6 +868,8 @@ def _layout(text: str) -> str:
     out = _separate_top_level_keys(_fold_long_scalars(out))
     if _node_tree(out) != _node_tree(text):
         raise ValueError("the layout would change what the file means; not changed")
+    if _comment_words(out) != _comment_words(text):
+        raise ValueError(_comment_refusal(text, out))
     return out
 
 

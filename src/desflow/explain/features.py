@@ -55,6 +55,9 @@ PICKED_RESOURCE = "resource picked by key or lowest"
 RESOURCE_FAMILY = "resource family"
 # An `on:` entry with a `path` of the resource's capacity changes it during the run
 CHANGED_CAPACITY = "capacity changed by an on: entry"
+# An `on:` entry with a `path` of an arrival or a service changes a rate or a time
+# during the run, so no task has the rate or the service its declaration gives
+CHANGED_DEMAND = "an arrival or a service that an on: entry changes"
 
 
 def arrival_features(context: "SimulationContext", name: str) -> List[str]:
@@ -255,21 +258,25 @@ def _changed_resources(context: "SimulationContext") -> Set[str]:
     """The resources whose capacity an `on:` entry of a task, a `listen` or a signal
     sets: the name in each entry's `path`, `<sim_id>.resources.<name>.<field>`, with a
     family member's `[index]` left off."""
+    prefix = f"{context.sim_id}.resources."
+    found: Set[str] = set()
+    for path in _on_paths(context):
+        if not path.startswith(prefix):
+            continue
+        name = path[len(prefix) :].rpartition(".")[0]
+        found.add(name.partition("[")[0] if name.endswith("]") else name)
+    return found
+
+
+def _on_paths(context: "SimulationContext") -> List[str]:
+    """The `path` of every `on:` entry of a task, a `listen` or a signal."""
     parts = parts_of(context)
     actions: List[Mapping[str, Any]] = [
         action for found in parts.signals.on.values() for action in found
     ]
     for spec in parts.tasks.specs.values():
         actions += [*spec.on, *(spec.listen.on if spec.listen else [])]
-    prefix = f"{context.sim_id}.resources."
-    found: Set[str] = set()
-    for action in actions:
-        path = action.get("path")
-        if not isinstance(path, str) or not path.startswith(prefix):
-            continue
-        name = path[len(prefix) :].rpartition(".")[0]
-        found.add(name.partition("[")[0] if name.endswith("]") else name)
-    return found
+    return [a["path"] for a in actions if isinstance(a.get("path"), str)]
 
 
 def queue_order(context: "SimulationContext", name: str) -> Optional[str]:
@@ -300,4 +307,7 @@ def model_features(context: "SimulationContext") -> List[str]:
         features.append("scenario steps")
     if parts.sinks.ingress:
         features.append("live ingress")
+    demand = (f"{context.sim_id}.arrival.", f"{context.sim_id}.service.")
+    if any(path.startswith(demand) for path in _on_paths(context)):
+        features.append(CHANGED_DEMAND)
     return features

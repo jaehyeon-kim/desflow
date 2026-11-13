@@ -12,6 +12,8 @@ def mock_pool():
     acquire_ctx.__aenter__.return_value = conn
     pool.acquire.return_value = acquire_ctx
     pool.close = AsyncMock()
+    # The schemas of the default `search_path`
+    conn.fetchrow.return_value = {"table_schema": "public", "bare_schema": "public"}
     return pool, conn
 
 
@@ -44,11 +46,79 @@ async def test_postgres_egress_run(mock_create_pool, mock_pool, run_until):
     assert (3, "c") in values
 
 
+def test_a_table_route_is_compared_as_postgresql_reads_it(caplog):
+    """`Orders` and `public.orders` are the sink's table `orders`. A name that no
+    PostgresEgress of the process writes is warned about once, and a name another
+    entry writes is not. The warning says "process", because the sinks it looks at are
+    all those alive in the process."""
+    sink = PostgresEgress("postgresql://u:p@localhost/db", table_name="orders")
+    other = PostgresEgress("postgresql://u:p@localhost/db", table_name="Items")
+
+    def rows(route):
+        record = {"stream_type": "event", "key": "k", "value": {"__table__": route}}
+        return sink._rows([record])
+
+    assert [len(rows(route)) for route in ("orders", "Orders", "public.orders")] == [
+        1
+    ] * 3
+    assert rows("ordrs_misspelt") == [] and rows("ordrs_misspelt") == []
+    assert rows("items") == []
+
+    warnings = [r.message for r in caplog.records if "skips records" in r.message]
+    assert len(warnings) == 1
+    assert "'ordrs_misspelt'" in warnings[0]
+    assert "of this process writes" in warnings[0]
+    assert other.table_name == "Items"
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_a_table_route_is_resolved_through_the_search_path(
+    mock_create_pool, mock_pool
+):
+    """With `search_path` set to `shop, public` and a table `orders` in both schemas,
+    `orders` is `shop.orders`, so the sink for `orders` writes a record routed to
+    `shop.orders` and skips one routed to `public.orders`. The sink for
+    `public.orders` does the opposite."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.return_value = [{"column_name": "id"}]
+
+    def kept(sink):
+        routes = ("orders", "shop.orders", "public.orders")
+        records = [
+            {"stream_type": "event", "key": "k", "value": {"__table__": r, "id": 1}}
+            for r in routes
+        ]
+        return [r for r, record in zip(routes, records) if sink._rows([record])]
+
+    conn.fetchrow.return_value = {"table_schema": "shop", "bare_schema": "shop"}
+    unqualified = PostgresEgress("postgresql://u:p@localhost/db", "orders")
+    await unqualified._init_pool()
+    assert kept(unqualified) == ["orders", "shop.orders"]
+
+    conn.fetchrow.return_value = {"table_schema": "public", "bare_schema": "shop"}
+    qualified = PostgresEgress("postgresql://u:p@localhost/db", "public.orders")
+    await qualified._init_pool()
+    assert kept(qualified) == ["public.orders"]
+
+
 def test_default_query_skips_conflicts():
     """Without upsert_keys a record whose key exists is skipped, as before."""
     egress = PostgresEgress("postgresql://u:p@localhost/db", "orders")
     assert egress._insert_query(["order_id", "status"]) == (
         "INSERT INTO orders (order_id, status) VALUES ($1, $2) ON CONFLICT DO NOTHING"
+    )
+
+
+def test_upsert_keys_given_as_a_string_are_one_column():
+    """`upsert_keys: order_id` names one key column, as `primary_key` does."""
+    egress = PostgresEgress(
+        "postgresql://u:p@localhost/db", "orders", upsert_keys="order_id"
+    )
+    assert egress.upsert_keys == ["order_id"]
+    assert "ON CONFLICT (order_id) DO UPDATE" in egress._insert_query(
+        ["order_id", "status"]
     )
 
 
@@ -115,6 +185,91 @@ def test_records_with_different_columns_are_written_in_separate_runs():
         ["order_id", "status", "total"],
     ]
     assert [len(records) for _, records in runs] == [1, 1, 1]
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_the_sink_waits_for_a_database_that_is_not_up(
+    mock_create_pool, mock_pool, run_until, caplog
+):
+    """A database that refuses connections at start, or fails while the tables are set
+    up, delays the sink, which then writes its batches. A wrong setting still stops it."""
+    pool, conn = mock_pool
+    mock_create_pool.side_effect = [ConnectionRefusedError("refused"), pool, pool]
+    conn.fetch.return_value = [{"column_name": "id"}]
+    conn.execute.side_effect = [OSError("lost"), None]
+    egress = PostgresEgress(
+        "postgresql://u:p@localhost/db",
+        tables={"orders": {"columns": {"id": "INT"}}},
+    )
+    batches = queue.Queue()
+    batches.put([{"stream_type": "event", "key": "k", "value": {"id": 1}}])
+
+    with patch("desflow.connectors._retry.FIRST_DELAY", 0.01):
+        await run_until(egress.run(batches), lambda: conn.executemany.called)
+
+    assert conn.executemany.call_args[0][1] == [(1,)]
+    assert mock_create_pool.call_count == 3
+    assert "PostgresEgress could not connect: refused" in caplog.text
+    assert "PostgresEgress could not connect: lost" in caplog.text
+    pool.close.assert_called()
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_a_payload_field_in_mixed_case_is_written_to_its_column(
+    mock_create_pool, mock_pool, run_until
+):
+    """PostgreSQL folds the unquoted column `OrderId` to `orderid`, so a payload field
+    `OrderId` is written to it, and `upsert_keys` in the same spelling are found. A
+    time field `CreatedAt` is converted for its column, as `createdat` is."""
+    from datetime import datetime, timezone
+
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.return_value = [
+        {"column_name": "orderid", "data_type": "integer"},
+        {"column_name": "status", "data_type": "text"},
+        {"column_name": "createdat", "data_type": "timestamp with time zone"},
+    ]
+    egress = PostgresEgress(
+        "postgresql://u:p@localhost/db",
+        tables={
+            "orders": {
+                "columns": {
+                    "OrderId": "INT",
+                    "status": "TEXT",
+                    "CreatedAt": "TIMESTAMPTZ",
+                }
+            }
+        },
+        upsert_keys=["OrderId"],
+    )
+    batches = queue.Queue()
+    batches.put(
+        [
+            {
+                "stream_type": "event",
+                "key": "k",
+                "value": {
+                    "OrderId": 7,
+                    "ORDERID": 8,
+                    "status": "new",
+                    "CreatedAt": "2026-01-01T00:00:10+00:00",
+                },
+            }
+        ]
+    )
+
+    await run_until(egress.run(batches), lambda: conn.executemany.called)
+
+    query, values = conn.executemany.call_args[0]
+    assert query == (
+        "INSERT INTO orders (OrderId, status, CreatedAt) VALUES ($1, $2, $3) "
+        "ON CONFLICT (OrderId) DO UPDATE SET status = EXCLUDED.status, "
+        "CreatedAt = EXCLUDED.CreatedAt"
+    )
+    assert values == [(7, "new", datetime(2026, 1, 1, 0, 0, 10, tzinfo=timezone.utc))]
 
 
 @pytest.mark.asyncio
@@ -459,6 +614,26 @@ async def test_keyed_entry_skips_a_record_without_its_key_columns(
     assert values == [(1, "new"), (2, "new")]
     [warning] = [r for r in caplog.records if "skipped records" in r.getMessage()]
     assert "2 had a null or missing key column of their table" in warning.getMessage()
+
+
+def test_a_key_column_is_found_in_any_case():
+    """PostgreSQL folds `upsert_keys: [OrderId]` and a payload key `orderid` to one
+    column, so the record is kept. A null key is skipped. When two keys name the key
+    column, the first is the one written, so the first decides."""
+    egress = PostgresEgress(
+        "postgresql://u:p@localhost/db", "orders", upsert_keys=["OrderId"]
+    )
+
+    rows = egress._rows(
+        [
+            _event({"orderid": 1, "status": "new"}),
+            _event({"orderid": None, "status": "lost"}),
+            _event({"ORDERID": None, "OrderId": 2, "status": "lost"}),
+            _event({"ORDERID": 3, "OrderId": None, "status": "new"}),
+        ]
+    )
+
+    assert [row["status"] for row in rows] == ["new", "new"]
 
 
 @pytest.mark.asyncio

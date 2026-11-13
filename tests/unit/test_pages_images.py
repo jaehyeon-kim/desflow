@@ -10,6 +10,9 @@ it after the rewrite.
 import importlib.util
 import json
 from pathlib import Path
+from urllib.parse import unquote
+
+import pytest
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "pages_images.py"
 _spec = importlib.util.spec_from_file_location("pages_images", SCRIPT)
@@ -72,3 +75,72 @@ def test_older_versions_share_one_copy_and_latest_keeps_its_own(tmp_path):
     assert not (site / "1.1" / "assets" / "linked-from-latest.png").exists()
     assert kept == [site / "1.1" / "assets" / "built-by-script.png"]
     assert (site / "1.1" / "assets" / "built-by-script.png").exists()
+
+
+# Each page links to an image of version 1.0 and must still show it after the rewrite
+STILL_LINKED = [
+    ("1.0/index.html", "img/my chart(1),a.png", "a space, parentheses and a comma"),
+    (
+        "1.1/index.html",
+        "../1.0/img/x.png",
+        "a relative link from another older version",
+    ),
+    ("2.0/index.html", "../1.0/img/x.png", "a relative link from latest"),
+    ("1.0/INDEX.HTML", "img/x.png", "a page suffix in capitals"),
+]
+
+
+@pytest.mark.parametrize(
+    "page, link, name", STILL_LINKED, ids=[case[2] for case in STILL_LINKED]
+)
+def test_a_link_still_reaches_its_image_after_the_rewrite(tmp_path, page, link, name):
+    versions = [("2.0", ["latest"]), ("1.1", []), ("1.0", [])]
+    (tmp_path / "versions.json").write_text(
+        json.dumps([{"version": v, "title": v, "aliases": a} for v, a in versions])
+    )
+    image = tmp_path / "1.0" / "img" / unquote(link.split("/")[-1])
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b"the image")
+    (tmp_path / page).parent.mkdir(parents=True, exist_ok=True)
+    (tmp_path / page).write_text(f'<img src="{link}">')
+
+    pages_images.rewrite_site(tmp_path)
+
+    written = (tmp_path / page).read_text().split('src="')[1].split('"')[0]
+    assert (tmp_path / page).parent.joinpath(unquote(written)).resolve().exists()
+
+
+def test_a_text_run_that_names_two_images_keeps_both(tmp_path):
+    versions = [("2.0", ["latest"]), ("1.0", [])]
+    (tmp_path / "versions.json").write_text(
+        json.dumps([{"version": v, "title": v, "aliases": a} for v, a in versions])
+    )
+    for name in ("a.png", "b.png", "c.png"):
+        (tmp_path / "1.0" / "img").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "1.0" / "img" / name).write_bytes(name.encode())
+    (tmp_path / "1.0" / "index.html").write_text("<code>a.png b.png</code>")
+
+    pages_images.rewrite_site(tmp_path)
+
+    kept = {path.name for path in (tmp_path / "1.0" / "img").iterdir()}
+    assert kept == {"a.png", "b.png"}
+
+
+def test_an_image_a_template_literal_names_is_kept(tmp_path):
+    """A backtick, and the brace that ends a `${...}` in front of a name, separate the
+    name from the text before it, so the check before deleting finds both images."""
+    versions = [("2.0", ["latest"]), ("1.0", [])]
+    (tmp_path / "versions.json").write_text(
+        json.dumps([{"version": v, "title": v, "aliases": a} for v, a in versions])
+    )
+    (tmp_path / "1.0" / "img").mkdir(parents=True)
+    for name in ("plot.png", "chart.png"):
+        (tmp_path / "1.0" / "img" / name).write_bytes(name.encode())
+    (tmp_path / "1.0" / "app.js").write_text(
+        "a.src = `plot.png`; b.src = `${base}chart.png`;"
+    )
+
+    pages_images.rewrite_site(tmp_path)
+
+    kept = {path.name for path in (tmp_path / "1.0" / "img").iterdir()}
+    assert kept == {"plot.png", "chart.png"}

@@ -150,7 +150,7 @@ The fitted settings go where the 40 times were:
     )
     ```
 
-`result.settings()` returns the best candidate's settings, and `result.settings("gamma")` returns the gamma's. Both keep six significant digits, as the file does, so a script and a blueprint that use the same fit draw the same values.
+`result.settings()` returns the best candidate's settings, the same numbers as the file, so a script and a blueprint that use the same fit draw the same values. `result.settings("gamma")` returns the gamma's.
 
 ---
 

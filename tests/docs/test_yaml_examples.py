@@ -368,6 +368,8 @@ def postgres():
 
     conn.execute.side_effect = execute
     conn.fetch.side_effect = fetch
+    # The schemas of the default `search_path`
+    conn.fetchrow.return_value = {"table_schema": "public", "bare_schema": "public"}
     with patch(
         "desflow.connectors.egress.postgres.asyncpg.create_pool",
         new=AsyncMock(return_value=pool),

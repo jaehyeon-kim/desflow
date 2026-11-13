@@ -61,8 +61,9 @@ def fix_expectations(
     """Returns `text` with each test's `expect` values replaced by the measured ones.
 
     A value that already holds is left as written. A test with no `expect` gets one
-    key for each measured statistic, in name order. A statistic that a test expects
-    and the run did not publish keeps its text.
+    key for each measured statistic that is not NaN, in name order, and is left as
+    written when the run published none. A statistic that a test expects and the run
+    did not publish keeps its text.
 
     Args:
         text: The file's text.
@@ -79,6 +80,7 @@ def fix_expectations(
     """
     lines = text.splitlines(keepends=True)
     inserts: Dict[int, List[str]] = {}
+    owners = _tests_by_expect_line(source, tests)
     for index, test in enumerate(tests):
         found = measured[index]
         if test.expect:
@@ -88,6 +90,8 @@ def fix_expectations(
                     and not math.isnan(found[name])
                     and not holds(expected, found[name])
                 ):
+                    at = _where(source, "tests", index, "expect", name)
+                    _refuse_a_shared_expect(source, tests, owners[at], at)
                     _replace(lines, source, index, name, expected, found[name])
         else:
             _add_expect(lines, source, index, found, inserts)
@@ -95,6 +99,37 @@ def fix_expectations(
     for after in sorted(inserts, reverse=True):
         lines[after + 1 : after + 1] = inserts[after]
     return "".join(lines)
+
+
+def _tests_by_expect_line(
+    source: SourceMap, tests: List[BlueprintTest]
+) -> Dict[int, List[int]]:
+    """For each line that holds a key of an `expect`, the indexes of the tests that
+    read it. A line is read by two tests when they share an `expect` through an
+    anchor and an alias."""
+    owners: Dict[int, List[int]] = {}
+    for index, test in enumerate(tests):
+        for name in test.expect or {}:
+            readers = owners.setdefault(
+                _where(source, "tests", index, "expect", name), []
+            )
+            if index not in readers:
+                readers.append(index)
+    return owners
+
+
+def _refuse_a_shared_expect(
+    source: SourceMap, tests: List[BlueprintTest], owners: List[int], at: int
+) -> None:
+    """Raises when more than one test reads the line `at`, as writing the value of one
+    test there would change what the others expect."""
+    if len(owners) > 1:
+        names = ", ".join(f"'{tests[index].name}'" for index in owners)
+        raise BlueprintError(
+            f"{source.path}:{at + 1}: --fix cannot change this expect, which tests "
+            f"{names} share through an anchor; write a separate expect for each test "
+            f"and run again"
+        )
 
 
 def _where(source: SourceMap, *location: Union[str, int]) -> int:
@@ -126,7 +161,7 @@ def _replace(
             r"\bvalue\s*:\s*)([^\s#,}]+)"
         )
     else:
-        pattern = rf"^(\s*(?:-\s+)?[\"']?{re.escape(name)}[\"']?\s*:\s*)([^\s#]+)"
+        pattern = rf"^(\s*(?:-\s+)?[\"']?{re.escape(name)}[\"']?\s*:\s*)([^\s#,}}]+)"
 
     def swap(found: "re.Match[str]") -> str:
         return found.group(1) + new
@@ -171,17 +206,23 @@ def _add_expect(
         for name in sorted(found)
         if not math.isnan(found[name])
     ]
+    if len(block) == 1:
+        # A bare `expect:` reads as null, which the next load refuses
+        return
     own = _where(source, "tests", index, "expect")
     if re.match(r"^\s*(?:-\s+)?expect\s*:", lines[own]):
-        # An expect with no keys: replaced by the block
-        if not re.match(
-            r"^\s*expect\s*:\s*(\{\s*\})?\s*(#.*)?$", lines[own].rstrip("\n")
-        ):
+        # An expect with no keys: replaced by the block, after the dash when `expect`
+        # is the first key of the test
+        empty = re.match(
+            r"^(\s*(?:-\s+)?)expect\s*:\s*(\{\s*\})?\s*(#.*)?$", lines[own].rstrip("\n")
+        )
+        if not empty:
             raise BlueprintError(
-                f"{source.path}:{own + 1}: --fix cannot rewrite this expect; write it "
-                f"as `expect: {{}}` on a line of its own"
+                f"{source.path}:{own + 1}: --fix writes the keys of an empty expect "
+                f"only when it is written `expect: {{}}`, and this one is not; write "
+                f"it that way and run again"
             )
-        lines[own] = block[0]
+        lines[own] = empty.group(1) + block[0].lstrip()
         inserts.setdefault(own, []).extend(block[1:])
         return
     end = start

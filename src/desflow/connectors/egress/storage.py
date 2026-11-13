@@ -343,22 +343,29 @@ class JsonlStorageEgress(BaseEgress):
         )
         warn_skipped(self, skipped, "__path__")
 
-        # Every line is encoded before a file is opened, so a record that cannot be
-        # encoded leaves no empty or partial file
-        encoded = {
-            target_path: [
-                orjson.dumps(payload, option=orjson.OPT_APPEND_NEWLINE)
-                for payload in records
-            ]
-            for target_path, records in grouped_batches.items()
-        }
-        for target_path, lines in encoded.items():
-            chunk_path = _generate_chunk_filename(target_path)
-            _ensure_folder(self.filesystem, chunk_path, self._folders)
-            with self.filesystem.open_output_stream(chunk_path) as stream:
-                for line in lines:
-                    stream.write(line)
-        return len(encoded)
+        written = 0
+        for target_path, records in grouped_batches.items():
+            try:
+                # Every line is encoded before a file is opened, so a record that
+                # cannot be encoded leaves no empty or partial file
+                lines = [
+                    orjson.dumps(payload, option=orjson.OPT_APPEND_NEWLINE)
+                    for payload in records
+                ]
+                chunk_path = _generate_chunk_filename(target_path)
+                _ensure_folder(self.filesystem, chunk_path, self._folders)
+                with self.filesystem.open_output_stream(chunk_path) as stream:
+                    for line in lines:
+                        stream.write(line)
+            except Exception as exc:
+                # One path that cannot be written does not cost the other paths
+                logger.error(
+                    f"JSONL Writer: could not write {len(records)} rows to "
+                    f"{target_path}: {exc}"
+                )
+                continue
+            written += 1
+        return written
 
 
 class ParquetStorageEgress(BaseEgress):

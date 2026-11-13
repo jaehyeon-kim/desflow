@@ -2,13 +2,15 @@
 
 import ast
 import contextlib
+import functools
 import importlib.util
 import logging
 import os
 import re
 import sys
 from pathlib import Path
-from typing import Callable, List
+from typing import Callable, Iterator, List, Set
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
@@ -129,6 +131,29 @@ def event_lines(lines: List[str]) -> List[str]:
         List[str]: The lines that start with `[EVT] `.
     """
     return [line for line in lines if line.startswith("[EVT] ")]
+
+
+@functools.cache
+def blueprint_variables() -> Set[str]:
+    """The names of the environment variables that a blueprint of the docs or the
+    examples reads, as `${NAME}` or `${NAME:-default}`."""
+    names: Set[str] = set()
+    for folder in (DOCS / "snippets", ROOT / "examples"):
+        for blueprint in folder.rglob("*.yaml"):
+            text = blueprint.read_text(encoding="utf-8")
+            names.update(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)", text))
+    return names
+
+
+@contextlib.contextmanager
+def without_blueprint_variables() -> Iterator[None]:
+    """Runs a block with none of the variables a blueprint reads set, so that its
+    default run shows the blueprint's own defaults. A setting a block makes for one
+    run is made inside this, and restored with the rest after it."""
+    with mock.patch.dict(os.environ):
+        for name in blueprint_variables():
+            os.environ.pop(name, None)
+        yield
 
 
 @contextlib.contextmanager

@@ -91,9 +91,10 @@ def read_trace(
 
     Raises:
         ValueError: If the unit or `on_invalid` is unknown; `fields` is a string
-            other than `all`; a row is out of time order, naming the first one; a
-            row's time is before the start; a field is missing; or a row's time is
-            invalid and `on_invalid` is `error`.
+            other than `all`; a CSV header names a column twice, or a CSV row has more
+            or fewer values than the header; a row is out of time order, naming the
+            first one; a row's time is before the start; a field is missing; or a
+            row's time is invalid and `on_invalid` is `error`.
         ImportError: If a Parquet file is read without pyarrow.
     """
     if unit not in UNITS and unit != TIMESTAMP:
@@ -154,9 +155,37 @@ def read_records(source: Any) -> Iterable[Mapping[str, Any]]:
             import pyarrow.parquet as pq
 
             return pq.read_table(path).to_pylist()
-        with path.open(newline="", encoding="utf-8") as file:
-            return list(csv.DictReader(file))
+        # utf-8-sig drops the byte order mark that Excel's "CSV UTF-8" writes, and
+        # reads a file without one as utf-8 does
+        with path.open(newline="", encoding="utf-8-sig") as file:
+            return _csv_records(file)
     return list(source)
+
+
+def _csv_records(file: Iterable[str]) -> List[Mapping[str, Any]]:
+    """The rows of a CSV file as mappings from the header, with blank lines skipped.
+
+    Raises:
+        ValueError: If the header names a column twice, or a row has more or fewer
+            values than the header.
+    """
+    reader = csv.reader(file)
+    header = next(reader, [])
+    repeated = sorted({name for name in header if header.count(name) > 1})
+    if repeated:
+        raise ValueError(
+            f"the header names column {', '.join(repeated)} more than once; "
+            f"rename one of them"
+        )
+    records: List[Mapping[str, Any]] = []
+    for number, values in enumerate((row for row in reader if row), start=1):
+        if len(values) != len(header):
+            raise ValueError(
+                f"row {number} has {len(values)} values, but the header has "
+                f"{len(header)} columns; make each row as long as the header"
+            )
+        records.append(dict(zip(header, values)))
+    return records
 
 
 # A CSV number: a sign, digits, a point and an exponent, and nothing else, so `1_0`,

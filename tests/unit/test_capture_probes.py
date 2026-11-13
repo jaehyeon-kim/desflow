@@ -466,10 +466,10 @@ REFUSED: List[Tuple[str, Any, str]] = [
     ),
     ("a stop condition", _stop, "dsk"),
     ("a scenario interrupt where", _scenario, "level.nope"),
-    ("a store rank of NaN", _ranked_store("1e999 - 1e999"), "finite number"),
-    ("a store rank of text", _ranked_store("'x'"), "finite number"),
-    ("a priority of NaN", _ranked_resource("1e999 - 1e999"), "finite number"),
-    ("a priority of text", _ranked_resource("'x'"), "finite number"),
+    ("a store rank of NaN", _ranked_store("1e999 - 1e999"), "not NaN"),
+    ("a store rank of text", _ranked_store("'x'"), "not NaN"),
+    ("a priority of NaN", _ranked_resource("1e999 - 1e999"), "not NaN"),
+    ("a priority of text", _ranked_resource("'x'"), "not NaN"),
     ("a batch of two plain names", _shared_batch("zz_a", "zz_b"), "differ in resource"),
     (
         "a batch of two family keys",
@@ -524,7 +524,7 @@ def test_one_refusal_place_is_refused_with_its_line_in_every_model(
     if index < len(REFUSED):
         label, change, needle = REFUSED[index]
         # A rank is read as the run goes, and a replay row is named by its number
-        located = needle != "finite number"
+        located = needle != "not NaN"
     else:
         label = sorted(REPLAYS)[index - len(REFUSED)]
         rows, needle = REPLAYS[label]

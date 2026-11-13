@@ -53,7 +53,12 @@ from desflow.builder.flow import (
 )
 from desflow.resources.resource import QueueFull
 from desflow.models.flow import Entity, Upstream, payload_of
-from desflow.utils import checked_seconds, suggestion
+from desflow.utils import (
+    checked_priority,
+    checked_seconds,
+    has_nan_priority,
+    suggestion,
+)
 from desflow.values.check import names_read
 from desflow.core.families import Reference, name_of, references, whole
 from desflow.values.models import Gen, has_generator
@@ -458,7 +463,7 @@ class TaskSpec:
             if interrupt is not None and interrupt.get("where") is not None
             else None
         )
-        self.priority = priority
+        self.priority = checked_priority(priority, f"task '{name}' priority")
         self.get = get
         self.put = put
         self.router = router
@@ -1236,25 +1241,34 @@ class TaskRun:
         return result
 
     def _send_to_on_fail(self, error: BaseException) -> bool:
-        """Hands an error that came out of the task to its `on_fail` task, as an
+        """Makes an error that came out of the task its failure, as an
         `except Exception:` block handles it: a step that raised, or an expression
-        that cannot be evaluated. An interrupt is not a failure, and the failure of
-        a task that has handed on already is not this task's.
+        that cannot be evaluated. The task publishes `failed`, then goes to its
+        `on_fail` task or, with none, ends the flow under `continue`. With no
+        `on_fail` under `stop`, the error itself stops the run and no `failed` is
+        published, as in plain SimPy and the Low-level API. An interrupt is not a
+        failure, and the failure of a task that has handed on already is not this
+        task's.
 
         Args:
             error: What the task raised.
 
         Returns:
-            bool: True when `on_fail` takes the instance, which then leads to it.
+            bool: True when the failure is handled here, which leads to the task's
+                `on_fail` or ends the flow; False when the error goes on and stops
+                the run.
         """
-        spec = self.spec
         if (
-            spec.on_fail is None
-            or not isinstance(error, Exception)
+            not isinstance(error, Exception)
             or isinstance(error, (Interrupt, TaskFailed))
             or self._following is not None
         ):
             return False
+        if (
+            self.spec.on_fail is None
+            and getattr(self.env, "on_unhandled_failure", "stop") == "stop"
+        ):
+            return False  # the error stops the run, with no `failed` record
         reason = self._fail_with(error)
         self._end_wait()
         self._cancel_awaiting()
@@ -1266,7 +1280,8 @@ class TaskRun:
         """Ends the task as failed: fires its `signal` as failed, makes the end event
         fail, and goes to `on_fail` when the task has one. Every failure of a task
         goes through here: a `fail` condition, a wait or a child flow that failed, and
-        an error a step raised in a task with `on_fail`. A signal the task fired as
+        an error a step raised, when `on_fail` handles it or the run is under
+        `continue`. A signal the task fired as
         succeeded before the error is not fired again.
 
         Args:
@@ -2092,21 +2107,20 @@ class TaskRun:
         return reason
 
     def _checked_rank(self, value: Any, what: str) -> Any:
-        """A rank or priority that compares: a finite number, or a list of them.
+        """A rank or priority that compares: a number other than NaN (infinity
+        orders correctly), or a list of them.
 
         Raises:
             ValueError: Naming the holder and the task, if it is anything else.
         """
         numbers_ = value if isinstance(value, (list, tuple)) else [value]
         if not numbers_ or any(
-            isinstance(n, bool)
-            or not isinstance(n, numbers.Real)
-            or not math.isfinite(n)
+            isinstance(n, bool) or not isinstance(n, numbers.Real) or n != n
             for n in numbers_
         ):
             raise ValueError(
                 f"task '{self.spec.name}': {what} gave {value!r}, and it must be a "
-                f"finite number"
+                f"number that is not NaN"
             )
         return value
 
@@ -2505,7 +2519,7 @@ class TaskRun:
     def _each_values(self, node: Any) -> List[Any]:
         """The elements of an `each`, read once as the wait or the `open` starts: a
         number n gives 0 to n - 1, and a list or an expression's list gives its
-        values."""
+        values. A count below 0 is refused, as the literal is at load."""
         scope = self.scope()
         place = node.each
         if isinstance(place, Expression):
@@ -2516,7 +2530,12 @@ class TaskRun:
         if isinstance(place, (list, tuple, range)):
             return list(place)
         count = whole(place, f"each of '{node.name}'")
-        return list(range(max(count, 0)))
+        if count < 0:
+            raise ValueError(
+                f"each of '{node.name}' gave {count}, and it is a whole number of 0 "
+                f"or more"
+            )
+        return list(range(count))
 
     def _each_group(self, node: Any, nodes: Dict[str, Any]) -> Any:
         """The group of leaves an `each` node makes now: one leaf for each element,
@@ -3121,8 +3140,8 @@ class TaskRun:
     def _failure(self, payload: Any) -> Any:
         """The reason the task fails after its service, or None when it does not: its
         `fail_reason` (text, or a generator read now), or the text of its `fail`. A
-        `fail` expression or a `fail_reason` that cannot be evaluated fails the task
-        with the error as its reason."""
+        `fail` expression, a `fail` function that raises or a `fail_reason` that cannot
+        be evaluated fails the task with the error as its reason."""
         spec = self.spec
         if spec.fail is None:
             return None
@@ -3138,7 +3157,12 @@ class TaskRun:
                 return f"{type(error).__name__}: {error}"
             text = spec.fail_of.text
         else:
-            failed = spec.fail(self.task_id, payload)
+            try:
+                failed = spec.fail(self.task_id, payload)
+            except Exception as error:  # as the task function's error is
+                self._fail_error = error
+                self._raised = True
+                return f"{type(error).__name__}: {error}"
             text = getattr(spec.fail, "__name__", "fail")
         if not failed:
             return None
@@ -3221,12 +3245,12 @@ class TaskRun:
                     self.parts.families.origin(held_name)
                 ):
                     rank = transfer.priority_for(self.task_id, self.upstream, scope)
-                    if isinstance(rank, float) and not math.isfinite(rank):
+                    if has_nan_priority(rank):
                         # Any orderable type is a priority, but NaN orders nothing
                         raise ValueError(
                             f"task '{self.spec.name}': the priority of store "
-                            f"'{held_name}' gave {rank!r}, and it must be a finite "
-                            f"number"
+                            f"'{held_name}' gave {rank!r}, and it must be a number "
+                            f"that is not NaN"
                         )
                     event = store.put(store.wrap(payload, rank), **ranked)
                 else:

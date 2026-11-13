@@ -82,6 +82,51 @@ def test_builder_wait_and_open_draw_from_the_stream_of_the_blueprint_place(
     assert _events(built) == _events(recorder.records)
 
 
+CLASH = {
+    "any": {
+        "e": {"each": 2, "group": "all", "branch": {"timeout": 1}},
+        "e[0]": {"timeout": 5},
+    }
+}
+
+
+def test_a_wait_branch_named_like_an_element_of_an_each_is_refused_at_load(tmp_path):
+    from desflow.blueprint.loader import BlueprintError
+
+    text = (
+        "simulation: {sim_id: S, factor: 0, random_seed: 7}\n"
+        "arrivals: {a: {initial: 1, spawn: t}}\n"
+        "tasks:\n"
+        "  t:\n"
+        "    wait:\n"
+        "      any:\n"
+        "        e: {each: 2, group: all, branch: {timeout: 1}}\n"
+        "        'e[0]': {timeout: 5}\n"
+        "    payload: {}\n"
+    )
+    path = tmp_path / "m.yaml"
+    path.write_text(text)
+    line = next(i for i, row in enumerate(text.splitlines(), 1) if "wait:" in row)
+    with pytest.raises(BlueprintError) as caught:
+        SimulationContext.from_yaml(path)
+    message = str(caught.value)
+    assert message.startswith(f"{path}:{line}:"), message
+    assert (
+        "wait branch name 'e[0]' is the name of an element of the each group 'e'"
+        in message
+    ), message
+
+
+def test_the_builder_refuses_a_wait_branch_named_like_an_element_of_an_each():
+    app = SimulationContext("S", factor=0)
+    with pytest.raises(ValueError, match="wait branch name 'e\\[0\\]' is the name"):
+        app.task(name="t", wait=CLASH)(lambda task_id: {})
+    # A branch with another bracketed name is accepted
+    other = {"any": {**CLASH["any"]}}
+    other["any"]["f[0]"] = other["any"].pop("e[0]")
+    app.task(name="t", wait=other)(lambda task_id: {})
+
+
 def _players(**extra):
     app = SimulationContext("S", factor=0, random_seed=3)
     app.add_arrival(

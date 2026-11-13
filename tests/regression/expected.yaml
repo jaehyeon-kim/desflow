@@ -564,8 +564,8 @@
   since: 1.0.0rc1
   changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
 - run: blueprint:s1_breakdown_finish.yaml
-  since: 1.0.0rc1
-  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+  since: 1.0.0rc4
+  changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`. The `utilization` of a resource at capacity 0 with units held reads 100, not 0."
 - run: blueprint:s1_breakdown_restart.yaml
   since: 1.0.0rc1
   changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
@@ -596,3 +596,9 @@
 - run: file:docs/snippets/yaml/write_a_connector.yaml
   since: 1.0.0rc1
   changelog: "A status record carries `sim_id` and `service` beside `path_id`, the two names `path_id` joins, so a reader no longer splits `path_id`."
+- run: file:tests/unit/second_run/breakdown_change.yaml
+  since: 1.0.0rc4
+  changelog: "The `utilization` of a resource at capacity 0 with units held reads 100, not 0."
+- run: blueprint:s3_unsorted.yaml
+  since: 1.0.0rc4
+  changelog: "The refusal of a replay file names the YAML file and line of its `replay.path`."

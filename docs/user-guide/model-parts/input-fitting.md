@@ -82,7 +82,7 @@ A value is invalid when it is not a number, is not finite, or lies outside `--lo
 - **`yaml(kind=None)`:** the settings as the YAML file `--out` writes.
 - **`plot(path, kind=None)`:** the PNG `--plot` draws: the data's histogram over values generated from the candidate, and a Q-Q plot, which puts each sorted data value against the generated value at the same quantile. Points on the diagonal mean that the two agree.
 
-The settings have six significant digits, the same numbers the YAML file holds, so a script and a blueprint that load one fit draw the same values.
+The settings are the same numbers the YAML file holds, so a script and a blueprint that load one fit draw the same values. A number has six significant digits, unless rounding would make the settings fail to load or move the mean or std by more than a thousandth of the std; then it keeps every digit. The lists of an empirical fit (`values`, `edges` and `counts`) keep every digit, because rounding would make close values equal.
 
 ### How the Best Is Chosen
 

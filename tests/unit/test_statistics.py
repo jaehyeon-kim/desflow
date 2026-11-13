@@ -105,6 +105,39 @@ def test_utilization_counts_busy_units_across_capacity_changes():
     ] == pytest.approx(expected)
 
 
+def test_utilization_is_100_at_capacity_zero_while_units_are_held():
+    """A capacity lowered to 0 under busy units reads 100, not 0, and an idle
+    resource at capacity 0 reads 0; the average counts the 100."""
+    app = (
+        SimulationContext("Shop", factor=0, random_seed=1)
+        .add_resource("packers", current_cap=1, max_cap=1)
+        .add_service("packing", "constant", value=100)
+        .with_stats("basic", interval=1000)
+    )
+
+    @app.task(service_id="packing", resource_id="packers")
+    def pack(task_id, context):
+        return {}
+
+    def orders(context):
+        yield context.env.timeout(1)
+        context.spawn(pack(0, context))
+
+    def changes(context):
+        yield context.env.timeout(10)
+        context.env.registry.update("Shop.resources.packers.current_cap", 0)
+
+    app.add_process(orders)
+    app.add_process(changes)
+    app.run(until=20)
+    readings = app.env.stats.readings()
+    assert readings["Shop.stats.resources.packers.in_use"] == 1
+    assert readings["Shop.stats.resources.packers.utilization"] == 100.0
+    assert readings["Shop.stats.resources.packers.utilization_avg"] == pytest.approx(
+        (9 * 100 + 10 * 100) / 20
+    )
+
+
 def test_store_and_container_readings_and_level_average():
     app = (
         SimulationContext("Shop", factor=0, random_seed=1)

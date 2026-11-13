@@ -1,6 +1,7 @@
 """Conditions and amounts: what the whitelist allows, what it refuses, and the names."""
 
 import re
+import unicodedata
 from types import SimpleNamespace
 
 import pytest
@@ -535,6 +536,39 @@ def test_a_comprehension_loop_name_is_local_to_it():
     assert Expression("[x + 1 for y in [1]]", names={"x"}).evaluate(scope) == [8]
     with pytest.raises(ValueError, match="the loop name 'x'"):
         Expression("[x for x in [1, 2]]", names={"x"})
+
+
+@pytest.mark.parametrize("name", ["µs", "ﬁve", "ｘ"])
+def test_a_name_that_an_expression_reads_as_another_is_refused(name):
+    """Python reads an identifier in its NFKC form, so `µs` (micro sign) would be read
+    as `μs` (Greek mu); a var and a generator name refuse it, naming the name read."""
+    folded = unicodedata.normalize("NFKC", name)
+    with pytest.raises(ValueError, match=f"'{name}' is read as '{folded}'"):
+        check_var_names([name], "vars")
+    with pytest.raises(ValueError, match=f"'{name}' is read as '{folded}'"):
+        Expr(expr="1", names={name: 1})
+    assert Expression(f"attr.{name}").references["attr"] == {folded}
+
+
+def test_a_read_finds_an_attribute_or_payload_key_written_with_a_compatibility_character():
+    """`attr.µs` is read as `attr.μs`, so a key written `µs` (micro sign) is found by
+    the name the parser reads, in an attribute, a payload and an upstream payload."""
+    scope = Scope(
+        attributes={"µs": 3},
+        payload={"ﬁve": {"µs": 4}},
+        upstream={"ｘ": 5},
+        args={"µs": 6},
+        cause={"µs": 7},
+    )
+
+    assert Expression("attr.µs").evaluate(scope) == 3
+    assert Expression("payload.ﬁve.µs").evaluate(scope) == 4
+    assert Expression("upstream.ｘ").evaluate(scope) == 5
+    assert Expression("arg.µs").evaluate(scope) == 6
+    assert Expression("cause.µs").evaluate(scope) == 7
+    assert Expression("attr.µs if has(attr.µs) else -1").evaluate(scope) == 3
+    with pytest.raises(ValueError, match="the entity has no attribute 'other'"):
+        Expression("attr.other").evaluate(scope)
 
 
 @pytest.mark.parametrize("name", ["sumprod", "prod"])

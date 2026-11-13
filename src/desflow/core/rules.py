@@ -10,11 +10,12 @@ import keyword
 import math
 import numbers
 import re
+from datetime import datetime
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from desflow.core.expressions import ANY_NAME, RESERVED_NAMES, Expression
+from desflow.core.expressions import ANY_NAME, RESERVED_NAMES, Expression, folded_name
 from desflow.core.families import Reference
 from desflow.utils import checked_seconds, time_to_seconds
 
@@ -41,6 +42,58 @@ def duration_text(value: Any) -> Any:
             pass
         if PLAIN_NUMBER.fullmatch(value.strip()):
             return float(value)  # a number in text, such as '-1'
+    return value
+
+
+def checked_instant(value: Any, what: str) -> Any:
+    """Refuses a number, or text that is only a number, as the time `what` names.
+
+    A datetime read from a number counts it as Unix seconds, so a date written as
+    `20260101` would become a day in 1970.
+
+    Args:
+        value: The value given for a start or go-live time.
+        what: The setting, as the message names it.
+
+    Returns:
+        Any: The value, when it is not a number.
+
+    Raises:
+        ValueError: If the value is a number, or text that is only a number.
+    """
+    if isinstance(value, numbers.Number) or (
+        isinstance(value, str) and PLAIN_NUMBER.fullmatch(value.strip())
+    ):
+        raise ValueError(
+            f"{what} is {value!r}, a number, and a number is not a time. Write a "
+            f"datetime such as 2026-01-01T00:00:00, or in YAML now or a signed "
+            f"duration such as -1d"
+        )
+    return value
+
+
+def checked_datetime(value: Any, what: str) -> Any:
+    """Refuses a start or go-live time that is neither None nor a datetime.
+
+    The Builder and the environment take a datetime. YAML text, such as `now` or `-1d`,
+    is turned into one before it reaches them, so a `date`, other text or a number
+    here is a mistake that would otherwise fail at `run()` with no setting named.
+
+    Args:
+        value: The value given for a start or go-live time.
+        what: The setting, as the message names it.
+
+    Returns:
+        Any: The value, when it is None or a datetime.
+
+    Raises:
+        ValueError: If the value is not None and not a datetime.
+    """
+    if value is not None and not isinstance(value, datetime):
+        raise ValueError(
+            f"{what} is {value!r} of type {type(value).__name__}, and it must be "
+            f"a datetime such as datetime(2026, 1, 1)"
+        )
     return value
 
 
@@ -107,6 +160,24 @@ def check_run_text(text: str, what: str, run_scope: bool) -> None:
         )
 
 
+def check_name_folds(name: str, what: str) -> None:
+    """Refuses a name that an expression reads as another name.
+
+    Args:
+        name: The name.
+        what: The key it is under, for the message.
+
+    Raises:
+        ValueError: Naming the name an expression reads instead.
+    """
+    folded = folded_name(name)
+    if folded is not None:
+        raise ValueError(
+            f"{what}: '{name}' is read as '{folded}' in an expression, which is "
+            f"another name; write it as '{folded}'"
+        )
+
+
 def check_var_names(names: Iterable[str], what: str) -> None:
     """Refuses a variable name that an expression cannot read, or that it already uses.
 
@@ -117,8 +188,9 @@ def check_var_names(names: Iterable[str], what: str) -> None:
         what: The key they are under, for the message.
 
     Raises:
-        ValueError: If a name is not an identifier, is a keyword, or is one of the
-            names an expression already reads.
+        ValueError: If a name is not an identifier, is a keyword, is read as another
+            name (a name with a compatibility character such as `µ`), or is one of
+            the names an expression already reads.
     """
     for name in names:
         if not name.isidentifier() or keyword.iskeyword(name):
@@ -126,6 +198,7 @@ def check_var_names(names: Iterable[str], what: str) -> None:
                 f"{what}: '{name}' is not a name an expression can read; use "
                 "letters, digits and _, not starting with a digit"
             )
+        check_name_folds(name, what)
         if name in RESERVED_NAMES:
             raise ValueError(
                 f"{what}: '{name}' is a name an expression already uses; pick another"

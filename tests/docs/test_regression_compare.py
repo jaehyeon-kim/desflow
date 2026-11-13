@@ -147,6 +147,18 @@ def test_an_entry_without_a_changelog_line_is_refused(tmp_path):
         )
 
 
+def test_a_since_that_yaml_reads_as_a_number_is_refused(tmp_path):
+    # `since: 1.10` is the number 1.1 in YAML, so it would never apply above 1.2.0
+    captures = {"example:a:yaml": SAME}
+    (tmp_path / "old.json").write_text(json.dumps(captures))
+    expected = tmp_path / "expected.yaml"
+    expected.write_text("- {run: 'example:a:yaml', since: 1.10, changelog: A line.}\n")
+    with pytest.raises(SystemExit, match=r"example:a:yaml.*since.*quote"):
+        regression.compare(
+            str(tmp_path / "old.json"), str(tmp_path / "old.json"), "1.2.0", expected
+        )
+
+
 def test_two_entries_for_one_run_are_refused(tmp_path):
     old, new = {"example:a:yaml": SAME}, {"example:a:yaml": OTHER}
     entries = [_entry("example:a:yaml"), _entry("example:a:yaml")]
@@ -186,6 +198,7 @@ def test_all_blueprints_runs_the_files_no_other_capture_runs(tmp_path):
             "tests/conformance/blueprints/c.yaml",  # run by `_blueprints`
             "tests/regression/scenarios/yaml/s.yaml",  # run by `_scenarios`
             "docs/snippets/d.yml",
+            "docs/snippets/f.YAML",  # a suffix in capitals is a blueprint too
             "tests/known_cases/x/model.yaml",
             "tests/known_cases/index.yaml",  # left out
             "src/e.yaml",  # outside the three folders
@@ -198,6 +211,7 @@ def test_all_blueprints_runs_the_files_no_other_capture_runs(tmp_path):
     ]
     assert names == [
         "docs/snippets/d.yml",
+        "docs/snippets/f.YAML",
         "examples/yaml/b.yaml",
         "tests/known_cases/x/model.yaml",
     ]

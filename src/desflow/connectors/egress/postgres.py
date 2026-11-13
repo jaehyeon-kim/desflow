@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import queue
+import weakref
 from collections import Counter
 from collections.abc import Mapping
 from typing import Any, Optional
@@ -8,6 +9,7 @@ from typing import Any, Optional
 import asyncpg
 import orjson
 
+from desflow.connectors._retry import connect_with_retry, is_temporary_postgres_error
 from desflow.connectors.egress.base import (
     BaseEgress,
     keep_keyed,
@@ -65,6 +67,42 @@ def _table_spec(name: str, spec: Any) -> tuple[dict[str, str], list[str]]:
             f"Table '{name}' has primary key column(s) {missing} not in its columns"
         )
     return columns, primary_key
+
+
+# The schema that holds a table, as PostgreSQL resolves its name ($1), and the schema
+# that holds the table of the same name without a schema ($2). A table that does not
+# exist yet is created in the first schema of `search_path` that exists.
+_RESOLVE_SCHEMAS_SQL = """
+SELECT
+    (SELECT n.nspname FROM pg_class c
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE c.oid = to_regclass($1)) AS table_schema,
+    COALESCE(
+        (SELECT n.nspname FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE c.oid = to_regclass($2)),
+        current_schema(),
+        'public'
+    ) AS bare_schema
+"""
+
+
+def _folded(record: dict) -> dict:
+    """
+    Returns a record with its keys in lower case, as PostgreSQL reads the columns.
+
+    When two keys name one column, the first is kept, as `_column_runs` keeps it.
+
+    Args:
+        record: A row bound for the table.
+
+    Returns:
+        dict: Each column's value, by the column's lower-case name.
+    """
+    folded: dict = {}
+    for key, value in record.items():
+        folded.setdefault(key.lower(), value)
+    return folded
 
 
 def _label_row(record: dict) -> dict:
@@ -142,7 +180,10 @@ class PostgresEgress(BaseEgress):
 
     A payload field `__table__` names the table of that event, and is removed from the
     row. An entry writes the events of its own `table_name` and ignores the others, so
-    one entry per table, all fed by the same events, splits a stream into tables. An
+    one entry per table, all fed by the same events, splits a stream into tables. Names
+    are compared as PostgreSQL reads them: `Orders` and `public.orders` are the table
+    `orders`. A sink warns once about a `__table__` that no PostgresEgress of the
+    process writes, which is usually a misspelt name. An
     entry with `upsert_keys` is keyed: it skips an event with a null or missing key column,
     and logs one warning at the end of each batch with the count. Before 1.0.0 such an
     event stopped the batch with an error.
@@ -184,11 +225,15 @@ class PostgresEgress(BaseEgress):
         ```
     """
 
+    # Every sink of the process, so a sink can tell whether another one writes the
+    # table a record names
+    _writers: weakref.WeakSet = weakref.WeakSet()
+
     def __init__(
         self,
         connection_dsn: str,
         table_name: str | None = None,
-        upsert_keys: list[str] | None = None,
+        upsert_keys: list[str] | str | None = None,
         tables: dict[str, Any] | None = None,
         table_policy: str = "create",
         **kwargs: Any,
@@ -201,7 +246,7 @@ class PostgresEgress(BaseEgress):
             table_name: Target table for simulation records. Defaults to the one
                 table in `tables` when it names exactly one, and to
                 "simulation_data" when `tables` is not given.
-            upsert_keys: Optional key columns. When given, a record whose key
+            upsert_keys: Optional key columns, a list or one column name. When given, a record whose key
                 already exists updates that row's other columns, and the columns
                 need a unique index or constraint. When None, such a record is
                 skipped.
@@ -238,11 +283,49 @@ class PostgresEgress(BaseEgress):
             table_name = next(iter(self.tables), "simulation_data")
         self.dsn = connection_dsn
         self.table_name = table_name
+        if isinstance(upsert_keys, str):
+            upsert_keys = [upsert_keys]
         self.upsert_keys = list(upsert_keys) if upsert_keys else None
         self.kwargs = kwargs
         self.pool: asyncpg.Pool | None = None
         self.valid_columns: set[str] = set()
         self.time_columns: dict[str, str] = {}
+        # The schemas that `_writes` compares a routed name in, until the sink
+        # connects and reads them from the database's `search_path`
+        self.table_schema = "public"
+        self.bare_schema = "public"
+        self._unrouted_warned: set[str] = set()
+        PostgresEgress._writers.add(self)
+
+    def _warn_unrouted(self, target: str) -> None:
+        """Warns once that no PostgresEgress of the process writes the table a record names."""
+        if target in self._unrouted_warned:
+            return
+        self._unrouted_warned.add(target)
+        if not any(w._writes(target) for w in self._writers):
+            logger.warning(
+                f"PostgresEgress skips records whose __table__ is {target!r}: no "
+                f"PostgresEgress of this process writes a table of that name."
+            )
+
+    def _writes(self, target: str) -> bool:
+        """
+        Returns whether a record routed to `target` is for this sink's table.
+
+        The statements do not quote names, so PostgreSQL folds a name to lower case.
+        A name without a schema is the table of that name in `bare_schema`, the
+        first schema of `search_path` that holds one.
+
+        Args:
+            target (str): A table name, such as `Orders` or `shop.orders`.
+
+        Returns:
+            bool: Whether `target` names the table in `table_schema` that this sink
+                writes.
+        """
+        schema, _, name = target.lower().rpartition(".")
+        own_name = self.table_name.lower().rpartition(".")[2]
+        return name == own_name and (schema or self.bare_schema) == self.table_schema
 
     async def _init_pool(self) -> None:
         if self.pool is None:
@@ -281,6 +364,17 @@ class PostgresEgress(BaseEgress):
                         # Another writer created it between the existence check
                         # and the create, which IF NOT EXISTS does not guard.
                         pass
+                schemas = await conn.fetchrow(
+                    _RESOLVE_SCHEMAS_SQL,
+                    self.table_name,
+                    self.table_name.rpartition(".")[2],
+                )
+                self.bare_schema = schemas["bare_schema"]
+                self.table_schema = (
+                    schemas["table_schema"]
+                    or self.table_name.lower().rpartition(".")[0]
+                    or self.bare_schema
+                )
                 # The one table the statements reach: PostgreSQL folds the name's case
                 # and resolves it through `search_path` here as it does in them
                 try:
@@ -304,18 +398,46 @@ class PostgresEgress(BaseEgress):
                         f"Table '{self.table_name}' does not exist or has no columns!"
                     )
                 elif self.upsert_keys:
-                    missing = set(self.upsert_keys) - self.valid_columns
+                    missing = [
+                        k
+                        for k in self.upsert_keys
+                        if k.lower() not in self.valid_columns
+                    ]
                     if missing:
                         raise ValueError(
                             f"Table '{self.table_name}' has no column(s) "
                             f"{sorted(missing)} to use as upsert keys"
                         )
 
+    def _time_keys(self, records: list[dict]) -> dict[str, str]:
+        """
+        Returns the payload keys that name a time column, with each column's kind.
+
+        PostgreSQL folds a column name to lower case, so a key `CreatedAt` names the
+        column `createdat`, and `time_columns` holds the folded names.
+
+        Args:
+            records: The rows bound for the table.
+
+        Returns:
+            dict[str, str]: Each key as the records spell it, to the kind of the time
+                column it names, as `parse_iso_time` takes it.
+        """
+        return {
+            key: self.time_columns[key.lower()]
+            for record in records
+            for key in record
+            if key.lower() in self.time_columns
+        }
+
     def _column_runs(self, records: list[dict]) -> list[tuple[list[str], list[dict]]]:
         """
         Splits a batch into runs of consecutive records that carry the same columns.
 
         Only columns the table has are kept. A record with none of them is dropped.
+        The statements do not quote names, so PostgreSQL reads a payload key in lower
+        case, and a key matches the column it names in any case. When two keys name
+        one column, the first is kept.
 
         Args:
             records: The batch's records, in the order they arrived.
@@ -325,7 +447,13 @@ class PostgresEgress(BaseEgress):
         """
         runs: list[tuple[list[str], list[dict]]] = []
         for record in records:
-            keys = [k for k in record if k in self.valid_columns]
+            keys: list[str] = []
+            for k in record:
+                folded = k.lower()
+                if folded in self.valid_columns and folded not in {
+                    key.lower() for key in keys
+                }:
+                    keys.append(k)
             if not keys:
                 continue
             if runs and runs[-1][0] == keys:
@@ -357,13 +485,15 @@ class PostgresEgress(BaseEgress):
         query = f"INSERT INTO {self.table_name} ({columns}) VALUES ({placeholders})"
         if not self.upsert_keys:
             return f"{query} ON CONFLICT DO NOTHING"
-        missing = [k for k in self.upsert_keys if k not in keys]
+        folded_keys = {k.lower() for k in keys}
+        missing = [k for k in self.upsert_keys if k.lower() not in folded_keys]
         if missing:
             raise ValueError(
                 f"Records for {self.table_name} lack the upsert key column(s) {missing}"
             )
         conflict = ", ".join(self.upsert_keys)
-        updates = [k for k in keys if k not in self.upsert_keys]
+        key_columns = {k.lower() for k in self.upsert_keys}
+        updates = [k for k in keys if k.lower() not in key_columns]
         if not updates:
             return f"{query} ON CONFLICT ({conflict}) DO NOTHING"
         assignments = ", ".join(f"{k} = EXCLUDED.{k}" for k in updates)
@@ -417,12 +547,18 @@ class PostgresEgress(BaseEgress):
                     payload_copy["path_id"] = item["path_id"]
             # A null or empty `__table__` is no route: the record goes to this table
             target = payload_copy.pop("__table__", None) or self.table_name
-            if target == self.table_name:
-                if keyed and not keep_keyed(
-                    [payload_copy], self.upsert_keys or [], skipped
-                ):
-                    continue
-                clean_batch.append(payload_copy)
+            if type(target) is not str:
+                continue
+            if not self._writes(target):
+                self._warn_unrouted(target)
+                continue
+            if keyed and not keep_keyed(
+                [_folded(payload_copy)],
+                [k.lower() for k in self.upsert_keys or []],
+                skipped,
+            ):
+                continue
+            clean_batch.append(payload_copy)
         warn_skipped(self, skipped, "__table__")
         return clean_batch
 
@@ -430,14 +566,25 @@ class PostgresEgress(BaseEgress):
         """
         Main execution loop for PostgreSQL data persistence.
 
+        If PostgreSQL does not answer at start, the sink retries with a back-off that
+        grows to one minute, as the Kafka sinks do. An error that no wait fixes, such
+        as a table definition the server refuses, ends the task at once.
+
         Args:
             egress_queue: A thread-safe queue containing batches of simulation data.
 
         Raises:
             ValueError: If a column in `upsert_keys` is not in the table.
+            asyncpg.PostgresError: If the server refuses a setting, such as the
+                password or a table definition.
         """
         try:
-            await self._init_pool()
+            await connect_with_retry(
+                self._init_pool,
+                self._close_pool,
+                "PostgresEgress",
+                is_temporary_postgres_error,
+            )
             await self._write_forever(egress_queue)
         finally:
             await self._close_pool()
@@ -464,7 +611,9 @@ class PostgresEgress(BaseEgress):
 
                 # The records carry times as ISO strings, which asyncpg rejects for
                 # a timestamp or date column.
-                clean_batch = parse_iso_columns(clean_batch, self.time_columns)
+                clean_batch = parse_iso_columns(
+                    clean_batch, self._time_keys(clean_batch)
+                )
 
                 # Each run of records with the same columns is one statement, in the
                 # order they arrived. A statement built from one record's columns

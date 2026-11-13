@@ -130,10 +130,10 @@ class ValueRuntime:
         self._streams: Dict[str, np.random.Generator] = {}
         self._counters: Dict[str, int] = {}
         self._free = 0
-        from desflow.values.template import start_window
+        from desflow.values.template import numbers_of
 
-        # The count of unnamed templates made before this run's build began
-        self._template_start = start_window()
+        # The keys of the unnamed templates, shared by every run of the context
+        self._template_numbers = numbers_of(context)
         self._once: Dict[Any, Dict[str, Dict[str, Any]]] = {}
         self._seen: Dict[str, Set[str]] = {}
         self._fakers: Dict[str, Any] = {}
@@ -508,7 +508,7 @@ class ValueRuntime:
                 or null, or gives null while `extras` or `attributes` have fields to
                 write over it.
         """
-        template._renumber(self._template_start)
+        self._template_numbers.number(template)
         scope = scope or self.scope_of(entity, keyed=True)
         known = dict(scope.names)
         key = (

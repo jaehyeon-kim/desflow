@@ -86,7 +86,7 @@ In Python the same settings are a mapping, and the model is a blueprint path, a 
 
 | Setting | What it sets | Default |
 |---|---|---|
-| `experiment` | the experiment's name | required |
+| `experiment` | the experiment's name, one folder name with no `/` or `\`, because the files go to `results/<experiment>` | required |
 | `question` | the question the experiment answers, the report's first section | not stated |
 | `model` | a blueprint path, such as `experiment_shop.yaml`; to build the model in code instead, `!python module.function`, a function returning a new `SimulationContext`, or `{function: !python module.function, sim_id: Shop}`, a [low-level function](replications.md#run-replications) | required |
 | `assumptions` | sentences the report lists | none |
@@ -99,11 +99,11 @@ In Python the same settings are a mapping, and the model is a blueprint path, a 
 | `seed` | the seed every run's seed is spawned from: a whole number of 0 or more, not `true` | required |
 | `level` | the confidence level of every interval | 0.95 |
 | `pairing` | `common` or `independent` | `common` |
-| `measures` | the statistics to summarise, such as `tasks.pack.wait_mean` | required |
+| `measures` | the statistics to summarise, such as `tasks.pack.wait_mean`; a name given twice counts once | required |
 | `variants` | each variant's name and the registry values it sets | `{base: {}}` |
 | `sweep` | registry paths and the values each takes | none |
 | `compare` | pairs of variants, `{baseline: ..., variant: ...}` | none |
-| `checks` | bounds on measures, `{measure, variant, max, min, on}` | none |
+| `checks` | bounds on measures, `{measure, variant, max, min, on}`, with `min` not above `max` | none |
 | `observed` | `{file: ..., variant: ...}`, values measured in the real system | none |
 | `limits` | sentences the report lists | none |
 | `output` | the folder the files are written to | `results/<experiment>` |

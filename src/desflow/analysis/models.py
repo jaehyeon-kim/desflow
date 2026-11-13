@@ -40,7 +40,7 @@ from desflow.core.environment import (
 )
 from desflow.core.sampler import Sampler
 from desflow.core.statistics import published_value
-from desflow.utils import checked_seconds
+from desflow.utils import checked_seconds, is_builder_file
 
 
 @dataclass(frozen=True)
@@ -224,6 +224,24 @@ def check_importable(model: Model) -> None:
         ) from None
 
 
+def python_file_refusal(model: Union[str, Path]) -> Optional[str]:
+    """Returns why a blueprint path that names a Python file is refused, or None.
+
+    Args:
+        model: A blueprint path.
+
+    Returns:
+        Optional[str]: The message for a `.py` path, else None.
+    """
+    if not is_builder_file(model):
+        return None
+    return (
+        f"model {model} is a Python file, and a model path is a YAML blueprint; "
+        f"pass a builder model as a function that returns a new SimulationContext "
+        f"(in an experiment file, `!python module.function`)"
+    )
+
+
 def context_of(model: Model) -> Optional[SimulationContext]:
     """Returns a new context for a blueprint path or a builder factory.
 
@@ -236,10 +254,14 @@ def context_of(model: Model) -> Optional[SimulationContext]:
 
     Raises:
         TypeError: If a factory returns something other than a `SimulationContext`.
+        ValueError: If a path names a Python file.
     """
     if isinstance(model, LowLevelModel):
         return None
     if isinstance(model, (str, Path)):
+        refusal = python_file_refusal(model)
+        if refusal:
+            raise ValueError(refusal)
         return SimulationContext.from_yaml(model)
     context = model()
     if not isinstance(context, SimulationContext):

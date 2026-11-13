@@ -379,6 +379,56 @@ def test_check_model_stops_an_endless_run(tmp_path):
     assert "low_level.py did not end within 5 seconds" in done.stdout, done.stdout
 
 
+_RUNS_OUT = """\
+import datetime
+
+from desflow import ConsoleEgress, SimulationContext
+
+app = SimulationContext(
+    sim_id="Out",
+    factor=0,
+    random_seed=42,
+    logical_start_time=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+).add_egress(ConsoleEgress(format="json"))
+app.add_arrival("a", gap=1, max_events=3, spawn="job")
+
+
+@app.task(name="job", service_time=2)
+def job(task_id):
+    return {"event_type": "done"}
+
+
+if __name__ == "__main__":
+    app.run()
+"""
+
+
+def test_check_model_runs_a_builder_with_no_run_end_until_no_event_is_left(tmp_path):
+    """A Builder run with no end stops when no event is left, as `python builder.py`
+    and `desflow run builder.py --sample` stop it, rather than with SimPy's error
+    that the sample's end event was never reached."""
+    builder = tmp_path / "builder.py"
+    builder.write_text(_RUNS_OUT, encoding="utf-8")
+    done = _check_model([builder])
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "ok runs of the Python files" in done.stdout, done.stdout
+    assert "No scheduled events left" not in done.stdout + done.stderr
+
+
+def test_check_model_fails_a_builder_whose_own_stop_is_never_reached(tmp_path):
+    """A stop of the file's own that never fires fails `python builder.py`, so the
+    script fails it too, though a run with no end passes."""
+    builder = tmp_path / "builder.py"
+    text = _RUNS_OUT.replace(
+        'app.add_arrival("a"', 'app.add_signal("never")\napp.add_arrival("a"'
+    ).replace("    app.run()", '    app.run(stop="never")')
+    assert 'stop="never"' in text and 'add_signal("never")' in text
+    builder.write_text(text, encoding="utf-8")
+    done = _check_model([builder])
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert "No scheduled events left" in done.stdout, done.stdout
+
+
 def test_check_model_reads_the_start_and_seed_as_desflow_does(tmp_path):
     """`NOW` and `${START:-now}` are `now`, so they are refused; a `!python` seed
     is read, not refused."""
@@ -860,6 +910,15 @@ def test_check_model_runs_one_python_form_alone(tmp_path, name):
     assert done.returncode == 1
     assert f"python {name} failed" in done.stdout, done.stdout
     assert "RuntimeError: after" in done.stdout
+
+
+def test_check_model_reads_an_upper_case_suffix_as_desflow_does(tmp_path):
+    """`desflow check` reads `shop.PY` as Python, so the script does too."""
+    _local_copy(tmp_path)
+    path = (tmp_path / "builder.py").rename(tmp_path / "builder.PY")
+    done = _check_model([path])
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "ok runs at two seeds" in done.stdout
 
 
 def test_skill_texts_match_what_they_describe():

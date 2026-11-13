@@ -8,13 +8,13 @@ entries in the Redis stream, rows in the Iceberg table. The record content is ch
 by the twin tests in `tests/docs`, so a count above zero and one record that parses
 are enough here.
 
-The tests start nothing. The `services` jobs of `pull-request.yml` start
-the profiles with `odctl up <profile>`, and a developer does the same before running
-one example: `pytest tests/integration/test_service_examples.py -m examples -k
-<example>`.
+The tests start nothing. The `services` job of `services.yml`, which `pull-request.yml`
+and `manual.yml` call, starts the profiles with `odctl up <profile>`, and a developer
+does the same before running one example:
+`pytest tests/integration/test_service_examples.py -m examples -k <example>`.
 
 The Parquet example has no profile, and one test runs it against `storage`, which the
-storage group of the `services` jobs starts.
+storage group of the `services` job starts.
 """
 
 import asyncio

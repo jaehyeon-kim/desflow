@@ -174,6 +174,15 @@ class _Task:
         self.service = _Observations(keep)
 
 
+def _utilization(in_use: Any, capacity: Any) -> float:
+    """The busy units as a percentage of the capacity: over 100 while a capacity
+    lowered below the busy units waits for them to finish, and 100 at a capacity of 0
+    while units are still held; 0 for an idle resource at capacity 0."""
+    if capacity > 0:
+        return in_use / capacity * 100
+    return 100.0 if in_use > 0 else 0.0
+
+
 def _resource_readings(resource: Any) -> Dict[str, Any]:
     capacity = resource.capacity
     in_use = resource.in_use
@@ -181,8 +190,7 @@ def _resource_readings(resource: Any) -> Dict[str, Any]:
         "capacity": capacity,
         "in_use": in_use,
         "queue_length": len(resource.queue),
-        # Busy units, so a capacity lowered below them shows over 100 until they finish
-        "utilization": in_use / capacity * 100 if capacity > 0 else 0.0,
+        "utilization": _utilization(in_use, capacity),
     }
     if getattr(resource, "has_breakdowns", False):
         readings["down"] = 1 if resource.down else 0

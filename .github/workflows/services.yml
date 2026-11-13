@@ -1,0 +1,103 @@
+name: Service tests
+
+# The integration tests and the service examples, which need Docker and the odctl
+# profiles. pull-request.yml calls this workflow when a change touches what they cover,
+# and manual.yml calls it every day and on a run by hand, so a change that
+# scripts/ci_plan.py does not list is tested here within a day.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  # The integration tests and the service examples, in three jobs of about the length
+  # of a part of the unit tests. The integration tests are chosen by their pytest marks:
+  # services (the odctl kafka-lite, postgres and valkey profiles), storage (the odctl
+  # storage and catalog profiles, and the SQL catalog test on the PostgreSQL that the
+  # catalog profile starts), and floci, azure and gcp (emulators that the tests start
+  # with `docker run`). The integration conftest starts and stops the odctl profiles
+  # it needs. The examples (`EXAMPLES` in src/desflow/examples.py) run their three
+  # versions against their profiles, which the job reads from EXAMPLES and starts;
+  # tests/unit/test_service_examples_matrix.py fails when the examples listed here
+  # differ from those with a profile. The Parquet example has no profile, because it
+  # needs a service only with its S3 variables, so its group starts the storage
+  # profile for its S3 read-back command. CI is set, so a test whose infrastructure is
+  # missing fails, and pytest exits with code 5 when a selection finds no test, so a
+  # job cannot pass by testing nothing.
+  services:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Integration tests, services and emulators
+            marks: services or floci or azure or gcp
+          - name: Integration tests on storage, and the Iceberg and Parquet examples
+            marks: storage
+            examples: [iceberg]
+            parquet: true
+          - name: Service examples, Kafka, PostgreSQL and Redis
+            examples: [kafka, backfill-live, postgres, related-records, redis]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      # Pre-downloads the interpreter. `uv run --python` below is what selects it.
+      - name: Fetch Python 3.11
+        run: uv python install 3.11
+
+      # odctl is in the dev dependency group, so `uv run` installs it into .venv and
+      # puts it on PATH. Without it the tests fail, so fail here with a clearer message.
+      - name: Verify odctl is on PATH
+        run: |
+          uv run --python 3.11 --all-extras python -c "import shutil, sys; path = shutil.which('odctl'); print(path or 'odctl not found on PATH'); sys.exit(0 if path else 1)"
+
+      - name: Run the integration tests
+        if: matrix.marks
+        run: uv run --python 3.11 --all-extras pytest tests/integration/ -m "${{ matrix.marks }}" -ra
+
+      # The profiles come from EXAMPLES, so each is written down once
+      - name: Find the profiles and tests of the examples
+        if: matrix.examples || matrix.parquet
+        id: examples
+        env:
+          NAMES: ${{ toJSON(matrix.examples) }}
+          PARQUET: ${{ matrix.parquet }}
+        run: |
+          uv run --python 3.11 --all-extras python - >> "$GITHUB_OUTPUT" <<'PY'
+          import json, os
+          from desflow.examples import EXAMPLES
+          names = json.loads(os.environ["NAMES"]) or []
+          profiles = list(dict.fromkeys(EXAMPLES[name].profile for name in names))
+          keys = list(names)
+          if os.environ["PARQUET"] == "true":
+              profiles.append("storage")
+              keys.append("parquet_page_s3")
+          print("profiles=" + " ".join(dict.fromkeys(profiles)))
+          print("keys=" + " or ".join(keys))
+          PY
+
+      - name: Start the profiles
+        if: steps.examples.outputs.profiles
+        run: |
+          for profile in ${{ steps.examples.outputs.profiles }}; do
+            uv run --python 3.11 --all-extras odctl up "$profile"
+          done
+
+      - name: Run the examples
+        if: steps.examples.outputs.keys
+        run: uv run --python 3.11 --all-extras pytest tests/integration/test_service_examples.py -m examples -k "${{ steps.examples.outputs.keys }}" -ra
+
+      - name: Stop the profiles
+        if: always() && steps.examples.outputs.profiles
+        run: |
+          for profile in ${{ steps.examples.outputs.profiles }}; do
+            uv run --python 3.11 --all-extras odctl down "$profile" --volumes
+          done

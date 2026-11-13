@@ -13,6 +13,8 @@ import ast
 import importlib
 import importlib.util
 import re
+import subprocess
+import sys
 import textwrap
 from pathlib import Path
 from typing import Any, Dict, List
@@ -146,6 +148,56 @@ def test_errors_raise_and_never_end_the_process(tmp_path):
             if ends:
                 ending.append(f"{relative}:{node.lineno}: {name}")
     assert ending == [], "; ".join(ending)
+
+
+def _import_desflow(blocked: str) -> subprocess.CompletedProcess:
+    """`import desflow` in a fresh process where `blocked` cannot be imported, as it
+    would be when a package is missing or a module of the connector is broken."""
+    code = (
+        f"import sys; sys.modules[{blocked!r}] = None; import desflow; "
+        "print(' '.join(n for n in desflow.__all__ if 'Redis' in n or 'Kafka' in n))"
+    )
+    return subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, timeout=120
+    )
+
+
+def test_a_connector_is_left_out_when_a_package_of_its_extra_is_missing():
+    found = _import_desflow("redis")
+    assert found.returncode == 0, found.stderr
+    names = found.stdout.split()
+    assert "RedisEgress" not in names and "RedisIngress" not in names
+    assert {"KafkaAdminConnector", "KafkaEgress", "KafkaIngress"} <= set(names)
+
+
+def test_a_connector_module_that_fails_to_import_is_raised_not_left_out():
+    found = _import_desflow("desflow.connectors.egress.redis")
+    assert found.returncode != 0
+    assert "desflow.connectors.egress.redis" in found.stderr, found.stderr
+
+
+def test_an_import_error_that_is_not_a_missing_package_is_raised():
+    """A module whose import raises `ImportError` for another reason, such as a name
+    it cannot import, is not taken for a missing extra."""
+    code = textwrap.dedent(
+        """
+        import sys
+
+        class Broken:
+            @staticmethod
+            def find_spec(name, path=None, target=None):
+                if name == "desflow.connectors.egress.redis":
+                    raise ImportError("cannot import name 'Redis' from 'redis.asyncio'")
+
+        sys.meta_path.insert(0, Broken)
+        import desflow
+        """
+    )
+    found = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, timeout=120
+    )
+    assert found.returncode != 0
+    assert "cannot import name 'Redis'" in found.stderr, found.stderr
 
 
 def test_the_api_page_names_each_object_at_its_promised_path():

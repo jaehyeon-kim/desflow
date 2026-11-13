@@ -80,6 +80,7 @@ RUNS = {
     ("haiku", "rc3"): ["1", "2", "3"],
     ("sonnet", "rc3"): ["1"],
     ("opus", "rc3"): ["1"],
+    ("haiku", "rc4"): ["1", "2", "3"],
 }
 
 RunKey = Tuple[str, str, str, str]

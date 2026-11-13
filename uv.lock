@@ -1179,7 +1179,7 @@ pydantic = [
 
 [[package]]
 name = "desflow"
-version = "1.0.0rc3"
+version = "1.0.0rc4"
 source = { editable = "." }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -1211,6 +1211,7 @@ all = [
     { name = "redis" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "watchfiles" },
 ]
 confluent = [
     { name = "aiokafka", extra = ["lz4"] },
@@ -1292,7 +1293,7 @@ requires-dist = [
     { name = "certifi", marker = "extra == 'confluent'" },
     { name = "desflow", extras = ["kafka"], marker = "extra == 'confluent'" },
     { name = "desflow", extras = ["kafka"], marker = "extra == 'glue'" },
-    { name = "desflow", extras = ["kafka", "redis", "postgres", "confluent", "glue", "parquet", "iceberg", "fit", "fake"], marker = "extra == 'all'" },
+    { name = "desflow", extras = ["kafka", "redis", "postgres", "confluent", "glue", "parquet", "iceberg", "fit", "watch", "fake"], marker = "extra == 'all'" },
     { name = "faker", marker = "extra == 'fake'", specifier = ">=20.0.0" },
     { name = "fastavro", marker = "extra == 'confluent'", specifier = ">=1.13.0" },
     { name = "fastavro", marker = "extra == 'glue'", specifier = ">=1.13.0" },

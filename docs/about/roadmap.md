@@ -6,7 +6,7 @@ Releases come in the order shown, without dates: a release ships when it is read
 
 ::timeline::
 - title: '1.0.0: Stable'
-  content: '1.0.0 sets the version number and the Production/Stable classifier, with only the fixes of the two weeks of checks. From here the format, the command, the public API and the record format stay compatible across 1.x, as the [Compatibility Policy](compatibility.md) sets out. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
+  content: '1.0.0 sets the version number and the Production/Stable classifier, with only the fixes of the checks. From here the format, the command, the public API and the record format stay compatible across 1.x, as the [Compatibility Policy](compatibility.md) sets out. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
   icon: ':material-play:'
   key: now
 ::/timeline::
@@ -76,7 +76,11 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 
 ## Released
 
-??? note "1.0.0rc3: The last candidate"
+??? note "1.0.0rc4: Fixes from a review of the whole code"
+
+    - **Fixes from an adversarial review:** reviewers tried to break each part of the code, from the Builder and the YAML loader to the connectors, the command line and the docs tools. The fixes make a model that ran wrong or failed in the middle of a run refuse at load or work. A few records change, such as `utilization` at capacity 0, and [Upgrading to 1.0](upgrading-to-1.0.md) lists each change. No YAML key, command or record field is removed. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)
+
+??? note "1.0.0rc3: Fixes from the checks"
 
     - **Fixes from the checks:** an interrupt with `on_interrupt: resume`, or a batch closing, at the instant a task's patience ran out no longer stops the run. A YAML file and the Builder refuse a name a place cannot read, and a batch size of `true`, with one text, and a refusal names the first unknown name in sorted order on every run. No format, command or record changes. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)
     - **Docs:** SimPy Compatibility says where desflow differs in a detail for a native feature, YAML Keys says what `Value` and `Generator` mean, and Upgrading to 1.0 lists the new logger names.
