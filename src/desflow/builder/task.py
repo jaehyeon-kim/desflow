@@ -1837,6 +1837,8 @@ class TaskRun:
                 holding = yield from self._holding_steps()
             except _HandlerFailed as stopped:
                 failure = stopped.reason
+            except _CycleLimit:
+                raise  # a loop of tasks that take no time is no failure of the task
             except Exception as error:  # a task's failure
                 failure = self._fail_with(error)
             else:
@@ -1903,6 +1905,8 @@ class TaskRun:
             except _HandlerFailed as stopped:
                 failure = stopped.reason
                 break
+            except _CycleLimit:
+                raise  # a loop of tasks that take no time is no failure of the task
             except Exception as error:  # a size, timeout or close_when that failed
                 failure = self._fail_with(error)
                 break

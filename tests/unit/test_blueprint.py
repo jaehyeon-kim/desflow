@@ -2702,6 +2702,29 @@ def test_a_literal_after_a_generated_value_of_the_same_parent_is_not_refused(
     SimulationContext.from_yaml(write(tmp_path, text, "generated.yaml"))
 
 
+def test_a_literal_after_a_conditional_value_of_the_same_parent_is_not_refused(
+    tmp_path,
+):
+    """An entry with `when` may not run, so a later literal is not checked against
+    its value; the conditional value itself is still checked."""
+
+    def text(conditional):
+        return MINIMAL.replace(
+            "{dist: normal, mean: 3.0, std: 0.5}", "{dist: uniform, low: 0, high: 1}"
+        ).replace(
+            "    resource: packers\n",
+            "    resource: packers\n    on:\n"
+            f"      - {{path: Shop.service.packing.high, value: {conditional}, "
+            "when: 'False'}\n"
+            "      - {path: Shop.service.packing.low, value: 0.75}\n",
+            1,
+        )
+
+    SimulationContext.from_yaml(write(tmp_path, text(0.5), "conditional.yaml"))
+    with pytest.raises(BlueprintError, match="cannot be converted"):
+        SimulationContext.from_yaml(write(tmp_path, text("'x'"), "refused.yaml"))
+
+
 def test_an_on_entry_with_a_wrong_path_or_value_is_refused_at_its_line(tmp_path):
     """`on:` entries load when their path is in the registry; one whose path is not,
     or whose value the path cannot hold, is refused at the entry's line."""

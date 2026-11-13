@@ -3298,7 +3298,13 @@ def _check_on_paths(
             if parent in unknown:
                 continue
             try:
-                registry.change(entry.path, entry.value)
+                if entry.when is not None:
+                    # A conditional entry may not run: its value is checked, and the
+                    # entries after it do not count on it
+                    registry.check_value(entry.path, entry.value)
+                    unknown.add(parent)
+                else:
+                    registry.change(entry.path, entry.value)
             except ParamRejected as exc:
                 raise source.error((*where, "value"), exc.reason) from None
 

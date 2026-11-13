@@ -968,7 +968,13 @@ class ModelChecks:
                 if parent in unknown:
                     continue
                 try:
-                    registry.change(path, action["value"])
+                    if action.get("when") is not None:
+                        # A conditional action may not run: its value is checked,
+                        # and the actions after it do not count on it
+                        registry.check_value(path, action["value"])
+                        unknown.add(parent)
+                    else:
+                        registry.change(path, action["value"])
                 except ParamRejected as exc:
                     raise ValueError(f"{place} sets '{path}': {exc.reason}") from None
 

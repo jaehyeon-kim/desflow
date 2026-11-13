@@ -630,6 +630,31 @@ run: {until: 30}
     assert "ran 10000 times in one flow at time 2" in str(outcome.error)
 
 
+def test_a_loop_of_tasks_with_no_time_while_waiting_for_a_unit_stops_the_run(
+    tmp_path,
+):
+    """An interrupt that reaches a task in a line runs its `on_interrupt_run` flow in
+    the holding step; a loop there stops the run and does not go to `on_fail`."""
+    yaml = """
+simulation: {sim_id: S, factor: 0}
+resources: {m: {current_cap: 1}}
+arrivals:
+  b: {initial: 1, spawn: blocker}
+  a: {initial: 1, spawn: work}
+  c: {initial: 1, spawn: cutter}
+tasks:
+  blocker: {service_time: 100, resource: m, payload: {e: 0}}
+  work: {service_time: 10, seize: m, on_interrupt_run: ping, on_fail: handle, payload: {e: 1}}
+  ping: {payload: {e: 2}, next: pong}
+  pong: {payload: {e: 3}, next: ping}
+  handle: {payload: {e: handled}}
+  cutter: {wait: {timeout: 2}, payload: null, interrupt: {task: work}}
+run: {until: 30}
+"""
+    outcome = run_yaml_text(tmp_path, yaml, {})
+    assert "ran 10000 times in one flow at time 2" in str(outcome.error)
+
+
 def test_a_unit_an_earlier_seize_took_stays_held_while_the_on_interrupt_run_flow_runs(
     tmp_path,
 ):
