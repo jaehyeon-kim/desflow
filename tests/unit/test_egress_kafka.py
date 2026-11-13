@@ -1881,3 +1881,36 @@ async def test_a_topic_kafka_refuses_is_asked_once_for_a_batch(
 
     assert [c.args[0] for c in producer.send.call_args_list] == ["missing", "ok"]
     assert caplog.text.count("skipped the record with key") == 2
+
+
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+def test_teardown_lets_a_retained_final_batch_be_sent(MockProducer):
+    """The final batch of a run fails once with a broker error. Teardown starts while
+    its records wait for the producer to come back, and waits for them: the broker
+    gets the same records as in a run with no error, before the run returns."""
+    from desflow.builder.context import SimulationContext
+
+    def run(fail_once):
+        state = {"failed": not fail_once}
+        sent = []
+
+        async def send(topic, value=None, key=None):
+            if not state["failed"]:
+                state["failed"] = True
+                raise KafkaConnectionError("broker restarted")
+            sent.append(key)
+
+        producer = AsyncMock()
+        producer.send.side_effect = send
+        MockProducer.return_value = producer
+        app = SimulationContext("S", factor=0, random_seed=1)
+        app.with_batching(batch_size=100, flush_interval=1000, drain_stall_seconds=10)
+        app.add_arrival("a", "constant", value=1, spawn="job", max_events=3)
+        app.task(service_time=0, name="job")(lambda task_id: {})
+        app.add_egress(KafkaEgress("localhost:9092", topic_policy="manual"))
+        app.run(until=10)
+        return sent
+
+    expected = run(fail_once=False)
+    assert expected
+    assert run(fail_once=True) == expected
