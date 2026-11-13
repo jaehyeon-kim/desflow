@@ -751,14 +751,19 @@ def _keep_generator_keys(node: yaml.Node, walked: Optional[Set[int]] = None) -> 
 def _without_added_folders(keep: str) -> Iterator[None]:
     """Takes the folders `read_document` added to `sys.path`, other than `keep`, off it
     for the block and puts them back at their places, so a file imports only from its
-    own folder and the folders that were on `sys.path` before."""
-    hidden = [
-        (index, entry)
-        for index, entry in enumerate(sys.path)
-        if entry in _added_folders and entry != keep
-    ]
-    names = {entry for _index, entry in hidden}
-    sys.path[:] = [entry for entry in sys.path if entry not in names]
+    own folder and the folders that were on `sys.path` before. Only the one entry
+    `read_document` added is taken off: a copy the caller put on `sys.path` itself
+    stays."""
+    hidden: List[Tuple[int, str]] = []
+    for index, entry in enumerate(sys.path):
+        if (
+            entry in _added_folders
+            and entry != keep
+            and all(seen != entry for _index, seen in hidden)
+        ):
+            hidden.append((index, entry))
+    places = {index for index, _entry in hidden}
+    sys.path[:] = [entry for index, entry in enumerate(sys.path) if index not in places]
     try:
         yield
     finally:

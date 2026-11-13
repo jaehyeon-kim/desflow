@@ -853,6 +853,31 @@ def test_two_blueprints_in_different_folders_each_use_their_own_module(
     sys.modules.pop("shared_settings_two_folders", None)
 
 
+def test_a_folder_the_caller_puts_on_sys_path_after_a_load_from_it_stays_found(
+    tmp_path, monkeypatch
+):
+    """A load from `lib` puts `lib` on `sys.path`, and the next load hides it, so each
+    file finds only its own folder's modules. A caller that then puts `lib` on
+    `sys.path` itself, as a script that keeps its modules there does, still finds
+    them from a blueprint in another folder."""
+    import sys
+
+    monkeypatch.delitem(sys.modules, "lib_settings_on_path", raising=False)
+    lib, other = tmp_path / "lib", tmp_path / "other"
+    lib.mkdir()
+    other.mkdir()
+    (lib / "lib_settings_on_path.py").write_text("SIM_ID = 'Shop_lib'\n", "utf-8")
+    write(lib, MINIMAL, "shop.yaml")
+    text = MINIMAL.replace(
+        "sim_id: Shop", "sim_id: !python lib_settings_on_path.SIM_ID"
+    )
+    write(other, text, "shop.yaml")
+    SimulationContext.from_yaml(lib / "shop.yaml")
+    monkeypatch.syspath_prepend(str(lib))
+    assert SimulationContext.from_yaml(other / "shop.yaml").sim_id == "Shop_lib"
+    sys.modules.pop("lib_settings_on_path", None)
+
+
 def test_a_module_a_run_imports_is_not_shared_with_the_next_folder(
     tmp_path, monkeypatch
 ):
