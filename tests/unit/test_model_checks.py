@@ -193,6 +193,28 @@ def test_an_on_action_with_a_value_the_path_accepts_or_a_generator_starts():
     app.close()
 
 
+def test_a_conditional_on_value_valid_after_a_scenario_step_starts():
+    """The scenario raises `high` to 20 before the action fires, so `low: 10` is valid
+    when it runs, though the declared `high` is 1. A conditional value of the wrong
+    type is still refused."""
+
+    def model(value):
+        app = _app()
+        app.add_arrival("a", "uniform", low=0.5, high=1, spawn="t")
+        app.add_scenario([{"at": 1, "path": "S.arrival.a.high", "value": 20}])
+        app.task(
+            name="t",
+            on=[{"path": "S.arrival.a.low", "value": value, "when": "True"}],
+            service_time=1,
+        )(_job)
+        return app
+
+    app = model(10)
+    app.start(until=5)
+    app.close()
+    assert "cannot be converted" in _refusal(model("x"))
+
+
 def test_a_refused_resource_leaves_its_name_free_for_another_kind():
     app = _app()
     with pytest.raises(ValueError, match="current_cap"):

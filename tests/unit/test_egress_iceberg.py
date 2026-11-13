@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 # Attempt to import PyArrow, skip tests if not installed
@@ -1373,14 +1375,36 @@ async def test_a_catalog_setting_pyiceberg_refuses_ends_the_sink(caplog):
     assert "could not write" not in caplog.text
 
 
+def _answer_that_is_not_an_object(value):
+    """The `TypeError` of PyIceberg 0.7, which unpacks the configuration answer with
+    `**`, for a JSON `null` or list."""
+
+    def config_response(**fields):
+        return fields
+
+    try:
+        config_response(**value)
+    except TypeError as error:
+        return error
+
+
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "bad_answer",
+    [
+        json.JSONDecodeError("Expecting value", "<html>", 0),
+        _answer_that_is_not_an_object([]),
+        _answer_that_is_not_an_object(None),
+    ],
+    ids=["not_json", "list", "null"],
+)
 async def test_a_catalog_answer_that_cannot_be_read_does_not_end_the_sink(
-    monkeypatch, caplog
+    monkeypatch, caplog, bad_answer
 ):
-    """A REST catalog's configuration answer that is not JSON is a `ValueError` from
-    `load_catalog`, but a later try may get a good answer, so the sink goes on."""
+    """A REST catalog's configuration answer that is not JSON, or not an object, is an
+    error from `load_catalog`, but a later try may get a good answer, so the sink
+    goes on."""
     import asyncio
-    import json
     import queue
 
     import pyiceberg.catalog
@@ -1391,7 +1415,7 @@ async def test_a_catalog_answer_that_cannot_be_read_does_not_end_the_sink(
     def load_catalog(name=None, **properties):
         attempts.append(1)
         if len(attempts) == 1:
-            raise json.JSONDecodeError("Expecting value", "<html>", 0)
+            raise bad_answer
         return fake
 
     monkeypatch.setattr(pyiceberg.catalog, "load_catalog", load_catalog)
@@ -1410,8 +1434,14 @@ async def test_a_catalog_answer_that_cannot_be_read_does_not_end_the_sink(
     await asyncio.gather(task, return_exceptions=True)
 
     assert len(attempts) == 2
-    assert "could not build the catalog yet: Expecting value" in caplog.text
+    assert f"could not build the catalog yet: {bad_answer}" in caplog.text
     assert len(fake.tables["sim.events"].appended) == 1
+
+
+def test_a_type_error_from_a_catalog_keyword_is_not_a_bad_answer():
+    from desflow.connectors.egress.iceberg import _is_bad_response
+
+    assert not _is_bad_response(TypeError("got an unexpected keyword argument 'x'"))
 
 
 @pytest.mark.asyncio

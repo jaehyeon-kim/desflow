@@ -52,7 +52,7 @@ from desflow.builder.arrivals import ArrivalPlan
 from desflow.core.families import name_of, name_problem, references
 from desflow.builder.flow import Open, Release, Transfer, Wait, transfer_expressions
 from desflow.builder.holders import check_level, check_queue_limit
-from desflow.core.registry import ParamRejected
+from desflow.core.registry import ParamRejected, check_value_type
 from desflow.core.rules import check_capacity
 from desflow.builder.task import NO_RECORD
 from desflow.builder.task_checks import (
@@ -3301,9 +3301,11 @@ def _check_on_paths(
                 continue
             try:
                 if entry.when is not None:
-                    # A conditional entry may not run: its value is checked, and the
+                    # A conditional entry may not run, and when it runs a scenario
+                    # step may have changed the other parameters of its
+                    # distribution: its value is checked for type alone, and the
                     # entries after it do not count on it
-                    registry.check_value(entry.path, entry.value)
+                    check_value_type(registry, entry.path, entry.value)
                     unknown.add(parent)
                 else:
                     registry.change(entry.path, entry.value)

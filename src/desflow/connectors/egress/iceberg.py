@@ -192,21 +192,28 @@ def _rows_to_table(records: list, schema: Any, pa: Any) -> Any:
 
 
 def _is_bad_response(error: Exception) -> bool:
-    """Whether a `ValueError` from `load_catalog` is a catalog's answer that cannot be
+    """Whether an error from `load_catalog` is a catalog's answer that cannot be
     read, which a later try may get right, and not a setting that PyIceberg refuses.
 
     Args:
         error: The error `load_catalog` raised.
 
     Returns:
-        bool: True for text that is not JSON, or JSON that does not fit the
-            configuration a REST catalog sends.
+        bool: True for text that is not JSON, JSON that does not fit the
+            configuration a REST catalog sends, or, from a PyIceberg that unpacks
+            the answer with `**`, a list or `null` where the answer must be an
+            object.
     """
     from pydantic import ValidationError
 
     # `requests` and `simplejson` have a decoding error of their own, named the same
-    return isinstance(error, ValidationError) or any(
-        kind.__name__ == "JSONDecodeError" for kind in type(error).__mro__
+    return (
+        isinstance(error, ValidationError)
+        or any(kind.__name__ == "JSONDecodeError" for kind in type(error).__mro__)
+        or (
+            isinstance(error, TypeError)
+            and "argument after ** must be a mapping" in str(error)
+        )
     )
 
 

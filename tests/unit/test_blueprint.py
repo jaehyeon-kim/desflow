@@ -2728,6 +2728,21 @@ def test_a_literal_after_a_conditional_value_of_the_same_parent_is_not_refused(
         SimulationContext.from_yaml(write(tmp_path, text("'x'"), "refused.yaml"))
 
 
+def test_a_conditional_value_valid_after_a_scenario_step_is_not_refused(tmp_path):
+    """The scenario raises `high` to 20 before the entry runs, so `low: 10` is valid
+    when it runs, though the declared `high` is 1."""
+    text = MINIMAL.replace(
+        "{dist: normal, mean: 3.0, std: 0.5}", "{dist: uniform, low: 0, high: 1}"
+    ).replace(
+        "    resource: packers\n",
+        "    resource: packers\n    on:\n"
+        "      - {path: Shop.service.packing.low, value: 10, when: 'True'}\n",
+        1,
+    )
+    text += "\nscenario:\n  - {at: 1, path: Shop.service.packing.high, value: 20}\n"
+    SimulationContext.from_yaml(write(tmp_path, text, "stepped.yaml"))
+
+
 def test_an_on_entry_with_a_wrong_path_or_value_is_refused_at_its_line(tmp_path):
     """`on:` entries load when their path is in the registry; one whose path is not,
     or whose value the path cannot hold, is refused at the entry's line."""

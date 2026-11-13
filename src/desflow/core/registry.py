@@ -597,6 +597,13 @@ class SimulationRegistry:
             ParamRejected: For an unknown path, a value the path refuses, or a
                 distribution parameter the distribution refuses.
         """
+        return self._checked_value(path, new_value, distribution_rules=True)
+
+    def _checked_value(
+        self, path: str, new_value: Any, *, distribution_rules: bool
+    ) -> Any:
+        """`check_value`, with the distribution's own rules applied only when
+        `distribution_rules` is true."""
         if path not in self._values:
             rejected = ParamRejected(
                 path,
@@ -673,7 +680,7 @@ class SimulationRegistry:
         parent_obj = self._configs.get(parent_path)
 
         # Check a distribution parameter with the same rules as at load
-        if isinstance(parent_obj, DistributionConfig):
+        if distribution_rules and isinstance(parent_obj, DistributionConfig):
             candidate = copy.copy(parent_obj)
             setattr(candidate, attr, validated_value)
             try:
@@ -1117,3 +1124,17 @@ class SimulationRegistry:
         )
         for attr in _CAPACITY_ATTRS:
             self._kinds[f"{path_prefix}.{attr}"] = _PathKind(kind, path_prefix, attr)
+
+
+def check_value_type(registry: SimulationRegistry, path: str, new_value: Any) -> Any:
+    """The value `path` accepts for `new_value`, checked as `check_value` does but
+    without the distribution's own rules.
+
+    Those rules read the other parameters of the distribution as they are now, and a
+    conditional `on:` action may run after a scenario step has changed them, so the
+    load checks of a conditional action use this.
+
+    Raises:
+        ParamRejected: For an unknown path or a value the path refuses.
+    """
+    return registry._checked_value(path, new_value, distribution_rules=False)

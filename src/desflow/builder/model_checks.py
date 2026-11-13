@@ -34,7 +34,7 @@ from desflow.builder.arrivals import Arrivals
 from desflow.core.expressions import ANY_NAME, Expression, member_name
 from desflow.core.families import Families, Reference, member_path, split_path
 from desflow.builder.holders import Holders
-from desflow.core.registry import ParamRejected, SimulationRegistry
+from desflow.core.registry import ParamRejected, SimulationRegistry, check_value_type
 from desflow.builder.runs import EndSets
 from desflow.builder.scenario import walk_steps
 from desflow.builder.signals import Signals, timing_problem
@@ -967,9 +967,11 @@ class ModelChecks:
                     continue
                 try:
                     if action.get("when") is not None:
-                        # A conditional action may not run: its value is checked,
+                        # A conditional action may not run, and when it runs a
+                        # scenario step may have changed the other parameters of
+                        # its distribution: its value is checked for type alone,
                         # and the actions after it do not count on it
-                        registry.check_value(path, action["value"])
+                        check_value_type(registry, path, action["value"])
                         unknown.add(parent)
                     else:
                         registry.change(path, action["value"])
