@@ -259,8 +259,8 @@ async def test_a_delivery_that_fails_sends_again_only_what_the_broker_did_not_co
     MockProducer, run_until
 ):
     """`send` returns a delivery future for each record. The third future fails with a
-    connection error after the first two are confirmed. The first two are not sent
-    again, and the third and fourth are sent before the next batch."""
+    connection error after the first two are confirmed, and the fourth is confirmed
+    too. Only the third is sent again, before the next batch."""
     sent = []
     state = {"failed": False}
 
@@ -285,14 +285,14 @@ async def test_a_delivery_that_fails_sends_again_only_what_the_broker_did_not_co
     ]
     batches.put(events[:4])
     batches.put(events[4:])
-    await run_until(egress.run(batches), lambda: len(sent) >= 7, timeout=10)
+    await run_until(egress.run(batches), lambda: len(sent) >= 6, timeout=10)
+    await asyncio.sleep(0.05)
     assert sent == [
         "orders-1",
         "orders-2",
         "orders-3",
         "orders-4",
         "orders-3",
-        "orders-4",
         "orders-5",
     ]
 
@@ -370,7 +370,7 @@ async def test_cancelling_during_a_delivery_counts_the_unconfirmed_records_as_dr
     MockProducer, caplog
 ):
     """Every record is sent and the delivery of the second never completes. The
-    first is confirmed, so the cancellation drops the second and third."""
+    first and third are confirmed, so the cancellation drops only the second."""
     entered = asyncio.Event()
 
     async def send(topic, value=None, key=None):
@@ -397,7 +397,7 @@ async def test_cancelling_during_a_delivery_counts_the_unconfirmed_records_as_dr
     await asyncio.sleep(0.05)
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
-    assert "cancelled with 2 unconfirmed records" in caplog.text
+    assert "cancelled with 1 unconfirmed records" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -456,11 +456,26 @@ async def test_teardown_waits_for_a_retained_batch_to_be_sent_again(MockProducer
         if state["failed"] and not sent:
             during_wait.append(egress.active_tasks)
 
+    counts_in_the_wait = []
+
+    class CountedEgress(KafkaEgress):
+        """Keeps every value `active_tasks` takes between the failure and the send."""
+
+        @property
+        def active_tasks(self):
+            return self.__dict__.get("_active", 0)
+
+        @active_tasks.setter
+        def active_tasks(self, value):
+            self.__dict__["_active"] = value
+            if state["failed"] and not sent:
+                counts_in_the_wait.append(value)
+
     producer = AsyncMock()
     producer.send.side_effect = send
     producer.start.side_effect = start
     MockProducer.return_value = producer
-    egress = KafkaEgress("localhost:9092", topic_policy="manual")
+    egress = CountedEgress("localhost:9092", topic_policy="manual")
     batches = queue.Queue()
     batches.put([{"stream_type": "event", "key": "orders-1", "value": {"n": 1}}])
     task = asyncio.create_task(egress.run(batches))
@@ -473,6 +488,9 @@ async def test_teardown_waits_for_a_retained_batch_to_be_sent_again(MockProducer
     await asyncio.gather(task, return_exceptions=True)
     assert sent == [b"orders-1"]
     assert during_wait and all(count > 0 for count in during_wait)
+    # The hold is counted before the write is released, so teardown, which reads
+    # the count from another thread, never sees 0 while the records wait
+    assert counts_in_the_wait and 0 not in counts_in_the_wait
     assert egress.active_tasks == 0
 
 

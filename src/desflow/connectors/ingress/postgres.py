@@ -205,7 +205,7 @@ class PostgresIngress(BaseIngress):
                             recovered = [
                                 c for row_id, c in unread if row_id in committed
                             ]
-                            pending = [p for p in pending if p not in unread]
+                            pending = [p for p in pending if p[0] in read_ids]
                             self._send(ingress_queue, recovered)
 
                     if rows:

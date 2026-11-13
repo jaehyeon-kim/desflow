@@ -1348,6 +1348,14 @@ class KafkaEgress(BaseEgress):
                     self._warn_not_sent(key, topic, error)
                 done.add(index)
         except (Exception, asyncio.CancelledError) as error:
+            # A later delivery the broker has confirmed already is not unsent
+            for index, _topic, _key, delivery in deliveries:
+                if (
+                    delivery.done()
+                    and not delivery.cancelled()
+                    and delivery.exception() is None
+                ):
+                    done.add(index)
             unsent.extend(m for i, m in enumerate(messages) if i not in done)
             # A cancelled sink does not send them again: `run` reports them dropped
             if not isinstance(error, asyncio.CancelledError):
@@ -1488,8 +1496,10 @@ class KafkaEgress(BaseEgress):
                                 # EgressMixIn
                                 batch = egress_queue.get_nowait()
                                 messages = None
-                            try:
-                                with self._writing():
+                            with self._writing():
+                                # The hold is counted before the write is released,
+                                # so teardown never reads 0 between the two
+                                try:
                                     if messages is None:
                                         # Kafka routes by __topic__, and writes no
                                         # other reserved key
@@ -1502,8 +1512,8 @@ class KafkaEgress(BaseEgress):
                                     await self._send_messages(
                                         producer, messages, unsent
                                     )
-                            finally:
-                                self._hold(unsent)
+                                finally:
+                                    self._hold(unsent)
 
                         except queue.Empty:
                             # Yield to loop if queue is empty
