@@ -29,8 +29,26 @@ if [ "$(git rev-parse FETCH_HEAD)" != "$(git rev-parse HEAD)" ]; then
     uv run mkdocs build --strict --site-dir "$RUNNER_TEMP/strict-site"
 fi
 
-# Deploy the version and tag it as 'latest'
-uv run mike deploy --update-aliases "$VERSION" latest
+# The docs are deployed per minor version, so a patch release replaces its minor's
+# docs instead of adding a copy of the site: 1.0.1 replaces 1.0. The full version is
+# an alias of the minor, so a link that names it still opens the docs.
+DOCS_VERSION=$(echo "$VERSION" | cut -d . -f 1,2)
+echo "Docs version: $DOCS_VERSION"
+
+# A release deployed under its full version before this change is replaced by its
+# minor, which takes over its name as an alias
+for old in $(uv run mike list --json | uv run python -c '
+import json, sys
+minor = sys.argv[1]
+for v in json.load(sys.stdin):
+    if v["version"] != minor and ".".join(v["version"].split(".")[:2]) == minor:
+        print(v["version"])
+' "$DOCS_VERSION"); do
+  uv run mike delete "$old"
+done
+
+# Deploy the minor version and tag it as 'latest'
+uv run mike deploy --update-aliases "$DOCS_VERSION" "$VERSION" latest
 
 # Set 'latest' as the default landing page when navigating to the root URL
 uv run mike set-default latest
@@ -40,18 +58,18 @@ uv run mike set-default latest
 # only. Copy this version's page to the root. Its links point at latest/,
 # so it renders at any depth.
 git worktree add "$RUNNER_TEMP/gh-pages" gh-pages
-cp "$RUNNER_TEMP/gh-pages/$VERSION/404.html" "$RUNNER_TEMP/gh-pages/404.html"
+cp "$RUNNER_TEMP/gh-pages/$DOCS_VERSION/404.html" "$RUNNER_TEMP/gh-pages/404.html"
 # Assistants look for llms.txt at the root of the site. Its links already
 # point at latest/, so the copy works from there.
-cp "$RUNNER_TEMP/gh-pages/$VERSION/llms.txt" "$RUNNER_TEMP/gh-pages/llms.txt"
-cp "$RUNNER_TEMP/gh-pages/$VERSION/llms-full.txt" "$RUNNER_TEMP/gh-pages/llms-full.txt"
+cp "$RUNNER_TEMP/gh-pages/$DOCS_VERSION/llms.txt" "$RUNNER_TEMP/gh-pages/llms.txt"
+cp "$RUNNER_TEMP/gh-pages/$DOCS_VERSION/llms-full.txt" "$RUNNER_TEMP/gh-pages/llms-full.txt"
 # Each version folder holds its own copy of every image. Store the images of
 # the versions other than latest once, in a folder they share, so the site
 # stays under the 1 GB that Pages publishes, and shrink their PNGs.
 sudo apt-get update -q && sudo apt-get install -y --no-install-recommends pngquant
 uv run python scripts/pages_images.py "$RUNNER_TEMP/gh-pages" --compress
 git -C "$RUNNER_TEMP/gh-pages" add -A
-git -C "$RUNNER_TEMP/gh-pages" diff --cached --quiet || git -C "$RUNNER_TEMP/gh-pages" commit -m "Root 404 page and llms.txt from $VERSION, and shared images of the older versions"
+git -C "$RUNNER_TEMP/gh-pages" diff --cached --quiet || git -C "$RUNNER_TEMP/gh-pages" commit -m "Root 404 page and llms.txt from $DOCS_VERSION, and shared images of the older versions"
 # mike commits to the local gh-pages branch (after updating it from the remote),
 # so everything above goes out in one push and starts one Pages build.
 git -C "$RUNNER_TEMP/gh-pages" push origin gh-pages

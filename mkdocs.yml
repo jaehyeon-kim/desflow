@@ -40,6 +40,10 @@ theme:
     # Each page ends with links to the previous and next pages of the sidebar, so the
     # sidebar is the only page order and a tutorial needs no line naming its next page.
     - navigation.footer
+    # Each page holds only the part of the sidebar a reader can see: a page that held
+    # the full sidebar, 101 KB of its 121 KB, is now 29 KB. A collapsed section links
+    # to its first page instead of opening in place.
+    - navigation.prune
 
 plugins:
   - search
