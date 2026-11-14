@@ -878,6 +878,66 @@ def test_a_folder_the_caller_puts_on_sys_path_after_a_load_from_it_stays_found(
     sys.modules.pop("lib_settings_on_path", None)
 
 
+def test_a_folder_put_back_on_sys_path_after_its_loader_entry_was_taken_off_stays_found(
+    tmp_path, monkeypatch
+):
+    """A load from `lib` puts `lib` on `sys.path`. Something else then takes that
+    entry off, as pytest's `monkeypatch` does when it restores `sys.path` after a
+    test, and a caller puts `lib` back itself. The caller's only copy is not the
+    loader's, so a blueprint in another folder still finds `lib`'s modules."""
+    import sys
+
+    monkeypatch.delitem(sys.modules, "lib_settings_put_back", raising=False)
+    lib, other = tmp_path / "lib", tmp_path / "other"
+    lib.mkdir()
+    other.mkdir()
+    (lib / "lib_settings_put_back.py").write_text("SIM_ID = 'Shop_lib'\n", "utf-8")
+    write(lib, MINIMAL, "shop.yaml")
+    text = MINIMAL.replace(
+        "sim_id: Shop", "sim_id: !python lib_settings_put_back.SIM_ID"
+    )
+    write(other, text, "shop.yaml")
+    with monkeypatch.context() as inner:
+        inner.syspath_prepend(str(tmp_path))
+        SimulationContext.from_yaml(lib / "shop.yaml")
+    assert str(lib) not in sys.path
+    monkeypatch.syspath_prepend(str(lib))
+    assert SimulationContext.from_yaml(other / "shop.yaml").sim_id == "Shop_lib"
+    sys.modules.pop("lib_settings_put_back", None)
+
+
+def test_a_folder_added_twice_by_nested_loads_stays_hidden_from_the_next_folder(
+    tmp_path, monkeypatch
+):
+    """A load from `b` puts `b` on `sys.path`. A load from `a` that includes a file of
+    `b` hides that entry, so the include puts `b` on `sys.path` a second time, and the
+    first entry comes back when the load of `a` ends. Both entries are the loader's, so
+    a blueprint in a third folder still does not find `b`'s modules."""
+    import sys
+
+    from desflow.blueprint.loader import read_document
+
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    monkeypatch.delitem(sys.modules, "b_only_settings", raising=False)
+    for folder in ("a", "b", "c"):
+        (tmp_path / folder).mkdir()
+    (tmp_path / "b" / "b_only_settings.py").write_text("WHO = 'b'\n", "utf-8")
+    (tmp_path / "b" / "part.yaml").write_text(
+        "who: !python b_only_settings.WHO\n", encoding="utf-8"
+    )
+    (tmp_path / "a" / "main.yaml").write_text(
+        "part: !include ../b/part.yaml\n", encoding="utf-8"
+    )
+    (tmp_path / "c" / "main.yaml").write_text(
+        "who: !python b_only_settings.WHO\n", encoding="utf-8"
+    )
+    read_document(tmp_path / "b" / "part.yaml")
+    assert read_document(tmp_path / "a" / "main.yaml")[0] == {"part": {"who": "b"}}
+    with pytest.raises(BlueprintError, match="no module named 'b_only_settings'"):
+        read_document(tmp_path / "c" / "main.yaml")
+    sys.modules.pop("b_only_settings", None)
+
+
 def test_a_module_a_run_imports_is_not_shared_with_the_next_folder(
     tmp_path, monkeypatch
 ):
