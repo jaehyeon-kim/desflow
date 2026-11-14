@@ -140,6 +140,12 @@ _before_any_entry: Dict[str, ModuleType] = {}
 # takes them off `sys.path` and its modules out of `sys.modules`, so it finds only its
 # own folder's modules and the installed packages, as it does when loaded alone.
 _added_folders: Set[str] = set()
+# The entry `read_document` put on `sys.path` for each folder it added, as that very
+# string object. A caller that puts the same folder on `sys.path` itself adds an equal
+# string that is another object, and something else, such as pytest's `monkeypatch`,
+# may take the loader's entry off. Only the loader's own entry is hidden from the next
+# file, so the caller's stays.
+_added_entries: Dict[str, str] = {}
 _INSTALLED_PARTS = ("site-packages", "dist-packages")
 _OWN_PACKAGES = ("desflow", "desflow_entry_")
 
@@ -751,17 +757,14 @@ def _keep_generator_keys(node: yaml.Node, walked: Optional[Set[int]] = None) -> 
 def _without_added_folders(keep: str) -> Iterator[None]:
     """Takes the folders `read_document` added to `sys.path`, other than `keep`, off it
     for the block and puts them back at their places, so a file imports only from its
-    own folder and the folders that were on `sys.path` before. Only the one entry
-    `read_document` added is taken off: a copy the caller put on `sys.path` itself
-    stays."""
-    hidden: List[Tuple[int, str]] = []
-    for index, entry in enumerate(sys.path):
-        if (
-            entry in _added_folders
-            and entry != keep
-            and all(seen != entry for _index, seen in hidden)
-        ):
-            hidden.append((index, entry))
+    own folder and the folders that were on `sys.path` before. Only the entries
+    `read_document` put there itself are taken off: a copy of the same folder that the
+    caller put on `sys.path` stays."""
+    hidden = [
+        (index, entry)
+        for index, entry in enumerate(sys.path)
+        if entry != keep and _added_entries.get(entry) is entry
+    ]
     places = {index for index, _entry in hidden}
     sys.path[:] = [entry for index, entry in enumerate(sys.path) if index not in places]
     try:
@@ -813,17 +816,20 @@ def read_document(
         return _parse_document(path, including, at, variables)
     if folder not in sys.path:
         _added_folders.add(folder)
+        _added_entries[folder] = folder
+        sys.path.insert(0, folder)
     else:
-        sys.path.remove(folder)
-    sys.path.insert(0, folder)
+        # The entry moves to the front as the same object, so an entry the loader
+        # added stays the loader's and a caller's stays the caller's
+        sys.path.insert(0, sys.path.pop(sys.path.index(folder)))
     try:
         with _without_added_folders(folder), entry_modules(Path(folder)):
             return _parse_document(path, including, at, variables)
     finally:
         if including and includer in sys.path and folder in sys.path:
             # The including file's later imports find its own folder first
-            sys.path.remove(folder)
-            sys.path.insert(sys.path.index(includer) + 1, folder)
+            entry = sys.path.pop(sys.path.index(folder))
+            sys.path.insert(sys.path.index(includer) + 1, entry)
 
 
 def _parse_document(
