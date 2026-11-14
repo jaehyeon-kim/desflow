@@ -13,6 +13,11 @@ There are two sets (issue #90):
   Windows for Python 3.12. `manual.yml` holds its other long jobs itself, and runs the
   integration tests and service examples (`services.yml`) whatever the change.
 
+A pull request into `main` from a `release-*` branch runs no test job: every change on
+a release branch came in through a pull request into it that ran them, and the release
+branch merges only when it is up to date with `main`, so the tree was already tested.
+It still runs pre-commit, the import contracts and the strict docs build.
+
 In `pr`, the docs tests run only when the files they read change, and the service
 jobs only when what they cover changes: the connectors, the modules that build,
 start and stop them, the examples, the gallery pages they read, their tests or the
@@ -23,6 +28,8 @@ the other versions run.
 
     python scripts/ci_plan.py manual "3.11 3.12 3.15" < /dev/null
     git diff --name-only <base>...HEAD | python scripts/ci_plan.py pull_request
+
+`CI_BASE_REF` and `CI_HEAD_REF` name the branches of a pull request.
 
 It writes `name=value` lines for `$GITHUB_OUTPUT`.
 
@@ -40,6 +47,7 @@ takes about 145 minutes of test time, which `manual` runs in 7 parts.
 
 import fnmatch
 import json
+import os
 import re
 import sys
 import tomllib
@@ -190,19 +198,32 @@ def _docs_only(path: str) -> bool:
     return ("/" not in path and path.endswith(".md")) or _matches(path, DOCS_ONLY)
 
 
+def _release_into_main(base: str, head: str) -> bool:
+    """Whether a pull request merges a release branch into `main`."""
+    return base == "main" and head.startswith("release-")
+
+
 def plan(
-    event: str, changed: List[str], versions: Optional[List[str]] = None
+    event: str,
+    changed: List[str],
+    versions: Optional[List[str]] = None,
+    base: str = "",
+    head: str = "",
 ) -> Dict[str, str]:
     """The jobs of a run. An empty `changed` means the changed files are not known,
     so every job that depends on them runs. `versions` are the Python versions a
-    `manual` run tests on Ubuntu, `MANUAL_VERSIONS` when not given."""
+    `manual` run tests on Ubuntu, `MANUAL_VERSIONS` when not given. `base` and `head`
+    are the branches of a pull request; a release branch into `main` runs no test job."""
     tier = "pr" if event == "pull_request" else "manual"
     full = tier == "manual"
     known = bool(changed)
     pr = tier == "pr"
-    code = full or not known or not all(_docs_only(p) for p in changed)
-    docs = pr and (not known or any(_matches(p, DOCS) for p in changed))
-    services = pr and (not known or any(_matches(p, SERVICES) for p in changed))
+    tested = pr and _release_into_main(base, head)
+    code = not tested and (full or not known or not all(_docs_only(p) for p in changed))
+    docs = not tested and pr and (not known or any(_matches(p, DOCS) for p in changed))
+    services = (
+        not tested and pr and (not known or any(_matches(p, SERVICES) for p in changed))
+    )
     return {
         "code": json.dumps(code),
         "docs": json.dumps(docs),
@@ -214,5 +235,7 @@ def plan(
 if __name__ == "__main__":
     lines = [line.strip() for line in sys.stdin if line.strip()]
     chosen = sys.argv[2].split() if len(sys.argv) > 2 else None
-    for key, value in plan(sys.argv[1], lines, chosen).items():
+    base_ref = os.environ.get("CI_BASE_REF", "")
+    head_ref = os.environ.get("CI_HEAD_REF", "")
+    for key, value in plan(sys.argv[1], lines, chosen, base_ref, head_ref).items():
         print(f"{key}={value}")

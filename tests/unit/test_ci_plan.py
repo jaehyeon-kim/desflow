@@ -3,7 +3,8 @@
 A pull request tests Python 3.11 to 3.15, 3.11 at the lowest Pydantic, and manual.yml every test on Python 3.11,
 3.12 and 3.15 (or the versions it is given) on Ubuntu and on Python 3.12 on Windows.
 A pull request skips the code jobs when it changes only files no code job reads, and
-runs the docs and service jobs only when it changes what they cover. Each job's
+runs the docs and service jobs only when it changes what they cover. A pull request
+from a release branch into `main` runs no test job. Each job's
 parts cover every part number once, so no test is left out.
 """
 
@@ -219,3 +220,31 @@ def test_every_paced_test_runs_in_the_paced_job_without_parallel_workers():
     }
     assert folders
     assert all(folder in commands[0] for folder in folders)
+
+
+def test_a_release_branch_into_main_runs_no_test_job():
+    """Every change on a release branch came in through a pull request into it that ran
+    the tests, so the pull request into `main` runs only the lint and the strict build."""
+    changed = SRC + ["docs/index.md", "src/desflow/connectors/egress/kafka.py"]
+    release = {
+        k: json.loads(v)
+        for k, v in ci_plan.plan(
+            "pull_request", changed, base="main", head="release-1.0.0-final"
+        ).items()
+    }
+    assert (release["code"], release["docs"], release["services"]) == (
+        False,
+        False,
+        False,
+    )
+    for base, head in [
+        ("main", "feature"),
+        ("release-1.0.0-final", "release-1.0.0-final_fix"),
+    ]:
+        other = {
+            k: json.loads(v)
+            for k, v in ci_plan.plan(
+                "pull_request", changed, base=base, head=head
+            ).items()
+        }
+        assert (other["code"], other["docs"], other["services"]) == (True, True, True)
