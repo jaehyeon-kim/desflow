@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../../assets/favicon.png">
+      <link rel="icon" href="../../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
     
     
@@ -132,7 +132,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -267,7 +267,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -8955,7 +8955,7 @@
 <hr />
 <h2 id="what-you-get-and-why">What You Get and Why</h2>
 <p>Which distribution fits packing times? <strong>The empirical distribution</strong>, because it is the measured times themselves. The chart shows the shapes of the four candidates on the left, and the mean wait each gives in the busy hour on the right:</p>
-<p><img alt="On the left, the four packing distributions: exponential spread from 0 to over 6 seconds, empirical and triangular between 0.5 and 2.75 seconds, constant a line at 1.5; on the right, the mean waits: constant 1.27, triangular 1.28, empirical 1.35 and exponential 2.37 seconds" src="../../../assets/charts/choosing-inputs.png" /></p>
+<p><img alt="On the left, the four packing distributions: exponential spread from 0 to over 6 seconds, empirical and triangular between 0.5 and 2.75 seconds, constant a line at 1.5; on the right, the mean waits: constant 1.27, triangular 1.28, empirical 1.35 and exponential 2.37 seconds" src="../../../../shared-images/06d33f6a28040424.png" /></p>
 <p>With the empirical distribution the mean wait is <strong>1.35 seconds</strong>, from <a href="../../concepts/output-analysis/#busy-hour-figures">one run of the hour with the seed 42 and no warm-up</a>, like each figure here. The constant mean gives 1.27 seconds, 6% shorter than with the measured times. The exponential guess gives 2.37 seconds, 75% longer. The expert's triangle is close to the constant, because its range is narrower than the measured one.</p>
 <p>In the busy hour the mean wait grows with the spread of the gaps between orders and with the spread of the packing times. <a href="../../concepts/queueing-basics/#variation-lengthens-waits">Kingman's formula</a> puts it in numbers: the wait is roughly proportional to the square of one spread plus the square of the other, each spread measured relative to its mean. The gaps are the same in all four runs, so only the packing spread differs: none for <code>constant</code>, a little for <code>triangular</code>, more for the measured times, and as much as the mean itself for <code>exponential</code>. Replacing a distribution by its mean, as <code>constant</code> does, is one of the <a href="../../concepts/common-mistakes/#replacing-a-distribution-by-its-mean">Common Mistakes</a>.</p>
 <p><a href="../../../user-guide/model-parts/arrivals-and-services/">Arrivals and Services</a> lists each distribution with its parameters and rules. <a href="../fit-the-inputs/">Fitting the Inputs</a> fits every family to the 40 times with <code>desflow fit</code>. <a href="../../../user-guide/model-parts/input-fitting/">Input Fitting</a> describes its options and outcomes, and <a href="../../../how-to/analysis/fit-a-distribution/">Fit a Distribution</a> fits a column of your own. <a href="../../../reference/distributions/">Distributions</a> gives the mean and variance of each family.</p>

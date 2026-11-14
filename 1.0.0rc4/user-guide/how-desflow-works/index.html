@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../assets/favicon.png">
+      <link rel="icon" href="../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
     
     
@@ -132,7 +132,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -267,7 +267,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../assets/favicon.png" alt="logo">
+  <img src="../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -8813,7 +8813,7 @@
 <h1 id="how-desflow-works">How desflow Works</h1>
 <p>This page shows how desflow is built: the parts that run a model, why each one exists, and how a run moves through them. Each part links to the How It Works section that describes it in full.</p>
 <p>One run moves through the parts of desflow like this:</p>
-<p><img alt="The three ways to write a simulation build one DynamicRealtimeEnvironment. Its registry holds every live parameter; ingress connectors on a thread of their own update it from a file you edit, Kafka, Redis, PostgreSQL or a local schedule, and the resources follow it. Telemetry and events go to egress connectors on their own thread, which write them to Kafka, Redis, PostgreSQL, Parquet or JSONL files, Iceberg or the console" src="../../assets/diagrams/architecture.png" /></p>
+<p><img alt="The three ways to write a simulation build one DynamicRealtimeEnvironment. Its registry holds every live parameter; ingress connectors on a thread of their own update it from a file you edit, Kafka, Redis, PostgreSQL or a local schedule, and the resources follow it. Telemetry and events go to egress connectors on their own thread, which write them to Kafka, Redis, PostgreSQL, Parquet or JSONL files, Iceberg or the console" src="../../../shared-images/80e60b95c2f553e3.png" /></p>
 <p>Whichever way a model is written, it builds one environment, and one run goes the same way from there. The registry paths, the <a href="../../reference/records-and-telemetry/">records</a>, the batching and the connectors are therefore the same in all three ways. <a href="#how-it-works">How It Works</a> follows a model from its file or script to the environment.</p>
 <hr />
 <h2 id="what-it-is">What It Is</h2>
@@ -8868,7 +8868,7 @@
 <hr />
 <h2 id="how-it-works">How It Works</h2>
 <p>Look first at how a model gets from a file or a script to a run, then at the parts the run holds:</p>
-<p><img alt="Top row: YAML file, Python (builder) and Python (low-level), the three ways to write a model. The YAML file goes to blueprint (loader, models, build), which calls the builder, SimulationContext (builder.context). The builder script reaches SimulationContext directly. run() builds DynamicRealtimeEnvironment (core.environment, a SimPy environment), and the low-level script builds it by hand. The environment holds registry (live parameters), statistics (measures) and egress queue (batches of records). connectors/ingress (its own thread) updates the registry, and the egress queue writes to connectors/egress (its own thread). A group at the bottom, tools, holds cli, which imports loading, then analysis (many runs) and explain (graph and formulas)" src="../../assets/diagrams/how-it-works.png" /></p>
+<p><img alt="Top row: YAML file, Python (builder) and Python (low-level), the three ways to write a model. The YAML file goes to blueprint (loader, models, build), which calls the builder, SimulationContext (builder.context). The builder script reaches SimulationContext directly. run() builds DynamicRealtimeEnvironment (core.environment, a SimPy environment), and the low-level script builds it by hand. The environment holds registry (live parameters), statistics (measures) and egress queue (batches of records). connectors/ingress (its own thread) updates the registry, and the egress queue writes to connectors/egress (its own thread). A group at the bottom, tools, holds cli, which imports loading, then analysis (many runs) and explain (graph and formulas)" src="../../../shared-images/c7bd13a6a44461eb.png" /></p>
 <p>Each of the three ways ends in one <code>DynamicRealtimeEnvironment</code>. A YAML file is read by <code>blueprint</code>: <code>loader</code> reads the file, including <code>!python</code> and <code>!include</code>, <code>models</code> define and check each section, and <code>build</code> turns the sections into calls on <code>SimulationContext</code>; the arrow labelled calls the builder shows them. A builder script makes those calls itself, with the builder's methods and decorators. A low-level script makes neither: it builds the environment by hand and writes SimPy processes against it. <a href="../writing-a-model/">Writing a Model</a> helps choose between them.</p>
 <p><code>SimulationContext</code> in <code>builder.context</code> collects what a model declares. <code>run()</code> checks the declarations and builds the environment, then starts the model's loops and processes and runs it, in the order <a href="../tasks-and-processes/tasks/#what-run-does">What <code>run()</code> Does</a> lists. The environment holds the parts in the row under it:</p>
 <ul>
@@ -8927,7 +8927,7 @@
 </table>
 <h3 id="how-a-yaml-file-becomes-builder-calls">How a YAML File Becomes Builder Calls</h3>
 <p>Follow the file down the left column, then look at the group on the right, which joins each section of the file to the builder call it becomes:</p>
-<p><img alt="blueprint: how a YAML file becomes builder calls. A YAML file is read by loader (${VAR}, !python, !include), checked by models (refuses an unknown key, drawn in red as a check) and built by build (one call for each entry). A group, one builder call for each entry, joins each YAML section to its call: tasks to @app.task, arrivals to add_arrival, resources to add_resource, signals to add_signal, and egress to add_egress, drawn in purple because it makes a connector. The calls go to SimulationContext (builder.context). Also in blueprint, for the tools: schema, model_check, expectations" src="../../assets/diagrams/blueprint-package.png" /></p>
+<p><img alt="blueprint: how a YAML file becomes builder calls. A YAML file is read by loader (${VAR}, !python, !include), checked by models (refuses an unknown key, drawn in red as a check) and built by build (one call for each entry). A group, one builder call for each entry, joins each YAML section to its call: tasks to @app.task, arrivals to add_arrival, resources to add_resource, signals to add_signal, and egress to add_egress, drawn in purple because it makes a connector. The calls go to SimulationContext (builder.context). Also in blueprint, for the tools: schema, model_check, expectations" src="../../../shared-images/b63f70aa64af3015.png" /></p>
 <ul>
 <li><strong>loader</strong> reads the file, replaces <code>${VAR}</code> with an environment variable, and resolves <code>!python</code> and <code>!include</code> (<a href="../writing-a-model/blueprints/#how-it-works">YAML Blueprints</a>). It keeps the line each key came from, so an error names the line.</li>
 <li><strong>models</strong> checks each section and refuses an unknown key, so a misspelt key is reported, not ignored.</li>
@@ -8935,7 +8935,7 @@
 </ul>
 <h3 id="how-a-builder-script-becomes-a-run">How a Builder Script Becomes a Run</h3>
 <p>Look at the two halves: the top shows where the builder keeps what a script declares, and the group below shows what <code>run()</code> does with it, in order. <code>run()</code> is <code>start()</code>, which makes steps 1 to 4, then <code>finish()</code>, which makes step 5; a script that steps through a run itself calls <code>start()</code> alone:</p>
-<p><img alt="builder: how a builder script becomes a run. A builder script calls @app.task, add_arrival, add_resource, add_signal, add_egress and the others on context (SimulationContext), which keeps each kind in its own module: tasks, arrivals, holders and signals; holders starts breakdowns. A group, when the script calls run(), with the note that start() does steps 1 to 4 and finish() does step 5: 1. checks, model_checks then task_checks, in red; 2. keeps the run, runs (RunState); 3. builds environment, registry (green), statistics, connectors (purple) and resources; 4. starts, as SimPy processes, the arrival loops and scenario (steps), and each arrival starts task (TaskRun), which hands its entity to flow (routes the entity on) and keeps its place in a batch in batches (BatchSeat); 5. runs to until, stop or drain, then closes the run" src="../../assets/diagrams/builder-package.png" /></p>
+<p><img alt="builder: how a builder script becomes a run. A builder script calls @app.task, add_arrival, add_resource, add_signal, add_egress and the others on context (SimulationContext), which keeps each kind in its own module: tasks, arrivals, holders and signals; holders starts breakdowns. A group, when the script calls run(), with the note that start() does steps 1 to 4 and finish() does step 5: 1. checks, model_checks then task_checks, in red; 2. keeps the run, runs (RunState); 3. builds environment, registry (green), statistics, connectors (purple) and resources; 4. starts, as SimPy processes, the arrival loops and scenario (steps), and each arrival starts task (TaskRun), which hands its entity to flow (routes the entity on) and keeps its place in a batch in batches (BatchSeat); 5. runs to until, stop or drain, then closes the run" src="../../../shared-images/411a00f3e430cea8.png" /></p>
 <ol>
 <li><strong>checks:</strong> every name a declaration refers to is checked first, and a wrong model is refused with a <code>ValueError</code> before anything is built.</li>
 <li><strong>keeps the run:</strong> each <code>start()</code> makes a new run state, so a second run never starts from what the first left.</li>
@@ -8945,7 +8945,7 @@
 </ol>
 <h3 id="what-a-low-level-script-uses">What a Low-Level Script Uses</h3>
 <p>A low-level script uses the engine directly. Look at the top row for what the script calls, and at the row below it for what the environment holds:</p>
-<p><img alt="core: what a low-level script uses. A low-level script creates and runs environment (DynamicRealtimeEnvironment), draws times with sampler (Sampler) and makes DynamicResource (the resources package). The environment holds registry (live parameters), statistics (measures) and sinks (one Sink for each egress). The registry checks a capacity change with rules, drawn in red as a check. Used by the builder, not by a low-level script: expressions, families, replay" src="../../assets/diagrams/core-package.png" /></p>
+<p><img alt="core: what a low-level script uses. A low-level script creates and runs environment (DynamicRealtimeEnvironment), draws times with sampler (Sampler) and makes DynamicResource (the resources package). The environment holds registry (live parameters), statistics (measures) and sinks (one Sink for each egress). The registry checks a capacity change with rules, drawn in red as a check. Used by the builder, not by a low-level script: expressions, families, replay" src="../../../shared-images/ca5d6afe09a1ebdf.png" /></p>
 <ul>
 <li><strong>environment:</strong> the script creates it, registers its parameters, calls <code>setup_stats</code>, <code>setup_ingress</code> and <code>setup_egress</code>, starts its processes with <code>env.process</code>, and calls <code>run()</code>.</li>
 <li><strong>sampler:</strong> draws every random time, with one random stream for each distribution (<a href="../model-parts/arrivals-and-services/#how-it-works">Arrivals and Services</a>).</li>
@@ -8960,7 +8960,7 @@
 <p>A <code>DynamicRealtimeEnvironment</code> is SimPy's <code>RealtimeEnvironment</code> with four additions: the registry at <code>env.registry</code>, the ingress connectors, the egress connectors with their buffers, and the statistics at <code>env.stats</code>. Whichever way a model is written, <code>SimulationContext.run()</code> builds this environment.</p>
 <h3 id="threads">Threads</h3>
 <p>A run uses three threads, with queues between them. Records flow from the processes to the sinks, and parameter changes flow from the sources to the registry:</p>
-<p><img alt="The SimPy thread buffers records and hands full batches to a queue per egress, which the egress thread writes to the sinks; the ingress thread puts parameter changes on a queue that the ingress monitor applies to the registry" src="../../assets/diagrams/runtime-threads.png" /></p>
+<p><img alt="The SimPy thread buffers records and hands full batches to a queue per egress, which the egress thread writes to the sinks; the ingress thread puts parameter changes on a queue that the ingress monitor applies to the registry" src="../../../shared-images/0d85532257b62fd3.png" /></p>
 <ul>
 <li><strong>SimPy thread:</strong> runs the model. When a process publishes a record, the record goes into a buffer for each sink, and a full buffer is handed to that sink's queue.</li>
 <li><strong>Egress thread:</strong> runs the sinks' asyncio code, which drains the queues and writes to Kafka, files or databases, so network waits never stall a simulation step.</li>
@@ -8968,7 +8968,7 @@
 </ul>
 <h3 id="two-kinds-of-queue">Two Kinds of Queue</h3>
 <p>The word queue means two different things in desflow:</p>
-<p><img alt="Left: waiting lines in the model. Orders wait in resource.queue, in fifo, lifo or priority order, until they are granted a packer in resource.users; a request past queue_limit raises QueueFull. They are part of the model, and their length and waits are in the records. Right: hand-off queues between threads. The ingress queue has no limit and is applied to the registry every 0.1 simulation seconds; each sink has a buffer on the SimPy thread, then a queue of at most max_queued_batches that the egress thread writes from. They are not part of the model" src="../../assets/diagrams/two-queues.png" /></p>
+<p><img alt="Left: waiting lines in the model. Orders wait in resource.queue, in fifo, lifo or priority order, until they are granted a packer in resource.users; a request past queue_limit raises QueueFull. They are part of the model, and their length and waits are in the records. Right: hand-off queues between threads. The ingress queue has no limit and is applied to the registry every 0.1 simulation seconds; each sink has a buffer on the SimPy thread, then a queue of at most max_queued_batches that the egress thread writes from. They are not part of the model" src="../../../shared-images/1ff82b1f47bf31f6.png" /></p>
 <ul>
 <li><strong>A waiting line in the model</strong> holds entities, such as orders waiting for a packer. A resource keeps its line in <code>queue</code>, ordered <code>fifo</code>, <code>lifo</code> or by <code>priority</code>, and a request past its <code>queue_limit</code> raises <code>QueueFull</code>. Stores and containers have lines of puts and gets that wait. These lines are what a study measures: their lengths and waits are in the records and the statistics.</li>
 <li><strong>A hand-off queue</strong> holds data on its way between the threads above. The ingress queue has no limit, and the ingress monitor applies it. Each sink has its own queue of at most <code>max_queued_batches</code> batches. When a sink's queue is full, the simulation waits, so a slow sink slows the run instead of building a backlog. When it stays full for <code>drain_stall_seconds</code>, the run stops rather than lose records. These queues change how fast the records arrive, never what they hold.</li>

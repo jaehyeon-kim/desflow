@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../../../assets/favicon.png">
+      <link rel="icon" href="../../../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
     
     
@@ -132,7 +132,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -267,7 +267,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../../../assets/favicon.png" alt="logo">
+  <img src="../../../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -8901,7 +8901,7 @@
 </div>
 </div>
 <p>A sink with <code>when: history</code> receives the records stamped before <code>go_live_at</code>, and one with <code>when: live</code> the rest, so the two halves can go to different places:</p>
-<p><img alt="From logical_start_time to go_live_at the run writes history at factor 0 to Parquet; from go_live_at to the end it runs at one simulation second per real second and writes to Kafka" src="../../../assets/diagrams/backfill-timeline.png" /></p>
+<p><img alt="From logical_start_time to go_live_at the run writes history at factor 0 to Parquet; from go_live_at to the end it runs at one simulation second per real second and writes to Kafka" src="../../../../shared-images/03ceec5edd78b9c5.png" /></p>
 <p><strong>Why one run rather than two.</strong> A demo of a data lake beside a live stream usually needs two datasets: a backdated history sitting in a lake, and a live stream arriving now. They have to be the same shop, with the same packers, the same distributions and the same task ids, or the join between them is meaningless.</p>
 <p>Producing them needs two values of <code>factor</code> that conflict. History needs <code>factor=0.0</code>, so that a week of events is generated as fast as the machine allows. A live tail needs <code>factor=1.0</code>, so that events arrive at one simulated second per real second.</p>
 <p>Without <code>go_live_at</code>, the only way to get both is to start two processes with the same <code>random_seed</code> and the same <code>logical_start_time</code>, one fast-forwarding into Parquet and one pacing into Kafka. That costs:</p>

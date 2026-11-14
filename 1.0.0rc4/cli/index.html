@@ -22,7 +22,7 @@
         
       
       
-      <link rel="icon" href="../assets/favicon.png">
+      <link rel="icon" href="../../shared-images/0d8e4abc746cb7ad.png">
       <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
     
     
@@ -132,7 +132,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href=".." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../assets/favicon.png" alt="logo">
+  <img src="../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -267,7 +267,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href=".." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
       
-  <img src="../assets/favicon.png" alt="logo">
+  <img src="../../shared-images/0d8e4abc746cb7ad.png" alt="logo">
 
     </a>
     desflow
@@ -8909,7 +8909,7 @@
 <p><code>desflow explain</code> reads the model without running it. It draws the model as a graph and works out each resource's <a href="../learn/concepts/queueing-basics/#utilisation">utilisation</a>, the share of its units that the arrivals keep busy. SOURCE is a blueprint, a builder Python file with a module-level <code>SimulationContext</code>, or a URI such as <code>s3://bucket/sims/shop.yaml</code>. A URI that ends in a folder is refused with its name, such as <code>Error: no file s3://bucket/models/</code>.</p>
 <div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-11-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1"></a>desflow<span class="w"> </span>explain<span class="w"> </span>experiment/yaml/experiment_shop.yaml
 </span></code></pre></div></td></tr></table></div>
-<p><img alt="desflow explain on the experiment's shop: the graph of orders, pack and packers, the resources table with utilisation 0.8, the table of 1 to 4 packers and the hints" src="../assets/charts/explain.gif" /></p>
+<p><img alt="desflow explain on the experiment's shop: the graph of orders, pack and packers, the resources table with utilisation 0.8, the table of 1 to 4 packers and the hints" src="../../shared-images/07374caa1e89ba0f.gif" /></p>
 <p>The same output as text:</p>
 <!-- records: cli-explain -->
 <div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-12-1"> 1</a></span>
@@ -9301,7 +9301,7 @@
 <h2 id="how-it-works">How It Works</h2>
 <p>Each command reads its file and calls the library function a Python script would call. <code>desflow run</code> loads the model with <code>load_context</code> and runs it once, or calls <code>replicate</code> when <code>--replications</code> is given. <code>desflow experiment</code> calls <code>run_experiment</code>, <code>desflow report</code> calls <code>write_report</code>, and <code>desflow fit</code> reads the column and calls <code>fit_column</code>. <code>desflow dist</code>, <code>desflow schema</code> and <code>desflow examples</code> read the distribution table, the blueprint schema and the list of examples. A command therefore gives the same result as the Python call with the same arguments.</p>
 <p><code>desflow explain</code> takes the most steps. Look at them in order:</p>
-<p><img alt="desflow explain loads the model, builds the graph from what the model declares, works out each task's rate by flow balance, marks the tasks the formulas do not cover, then gives each resource its utilisation, status and wait by Kingman's formula or Erlang C, and names the bottleneck and the hints. --verify runs the model unpaced with no ingress or egress and compares utilisation, queue length, wait and throughput with the analysis, within 10% for one run, or for replications within the 95% interval's half-width or 1%, whichever is larger" src="../assets/diagrams/explain-steps.png" /></p>
+<p><img alt="desflow explain loads the model, builds the graph from what the model declares, works out each task's rate by flow balance, marks the tasks the formulas do not cover, then gives each resource its utilisation, status and wait by Kingman's formula or Erlang C, and names the bottleneck and the hints. --verify runs the model unpaced with no ingress or egress and compares utilisation, queue length, wait and throughput with the analysis, within 10% for one run, or for replications within the 95% interval's half-width or 1%, whichever is larger" src="../../shared-images/54c9586024e4764b.png" /></p>
 <p><strong>Graph.</strong> <code>explain</code> builds the graph from what the model declares: its arrivals, tasks, resources, stores, containers and <code>next</code> shares. It builds and runs nothing. Code the model does not declare, such as a hand-written arrival loop or an <code>add_process</code> function, becomes an opaque node. The graph also has an edge with no share from a task to each task it starts by an <code>on:</code> or <code>listen</code> spawn, a <code>task</code> branch of <code>wait</code>, <code>open</code> or <code>subscribe</code>, a spawn in the <code>on:</code> of a signal it fires, and <code>on_interrupt_next</code> and <code>on_interrupt_run</code>. <code>next</code> weights, fixed or computed, end no flow.</p>
 <p><strong>Rates.</strong> Each task's arrival rate comes from flow balance: the rate from its arrivals plus the share of each task that sends work to it. A <code>next</code> function or a hand-written arrival loop makes the rates unknown, because the graph cannot see where the work goes. A task reached by an edge with no share has no rate either, with the reason "how often <task> starts it is not known before a run" or "the split after <task> depends on the run".</p>
 <p><strong>Coverage.</strong> The formulas hold for a plain network of queues:</p>
