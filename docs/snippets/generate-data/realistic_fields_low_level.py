@@ -1,4 +1,4 @@
-"""Realistic fields: names, emails and places from Faker, and products from a CSV file.
+"""Extend payloads: Faker names, emails and places, and products from a CSV file.
 
 The low-level version of `realistic_fields.yaml`: plain SimPy on a
 `DynamicRealtimeEnvironment`, which publishes each record with `publish_event`. Each

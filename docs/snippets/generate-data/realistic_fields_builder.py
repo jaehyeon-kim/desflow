@@ -1,4 +1,4 @@
-"""Realistic fields: names, emails and places from Faker, and products from a CSV file.
+"""Extend payloads: Faker names, emails and places, and products from a CSV file.
 
 The builder version of `realistic_fields.yaml`: a customer signs up about every 2
 seconds, with fields from Faker and a product from a CSV file.

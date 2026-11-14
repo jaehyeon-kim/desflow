@@ -1,6 +1,6 @@
-# Realistic Fields
+# Extend Payloads
 
-Fill records with names, emails, cities and jobs that look real, and keep a product's sku, title and price together by drawing one row of a CSV file.
+Extend a payload beyond plain numbers: fill fields with values that look real, such as names, emails, cities and jobs, and keep the fields that belong together consistent, such as a product's sku, title and price.
 
 ---
 
@@ -14,6 +14,7 @@ Fill records with names, emails, cities and jobs that look real, and keep a prod
     ```
 
 - [First Simulation](../../learn/first-model/first-simulation.md) explains arrivals, tasks and the records a run writes.
+- [Generate the Payload](send-data-to-a-sink.md#generate-the-payload) explains how a payload maps each field to a generator, and the rest of that page shows how to write the records to Kafka, PostgreSQL or a file. This page writes them to the console.
 - Install the Faker library: `pip install "desflow[fake]"`.
 - [`fake`](../../generators/text-and-ids/fake.md) and [`row`](../../generators/related-records/row.md) list the keys of the two generators this page uses.
 
@@ -48,7 +49,7 @@ A customer signs up about every 2 seconds: `rate: 0.5` is a gap that averages 2 
 
 ### Draw Names and Places
 
-A `fake` field calls one method of the [Faker](https://faker.readthedocs.io/en/master/providers.html) library by name: `name`, `email`, `city` and `job` here. `locale: de_DE` draws a field in the German locale, so `german_city` is a German town. A Faker method that reads today's date, such as `date_of_birth`, would change the records from day to day, so this model uses none.
+A `fake` field calls one method of the [Faker](https://faker.readthedocs.io/en/master/providers.html) library by name: `name`, `email`, `city` and `job` here. Any other method of Faker's providers works the same way, such as `phone_number` or `company`. `locale: de_DE` draws a field in the German locale, so `german_city` is a German town. A Faker method that reads today's date, such as `date_of_birth`, would change the records from day to day, so this model uses none.
 
 === "YAML"
 
@@ -145,9 +146,9 @@ A `fake` field calls one method of the [Faker](https://faker.readthedocs.io/en/m
 
     Each `fake` field has a Faker of its own, seeded from the random sequence named by the field's place with `#fake` added. The Low-level file builds one Faker for each field in the same way, and a fixed seed gives the same names every run.
 
-### Keep a Product Together
+### Keep Related Fields Together
 
-[`row`](../../generators/related-records/row.md) draws one row of a CSV file, so the sku, the title and the price always belong to the same product. `weight: popularity` draws the rows in proportion to the popularity column, so the notebook, with 12 of the 30 points in the file, is the favourite of 12 customers in 30.
+[`row`](../../generators/related-records/row.md) draws one row of a CSV or Parquet file, so the fields of one row always arrive together. Here each row is a product, so the sku, the title and the price always belong to the same product. `weight: popularity` draws the rows in proportion to the popularity column, so the notebook, with 12 of the 30 points in the file, is the favourite of 12 customers in 30 on average.
 
 ```csv title="docs/snippets/generate-data/realistic_fields_products.csv"
 sku,title,price,popularity
@@ -206,7 +207,7 @@ The names depend on the version of Faker that the lock file pins, so a different
     === "YAML"
 
         ```yaml title="docs/snippets/generate-data/realistic_fields.yaml"
-        # Realistic fields: names, emails and places from Faker, and products from a CSV file.
+        # Extend payloads: Faker names, emails and places, and products from a CSV file.
         #
         # A customer signs up about every 2 seconds. Their name, email, city and job come
         # from Faker, one `fake` generator for each field, and `german_city` is a city drawn
@@ -256,7 +257,7 @@ The names depend on the version of Faker that the lock file pins, so a different
     === "Builder"
 
         ```python title="docs/snippets/generate-data/realistic_fields_builder.py"
-        """Realistic fields: names, emails and places from Faker, and products from a CSV file.
+        """Extend payloads: Faker names, emails and places, and products from a CSV file.
 
         The builder version of `realistic_fields.yaml`: a customer signs up about every 2
         seconds, with fields from Faker and a product from a CSV file.
@@ -316,7 +317,7 @@ The names depend on the version of Faker that the lock file pins, so a different
     === "Low-level"
 
         ```python title="docs/snippets/generate-data/realistic_fields_low_level.py"
-        """Realistic fields: names, emails and places from Faker, and products from a CSV file.
+        """Extend payloads: Faker names, emails and places, and products from a CSV file.
 
         The low-level version of `realistic_fields.yaml`: plain SimPy on a
         `DynamicRealtimeEnvironment`, which publishes each record with `publish_event`. Each

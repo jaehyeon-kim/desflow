@@ -21,7 +21,7 @@ Each page here does one task, step by step, with code that you can run. To see w
 | Task | What you do |
 | --- | --- |
 | [Send Data to a Sink](generate-data/send-data-to-a-sink.md) | write generated orders to the console, Kafka, PostgreSQL or a file |
-| [Realistic Fields](generate-data/realistic-fields.md) | fill records with names, emails and cities, and draw a row of a CSV file |
+| [Extend Payloads](generate-data/realistic-fields.md) | fill a payload with names, emails and cities that look real, and keep related fields together with one row of a file |
 | [Choices and Numbers](generate-data/choices-and-numbers.md) | pick values with set odds and draw numbers from a range or a bell curve |
 | [Timestamps and Gaps](generate-data/timestamps-and-gaps.md) | put times into records and make the gaps between records vary |
 | [Stop After a Count](generate-data/stop-after-a-count.md) | end a run after a set number of records |

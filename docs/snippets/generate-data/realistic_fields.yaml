@@ -1,4 +1,4 @@
-# Realistic fields: names, emails and places from Faker, and products from a CSV file.
+# Extend payloads: Faker names, emails and places, and products from a CSV file.
 #
 # A customer signs up about every 2 seconds. Their name, email, city and job come
 # from Faker, one `fake` generator for each field, and `german_city` is a city drawn

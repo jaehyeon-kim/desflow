@@ -389,7 +389,7 @@ nav:
           - Serve Entities Together: how-to/modelling/serve-entities-together.md
       - Generate Data:
           - Send Data to a Sink: how-to/generate-data/send-data-to-a-sink.md
-          - Realistic Fields: how-to/generate-data/realistic-fields.md
+          - Extend Payloads: how-to/generate-data/realistic-fields.md
           - Choices and Numbers: how-to/generate-data/choices-and-numbers.md
           - Timestamps and Gaps: how-to/generate-data/timestamps-and-gaps.md
           - Stop After a Count: how-to/generate-data/stop-after-a-count.md
