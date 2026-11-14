@@ -209,7 +209,7 @@ docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation
 
 ### PostgreSQL
 
-`PostgresIngress` polls a table, `simulation_params` by default, every `poll_interval` seconds, 2 by default. It creates the table when it is missing, with the columns `id`, `path`, `value`, `is_applied` and `created_at`. It applies the rows in two steps:
+`PostgresIngress` polls a table, `simulation_params` by default, every `poll_interval` seconds, 2 by default. It creates the table when it is missing, with the columns `id`, `path`, `value`, `is_applied` and `created_at`, and first its schema when the name has one that the database does not have, such as `dashboard` in `dashboard.params`. It applies the rows in two steps:
 
 1. At the start, it applies the latest applied value of each path, in the order the changes were made, so a restarted run resumes from the last settings. A `current_cap` that was made after a `max_cap` is applied after it, so the new maximum clamps it as it did the first time.
 2. At each poll, it applies every row whose `is_applied` is false and marks it true, so the table keeps the history of every change.

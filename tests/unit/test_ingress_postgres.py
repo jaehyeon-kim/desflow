@@ -116,6 +116,76 @@ async def test_postgres_ingress_run(mock_create_pool, mock_pool):
     assert ingress_queue.get_nowait() == ("sim.string", "hello")
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "table_name,known,expected",
+    [
+        ("dashboard.params", None, "CREATE SCHEMA IF NOT EXISTS dashboard"),
+        ("dashboard.params", 1, None),
+        ("params", None, None),
+    ],
+)
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_postgres_ingress_creates_the_schema_of_its_table(
+    mock_create_pool, mock_pool, table_name, known, expected
+):
+    """A table in a schema the database does not have yet gets that schema first, as
+    the PostgreSQL egress does, so the ingress does not stop on its own set-up. An
+    existing schema, or a name with no schema, needs no statement."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetchval.return_value = known
+    conn.fetch.return_value = []
+    ingress = PostgresIngress("postgresql://u:p@localhost/db", table_name)
+
+    await _run_briefly(ingress, queue.Queue())
+
+    statements = [" ".join(str(c.args[0]).split()) for c in conn.execute.call_args_list]
+    schema_statements = [s for s in statements if s.startswith("CREATE SCHEMA")]
+    assert schema_statements == ([expected] if expected else [])
+    created = next(i for i, s in enumerate(statements) if s.startswith("CREATE TABLE"))
+    assert statements[created].startswith(f"CREATE TABLE IF NOT EXISTS {table_name} (")
+    if expected:
+        assert statements.index(expected) < created
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [asyncpg.exceptions.DuplicateSchemaError, asyncpg.exceptions.UniqueViolationError],
+)
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_a_schema_another_writer_creates_first_does_not_stop_the_ingress(
+    mock_create_pool, mock_pool, error
+):
+    """Two writers that start together can both find the schema missing. The one
+    whose create comes second gets an error, and the ingress goes on to its table,
+    because the schema exists then."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetchval.return_value = None
+    conn.fetch.return_value = []
+
+    async def execute(sql, *args):
+        if str(sql).startswith("CREATE SCHEMA"):
+            raise error("schema already exists")
+
+    conn.execute.side_effect = execute
+    ingress = PostgresIngress("postgresql://u:p@localhost/db", "dashboard.params")
+
+    await _run_briefly(ingress, queue.Queue())
+
+    statements = [" ".join(str(c.args[0]).split()) for c in conn.execute.call_args_list]
+    assert statements[0] == "CREATE SCHEMA IF NOT EXISTS dashboard"
+    assert statements[1].startswith("CREATE TABLE IF NOT EXISTS dashboard.params (")
+
+
 async def _run_briefly(ingress, ingress_queue):
     task = asyncio.create_task(ingress.run(ingress_queue))
     await asyncio.sleep(0.15)
