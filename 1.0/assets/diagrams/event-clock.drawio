@@ -1,0 +1,25 @@
+<mxfile>
+  <diagram name="event-clock" id="event-clock">
+    <mxGraphModel grid="0" page="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="Nothing happens between events, so the clock jumps from one to the next" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="c12" value="event list just after 0.0 s: what happens next, in time order" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=none;strokeColor=#d6b656;strokeWidth=2;dashed=1;verticalAlign=top;align=center;spacingTop=6;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="215" width="750" height="110" as="geometry"/></mxCell>
+        <mxCell id="c1" value="simulation clock" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=13;fontSize=14;fontStyle=1;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="50" width="160" height="28" as="geometry"/></mxCell>
+        <mxCell id="t0" value="0.0 s" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;fontSize=13;" vertex="1" parent="1"><mxGeometry x="35" y="88" width="80" height="32" as="geometry"/></mxCell>
+        <mxCell id="l0" value="order 1 arrives,&lt;br&gt;a packer starts on it" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="5" y="145" width="140" height="40" as="geometry"/></mxCell>
+        <mxCell id="t1" value="1.5 s" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;fontSize=13;" vertex="1" parent="1"><mxGeometry x="235" y="88" width="80" height="32" as="geometry"/></mxCell>
+        <mxCell id="l1" value="order 1&lt;br&gt;finishes" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="205" y="145" width="140" height="40" as="geometry"/></mxCell>
+        <mxCell id="t2" value="2.6 s" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;fontSize=13;" vertex="1" parent="1"><mxGeometry x="435" y="88" width="80" height="32" as="geometry"/></mxCell>
+        <mxCell id="l2" value="order 2 arrives,&lt;br&gt;starts" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="405" y="145" width="140" height="40" as="geometry"/></mxCell>
+        <mxCell id="t3" value="4.1 s" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;fontSize=13;" vertex="1" parent="1"><mxGeometry x="635" y="88" width="80" height="32" as="geometry"/></mxCell>
+        <mxCell id="l3" value="order 2&lt;br&gt;finishes" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="605" y="145" width="140" height="40" as="geometry"/></mxCell>
+        <mxCell id="c10" style="sketch=1;html=1;strokeWidth=2;endArrow=block;strokeColor=#666666;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="0" y="133" as="sourcePoint"/><mxPoint x="750" y="133" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="c13" value="1.5 s: order 1 finishes" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="20" y="260" width="250" height="44" as="geometry"/></mxCell>
+        <mxCell id="c14" value="2.6 s: order 2 arrives" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="290" y="260" width="250" height="44" as="geometry"/></mxCell>
+        <mxCell id="c15" value="earliest first:&lt;br&gt;the clock jumps to 1.5 s" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="555" y="260" width="185" height="44" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
