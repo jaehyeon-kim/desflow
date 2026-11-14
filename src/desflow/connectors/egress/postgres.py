@@ -4,11 +4,13 @@ import queue
 import weakref
 from collections import Counter
 from collections.abc import Mapping
-from typing import Any, Optional
+from typing import Any
 
 import asyncpg
 import orjson
 
+from desflow.connectors._postgres import ensure_schema
+from desflow.connectors._postgres import fold as _fold
 from desflow.connectors._retry import connect_with_retry, is_temporary_postgres_error
 from desflow.connectors.egress.base import (
     BaseEgress,
@@ -87,28 +89,6 @@ SELECT
 """
 
 
-_ASCII_LOWER = {
-    ord(letter): ord(letter.lower()) for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-}
-
-
-def _fold(name: str) -> str:
-    """
-    Returns an unquoted name as PostgreSQL reads it: `A` to `Z` in lower case.
-
-    In a multi-byte encoding such as UTF8, PostgreSQL's `downcase_identifier`
-    (`src/backend/parser/scansup.c`) folds only these letters, so `Ärger` stays
-    `Ärger`, where `str.lower()` gives `ärger`.
-
-    Args:
-        name: A table or column name, without quotes.
-
-    Returns:
-        str: The name with `A` to `Z` changed to `a` to `z`.
-    """
-    return name.translate(_ASCII_LOWER)
-
-
 def _folded(record: dict) -> dict:
     """
     Returns a record with its keys folded as PostgreSQL reads the columns.
@@ -148,20 +128,6 @@ def _label_row(record: dict) -> dict:
         "new": orjson.dumps(record.get("new")).decode(),
         "label": orjson.dumps(record.get("label")).decode(),
     }
-
-
-def _create_schema_sql(name: str) -> Optional[str]:
-    """
-    Builds the `CREATE SCHEMA IF NOT EXISTS` statement for a qualified table name.
-
-    Args:
-        name (str): The table name, such as `dashboard.orders`.
-
-    Returns:
-        Optional[str]: The statement, or None when the name has no schema.
-    """
-    schema, dot, _ = name.rpartition(".")
-    return f"CREATE SCHEMA IF NOT EXISTS {schema}" if dot else None
 
 
 def _create_table_sql(
@@ -317,11 +283,19 @@ class PostgresEgress(BaseEgress):
         # connects and reads them from the database's `search_path`
         self.table_schema = "public"
         self.bare_schema = "public"
+        # Whether `table_schema` and `bare_schema` are read from the database yet
+        self._resolved = False
         self._unrouted_warned: set[str] = set()
 
     def _warn_unrouted(self, target: str) -> None:
-        """Warns once that no running PostgresEgress writes the table a record names."""
+        """Warns once that no running PostgresEgress writes the table a record names.
+
+        A sink that has not connected yet does not know its schema, so the check waits
+        until every running sink has read it, and a record of a table that a sink
+        still starting writes is not reported."""
         if target in self._unrouted_warned:
+            return
+        if not all(w._resolved for w in self._writers):
             return
         self._unrouted_warned.add(target)
         if not any(w._writes(target) for w in self._writers):
@@ -362,18 +336,7 @@ class PostgresEgress(BaseEgress):
                     if self.table_policy == "manual":
                         break
                     try:
-                        schema_sql = _create_schema_sql(name)
-                        if schema_sql is not None:
-                            # CREATE SCHEMA IF NOT EXISTS checks the database
-                            # privilege first, so a role that may only use an
-                            # existing schema is not asked to create it
-                            schema = _fold(name.rpartition(".")[0])
-                            known = await conn.fetchval(
-                                "SELECT 1 FROM pg_namespace WHERE nspname = $1",
-                                schema,
-                            )
-                            if not known:
-                                await conn.execute(schema_sql)
+                        await ensure_schema(conn, name)
                         if self.table_policy == "drop_and_create":
                             await conn.execute(f"DROP TABLE IF EXISTS {name}")
                         await conn.execute(
@@ -397,6 +360,7 @@ class PostgresEgress(BaseEgress):
                     or _fold(self.table_name).rpartition(".")[0]
                     or self.bare_schema
                 )
+                self._resolved = True
                 # The one table the statements reach: PostgreSQL folds the name's case
                 # and resolves it through `search_path` here as it does in them
                 try:

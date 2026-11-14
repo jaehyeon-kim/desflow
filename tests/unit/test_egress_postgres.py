@@ -55,6 +55,8 @@ def test_a_table_route_is_compared_as_postgresql_reads_it(caplog):
     sink = PostgresEgress("postgresql://u:p@localhost/db", table_name="orders")
     other = PostgresEgress("postgresql://u:p@localhost/db", table_name="Items")
     earlier = PostgresEgress("postgresql://u:p@localhost/db", table_name="audit")
+    # Both have connected and read their schemas, `public` here
+    sink._resolved = other._resolved = True
     PostgresEgress._writers.update({sink, other})
 
     def rows(route):
@@ -75,6 +77,34 @@ def test_a_table_route_is_compared_as_postgresql_reads_it(caplog):
     assert "no running PostgresEgress writes" in warnings[0]
     assert other.table_name == "Items"
     assert earlier.table_name == "audit"
+    PostgresEgress._writers.difference_update({sink, other})
+
+
+def test_a_route_to_a_sink_still_starting_is_not_warned_about(caplog):
+    """A sink reads its schema when it connects, so until then it cannot say whether
+    it writes `cdc.products`. A record routed there while it starts is not reported as
+    unrouted; once every sink has read its schema, a name that none writes is."""
+    sink = PostgresEgress("postgresql://u:p@localhost/db", table_name="cdc.users")
+    products = PostgresEgress(
+        "postgresql://u:p@localhost/db", table_name="cdc.products"
+    )
+    sink.table_schema = sink.bare_schema = "cdc"
+    sink._resolved = True
+    PostgresEgress._writers.update({sink, products})
+
+    def route(target):
+        record = {"stream_type": "event", "key": "k", "value": {"__table__": target}}
+        return sink._rows([record])
+
+    assert route("cdc.products") == []
+    assert not [r for r in caplog.records if "skips records" in r.message]
+
+    products.table_schema, products.bare_schema = "cdc", "public"
+    products._resolved = True
+    assert route("cdc.products") == [] and route("cdc.prodcts") == []
+    warnings = [r.message for r in caplog.records if "skips records" in r.message]
+    assert len(warnings) == 1 and "'cdc.prodcts'" in warnings[0]
+    PostgresEgress._writers.difference_update({sink, products})
 
 
 @pytest.mark.asyncio

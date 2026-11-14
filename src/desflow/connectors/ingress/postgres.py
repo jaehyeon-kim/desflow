@@ -7,6 +7,7 @@ from typing import Any, List, Mapping, Tuple
 import asyncpg
 
 from desflow.connectors._checks import checked_poll
+from desflow.connectors._postgres import ensure_schema
 from desflow.connectors._retry import connect_with_retry, is_temporary_postgres_error
 from desflow.connectors.ingress.base import BaseIngress, parse_change
 
@@ -71,9 +72,10 @@ class PostgresIngress(BaseIngress):
         if self.pool is None:
             self.pool = await asyncpg.create_pool(self.dsn, **self.kwargs)
 
-            # Ensure the table exists
+            # Ensure the schema and the table exist, as the PostgreSQL egress does
             assert self.pool is not None
             async with self.pool.acquire() as conn:
+                await ensure_schema(conn, self.table_name)
                 await conn.execute(f"""
                     CREATE TABLE IF NOT EXISTS {self.table_name} (
                         id SERIAL PRIMARY KEY,
