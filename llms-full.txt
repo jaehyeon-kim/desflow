@@ -26534,20 +26534,20 @@ Each page here does one task, step by step, with code that you can run. To see w
 
 ## Generate Data
 
-| Task                                                                                                                | What you do                                                              |
-| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| [Send Data to a Sink](https://jaehyeon.me/desflow/latest/how-to/generate-data/send-data-to-a-sink/index.md)         | write generated orders to the console, Kafka, PostgreSQL or a file       |
-| [Realistic Fields](https://jaehyeon.me/desflow/latest/how-to/generate-data/realistic-fields/index.md)               | fill records with names, emails and cities, and draw a row of a CSV file |
-| [Choices and Numbers](https://jaehyeon.me/desflow/latest/how-to/generate-data/choices-and-numbers/index.md)         | pick values with set odds and draw numbers from a range or a bell curve  |
-| [Timestamps and Gaps](https://jaehyeon.me/desflow/latest/how-to/generate-data/timestamps-and-gaps/index.md)         | put times into records and make the gaps between records vary            |
-| [Stop After a Count](https://jaehyeon.me/desflow/latest/how-to/generate-data/stop-after-a-count/index.md)           | end a run after a set number of records                                  |
-| [Many Entities](https://jaehyeon.me/desflow/latest/how-to/generate-data/many-entities/index.md)                     | start many entities from one arrival, each with its own key and values   |
-| [Build on the Last Value](https://jaehyeon.me/desflow/latest/how-to/generate-data/build-on-the-last-value/index.md) | make each value depend on the one before it                              |
-| [Skewed Keys](https://jaehyeon.me/desflow/latest/how-to/generate-data/skewed-keys/index.md)                         | make a few keys carry most of the records                                |
-| [Change State Over Time](https://jaehyeon.me/desflow/latest/how-to/generate-data/change-state-over-time/index.md)   | write a state machine as tasks                                           |
-| [Look Up Other Records](https://jaehyeon.me/desflow/latest/how-to/generate-data/look-up-other-records/index.md)     | join records as they are made                                            |
-| [Join Across Sinks](https://jaehyeon.me/desflow/latest/how-to/generate-data/join-across-sinks/index.md)             | write the ids of one kind of record to one sink and use them in another  |
-| [Change the Schema](https://jaehyeon.me/desflow/latest/how-to/generate-data/change-the-schema/index.md)             | add, rename and retype a field at known times                            |
+| Task                                                                                                                | What you do                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| [Send Data to a Sink](https://jaehyeon.me/desflow/latest/how-to/generate-data/send-data-to-a-sink/index.md)         | write generated orders to the console, Kafka, PostgreSQL or a file                                                   |
+| [Extend Payloads](https://jaehyeon.me/desflow/latest/how-to/generate-data/realistic-fields/index.md)                | fill a payload with names, emails and cities that look real, and keep related fields together with one row of a file |
+| [Choices and Numbers](https://jaehyeon.me/desflow/latest/how-to/generate-data/choices-and-numbers/index.md)         | pick values with set odds and draw numbers from a range or a bell curve                                              |
+| [Timestamps and Gaps](https://jaehyeon.me/desflow/latest/how-to/generate-data/timestamps-and-gaps/index.md)         | put times into records and make the gaps between records vary                                                        |
+| [Stop After a Count](https://jaehyeon.me/desflow/latest/how-to/generate-data/stop-after-a-count/index.md)           | end a run after a set number of records                                                                              |
+| [Many Entities](https://jaehyeon.me/desflow/latest/how-to/generate-data/many-entities/index.md)                     | start many entities from one arrival, each with its own key and values                                               |
+| [Build on the Last Value](https://jaehyeon.me/desflow/latest/how-to/generate-data/build-on-the-last-value/index.md) | make each value depend on the one before it                                                                          |
+| [Skewed Keys](https://jaehyeon.me/desflow/latest/how-to/generate-data/skewed-keys/index.md)                         | make a few keys carry most of the records                                                                            |
+| [Change State Over Time](https://jaehyeon.me/desflow/latest/how-to/generate-data/change-state-over-time/index.md)   | write a state machine as tasks                                                                                       |
+| [Look Up Other Records](https://jaehyeon.me/desflow/latest/how-to/generate-data/look-up-other-records/index.md)     | join records as they are made                                                                                        |
+| [Join Across Sinks](https://jaehyeon.me/desflow/latest/how-to/generate-data/join-across-sinks/index.md)             | write the ids of one kind of record to one sink and use them in another                                              |
+| [Change the Schema](https://jaehyeon.me/desflow/latest/how-to/generate-data/change-the-schema/index.md)             | add, rename and retype a field at known times                                                                        |
 
 ## Other Groups
 
@@ -31587,9 +31587,9 @@ if __name__ == "__main__":
     run(SINKS[os.environ.get("SINK", "console")])
 ```
 
-# Realistic Fields
+# Extend Payloads
 
-Fill records with names, emails, cities and jobs that look real, and keep a product's sku, title and price together by drawing one row of a CSV file.
+Extend a payload beyond plain numbers: fill fields with values that look real, such as names, emails, cities and jobs, and keep the fields that belong together consistent, such as a product's sku, title and price.
 
 ______________________________________________________________________
 
@@ -31603,6 +31603,8 @@ ______________________________________________________________________
   ```
 
 - [First Simulation](https://jaehyeon.me/desflow/latest/learn/first-model/first-simulation/index.md) explains arrivals, tasks and the records a run writes.
+
+- [Generate the Payload](https://jaehyeon.me/desflow/latest/how-to/generate-data/send-data-to-a-sink/#generate-the-payload) explains how a payload maps each field to a generator, and the rest of that page shows how to write the records to Kafka, PostgreSQL or a file. This page writes them to the console.
 
 - Install the Faker library: `pip install "desflow[fake]"`.
 
@@ -31633,7 +31635,7 @@ signups_gap.stream = "arrival.signups"
 
 ### Draw Names and Places
 
-A `fake` field calls one method of the [Faker](https://faker.readthedocs.io/en/master/providers.html) library by name: `name`, `email`, `city` and `job` here. `locale: de_DE` draws a field in the German locale, so `german_city` is a German town. A Faker method that reads today's date, such as `date_of_birth`, would change the records from day to day, so this model uses none.
+A `fake` field calls one method of the [Faker](https://faker.readthedocs.io/en/master/providers.html) library by name: `name`, `email`, `city` and `job` here. Any other method of Faker's providers works the same way, such as `phone_number` or `company`. `locale: de_DE` draws a field in the German locale, so `german_city` is a German town. A Faker method that reads today's date, such as `date_of_birth`, would change the records from day to day, so this model uses none.
 
 ```yaml
 tasks:
@@ -31724,9 +31726,9 @@ env.process(signups_source())
 
 Each `fake` field has a Faker of its own, seeded from the random sequence named by the field's place with `#fake` added. The Low-level file builds one Faker for each field in the same way, and a fixed seed gives the same names every run.
 
-### Keep a Product Together
+### Keep Related Fields Together
 
-[`row`](https://jaehyeon.me/desflow/latest/generators/related-records/row/index.md) draws one row of a CSV file, so the sku, the title and the price always belong to the same product. `weight: popularity` draws the rows in proportion to the popularity column, so the notebook, with 12 of the 30 points in the file, is the favourite of 12 customers in 30.
+[`row`](https://jaehyeon.me/desflow/latest/generators/related-records/row/index.md) draws one row of a CSV or Parquet file, so the fields of one row always arrive together. Here each row is a product, so the sku, the title and the price always belong to the same product. `weight: popularity` draws the rows in proportion to the popularity column, so the notebook, with 12 of the 30 points in the file, is the favourite of 12 customers in 30 on average.
 
 ```text
 sku,title,price,popularity
@@ -31776,7 +31778,7 @@ ______________________________________________________________________
 Full files
 
 ```yaml
-# Realistic fields: names, emails and places from Faker, and products from a CSV file.
+# Extend payloads: Faker names, emails and places, and products from a CSV file.
 #
 # A customer signs up about every 2 seconds. Their name, email, city and job come
 # from Faker, one `fake` generator for each field, and `german_city` is a city drawn
@@ -31824,7 +31826,7 @@ P-104,Headphones,89.00,2
 ```
 
 ```python
-"""Realistic fields: names, emails and places from Faker, and products from a CSV file.
+"""Extend payloads: Faker names, emails and places, and products from a CSV file.
 
 The builder version of `realistic_fields.yaml`: a customer signs up about every 2
 seconds, with fields from Faker and a product from a CSV file.
@@ -31882,7 +31884,7 @@ if __name__ == "__main__":
 ```
 
 ```python
-"""Realistic fields: names, emails and places from Faker, and products from a CSV file.
+"""Extend payloads: Faker names, emails and places, and products from a CSV file.
 
 The low-level version of `realistic_fields.yaml`: plain SimPy on a
 `DynamicRealtimeEnvironment`, which publishes each record with `publish_event`. Each
@@ -46456,7 +46458,7 @@ Options:
 
 The desflow skill gives an AI coding assistant the rules of the library, so that it writes, checks, tests and runs desflow models instead of guessing them.
 
-It is one of the ways desflow makes a simulation quicker to build. A [YAML blueprint](https://jaehyeon.me/desflow/latest/user-guide/writing-a-model/blueprints/index.md) describes a whole model with no Python. The skill lets an assistant write that blueprint for you and check it. [From history to simulation](https://jaehyeon.me/desflow/latest/about/roadmap/#from-history-to-simulation), planned after 1.0, starts a model from an event log.
+It is one of the ways desflow makes a simulation quicker to build. A [YAML blueprint](https://jaehyeon.me/desflow/latest/user-guide/writing-a-model/blueprints/index.md) describes a whole model with no Python. The skill lets an assistant write that blueprint for you and check it. [Models from history](https://jaehyeon.me/desflow/latest/about/roadmap/#easier-to-create-simulations), planned after 1.0, start a model from an event log.
 
 The skill is a folder, `skills/desflow/`, in the Agent Skills format that Claude Code and other assistants read. An assistant that supports the format loads the skill when a request mentions desflow, a blueprint, a test of a simulation model, or a SimPy model that streams records. The folder is generated from the code, so it lists what the release has.
 
@@ -95770,7 +95772,7 @@ I use desflow in my own projects, such as the demos in [benchtop](https://github
 
 # Roadmap
 
-Releases come in the order shown, without dates: a release ships when it is ready. Each item links to its GitHub issue.
+The items planned after 1.0 have no versions or dates yet: a release ships when it is ready. Each released item links to its GitHub issue.
 
 ## What 1.0 means
 
@@ -95778,62 +95780,32 @@ From 1.0, the YAML blueprint format, the `desflow` command, the public Python AP
 
 ## After 1.0
 
-### From history to simulation
+The work after 1.0 has four aims, and each item below serves one of them.
 
-- **Model discovery:** a model discovered from an event log.
-- **Comparison with the log:** a run compared with the log.
-- **A model kept current:** the model updated from new logs.
+### Easier to Create Simulations
 
-### Simulation model
+- **Models from history:** a model discovered from an event log, calibrated against observed data, compared with that log, and updated from new logs.
+- **Payloads from your data:** record fields generated from a schema or a few sample records, with the real field names, types and value ranges.
 
-- **Maintenance, schedules and incidents:** planned maintenance, schedules that repeat by time of day, and incidents that change several parameters at once. 0.22.0 ships random breakdowns with repair and finite schedules, and 1.0 ships a failure clock that runs only while a resource works (`clock: busy`).
-- **More flow and resource features:** matching and splitting, setup times, and resources chosen by skill. 1.0 ships batching.
-- **Costs and continuous flow:** costs and energy per resource state, and levels that rise and fall continuously.
-- **Transport on maps:** vehicles that move between locations on real roads and publish their positions.
-- **Data-driven inputs:** arrivals replayed from a database, or taken live from a Kafka topic.
-- **Models read from a store:** a value that a model reads from a store during a run, such as the trained model of a recommender, with a key of its own. In 1.0 this is a `!python` function, as [Call Python from YAML](https://jaehyeon.me/desflow/latest/how-to/tools/yaml-advanced/index.md) shows.
-- **Decisions from outside:** a dispatcher or an agent answers for one order or session, and a run can repeat exactly from a log of those answers.
-
-### Analysis
-
-- **Experiments:** experiment designs, optimisation, and calibration against observed data.
-- **Fitting and comparison:** distribution fitting from more data sources, automatic fault-impact experiments, and fuller run comparison and fidelity scoring.
-
-### Simulation server
-
-The server ships after 1.0, as 1.x releases installed with the `server` extra.
-
-- **Server API and MCP tools:** `desflow serve` runs simulations through a REST API: upload, start, stop, change parameters during a run and follow its events. MCP tools, which let an AI agent do the same, are experimental. ([#48](https://github.com/jaehyeon-kim/desflow/issues/48))
-- **Browser UI:** the same from a browser, including each simulation's graph from `desflow explain`. ([#49](https://github.com/jaehyeon-kim/desflow/issues/49))
-- **Schedules:** run simulations on cron schedules. ([#50](https://github.com/jaehyeon-kim/desflow/issues/50))
-- **Server image and odctl profile:** a published image and an [odctl](https://github.com/jaehyeon-kim/odctl) profile run the server locally with nothing installed on the host. ([#52](https://github.com/jaehyeon-kim/desflow/issues/52))
-- **Visualisation:** a graph image from `desflow explain`, animation of a running or recorded simulation, and a map view.
-- **Distributed runs:** workers on several machines.
-
-### Writing simulations
-
-- **Payloads from your data:** record fields generated from a schema or a few sample records, so the records have the real field names, types and value ranges.
-- **Visual builder.**
-- **Conversion:** turn a YAML blueprint into builder code, and builder code into YAML with no Python, with an error that names each part that cannot be converted and how to rewrite it.
-
-### Connectors
-
-- **More sinks:** a webhook sink, a generic SQL sink and more.
-- **Error sink:** records a sink could not write go to another sink instead of being lost, and a run can fail when too many do.
-- **Delivery faults:** records delivered late, twice, damaged or not at all, to test how a pipeline handles them.
-- **Lineage:** each run reported to OpenLineage and OpenMetadata.
-
-### Integrations
+### Easier to Access desflow
 
 - **Orchestrators:** Airflow, Dagster and similar tools.
-- **AI assistants:** the Claude Code plugin and its marketplace.
-- **Testing tools:** a pytest plugin and a GitHub Action.
-- **Query engines and streaming databases.**
-- **Data quality and evaluation tools.**
+- **AI assistants:** the desflow skill for Claude Code, Codex and other tools that read the Agent Skills format.
 
-### Platform
+### Easier to Manage Simulations
 
-- **More speed:** cheaper record publishing, which takes about 40 percent of a run's time, with the same published records ([#69](https://github.com/jaehyeon-kim/desflow/issues/69)), and a faster runtime for YAML-only blueprints if measurements show the need.
+- **Simulation server:** run, change and follow simulations through an API, a browser UI and schedules, with a published image and an odctl profile.
+- **Experiments:** experiment designs, optimisation, and comparison and scoring of runs.
+- **Lineage:** each run reported to OpenLineage and OpenMetadata.
+- **Faster runs:** cheaper record publishing, with the same published records.
+
+### More Realism
+
+- **Process features:** planned maintenance, schedules by time of day, incidents, matching and splitting, setup times, resources chosen by skill, costs and energy, and continuous levels.
+- **Transport on maps:** vehicles that move between locations on real roads.
+- **Real inputs:** arrivals replayed from a database or a Kafka topic, a trained model read from a store during a run, and decisions from an outside dispatcher or agent.
+- **Sinks:** more sinks, such as a webhook and a generic SQL sink, and an error sink for records a sink could not write.
+- **Delivery faults:** records delivered late, twice, damaged or not at all.
 
 ## Released
 
