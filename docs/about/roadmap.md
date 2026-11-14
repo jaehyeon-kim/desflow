@@ -1,6 +1,6 @@
 # Roadmap
 
-Releases come in the order shown, without dates: a release ships when it is ready. Each item links to its GitHub issue.
+The items planned after 1.0 have no versions or dates yet: a release ships when it is ready. Each released item links to its GitHub issue.
 
 ## What 1.0 means
 
@@ -8,62 +8,32 @@ From 1.0, the YAML blueprint format, the `desflow` command, the public Python AP
 
 ## After 1.0
 
-### From history to simulation
+The work after 1.0 has four aims, and each item below serves one of them.
 
-- **Model discovery:** a model discovered from an event log.
-- **Comparison with the log:** a run compared with the log.
-- **A model kept current:** the model updated from new logs.
+### Easier to Create Simulations
 
-### Simulation model
+- **Models from history:** a model discovered from an event log, calibrated against observed data, compared with that log, and updated from new logs.
+- **Payloads from your data:** record fields generated from a schema or a few sample records, with the real field names, types and value ranges.
 
-- **Maintenance, schedules and incidents:** planned maintenance, schedules that repeat by time of day, and incidents that change several parameters at once. 0.22.0 ships random breakdowns with repair and finite schedules, and 1.0 ships a failure clock that runs only while a resource works (`clock: busy`).
-- **More flow and resource features:** matching and splitting, setup times, and resources chosen by skill. 1.0 ships batching.
-- **Costs and continuous flow:** costs and energy per resource state, and levels that rise and fall continuously.
-- **Transport on maps:** vehicles that move between locations on real roads and publish their positions.
-- **Data-driven inputs:** arrivals replayed from a database, or taken live from a Kafka topic.
-- **Models read from a store:** a value that a model reads from a store during a run, such as the trained model of a recommender, with a key of its own. In 1.0 this is a `!python` function, as [Call Python from YAML](../how-to/tools/yaml-advanced.md) shows.
-- **Decisions from outside:** a dispatcher or an agent answers for one order or session, and a run can repeat exactly from a log of those answers.
-
-### Analysis
-
-- **Experiments:** experiment designs, optimisation, and calibration against observed data.
-- **Fitting and comparison:** distribution fitting from more data sources, automatic fault-impact experiments, and fuller run comparison and fidelity scoring.
-
-### Simulation server
-
-The server ships after 1.0, as 1.x releases installed with the `server` extra.
-
-- **Server API and MCP tools:** `desflow serve` runs simulations through a REST API: upload, start, stop, change parameters during a run and follow its events. MCP tools, which let an AI agent do the same, are experimental. ([#48](https://github.com/jaehyeon-kim/desflow/issues/48))
-- **Browser UI:** the same from a browser, including each simulation's graph from `desflow explain`. ([#49](https://github.com/jaehyeon-kim/desflow/issues/49))
-- **Schedules:** run simulations on cron schedules. ([#50](https://github.com/jaehyeon-kim/desflow/issues/50))
-- **Server image and odctl profile:** a published image and an [odctl](https://github.com/jaehyeon-kim/odctl) profile run the server locally with nothing installed on the host. ([#52](https://github.com/jaehyeon-kim/desflow/issues/52))
-- **Visualisation:** a graph image from `desflow explain`, animation of a running or recorded simulation, and a map view.
-- **Distributed runs:** workers on several machines.
-
-### Writing simulations
-
-- **Payloads from your data:** record fields generated from a schema or a few sample records, so the records have the real field names, types and value ranges.
-- **Visual builder.**
-- **Conversion:** turn a YAML blueprint into builder code, and builder code into YAML with no Python, with an error that names each part that cannot be converted and how to rewrite it.
-
-### Connectors
-
-- **More sinks:** a webhook sink, a generic SQL sink and more.
-- **Error sink:** records a sink could not write go to another sink instead of being lost, and a run can fail when too many do.
-- **Delivery faults:** records delivered late, twice, damaged or not at all, to test how a pipeline handles them.
-- **Lineage:** each run reported to OpenLineage and OpenMetadata.
-
-### Integrations
+### Easier to Access desflow
 
 - **Orchestrators:** Airflow, Dagster and similar tools.
-- **AI assistants:** the Claude Code plugin and its marketplace.
-- **Testing tools:** a pytest plugin and a GitHub Action.
-- **Query engines and streaming databases.**
-- **Data quality and evaluation tools.**
+- **AI assistants:** the desflow skill for Claude Code, Codex and other tools that read the Agent Skills format.
 
-### Platform
+### Easier to Manage Simulations
 
-- **More speed:** cheaper record publishing, which takes about 40 percent of a run's time, with the same published records ([#69](https://github.com/jaehyeon-kim/desflow/issues/69)), and a faster runtime for YAML-only blueprints if measurements show the need.
+- **Simulation server:** run, change and follow simulations through an API, a browser UI and schedules, with a published image and an odctl profile.
+- **Experiments:** experiment designs, optimisation, and comparison and scoring of runs.
+- **Lineage:** each run reported to OpenLineage and OpenMetadata.
+- **Faster runs:** cheaper record publishing, with the same published records.
+
+### More Realism
+
+- **Process features:** planned maintenance, schedules by time of day, incidents, matching and splitting, setup times, resources chosen by skill, costs and energy, and continuous levels.
+- **Transport on maps:** vehicles that move between locations on real roads.
+- **Real inputs:** arrivals replayed from a database or a Kafka topic, a trained model read from a store during a run, and decisions from an outside dispatcher or agent.
+- **Sinks:** more sinks, such as a webhook and a generic SQL sink, and an error sink for records a sink could not write.
+- **Delivery faults:** records delivered late, twice, damaged or not at all.
 
 ## Released
 

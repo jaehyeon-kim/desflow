@@ -2,7 +2,7 @@
 
 The desflow skill gives an AI coding assistant the rules of the library, so that it writes, checks, tests and runs desflow models instead of guessing them.
 
-It is one of the ways desflow makes a simulation quicker to build. A [YAML blueprint](../user-guide/writing-a-model/blueprints.md) describes a whole model with no Python. The skill lets an assistant write that blueprint for you and check it. [From history to simulation](../about/roadmap.md#from-history-to-simulation), planned after 1.0, starts a model from an event log.
+It is one of the ways desflow makes a simulation quicker to build. A [YAML blueprint](../user-guide/writing-a-model/blueprints.md) describes a whole model with no Python. The skill lets an assistant write that blueprint for you and check it. [Models from history](../about/roadmap.md#easier-to-create-simulations), planned after 1.0, start a model from an event log.
 
 The skill is a folder, `skills/desflow/`, in the Agent Skills format that Claude Code and other assistants read. An assistant that supports the format loads the skill when a request mentions desflow, a blueprint, a test of a simulation model, or a SimPy model that streams records. The folder is generated from the code, so it lists what the release has.
 
