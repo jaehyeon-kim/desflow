@@ -140,12 +140,14 @@ _before_any_entry: Dict[str, ModuleType] = {}
 # takes them off `sys.path` and its modules out of `sys.modules`, so it finds only its
 # own folder's modules and the installed packages, as it does when loaded alone.
 _added_folders: Set[str] = set()
-# The entry `read_document` put on `sys.path` for each folder it added, as that very
-# string object. A caller that puts the same folder on `sys.path` itself adds an equal
+# The entries `read_document` put on `sys.path` for each folder it added, as those very
+# string objects. A caller that puts the same folder on `sys.path` itself adds an equal
 # string that is another object, and something else, such as pytest's `monkeypatch`,
-# may take the loader's entry off. Only the loader's own entry is hidden from the next
-# file, so the caller's stays.
-_added_entries: Dict[str, str] = {}
+# may take the loader's entry off. Only the loader's own entries are hidden from the
+# next file, so the caller's stays. A folder can have more than one: a load hides the
+# first while a file it includes adds the folder again, and the first comes back when
+# that load ends.
+_added_entries: Dict[str, List[str]] = {}
 _INSTALLED_PARTS = ("site-packages", "dist-packages")
 _OWN_PACKAGES = ("desflow", "desflow_entry_")
 
@@ -763,7 +765,7 @@ def _without_added_folders(keep: str) -> Iterator[None]:
     hidden = [
         (index, entry)
         for index, entry in enumerate(sys.path)
-        if entry != keep and _added_entries.get(entry) is entry
+        if entry != keep and any(own is entry for own in _added_entries.get(entry, ()))
     ]
     places = {index for index, _entry in hidden}
     sys.path[:] = [entry for index, entry in enumerate(sys.path) if index not in places]
@@ -816,7 +818,7 @@ def read_document(
         return _parse_document(path, including, at, variables)
     if folder not in sys.path:
         _added_folders.add(folder)
-        _added_entries[folder] = folder
+        _added_entries.setdefault(folder, []).append(folder)
         sys.path.insert(0, folder)
     else:
         # The entry moves to the front as the same object, so an entry the loader
