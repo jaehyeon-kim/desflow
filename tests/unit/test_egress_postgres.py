@@ -107,6 +107,50 @@ def test_a_route_to_a_sink_still_starting_is_not_warned_about(caplog):
     PostgresEgress._writers.difference_update({sink, products})
 
 
+def test_a_misspelt_route_seen_only_while_a_sink_starts_is_warned_about_later(caplog):
+    """A name that no sink writes, routed only while another sink is still starting,
+    is kept and reported once that sink has read its schema, as `_init_pool` does
+    after reading it."""
+    sink = PostgresEgress("postgresql://u:p@localhost/db", table_name="cdc.users")
+    products = PostgresEgress(
+        "postgresql://u:p@localhost/db", table_name="cdc.products"
+    )
+    sink.table_schema = sink.bare_schema = "cdc"
+    sink._resolved = True
+    PostgresEgress._writers.update({sink, products})
+    record = {"stream_type": "event", "key": "k", "value": {"__table__": "cdc.prodcts"}}
+
+    assert sink._rows([record]) == []
+    assert not [r for r in caplog.records if "skips records" in r.message]
+
+    products.table_schema = products.bare_schema = "cdc"
+    products._resolved = True
+    for writer in list(PostgresEgress._writers):
+        writer._check_unrouted()
+    warnings = [r.message for r in caplog.records if "skips records" in r.message]
+    assert len(warnings) == 1 and "'cdc.prodcts'" in warnings[0]
+    PostgresEgress._writers.difference_update({sink, products})
+
+
+@pytest.mark.asyncio
+async def test_a_sink_run_again_reads_its_schemas_again_before_others_trust_them():
+    """A sink that ran before keeps the schemas of that run until it connects again,
+    and the database may resolve its table differently now, so it counts as starting
+    from the moment it is registered."""
+    sink = PostgresEgress("postgresql://u:p@localhost/db", table_name="orders")
+    sink._resolved = True  # as after an earlier run
+    seen = []
+
+    async def connect(*args, **kwargs):
+        seen.append((sink in PostgresEgress._writers, sink._resolved))
+        raise RuntimeError("stop")
+
+    with patch("desflow.connectors.egress.postgres.connect_with_retry", connect):
+        with pytest.raises(RuntimeError):
+            await sink.run(queue.Queue())
+    assert seen == [(True, False)]
+
+
 @pytest.mark.asyncio
 @patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
 async def test_a_table_route_is_resolved_through_the_search_path(

@@ -286,16 +286,20 @@ class PostgresEgress(BaseEgress):
         # Whether `table_schema` and `bare_schema` are read from the database yet
         self._resolved = False
         self._unrouted_warned: set[str] = set()
+        # Names that no table of this sink matched while another sink was starting
+        self._unrouted_pending: set[str] = set()
 
     def _warn_unrouted(self, target: str) -> None:
         """Warns once that no running PostgresEgress writes the table a record names.
 
         A sink that has not connected yet does not know its schema, so the check waits
         until every running sink has read it, and a record of a table that a sink
-        still starting writes is not reported."""
+        still starting writes is not reported. Until then the name is kept, and
+        `_check_unrouted` checks it when the last sink has read its schema."""
         if target in self._unrouted_warned:
             return
         if not all(w._resolved for w in self._writers):
+            self._unrouted_pending.add(target)
             return
         self._unrouted_warned.add(target)
         if not any(w._writes(target) for w in self._writers):
@@ -303,6 +307,15 @@ class PostgresEgress(BaseEgress):
                 f"PostgresEgress skips records whose __table__ is {target!r}: no "
                 f"running PostgresEgress writes a table of that name."
             )
+
+    def _check_unrouted(self) -> None:
+        """Checks the names kept while a sink was starting, once every sink has read
+        its schema."""
+        if not all(w._resolved for w in self._writers):
+            return
+        pending, self._unrouted_pending = self._unrouted_pending, set()
+        for target in sorted(pending):
+            self._warn_unrouted(target)
 
     def _writes(self, target: str) -> bool:
         """
@@ -361,6 +374,8 @@ class PostgresEgress(BaseEgress):
                     or self.bare_schema
                 )
                 self._resolved = True
+                for writer in list(PostgresEgress._writers):
+                    writer._check_unrouted()
                 # The one table the statements reach: PostgreSQL folds the name's case
                 # and resolves it through `search_path` here as it does in them
                 try:
@@ -565,6 +580,9 @@ class PostgresEgress(BaseEgress):
             asyncpg.PostgresError: If the server refuses a setting, such as the
                 password or a table definition.
         """
+        # Schemas read in an earlier run may have changed, so other sinks wait for
+        # this one to read them again
+        self._resolved = False
         PostgresEgress._writers.add(self)
         try:
             await connect_with_retry(

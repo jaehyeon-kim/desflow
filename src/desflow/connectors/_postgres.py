@@ -2,6 +2,8 @@
 
 from typing import Any, Optional
 
+import asyncpg
+
 _ASCII_LOWER = {
     ord(letter): ord(letter.lower()) for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 }
@@ -44,7 +46,9 @@ async def ensure_schema(conn: Any, name: str) -> None:
 
     `CREATE SCHEMA IF NOT EXISTS` checks the database privilege first, so the schema
     is looked up before it is created: a role that may only use an existing schema is
-    not asked to create it. A name with no schema needs nothing.
+    not asked to create it. A name with no schema needs nothing. When another
+    writer creates the schema between the lookup and the create, the create's error is
+    ignored, because the schema then exists.
 
     Args:
         conn: An asyncpg connection.
@@ -56,4 +60,10 @@ async def ensure_schema(conn: Any, name: str) -> None:
     schema = fold(name.rpartition(".")[0])
     known = await conn.fetchval("SELECT 1 FROM pg_namespace WHERE nspname = $1", schema)
     if not known:
-        await conn.execute(schema_sql)
+        try:
+            await conn.execute(schema_sql)
+        except (
+            asyncpg.exceptions.DuplicateSchemaError,
+            asyncpg.exceptions.UniqueViolationError,
+        ):
+            pass

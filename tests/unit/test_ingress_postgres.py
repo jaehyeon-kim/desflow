@@ -152,6 +152,40 @@ async def test_postgres_ingress_creates_the_schema_of_its_table(
         assert statements.index(expected) < created
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [asyncpg.exceptions.DuplicateSchemaError, asyncpg.exceptions.UniqueViolationError],
+)
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_a_schema_another_writer_creates_first_does_not_stop_the_ingress(
+    mock_create_pool, mock_pool, error
+):
+    """Two writers that start together can both find the schema missing. The one
+    whose create comes second gets an error, and the ingress goes on to its table,
+    because the schema exists then."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetchval.return_value = None
+    conn.fetch.return_value = []
+
+    async def execute(sql, *args):
+        if str(sql).startswith("CREATE SCHEMA"):
+            raise error("schema already exists")
+
+    conn.execute.side_effect = execute
+    ingress = PostgresIngress("postgresql://u:p@localhost/db", "dashboard.params")
+
+    await _run_briefly(ingress, queue.Queue())
+
+    statements = [" ".join(str(c.args[0]).split()) for c in conn.execute.call_args_list]
+    assert statements[0] == "CREATE SCHEMA IF NOT EXISTS dashboard"
+    assert statements[1].startswith("CREATE TABLE IF NOT EXISTS dashboard.params (")
+
+
 async def _run_briefly(ingress, ingress_queue):
     task = asyncio.create_task(ingress.run(ingress_queue))
     await asyncio.sleep(0.15)
