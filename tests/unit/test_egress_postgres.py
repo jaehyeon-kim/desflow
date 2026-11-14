@@ -133,6 +133,36 @@ def test_a_misspelt_route_seen_only_while_a_sink_starts_is_warned_about_later(ca
 
 
 @pytest.mark.asyncio
+async def test_a_kept_route_is_warned_about_when_the_sink_still_starting_ends(caplog):
+    """A name kept while another sink was starting is reported when that sink ends
+    before it has read its schema, because the sinks left have all read theirs."""
+    sink = PostgresEgress("postgresql://u:p@localhost/db", table_name="cdc.users")
+    products = PostgresEgress(
+        "postgresql://u:p@localhost/db", table_name="cdc.products"
+    )
+    sink.table_schema = sink.bare_schema = "cdc"
+    sink._resolved = True
+    PostgresEgress._writers.add(sink)
+
+    async def connect(*args, **kwargs):
+        record = {
+            "stream_type": "event",
+            "key": "k",
+            "value": {"__table__": "cdc.prodcts"},
+        }
+        assert sink._rows([record]) == []
+        assert not [r for r in caplog.records if "skips records" in r.message]
+        raise RuntimeError("stop")
+
+    with patch("desflow.connectors.egress.postgres.connect_with_retry", connect):
+        with pytest.raises(RuntimeError):
+            await products.run(queue.Queue())
+    warnings = [r.message for r in caplog.records if "skips records" in r.message]
+    assert len(warnings) == 1 and "'cdc.prodcts'" in warnings[0]
+    PostgresEgress._writers.discard(sink)
+
+
+@pytest.mark.asyncio
 async def test_a_sink_run_again_reads_its_schemas_again_before_others_trust_them():
     """A sink that ran before keeps the schemas of that run until it connects again,
     and the database may resolve its table differently now, so it counts as starting

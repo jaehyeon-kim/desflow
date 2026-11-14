@@ -594,6 +594,10 @@ class PostgresEgress(BaseEgress):
             await self._write_forever(egress_queue)
         finally:
             PostgresEgress._writers.discard(self)
+            # A sink that ends before it read its schema no longer holds back the
+            # names the other sinks kept
+            for writer in list(PostgresEgress._writers):
+                writer._check_unrouted()
             await self._close_pool()
 
     async def _close_pool(self) -> None:
