@@ -45,9 +45,6 @@ jobs:
         id: plan
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
-          # A release branch into main runs no test job (scripts/ci_plan.py)
-          CI_BASE_REF: ${{ github.base_ref }}
-          CI_HEAD_REF: ${{ github.head_ref }}
         # With pipefail, the step fails when ci_plan.py fails, not only when tee does
         shell: bash
         # The files the pull request changes against its base
