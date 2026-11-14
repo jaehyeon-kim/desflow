@@ -288,7 +288,8 @@ def warn_skipped(sink: Any, skipped: Counter, route_key: Optional[str] = None) -
         skipped (Counter): The records skipped, by reason: `no_route` for a record
             without its routing key, `no_key` for a record whose table has a key
             column it lacks or holds as null, `no_namespace` for a table name with no
-            namespace, and `not_mapping` for a value that is not a mapping, which is
+            namespace, `not_text` for a record whose routing key holds something other
+            than text, and `not_mapping` for a value that is not a mapping, which is
             warned about once per sink.
         route_key (Optional[str]): The routing key a `no_route` record lacks.
     """
@@ -297,6 +298,7 @@ def warn_skipped(sink: Any, skipped: Counter, route_key: Optional[str] = None) -
         "no_key": "had a null or missing key column of their table, which a rerun "
         "would insert again because a null key never matches",
         "no_namespace": "named a table with no namespace",
+        "not_text": f"had a {route_key} that is not text",
         "not_mapping": "had a value that is not a mapping, which this sink cannot "
         "write as a row",
     }
@@ -613,6 +615,43 @@ class BaseEgress:
     """
 
     envelope: bool = True
+    # Set by the environment when teardown begins and cleared when a run starts. A sink
+    # whose service is down drops its queued batches then, because each one would wait
+    # for the service in turn and be lost anyway.
+    _ending: bool = False
+
+    def _drop_backlog(
+        self, egress_queue: queue.Queue, name: str, service_unavailable: bool
+    ) -> bool:
+        """Drops every queued batch after a failed write if the service is down at teardown.
+
+        A write that the service refused for that batch alone, while the service is up,
+        drops nothing more than itself: the other batches can still be written.
+
+        Args:
+            egress_queue: The queue the sink reads.
+            name: The sink's name for the log line.
+            service_unavailable: Whether the error means the service cannot be
+                reached, not that it refused this batch.
+
+        Returns:
+            bool: True when teardown has begun, the service is unavailable and the queue
+                was emptied; the batch that failed counts as lost too. False means the
+                sink waits and goes on as it does while the run is going.
+        """
+        if not (self._ending and service_unavailable):
+            return False
+        lost = 1
+        while True:
+            try:
+                egress_queue.get_nowait()
+            except queue.Empty:
+                break
+            lost += 1
+        logger.warning(
+            "%s could not write at teardown, so %d batches were dropped.", name, lost
+        )
+        return True
 
     def _load_libraries(self) -> None:
         """Imports the libraries the provider writes with, before the run starts.

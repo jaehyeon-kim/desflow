@@ -12,6 +12,12 @@ def test_checked_poll_refuses_what_is_not_a_positive_finite_number(poll):
         checked_poll(poll, "poll")
 
 
+def test_checked_poll_names_the_setting_for_an_integer_too_large_for_a_float():
+    """`math.isfinite` raises OverflowError for `10**400`; the refusal names the setting."""
+    with pytest.raises(ValueError, match="poll_interval is a number of seconds"):
+        checked_poll(10**400, "poll_interval")
+
+
 @pytest.mark.parametrize("poll", [1, 0.01])
 def test_checked_poll_returns_the_seconds_as_a_float(poll):
     """A whole or a fractional number of seconds is accepted and returned as a float."""

@@ -142,7 +142,7 @@ On the command line, the same is `--candidates empirical --bins 10`. An empirica
 
 ## Check the Result
 
-Each form fits the gaps and runs the shop for an hour with the fitted arrivals. In that one run, one packer packs 1,302 orders in every form, because each uses the same seed, 42. The scripts read `order_log.csv` from their own folder, so run them in a clone of the repository:
+Each form fits the gaps and runs the shop for an hour with the fitted arrivals. In that one run, one packer packs 1,335 orders in every form, because each uses the same seed, 42. The scripts read `order_log.csv` from their own folder, so run them in a clone of the repository:
 
 ```bash
 # The scripts and the order log are in docs/snippets/guides/ of the repository
@@ -160,7 +160,7 @@ cd desflow/docs/snippets/guides
     ```
 
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.finished","value":1302}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.finished","value":1335}
     ```
 
     The timestamp is the wall-clock time of the run.
@@ -172,7 +172,7 @@ cd desflow/docs/snippets/guides
     ```
 
     ```text
-    orders packed in an hour: 1302
+    orders packed in an hour: 1335
     ```
 
     The script prints the table of candidates before this line, and writes `gaps.csv` into the folder.
@@ -184,7 +184,7 @@ cd desflow/docs/snippets/guides
     ```
 
     ```text
-    orders packed in an hour: 1302
+    orders packed in an hour: 1335
     ```
 
     The script prints the table of candidates before this line.

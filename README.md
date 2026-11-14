@@ -45,7 +45,7 @@ Install the core library with uv or pip.
 With uv:
 
 ```bash
-# The desflow command
+# desflow command
 uv tool install desflow
 
 # Or the library, in a uv project
@@ -83,7 +83,7 @@ Two cautions apply to the `fake` extra. A seeded `fake` field gives the same val
 This blueprint models the shop: one packer, an order about every 2 seconds and 1.5 seconds of packing, with every record printed to the terminal:
 
 ```yaml title="docs/snippets/yaml/first_shop.yaml"
-# The First Simulation tutorial: the shop as a blueprint.
+# First Simulation tutorial: the shop as a blueprint.
 # Run it with: desflow run first_shop.yaml
 simulation:
   sim_id: Shop
@@ -115,8 +115,8 @@ run: {until: 20}
 
 tests:
   # Run with: desflow test first_shop.yaml
-  - name: nine_orders_in_20_seconds
-    expect: {tasks.pack_order.finished: 9}
+  - name: seven_orders_in_20_seconds
+    expect: {tasks.pack_order.finished: 7}
 ```
 
 Save it as `first_shop.yaml` and run `desflow run first_shop.yaml`. [First Simulation](https://jaehyeon.me/desflow/latest/learn/first-model/first-simulation/) builds this model step by step, with the YAML, builder and low-level code side by side.

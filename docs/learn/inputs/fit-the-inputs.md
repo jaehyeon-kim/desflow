@@ -20,7 +20,7 @@ This page shows how to:
 This page runs `desflow fit`, or `fit_column` in Python, on the 40 packing times. It then uses the fitted settings in the busy hour of [Choosing Inputs](choosing-inputs.md), in place of the times themselves. Fitting needs the `fit` extra, which adds scipy and matplotlib:
 
 ```bash
-# The desflow command, with uv
+# desflow command, with uv
 uv tool install "desflow[fit]"
 
 # A Python file, with uv outside a project
@@ -172,9 +172,9 @@ Each tab prints the mean wait and half-width of the three rows below, in the ord
     ```
 
     ```text
-    tasks.pack_order.wait_mean    40         2.925              0.2494
-    tasks.pack_order.wait_mean    40          2.33              0.1932
-    tasks.pack_order.wait_mean    40         2.319              0.1951
+    tasks.pack_order.wait_mean    40         2.583              0.1278
+    tasks.pack_order.wait_mean    40          2.11              0.1004
+    tasks.pack_order.wait_mean    40           2.1              0.1004
     ```
 
     ```yaml title="docs/snippets/yaml/fitted/packing_times.yaml"
@@ -194,9 +194,9 @@ Each tab prints the mean wait and half-width of the three rows below, in the ord
     ```
 
     ```text
-    triangular: mean wait 2.93 ± 0.25 s
-    gamma: mean wait 2.33 ± 0.19 s
-    empirical: mean wait 2.32 ± 0.20 s
+    triangular: mean wait 2.58 ± 0.13 s
+    gamma: mean wait 2.11 ± 0.10 s
+    empirical: mean wait 2.10 ± 0.10 s
     ```
 
 === "Low-level"
@@ -206,24 +206,24 @@ Each tab prints the mean wait and half-width of the three rows below, in the ord
     ```
 
     ```text
-    triangular: mean wait 2.93 ± 0.25 s
-    gamma: mean wait 2.33 ± 0.19 s
-    empirical: mean wait 2.32 ± 0.20 s
+    triangular: mean wait 2.58 ± 0.13 s
+    gamma: mean wait 2.11 ± 0.10 s
+    empirical: mean wait 2.10 ± 0.10 s
     ```
 
 The table gives each distribution's mean packing time, and the [mean wait over the 40 replications](../concepts/output-analysis.md#busy-hour-figures) with its half-width:
 
 | Packing time | Mean packing time (s) | Mean wait over 40 replications (s) |
 |---|---|---|
-| triangular, the lowest AIC | 1.53 | 2.93 ± 0.25 |
-| gamma | 1.50 | 2.33 ± 0.19 |
-| the 40 times | 1.50 | 2.32 ± 0.20 |
+| triangular, the lowest AIC | 1.53 | 2.58 ± 0.13 |
+| gamma | 1.50 | 2.11 ± 0.10 |
+| the 40 times | 1.50 | 2.10 ± 0.10 |
 
 ---
 
 ## What You Get and Why
 
-Which supported distribution fits the 40 packing times? The `triangular` has the lowest AIC, but the `gamma` fits almost as well, 0.11 behind. By the guideline in [AIC and the KS Test](../concepts/a-simulation-study.md#aic-and-the-ks-test), a difference this small does not tell two fits apart. The choice does change the answer. Over 40 replications after a 2-minute warm-up, with seeds spawned from 42, the triangular gives a mean wait of **2.93 ± 0.25 seconds**, and the gamma **2.33 ± 0.19**, which agrees with the 2.32 ± 0.20 of the 40 times. The gamma fits almost as well and gives the same answer as the measured times, so it is the better choice for this question.
+Which supported distribution fits the 40 packing times? The `triangular` has the lowest AIC, but the `gamma` fits almost as well, 0.11 behind. By the guideline in [AIC and the KS Test](../concepts/a-simulation-study.md#aic-and-the-ks-test), a difference this small does not tell two fits apart. The choice does change the answer. Over 40 replications after a 2-minute warm-up, with seeds spawned from 42, the triangular gives a mean wait of **2.58 ± 0.13 seconds**, and the gamma **2.11 ± 0.10**, which agrees with the 2.10 ± 0.10 of the 40 times. The gamma fits almost as well and gives the same answer as the measured times, so it is the better choice for this question.
 
 The first file the page loads holds the triangular only because `desflow fit` writes the candidate with the lowest AIC. An AIC difference this small does not make it the better fit. `--candidates gamma` fits only the gamma (spaces around a name are ignored, and an unknown name is refused with the name quoted), and `PACKING_FIT` makes the blueprint include its file:
 
@@ -248,7 +248,7 @@ scale: 0.15694
 
 In Python, `result.settings("gamma")` gives the same settings, as the Builder and Low-level scripts in [Full Files](#full-files) show.
 
-The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the data's 1.50. The gamma keeps the data's mean exactly: shape × scale = 9.558 × 0.157 = 1.50. With the packers busy 90% of the time, 2% more packing raises utilisation to about 0.92, and the packers' spare time falls from 10% to about 8%, a fifth less. The wait depends on the spare time, as [Waits Near Full Use](../concepts/queueing-basics.md#waits-near-full-use) shows, so it grows far more than 2%: 2.93 seconds against 2.33. [Common Mistakes](../concepts/common-mistakes.md#choosing-a-normal-or-uniform-by-habit) lists the choice of a family by habit, and [Input Fitting](../../user-guide/model-parts/input-fitting.md) describes every option and outcome.
+The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the data's 1.50. The gamma keeps the data's mean exactly: shape × scale = 9.558 × 0.157 = 1.50. With the packers busy 90% of the time, 2% more packing raises utilisation to about 0.92, and the packers' spare time falls from 10% to about 8%, a fifth less. The wait depends on the spare time, as [Waits Near Full Use](../concepts/queueing-basics.md#waits-near-full-use) shows, so it grows far more than 2%: 2.58 seconds against 2.11. [Common Mistakes](../concepts/common-mistakes.md#choosing-a-normal-or-uniform-by-habit) lists the choice of a family by habit, and [Input Fitting](../../user-guide/model-parts/input-fitting.md) describes every option and outcome.
 
 ## Key Takeaways
 

@@ -52,7 +52,11 @@ class RedisEgress(BaseEgress):
         The main execution loop that consumes the egress queue and publishes to Redis.
 
         This method maintains a connection to Redis and uses pipeline (`XADD`)
-        commands to insert batches of data efficiently.
+        commands to insert batches of data efficiently. A `__stream__` that is not
+        text is warned about and ignored. A `TypeError` from redis-py, which refuses
+        a keyword setting such as a misspelt `socket_timeout` when it makes the
+        connection, ends the task, because no wait fixes it. Any other error is
+        logged and the sink goes on with the next batch.
 
         Args:
             egress_queue: A thread-safe queue containing lists of dictionaries
@@ -63,6 +67,17 @@ class RedisEgress(BaseEgress):
             await self._write_forever(egress_queue)
         finally:
             await self._close_client()
+
+    def _warn_stream_field(self, chosen: Any) -> None:
+        """Warns once that `__stream__` held something other than a stream name."""
+        if not self.__dict__.get("_stream_field_warned"):
+            self._stream_field_warned = True
+            logger.warning(
+                "RedisEgress ignores __stream__ %r: it must be the name of a stream, "
+                "so the record goes to the stream %s.",
+                chosen,
+                self.stream_name,
+            )
 
     async def _close_client(self) -> None:
         """Closes the client and forgets it, so the next run makes its own in its own
@@ -75,6 +90,7 @@ class RedisEgress(BaseEgress):
         """Publishes the batches of the queue until the task is cancelled."""
         assert self.client is not None
         while True:
+            publishing = False
             try:
                 batch = egress_queue.get_nowait()
                 if not batch:
@@ -96,11 +112,13 @@ class RedisEgress(BaseEgress):
                         value = item.get("value")
                         nested = value if isinstance(value, dict) else {}
                         # A null or empty `__stream__` is no route
-                        target = (
-                            nested.get("__stream__")
-                            or item.get("__stream__")
-                            or self.stream_name
-                        )
+                        target = nested.get("__stream__") or item.get("__stream__")
+                        if target is not None and type(target) is not str:
+                            # redis-py refuses a name that is not text only when the
+                            # pipeline runs, which would lose the whole batch
+                            self._warn_stream_field(target)
+                            target = None
+                        target = target or self.stream_name
 
                         item_copy = item.copy()
                         item_copy.pop("__stream__", None)
@@ -133,11 +151,22 @@ class RedisEgress(BaseEgress):
                         count += 1
 
                     if count > 0:
+                        publishing = True
                         await pipe.execute()
                     logger.debug(f"Inserted {count} records into Redis Streams")
 
             except queue.Empty:
                 await asyncio.sleep(0.1)
             except Exception as e:
+                if publishing and isinstance(e, TypeError):
+                    # redis-py refused a keyword setting, such as a misspelt
+                    # `socket_timeout`, when it made the connection: no wait fixes it
+                    raise
                 logger.error(f"Error publishing batch to Redis: {e}")
-                await asyncio.sleep(1)
+                service_unavailable = isinstance(
+                    e, (OSError, redis.ConnectionError, redis.TimeoutError)
+                )
+                if not self._drop_backlog(
+                    egress_queue, "RedisEgress", service_unavailable
+                ):
+                    await asyncio.sleep(1)

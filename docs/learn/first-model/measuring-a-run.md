@@ -88,31 +88,31 @@ desflow run measuring_a_run.yaml 2>&1 | grep "\[TEL\] {'sim_ts': 3600.0"
 ```text
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.capacity', 'value': 3}
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.in_use', 'value': 3}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 8}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 0}
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization', 'value': 100.0}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg', 'value': 86.56336659179189}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length_avg', 'value': 2.405756864104584}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.in_progress', 'value': 11}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.finished', 'value': 6250}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 1.3816663590146558}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_max', 'value': 9.378296391499589}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.service_mean', 'value': 1.4953759999999972}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg', 'value': 89.98409865705875}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length_avg', 'value': 3.617867825881605}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.in_progress', 'value': 3}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.finished', 'value': 6488}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 2.0065204395584315}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_max', 'value': 11.938984807219526}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.service_mean', 'value': 1.4977034525277377}
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.service_max', 'value': 2.7000000000000455}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.finished', 'value': 6250}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.started', 'value': 6261}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.in_system', 'value': 11}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.finished', 'value': 6488}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.started', 'value': 6491}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.in_system', 'value': 3}
 ```
 
 The statistics mean:
 
-- `utilization_avg` 86.56: the packers were busy 86.56% of the time. The utilisation statistics are percentages, while `desflow explain` and `--verify` give utilisation as a fraction, 0.9 for 90%.
+- `utilization_avg` 89.98: the packers were busy 89.98% of the time. The utilisation statistics are percentages, while `desflow explain` and `--verify` give utilisation as a fraction, 0.9 for 90%.
 - `utilization` 100.0: all three packers were busy at the end.
 - `tasks.pack_order.finished`: the orders the task finished.
 - `flows.orders.finished`: the orders that left the shop. The flow is named after the arrival that started them, `orders`. With one task the two counts are equal.
-- `flows.orders.started`: the orders that entered the shop, 6,261.
-- `flows.orders.in_system`: the 11 orders still in the shop when the hour ended. `tasks.pack_order.in_progress` gives the same 11.
+- `flows.orders.started`: the orders that entered the shop, 6,491.
+- `flows.orders.in_system`: the 3 orders still in the shop when the hour ended. `tasks.pack_order.in_progress` gives the same 3.
 
-The names use the spelling `utilization`, and the text uses "utilisation" for the same thing. The mean wait is 1.38 seconds, over the orders that started packing in [this one run with the seed 42](../concepts/output-analysis.md#busy-hour-figures). [End Conditions](end-conditions.md) shows what a run leaves out when it ends.
+The names use the spelling `utilization`, and the text uses "utilisation" for the same thing. The mean wait is 2.01 seconds, over the orders that started packing in [this one run with the seed 42](../concepts/output-analysis.md#busy-hour-figures). [End Conditions](end-conditions.md) shows what a run leaves out when it ends.
 
 ---
 
@@ -124,9 +124,9 @@ The statistics are of two kinds. A **count**, such as `finished`, adds one for e
 
 desflow adds the area every time the value changes, so the average is exact at any moment. A reading taken now and then, such as every 10 seconds, sees only the value at that instant. The queue in the first five minutes of the hour shows the difference:
 
-![The number of orders waiting over the first five minutes, between 0 and 10; readings every 10 seconds average 2.60, while the time-weighted average is 2.19](../../assets/charts/measuring-queue.png)
+![The number of orders waiting over the first five minutes, between 0 and 10; readings every 10 seconds average 2.33, while the time-weighted average is 2.30](../../assets/charts/measuring-queue.png)
 
-The queue rises and falls many times between two readings, and a handful of readings can land on high points by chance. Here the readings average 2.60 orders, while the average over time for the same five minutes is 2.19 orders.
+The queue rises and falls many times between two readings, and a handful of readings can land on high points by chance. Here the readings average 2.33 orders and the average over time for the same five minutes is 2.30 orders. They are close in this run, but the readings only estimate the average, while the average over time is exact.
 
 ---
 
@@ -137,7 +137,7 @@ The time each order spends in the shop has two parts, both measured from the tas
 - **wait** runs from `queued` to `started`: the time spent waiting for a packer;
 - **service** runs from `started` to the finished event: the time spent being packed.
 
-`service_mean` is 1.50 seconds and `service_max` is 2.7 seconds. The 40 measured times have the same mean and the same longest time, so the model draws what it was given. `wait_max` is 9.38 seconds: one order waited almost seven times as long as the average one.
+`service_mean` is 1.50 seconds and `service_max` is 2.7 seconds. The 40 measured times have the same mean and the same longest time, so the model draws what it was given. `wait_max` is 11.94 seconds: one order waited almost six times as long as the average one.
 
 ---
 
@@ -145,12 +145,12 @@ The time each order spends in the shop has two parts, both measured from the tas
 
 What does a run tell me? One run of the busy hour, with the seed 42, the measured packing times and no warm-up, tells you that:
 
-- the packers were busy **86.6%** of the time on average;
-- the queue held **2.41** orders on average;
-- an order waited **1.38 seconds** on average and **9.38 seconds** at most;
-- **6,250** orders were packed.
+- the packers were busy **90.0%** of the time on average;
+- the queue held **3.62** orders on average;
+- an order waited **2.01 seconds** on average and **11.94 seconds** at most;
+- **6,488** orders were packed.
 
-The numbers check each other. [Little's Law](../concepts/queueing-basics.md#littles-law) says that the average number waiting equals the rate at which orders arrive times the average time each waits. 6,250 orders in 3,600 seconds is 1.74 a second, and 1.74 × 1.38 = 2.40, which matches `queue_length_avg`, 2.41. The [utilisation](../concepts/queueing-basics.md#utilisation) checks the same way: 1.74 orders a second × 1.50 seconds ÷ 3 packers = 0.87. A set of statistics that fails a check like this one points to a mistake in the model or in how it is read, as [Checking and Validating](../concepts/checking-and-validating.md#check-the-statistics-against-each-other) explains.
+The numbers check each other. [Little's Law](../concepts/queueing-basics.md#littles-law) says that the average number waiting equals the rate at which orders arrive times the average time each waits. 6,488 orders in 3,600 seconds is 1.80 a second, and 1.80 × 2.01 = 3.62, which matches `queue_length_avg`, 3.62. The [utilisation](../concepts/queueing-basics.md#utilisation) checks the same way: 1.80 orders a second × 1.50 seconds ÷ 3 packers = 0.90. A set of statistics that fails a check like this one points to a mistake in the model or in how it is read, as [Checking and Validating](../concepts/checking-and-validating.md#check-the-statistics-against-each-other) explains.
 
 [Statistics](../../user-guide/results/statistics.md) describes how each one is computed, and the [Statistics reference](../../reference/statistics.md) lists every name each level publishes.
 

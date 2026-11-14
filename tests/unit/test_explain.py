@@ -436,6 +436,26 @@ def test_a_hand_written_arrival_loop_and_a_process_are_opaque():
     )
 
 
+@pytest.mark.parametrize("name", ["pack", "process.pack"])
+def test_a_task_named_like_a_process_is_not_read_as_one(name):
+    app = (
+        SimulationContext(sim_id="Shop", factor=0, random_seed=1)
+        .add_resource("packers", current_cap=2, max_cap=4)
+        .add_service("packing", dist="exponential", rate=1.0)
+        .add_arrival("orders", dist="exponential", rate=0.5, spawn=name)
+    )
+
+    @app.task(
+        service_id="packing", resource_id="packers", name=name, next=lambda up: None
+    )
+    def pack(task_id, context):
+        return {"event_type": "packed"}
+
+    explanation = app.analyze()
+    assert explanation.arrivals[0].rate == 0.5
+    assert explanation.arrivals[0].reason is None
+
+
 def test_a_process_makes_the_resources_unsupported():
     app = _shop()
 
@@ -1185,3 +1205,39 @@ def test_computed_times_and_arrivals_leave_the_formulas_out(tmp_path):
     reasons = {a.name: a.reason for a in result.arrivals}
     assert reasons["gapped"].startswith("computed gaps")
     assert reasons["limited"].startswith("count, keys, key or max_events")
+
+
+def test_a_deep_graph_prints_every_task_at_width_80(tmp_path):
+    """Rich drops the nodes that no longer fit beside the indent of a deep tree."""
+    from desflow.explain.render import render_terminal
+
+    count = 30
+    tasks = "".join(
+        f"  t{i}: {{payload: {{}}"
+        + (f", next: t{i + 1}" if i < count - 1 else "")
+        + "}\n"
+        for i in range(count)
+    )
+    path = tmp_path / "chain.yaml"
+    path.write_text(
+        "simulation: {sim_id: Chain, factor: 0, random_seed: 1}\n"
+        "arrivals:\n  a: {dist: constant, value: 1, spawn: t0}\n"
+        f"tasks:\n{tasks}run: {{until: 50}}\n"
+    )
+    text = render_terminal(SimulationContext.from_yaml(path).analyze(), width=80)
+    for i in range(count):
+        assert f"-> t{i} (task" in text or f"t{i} (task" in text
+
+
+def test_the_depth_of_a_deep_tree_is_counted_without_recursion():
+    """A chain of 800 levels is below the depth `_branch` handles and above the one a
+    recursive count with a generator at each level survives."""
+    from rich.tree import Tree
+
+    from desflow.explain.render import _depth
+
+    tree = Tree("root")
+    last = tree
+    for level in range(800):
+        last = last.add(str(level))
+    assert _depth(tree) == 800

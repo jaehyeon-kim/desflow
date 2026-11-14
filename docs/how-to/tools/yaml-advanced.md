@@ -209,9 +209,9 @@ python call_python_low_level.py
 Each prints one JSON record for each visit, ten in all, and the three forms print the same `features` and `shown`. The first three are:
 
 ```text
-{"stream_type":"event","sim_ts":0.1,"timestamp":"2026-11-08T22:36:15.282+00:00","key":"visits-1","task":"recommend","instance":0,"value":{"features":[0.301,0.572,0.827],"shown":["p2","p3","p4"]}}
-{"stream_type":"event","sim_ts":0.2,"timestamp":"2026-11-08T22:36:15.382+00:00","key":"visits-2","task":"recommend","instance":1,"value":{"features":[0.919,0.624,0.385],"shown":["p1","p2","p4"]}}
-{"stream_type":"event","sim_ts":0.30000000000000004,"timestamp":"2026-11-08T22:36:15.482+00:00","key":"visits-3","task":"recommend","instance":2,"value":{"features":[0.787,0.673,0.882],"shown":["p1","p2","p4"]}}
+{"stream_type":"event","sim_ts":0.1,"timestamp":"2026-11-08T22:36:15.282+00:00","key":"visits-1","task":"recommend","instance":0,"value":{"features":[0.6,0.288,0.277],"shown":["p1","p2","p4"]}}
+{"stream_type":"event","sim_ts":0.2,"timestamp":"2026-11-08T22:36:15.382+00:00","key":"visits-2","task":"recommend","instance":1,"value":{"features":[0.107,0.018,0.831],"shown":["p3","p4","p5"]}}
+{"stream_type":"event","sim_ts":0.30000000000000004,"timestamp":"2026-11-08T22:36:15.482+00:00","key":"visits-3","task":"recommend","instance":2,"value":{"features":[0.722,0.727,0.319],"shown":["p2","p1","p4"]}}
 ```
 
 The `timestamp` of a record is the clock time of the run, so it differs from run to run. In the first visit, `p4` ranks third although it has no model: its score is only the bonus for not being known. When the models change in Valkey, the next visit ranks with the new models.

@@ -43,7 +43,7 @@ The same model can be either, because the choice depends on the question and on 
 
 ### In the Tutorial
 
-Trusting Results plots the busy hour from its start. The mean wait so far climbs from 0.46 seconds to about 1.5 seconds in the first two minutes, because the first orders found free packers. After that it moves up and down with no trend.
+The mean wait so far of the busy hour climbs in the first minute, because the first orders found free packers. That first climb is the start-up that a warm-up covers. The mean then rises in steps until about eight minutes, after which it moves up and down with no trend, and the warm-up chosen below of 2 minutes does not cover that rise. The comparison shows that leaving out the first four minutes, half of the rise, changes the mean little. [Trusting Results](../studies/trusting-results.md#compare-warm-ups) has the plot and the numbers.
 
 ![One run from an empty shop: a warm-up (left out of the statistics), then the measured period, then the end of the run at until](../../assets/diagrams/run-phases.png)
 
@@ -58,7 +58,7 @@ Choose the warm-up from evidence, not from habit, in two steps:
 1. Plot a running statistic from the start of the run, such as the queue length or the mean wait so far, and note when it stops climbing. Law's paper shows a plot made with Welch's method for this, in which the warm-up is the time after which the average has levelled off, and advises choosing it conservatively.
 2. Compare a few candidate warm-ups. Run the same replications after each, and check whether a longer warm-up moves the mean by more than its [half-width](#interval-and-half-width). A candidate passes when it does not.
 
-Then keep the shortest candidate that passes the comparison and covers the climb in the plot. Set it on the run:
+Then keep the shortest candidate that passes the comparison and covers the first climb in the plot with a margin, as Law advises. Set it on the run:
 
 === "YAML"
 
@@ -87,7 +87,7 @@ The warm-up resets every statistic once at that time, as [Run Length](../../user
 
 ### What the Result Means
 
-[Trusting Results](../studies/trusting-results.md#compare-warm-ups) compares warm-ups of 1, 2 and 4 minutes over five seeds. The longer ones move the mean by 0.011 and 0.036 seconds, far less than the half-width of 0.47 seconds, so all pass, and 2 minutes covers the climb. In the run with the seed 42, the warm-up changes the mean wait only from 1.382 to 1.381 seconds: an hour is long enough that its first minutes hardly count. A shorter run, or one that starts far from the usual state, needs the warm-up much more. A warm-up is not a fix for a model that never settles: if [utilisation](queueing-basics.md#utilisation) is 1 or more, there is no steady state for a warm-up to find.
+[Trusting Results](../studies/trusting-results.md#compare-warm-ups) compares warm-ups of 1, 2 and 4 minutes over five seeds, and none shows a visible change in the mean. The first climb ends at about a minute, and 2 minutes covers it with a minute to spare. The running mean goes on rising in steps after two minutes. Leaving out up to 4 minutes moves the mean by at most 0.005 seconds, so leaving out half of that rise changes the estimate little. The comparison does not test a warm-up that covers all of the rise, so it does not show whether the rise is part of the start-up. In the run with the seed 42, the warm-up changes the mean wait only from 2.007 to 2.050 seconds: an hour is long enough that its first minutes hardly count. A shorter run, or one that starts far from the usual state, needs the warm-up much more. A warm-up is not a fix for a model that never settles: if [utilisation](queueing-basics.md#utilisation) is 1 or more, there is no steady state for a warm-up to find.
 
 ---
 
@@ -95,7 +95,7 @@ The warm-up resets every statistic once at that time, as [Run Length](../../user
 
 ### In the Tutorial
 
-In the busy hour, with the measured packing times and a 2-minute warm-up, 40 replications give a mean wait of 2.32 ± 0.20 seconds: the mean of the 40 values, with the half-width of its 95% interval. The mean waits of the 40 replications range from 1.45 to 4.39 seconds. The [one run with the seed 42](#busy-hour-figures) measured 1.38 seconds, lower than any of them.
+In the busy hour, with the measured packing times and a 2-minute warm-up, 40 replications give a mean wait of 2.10 ± 0.10 seconds: the mean of the 40 values, with the half-width of its 95% interval. The mean waits of the 40 replications range from 1.52 to 3.05 seconds. The [one run with the seed 42](#busy-hour-figures) measured 2.01 seconds, inside that range and close to the mean of the 40.
 
 ![Four runs, each with its own stream, combine into one mean wait with a 95% interval](../../assets/diagrams/replication-interval.png)
 
@@ -150,7 +150,7 @@ A **replication** is a run of the same model with its own random stream. It give
 
 ### What the Result Means
 
-One run would have given a confident and wrong answer: 1.38 seconds, against 2.32 ± 0.20 over 40 replications. The [interval](#interval-and-half-width) says how precise the estimate is.
+One run gives a single value with no interval: 2.01 seconds here, close to the 2.10 ± 0.10 of 40 replications, although the 40 values range from 1.52 to 3.05 seconds, so another seed could have given an answer far from it. The [interval](#interval-and-half-width) says how precise the estimate is.
 
 ---
 
@@ -158,7 +158,7 @@ One run would have given a confident and wrong answer: 1.38 seconds, against 2.3
 
 ### In the Tutorial
 
-Over 40 replications of the busy hour, the mean wait is 2.32 ± 0.20 seconds. The interval runs from 2.12 to 2.52 seconds, and 0.20 seconds is its **half-width**.
+Over 40 replications of the busy hour, the mean wait is 2.10 ± 0.10 seconds. The interval runs from 2.00 to 2.20 seconds, and 0.10 seconds is its **half-width**.
 
 ### Why It Matters
 
@@ -174,7 +174,7 @@ Every replication command prints the mean and the half-width of each measure. `-
 
 ### What the Result Means
 
-Over many studies, about 95% of the intervals built this way contain the true mean. A 90% interval from the same 40 runs is narrower, ± 0.16 seconds, but misses the true mean more often: 1 study in 10 instead of 1 in 20.
+Over many studies, about 95% of the intervals built this way contain the true mean. A 90% interval from the same 40 runs is narrower, ± 0.08 seconds, but misses the true mean more often: 1 study in 10 instead of 1 in 20.
 
 ---
 
@@ -182,7 +182,7 @@ Over many studies, about 95% of the intervals built this way contain the true me
 
 ### In the Tutorial
 
-Trusting Results asks for a half-width within 10% of the mean. Utilisation meets it with 5 replications. The mean wait first meets it at 40: its half-width is 21.2% of the mean after 5 replications, 11.0% after 10, 13.0% after 20 and 8.4% after 40.
+Trusting Results asks for a half-width within 10% of the mean. Utilisation meets it with 5 replications. The mean wait first meets it at 20: its half-width is 21.4% of the mean after 5 replications, 14.0% after 10, 7.1% after 20 and 4.8% after 40.
 
 ### Why It Matters
 
@@ -190,11 +190,11 @@ There is no fixed number that is enough, such as 30. Waits vary far more from ru
 
 ### How to Use It
 
-Decide the precision each output needs, then run until the least precise output has it. The half-width shrinks with √n, so a half-width k times smaller needs about k² times as many replications. A first set of a few replications suggests how many are needed: 10 replications gave 11.0%, so 10% needs about 10 × (11.0 ÷ 10)² ≈ 12.
+Decide the precision each output needs, then run until the least precise output has it. The half-width shrinks with √n, so a half-width k times smaller needs about k² times as many replications. A first set of a few replications suggests how many are needed: 10 replications gave 14.0%, so 10% needs about 10 × (14.0 ÷ 10)² ≈ 20.
 
 ### What the Result Means
 
-That estimate is a guide, not a promise: 20 replications gave 13.0%, because the half-width of the first set is itself an estimate. Add replications, then read the half-width again. A longer run is the other way to gain precision. It reduces the effect of the start, but its mean is still one sample.
+That estimate is a guide, not a promise: the half-width of the first set is itself an estimate, so the number needed can differ (here 20 replications gave 7.1%). Add replications, then read the half-width again. A longer run is the other way to gain precision. It reduces the effect of the start, but its mean is still one sample.
 
 ---
 
@@ -202,7 +202,7 @@ That estimate is a guide, not a promise: 20 replications gave 13.0%, because the
 
 ### In the Tutorial
 
-In [End Conditions](../first-model/end-conditions.md), the fixed horizon ends at 3,600 seconds with 2,436 orders started, 2,398 finished and 38 in the shop. With a drain, the run ends at 3,656.4 seconds with all 2,436 finished.
+In [End Conditions](../first-model/end-conditions.md), the fixed horizon ends at 3,600 seconds with 2,561 orders started, 2,386 finished and 175 in the shop. With a drain, the run ends at 3,861.8 seconds with all 2,561 finished.
 
 ### Why It Matters
 
@@ -210,7 +210,7 @@ A mean is over some orders, and two runs of the same hour can cover different or
 
 ### How to Use It
 
-Report the counts beside the means. The warm-up adds a third group: orders that were in the shop when the warm-up ended. An order that started before the warm-up ended and finished after it counts as finished, and its whole wait counts in the wait and service times. It does not count as started. [Statistics](../../user-guide/results/statistics.md) has the table of which orders each count covers.
+Report the counts beside the means. The warm-up adds a third group: orders that were in the shop when the warm-up ended. An order that started before the warm-up ended and finished after it counts as finished, and it does not count as started. An order still queued when the warm-up ended adds its whole wait to the wait times, and an order in service adds its whole service time and no wait. [Statistics](../../user-guide/results/statistics.md) has the table of which orders each count covers.
 
 ### What the Result Means
 
@@ -222,7 +222,7 @@ Two means over different groups of orders are not comparable. A reader needs the
 
 ### In the Tutorial
 
-[Comparing Designs](../studies/comparing-designs.md) runs three packers and four with the same 20 seeds. A fourth packer cuts the busy hour's mean wait by 2.21 ± 0.31 seconds.
+[Comparing Designs](../studies/comparing-designs.md) runs three packers and four with the same 20 seeds. A fourth packer cuts the busy hour's mean wait by 1.89 ± 0.14 seconds.
 
 ### Why It Matters
 
@@ -266,7 +266,7 @@ An experiment pairs its designs by seed and reports the difference with its inte
 
 ### What the Result Means
 
-With the seeds spawned from 42, the mean wait of the 20 runs packing in 1.5 seconds is 0.69 seconds longer than that of the 20 runs packing in 1.45 seconds. The paired interval is ± 0.12 seconds and the unpaired one is ± 0.29 seconds, so pairing more than halves the interval here. [Common Mistakes](common-mistakes.md#comparing-designs-with-one-run-each) runs the same two designs with other seeds and without pairing, so its means differ from these.
+With the seeds spawned from 42, the mean wait of the 20 runs packing in 1.5 seconds is 0.56 seconds longer than that of the 20 runs packing in 1.45 seconds. The paired interval is ± 0.05 seconds and the unpaired one is ± 0.14 seconds, so pairing more than halves the interval here. [Common Mistakes](common-mistakes.md#comparing-designs-with-one-run-each) runs the same two designs with other seeds and without pairing, so its means differ from these.
 
 Pairing helps only when the designs use the random numbers in the same way. desflow gives each distribution a stream of its own, so adding a step to one design does not shift the numbers the shared steps draw. The comparison report lists any stream that only one design used, because draws from such a stream are not paired. Check that list before trusting a paired interval.
 
@@ -281,22 +281,22 @@ The tutorial pages and the concept pages run the busy hour with 3 packers in dif
 
 | Mean wait (s) | Pages | How it was run |
 |---|---|---|
-| 1.27 | [Queues and Capacity](../first-model/queues-and-capacity.md), [Choosing Inputs](../inputs/choosing-inputs.md), [Queueing Basics](queueing-basics.md), [Common Mistakes](common-mistakes.md) | one run, seed 42, constant packing, no warm-up |
-| 1.28 | [Choosing Inputs](../inputs/choosing-inputs.md), [Queueing Basics](queueing-basics.md) | one run, seed 42, the expert's triangular packing (1 to 2.25 s, mode 1.25), no warm-up |
-| 1.35 | [Choosing Inputs](../inputs/choosing-inputs.md), [Queueing Basics](queueing-basics.md), [Randomness and Seeds](../first-model/randomness-and-seeds.md) | one run, seed 42, measured times in a service named `empirical`, no warm-up |
-| 1.38 | [Measuring a Run](../first-model/measuring-a-run.md), [Trusting Results](../studies/trusting-results.md), [Output Analysis](output-analysis.md), [Randomness and Seeds](../first-model/randomness-and-seeds.md) | one run, seed 42, measured times in a service named `packing`, without a warm-up (1.382) or with a 2-minute warm-up (1.381) |
-| 2.37 | [Choosing Inputs](../inputs/choosing-inputs.md), [Queueing Basics](queueing-basics.md), [Common Mistakes](common-mistakes.md) | one run, seed 42, exponential packing, no warm-up |
-| 2.11 | [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) | 10 replications, constant packing, no warm-up |
-| 1.99 | [Common Mistakes](common-mistakes.md#comparing-designs-with-one-run-each) | 20 replications with seeds spawned from 1, constant packing, no warm-up |
-| 2.05 ± 0.13 | [Queueing Basics](queueing-basics.md#check-a-formula-against-the-shop) | 10 replications of 20,000 seconds, constant packing, the first 2,000 seconds left out |
-| 2.20 to 2.23 | [Trusting Results](../studies/trusting-results.md#compare-warm-ups) | 5 replications, measured times, warm-ups of 1, 2 and 4 minutes |
-| 2.25 ± 0.25 | [Trusting Results](../studies/trusting-results.md), [Checking a Model](../studies/checking-a-model.md) | 10 replications, measured times, 2-minute warm-up |
-| 2.48 ± 0.32 | [Trusting Results](../studies/trusting-results.md), [Comparing Designs](../studies/comparing-designs.md), [Parameter Sweeps](../studies/parameter-sweeps.md), [Checking a Model](../studies/checking-a-model.md), [Checking and Validating](checking-and-validating.md), [Queueing Basics](queueing-basics.md) | 20 replications, measured times, 2-minute warm-up |
-| 2.32 ± 0.20 | [Trusting Results](../studies/trusting-results.md), [Fitting the Inputs](../inputs/fit-the-inputs.md), [Comparing Designs](../studies/comparing-designs.md), [Output Analysis](output-analysis.md), [A Simulation Study](a-simulation-study.md) | 40 replications, measured times, 2-minute warm-up |
-| 2.33 ± 0.19 | [Fitting the Inputs](../inputs/fit-the-inputs.md) | 40 replications, the gamma fitted to the measured times, 2-minute warm-up |
-| 2.93 ± 0.25 | [Fitting the Inputs](../inputs/fit-the-inputs.md) | 40 replications, the triangular fitted to the measured times, 2-minute warm-up |
+| 1.88 | [Queues and Capacity](../first-model/queues-and-capacity.md), [Choosing Inputs](../inputs/choosing-inputs.md), [Queueing Basics](queueing-basics.md), [Common Mistakes](common-mistakes.md) | one run, seed 42, constant packing, no warm-up |
+| 1.95 | [Choosing Inputs](../inputs/choosing-inputs.md), [Queueing Basics](queueing-basics.md) | one run, seed 42, the expert's triangular packing (1 to 2.25 s, mode 1.25), no warm-up |
+| 1.81 | [Choosing Inputs](../inputs/choosing-inputs.md), [Queueing Basics](queueing-basics.md), [Randomness and Seeds](../first-model/randomness-and-seeds.md) | one run, seed 42, measured times in a service named `empirical`, no warm-up |
+| 2.01 | [Measuring a Run](../first-model/measuring-a-run.md), [Trusting Results](../studies/trusting-results.md), [Output Analysis](output-analysis.md), [Randomness and Seeds](../first-model/randomness-and-seeds.md) | one run, seed 42, measured times in a service named `packing`, without a warm-up (2.007) or with a 2-minute warm-up (2.050) |
+| 3.46 | [Choosing Inputs](../inputs/choosing-inputs.md), [Queueing Basics](queueing-basics.md), [Common Mistakes](common-mistakes.md) | one run, seed 42, exponential packing, no warm-up |
+| 1.93 | [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) | 10 replications, constant packing, no warm-up |
+| 1.98 | [Common Mistakes](common-mistakes.md#comparing-designs-with-one-run-each) | 20 replications with seeds spawned from 1, constant packing, no warm-up |
+| 2.06 ± 0.17 | [Queueing Basics](queueing-basics.md#check-a-formula-against-the-shop) | 10 replications of 20,000 seconds, constant packing, the first 2,000 seconds left out |
+| 2.005 to 2.010 | [Trusting Results](../studies/trusting-results.md#compare-warm-ups) | 5 replications, measured times, warm-ups of 1, 2 and 4 minutes |
+| 2.15 ± 0.30 | [Trusting Results](../studies/trusting-results.md), [Checking a Model](../studies/checking-a-model.md) | 10 replications, measured times, 2-minute warm-up |
+| 2.15 ± 0.15 | [Trusting Results](../studies/trusting-results.md), [Comparing Designs](../studies/comparing-designs.md), [Parameter Sweeps](../studies/parameter-sweeps.md), [Checking a Model](../studies/checking-a-model.md), [Checking and Validating](checking-and-validating.md), [Queueing Basics](queueing-basics.md) | 20 replications, measured times, 2-minute warm-up |
+| 2.10 ± 0.10 | [Trusting Results](../studies/trusting-results.md), [Fitting the Inputs](../inputs/fit-the-inputs.md), [Comparing Designs](../studies/comparing-designs.md), [Output Analysis](output-analysis.md), [A Simulation Study](a-simulation-study.md) | 40 replications, measured times, 2-minute warm-up |
+| 2.11 ± 0.10 | [Fitting the Inputs](../inputs/fit-the-inputs.md) | 40 replications, the gamma fitted to the measured times, 2-minute warm-up |
+| 2.58 ± 0.13 | [Fitting the Inputs](../inputs/fit-the-inputs.md) | 40 replications, the triangular fitted to the measured times, 2-minute warm-up |
 
-The 1.35 and 1.38 seconds come from the same measured times. The two services draw the times in a different order, because each distribution draws from a random number stream named after its registry path, `service.empirical` or `service.packing` ([Randomness and Seeds](../first-model/randomness-and-seeds.md#add-returns) explains the streams).
+The 1.81 and 2.01 seconds come from the same measured times. The two services draw the times in a different order, because each distribution draws from a random number stream named after its registry path, `service.empirical` or `service.packing` ([Randomness and Seeds](../first-model/randomness-and-seeds.md#add-returns) explains the streams).
 
 ---
 

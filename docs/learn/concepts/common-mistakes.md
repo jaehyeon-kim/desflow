@@ -58,7 +58,7 @@ A small model that answers the question is easier to check and to explain. A par
 
 ### In the Shop
 
-Packing takes 1.5 seconds on average and an order arrives every 2.0 seconds on average, so it is tempting to put those two numbers in as constants. With one packer, constant gaps and constant packing times, the mean wait over 10 [replications](output-analysis.md#replications) is 0.00 seconds. With exponential gaps of the same mean and the same packing time, it is 2.45 seconds over the same 10 replications.
+Packing takes 1.5 seconds on average and an order arrives every 2.0 seconds on average, so it is tempting to put those two numbers in as constants. With one packer, constant gaps and constant packing times, the mean wait over 10 [replications](output-analysis.md#replications) is 0.00 seconds. With exponential gaps of the same mean and the same packing time, it is 2.18 seconds over the same 10 replications.
 
 ### Why It Matters
 
@@ -70,7 +70,7 @@ Use the distribution you measured, not its mean. [Choosing Inputs](../inputs/cho
 
 ### What the Result Means
 
-A model whose waits are near zero while utilisation is high has probably lost its variation. In Choosing Inputs, the same mean packing time gives a mean wait from 1.27 seconds with constant times to 2.37 seconds with exponential ones.
+A model whose waits are near zero while utilisation is high has probably lost its variation. In Choosing Inputs, the same mean packing time gives a mean wait from 1.88 seconds with constant times to 3.46 seconds with exponential ones.
 
 ---
 
@@ -98,7 +98,7 @@ With no data, a triangular distribution of the least, most likely and greatest v
 
 ### In the Shop
 
-Run the busy hour with three packers, constant packing and no warm-up 10 times with different seeds. The mean wait of a run ranges from 1.52 seconds, 28% below the mean, to 2.75 seconds, 30% above it, and the mean of the 10 is 2.11 seconds.
+Run the busy hour with three packers, constant packing and no warm-up 10 times with different seeds. The mean wait of a run ranges from 1.50 seconds, 23% below the mean, to 2.37 seconds, 22% above it, and the mean of the 10 is 1.93 seconds.
 
 ### Why It Matters
 
@@ -118,7 +118,7 @@ The pages of this site give several figures for the busy hour's mean wait, becau
 
 ### In the Shop
 
-Take one packer and an order about every 1.58 seconds on average. With 1.5 seconds of packing, the packer is busy 1.5 ÷ 1.58 = 95% of the time. Forty runs of 30 minutes from an empty shop give a mean wait of 11.4 ± 2.1 seconds. The formula for the long-run wait of this shop (M/D/1) gives 14.25 seconds, above the whole interval.
+Take one packer and an order about every 1.58 seconds on average. With 1.5 seconds of packing, the packer is busy 1.5 ÷ 1.58 = 95% of the time. Forty runs of 30 minutes from an empty shop give a mean wait of 11.6 ± 1.8 seconds. The formula for the long-run wait of this shop (M/D/1) gives 14.25 seconds, above the whole interval.
 
 ### Why It Matters
 
@@ -130,7 +130,7 @@ For a steady-state question, leave out a warm-up and run long enough. [Output An
 
 ### What the Result Means
 
-Forty runs of 20,000 seconds that each leave out their first 4,000 seconds give 14.2 ± 1.3 seconds. The interval now contains 14.25 seconds, so the bias is gone. Terminating questions do not need a warm-up, because the empty start is part of the question.
+Forty runs of 20,000 seconds that each leave out their first 4,000 seconds give 13.3 ± 0.9 seconds. The interval now reaches 14.2 seconds, within 0.05 seconds of 14.25 seconds, so most of the bias is gone. Terminating questions do not need a warm-up, because the empty start is part of the question.
 
 ---
 
@@ -138,11 +138,11 @@ Forty runs of 20,000 seconds that each leave out their first 4,000 seconds give 
 
 ### In the Shop
 
-Packing in 1.45 seconds instead of 1.5 is a real improvement. Over 20 runs of each, with seeds spawned from 1 for the slower design and from 2 for the faster one, the mean wait is 1.99 seconds for the slower design and 1.51 seconds for the faster. Match the runs in order, first with first: in 4 of the 20 matches, the slower design's run had a mean wait at or below the faster design's run.
+Packing in 1.45 seconds instead of 1.5 is a real improvement. Over 20 runs of each, with seeds spawned from 1 for the slower design and from 2 for the faster one, the mean wait is 1.98 seconds for the slower design and 1.40 seconds for the faster. Match the runs in order, first with first: in 3 of the 20 matches, the slower design's run had a mean wait at or below the faster design's run.
 
 ### Why It Matters
 
-In those 4 matches, one run of each design would have said the change did not help. The difference between two single runs is mostly the difference between their random numbers.
+In those 3 matches, one run of each design would have said the change did not help. The difference between two single runs is mostly the difference between their random numbers.
 
 ### How to Use It
 
@@ -150,7 +150,7 @@ Compare designs with the same number of replications each and an interval on the
 
 ### What the Result Means
 
-These runs are not paired, so they are not the runs of the paired comparison in Output Analysis, which runs both designs with the seeds spawned from 42. With pairing, the interval of the difference there is ± 0.12 seconds against ± 0.29 seconds without it.
+These runs are not paired, so they are not the runs of the paired comparison in Output Analysis, which runs both designs with the seeds spawned from 42. With pairing, the interval of the difference there is ± 0.05 seconds against ± 0.14 seconds without it.
 
 ---
 

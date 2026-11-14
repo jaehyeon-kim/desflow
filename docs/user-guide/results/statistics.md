@@ -125,19 +125,19 @@ Every statistic is published as telemetry named `<sim_id>.stats.<kind>.<name>.<s
 ```text
 [TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.capacity', 'value': 2}
 [TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.in_use', 'value': 2}
-[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 6}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 1}
 [TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization', 'value': 100.0}
-[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg', 'value': 90.79208653095155}
-[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length_avg', 'value': 1.9083531344309013}
-[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.in_progress', 'value': 8}
-[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.finished', 'value': 70}
-[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 2.7959715976263215}
-[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_max', 'value': 11.22214686679115}
-[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.service_mean', 'value': 3.0335617388528364}
-[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.service_max', 'value': 6.357944038555676}
-[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.finished', 'value': 70}
-[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.started', 'value': 78}
-[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.in_system', 'value': 8}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg', 'value': 60.18894483201572}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length_avg', 'value': 0.2614487300647045}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.in_progress', 'value': 3}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.finished', 'value': 53}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 0.5197319258327968}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_max', 'value': 3.499903738251632}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.service_mean', 'value': 2.649184782997398}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.service_max', 'value': 7.591874747378057}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.finished', 'value': 53}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.started', 'value': 56}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.in_system', 'value': 3}
 ```
 
 The same values can be read by name, during or after the run:
@@ -169,7 +169,7 @@ When the statistics are read, every entity that has arrived belongs to one popul
 | rejected | refused to join a queue, as their `balk` held | `tasks.<task>.balked` |
 | abandoned | left a queue when their `patience` ran out, or ended by an interrupt under `on_interrupt: abandon` | `tasks.<task>.reneged`; an abandoned flow leaves `in_system` without adding to `finished` or `failed`, and `tasks.<task>.interrupted` counts the interrupts |
 | failed | ended in a failure that no `on_fail` handled | `flows.<arrival>.failed`; `tasks.<task>.failed` counts failed instances |
-| warm-up-crossing | started before the warm-up ended and ended after it | in `finished`, and in the wait and service times with their whole wait, but not in `started` |
+| warm-up-crossing | started before the warm-up ended and ended after it | in `finished` but not in `started`; an instance still queued at the end of the warm-up adds its whole wait, and one in service adds its whole service time and no wait; an instance that started before the warm-up ended, was preempted and resumes after it adds no wait for the time since the preemption, because its first wait belongs to the statistics that the reset replaced |
 
 An entity a task spawns ([Start a Flow Without Waiting](../tasks-and-processes/signals-and-waiting.md#start-a-flow-without-waiting)) counts as a flow of its own under the spawned task's name. So `flows.<task>.*` and `tasks.<task>.*` cover it as they cover any arrival's flow. The spawning entity's key is in `attr.parent`.
 

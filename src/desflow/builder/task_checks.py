@@ -26,7 +26,7 @@ from desflow.builder.flow import (
     Wait,
     article,
 )
-from desflow.utils import suggestion
+from desflow.utils import resource_held_twice, suggestion
 from desflow.core.families import SECTIONS, Reference
 from desflow.builder.task import TaskSpec
 from desflow.values.check import generators_in, task_value_places
@@ -326,6 +326,35 @@ def bare_name_problem(
     return None
 
 
+def resource_held_twice_warning(name: str, spec: TaskSpec) -> Optional[str]:
+    """The warning for a task that takes one resource in two ways, or None.
+
+    Args:
+        name: The task's name.
+        spec: The task's declarations.
+
+    Returns:
+        The message, which names the task and the resource, or None. A `seize` and an
+        `open` request of one resource are not reported.
+    """
+    seized = spec.seize.resource if spec.seize is not None else None
+    return resource_held_twice(
+        [] if seized is None or isinstance(seized, Reference) else [seized],
+        [
+            r
+            for r in (spec.wait.requests() if spec.wait else [])
+            if not isinstance(r, Reference)
+        ],
+        [
+            r
+            for r in (spec.open.requests() if spec.open else [])
+            if not isinstance(r, Reference)
+        ],
+        [r for r in spec.resources if not isinstance(r, Reference)],
+        f"task '{name}'",
+    )
+
+
 def check_acquisition_order(
     resources: Dict[str, List[str]],
     handoffs: Dict[str, Tuple[List[str], Any]],
@@ -415,6 +444,18 @@ class _OrderNotes:
             f"avoid it"
         )
 
+    def warn_held_again(self, task: str, resource: str) -> None:
+        """Warns once of a task that asks for a resource its flow still holds from a
+        `seize`."""
+        message = (
+            f"task '{task}' asks for resource '{resource}' while its flow still holds "
+            f"a unit of it from a seize, so it waits for a second unit, and with a "
+            f"capacity of one it waits for ever. Give the unit back with a release "
+            f"of '{resource}' first"
+        )
+        if message not in self.warnings:
+            self.warnings.append(message)
+
     def note(self, first: str, second: str, where: str) -> None:
         if (second, first) in self.before:
             self.warn(
@@ -503,6 +544,8 @@ def _note_seized_flows(notes: _OrderNotes, resources: Dict[str, List[str]]) -> N
                             second,
                             f"task '{task}' holding '{first}' from a seize",
                         )
+                    else:
+                        notes.warn_held_again(task, first)
             now = set(held)
             if holding.seize is not None and not isinstance(holding.seize, Reference):
                 now.add(holding.seize)

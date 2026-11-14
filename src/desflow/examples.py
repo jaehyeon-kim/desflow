@@ -5,6 +5,7 @@ of the installed release, such as `v0.17.0`, so an example always matches the co
 runs on. A development install has no tag and downloads from `main`.
 """
 
+import http.client
 import shlex
 import urllib.error
 import urllib.request
@@ -338,12 +339,17 @@ def _fetch(url: str) -> bytes:
 
 
 def _missing_hint(ref: str) -> str:
-    """What to try when a file is not at `ref`: the tag itself may not be published
-    yet, as for a version installed before its release, or the example was added
-    after that release."""
+    """What to try when a file is not at `ref` (a 404): the tag itself may not be
+    published yet, as for a version installed before its release, or the example was
+    added after that release. Any other answer of the tag check says it failed."""
     try:
         _fetch(TAG_URL.format(ref=ref))
-    except urllib.error.HTTPError:
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:
+            return (
+                f" The check that the tag {ref} is published failed with {exc.code}; "
+                f"a retry may work."
+            )
         return f" The tag {ref} of this version is not published yet; try --ref main."
     except urllib.error.URLError:
         pass
@@ -391,13 +397,22 @@ def download(
         try:
             contents.append((target, _fetch(url)))
         except urllib.error.HTTPError as exc:
-            # main has every example, so nothing else to try
-            hint = _missing_hint(ref) if ref != "main" else ""
+            if exc.code != 404:
+                # The service refused or failed; the file may be there
+                hint = " The service refused or failed; a retry may work."
+            else:
+                # main has every example, so nothing else to try
+                hint = _missing_hint(ref) if ref != "main" else ""
             raise RuntimeError(
                 f"could not download {url} ({exc.code}).{hint}"
             ) from None
         except urllib.error.URLError as exc:
             raise RuntimeError(f"could not reach {url}: {exc.reason}") from None
+        except (OSError, http.client.HTTPException) as exc:
+            # A read that times out or is cut off after the answer began
+            raise RuntimeError(
+                f"could not download {url}: {exc or type(exc).__name__}"
+            ) from None
     # A shared file another version downloaded is kept when it is unchanged, so
     # versions can share a folder; one that differs is refused like any other
     shared_targets = {target for _, target in shared}

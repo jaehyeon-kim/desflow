@@ -148,10 +148,10 @@ async def test_redis_ingress_connects_again_when_redis_never_confirms_the_subscr
     update_queue = queue.Queue()
     ingress = RedisIngress(url="redis://localhost:6379/0", poll_interval=0.05)
     pubsubs = []
-    silent_waits = []
+    asked = []
 
     async def never_confirms(timeout, **kwargs):
-        silent_waits.append(timeout)
+        asked.append(timeout)
         await asyncio.sleep(timeout)
         return None
 
@@ -179,7 +179,13 @@ async def test_redis_ingress_connects_again_when_redis_never_confirms_the_subscr
 
     assert update_queue.get_nowait() == ("a.b", 1)
     assert len(pubsubs) == 2
-    assert sum(silent_waits) <= 0.12
+    # No read asks for more than the poll interval, and the timeouts asked for add up to
+    # the limit. On Windows the loop clock moves in steps of about 16 ms, so a sleep can
+    # end early by the loop clock and the sum can pass the limit by one more read. A
+    # slow runner shortens the asks and never lengthens them, so no wall-clock time is
+    # measured
+    assert max(asked) <= 0.05
+    assert sum(asked) < 0.12 + 0.05
     assert "did not confirm the subscription" in caplog.text
 
 
@@ -190,6 +196,21 @@ async def test_redis_ingress_refuses_a_url_with_an_unknown_scheme_at_once(caplog
     ingress = RedisIngress(url="localhost:6379/0", poll_interval=0.01)
 
     with pytest.raises(ValueError, match="scheme"):
+        await asyncio.wait_for(ingress.run(queue.Queue()), timeout=5)
+
+    assert "Retrying" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_redis_ingress_refuses_a_setting_redis_py_refuses_at_once(caplog):
+    """A keyword redis-py does not take, such as a misspelt `socket_timeout`, raises a
+    `TypeError` when the connection is made. No wait fixes it, so the task ends with
+    it instead of retrying for ever."""
+    ingress = RedisIngress(
+        url="redis://localhost:6379/0", poll_interval=0.01, socket_timout=2
+    )
+
+    with pytest.raises(TypeError, match="socket_timout"):
         await asyncio.wait_for(ingress.run(queue.Queue()), timeout=5)
 
     assert "Retrying" not in caplog.text

@@ -8,6 +8,7 @@ check cannot read or change a run. `SimulationContext._check_tasks` calls it fro
 `task_checks`, which the blueprint loader calls too.
 """
 
+import ast
 import copy
 import logging
 import numbers
@@ -20,9 +21,11 @@ from typing import (
     Iterator,
     List,
     Mapping,
+    NamedTuple,
     Optional,
     Set,
     Tuple,
+    Union,
 )
 
 import simpy
@@ -31,7 +34,7 @@ from desflow.builder.arrivals import Arrivals
 from desflow.core.expressions import ANY_NAME, Expression, member_name
 from desflow.core.families import Families, Reference, member_path, split_path
 from desflow.builder.holders import Holders
-from desflow.core.registry import ParamRejected, SimulationRegistry
+from desflow.core.registry import ParamRejected, SimulationRegistry, check_value_type
 from desflow.builder.runs import EndSets
 from desflow.builder.scenario import walk_steps
 from desflow.builder.signals import Signals, timing_problem
@@ -54,14 +57,18 @@ from desflow.builder.task_checks import (
 )
 from desflow.builder.tasks import Tasks
 from desflow.models.params import DistributionConfig
-from desflow.utils import suggestion
+from desflow.utils import (
+    mixed_priorities,
+    suggestion,
+    written_priority_kind,
+)
 from desflow.values.check import (
     generators_in,
     lookup_cycle,
     task_value_places,
     task_value_problems,
 )
-from desflow.values.models import Gen
+from desflow.values.models import Gen, has_generator
 
 # Moved from builder/context.py, so it keeps the logger name a user's setup reads
 logger = logging.getLogger("desflow.builder.context")
@@ -106,6 +113,29 @@ def not_added(name: str, added: Iterable[str], how: str) -> str:
     return "which is not added" + (suggestion(name, added) or f"; add it with {how}")
 
 
+def _is_numbered_member(member: str, family: str, count: int) -> bool:
+    """Whether `member` is the name of one of the keys 0 to `count` - 1 of `family`,
+    such as `desk[3]`, read from the name so no name is built for each key.
+
+    Args:
+        member: The member's name.
+        family: The family's name.
+        count: How many members the family declares.
+    """
+    prefix = f"{family}["
+    if not (member.startswith(prefix) and member.endswith("]")):
+        return False
+    key = member[len(prefix) : -1]
+    # No more digits than a count can have, and no sign, space or leading 0
+    return (
+        key.isascii()
+        and key.isdigit()
+        and len(key) <= 18
+        and key == str(int(key))
+        and int(key) < count
+    )
+
+
 def _unmade_member(
     path: str,
     families: Families,
@@ -131,7 +161,7 @@ def _unmade_member(
         return None
     count = int(count)
     member = split_path(path[len(sim_id) + 1 :])[1]
-    if member in {member_name(family.name, key) for key in range(count)}:
+    if _is_numbered_member(member, family.name, count):
         return None
     if declared is None:
         made = "the family has no `members`"
@@ -348,6 +378,119 @@ def _holding(spec: TaskSpec) -> Holding:
     )
 
 
+class PriorityMix(NamedTuple):
+    """A priority resource or store whose written priorities cannot be compared.
+
+    Attributes:
+        location: Where the second priority is written: `("tasks", name)` or
+            `("stores", name, "items")`.
+        message: The refusal, naming the resource or store and both priorities.
+    """
+
+    location: Tuple[str, ...]
+    message: str
+
+
+def _fixed_key(target: Reference) -> Optional[Union[int, str]]:
+    """The key of a reference that always names one member, written as a number or as
+    quoted text; None when the key is read at run time or the reference takes the
+    `lowest` member."""
+    if target.key is None:
+        return None
+    try:
+        key = ast.literal_eval(target.key.strip())
+    except (ValueError, SyntaxError):
+        return None
+    return key if isinstance(key, (int, str)) else None
+
+
+def priority_mix(
+    specs: Mapping[str, TaskSpec], holders: Holders
+) -> Optional[PriorityMix]:
+    """Finds a priority resource or store that is given a number and a list, or a
+    list and a tuple, as priorities, because a queue cannot rank them together.
+
+    A priority that depends on a value read at run time is not known here; the
+    resource or store checks it when it is read.
+
+    Args:
+        specs: The model's tasks, by name.
+        holders: The model's resources and stores.
+
+    Returns:
+        PriorityMix: The first mix found, or None.
+    """
+    first: Dict[str, Tuple[Any, str]] = {}
+
+    def note(
+        queue: str, value: Any, location: Tuple[str, ...]
+    ) -> Optional[PriorityMix]:
+        kind = written_priority_kind(value)
+        if kind is None:
+            return None
+        shown = getattr(value, "text", value)
+        if queue not in first:
+            first[queue] = (shown, kind)
+        elif first[queue][1] != kind:
+            before, before_kind = first[queue]
+            return PriorityMix(
+                location, mixed_priorities(queue, before, before_kind, shown, kind)
+            )
+        return None
+
+    def names(target: Any) -> Iterable[Tuple[str, str]]:
+        """The declared name and the queue's name of each holder a target requests.
+        A reference with a fixed key gives each member its own queue."""
+        if not isinstance(target, Reference):
+            return [(target, target)]
+        key = _fixed_key(target)
+        return [
+            (name, name if key is None else member_name(name, key))
+            for name in target.names
+        ]
+
+    for name, items in holders.store_items.items():
+        if holders.store_priority.get(name):
+            for item in items:
+                if isinstance(item, (list, tuple)):
+                    found = note(f"store '{name}'", item[0], ("stores", name, "items"))
+                    if found is not None:
+                        return found
+    for task, spec in specs.items():
+        place = ("tasks", task)
+        requests: List[Tuple[Any, Any]] = [
+            (resource, None) for resource in spec.resources
+        ]
+        if spec.seize is not None:
+            requests.append((spec.seize.resource, spec.seize))
+        for group in (spec.wait, spec.open.wait if spec.open is not None else None):
+            for node in group.all_nodes if group else ():
+                if node.kind == "request":
+                    requests.append((node.target, node.options))
+        for resource, options in requests:
+            if options is not None and options.priority is not None:
+                value = options.priority
+            elif options is not None and options.mapping:
+                value = 0
+            else:
+                value = 0 if spec.priority is None else spec.priority
+            for name, queue in names(resource):
+                if (
+                    holders.resource_queues.get(name) == "priority"
+                    and name not in holders.resource_rank
+                ):
+                    found = note(f"resource '{queue}'", value, place)
+                    if found is not None:
+                        return found
+        if spec.put is not None and spec.put.store is not None:
+            for name, queue in names(spec.put.target):
+                if holders.store_priority.get(name):
+                    found = note(f"store '{queue}'", spec.put.priority, place)
+                    if found is not None:
+                        return found
+    return None
+
+
 class ModelChecks:
     """The checks of a model's declarations, made before the clock or any connector
     starts.
@@ -537,16 +680,21 @@ class ModelChecks:
             for source in fire_sources(actions):
                 if source in self._tasks.specs:
                     copied.add(source)
+        flow_waiters = {}
+        for name, spec in self._tasks.specs.items():
+            targets = frozenset(
+                node.target["task"]
+                for node in (spec.wait.branches.values() if spec.wait else ())
+                if node.kind == "running" and node.target["whole_flow"]
+            )
+            if targets:
+                flow_waiters[name] = targets
         return EndSets(
             tracked=frozenset(tracked),
             copied=frozenset(copied),
             ended=frozenset(tracked | copied | has_on),
-            whole_flow=frozenset(
-                node.target["task"]
-                for spec in self._tasks.specs.values()
-                for node in (spec.wait.branches.values() if spec.wait else ())
-                if node.kind == "running" and node.target["whole_flow"]
-            ),
+            whole_flow=frozenset().union(*flow_waiters.values()),
+            flow_waiters=flow_waiters,
             held=frozenset(
                 spec.release.task
                 for spec in self._tasks.specs.values()
@@ -580,10 +728,11 @@ class ModelChecks:
         self._check_batches()
         self._check_lookups()
         self._check_families()
+        self._check_overrides(overrides, scratch)
         self._check_scenario_steps(sim_id, overrides, scratch)
         self._check_on_paths(sim_id, scratch)
         self._check_spawns_and_breakdowns()
-        self._check_resources_held_once()
+        self._check_priority_kinds()
         self._check_handles()
         self._warn_acquisition_order(order_warned)
         holders = {**self._holders.stores_config, **self._holders.containers_config}
@@ -696,8 +845,8 @@ class ModelChecks:
                 try:
                     known.change(path, value)
                 except ParamRejected:
-                    # A refused override is reported by the run's own
-                    # set_exactly, with its own message; change logs nothing here
+                    # _check_overrides has already refused it, with its own message;
+                    # change logs nothing here
                     pass
             # In the order run_scenario applies them, so a value that is valid only
             # after an earlier step loads as it runs
@@ -739,12 +888,30 @@ class ModelChecks:
                         + not_added(action["task"], self._tasks.specs, "@app.task()")
                     )
 
+    def _check_overrides(
+        self,
+        overrides: Optional[Mapping[str, Any]],
+        scratch: Callable[[], SimulationRegistry],
+    ) -> None:
+        """Applies the overrides `start()` was given to a scratch registry, as the run
+        applies them, so a path the registry lacks or a value it refuses stops the
+        start before the run that is open is closed.
+
+        Raises:
+            ParamRejected: A `ValueError` naming the path and the reason.
+        """
+        if overrides:
+            registry = scratch()
+            for path, value in overrides.items():
+                registry.set_exactly(path, value)
+
     def _check_on_paths(
         self, sim_id: str, scratch: Callable[[], SimulationRegistry]
     ) -> None:
-        """Checks that the `path` of every `on:` action is a registry path, as a
-        scenario step's is, because an action on a path the registry lacks ends the
-        run with `KeyError` when it first runs.
+        """Checks that the `path` of every `on:` action is a registry path and that
+        its `value`, unless generated, is one the path accepts, as a scenario step's
+        are. An action on a path the registry lacks ends the run with `KeyError` when
+        it first runs, and a refused value is logged at each firing and ignored.
 
         Raises:
             ValueError: Naming the task or signal and the path.
@@ -762,8 +929,14 @@ class ModelChecks:
             (f"the on: action of signal '{name}'", found)
             for name, found in self._signals.on.items()
         ]
-        registry: Optional[SimulationRegistry] = None
         for place, actions in lists:
+            # A fresh registry for each list, changed by each literal value in turn,
+            # so an action is checked against the state the actions before it make.
+            # A generated value is not known before the run, so a later literal on a
+            # path of the same parent, such as `low` after a generated `high`, is not
+            # checked against a value the run may have changed
+            registry: Optional[SimulationRegistry] = None
+            unknown: Set[str] = set()
             for action in actions:
                 path = action.get("path")
                 if not isinstance(path, str) or names_a_member(
@@ -786,6 +959,24 @@ class ModelChecks:
                         + suggestion(path, registry.paths())
                         + self._unmade_note(path, sim_id)
                     ) from None
+                parent = path.rpartition(".")[0]
+                if "value" not in action or has_generator(action["value"]):
+                    unknown.add(parent)
+                    continue
+                if parent in unknown:
+                    continue
+                try:
+                    if action.get("when") is not None:
+                        # A conditional action may not run, and when it runs a
+                        # scenario step may have changed the other parameters of
+                        # its distribution: its value is checked for type alone,
+                        # and the actions after it do not count on it
+                        check_value_type(registry, path, action["value"])
+                        unknown.add(parent)
+                    else:
+                        registry.change(path, action["value"])
+                except ParamRejected as exc:
+                    raise ValueError(f"{place} sets '{path}': {exc.reason}") from None
 
     def _check_spawns_and_breakdowns(self) -> None:
         """Checks that the task each arrival spawns, and the resource each breakdown
@@ -805,17 +996,16 @@ class ModelChecks:
                     )
                 )
 
-    def _check_resources_held_once(self) -> None:
-        """Checks that no task both requests a resource in its wait and lists it in
-        `resource`."""
-        for name, spec in self._tasks.specs.items():
-            for resource in spec.wait.requests() if spec.wait else ():
-                if resource in spec.resources:
-                    raise ValueError(
-                        f"task '{name}' holds each resource once, but resource "
-                        f"'{resource}' is both requested in the wait and listed in "
-                        f"resource; list it in only one"
-                    )
+    def _check_priority_kinds(self) -> None:
+        """Checks that the priorities written for one priority resource or store are
+        all numbers or all lists, as `priority_mix` does.
+
+        Raises:
+            ValueError: Naming the resource or store and both priorities.
+        """
+        found = priority_mix(self._tasks.specs, self._holders)
+        if found is not None:
+            raise ValueError(found.message)
 
     def _check_handles(self) -> None:
         """Checks that each handle a task uses is opened by a task, as the use needs."""

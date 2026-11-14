@@ -141,10 +141,10 @@ Two orders that each hold one resource and wait for the other wait for ever: a *
 
 What does holding the picker while waiting for the bench cost? Each figure here is a mean from one run of the hour with the seed 42.
 
-- When the picker puts the order down and goes back, orders wait **0.32 seconds** for the picker and **5.89 seconds** for the bench, **6.21 seconds** in all.
-- When the picker stays with the order, the wait moves to the picker. Orders wait **8.77 seconds** for it and only **1.09 seconds** for the bench, **9.85 seconds** in all. The picker is then busy **82.7%** of the time instead of **39.8%**, most of it standing by the bench:
+- When the picker puts the order down and goes back, orders wait **0.35 seconds** for the picker and **8.43 seconds** for the bench, **8.78 seconds** in all.
+- When the picker stays with the order, the wait moves to the picker. Orders wait **14.23 seconds** for it and only **1.11 seconds** for the bench, **15.34 seconds** in all. The picker is then busy **85.2%** of the time instead of **40.4%**, most of it standing by the bench:
 
-![Mean wait of an order: freeing the picker, 0.32 s for the picker and 5.89 s for the bench, 6.21 s in all; keeping the picker, 8.77 s and 1.09 s, 9.85 s in all](../../assets/charts/handoff-waits.png)
+![Mean wait of an order: freeing the picker, 0.35 s for the picker and 8.43 s for the bench, 8.78 s in all; keeping the picker, 14.23 s and 1.11 s, 15.34 s in all](../../assets/charts/handoff-waits.png)
 
 Each tab prints both: the picker's busy share and the mean waits, first with the picker freed, then with it kept.
 
@@ -174,12 +174,12 @@ Each tab prints both: the picker's busy share and the mean waits, first with the
 
     <!-- records: handoff-yaml -->
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.resources.picker.utilization_avg","value":39.83333333333334}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pick_order.wait_mean","value":0.32285069327016835}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":5.892109962973665}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.resources.picker.utilization_avg","value":82.73860290690014}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pick_order.wait_mean","value":8.765065106524824}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.0898039831113526}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.resources.picker.utilization_avg","value":40.38888888888891}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pick_order.wait_mean","value":0.34588107621855696}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":8.430633032800593}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.resources.picker.utilization_avg","value":85.23420399919257}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pick_order.wait_mean","value":14.229028340474315}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.1103379257021557}
     ```
 
 === "Builder"
@@ -189,8 +189,8 @@ Each tab prints both: the picker's busy share and the mean waits, first with the
     ```
 
     ```text
-    frees the picker: wait to pick   0.32 s, to pack  5.89 s, picker busy 39.8%
-    keeps the picker: wait to pick   8.77 s, to pack  1.09 s, picker busy 82.7%
+    frees the picker: wait to pick   0.35 s, to pack  8.43 s, picker busy 40.4%
+    keeps the picker: wait to pick  14.23 s, to pack  1.11 s, picker busy 85.2%
     ```
 
 === "Low-level"
@@ -200,8 +200,8 @@ Each tab prints both: the picker's busy share and the mean waits, first with the
     ```
 
     ```text
-    frees the picker: wait to pick   0.32 s, to pack  5.89 s, picker busy 39.8%
-    keeps the picker: wait to pick   8.77 s, to pack  1.09 s, picker busy 82.7%
+    frees the picker: wait to pick   0.35 s, to pack  8.43 s, picker busy 40.4%
+    keeps the picker: wait to pick  14.23 s, to pack  1.11 s, picker busy 85.2%
     ```
 
 Each order brings 2 seconds of packing on average and arrives every 2.5 seconds on average, so the bench is busy 2 ÷ 2.5 = 80% of the time and the picker 1 ÷ 2.5 = 40%. The bench is the busier of the two, the [bottleneck](../concepts/queueing-basics.md#flow-balance-and-the-bottleneck). When the picker waits at the bench, it spends its own time in the bench's queue. So the picker is busy longer than its work needs, and the next order waits for it. Releasing a resource as soon as it is no longer needed keeps the waits where the work is.

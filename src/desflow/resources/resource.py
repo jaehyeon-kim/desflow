@@ -3,6 +3,7 @@ from __future__ import annotations
 import itertools
 import math
 import numbers
+from decimal import Decimal
 from typing import Any, Callable, ClassVar, List, Optional, Tuple, Union
 
 from simpy import Environment, Event
@@ -12,6 +13,10 @@ from simpy.resources.resource import Preempted, PriorityRequest
 from desflow.config import DEFAULT_QUEUE_ORDER, QUEUE_ORDERS
 from desflow.internal import InternalEvent
 from desflow.resources.base import BaseDynamicResource, RankedQueue
+from desflow.utils import mixed_priorities, priority_kind
+
+# Stands for "no request has given a priority yet"
+_NO_PRIORITY = object()
 
 
 class QueueFull(RuntimeError):
@@ -27,16 +32,24 @@ def _whole(value: float) -> Union[int, float]:
 
 
 def _is_finite_number(value: Any) -> bool:
-    return (
-        isinstance(value, numbers.Real)
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-    )
+    """Whether `value` is a real number, not a bool, that a float can hold and that
+    is not NaN or infinite; a whole number too large for a float is not."""
+    try:
+        return (
+            isinstance(value, numbers.Real)
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+        )
+    except OverflowError:
+        return False
 
 
 def _is_orderable_number(value: Any) -> bool:
     """Whether `value` is a number that compares with every other: any real number
     but NaN, infinity included."""
+    if isinstance(value, Decimal):
+        # A `Decimal` orders against other numbers, as `priority_kind` counts it
+        return not value.is_nan()
     return (
         isinstance(value, numbers.Real)
         and not isinstance(value, bool)
@@ -96,6 +109,7 @@ class DynamicResourceRequest(PriorityRequest):
         self, resource: ResourceBase, priority: float = 0, preempt: bool = True
     ):
         check_priority(priority)
+        resource._note_priority(priority)
         Event.__init__(self, resource.env)
         self.resource = resource
         self.priority = priority
@@ -107,6 +121,8 @@ class DynamicResourceRequest(PriorityRequest):
         self.usage_since: Optional[float] = None
         self.proc = resource.env.active_process
         resource._enqueue(self)
+        # Only a request the queue took sets the kind, not one it refused
+        resource._first_priority_is(priority)
         resource._called()
 
     def cancel(self) -> None:
@@ -245,7 +261,9 @@ class ResourceBase(BaseDynamicResource):
     `DynamicResourceRequest`, an event that succeeds when a unit is granted. Lower
     `priority` values are served first under `queue="priority"`; `preempt` lets the
     request take a unit from a user of a higher value on a resource built with
-    `preempt=True`. Set it to `BoundClass(MyRequest)` to use a subclass."""
+    `preempt=True`. Under `queue="priority"` every `priority` is a number, or every
+    one is a list, because a number cannot be compared with a list; a request of the
+    other kind raises `ValueError`. Set it to `BoundClass(MyRequest)` to use a subclass."""
     release = BoundClass(DynamicRelease)
     """Gives a granted unit back: `release(request)` returns a `DynamicRelease`,
     triggered at once. Releasing a request twice, or one never granted, gives back
@@ -298,6 +316,8 @@ class ResourceBase(BaseDynamicResource):
         self.preempt_rule = preempt if isinstance(preempt, PreemptRule) else None
         self.queue_order = queue
         self.ties = ties
+        # The first priority a request gave, which every later one must compare with
+        self._first_priority: Any = _NO_PRIORITY
         # Counts requests, so equal ranks keep their arrival order
         self._sequence = itertools.count()
         self._env = env
@@ -383,6 +403,39 @@ class ResourceBase(BaseDynamicResource):
         """Gives a unit back, the same as `release`; SimPy's name for a get from a
         resource. Takes the arguments of `release`."""
         return self.release(*args, **kwargs)
+
+    def _first_priority_is(self, priority: Any) -> None:
+        """Remembers the first priority a queued request gave under the `priority`
+        queue order, which `_note_priority` compares later ones with."""
+        if (
+            self.queue_order == "priority"
+            and priority_kind(priority) != "other"
+            and self._first_priority is _NO_PRIORITY
+        ):
+            self._first_priority = priority
+
+    def _note_priority(self, priority: Any) -> None:
+        """Refuses a priority that cannot be compared with the first one a queued
+        request gave under the `priority` queue order.
+
+        Raises:
+            ValueError: Naming the resource and both priorities, if a number and a
+                list, or a list and a tuple, meet in this queue.
+        """
+        if self.queue_order != "priority" or priority_kind(priority) == "other":
+            return
+        if self._first_priority is _NO_PRIORITY:
+            return
+        if priority_kind(priority) != priority_kind(self._first_priority):
+            raise ValueError(
+                mixed_priorities(
+                    f"resource '{self.obj_id}'",
+                    self._first_priority,
+                    priority_kind(self._first_priority),
+                    priority,
+                    priority_kind(priority),
+                )
+            )
 
     def _rank(self, request: DynamicResourceRequest) -> Tuple[Any, ...]:
         """The sort key of a new request under this resource's queue order."""

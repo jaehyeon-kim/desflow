@@ -305,13 +305,13 @@ Preemption is one source of interrupts, and a model can send others. An `interru
 
 What remains of a regular order's packing when an express order takes its packer? Each figure here comes from one run of the hour with the seed 42.
 
-- With `resume`, the time it had left remains. After **344** preemptions, regular orders wait **8.12 seconds** on average.
-- With `restart`, nothing remains: each preempted order packs again from the start. Preemptions rise to **393**, and the mean wait triples to **25.33 seconds**.
-- With `abandon`, the order is lost. **314** orders are lost, 312 to preemption and 2 to the recall at 31 minutes. The **1,293** packed orders wait only **3.60 seconds** on average, because every interrupted order leaves the queue.
+- With `resume`, the time it had left remains. After **349** preemptions, regular orders wait **8.17 seconds** on average.
+- With `restart`, nothing remains: each preempted order packs again from the start. Preemptions rise to **389**, and the mean wait rises more than fivefold to **44.11 seconds**.
+- With `abandon`, the order is lost. **313** orders are lost, 311 to preemption and 2 to the recall at 31 minutes. The **1,328** packed orders wait only **3.64 seconds** on average, because every interrupted order leaves the queue.
 
-The recall at 31 minutes reaches every regular order in the shop at that moment: 3 under `resume`, 23 under `restart`, whose longer queue holds more orders, and 2 under `abandon`:
+The recall at 31 minutes reaches every regular order in the shop at that moment: 3 under `resume`, 24 under `restart`, whose longer queue holds more orders, and 2 under `abandon`:
 
-![Mean wait of regular orders: resume 8.12 s with 1607 packed; restart 25.33 s with 1606 packed; abandon 3.60 s with 1293 packed](../../assets/charts/interruption-policies.png)
+![Mean wait of regular orders: resume 8.17 s with 1640 packed; restart 44.11 s with 1640 packed; abandon 3.64 s with 1328 packed](../../assets/charts/interruption-policies.png)
 
 Each tab prints all three policies: the orders packed, preempted and recalled (`interrupted`), the mean wait and the mean packing time.
 
@@ -328,21 +328,21 @@ Each tab prints all three policies: the orders packed, preempted and recalled (`
 
     <!-- records: interrupt-yaml -->
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":1607}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":1640}
     {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.interrupted","value":3}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.preempted","value":344}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":8.116164021079841}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.preempted","value":349}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":8.167685860665559}
     {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.service_mean","value":1.5}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":1606}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.interrupted","value":23}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.preempted","value":393}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":25.32707837360131}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.service_mean","value":1.6870428300007827}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":1293}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":1640}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.interrupted","value":24}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.preempted","value":389}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":44.11194399851226}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.service_mean","value":1.6706232870060977}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":1328}
     {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.interrupted","value":2}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.preempted","value":312}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":3.5955695826683685}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.service_mean","value":1.5}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.preempted","value":311}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":3.643851284875778}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.service_mean","value":1.5000000000000002}
     ```
 
 === "Builder"
@@ -352,9 +352,9 @@ Each tab prints all three policies: the orders packed, preempted and recalled (`
     ```
 
     ```text
-    resume : 344 preempted, 3 recalled, 1607 packed, mean wait  8.12 s, mean packing 1.50 s
-    restart: 393 preempted, 23 recalled, 1606 packed, mean wait 25.33 s, mean packing 1.69 s
-    abandon: 312 preempted, 2 recalled, 1293 packed, mean wait  3.60 s, mean packing 1.50 s
+    resume : 349 preempted, 3 recalled, 1640 packed, mean wait  8.17 s, mean packing 1.50 s
+    restart: 389 preempted, 24 recalled, 1640 packed, mean wait 44.11 s, mean packing 1.67 s
+    abandon: 311 preempted, 2 recalled, 1328 packed, mean wait  3.64 s, mean packing 1.50 s
     ```
 
 === "Low-level"
@@ -364,12 +364,12 @@ Each tab prints all three policies: the orders packed, preempted and recalled (`
     ```
 
     ```text
-    resume : 344 preempted, 3 recalled, 1607 packed, mean wait  8.12 s, mean packing 1.50 s
-    restart: 393 preempted, 23 recalled, 1606 packed, mean wait 25.33 s, mean packing 1.69 s
-    abandon: 312 preempted, 2 recalled, 1293 packed, mean wait  3.60 s, mean packing 1.50 s
+    resume : 349 preempted, 3 recalled, 1640 packed, mean wait  8.17 s, mean packing 1.50 s
+    restart: 389 preempted, 24 recalled, 1640 packed, mean wait 44.11 s, mean packing 1.67 s
+    abandon: 311 preempted, 2 recalled, 1328 packed, mean wait  3.64 s, mean packing 1.50 s
     ```
 
-Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders. The mean time packed rises from 1.50 to 1.69 seconds, and the load nears what one packer can do. Waits then grow fast, as [Queueing Basics](../concepts/queueing-basics.md#waits-near-full-use) explains. `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost. The decision is `resume`: it loses no order and its mean wait, 8.12 seconds, is the lowest of the two policies that keep every order. So report their count beside it. [Priority and Preemption](../../user-guide/resources/priority-and-preemption.md#preemption) describes preemption, and [Tasks and Processes](../../user-guide/tasks-and-processes/index.md) the task's steps.
+Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders. The mean time packed rises from 1.50 to 1.67 seconds, and the load nears what one packer can do. Waits then grow fast, as [Queueing Basics](../concepts/queueing-basics.md#waits-near-full-use) explains. `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost. So report the count of lost orders beside its mean wait. The decision is `resume`: it loses no order and its mean wait, 8.17 seconds, is the lowest of the two policies that keep every order. [Priority and Preemption](../../user-guide/resources/priority-and-preemption.md#preemption) describes preemption, and [Tasks and Processes](../../user-guide/tasks-and-processes/index.md) the task's steps.
 
 ## Key Takeaways
 

@@ -12,12 +12,13 @@ from simpy.resources.store import StoreGet
 from desflow.models.distributions import get_distribution
 from desflow.internal import InternalStore
 from desflow.utils import suggestion
-from desflow.core.rules import check_capacity
+from desflow.core.rules import check_capacity, exceeds_float
 from desflow.models.params import (
     CapacityConfig,
     DistributionConfig,
     SimParameter,
     check_distribution,
+    check_parameter_values,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,7 +68,7 @@ def _stored_as_given(kind: str, current: Any, new: Any) -> bool:
     if kind == "variables" and isinstance(new, bool):
         return True
     if kind == "variables" and _is_number(new):
-        return math.isfinite(new)
+        return not exceeds_float(new) and math.isfinite(new)
     return False
 
 
@@ -105,6 +106,7 @@ def queue_limit_value(path: str, value: Any) -> Optional[int]:
         number = _read_number(text)
     if value is None:
         return None
+    _refuse_oversized(path, value, number)
     if (
         isinstance(number, bool)
         or not isinstance(number, numbers.Real)
@@ -162,13 +164,31 @@ def _refusal(path: str, value: Any, reason: str) -> "ParamRejected":
     return refused
 
 
+def _refuse_oversized(path: str, value: Any, number: Any) -> None:
+    """Refuses a number, or text of one, too large to convert to a float.
+
+    Raises:
+        ParamRejected: With a message that does not print the number.
+    """
+    if exceeds_float(number):
+        raise _refusal(
+            path,
+            value,
+            f"'{path}' got a number too large for a float, so it is not a value "
+            f"the run can use",
+        )
+
+
 def _read_number(value: Any) -> Any:
     """The number a text means, when the whole text is one; any other value as given."""
     if not isinstance(value, str):
         return value
     text = value.strip()
     if _WHOLE_TEXT.fullmatch(text):
-        return int(text)
+        try:
+            return int(text)
+        except ValueError:
+            return value  # more digits than Python converts, past any float
     try:
         return float(text)
     except ValueError:
@@ -185,6 +205,7 @@ def _capacity_value(path: str, registered: _PathKind, value: Any) -> Any:
     """
     whole = registered.kind != "containers"
     number = _read_number(value)
+    _refuse_oversized(path, value, number)
     holder = registered.config.rsplit(".", 1)[-1]
     word = _HOLDER_WORDS[registered.kind]
     try:
@@ -214,6 +235,7 @@ def _capacity_value(path: str, registered: _PathKind, value: Any) -> Any:
 def _level_value(path: str, value: Any) -> Any:
     """The container level a write means: a finite number, read from text."""
     number = _read_number(value)
+    _refuse_oversized(path, value, number)
     if (
         isinstance(number, bool)
         or not isinstance(number, numbers.Real)
@@ -576,6 +598,14 @@ class SimulationRegistry:
             ParamRejected: For an unknown path, a value the path refuses, or a
                 distribution parameter the distribution refuses.
         """
+        return self._checked_value(path, new_value, distribution_rules=True)
+
+    def _checked_value(
+        self, path: str, new_value: Any, *, distribution_rules: bool
+    ) -> Any:
+        """`check_value`, with the rules of the distribution family between its
+        parameters applied only when `distribution_rules` is true. The checks of the
+        value itself, a finite number and not a bool, always apply."""
         if path not in self._values:
             rejected = ParamRejected(
                 path,
@@ -589,6 +619,8 @@ class SimulationRegistry:
         current_val = self._values[path].value
         validated_value = new_value
         registered = self._kinds[path]
+        if _is_number(current_val):
+            _refuse_oversized(path, new_value, _read_number(new_value))
         kind, parent_path, attr = registered.kind, registered.config, registered.attr
 
         # Type Validation & Casting
@@ -650,11 +682,14 @@ class SimulationRegistry:
         parent_obj = self._configs.get(parent_path)
 
         # Check a distribution parameter with the same rules as at load
+        # (the rules between parameters only when `distribution_rules` is true: the
+        # number and finiteness of the value itself are always checked)
         if isinstance(parent_obj, DistributionConfig):
             candidate = copy.copy(parent_obj)
             setattr(candidate, attr, validated_value)
+            check = check_distribution if distribution_rules else check_parameter_values
             try:
-                check_distribution(candidate)
+                check(candidate)
             except ValueError as exc:
                 rejected = ParamRejected(
                     path, new_value, f"invalid value for '{path}': {exc}"
@@ -1094,3 +1129,26 @@ class SimulationRegistry:
         )
         for attr in _CAPACITY_ATTRS:
             self._kinds[f"{path_prefix}.{attr}"] = _PathKind(kind, path_prefix, attr)
+
+
+def check_value_type(registry: SimulationRegistry, path: str, new_value: Any) -> Any:
+    """The value `path` accepts for `new_value`, checked as `check_value` does but
+    without the rules of the distribution family between its parameters.
+
+    Those rules read the other parameters of the distribution as they are now, and a
+    conditional `on:` action may run after a scenario step has changed them, so the
+    load checks of a conditional action use this. A distribution parameter must still
+    be a finite number and not a bool.
+
+    Args:
+        registry: The registry that holds `path`.
+        path: The registered path.
+        new_value: The value to write.
+
+    Returns:
+        Any: The value cast to the path's type.
+
+    Raises:
+        ParamRejected: For an unknown path or a value the path refuses.
+    """
+    return registry._checked_value(path, new_value, distribution_rules=False)

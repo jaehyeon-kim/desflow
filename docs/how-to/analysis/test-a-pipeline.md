@@ -59,7 +59,7 @@ The shop takes an order every 2 seconds on average. A scenario step at 300 secon
     def run_shop(folder: Path) -> None:
         """Runs the shop, writing its data and labels under `folder`."""
         app = (
-            SimulationContext(sim_id="Shop", factor=0, random_seed=42)
+            SimulationContext(sim_id="Shop", factor=0, random_seed=7)
             .add_resource("packers", current_cap=3, max_cap=5)
             .add_service("packing", dist="constant", value=1.5)
             .add_arrival("orders", dist="exponential", rate=0.5, spawn="pack_order")
@@ -114,7 +114,7 @@ The shop takes an order every 2 seconds on average. A scenario step at 300 secon
         )
         packers = DynamicResource(env, "Shop", "packers")
         env.process(run_scenario(env, STEPS, until=600))
-        env.process(orders(env, packers, Sampler(seed=42)))
+        env.process(orders(env, packers, Sampler(seed=7)))
         try:
             env.run(until=600)
         finally:
@@ -172,7 +172,7 @@ def score(found: list[int], labels: list[dict], within: int = 60) -> dict:
     }
 ```
 
-For this run the pipeline flags the windows that start at 330, 340 and 350 seconds. A window is flagged only when it holds more than 2.5 times the usual number of finished orders, so the first flagged window starts at 330 seconds, 30 seconds after the label. The score is one fault caught, none missed and no false alarm.
+For this run the pipeline flags the windows that start at 320, 330 and 340 seconds. A window is flagged only when it holds more than 2.5 times the usual number of finished orders, so the first flagged window starts at 320 seconds, 20 seconds after the label. The score is one fault caught, none missed and no false alarm.
 
 ### Write the Tests
 
@@ -332,7 +332,7 @@ A test of this kind states what a pipeline does on one seeded run. A new release
         # The Test a Pipeline guide: a shop with a planted fault. Orders surge at 300 seconds
         # and the label of the fault goes only to the labels sink. OUT is the folder the two
         # sinks write under. Run it with: desflow run test_a_pipeline.yaml
-        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+        simulation: {sim_id: Shop, factor: 0, random_seed: 7}
 
         resources:
           packers: {current_cap: 3, max_cap: 5}
@@ -402,7 +402,7 @@ A test of this kind states what a pipeline does on one seeded run. A new release
         def run_shop(folder: Path) -> None:
             """Runs the shop, writing its data and labels under `folder`."""
             app = (
-                SimulationContext(sim_id="Shop", factor=0, random_seed=42)
+                SimulationContext(sim_id="Shop", factor=0, random_seed=7)
                 .add_resource("packers", current_cap=3, max_cap=5)
                 .add_service("packing", dist="constant", value=1.5)
                 .add_arrival("orders", dist="exponential", rate=0.5, spawn="pack_order")
@@ -512,7 +512,7 @@ A test of this kind states what a pipeline does on one seeded run. A new release
             )
             packers = DynamicResource(env, "Shop", "packers")
             env.process(run_scenario(env, STEPS, until=600))
-            env.process(orders(env, packers, Sampler(seed=42)))
+            env.process(orders(env, packers, Sampler(seed=7)))
             try:
                 env.run(until=600)
             finally:

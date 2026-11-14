@@ -203,13 +203,13 @@ if __name__ == "__main__":
     print(
         f"utilisation {measured:.3f} measured, {formula:.3f} from the run's rate and service"
     )
-    assert abs(measured - 0.866) < 0.0005 and abs(formula - measured) < 0.001
+    assert abs(measured - 0.900) < 0.0005 and abs(formula - measured) < 0.001
 
     print(f"arrival rate {rate:.3f} orders a second")
-    assert abs(rate - 1.736) < 0.0005
+    assert abs(rate - 1.802) < 0.0005
     for name, (count, product), shown in (
-        ("queue", queue, (2.406, 2.399)),
-        ("shop", system, (5.003, 4.995)),
+        ("queue", queue, (3.618, 3.616)),
+        ("shop", system, (6.317, 6.315)),
     ):
         print(f"{name}: L {count:.3f}, lambda x W {product:.3f}")
         assert abs(count - product) < 0.01 * count, name
@@ -237,7 +237,7 @@ if __name__ == "__main__":
     # --8<-- [end:formulas]
 
     # --8<-- [start:checks]
-    for rho, figures in ((0.5, (1.50, 1.47, 0.06)), (0.75, (4.50, 4.46, 0.33))):
+    for rho, figures in ((0.5, (1.50, 1.50, 0.06)), (0.75, (4.50, 4.39, 0.31))):
         arrival = exponential(SERVICE / rho)
         check(
             f"M/M/1 at utilisation {rho}",
@@ -249,14 +249,14 @@ if __name__ == "__main__":
         "M/M/3 at utilisation 0.8",
         mmc_wait(3, 1.6),
         measured_wait(exponential(1 / 1.6), exponential(SERVICE), 3, 30_000),
-        (1.62, 1.64, 0.06),
+        (1.62, 1.57, 0.09),
     )
     arrival = exponential(SERVICE / 0.75)
     check(
         "M/D/1 at utilisation 0.75, Kingman",
         kingman_wait(0.75, 1, 0),
         measured_wait(arrival, constant(SERVICE), 1, 20_000),
-        (2.25, 2.23, 0.14),
+        (2.25, 2.23, 0.13),
     )
     # --8<-- [end:checks]
 
@@ -267,7 +267,7 @@ if __name__ == "__main__":
         "M/D/3 at utilisation 0.9, half the M/M/3 wait",
         mmc_wait(3, 1.8) / 2,
         measured_wait(exponential(1 / 1.8), constant(SERVICE), 3, 20_000),
-        (2.04, 2.05, 0.13),
+        (2.04, 2.06, 0.17),
     )
     # --8<-- [end:kendall]
 
@@ -281,7 +281,7 @@ if __name__ == "__main__":
     )
     # --8<-- [end:dm1]
     assert abs(kingman - 2.25) < 0.005
-    assert abs(mean - 1.78) < 0.006 and abs(half_width - 0.09) < 0.006
+    assert abs(mean - 1.76) < 0.006 and abs(half_width - 0.08) < 0.006
     assert abs(mean - kingman) > half_width  # the approximation is outside the interval
 
     # --8<-- [start:flow]

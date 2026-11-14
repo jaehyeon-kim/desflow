@@ -29,7 +29,7 @@ The model puts picking before packing, as in [A Flow of Tasks](../shop-logic/flo
 Fitting needs the `fit` extra, which adds scipy and matplotlib:
 
 ```bash
-# The desflow command, with uv
+# desflow command, with uv
 uv tool install "desflow[fit]"
 
 # A Python file, with uv outside a project
@@ -407,13 +407,13 @@ Verify: 10 runs to 3600 s, seed 42
 +---------------------------------------------------------------------------+
 | node       | measure      | analysis | measured |        ± | result       |
 |------------+--------------+----------+----------+----------+--------------|
-| pickers    | utilization  |   0.6692 |   0.6726 | 0.006723 | agrees       |
-| pickers    | queue_length |   0.8457 |   0.8605 |  0.05853 | agrees       |
-| packers    | utilization  |   0.8801 |   0.8816 | 0.009924 | agrees       |
-| packers    | queue_length |        - |    2.869 |   0.4413 | not compared |
-| pick_order | wait         |   0.5611 |   0.5691 |  0.03476 | agrees       |
-| pack_order | wait         |        - |    1.895 |   0.2785 | not compared |
-| orders     | throughput   |        - |    1.511 |  0.01516 | not compared |
+| pickers    | utilization  |   0.6692 |   0.6745 | 0.009403 | agrees       |
+| pickers    | queue_length |   0.8457 |   0.8899 |  0.06531 | agrees       |
+| packers    | utilization  |   0.8801 |   0.8827 |  0.01191 | agrees       |
+| packers    | queue_length |        - |    2.789 |   0.3652 | not compared |
+| pick_order | wait         |   0.5611 |   0.5886 |  0.03728 | agrees       |
+| pack_order | wait         |        - |    1.842 |   0.2238 | not compared |
+| orders     | throughput   |        - |     1.51 |  0.01979 | not compared |
 | deliveries | throughput   |        - | 0.001437 |        0 | not compared |
 +---------------------------------------------------------------------------+
 Not compared:
@@ -435,7 +435,7 @@ Agreement shows that the program computes what the model on paper says. It says 
 
 ### Against the Shop
 
-Suppose the shop also measured, over the busy hour after its first 2 minutes, a mean wait of 0.57 seconds for picking, 1.9 seconds for packing, and the packers busy 88% of the time. `complete_model_outputs.csv`, in [Full Files](#full-files), holds these values, with the unit, population and horizon of each. They were chosen by hand to be close to the model's means for today's design, so they agree with the model by construction. The page shows the method, not evidence about a real shop. The experiment run in [Compare the Designs](#compare-the-designs) places each beside the interval of today's design, `current`:
+Suppose the shop also measured, over the busy hour after its first 2 minutes, a mean wait of 0.57 seconds for picking, 1.9 seconds for packing, and the packers busy 88% of the time. `complete_model_outputs.csv`, in [Full Files](#full-files), holds these values, with the unit, population and horizon of each. They were chosen by hand to be close to the model's means for today's design. The page shows the method, not evidence about a real shop. The experiment run in [Compare the Designs](#compare-the-designs) places each beside the interval of today's design, `current`:
 
 === "YAML"
 
@@ -460,15 +460,15 @@ Suppose the shop also measured, over the busy hour after its first 2 minutes, a 
 
     The same key, in the same mapping as the model below.
 
-All three values lie inside the model's interval for their mean: 0.57 inside **0.55 to 0.58** seconds, 1.9 inside **1.75 to 2.08**, and 88 inside **87.44 to 88.47**.
+Only one of the three values lies inside the model's interval for its mean: 88 inside **87.37 to 88.15**. The picking wait of 0.57 seconds is just above **0.538 to 0.569**, and the packing wait of 1.9 seconds is above **1.63 to 1.84**.
 
-An interval for a mean is narrow, though, and one observed hour is not a mean. One observed hour varies as much as one run does. Across the 40 replications of `current`, the standard deviation of one run is:
+An interval for a mean is narrow, and one observed hour is not a mean. One observed hour varies as much as one run does. Across the 40 replications of `current`, the standard deviation of one run is:
 
-- 0.048 seconds for the picking wait;
-- 0.515 seconds for the packing wait;
-- 1.615 percentage points for the packers' utilisation.
+- 0.049 seconds for the picking wait;
+- 0.325 seconds for the packing wait;
+- 1.214 percentage points for the packers' utilisation.
 
-Only 7, 9 and 9 of the 40 single runs fall inside the three intervals. A real observed hour can therefore fall outside an interval while the model is right. For this reason a study compares the observed value with the spread of single runs instead. Here each observed value lies within one such standard deviation of the model's mean: 0.57 is 0.16 standard deviations from it, 1.9 is 0.03 and 88 is 0.03.
+Only 12, 8 and 7 of the 40 single runs fall inside the three intervals. A real observed hour can therefore fall outside an interval while the model is right. For this reason a study compares the observed value with the spread of single runs instead. Here each observed value lies within one such standard deviation of the model's mean: 0.57 is 0.34 standard deviations from it, 1.9 is 0.51 and 88 is 0.2.
 
 ---
 
@@ -507,13 +507,13 @@ The mean waits over the 40 replications, in seconds, with the 95% half-width:
 
 | Warm-up | Picking | Packing |
 |---|---|---|
-| none | 0.562 ± 0.014 | 1.903 ± 0.163 |
-| 2 minutes | 0.562 ± 0.015 | 1.916 ± 0.165 |
-| 10 minutes | 0.563 ± 0.015 | 1.915 ± 0.175 |
+| none | 0.553 ± 0.015 | 1.718 ± 0.103 |
+| 2 minutes | 0.553 ± 0.016 | 1.733 ± 0.104 |
+| 10 minutes | 0.550 ± 0.016 | 1.699 ± 0.104 |
 
-Without a warm-up, the mean packing wait is 0.013 seconds lower than with 2 minutes, well inside the half-width. A warm-up of 10 minutes gives the same means as 2 minutes. Every candidate therefore passes the comparison. The rule of [Output Analysis](../concepts/output-analysis.md#one-run-starts-empty) also needs the warm-up to cover the climb in a plot of the start. This shop has no plot of its own. Its packers are about as busy as those of [Trusting Results](trusting-results.md#plot-the-start), 88% of the time against 90%, and that page's plot climbs for about a minute and a half. The study therefore keeps 2 minutes. The comparison holds for this shop and this hour only, and a busier shop or another horizon needs it run again.
+Without a warm-up, the mean packing wait is 0.015 seconds lower than with 2 minutes, well inside the half-width. A warm-up of 10 minutes gives means within 0.04 seconds of those with 2 minutes, also well inside the half-width. Every candidate therefore passes the comparison. The rule of [Output Analysis](../concepts/output-analysis.md#one-run-starts-empty) also needs the warm-up to cover the climb in a plot of the start. This shop has no plot of its own. Its packers are about as busy as those of [Trusting Results](trusting-results.md#plot-the-start), 88% of the time against 90%, and that page's plot first climbs for about a minute. The study therefore keeps 2 minutes. The comparison holds for this shop and this hour only, and a busier shop or another horizon needs it run again.
 
-The precision the decision needs is set by the rule: each interval must lie wholly on one side of 1 second. With 40 replications of each design, the experiment below gives half-widths of at most 0.17 seconds. The interval nearest the bound, that of the fourth packer's picking wait, ends at **0.58** seconds. Every interval is far from 1 second, so 40 replications are enough. A design whose interval crossed 1 second would need more replications before it could be decided ([How Many Replications](../concepts/output-analysis.md#how-many-replications)).
+The precision the decision needs is set by the rule: each interval must lie wholly on one side of 1 second. With 40 replications of each design, the experiment below gives half-widths of at most 0.11 seconds for the picking and packing waits. The interval nearest the bound, that of the fourth packer's picking wait, ends at **0.57** seconds. Every interval is far from 1 second, so 40 replications are enough. A design whose interval crossed 1 second would need more replications before it could be decided ([How Many Replications](../concepts/output-analysis.md#how-many-replications)).
 
 ---
 
@@ -663,13 +663,13 @@ The table gives each design's mean waits over its 40 replications, in seconds, a
 
 | Design | Picking wait | Packing wait | Packers busy |
 |---|---|---|---|
-| current | 0.56 ± 0.02 | 1.92 ± 0.16 | 87.96 ± 0.52 |
-| second-picker | 0.04 ± 0.00 | 2.17 ± 0.17 | 87.95 ± 0.52 |
-| fourth-packer | 0.56 ± 0.02 | 0.15 ± 0.01 | 65.96 ± 0.39 |
+| current | 0.55 ± 0.02 | 1.73 ± 0.10 | 87.76 ± 0.39 |
+| second-picker | 0.04 ± 0.00 | 1.98 ± 0.11 | 87.76 ± 0.39 |
+| fourth-packer | 0.55 ± 0.02 | 0.15 ± 0.01 | 65.83 ± 0.29 |
 
-![Mean picking and packing waits of the three designs with their 95% half-widths, beside a line at 1 second. Current: picking 0.56, packing 1.92. Second picker: picking 0.04, packing 2.17. Fourth packer: picking 0.56, packing 0.15.](../../assets/charts/complete-waits.png)
+![Mean picking and packing waits of the three designs with their 95% half-widths, beside a line at 1 second. Current: picking 0.55, packing 1.73. Second picker: picking 0.04, packing 1.98. Fourth packer: picking 0.55, packing 0.15.](../../assets/charts/complete-waits.png)
 
-Only the fourth packer keeps both waits under 1 second. Seed by seed, it cuts the packing wait by **1.77 ± 0.16** seconds and leaves the picking wait as it was. A second picker cuts the picking wait by 0.52 ± 0.01 seconds but lengthens the packing wait by 0.26 ± 0.02 seconds.
+Only the fourth packer keeps both waits under 1 second. Seed by seed, it cuts the packing wait by **1.58 ± 0.10** seconds and leaves the picking wait as it was. A second picker cuts the picking wait by 0.52 ± 0.01 seconds but lengthens the packing wait by 0.25 ± 0.01 seconds.
 
 One picker passes orders on one at a time, with at least one picking time between them. Two pickers pass orders on closer together, nearer the times they arrive, so more orders find all three packers busy. `explain` named the packers as the bottleneck, and the experiment measures how much each design changes the wait there.
 
@@ -732,9 +732,9 @@ A sixth and a seventh check state that both waits stay under 1 second:
 
     The same key, in the same mapping as the model.
 
-With orders 10% faster, the mean picking wait over the 40 replications is **0.78 ± 0.02** seconds, the mean packing wait **0.23 ± 0.01** seconds, and the packers are busy 72.59 ± 0.41% of the time. Both upper ends stay under 1 second, at 0.80 and 0.24 seconds, so the sixth and seventh checks pass.
+With orders 10% faster, the mean picking wait over the 40 replications is **0.76 ± 0.02** seconds, the mean packing wait **0.23 ± 0.01** seconds, and the packers are busy 72.44 ± 0.31% of the time. Both upper ends stay under 1 second, at 0.78 and 0.24 seconds, so the sixth and seventh checks pass.
 
-The variant shows something the three designs did not: orders now wait for shipping boxes, 0.22 ± 0.14 seconds on average. In 21 of the 40 replications some orders waited for a box, and the highest mean wait of one run was 1.84 seconds. A delivery of 1,000 boxes every 10 minutes is 1.67 boxes a second, only just above 1.66 orders a second. Orders arrive at random, so in some periods they take boxes faster than the deliveries replace them, and the shelf is empty before the next delivery. A busier hour would need larger or more frequent deliveries as well as the fourth packer.
+The variant shows something the three designs did not: orders now wait for shipping boxes, 0.14 ± 0.17 seconds on average. In 22 of the 40 replications some orders waited for a box, and the highest mean wait of one run was 3.41 seconds. A delivery of 1,000 boxes every 10 minutes is 1.67 boxes a second, only just above 1.66 orders a second. Orders arrive at random, so in some periods they take boxes faster than the deliveries replace them, and the shelf is empty before the next delivery. A busier hour would need larger or more frequent deliveries as well as the fourth packer.
 
 ---
 
@@ -805,13 +805,13 @@ Each difference is the variant's value minus the baseline's, seed by seed, with 
 
 | Baseline | Variant | Measure | Difference | Half-width | Interval | Random streams |
 |---|---|---|---|---|---|---|
-| current | second-picker | `tasks.pick_order.wait_mean` | -0.5248 | 0.01449 | -0.5393 to -0.5103 | 3 shared |
-| current | second-picker | `tasks.pack_order.wait_mean` | 0.2555 | 0.01564 | 0.2399 to 0.2712 | 3 shared |
-| current | second-picker | `resources.packers.utilization_avg` | -0.0009137 | 0.003114 | -0.004028 to 0.002201 | 3 shared |
+| current | second-picker | `tasks.pick_order.wait_mean` | -0.5164 | 0.01466 | -0.531 to -0.5017 | 3 shared |
+| current | second-picker | `tasks.pack_order.wait_mean` | 0.2493 | 0.01344 | 0.2359 to 0.2628 | 3 shared |
+| current | second-picker | `resources.packers.utilization_avg` | 0.00107 | 0.004154 | -0.003084 to 0.005224 | 3 shared |
 | current | second-picker | `tasks.ship_order.wait_mean` | 0 | 0 | 0 to 0 | 3 shared |
 | current | fourth-packer | `tasks.pick_order.wait_mean` | 0 | 0 | 0 to 0 | 3 shared |
-| current | fourth-packer | `tasks.pack_order.wait_mean` | -1.77 | 0.1598 | -1.929 to -1.61 | 3 shared |
-| current | fourth-packer | `resources.packers.utilization_avg` | -22 | 0.1309 | -22.13 to -21.87 | 3 shared |
+| current | fourth-packer | `tasks.pack_order.wait_mean` | -1.584 | 0.09887 | -1.682 to -1.485 | 3 shared |
+| current | fourth-packer | `resources.packers.utilization_avg` | -21.94 | 0.1045 | -22.04 to -21.83 | 3 shared |
 | current | fourth-packer | `tasks.ship_order.wait_mean` | 0 | 0 | 0 to 0 | 3 shared |
 
 ## Checks
@@ -820,21 +820,21 @@ Checks passed: 7 of 7.
 
 | Design | Measure | Checked | Bound | Value | Result |
 |---|---|---|---|---|---|
-| fourth-packer | `tasks.pick_order.wait_mean` | the upper end | max 1 | 0.5776 | passed |
-| fourth-packer | `tasks.pack_order.wait_mean` | the upper end | max 1 | 0.1523 | passed |
+| fourth-packer | `tasks.pick_order.wait_mean` | the upper end | max 1 | 0.5688 | passed |
+| fourth-packer | `tasks.pack_order.wait_mean` | the upper end | max 1 | 0.1558 | passed |
 | current | `tasks.ship_order.wait_mean` | the upper end | max 0 | 0 | passed |
 | second-picker | `tasks.ship_order.wait_mean` | the upper end | max 0 | 0 | passed |
 | fourth-packer | `tasks.ship_order.wait_mean` | the upper end | max 0 | 0 | passed |
-| fourth-packer-busier | `tasks.pick_order.wait_mean` | the upper end | max 1 | 0.802 | passed |
-| fourth-packer-busier | `tasks.pack_order.wait_mean` | the upper end | max 1 | 0.2386 | passed |
+| fourth-packer-busier | `tasks.pick_order.wait_mean` | the upper end | max 1 | 0.7835 | passed |
+| fourth-packer-busier | `tasks.pack_order.wait_mean` | the upper end | max 1 | 0.2366 | passed |
 
 ## Observed Comparison
 
 | Design | Measure | Observed | Unit | Simulated interval | Inside |
 |---|---|---|---|---|---|
-| current | `tasks.pick_order.wait_mean` | 0.57 | s | 0.5471 to 0.5776 | yes |
-| current | `tasks.pack_order.wait_mean` | 1.9 | s | 1.751 to 2.08 | yes |
-| current | `resources.packers.utilization_avg` | 88 | percent | 87.44 to 88.47 | yes |
+| current | `tasks.pick_order.wait_mean` | 0.57 | s | 0.5377 to 0.5688 | no |
+| current | `tasks.pack_order.wait_mean` | 1.9 | s | 1.629 to 1.837 | no |
+| current | `resources.packers.utilization_avg` | 88 | percent | 87.37 to 88.15 | yes |
 ```
 
 The report is built from the files the experiment wrote, so it can be built again without running anything:
@@ -851,8 +851,8 @@ desflow report results/complete-model
 
 Which shop design should be recommended? The fourth packer:
 
-- With it, the mean picking wait over 40 replications is **0.56 ± 0.02** seconds and the mean packing wait **0.15 ± 0.01** seconds. Both upper ends are under 1 second, and every check passes.
-- In today's shop the mean packing wait is **1.92 ± 0.16** seconds, and a second picker would lengthen it by 0.26 seconds.
+- With it, the mean picking wait over 40 replications is **0.55 ± 0.02** seconds and the mean packing wait **0.15 ± 0.01** seconds. Both upper ends are under 1 second, and every check passes.
+- In today's shop the mean packing wait is **1.73 ± 0.10** seconds, and a second picker would lengthen it by 0.25 seconds.
 - The model agrees with the formulas where they apply, and each observed value lies within one standard deviation of a single run from the model's mean.
 - Any warm-up from none to 10 minutes changes the mean waits by less than their half-widths.
 - With orders 10% faster, the fourth packer still keeps both waits under 1 second, but orders then sometimes wait for shipping boxes.

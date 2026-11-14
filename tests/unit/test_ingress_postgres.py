@@ -116,6 +116,76 @@ async def test_postgres_ingress_run(mock_create_pool, mock_pool):
     assert ingress_queue.get_nowait() == ("sim.string", "hello")
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "table_name,known,expected",
+    [
+        ("dashboard.params", None, "CREATE SCHEMA IF NOT EXISTS dashboard"),
+        ("dashboard.params", 1, None),
+        ("params", None, None),
+    ],
+)
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_postgres_ingress_creates_the_schema_of_its_table(
+    mock_create_pool, mock_pool, table_name, known, expected
+):
+    """A table in a schema the database does not have yet gets that schema first, as
+    the PostgreSQL egress does, so the ingress does not stop on its own set-up. An
+    existing schema, or a name with no schema, needs no statement."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetchval.return_value = known
+    conn.fetch.return_value = []
+    ingress = PostgresIngress("postgresql://u:p@localhost/db", table_name)
+
+    await _run_briefly(ingress, queue.Queue())
+
+    statements = [" ".join(str(c.args[0]).split()) for c in conn.execute.call_args_list]
+    schema_statements = [s for s in statements if s.startswith("CREATE SCHEMA")]
+    assert schema_statements == ([expected] if expected else [])
+    created = next(i for i, s in enumerate(statements) if s.startswith("CREATE TABLE"))
+    assert statements[created].startswith(f"CREATE TABLE IF NOT EXISTS {table_name} (")
+    if expected:
+        assert statements.index(expected) < created
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [asyncpg.exceptions.DuplicateSchemaError, asyncpg.exceptions.UniqueViolationError],
+)
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_a_schema_another_writer_creates_first_does_not_stop_the_ingress(
+    mock_create_pool, mock_pool, error
+):
+    """Two writers that start together can both find the schema missing. The one
+    whose create comes second gets an error, and the ingress goes on to its table,
+    because the schema exists then."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetchval.return_value = None
+    conn.fetch.return_value = []
+
+    async def execute(sql, *args):
+        if str(sql).startswith("CREATE SCHEMA"):
+            raise error("schema already exists")
+
+    conn.execute.side_effect = execute
+    ingress = PostgresIngress("postgresql://u:p@localhost/db", "dashboard.params")
+
+    await _run_briefly(ingress, queue.Queue())
+
+    statements = [" ".join(str(c.args[0]).split()) for c in conn.execute.call_args_list]
+    assert statements[0] == "CREATE SCHEMA IF NOT EXISTS dashboard"
+    assert statements[1].startswith("CREATE TABLE IF NOT EXISTS dashboard.params (")
+
+
 async def _run_briefly(ingress, ingress_queue):
     task = asyncio.create_task(ingress.run(ingress_queue))
     await asyncio.sleep(0.15)
@@ -186,3 +256,189 @@ async def test_postgres_ingress_names_the_column_rename(
         and "ALTER TABLE params RENAME COLUMN param_value TO value;" in r.getMessage()
         for r in caplog.records
     )
+
+
+@pytest.mark.parametrize(
+    "refused", [asyncpg.InsufficientPrivilegeError, asyncpg.DeadlockDetectedError]
+)
+@pytest.mark.asyncio
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_postgres_ingress_sends_a_change_only_after_its_row_is_marked(
+    mock_create_pool, mock_pool, refused
+):
+    """When the update that marks rows applied fails, nothing is sent, so the next poll
+    does not send the same changes again. A role that may not update the table ends
+    the task with that error, and any other failure is logged and polled again."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+
+    async def fetch(sql, *args):
+        if "is_applied = FALSE" in sql:
+            return [{"id": 1, "path": "sim.rate", "value": "5"}]
+        return []
+
+    conn.fetch.side_effect = fetch
+
+    async def execute(sql, *args):
+        if sql.lstrip().startswith("UPDATE"):
+            raise refused("update failed")
+
+    conn.execute.side_effect = execute
+    ingress = PostgresIngress("postgresql://localhost/db", "params", poll_interval=0.01)
+    ingress_queue = queue.Queue()
+
+    if refused is asyncpg.InsufficientPrivilegeError:
+        with pytest.raises(refused):
+            await asyncio.wait_for(ingress.run(ingress_queue), timeout=2)
+    else:
+        await _run_briefly(ingress, ingress_queue)
+
+    assert ingress_queue.empty()
+
+
+@pytest.mark.asyncio
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_postgres_ingress_sends_the_change_of_an_update_whose_reply_was_lost(
+    mock_create_pool, mock_pool
+):
+    """The server commits the update that marks rows applied, and the connection fails
+    before the reply. The next poll does not read the rows again, so the ingress asks
+    which of them are marked and sends their changes once."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    marked = []
+
+    async def fetch(sql, *args):
+        if "is_applied = FALSE" in sql:
+            return [] if marked else [{"id": 1, "path": "sim.rate", "value": "5"}]
+        if "is_applied = TRUE" in sql and "id = ANY" in sql:
+            return [{"id": 1}]
+        return []
+
+    async def execute(sql, *args):
+        if sql.lstrip().startswith("UPDATE"):
+            marked.append(1)
+            raise asyncpg.ConnectionDoesNotExistError("connection was closed")
+
+    conn.fetch.side_effect = fetch
+    conn.execute.side_effect = execute
+    ingress = PostgresIngress("postgresql://localhost/db", "params", poll_interval=0.01)
+    ingress_queue = queue.Queue()
+
+    await _run_briefly(ingress, ingress_queue)
+
+    assert ingress_queue.get_nowait() == ("sim.rate", 5)
+    assert ingress_queue.empty()
+
+
+@pytest.mark.asyncio
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_postgres_ingress_sends_the_change_of_an_update_that_commits_late(
+    mock_create_pool, mock_pool
+):
+    """The update fails on the client, and the server commits it before the next poll
+    reads the unapplied rows. That poll reads a newer row for the same path and not
+    the first row, so the ingress sends the first row's change before the newer one,
+    each once."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    state = {"unapplied_reads": 0, "committed": False}
+
+    async def fetch(sql, *args):
+        if "id = ANY" in sql:
+            return [{"id": 1}] if state["committed"] else []
+        if "is_applied = FALSE" in sql:
+            state["unapplied_reads"] += 1
+            if state["unapplied_reads"] == 1:
+                return [{"id": 1, "path": "sim.rate", "value": "5"}]
+            if state["unapplied_reads"] == 2:
+                state["committed"] = True  # the server commits before this read
+                return [{"id": 2, "path": "sim.rate", "value": "10"}]
+        return []
+
+    async def execute(sql, *args):
+        if sql.lstrip().startswith("UPDATE") and state["unapplied_reads"] == 1:
+            raise asyncpg.ConnectionDoesNotExistError("connection was closed")
+
+    conn.fetch.side_effect = fetch
+    conn.execute.side_effect = execute
+    ingress = PostgresIngress("postgresql://localhost/db", "params", poll_interval=0.01)
+    ingress_queue = queue.Queue()
+
+    await _run_briefly(ingress, ingress_queue)
+
+    assert ingress_queue.get_nowait() == ("sim.rate", 5)
+    assert ingress_queue.get_nowait() == ("sim.rate", 10)
+    assert ingress_queue.empty()
+
+
+@pytest.mark.asyncio
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_postgres_ingress_sends_the_change_of_an_unmarked_row_once(
+    mock_create_pool, mock_pool
+):
+    """The update fails and the server never commits it, so the poll reads the row
+    again and marks it. The row is sent from that poll, and the later check that
+    finds it marked does not send it again."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    state = {"marked": False, "updates": 0}
+
+    async def fetch(sql, *args):
+        if "id = ANY" in sql:
+            return [{"id": 1}] if state["marked"] else []
+        if "is_applied = FALSE" in sql:
+            return (
+                [] if state["marked"] else [{"id": 1, "path": "sim.rate", "value": "5"}]
+            )
+        return []
+
+    async def execute(sql, *args):
+        if sql.lstrip().startswith("UPDATE"):
+            state["updates"] += 1
+            if state["updates"] == 1:
+                raise asyncpg.ConnectionDoesNotExistError("connection was closed")
+            state["marked"] = True
+
+    conn.fetch.side_effect = fetch
+    conn.execute.side_effect = execute
+    ingress = PostgresIngress("postgresql://localhost/db", "params", poll_interval=0.01)
+    ingress_queue = queue.Queue()
+
+    await _run_briefly(ingress, ingress_queue)
+
+    assert ingress_queue.get_nowait() == ("sim.rate", 5)
+    assert ingress_queue.empty()
+
+
+@pytest.mark.asyncio
+@patch(
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
+    new_callable=AsyncMock,
+)
+async def test_postgres_ingress_marks_ids_above_the_int_range(
+    mock_create_pool, mock_pool
+):
+    """The update casts the ids to `bigint`, so a table the user created with
+    BIGSERIAL and an id above 2**31 is marked applied."""
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    conn.fetch.side_effect = [[], [{"id": 2**40, "path": "sim.rate", "value": "5"}], []]
+    ingress = PostgresIngress("postgresql://localhost/db", "params", poll_interval=0.1)
+
+    await _run_briefly(ingress, queue.Queue())
+
+    update = [c for c in conn.execute.call_args_list if "UPDATE" in c.args[0]]
+    assert "$1::bigint[]" in update[0].args[0]

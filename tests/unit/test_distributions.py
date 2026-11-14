@@ -5,7 +5,6 @@ import logging
 import math
 import re
 import shlex
-import zlib
 
 import numpy as np
 import pytest
@@ -14,7 +13,7 @@ from desflow import SimulationContext
 from desflow.blueprint.models import Distribution
 from desflow.models.distributions import DISTRIBUTIONS
 from desflow.core.environment import DynamicRealtimeEnvironment
-from desflow.core.sampler import Sampler
+from desflow.core.sampler import Sampler, stream_key
 from desflow.models.params import DistributionConfig, SimParameter, check_distribution
 
 # One valid set of parameters per family
@@ -195,7 +194,7 @@ def test_each_sequence_comes_from_the_seed_and_its_path():
     config = DistributionConfig(dist="uniform", low=0, high=1)
     config.stream = "arrival.orders"
     expected = np.random.default_rng(
-        np.random.SeedSequence(42, spawn_key=(zlib.crc32(b"arrival.orders"),))
+        np.random.SeedSequence(42, spawn_key=stream_key("arrival.orders"))
     ).uniform(0, 1)
     assert Sampler(seed=42).sample(config) == expected
     # A seeded generator gives the same sequences, so older code keeps working
@@ -285,3 +284,23 @@ def test_the_repeat_command_keeps_the_options_that_change_the_run(tmp_path, capl
         r"--until '1 min' --drain",
         caplog.text,
     ), caplog.text
+
+
+@pytest.mark.parametrize(
+    "parameters",
+    [
+        {"mean": 0, "std": 1e-160, "low": 1},
+        {"mean": 0, "std": 1, "low": 1e155},
+        # adjacent large integers are the same float, but the sampler subtracts them
+        # as integers and so divides 1 by the std
+        {"mean": 10**20, "std": 1e-200, "low": 10**20 + 1},
+    ],
+)
+def test_a_truncated_normal_too_far_into_its_tail_is_refused_at_load(parameters):
+    with pytest.raises(ValueError, match="too far above mean"):
+        DistributionConfig(dist="truncated_normal", **parameters)
+
+
+def test_a_truncated_normal_far_into_its_tail_that_can_be_drawn_is_accepted():
+    config = DistributionConfig(dist="truncated_normal", mean=0, std=1e-150, low=1)
+    assert DISTRIBUTIONS["truncated_normal"].draw(config, np.random.default_rng(1)) >= 1

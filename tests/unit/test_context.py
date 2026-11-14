@@ -2,8 +2,11 @@ import asyncio
 import queue
 import re
 from datetime import datetime, timezone
+from decimal import Decimal
+from fractions import Fraction
 from unittest.mock import MagicMock, patch
 
+import numpy
 import pytest
 
 from desflow import Entity, SimulationContext
@@ -742,31 +745,21 @@ def test_a_failed_start_tears_the_connectors_down():
     assert not thread.is_alive()
 
 
-@pytest.mark.parametrize(
-    "start, error, message",
-    [
-        ({"seed": "x"}, ValueError, "seed is a whole number of 0 or more"),
-        (
-            {"until": 1, "overrides": {"Shop.resources.packers.current_cap": -1}},
-            ValueError,
-            "cannot be set to -1",
-        ),
-    ],
-)
-def test_a_start_that_fails_before_it_makes_the_holders_leaves_none_to_get(
-    start, error, message
-):
-    """After a good run, a start that fails before it makes the run's holders
-    leaves none, and each getter raises KeyError with the name, as for a name the
-    model does not have."""
+def test_a_start_that_fails_before_it_makes_the_holders_leaves_none_to_get():
+    """After a good run, a start that fails while the run is built leaves no holders,
+    and each getter raises KeyError with the name, as for a name the model does not
+    have."""
     app = SimulationContext("Shop", factor=0)
     app.add_resource("packers", current_cap=1, max_cap=1)
     app.add_store("shelf", current_cap=2)
     app.add_container("tank", current_cap=5)
     app.run(until=1)
     assert app.get_resource("packers") is not None
-    with pytest.raises(error, match=message):
-        app.start(**start)
+    with patch.object(
+        SimulationContext, "_register_parameters", side_effect=ValueError("broken")
+    ):
+        with pytest.raises(ValueError, match="broken"):
+            app.start(until=1)
     for get, name in [
         (app.get_resource, "packers"),
         (app.get_store, "shelf"),
@@ -775,6 +768,28 @@ def test_a_start_that_fails_before_it_makes_the_holders_leaves_none_to_get(
         with pytest.raises(KeyError) as raised:
             get(name)
         assert raised.value.args == (name,)
+
+
+@pytest.mark.parametrize(
+    "start, message",
+    [
+        ({"seed": "x"}, "seed is a whole number of 0 or more"),
+        (
+            {"until": 1, "overrides": {"Shop.resources.packers.current_cap": -1}},
+            "cannot be set to -1",
+        ),
+    ],
+)
+def test_a_start_refused_for_its_settings_changes_nothing(start, message):
+    """The refusal comes before the previous run is replaced, so its holders can
+    still be read."""
+    app = SimulationContext("Shop", factor=0)
+    app.add_resource("packers", current_cap=1, max_cap=1)
+    app.run(until=1)
+    packers = app.get_resource("packers")
+    with pytest.raises(ValueError, match=message):
+        app.start(**start)
+    assert app.get_resource("packers") is packers
 
 
 def test_a_context_runs_twice_with_a_drain():
@@ -844,6 +859,73 @@ def test_a_second_run_keeps_no_flow_or_held_request_of_the_first(tmp_path):
         assert stale == []
     assert runs[0] == runs[1]
     assert any(value.get("event_type") == "flow_done" for _, value in runs[1])
+
+
+WHOLE_FLOW_MODEL = """\
+simulation: {sim_id: S, factor: 0, random_seed: 1}
+arrivals:
+  long: {initial: 1, spawn: long}
+  short: {initial: 1, spawn: short}
+  a: {dist: constant, value: 100, first_at: 1, max_events: 1, spawn: watch_both}
+  b: {dist: constant, value: 100, first_at: 3, max_events: 1, spawn: watch_short}
+  c: {dist: constant, value: 100, first_at: 20, max_events: 1, spawn: watch_short}
+tasks:
+  long: {service_time: 5, payload: {kind: long}}
+  short: {service_time: 2, payload: {kind: short}}
+  watch_both:
+    wait:
+      all:
+        quick: {running: {task: short, whole_flow: true}}
+        slow: {running: {task: long, whole_flow: true}}
+    payload: {who: a}
+  watch_short:
+    wait: {all: {flows: {running: {task: short, whole_flow: true}}}}
+    payload: {who: w, seen: {gen: expr, expr: "wait.flows.value"}}
+run: {until: 30}
+"""
+
+
+def test_a_whole_flow_wait_selects_an_ended_flow_only_while_a_waiting_task_runs(
+    tmp_path,
+):
+    """The flow of `short` ends at 2 while `watch_both` runs until 5, so the wait of
+    `watch_short` at 3 selects it, as it always did. At 20 no instance of a task with
+    such a wait runs, the flow was dropped when the last stopped, and the wait selects
+    nothing."""
+    path = tmp_path / "model.yaml"
+    path.write_text(WHOLE_FLOW_MODEL)
+    app = SimulationContext.from_yaml(path)
+    sink = _Records()
+    app.add_egress(sink)
+    app.run()
+    seen = [
+        (row["sim_ts"], row["value"]["seen"])
+        for row in sink.records
+        if "value" in row and row["value"].get("who") == "w"
+    ]
+    assert seen == [(3.0, {"kind": "short"}), (20.0, {})]
+
+
+def test_a_whole_flow_wait_that_runs_now_and_then_keeps_no_ended_flow(tmp_path):
+    """A `watch` every 100 s selects the flows running when it starts; the flows that
+    ended between two of them are not kept, so the list stays as long after 4,000 s as
+    after 1,000 s (3,999 instances before)."""
+    path = tmp_path / "model.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0}\n"
+        "arrivals:\n"
+        "  a: {dist: constant, value: 1, spawn: job}\n"
+        "  w: {dist: constant, value: 100, spawn: watcher, first_at: 0.5}\n"
+        "tasks:\n"
+        "  job: {service_time: 0.5, payload: {e: done}}\n"
+        "  watcher: {wait: {running: {task: job, whole_flow: true}}, payload: {e: seen}}\n"
+    )
+    app = SimulationContext.from_yaml(path)
+    kept = []
+    for until in (1000, 4000):
+        app.run(until=until)
+        kept.append(len(app._run.flow_runs["job"]))
+    assert kept[1] == kept[0] and kept[1] < 150, kept
 
 
 def test_the_requests_a_release_task_reaches_drop_those_that_reneged(tmp_path):
@@ -1259,6 +1341,15 @@ def test_an_interval_given_as_a_duration_is_kept_in_seconds():
     assert ticks == [0, 5, 10, 15, 20]
 
 
+def test_an_arrival_with_an_empty_name_is_refused():
+    app = SimulationContext("S", factor=0.0)
+
+    with pytest.raises(ValueError, match="an arrival name is at least one character"):
+        app.add_arrival("", "constant", value=1, spawn="t")
+    with pytest.raises(ValueError, match="an arrival name is at least one character"):
+        app.add_arrival_replay("", [{"time": 1}])
+
+
 @pytest.mark.parametrize(
     "refused, message",
     [
@@ -1620,9 +1711,10 @@ def test_add_resource_checks_its_capacity_and_type():
         app.add_resource("limited", queue_limit=-2)
 
 
-def test_a_resource_in_the_wait_and_in_resource_is_refused():
-    """A task holds a resource once: naming it in a wait request and in resource would
-    queue the task behind its own unit for ever."""
+def test_a_resource_in_the_wait_and_in_resource_warns_and_runs(caplog):
+    """Naming a resource in a wait request and in resource takes two units of it, so
+    the run can wait for ever when it has one. The model still runs, and a warning
+    names the task and the resource."""
     app = _two_resources()
 
     @app.task(
@@ -1631,8 +1723,9 @@ def test_a_resource_in_the_wait_and_in_resource_is_refused():
     def a(task_id):
         return {}
 
-    with pytest.raises(ValueError, match="holds each resource once"):
+    with caplog.at_level("WARNING"):
         app.run(until=1)
+    assert "task 'a' takes a unit of resource 'picker' twice" in caplog.text
 
 
 def test_a_wait_request_counts_in_the_acquisition_order(caplog):
@@ -1998,11 +2091,13 @@ def test_an_on_action_change_has_no_source():
 
 
 def test_an_on_action_with_a_refused_value_is_logged_and_the_run_goes_on(caplog):
-    """Only a scenario step is refused; an `on:` action keeps `update`."""
+    """A constant value is refused at start; one a generator gives is known only when
+    the action fires, where an `on:` action keeps `update`."""
     app = SimulationContext("Shop", factor=0.0)
     app.add_arrival("orders", dist="exponential", rate=1.0)
+    never = generator({"gen": "integer", "bounds": [0, 0]})
 
-    @app.task(on=[{"path": "Shop.arrival.orders.rate", "value": 0}], name="courier")
+    @app.task(on=[{"path": "Shop.arrival.orders.rate", "value": never}], name="courier")
     def courier(task_id):
         return {}
 
@@ -2264,6 +2359,20 @@ def test_add_arrival_refuses_a_gap_that_does_not_fit(arguments, message):
         SimulationContext("G").add_arrival("a", **arguments)
 
 
+def test_a_whole_number_too_large_for_a_float_is_refused_by_name():
+    """`10**400` is a whole number, but `float()` cannot convert it, so each check
+    names the setting and does not raise `OverflowError`."""
+    app = SimulationContext("H")
+    with pytest.raises(
+        ValueError, match="resource 'r' needs .* current_cap, got a number"
+    ):
+        app.add_resource("r", current_cap=10**400)
+    with pytest.raises(
+        ValueError, match="arrival 'a': max_events .* too large for a float"
+    ):
+        app.add_arrival("a", gap=1, spawn="t", max_events=10**400)
+
+
 def test_add_initial_arrival_takes_a_key():
     app = SimulationContext("K", factor=0)
     app.add_initial_arrival("m", 3, spawn="note", key=lambda n: f"Machine {n - 1}")
@@ -2375,6 +2484,50 @@ def test_run_segments_every_needs_until():
     app = _ticking(SimulationContext("S", factor=0))
     with pytest.raises(ValueError, match="needs an until"):
         app.run(segments={"every": 2})
+
+
+def test_run_segments_every_refuses_an_until_of_infinity():
+    """A list of entries up to infinity would never end building."""
+    app = _ticking(SimulationContext("S", factor=0))
+    with pytest.raises(ValueError, match="finite until"):
+        app.run(until=float("inf"), segments={"every": 10})
+
+
+def test_a_yaml_run_segments_every_refuses_an_until_of_infinity(tmp_path):
+    path = tmp_path / "m.yaml"
+    path.write_text(
+        "simulation: {sim_id: S, factor: 0}\n"
+        "arrivals: {a: {gap: 1, max_events: 1, spawn: t}}\n"
+        "tasks: {t: {service_time: 1, payload: {}}}\n"
+        "run: {until: .inf, segments: {every: 10}}\n"
+    )
+    with pytest.raises(BlueprintError, match=r"m\.yaml:4.*finite run.until"):
+        SimulationContext.from_yaml(path)
+
+
+@pytest.mark.parametrize(
+    "look_task",
+    [{"service_time": 100}, {"wait": {"signal": "never"}}],
+    ids=["takes time", "waits for a signal that does not come"],
+)
+def test_a_segment_look_task_that_takes_time_is_refused_at_the_segment_end(look_task):
+    """`look` runs zero-time steps; one that needs time stops the run with an error
+    that names the task, in place of running on past the segment and `until`."""
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_signal("never")
+    app.add_arrival("a", "exponential", rate=1, spawn="tick")
+
+    @app.task(service_time=0.5)
+    def tick(task_id):
+        return {}
+
+    @app.task(name="look", **look_task)
+    def look(task_id):
+        return {}
+
+    with pytest.raises(RuntimeError, match="look task 'look' did not end at time 5"):
+        app.run(until=10, segments=[{"until": 5, "look": "look"}, {}])
+    assert app.env.now == 5
 
 
 def test_a_task_that_returns_no_record_finishes_with_no_finished_event():
@@ -3321,3 +3474,251 @@ def test_the_scenario_walk_yields_each_step_with_its_problem():
     assert walk([(1, cap, Expr(gen="expr", expr="1"))]) == [(0, None, None)]
     assert walk([(1, cap, 2.0), (1, cap, 2)]) == [(0, None, None), (1, None, None)]
     assert walk([(1, "S.resources.m.queue_limit", "x")])[0][:2] == (0, "value")
+
+
+@pytest.mark.parametrize(
+    "refused",
+    [
+        {"seed": -1},
+        {"on_unhandled_failure": "Stop"},
+        {"overrides": {"S.nope": 1}},
+    ],
+    ids=["seed", "on_unhandled_failure", "override"],
+)
+def test_a_refused_start_leaves_the_open_run_open(refused):
+    app = _ticking(SimulationContext("S", factor=0))
+    app.start(until=10)
+    app.advance(3)
+    with pytest.raises(ValueError):
+        app.start(until=10, **refused)
+    assert app.started
+    assert app.env.now == 3
+    app.advance(5)
+    app.close()
+
+
+def test_a_refused_task_time_names_the_task_when_the_name_is_known():
+    app = SimulationContext("S", factor=0)
+    with pytest.raises(ValueError, match="^a task's service_time gave -1"):
+        app.task(service_time=-1)
+    with pytest.raises(ValueError, match="^a task's patience gave nan"):
+        app.task(patience=float("nan"), resource_id="r", service_time=1)
+    with pytest.raises(ValueError, match="^task 'named' service_time gave -1"):
+        app.task(name="named", service_time=-1)
+
+
+@pytest.mark.parametrize(
+    "after, message",
+    [
+        (Decimal("1"), None),
+        (10**400, "too large for a float"),
+        ([1], "a spawn after is seconds or a duration"),
+        (Decimal("NaN"), "a spawn after gave nan"),
+    ],
+    ids=["Decimal", "huge integer", "list", "Decimal NaN"],
+)
+def test_a_spawn_after_is_read_as_seconds_when_declared(after, message):
+    app = SimulationContext("S", factor=0)
+
+    def declare():
+        app.task(name="a", spawn={"task": "b", "after": after})(lambda task_id: {})
+
+    if message is None:
+        declare()
+        assert app._tasks.specs["a"].spawn["after"] == 1.0
+        assert type(app._tasks.specs["a"].spawn["after"]) is float
+    else:
+        with pytest.raises(ValueError, match=message):
+            declare()
+
+
+def test_an_arrival_gap_too_large_for_a_float_is_refused_naming_the_arrival():
+    app = SimulationContext("S", factor=0)
+    with pytest.raises(
+        ValueError, match="arrival 'a': gap is a whole number too large"
+    ):
+        app.add_arrival("a", gap=10**400, spawn="t")
+
+
+def test_advance_reads_a_decimal_or_a_numpy_clock_as_seconds():
+    app = _ticking(SimulationContext("S", factor=0))
+    app.start(until=20)
+    with pytest.raises(ValueError, match="until gave nan"):
+        app.advance(Decimal("NaN"))
+    app.advance(Decimal("5"))
+    assert app.env.now == 5
+    assert not isinstance(app.env.now, Decimal)
+    app.advance(numpy.int64(8))
+    assert app.env.now == 8
+    app.close()
+
+
+@pytest.mark.parametrize(
+    "step, message",
+    [
+        ({"at": 1, "record": "rush"}, "record is a mapping"),
+        ({"at": 1, "path": ["S", "arrival"], "value": 1}, "path is text"),
+        ({"at": 1, "interrupt": {"task": ["t"]}}, "names the task by its text"),
+    ],
+    ids=["record text", "path list", "interrupt task list"],
+)
+def test_a_scenario_step_of_the_wrong_shape_is_refused_when_added(step, message):
+    app = SimulationContext("S", factor=0)
+    with pytest.raises(ValueError, match=message):
+        app.add_scenario([step])
+    assert app._scenario_steps == []
+
+
+def test_interrupt_refuses_a_task_the_model_does_not_have():
+    app = _ticking(SimulationContext("S", factor=0))
+    app.start(until=5)
+    assert app.interrupt("tick") == 0
+    with pytest.raises(ValueError, match="no task is called 'tik'.*tick"):
+        app.interrupt("tik")
+    app.close()
+
+
+@pytest.mark.parametrize(
+    "factor", [10**400, Fraction(10**400)], ids=["int", "fraction"]
+)
+def test_a_factor_too_large_for_a_float_is_refused_when_the_context_is_made(factor):
+    with pytest.raises(ValueError, match="factor gave a whole number too large"):
+        SimulationContext(sim_id="S", factor=factor)
+
+
+@pytest.mark.parametrize("scenario_first", [False, True])
+def test_a_scenario_step_at_time_0_applies_before_an_arrival_draws_its_first_gap(
+    scenario_first,
+):
+    """The scenario starts before the arrivals, whatever the order they are added in,
+    so the first gap is drawn at the new rate."""
+    app = SimulationContext("S", factor=0, random_seed=1)
+    times = []
+
+    def add_step():
+        app.add_step(0, path="S.arrival.a.value", value=1.0)
+
+    if scenario_first:
+        add_step()
+    app.add_arrival("a", "constant", value=10.0, spawn="t")
+
+    @app.task(name="t")
+    def t(task_id, entity=None):
+        times.append(app.env.now)
+        return {}
+
+    if not scenario_first:
+        add_step()
+    app.run(until=5.5)
+    assert times == [1.0, 2.0, 3.0, 4.0, 5.0]
+
+
+def test_a_dropped_arrival_does_not_give_back_a_key_another_entity_took():
+    """A call of a task that shares an arrival's name takes the next number of that
+    arrival's keys, so the arrival dropped before it cannot give its number back."""
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_arrival("a", "constant", value=10.0, spawn="a", active=False)
+    keys = []
+
+    @app.task(name="a")
+    def a(task_id, entity=None):
+        keys.append(entity.key)
+        return {}
+
+    @app.task(name="switch_on", activate="a")
+    def switch_on(task_id, entity=None):
+        return {}
+
+    def driver(context):
+        yield context.env.timeout(5)
+        context.call("a")
+        yield context.env.timeout(7)
+        context.call("switch_on")
+
+    app.add_process(driver)
+    app.run(until=25)
+    assert len(keys) == len(set(keys))
+
+
+def test_rows_given_as_an_iterator_are_replayed_by_every_run():
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_arrival_replay("a", ({"time": t} for t in (1, 2, 3)), spawn="t")
+    runs = []
+
+    @app.task(name="t")
+    def t(task_id, entity=None):
+        runs[-1].append(app.env.now)
+        return {}
+
+    for _ in range(2):
+        runs.append([])
+        app.run(until=10)
+    assert runs == [[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]
+
+
+@pytest.mark.parametrize("stats", [False, True])
+def test_a_drain_with_no_limit_ends_when_no_entity_can_move(stats, caplog):
+    """The entity waits for a signal nothing fires. With or without statistics the
+    run ends, with a warning, and does not run for ever or raise SimPy's error."""
+    import threading
+
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_signal("never")
+    app.add_arrival("a", "constant", value=1.0, spawn="t", max_events=1)
+
+    @app.task(name="t", wait={"signal": "never"})
+    def t(task_id, entity=None):
+        return {}
+
+    app.add_egress(RecordingEgress())
+    if stats:
+        app.with_stats("basic", interval=1)
+    errors = []
+
+    def run():
+        try:
+            app.run(until=5, drain=True)
+        except BaseException as error:
+            errors.append(error)
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    thread.join(20)
+    assert not thread.is_alive()
+    assert errors == []
+    assert "1 entities still in the model" in caplog.text
+
+
+def test_step_after_close_raises_and_peek_gives_the_time_of_the_next_event():
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_arrival("a", "constant", value=1.0, spawn="t")
+    app.task(name="t")(lambda task_id, entity=None: {})
+    app.add_egress(RecordingEgress())
+    app.start(until=3)
+    app.step()
+    before = app.peek()
+    app.close()
+    with pytest.raises(RuntimeError, match="needs a run that start"):
+        app.step()
+    assert app.peek() == before < float("inf")
+
+
+def test_peek_after_a_failed_start_raises(monkeypatch):
+    app = SimulationContext("S", factor=0, random_seed=1)
+    app.add_arrival("a", "constant", value=1.0, spawn="t")
+    app.task(name="t")(lambda task_id, entity=None: {})
+
+    def refuse(env):
+        raise ValueError("replay refused")
+
+    monkeypatch.setattr(app, "_read_replay_rows", refuse)
+    with pytest.raises(ValueError, match="replay refused"):
+        app.start(until=3)
+    with pytest.raises(RuntimeError, match="needs a run that start"):
+        app.peek()
+
+
+def test_an_initial_arrival_with_an_empty_name_is_refused_when_it_is_added():
+    app = SimulationContext("S", factor=0, random_seed=1)
+    with pytest.raises(ValueError, match="an arrival name is at least one character"):
+        app.add_initial_arrival("", 2, spawn="t")

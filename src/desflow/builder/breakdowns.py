@@ -20,7 +20,7 @@ BREAKDOWN_WORK = ("interrupt", "finish")
 BREAKDOWN_CLOCKS = ("calendar", "busy")
 # The cycles that may end at one instant before the run is refused: no static check
 # covers every distribution whose draws are all 0
-_MAX_CYCLES_AT_ONE_INSTANT = 10_000
+MAX_CYCLES_AT_ONE_INSTANT = 10_000
 # The time a busy clock may differ from its drawn time by float error and still fail
 _BUSY_EPSILON = 1e-9
 
@@ -90,10 +90,10 @@ def run_breakdowns(
         _publish(env, resource, "repaired")
         # A time to failure and a repair that both draw 0 never move the clock
         cycles_now = cycles_now + 1 if env.now == cycle_began else 1
-        if cycles_now >= _MAX_CYCLES_AT_ONE_INSTANT:
+        if cycles_now >= MAX_CYCLES_AT_ONE_INSTANT:
             raise ValueError(
                 f"resource '{resource.obj_id}' breakdown: it failed and was "
-                f"repaired {_MAX_CYCLES_AT_ONE_INSTANT} times at time {env.now:g}, "
+                f"repaired {MAX_CYCLES_AT_ONE_INSTANT} times at time {env.now:g}, "
                 f"so the clock does not move; give time_to_failure or repair a "
                 f"time above 0"
             )
@@ -129,6 +129,10 @@ def _busy_time(
             # The timer won: drop the event, so a resource that never goes idle does
             # not collect one for each failure
             resource._forget_waiter(idle)
+            if env.now == began:
+                # The timer ended and the clock did not move: the time left is below
+                # the precision of the clock at this time, so no later timer moves it
+                return
         left -= env.now - began
         if left <= _BUSY_EPSILON:
             return

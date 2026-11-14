@@ -74,11 +74,11 @@ Customers sign up with a tier, and each order reads one sign-up row, so its cust
 
     <!-- records: gallery-orders_carry_the_customers_tier -->
     ```text
-    {"stream_type":"event","sim_ts":1.1718368391649996,"timestamp":"...","key":"signups-1","task":"sign_up","instance":0,"value":{"customer_id":0,"tier":"basic"}}
-    {"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"place_order","instance":0,"value":{"order_id":0,"customer_id":0,"tier":"basic","amount":79.93}}
-    {"stream_type":"event","sim_ts":1.3479226635723796,"timestamp":"...","key":"orders-2","task":"place_order","instance":1,"value":{"order_id":1,"customer_id":0,"tier":"basic","amount":136.75}}
-    {"stream_type":"event","sim_ts":1.8686592357447462,"timestamp":"...","key":"orders-3","task":"place_order","instance":2,"value":{"order_id":2,"customer_id":0,"tier":"basic","amount":56.66}}
-    {"stream_type":"event","sim_ts":2.0097703062717214,"timestamp":"...","key":"orders-4","task":"place_order","instance":3,"value":{"order_id":3,"customer_id":0,"tier":"basic","amount":60.25}}
+    {"stream_type":"event","sim_ts":42.95160161372071,"timestamp":"...","key":"signups-1","task":"sign_up","instance":0,"value":{"customer_id":0,"tier":"plus"}}
+    {"stream_type":"event","sim_ts":44.816407163479376,"timestamp":"...","key":"orders-33","task":"place_order","instance":32,"value":{"order_id":0,"customer_id":0,"tier":"plus","amount":48.5}}
+    {"stream_type":"event","sim_ts":45.43549590251013,"timestamp":"...","key":"orders-34","task":"place_order","instance":33,"value":{"order_id":1,"customer_id":0,"tier":"plus","amount":121.18}}
+    {"stream_type":"event","sim_ts":45.58801673322658,"timestamp":"...","key":"orders-35","task":"place_order","instance":34,"value":{"order_id":2,"customer_id":0,"tier":"plus","amount":192.09}}
+    {"stream_type":"event","sim_ts":45.75519547391547,"timestamp":"...","key":"orders-36","task":"place_order","instance":35,"value":{"order_id":3,"customer_id":0,"tier":"plus","amount":154.2}}
     ```
 
 === "Builder"
@@ -170,7 +170,7 @@ Customers sign up with a tier, and each order reads one sign-up row, so its cust
     python examples/gallery/orders_carry_the_customers_tier_low_level.py
     ```
 
-    The Low-level file draws each value with `Sampler.generator(<place>)`, where the place is the key path of the blueprint's generator that makes the same value, such as `tasks.sign_up.payload.tier`, `tasks.place_order.vars.customer` and `tasks.place_order.payload.amount`. Each draw therefore comes from the random sequence the blueprint uses at the same place, so the draws are the blueprint's. The gaps between arrivals come from `Sampler.sample` on a `DistributionConfig` whose `stream` is `arrival.signups` and `arrival.orders`, the sequence the blueprint uses for its arrivals.
+    The Low-level file draws each value with `Sampler.generator(<place>)`, where the place is the key path of the blueprint's generator that makes the same value, such as `tasks.sign_up.payload.tier`, `tasks.place_order.vars.customer` and `tasks.place_order.payload.amount`. Each draw therefore comes from the random sequence the blueprint uses at the same place, so the draws are the blueprint's. The gaps between arrivals come from `Sampler.sample` on a `DistributionConfig` whose `stream` is `arrival.signups` and `arrival.orders`, the sequences the blueprint uses for its arrivals.
 
     ```python title="examples/gallery/orders_carry_the_customers_tier_low_level.py"
     """Each order carries the tier of the customer who placed it.
@@ -340,11 +340,11 @@ Payments arrive from twenty cards, and 3 percent of them come from a card that h
 
     <!-- records: gallery-stolen_card_makes_three_large_payments -->
     ```text
-    {"stream_type":"event","sim_ts":1.417883528518275,"timestamp":"...","key":"card-19","task":"payment","instance":0,"value":{"card":"card-19","amount":67.42,"stolen":false}}
-    {"stream_type":"event","sim_ts":2.5493293816507583,"timestamp":"...","key":"card-9","task":"payment","instance":1,"value":{"card":"card-9","amount":116.65,"stolen":false}}
-    {"stream_type":"event","sim_ts":4.274348927648783,"timestamp":"...","key":"card-3","task":"payment","instance":2,"value":{"card":"card-3","amount":60.94,"stolen":false}}
-    {"stream_type":"event","sim_ts":5.934309059517776,"timestamp":"...","key":"card-6","task":"payment","instance":3,"value":{"card":"card-6","amount":61.3,"stolen":false}}
-    {"stream_type":"event","sim_ts":7.607804062422653,"timestamp":"...","key":"card-10","task":"payment","instance":4,"value":{"card":"card-10","amount":22.48,"stolen":false}}
+    {"stream_type":"event","sim_ts":2.081546583669206,"timestamp":"...","key":"card-4","task":"payment","instance":0,"value":{"card":"card-4","amount":46.73,"stolen":false}}
+    {"stream_type":"event","sim_ts":2.859436022312404,"timestamp":"...","key":"card-3","task":"payment","instance":1,"value":{"card":"card-3","amount":9.54,"stolen":false}}
+    {"stream_type":"event","sim_ts":2.9829212161369547,"timestamp":"...","key":"card-7","task":"payment","instance":2,"value":{"card":"card-7","amount":22.7,"stolen":false}}
+    {"stream_type":"event","sim_ts":3.93943343963651,"timestamp":"...","key":"card-20","task":"payment","instance":3,"value":{"card":"card-20","amount":36.17,"stolen":false}}
+    {"stream_type":"event","sim_ts":4.129047924723884,"timestamp":"...","key":"card-20","task":"payment","instance":4,"value":{"card":"card-20","amount":28.54,"stolen":false}}
     ```
 
 === "Builder"
@@ -606,11 +606,11 @@ Five products change their stock level by a few units every 5 seconds, each from
 
     <!-- records: gallery-stock_queries_read_the_latest_level -->
     ```text
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"sku-1","task":"update_stock","instance":0,"value":{"sku":"sku-1","level":98}}
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"sku-2","task":"update_stock","instance":1,"value":{"sku":"sku-2","level":92}}
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"sku-3","task":"update_stock","instance":2,"value":{"sku":"sku-3","level":95}}
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"sku-4","task":"update_stock","instance":3,"value":{"sku":"sku-4","level":108}}
-    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"sku-5","task":"update_stock","instance":4,"value":{"sku":"sku-5","level":99}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"sku-1","task":"update_stock","instance":0,"value":{"sku":"sku-1","level":96}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"sku-2","task":"update_stock","instance":1,"value":{"sku":"sku-2","level":103}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"sku-3","task":"update_stock","instance":2,"value":{"sku":"sku-3","level":103}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"sku-4","task":"update_stock","instance":3,"value":{"sku":"sku-4","level":94}}
+    {"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"sku-5","task":"update_stock","instance":4,"value":{"sku":"sku-5","level":93}}
     ```
 
 === "Builder"
@@ -886,11 +886,11 @@ The gateway span covers an auth check and a database call that run inside it, so
 
     <!-- records: gallery-requests_become_traces_of_nested_spans -->
     ```text
-    {"stream_type":"event","sim_ts":2.2594766855373103,"timestamp":"...","key":"requests-1","task":"auth","instance":0,"value":{"status":"started"}}
-    {"stream_type":"event","sim_ts":2.26947668553731,"timestamp":"...","key":"requests-1","task":"auth","instance":0,"value":{"trace_id":"fbc191e4-9c8a-40e6-9731-aee2c4b51e23","span_id":"acf16d24-54e5-49fa-86b4-fef8d1e61fb8","parent_span_id":"13b6ad13-1c18-4fdf-9f7b-aea82dd4f6e7","name":"check token","start":2.2594766855373103,"duration_ms":10}}
-    {"stream_type":"event","sim_ts":2.26947668553731,"timestamp":"...","key":"requests-1","task":"orders_db","instance":0,"value":{"status":"started"}}
-    {"stream_type":"event","sim_ts":2.28647668553731,"timestamp":"...","key":"requests-1","task":"orders_db","instance":0,"value":{"trace_id":"fbc191e4-9c8a-40e6-9731-aee2c4b51e23","span_id":"a3b571e4-2c04-4c81-8a96-e9e16dfcdf75","parent_span_id":"13b6ad13-1c18-4fdf-9f7b-aea82dd4f6e7","name":"SELECT orders","start":2.26947668553731,"duration_ms":17}}
-    {"stream_type":"event","sim_ts":2.28647668553731,"timestamp":"...","key":"requests-1","task":"gateway","instance":0,"value":{"status":"started"}}
+    {"stream_type":"event","sim_ts":0.9203554340231125,"timestamp":"...","key":"requests-1","task":"auth","instance":0,"value":{"status":"started"}}
+    {"stream_type":"event","sim_ts":0.9263554340231125,"timestamp":"...","key":"requests-1","task":"auth","instance":0,"value":{"trace_id":"fbf20686-5abf-4ade-9510-ae446054562c","span_id":"5f760756-dd54-4de5-aabd-4788a813c817","parent_span_id":"218acc9a-37ea-463c-b078-b0bdd04140aa","name":"check token","start":0.9203554340231125,"duration_ms":6}}
+    {"stream_type":"event","sim_ts":0.9263554340231125,"timestamp":"...","key":"requests-1","task":"orders_db","instance":0,"value":{"status":"started"}}
+    {"stream_type":"event","sim_ts":1.0103554340231125,"timestamp":"...","key":"requests-1","task":"orders_db","instance":0,"value":{"trace_id":"fbf20686-5abf-4ade-9510-ae446054562c","span_id":"3eb6d72c-3be1-4f2f-b392-061e4d0579ab","parent_span_id":"218acc9a-37ea-463c-b078-b0bdd04140aa","name":"SELECT orders","start":0.9263554340231125,"duration_ms":84}}
+    {"stream_type":"event","sim_ts":1.0103554340231125,"timestamp":"...","key":"requests-1","task":"gateway","instance":0,"value":{"status":"started"}}
     ```
 
 === "Builder"

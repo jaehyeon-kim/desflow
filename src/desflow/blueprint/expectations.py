@@ -90,7 +90,7 @@ def fix_expectations(
                     and not math.isnan(found[name])
                     and not holds(expected, found[name])
                 ):
-                    at = _where(source, "tests", index, "expect", name)
+                    at = _expect_line(source, index, name)
                     _refuse_a_shared_expect(source, tests, owners[at], at)
                     _replace(lines, source, index, name, expected, found[name])
         else:
@@ -99,6 +99,13 @@ def fix_expectations(
     for after in sorted(inserts, reverse=True):
         lines[after + 1 : after + 1] = inserts[after]
     return "".join(lines)
+
+
+def _expect_line(source: SourceMap, index: int, name: str) -> int:
+    """The index in the list of lines of the key `name` of test `index`'s `expect`. A
+    key written through an alias has the line of the same key in the anchor the alias
+    repeats, which another test may hold."""
+    return _where(source, *source.anchor(("tests", index, "expect", name)))
 
 
 def _tests_by_expect_line(
@@ -110,9 +117,8 @@ def _tests_by_expect_line(
     owners: Dict[int, List[int]] = {}
     for index, test in enumerate(tests):
         for name in test.expect or {}:
-            readers = owners.setdefault(
-                _where(source, "tests", index, "expect", name), []
-            )
+            where = _expect_line(source, index, name)
+            readers = owners.setdefault(where, [])
             if index not in readers:
                 readers.append(index)
     return owners
@@ -194,7 +200,10 @@ def _add_expect(
     """Writes an `expect` block for a test that has none, or an empty one."""
     start = _where(source, "tests", index)
     dash = re.match(r"^(\s*)-\s+", lines[start])
-    if dash is None:
+    # An anchor or a tag may come before the mapping: `- &case {name: t}`
+    after_dash = lines[start][dash.end() :] if dash else ""
+    opening = re.sub(r"^(?:[&!]\S*\s+)*", "", after_dash.lstrip())
+    if dash is None or opening.startswith("{"):
         raise BlueprintError(
             f"{source.path}:{start + 1}: --fix writes expect into a test written as a "
             f"block mapping that starts with `- `; write this test that way"

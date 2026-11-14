@@ -232,12 +232,12 @@ Run the model for 240 simulated seconds and print its first 19 orders. The block
 
 <!-- records: gd-change-the-schema -->
 ```text
-{"stream_type":"event","sim_ts":50.0,"timestamp":"...","key":"orders-5","task":"order","instance":4,"value":{"order_id":5,"total":44.44}}
-{"stream_type":"event","sim_ts":60.0,"timestamp":"...","key":"orders-6","task":"order","instance":5,"value":{"order_id":6,"currency":"EUR","total":151.34}}
-{"stream_type":"event","sim_ts":110.0,"timestamp":"...","key":"orders-11","task":"order","instance":10,"value":{"order_id":11,"currency":"EUR","total":22.01}}
-{"stream_type":"event","sim_ts":120.0,"timestamp":"...","key":"orders-12","task":"order","instance":11,"value":{"order_id":12,"currency":"EUR","amount":103.07}}
-{"stream_type":"event","sim_ts":170.0,"timestamp":"...","key":"orders-17","task":"order","instance":16,"value":{"order_id":17,"currency":"EUR","amount":143.54}}
-{"stream_type":"event","sim_ts":180.0,"timestamp":"...","key":"orders-18","task":"order","instance":17,"value":{"order_id":18,"currency":"EUR","amount":"92.49"}}
+{"stream_type":"event","sim_ts":50.0,"timestamp":"...","key":"orders-5","task":"order","instance":4,"value":{"order_id":5,"total":11.08}}
+{"stream_type":"event","sim_ts":60.0,"timestamp":"...","key":"orders-6","task":"order","instance":5,"value":{"order_id":6,"currency":"EUR","total":48.48}}
+{"stream_type":"event","sim_ts":110.0,"timestamp":"...","key":"orders-11","task":"order","instance":10,"value":{"order_id":11,"currency":"EUR","total":26.51}}
+{"stream_type":"event","sim_ts":120.0,"timestamp":"...","key":"orders-12","task":"order","instance":11,"value":{"order_id":12,"currency":"EUR","amount":92.49}}
+{"stream_type":"event","sim_ts":170.0,"timestamp":"...","key":"orders-17","task":"order","instance":16,"value":{"order_id":17,"currency":"EUR","amount":197.02}}
+{"stream_type":"event","sim_ts":180.0,"timestamp":"...","key":"orders-18","task":"order","instance":17,"value":{"order_id":18,"currency":"EUR","amount":"68.52"}}
 {"stream_type":"label","sim_ts":60.0,"timestamp":"...","path":null,"old":null,"new":null,"label":{"change":"field_added","field":"currency"}}
 {"stream_type":"label","sim_ts":120.0,"timestamp":"...","path":null,"old":null,"new":null,"label":{"change":"field_renamed","field":"total","to":"amount"}}
 {"stream_type":"label","sim_ts":180.0,"timestamp":"...","path":null,"old":null,"new":null,"label":{"change":"field_retyped","field":"amount","to":"text"}}

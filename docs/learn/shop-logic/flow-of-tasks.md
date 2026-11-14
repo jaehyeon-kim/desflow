@@ -227,46 +227,46 @@ An order is an **entity** with **attributes**: values it carries from task to ta
 
     `Entity(key, arrival, attributes)` is the order, created by the arrival process; the full file below shows it.
 
-Attributes are not published. A condition reads them as `attr.express`, and a payload includes them only when it names them. `ship_order` names `express` and `backordered`, so its finished event carries both. This is `orders-172`, which was picked while the shelf was empty, backordered, picked again and packed twice. Every tab prints its records to the terminal, so `grep` finds the order's lines:
+Attributes are not published. A condition reads them as `attr.express`, and a payload includes them only when it names them. `ship_order` names `express` and `backordered`, so its finished event carries both. This is `orders-851`, which was picked while the shelf was empty, backordered, picked again and packed twice. Every tab prints its records to the terminal, so `grep` finds the order's lines:
 
 === "YAML"
 
     ```bash
-    desflow run flow_of_tasks.yaml 2>&1 | grep orders-172
+    desflow run flow_of_tasks.yaml 2>&1 | grep orders-851
     ```
 
 === "Builder"
 
     ```bash
-    python flow_of_tasks.py 2>&1 | grep orders-172
+    python flow_of_tasks.py 2>&1 | grep orders-851
     ```
 
 === "Low-level"
 
     ```bash
-    python flow_of_tasks_low_level.py 2>&1 | grep orders-172
+    python flow_of_tasks_low_level.py 2>&1 | grep orders-851
     ```
 
 <!-- records: one-order-flow -->
 ```text
-[EVT] {'sim_ts': 397.1584962029092, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 222, 'value': {'path_id': 'Shop.service.picking', 'sim_id': 'Shop', 'service': 'picking', 'status': 'queued'}}
-[EVT] {'sim_ts': 398.01710554041324, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 222, 'value': {'path_id': 'Shop.service.picking', 'sim_id': 'Shop', 'service': 'picking', 'status': 'started'}}
-[EVT] {'sim_ts': 399.1377090016122, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 222, 'value': {'event_type': 'order_picked'}}
-[EVT] {'sim_ts': 399.1377090016122, 'timestamp': '...', 'key': 'orders-172', 'task': 'backorder', 'instance': 24, 'value': {'path_id': 'Shop.service.supplying', 'sim_id': 'Shop', 'service': 'supplying', 'status': 'started'}}
-[EVT] {'sim_ts': 459.1377090016122, 'timestamp': '...', 'key': 'orders-172', 'task': 'backorder', 'instance': 24, 'value': {'event_type': 'order_backordered'}}
-[EVT] {'sim_ts': 459.1377090016122, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 258, 'value': {'path_id': 'Shop.service.picking', 'sim_id': 'Shop', 'service': 'picking', 'status': 'queued'}}
-[EVT] {'sim_ts': 461.4274752922962, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 258, 'value': {'path_id': 'Shop.service.picking', 'sim_id': 'Shop', 'service': 'picking', 'status': 'started'}}
-[EVT] {'sim_ts': 463.37555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 258, 'value': {'event_type': 'order_picked'}}
-[EVT] {'sim_ts': 463.37555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 243, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
-[EVT] {'sim_ts': 463.37555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 243, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
-[EVT] {'sim_ts': 464.87555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 243, 'value': {'event_type': 'order_packed'}}
-[EVT] {'sim_ts': 464.87555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 245, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
-[EVT] {'sim_ts': 464.87555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 245, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
-[EVT] {'sim_ts': 466.37555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'pack_order', 'instance': 245, 'value': {'event_type': 'order_packed'}}
-[EVT] {'sim_ts': 466.37555301009564, 'timestamp': '...', 'key': 'orders-172', 'task': 'ship_order', 'instance': 233, 'value': {'event_type': 'order_shipped', 'express': 0, 'backordered': 1}}
+[EVT] {'sim_ts': 2092.1809997632477, 'timestamp': '...', 'key': 'orders-851', 'task': 'pick_order', 'instance': 1057, 'value': {'path_id': 'Shop.service.picking', 'sim_id': 'Shop', 'service': 'picking', 'status': 'queued'}}
+[EVT] {'sim_ts': 2092.1809997632477, 'timestamp': '...', 'key': 'orders-851', 'task': 'pick_order', 'instance': 1057, 'value': {'path_id': 'Shop.service.picking', 'sim_id': 'Shop', 'service': 'picking', 'status': 'started'}}
+[EVT] {'sim_ts': 2094.2512057061713, 'timestamp': '...', 'key': 'orders-851', 'task': 'pick_order', 'instance': 1057, 'value': {'event_type': 'order_picked'}}
+[EVT] {'sim_ts': 2094.2512057061713, 'timestamp': '...', 'key': 'orders-851', 'task': 'backorder', 'instance': 0, 'value': {'path_id': 'Shop.service.supplying', 'sim_id': 'Shop', 'service': 'supplying', 'status': 'started'}}
+[EVT] {'sim_ts': 2154.2512057061713, 'timestamp': '...', 'key': 'orders-851', 'task': 'backorder', 'instance': 0, 'value': {'event_type': 'order_backordered'}}
+[EVT] {'sim_ts': 2154.2512057061713, 'timestamp': '...', 'key': 'orders-851', 'task': 'pick_order', 'instance': 1092, 'value': {'path_id': 'Shop.service.picking', 'sim_id': 'Shop', 'service': 'picking', 'status': 'queued'}}
+[EVT] {'sim_ts': 2154.2512057061713, 'timestamp': '...', 'key': 'orders-851', 'task': 'pick_order', 'instance': 1092, 'value': {'path_id': 'Shop.service.picking', 'sim_id': 'Shop', 'service': 'picking', 'status': 'started'}}
+[EVT] {'sim_ts': 2156.282710424913, 'timestamp': '...', 'key': 'orders-851', 'task': 'pick_order', 'instance': 1092, 'value': {'event_type': 'order_picked'}}
+[EVT] {'sim_ts': 2156.282710424913, 'timestamp': '...', 'key': 'orders-851', 'task': 'pack_order', 'instance': 1139, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 2156.282710424913, 'timestamp': '...', 'key': 'orders-851', 'task': 'pack_order', 'instance': 1139, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
+[EVT] {'sim_ts': 2157.782710424913, 'timestamp': '...', 'key': 'orders-851', 'task': 'pack_order', 'instance': 1139, 'value': {'event_type': 'order_packed'}}
+[EVT] {'sim_ts': 2157.782710424913, 'timestamp': '...', 'key': 'orders-851', 'task': 'pack_order', 'instance': 1142, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 2158.3141197359328, 'timestamp': '...', 'key': 'orders-851', 'task': 'pack_order', 'instance': 1142, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
+[EVT] {'sim_ts': 2159.8141197359328, 'timestamp': '...', 'key': 'orders-851', 'task': 'pack_order', 'instance': 1142, 'value': {'event_type': 'order_packed'}}
+[EVT] {'sim_ts': 2159.8141197359328, 'timestamp': '...', 'key': 'orders-851', 'task': 'ship_order', 'instance': 1088, 'value': {'event_type': 'order_shipped', 'express': 0, 'backordered': 1}}
 ```
 
-![The events of orders-172 in order: pick_order, backorder, pick_order again, pack_order twice, and ship_order with express 0 and backordered 1, all under the key orders-172](../../assets/diagrams/entity-key-timeline.png)
+![The events of orders-851 in order: pick_order, backorder, pick_order again, pack_order twice, and ship_order with express 0 and backordered 1, all under the key orders-851](../../assets/diagrams/entity-key-timeline.png)
 
 ---
 
@@ -454,10 +454,10 @@ How do orders move through pick, pack and ship? Most go straight through, and a 
     ```
 
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pick_order.finished","value":1857}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":1849}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.ship_order.finished","value":1775}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.backorder.finished","value":80}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pick_order.finished","value":2011}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":1904}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.ship_order.finished","value":1812}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.backorder.finished","value":198}
     ```
 
 === "Builder"
@@ -467,10 +467,10 @@ How do orders move through pick, pack and ship? Most go straight through, and a 
     ```
 
     ```text
-    pick_order: 1857 finished
-    backorder : 80 finished
-    pack_order: 1849 finished
-    ship_order: 1775 finished
+    pick_order: 2011 finished
+    backorder : 198 finished
+    pack_order: 1904 finished
+    ship_order: 1812 finished
     ```
 
 === "Low-level"
@@ -480,22 +480,22 @@ How do orders move through pick, pack and ship? Most go straight through, and a 
     ```
 
     ```text
-    pick_order: 1857 finished
-    backorder : 80 finished
-    pack_order: 1849 finished
-    ship_order: 1775 finished
+    pick_order: 2011 finished
+    backorder : 198 finished
+    pack_order: 1904 finished
+    ship_order: 1812 finished
     ```
 
 The counts are:
 
 | Task | Finished in the hour |
 |---|---|
-| `pick_order` | 1,857 |
-| `backorder` | 80 |
-| `pack_order` | 1,849 |
-| `ship_order` | 1,775 |
+| `pick_order` | 2,011 |
+| `backorder` | 198 |
+| `pack_order` | 1,904 |
+| `ship_order` | 1,812 |
 
-**4.3% of picks led to backorder** (80 of 1,857), and **4.0% of parcels were packed again** (74 of 1,849 packs did not lead to a shipment). The weights set 5%, and this one run of the hour, with the seed 42, drew a few fewer.
+**9.8% of picks led to backorder** (198 of 2,011), and **4.8% of parcels were packed again** (92 of 1,904 packs did not lead to a shipment). The weights set 5% for packing again, and this one run of the hour, with the seed 42, drew slightly fewer.
 
 **[Flow balance](../concepts/queueing-basics.md#flow-balance-and-the-bottleneck)** is the rule that, in a flow, each task's arrival rate follows from the rates into it and the routing weights. Every pack leads to a shipment with probability 0.95, so each order is packed 1 ÷ 0.95 = 1.05 times on average, and the packers see 5% more work than there are orders. A rework loop therefore raises [utilisation](../concepts/queueing-basics.md#utilisation), so it belongs in the load you work out before running. [Queueing Basics](../concepts/queueing-basics.md#waits-near-full-use) shows why waits grow quickly near full use. [Task Flow](../../user-guide/model-parts/task-flow.md) describes routing in full.
 

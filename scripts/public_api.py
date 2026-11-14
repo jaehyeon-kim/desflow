@@ -29,7 +29,7 @@ import textwrap
 import types
 import typing
 from pathlib import Path, PurePath
-from typing import Any, Dict, Iterator, List, NamedTuple
+from typing import Any, Dict, Iterator, List, NamedTuple, get_args
 
 ROOT = Path(__file__).resolve().parents[1]
 API_PAGE = ROOT / "docs" / "reference/api.md"
@@ -531,17 +531,30 @@ def _callbacks(app: Any, prefix: str) -> Dict[str, Any]:
     return found
 
 
+def _type_name(param: Any) -> str:
+    """The name of the type of a parameter as the snapshot has kept it since Typer 0.28,
+    read from `param.type_descriptor` (typer/core.py), which Typer 0.29 keeps in place
+    of a type object."""
+    desc = param.type_descriptor
+    annotation = get_args(desc.annotation)[0] if desc.is_list else desc.annotation
+    if desc.is_path or (isinstance(annotation, type) and issubclass(annotation, Path)):
+        return {"file": "file", "dir": "directory"}.get(desc.path_type, "path")
+    if desc.is_ranged:
+        return f"{desc.ranged_type_name} range"
+    return {int: "int", float: "float", bool: "boolean"}.get(annotation, "str")
+
+
 def _params(command: Any, path: str) -> Iterator[str]:
     for param in command.params:
         if param.param_type_name == "argument":
-            name = param.human_readable_name
+            name = param.display_name_raw
             kind = "argument"
         else:
             name = "/".join(param.opts + param.secondary_opts)
             kind = "option"
         required = "required" if param.required else "optional"
         yield (
-            f"{path} {name} :: {kind}, {param.type.name}, "
+            f"{path} {name} :: {kind}, {_type_name(param)}, "
             f"default {_default(param.default)}, {required}"
         )
 

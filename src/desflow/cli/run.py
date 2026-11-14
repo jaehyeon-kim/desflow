@@ -264,7 +264,8 @@ def _run_once(path: str, options: _RunOptions) -> None:
     from desflow.blueprint.build import Preview
     from desflow.blueprint.loader import BlueprintError
     from desflow.builder.context import parts_of
-    from desflow.loading import load_context
+    from desflow.cli.check import error_place
+    from desflow.loading import is_builder_file, load_context
 
     file = Path(path)
     until, seed, drain = options.until, options.seed, options.drain
@@ -288,6 +289,11 @@ def _run_once(path: str, options: _RunOptions) -> None:
         context = load_context(file.parent, file.name, preview, options.variables)
     except BlueprintError as exc:
         fail(str(exc))
+    except (Exception, SystemExit) as exc:
+        if not is_builder_file(file):
+            raise
+        # A builder file runs code of its own, so any error or exit is the file's
+        fail(error_place(file, exc))
 
     if seed is not None:
         context.random_seed = seed

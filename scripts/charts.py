@@ -455,14 +455,14 @@ def filtered_outcomes() -> None:
         (-width / 2, "filled", BLUE),
         (width / 2, "cancelled", ORANGE),
     ):
-        values = [counts[(size, outcome)] for size in sizes]
+        values = [counts[size][1 if outcome == "filled" else 3] for size in sizes]
         xs = [i + offset for i in range(len(sizes))]
         ax.bar(xs, values, width, color=colour, label=f"orders {outcome}")
         for x, value in zip(xs, values):
             ax.text(x, value + 15, str(value), ha="center")
     ax.set_xticks(range(len(sizes)), [f"size {size}" for size in sizes])
     ax.set_ylabel("orders in 8 hours")
-    ax.set_ylim(0, max(counts.values()) * 1.15)
+    ax.set_ylim(0, max(max(counts[size]) for size in sizes) * 1.15)
     ax.set_title("One shelf, each order waiting for its own size")
     ax.legend(frameon=False, loc="upper left")
     _save(fig, "filtered-outcomes")

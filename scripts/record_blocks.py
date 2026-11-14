@@ -33,7 +33,7 @@ from blocks import BLOCKS  # noqa: E402
 
 _MARKER = re.compile(
     r"^(?P<indent> *)<!-- records: (?P<name>[\w-]+) -->\n"
-    r"(?P=indent)```text\n(?P<body>.*?)\n(?P=indent)```$",
+    r"(?P=indent)```text\n(?:(?P<body>.*?)\n)??(?P=indent)```$",
     re.S | re.M,
 )
 _MARKER_LINE = re.compile(r"^ *<!-- records: ", re.M)

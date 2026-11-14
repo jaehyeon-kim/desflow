@@ -147,7 +147,7 @@ A store with `priority` returns the item with the lowest `priority` value first,
 - a list such as `[1, 2]`, ordered element by element, as a tuple is;
 - any other value that can be ordered against the others, such as a text.
 
-A priority keeps the value it is given, so the text `'10'` sorts as text, before `'9'`. In YAML a string is an expression, so a text priority such as `'P1'` comes from `attr.grade` or `payload.grade`. Priorities that cannot be compared, such as a number and a text, raise `TypeError` at the put, as in SimPy.
+In the Low-level API a priority keeps the value it is given, so a text priority such as `"10"` sorts as text, before `"9"`. In the Builder and in YAML a string priority in a task put is an expression, so `"10"` gives the number 10, and a text priority such as `'P1'` comes from `attr.grade` or `payload.grade`. A starting item without a generator keeps its string priority as text. A number and a list, or a list and a tuple, in one store raise `ValueError` at the put that mixes them. A number and a text raise `TypeError` when the store compares the two, as in SimPy.
 
 === "YAML"
 
@@ -640,12 +640,12 @@ A container has three registry paths, `<sim_id>.containers.<name>.current_cap`, 
 [TEL] {'sim_ts': 30.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 0}
 [TEL] {'sim_ts': 30.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 2}
 [TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'Shop.stats.stores.parcels.level', 'value': 5}
-[TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'Shop.stats.stores.parcels.putters_waiting', 'value': 2}
-[TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 38}
+[TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'Shop.stats.stores.parcels.putters_waiting', 'value': 0}
+[TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.level', 'value': 40}
 [TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 0}
 ```
 
-At 30 seconds the bin is empty and two orders wait for boxes. At 40 seconds the stock count has put 50 boxes in, those two have taken theirs, and the shelf of parcels is full, with two packed orders waiting for room.
+At 30 seconds the bin is empty and two orders wait for boxes. At 40 seconds the stock count has put 50 boxes in, those two have taken theirs, and the shelf of parcels is full, with no packed order waiting for room.
 
 A condition in a task's `next` reads a level as `level.<name>`, so an order can go to backorder when `level.stock == 0`, as [Task Flow](task-flow.md) shows.
 

@@ -56,6 +56,8 @@ REFUSED = [
         "a wait branch is one of",
     ),
     ("{open: {'1a': {timeout: 1}}, payload: {e: 1}}", "an open name is read as"),
+    ("{open: {if: {timeout: 1}}, payload: {e: 1}}", "not a Python keyword, got 'if'"),
+    ("{open: {None: {timeout: 1}}, payload: {e: 1}}", "not a Python keyword"),
     (
         "{open: {a: {all: {r: {request: m}}}}, payload: {e: 1}}",
         "opened under its own name, not inside a group",
@@ -744,6 +746,93 @@ def test_the_builder_warns_of_a_whole_flow_wait_for_its_own_flow(caplog):
         in r.getMessage()
         for r in caplog.records
     )
+
+
+def test_a_task_after_a_seize_that_asks_for_the_same_resource_is_warned_of(
+    tmp_path, caplog
+):
+    """`hold` keeps its unit of `m` until `job` releases it, so the `resource: m` of
+    `job` waits for a second unit, and for ever when `m` has one. The run logs one
+    warning that names the task; a release before it logs none."""
+    text = (
+        "simulation: {sim_id: S, factor: 0}\n"
+        "resources: {m: {current_cap: 1}}\n"
+        "arrivals: {a: {initial: 1, spawn: hold}}\n"
+        "tasks:\n"
+        "  hold: {seize: m, payload: {e: held}, next: job}\n"
+        "  job: {resource: m, service_time: 1, payload: {e: done}, release: m}\n"
+        "run: {until: 3}\n"
+    )
+    path = tmp_path / "model.yaml"
+    path.write_text(text)
+    with caplog.at_level("WARNING", logger="desflow.builder.context"):
+        SimulationContext.from_yaml(path).run(until=3)
+    found = [r.getMessage() for r in caplog.records if "second unit" in r.getMessage()]
+    assert len(found) == 1 and "task 'job' asks for resource 'm'" in found[0], found
+    caplog.clear()
+    path.write_text(
+        text.replace(
+            "payload: {e: held}, next: job",
+            "payload: {e: held}, release: m, next: job",
+        )
+    )
+    with caplog.at_level("WARNING", logger="desflow.builder.context"):
+        SimulationContext.from_yaml(path).run(until=3)
+    assert not [r for r in caplog.records if "second unit" in r.getMessage()]
+
+
+def test_the_builder_refuses_an_open_name_that_is_a_python_keyword():
+    app = SimulationContext("S", factor=0)
+    with pytest.raises(ValueError, match="not a Python keyword, got 'lambda'"):
+        app.task(name="t", open={"lambda": {"timeout": 5}})(lambda task_id: {})
+
+
+TAKEN_TWICE = {
+    "seized and listed": (
+        "{seize: m, resource: m, service_time: 1, payload: {e: 1}}",
+        "both seized and listed in resource",
+    ),
+    "seized and requested in the wait": (
+        "{seize: m, wait: {request: m}, payload: {e: 1}}",
+        "both seized and requested in the wait",
+    ),
+    "requested in open and listed": (
+        "{open: {a: {request: m}}, resource: m, service_time: 1, payload: {e: 1}}",
+        "both requested in open and listed in resource",
+    ),
+}
+
+
+@pytest.mark.parametrize("way", TAKEN_TWICE)
+def test_a_task_that_takes_one_resource_twice_loads_runs_and_warns(
+    tmp_path, caplog, way
+):
+    """The task runs, because the resource may have a unit for each way. A warning
+    names the task and the resource, and says the run can wait for ever."""
+    task, ways = TAKEN_TWICE[way]
+    with caplog.at_level("WARNING", logger="desflow.builder.context"):
+        load(tmp_path, task).run(until=3)
+    [warning] = [r.getMessage() for r in caplog.records if "twice" in r.getMessage()]
+    assert "task 't'" in warning and "resource 'm'" in warning and ways in warning
+    assert "wait for ever" in warning
+
+
+def test_a_seize_with_an_open_request_of_one_resource_does_not_warn(tmp_path, caplog):
+    task = "{seize: m, open: {q: {request: m}}, payload: {e: 1}}"
+    with caplog.at_level("WARNING", logger="desflow.builder.context"):
+        load(tmp_path, task).run(until=3)
+    assert not [r for r in caplog.records if "twice" in r.getMessage()]
+
+
+def test_the_builder_warns_of_a_task_that_seizes_and_lists_one_resource(caplog):
+    app = SimulationContext("S", factor=0)
+    app.add_resource("m", current_cap=1)
+    app.add_arrival("a", dist="constant", value=1, spawn="t")
+    named_tasks(app, t={"seize": "m", "resource_id": "m", "service_time": 1})
+    with caplog.at_level("WARNING", logger="desflow.builder.context"):
+        app.run(until=3)
+    [warning] = [r.getMessage() for r in caplog.records if "twice" in r.getMessage()]
+    assert "task 't'" in warning and "resource 'm'" in warning
 
 
 RELEASED_HOLDS = {

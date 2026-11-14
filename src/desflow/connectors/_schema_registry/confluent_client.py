@@ -15,7 +15,7 @@ import httpx
 
 from desflow.connectors._schema_registry.errors import SchemaRegistryError
 from desflow.connectors._schema_registry.unset import UNSET
-from desflow.connectors._checks import checked_whole
+from desflow.connectors._checks import checked_poll, checked_whole
 
 _ACCEPT = (
     "application/vnd.schemaregistry.v1+json, "
@@ -135,14 +135,16 @@ class ConfluentRegistryClient:
                 `httpx.MockTransport`.
 
         Raises:
-            ValueError: If a URL does not start with `http`, if `auth` and a URL with
-                `user:password@` are both given, if `cert` is invalid, or if
-                `max_retries` is not a whole number of 0 or more.
+            ValueError: If a URL's scheme is not `http` or `https` (in any case), if
+                `auth` and a URL with `user:password@` are both given, if `cert` is
+                invalid, if `timeout` is not None or a number of seconds above 0 that
+                is not infinite, or if `max_retries` is not a whole number of 0 or
+                more.
             OSError: If a CA file, a certificate or a key cannot be read.
         """
         self._base_urls = [part.strip().rstrip("/") for part in url.split(",")]
         for base_url in self._base_urls:
-            if not base_url.startswith("http"):
+            if urlparse(base_url).scheme not in ("http", "https"):
                 raise ValueError(f"Invalid url {base_url}")
             if auth is not None and urlparse(base_url).username is not None:
                 raise ValueError(
@@ -150,6 +152,8 @@ class ConfluentRegistryClient:
                     "Remove the credentials from the url or remove auth"
                 )
         auth = self._take_url_credentials(auth)
+        if timeout is not None:
+            timeout = checked_poll(timeout, "timeout")
         self._max_retries = checked_whole(max_retries, "max_retries", 0)
         self._headers = dict(headers or {})
         self._client = httpx.Client(

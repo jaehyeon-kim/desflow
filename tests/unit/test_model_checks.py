@@ -10,7 +10,10 @@ import logging
 import pytest
 
 from desflow import SimulationContext
+from desflow.builder import model_checks
+from desflow.builder.model_checks import names_a_member, unmade_member_note
 from desflow.core.registry import ParamRejected
+from desflow.values import generator
 
 
 def _job(task_id):
@@ -157,3 +160,105 @@ def test_a_whole_flow_warning_is_logged_once_across_two_starts(tmp_path, caplog)
     warned = [r for r in caplog.records if "waits for the whole flow" in r.message]
     assert len(warned) == 1
     assert warned[0].name == "desflow.builder.context"
+
+
+def test_an_on_action_whose_value_the_path_refuses_is_refused_at_start():
+    """The load of a blueprint refuses it at its line; the builder otherwise logged an
+    error at each firing and ran on with the old value."""
+    app = _app()
+    app.add_arrival("a", "exponential", rate=1, spawn="t")
+    app.task(name="t", on=[{"path": "S.arrival.a.rate", "value": -1}], service_time=1)(
+        _job
+    )
+    message = _refusal(app)
+    assert "the on: action of task 't' sets 'S.arrival.a.rate'" in message
+    assert "exponential rate must be greater than 0" in message
+
+
+def test_an_on_action_with_a_value_the_path_accepts_or_a_generator_starts():
+    app = _app()
+    app.add_arrival("a", "exponential", rate=1, spawn="t")
+    app.task(
+        name="t",
+        on=[
+            {"path": "S.arrival.a.rate", "value": 2},
+            {
+                "path": "S.arrival.a.rate",
+                "value": generator({"gen": "uniform", "low": 1, "high": 2}),
+            },
+        ],
+        service_time=1,
+    )(_job)
+    app.start(until=5)
+    app.close()
+
+
+def test_a_conditional_on_value_valid_after_a_scenario_step_starts():
+    """The scenario raises `high` to 20 before the action fires, so `low: 10` is valid
+    when it runs, though the declared `high` is 1. A conditional value of the wrong
+    type is still refused."""
+
+    def model(value):
+        app = _app()
+        app.add_arrival("a", "uniform", low=0.5, high=1, spawn="t")
+        app.add_scenario([{"at": 1, "path": "S.arrival.a.high", "value": 20}])
+        app.task(
+            name="t",
+            on=[{"path": "S.arrival.a.low", "value": value, "when": "True"}],
+            service_time=1,
+        )(_job)
+        return app
+
+    app = model(10)
+    app.start(until=5)
+    app.close()
+    assert "cannot be converted" in _refusal(model("x"))
+
+
+def test_a_refused_resource_leaves_its_name_free_for_another_kind():
+    app = _app()
+    with pytest.raises(ValueError, match="current_cap"):
+        app.add_resource("x", current_cap=-1)
+    app.add_store("x")
+
+
+def test_a_refused_signal_leaves_its_name_free_for_another_kind():
+    app = _app()
+    with pytest.raises(ValueError, match="once"):
+        app.add_signal("go", once="yes")
+    app.add_resource("go")
+
+
+def test_a_refused_task_leaves_no_row_target_behind():
+    """The `lookup` of a task whose declaration was refused is not a lookup of the
+    model."""
+    app = _app()
+    app.add_store("box")
+    with pytest.raises(ValueError, match="declares item"):
+
+        @app.task(
+            get={"store": "box", "wait": False},
+            vars={"seen": generator({"gen": "lookup", "task": "ghost"})},
+        )
+        def taker(task_id, item):
+            return {}
+
+    assert app._tasks.row_targets == set()
+
+
+def test_the_check_of_a_member_path_builds_no_name_for_each_member(monkeypatch):
+    """A family of 10**7 members would take seconds and over a gigabyte to name."""
+    built = []
+    real = model_checks.member_name
+    monkeypatch.setattr(
+        model_checks, "member_name", lambda *a: built.append(a) or real(*a)
+    )
+    app = _app()
+    app.add_resource("desk", family=True, members=1000)
+    app.task(name="t", service_time=1)(_job)
+    arguments = (app._families, app._holders, "S", app._tasks, app._signals)
+    assert names_a_member("S.resources.desk[7].current_cap", *arguments)
+    assert "never makes" in unmade_member_note(
+        "S.resources.desk[1000].current_cap", *arguments
+    )
+    assert len(built) <= 2  # the two names of the note's range

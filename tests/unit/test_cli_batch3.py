@@ -93,6 +93,28 @@ def test_check_takes_a_builder_file(tmp_path, monkeypatch):
     assert errors[1].startswith(f"Error: {low_level} defines no SimulationContext")
 
 
+def test_explain_names_the_file_and_line_of_a_builder_outside_the_working_directory(
+    tmp_path, monkeypatch
+):
+    """A ValueError raised by a builder file gives its path and line, whichever folder
+    the command runs in."""
+    folder = tmp_path / "models"
+    folder.mkdir()
+    builder = _write(
+        folder,
+        "shop.py",
+        """\
+        raise ValueError("no such shop")
+        """,
+    )
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    result = CliRunner().invoke(cli, ["explain", str(builder)])
+    assert result.exit_code != 0
+    assert result.stderr.startswith(f"Error: {builder}:1: ValueError"), result.stderr
+
+
 def test_check_refuses_a_builder_parquet_sink_without_pyarrow(tmp_path, monkeypatch):
     """The storage connectors import without PyArrow and need it to write, so a
     builder file's Parquet sink is refused at check, as a blueprint's entry is."""
@@ -168,6 +190,27 @@ def test_check_file_says_when_a_file_has_no_context(tmp_path):
     assert checked.problem == f"{broken}:1: ZeroDivisionError: division by zero"
 
 
+@pytest.mark.parametrize("command", [["run", "--sample", "2"], ["test"], ["explain"]])
+def test_every_command_gives_the_line_of_a_builder_files_own_error(tmp_path, command):
+    """`run --sample`, `test` and `explain` report a builder file whose import fails
+    as `check` does: one line with the file and its line, and no traceback."""
+    builder = _write(tmp_path, "bad_import.py", "import not_a_module_here  # noqa\n")
+    _write(tmp_path, "tests.yaml", "tests: []\n")
+    result = CliRunner().invoke(cli, [command[0], str(builder), *command[1:]])
+    assert result.exit_code == 1
+    assert result.stderr.splitlines() == [
+        f"Error: {builder}:1: ModuleNotFoundError: No module named 'not_a_module_here'"
+    ]
+
+
+def test_run_reports_a_builder_file_with_no_context_in_one_line(tmp_path):
+    builder = _write(tmp_path, "no_context.py", "import desflow  # noqa\nx = 1\n")
+    result = CliRunner().invoke(cli, ["run", str(builder), "--sample", "2"])
+    assert result.exit_code == 1
+    lines = result.stderr.splitlines()
+    assert len(lines) == 1 and "defines no SimulationContext" in lines[0]
+
+
 def test_check_gives_the_line_of_any_builder_error(tmp_path):
     """A ValueError of the file's own code, and a sys.exit at its top level, are one
     line with the file and its line, and the files after them are still checked."""
@@ -221,6 +264,27 @@ def test_check_warns_about_a_run_with_no_end(tmp_path, caplog):
         f"{endless}:6: arrivals.orders: the run has no end: this arrival has no "
         f"max_events, and run has no until or stop, so desflow run runs until it is "
         f"stopped. Give run.until, or pass --until to desflow run"
+    ]
+
+
+def test_check_warns_about_a_telemetry_entry_in_a_run_with_no_end(tmp_path, caplog):
+    """A telemetry entry publishes for as long as the run goes, so it keeps a run with
+    no until or stop going, even when every arrival has max_events."""
+    telemetry = "telemetry: [{interval: 1, readings: {n: 't'}}]\n"
+    counted = SHOP.replace("run: {until: 21}\n", telemetry).replace(
+        "spawn: pack_order}", "spawn: pack_order, max_events: 3}"
+    )
+    endless = _write(tmp_path, "endless.yaml", counted)
+    ended = _write(tmp_path, "ended.yaml", counted + "run: {until: 21}\n")
+    with caplog.at_level(logging.WARNING, logger="desflow.blueprint.build"):
+        result = CliRunner().invoke(cli, ["check", str(endless), str(ended)])
+    assert result.exit_code == 0
+    warned = [r.getMessage() for r in caplog.records if "has no end" in r.getMessage()]
+    assert warned == [
+        f"{endless}:9: telemetry[0]: the run has no end: this entry publishes every "
+        f"1 s for as long as the run goes, and run has no until or stop, so desflow "
+        f"run runs until it is stopped. Give run.until, or pass --until to desflow "
+        f"run"
     ]
 
 
@@ -375,6 +439,23 @@ def test_test_fix_fills_an_empty_expect(tmp_path):
     assert CliRunner().invoke(cli, ["test", str(path), "--fix"]).exit_code == 0
     assert CliRunner().invoke(cli, ["test", str(path)]).exit_code == 0
     assert "tasks.pack_order.finished: 3" in path.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "test",
+    ["{name: t1, seed: 3}", "&case {name: t1, seed: 3}", "!!map {name: t1, seed: 3}"],
+    ids=["plain", "anchored", "tagged"],
+)
+def test_test_fix_refuses_a_test_written_as_a_flow_mapping(test, tmp_path):
+    """A test written as `- {name: t1}`, with or without an anchor or a tag, cannot take
+    an `expect` block below it, so `--fix` refuses it and leaves the file as it is."""
+    text = textwrap.dedent(SHOP) + f"tests:\n  - {test}\n"
+    path = _write(tmp_path, "shop.yaml", text)
+    result = CliRunner().invoke(cli, ["test", str(path), "--fix"])
+    assert result.exit_code != 0
+    assert "block mapping that starts with `- `" in result.output
+    assert path.read_text(encoding="utf-8") == text
+    assert CliRunner().invoke(cli, ["check", str(path)]).exit_code == 0
 
 
 def test_test_of_a_builder_file_reads_tests_yaml(tmp_path):

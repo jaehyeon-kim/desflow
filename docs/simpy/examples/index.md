@@ -17,7 +17,7 @@ SimPy's documentation ships seven example programs. Each page here takes one of 
 Each page keeps the system of SimPy's example and changes three things that a reader would otherwise take for a difference in the model.
 
 - **Times are seconds.** SimPy's times have no unit. desflow reads each time unit as one second. In Carwash, Machine Shop and Movie Renege, SimPy counts minutes, and each of its minutes is one second here. A run of 20 minutes in SimPy is a run of 20 seconds in desflow.
-- **Numbers differ from SimPy's output.** desflow draws each random value from its own stream, named by the place where the value is used, such as `Bank.service.patience`. A seed of 42 gives different numbers from SimPy's `random.seed(42)`. Each page shows SimPy's output beside the figures of the desflow run. The two have the same structure and different numbers.
+- **Numbers differ from SimPy's output.** desflow draws each random value from its own stream, named by the place where the value is used, such as `tasks.customer.patience`. A seed of 42 gives different numbers from SimPy's `random.seed(42)`. Each page shows SimPy's output beside the figures of the desflow run. The two have the same structure and different numbers.
 - **Machine Shop writes breakdowns as tasks.** SimPy interrupts the process that makes parts. The repair is then a request for the repairman, who also does other jobs. The page writes each machine's failures as a task that interrupts the machine's `part` task, so that the repair is an ordinary request at priority 1.
 
 SimPy's code is shown with its licence notice. [Coming from SimPy](../coming-from-simpy.md) maps each SimPy construct to its desflow form, and [SimPy Compatibility](../compatibility.md) lists what is supported.

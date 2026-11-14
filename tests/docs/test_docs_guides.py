@@ -81,7 +81,7 @@ def _events(caplog):
 
 
 def test_breakdowns_downtime_matches_the_events():
-    """The station of the breakdowns example fails five times and is down 52.5 s of
+    """The station of the breakdowns example fails five times and is down 38.6 s of
     300; eight orders are interrupted and all eight resume, as the page says."""
     module = _load("breakdowns")
     examples = ROOT / "examples"
@@ -93,17 +93,17 @@ def test_breakdowns_downtime_matches_the_events():
     assert outcomes[0] == outcomes[1] == outcomes[2]
     assert outcomes[0] == {
         "periods": [
-            (84.6, 98.5),
-            (150.1, 157.3),
-            (238.9, 253.5),
-            (272.7, 282.6),
-            (285.0, 291.8),
+            (5.6, 10.9),
+            (63.5, 73.0),
+            (98.7, 105.1),
+            (187.4, 199.3),
+            (217.4, 222.9),
         ],
-        "downtime": 52.5,
-        "share_down": 0.175,
+        "downtime": 38.6,
+        "share_down": 0.129,
         "interrupted": 8,
         "resumed": 8,
-        "order_packed": 184,
+        "order_packed": 169,
     }
 
 
@@ -161,19 +161,20 @@ def test_dynamic_topology_scenario_gives_the_wrappers_their_units_in_every_form(
 
 def test_switch_a_task_on_wraps_the_same_orders_in_every_form():
     """No order is wrapped before the step at 1 minute. From then on the weight read
-    from the registry sends some orders to wrap_gift, the same 8 of the 48 packed in
+    from the registry sends some orders to wrap_gift, the same 9 of the 48 packed in
     the YAML, builder and low-level forms. The step publishes its record at 1 minute."""
     from desflow import DynamicRealtimeEnvironment, SimulationContext
 
     expected = [
         (65.0, "orders-12"),
-        (95.0, "orders-18"),
+        (70.0, "orders-13"),
         (105.0, "orders-20"),
-        (185.0, "orders-36"),
-        (200.0, "orders-39"),
-        (210.0, "orders-41"),
+        (120.0, "orders-23"),
+        (160.0, "orders-31"),
+        (165.0, "orders-32"),
+        (205.0, "orders-40"),
         (245.0, "orders-48"),
-        (275.0, "orders-54"),
+        (285.0, "orders-56"),
     ]
 
     def done(capture, task):
@@ -593,7 +594,7 @@ def test_reneging_and_balking_ties_and_balance(tmp_path, monkeypatch):
         assert tie(3, 4) == "served"
     forms = (module.yaml_form, module.builder_form, module.low_level_form)
     for form in forms:
-        assert form() == {"order_packed": 49, "balked": 17, "reneged": 7, "started": 1}
+        assert form() == {"order_packed": 51, "balked": 5, "reneged": 13}
     printed = [
         "check: arrives at 3, patience 3: " + module.tie(3, 3),
         "check: arrives at 0, patience 6: " + module.tie(0, 6),
@@ -776,11 +777,11 @@ def test_an_each_when_group_reads_only_done_count(tmp_path):
 def test_wait_for_one_or_all_example_packs_and_refunds():
     """The page's example: each restock waits for all of its delivery (10 s) and its
     stock count (20 s), so it comes 20 s after each delivery starts, at 80 s to 560 s;
-    27 orders are packed after a restock and 35 are refunded at the limit, in every
+    22 orders are packed after a restock and 19 are refunded at the limit, in every
     form."""
     expected = {
-        "pack": 27,
-        "refund": 35,
+        "pack": 22,
+        "refund": 19,
         "restocked_at": [80.0 + 60 * n for n in range(9)],
     }
     assert _load("wait_for_one_or_all_example").outcome() == expected
@@ -845,7 +846,7 @@ def test_wait_for_one_or_all_checks_run_from_saved_files(tmp_path, monkeypatch):
 
 
 def test_performance_tuning_counts_the_records():
-    """An hour of the shop publishes 108,688 records at factor 0: no lag readings,
+    """An hour of the shop publishes 110,070 records at factor 0: no lag readings,
     which would add 3,600, and a rate above 0."""
     module = _load("performance_tuning")
     blueprint = ROOT / "docs" / "snippets" / "yaml" / "performance_tuning.yaml"
@@ -859,7 +860,7 @@ def test_performance_tuning_counts_the_records():
         module.throughput(module.shop(), until=3600),
         low_level.throughput(until=3600),
     ):
-        assert outcome["records"] == 108_688
+        assert outcome["records"] == 110_070
         assert outcome["per_second"] > 0
 
 
@@ -873,7 +874,7 @@ def test_performance_tuning_commands_print_the_page_count(tmp_path):
     ):
         shutil.copy(source, tmp_path)
     page = (ROOT / "docs/how-to/tools/performance-tuning.md").read_text("utf-8")
-    assert "{'records': 108688, 'per_second': " in page
+    assert "{'records': 110070, 'per_second': " in page
     for command in (
         ["performance_tuning.py", "yaml"],
         ["performance_tuning.py"],
@@ -883,13 +884,13 @@ def test_performance_tuning_commands_print_the_page_count(tmp_path):
             [sys.executable, *command], cwd=tmp_path, capture_output=True, text=True
         )
         assert ran.returncode == 0, ran.stderr
-        assert ran.stdout.startswith("{'records': 108688, 'per_second': "), ran.stdout
+        assert ran.stdout.startswith("{'records': 110070, 'per_second': "), ran.stdout
 
 
 def test_fit_a_distribution_gaps(tmp_path, capsys):
     """The exponential fits the 299 gaps best, at 0.364 a second; 5 zero gaps skip
     gamma, weibull and lognormal; the file it writes is the one the blueprint
-    includes; and one packer packs 1,302 orders in the hour, in every form."""
+    includes; and one packer packs 1,335 orders in the hour, in every form."""
     pytest.importorskip("scipy")
     from desflow import SimulationContext
 
@@ -937,27 +938,27 @@ def test_fit_a_distribution_gaps(tmp_path, capsys):
     yaml_app = SimulationContext.from_yaml(blueprint / "fit_a_distribution.yaml")
     yaml_app.run()
     for run in (app, yaml_app):
-        assert run.env.stats.readings()["Shop.stats.flows.orders.finished"] == 1302
+        assert run.env.stats.readings()["Shop.stats.flows.orders.finished"] == 1335
     sys.path.insert(0, str(GUIDES))  # the low-level script imports fit from it
     try:
         low_level = _load("fit_a_distribution_low_level")
     finally:
         sys.path.remove(str(GUIDES))
-    assert low_level.run(result) == 1302
+    assert low_level.run(result) == 1335
 
 
 def test_test_a_model_tests_pass_and_the_saved_results_are_current(
     tmp_path, monkeypatch
 ):
-    """The three kinds of test pass; the waits fall from 2.055 s with one packer to
-    0.111 s with two and 0.016 s with three; saving the results writes the file the
+    """The three kinds of test pass; the waits fall from 2.142 s with one packer to
+    0.158 s with two and 0.016 s with three; saving the results writes the file the
     back test reads; and the YAML and low-level forms give the same results."""
     module = _load("test_a_model")
     module.test_more_packers_shorten_the_wait()
     module.test_results_match_the_saved_run()
-    for packers, wait in ((1, 2.055375), (2, 0.110574), (3, 0.016206)):
+    for packers, wait in ((1, 2.142251), (2, 0.157602), (3, 0.016406)):
         assert module.results(packers=packers)["wait_mean"] == wait
-    assert module.results() == {"finished": 319, "wait_mean": 0.110574}
+    assert module.results() == {"finished": 284, "wait_mean": 0.157602}
     for settings in (
         {"dist": "exponential", "rate": 0},
         {"dist": "constant", "value": -1},
@@ -982,7 +983,7 @@ def test_test_a_model_tests_pass_and_the_saved_results_are_current(
     ):
         form.test_more_packers_shorten_the_wait()
         form.test_results_match_the_saved_run()
-        for packers, wait in ((1, 2.055375), (2, 0.110574), (3, 0.016206)):
+        for packers, wait in ((1, 2.142251), (2, 0.157602), (3, 0.016406)):
             assert form.results(packers=packers)["wait_mean"] == wait
     # The page shows "4 passed" for each form, and each file has four tests
     page = (ROOT / "docs/how-to/analysis/test-a-model.md").read_text("utf-8")
@@ -999,29 +1000,29 @@ def test_test_a_model_tests_pass_and_the_saved_results_are_current(
 
 
 def test_analyse_the_event_log_waits_and_throughput(tmp_path):
-    """Two minutes of one packer write 191 event rows, which become 318 log rows for
-    64 orders; 63 leave the shop, the mean wait is 1.250 s and 31.5 orders leave each
+    """Two minutes of one packer write 134 event rows, which become 223 log rows for
+    45 orders; 44 leave the shop, the mean wait is 0.592 s and 22.0 orders leave each
     minute; every start is the later of the arrival and the last start plus 1.5 s;
     and the YAML and low-level forms write the same events."""
     module = _load("analyse_the_event_log")
     module.run(tmp_path)
     events = module.read_events(tmp_path)
-    assert events.num_rows == 191
+    assert events.num_rows == 134
     statuses = [row for row in events["status"].to_pylist()]
     assert [statuses.count(s) for s in ("queued", "started", "finished")] == [
-        64,
-        64,
-        63,
+        45,
+        45,
+        44,
     ]
     log = module.event_log(events)
     assert log.column_names == ["entity_id", "event_type", "event", "time", "run"]
-    assert log.num_rows == 318 and set(log["run"].to_pylist()) == {1}
+    assert log.num_rows == 223 and set(log["run"].to_pylist()) == {1}
     per_order = module.waits_and_times(log)
-    assert len(per_order) == 64 and len(module.times(log, "depart")) == 63
+    assert len(per_order) == 45 and len(module.times(log, "depart")) == 44
     assert per_order["orders-1"] == {"wait": 0.0, "in_shop": 1.5}
-    assert round(max(row["wait"] for row in per_order.values()), 3) == 3.659
-    assert round(module.mean_wait(per_order), 3) == 1.25
-    assert module.throughput_per_minute(log, module.RUN_SECONDS) == 31.5
+    assert round(max(row["wait"] for row in per_order.values()), 3) == 3.63
+    assert round(module.mean_wait(per_order), 3) == 0.592
+    assert module.throughput_per_minute(log, module.RUN_SECONDS) == 22.0
     arrived = module.times(log, "arrival")
     started = module.times(log, "packing_start")
     last = None
@@ -1050,7 +1051,7 @@ def test_analyse_the_event_log_waits_and_throughput(tmp_path):
         )
 
     builder = rows(tmp_path / "builder")
-    assert len(builder) == 191
+    assert len(builder) == 134
     assert rows(tmp_path / "yaml") == rows(tmp_path / "low_level") == builder
 
 
@@ -1078,7 +1079,7 @@ def test_analyse_the_event_log_commands_print_the_page_counts(tmp_path):
 
 def test_animate_a_run_frames_and_entities(tmp_path):
     """The animation of the two-minute run has 61 frames, one for every 2 seconds
-    from 0 to 120, and draws the 64 orders of Analyse the Event Log, in every form."""
+    from 0 to 120, and draws the 45 orders of Analyse the Event Log, in every form."""
     import vidigi  # noqa: F401  (a missing dev dependency fails the test)
 
     module = _load("animate_a_run")
@@ -1086,7 +1087,7 @@ def test_animate_a_run_frames_and_entities(tmp_path):
     assert len(figure.frames) == 61
     assert [frame.name for frame in figure.frames][:3] == ["0", "2", "4"]
     assert figure.frames[-1].name == "120"
-    assert module.vidigi_log(tmp_path / "builder")["entity_id"].nunique() == 64
+    assert module.vidigi_log(tmp_path / "builder")["entity_id"].nunique() == 45
     # The YAML and low-level runs give the same animation
     analyse = _load("analyse_the_event_log")
     sys.path.insert(0, str(GUIDES))  # the low-level script imports from analyse

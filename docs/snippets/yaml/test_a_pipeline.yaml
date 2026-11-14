@@ -1,7 +1,7 @@
 # The Test a Pipeline guide: a shop with a planted fault. Orders surge at 300 seconds
 # and the label of the fault goes only to the labels sink. OUT is the folder the two
 # sinks write under. Run it with: desflow run test_a_pipeline.yaml
-simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+simulation: {sim_id: Shop, factor: 0, random_seed: 7}
 
 resources:
   packers: {current_cap: 3, max_cap: 5}

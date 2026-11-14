@@ -4,11 +4,13 @@ import queue
 import weakref
 from collections import Counter
 from collections.abc import Mapping
-from typing import Any, Optional
+from typing import Any
 
 import asyncpg
 import orjson
 
+from desflow.connectors._postgres import ensure_schema
+from desflow.connectors._postgres import fold as _fold
 from desflow.connectors._retry import connect_with_retry, is_temporary_postgres_error
 from desflow.connectors.egress.base import (
     BaseEgress,
@@ -89,7 +91,7 @@ SELECT
 
 def _folded(record: dict) -> dict:
     """
-    Returns a record with its keys in lower case, as PostgreSQL reads the columns.
+    Returns a record with its keys folded as PostgreSQL reads the columns.
 
     When two keys name one column, the first is kept, as `_column_runs` keeps it.
 
@@ -101,7 +103,7 @@ def _folded(record: dict) -> dict:
     """
     folded: dict = {}
     for key, value in record.items():
-        folded.setdefault(key.lower(), value)
+        folded.setdefault(_fold(key), value)
     return folded
 
 
@@ -126,20 +128,6 @@ def _label_row(record: dict) -> dict:
         "new": orjson.dumps(record.get("new")).decode(),
         "label": orjson.dumps(record.get("label")).decode(),
     }
-
-
-def _create_schema_sql(name: str) -> Optional[str]:
-    """
-    Builds the `CREATE SCHEMA IF NOT EXISTS` statement for a qualified table name.
-
-    Args:
-        name (str): The table name, such as `dashboard.orders`.
-
-    Returns:
-        Optional[str]: The statement, or None when the name has no schema.
-    """
-    schema, dot, _ = name.rpartition(".")
-    return f"CREATE SCHEMA IF NOT EXISTS {schema}" if dot else None
 
 
 def _create_table_sql(
@@ -225,8 +213,9 @@ class PostgresEgress(BaseEgress):
         ```
     """
 
-    # Every sink of the process, so a sink can tell whether another one writes the
-    # table a record names
+    # The sinks that are running, so a sink can tell whether another one of its model
+    # writes the table a record names. A sink is in it from the start of `run` to its
+    # end, so the sinks of a model that has ended are not counted.
     _writers: weakref.WeakSet = weakref.WeakSet()
 
     def __init__(
@@ -294,19 +283,39 @@ class PostgresEgress(BaseEgress):
         # connects and reads them from the database's `search_path`
         self.table_schema = "public"
         self.bare_schema = "public"
+        # Whether `table_schema` and `bare_schema` are read from the database yet
+        self._resolved = False
         self._unrouted_warned: set[str] = set()
-        PostgresEgress._writers.add(self)
+        # Names that no table of this sink matched while another sink was starting
+        self._unrouted_pending: set[str] = set()
 
     def _warn_unrouted(self, target: str) -> None:
-        """Warns once that no PostgresEgress of the process writes the table a record names."""
+        """Warns once that no running PostgresEgress writes the table a record names.
+
+        A sink that has not connected yet does not know its schema, so the check waits
+        until every running sink has read it, and a record of a table that a sink
+        still starting writes is not reported. Until then the name is kept, and
+        `_check_unrouted` checks it when the last sink has read its schema."""
         if target in self._unrouted_warned:
+            return
+        if not all(w._resolved for w in self._writers):
+            self._unrouted_pending.add(target)
             return
         self._unrouted_warned.add(target)
         if not any(w._writes(target) for w in self._writers):
             logger.warning(
                 f"PostgresEgress skips records whose __table__ is {target!r}: no "
-                f"PostgresEgress of this process writes a table of that name."
+                f"running PostgresEgress writes a table of that name."
             )
+
+    def _check_unrouted(self) -> None:
+        """Checks the names kept while a sink was starting, once every sink has read
+        its schema."""
+        if not all(w._resolved for w in self._writers):
+            return
+        pending, self._unrouted_pending = self._unrouted_pending, set()
+        for target in sorted(pending):
+            self._warn_unrouted(target)
 
     def _writes(self, target: str) -> bool:
         """
@@ -323,8 +332,8 @@ class PostgresEgress(BaseEgress):
             bool: Whether `target` names the table in `table_schema` that this sink
                 writes.
         """
-        schema, _, name = target.lower().rpartition(".")
-        own_name = self.table_name.lower().rpartition(".")[2]
+        schema, _, name = _fold(target).rpartition(".")
+        own_name = _fold(self.table_name).rpartition(".")[2]
         return name == own_name and (schema or self.bare_schema) == self.table_schema
 
     async def _init_pool(self) -> None:
@@ -340,18 +349,7 @@ class PostgresEgress(BaseEgress):
                     if self.table_policy == "manual":
                         break
                     try:
-                        schema_sql = _create_schema_sql(name)
-                        if schema_sql is not None:
-                            # CREATE SCHEMA IF NOT EXISTS checks the database
-                            # privilege first, so a role that may only use an
-                            # existing schema is not asked to create it
-                            schema = name.rpartition(".")[0].lower()
-                            known = await conn.fetchval(
-                                "SELECT 1 FROM pg_namespace WHERE nspname = $1",
-                                schema,
-                            )
-                            if not known:
-                                await conn.execute(schema_sql)
+                        await ensure_schema(conn, name)
                         if self.table_policy == "drop_and_create":
                             await conn.execute(f"DROP TABLE IF EXISTS {name}")
                         await conn.execute(
@@ -372,9 +370,12 @@ class PostgresEgress(BaseEgress):
                 self.bare_schema = schemas["bare_schema"]
                 self.table_schema = (
                     schemas["table_schema"]
-                    or self.table_name.lower().rpartition(".")[0]
+                    or _fold(self.table_name).rpartition(".")[0]
                     or self.bare_schema
                 )
+                self._resolved = True
+                for writer in list(PostgresEgress._writers):
+                    writer._check_unrouted()
                 # The one table the statements reach: PostgreSQL folds the name's case
                 # and resolves it through `search_path` here as it does in them
                 try:
@@ -401,7 +402,7 @@ class PostgresEgress(BaseEgress):
                     missing = [
                         k
                         for k in self.upsert_keys
-                        if k.lower() not in self.valid_columns
+                        if _fold(k) not in self.valid_columns
                     ]
                     if missing:
                         raise ValueError(
@@ -424,10 +425,10 @@ class PostgresEgress(BaseEgress):
                 column it names, as `parse_iso_time` takes it.
         """
         return {
-            key: self.time_columns[key.lower()]
+            key: self.time_columns[_fold(key)]
             for record in records
             for key in record
-            if key.lower() in self.time_columns
+            if _fold(key) in self.time_columns
         }
 
     def _column_runs(self, records: list[dict]) -> list[tuple[list[str], list[dict]]]:
@@ -449,9 +450,9 @@ class PostgresEgress(BaseEgress):
         for record in records:
             keys: list[str] = []
             for k in record:
-                folded = k.lower()
+                folded = _fold(k)
                 if folded in self.valid_columns and folded not in {
-                    key.lower() for key in keys
+                    _fold(key) for key in keys
                 }:
                     keys.append(k)
             if not keys:
@@ -485,15 +486,15 @@ class PostgresEgress(BaseEgress):
         query = f"INSERT INTO {self.table_name} ({columns}) VALUES ({placeholders})"
         if not self.upsert_keys:
             return f"{query} ON CONFLICT DO NOTHING"
-        folded_keys = {k.lower() for k in keys}
-        missing = [k for k in self.upsert_keys if k.lower() not in folded_keys]
+        folded_keys = {_fold(k) for k in keys}
+        missing = [k for k in self.upsert_keys if _fold(k) not in folded_keys]
         if missing:
             raise ValueError(
                 f"Records for {self.table_name} lack the upsert key column(s) {missing}"
             )
         conflict = ", ".join(self.upsert_keys)
-        key_columns = {k.lower() for k in self.upsert_keys}
-        updates = [k for k in keys if k.lower() not in key_columns]
+        key_columns = {_fold(k) for k in self.upsert_keys}
+        updates = [k for k in keys if _fold(k) not in key_columns]
         if not updates:
             return f"{query} ON CONFLICT ({conflict}) DO NOTHING"
         assignments = ", ".join(f"{k} = EXCLUDED.{k}" for k in updates)
@@ -548,13 +549,14 @@ class PostgresEgress(BaseEgress):
             # A null or empty `__table__` is no route: the record goes to this table
             target = payload_copy.pop("__table__", None) or self.table_name
             if type(target) is not str:
+                skipped["not_text"] += 1
                 continue
             if not self._writes(target):
                 self._warn_unrouted(target)
                 continue
             if keyed and not keep_keyed(
                 [_folded(payload_copy)],
-                [k.lower() for k in self.upsert_keys or []],
+                [_fold(k) for k in self.upsert_keys or []],
                 skipped,
             ):
                 continue
@@ -578,6 +580,10 @@ class PostgresEgress(BaseEgress):
             asyncpg.PostgresError: If the server refuses a setting, such as the
                 password or a table definition.
         """
+        # Schemas read in an earlier run may have changed, so other sinks wait for
+        # this one to read them again
+        self._resolved = False
+        PostgresEgress._writers.add(self)
         try:
             await connect_with_retry(
                 self._init_pool,
@@ -587,6 +593,11 @@ class PostgresEgress(BaseEgress):
             )
             await self._write_forever(egress_queue)
         finally:
+            PostgresEgress._writers.discard(self)
+            # A sink that ends before it read its schema no longer holds back the
+            # names the other sinks kept
+            for writer in list(PostgresEgress._writers):
+                writer._check_unrouted()
             await self._close_pool()
 
     async def _close_pool(self) -> None:
@@ -643,4 +654,7 @@ class PostgresEgress(BaseEgress):
             except Exception as e:
                 logger.error(f"Error inserting batch into {self.table_name}: {e}")
                 # Back-off on database failures to prevent rapid crash looping
-                await asyncio.sleep(1)
+                if not self._drop_backlog(
+                    egress_queue, "PostgresEgress", is_temporary_postgres_error(e)
+                ):
+                    await asyncio.sleep(1)

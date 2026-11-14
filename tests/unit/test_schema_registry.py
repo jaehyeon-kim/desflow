@@ -38,6 +38,7 @@ from desflow.connectors._schema_registry.confluent_client import (
     ConfluentRegistryClient,
     build_ssl_context,
 )
+from desflow.connectors._schema_registry.errors import is_temporary
 from desflow.connectors._schema_registry.glue_client import GlueRegistryClient
 from desflow.connectors._schema_registry.wire import frame_glue, unframe_glue
 from desflow.connectors.egress.kafka import (
@@ -922,8 +923,13 @@ def test_glue_client_gives_up_on_a_version_still_pending_after_ten_checks(
         get_schema_version=[version_answer("PENDING")],
     )
 
-    with pytest.raises(SchemaRegistryError, match="still PENDING after 10 checks"):
+    with pytest.raises(
+        SchemaRegistryError, match="still PENDING after 10 checks"
+    ) as pending:
         glue_for(glue).version_for("t-value", "{}", "AVRO")
+
+    # A sink waits this out once for its batch instead of once for each record
+    assert is_temporary(pending.value)
 
     assert glue.names().count("get_schema_version") == 10
     assert glue_sleeps == [3] * 10

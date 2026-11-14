@@ -73,7 +73,7 @@ Usage: desflow run [OPTIONS] {FILE}
   test` imports it, so its `if __name__ == "__main__":` block does not run.
 
 Arguments:
-  FILE  The blueprint file, or a builder file with --sample.  [required]
+  FILE <file>  The blueprint file, or a builder file with --sample.  [required]
 
 Options:
   --until TIME      Simulation time to stop at, in seconds or as a duration such
@@ -133,7 +133,7 @@ Options:
 ## `desflow check`
 
 ```text
-Usage: desflow check [OPTIONS] {FILE...}
+Usage: desflow check [OPTIONS] {FILE...}...
 
   Check that each blueprint or builder file in FILE... builds, without running
   it.
@@ -157,7 +157,7 @@ Usage: desflow check [OPTIONS] {FILE...}
   invalid.
 
 Arguments:
-  FILE...  The blueprint files, or builder files.  [required]
+  FILE... <list[Path]>  The blueprint files, or builder files.  [required]
 
 Options:
   --var NAME=VALUE  Fill ${NAME} in the files and in the files they include,
@@ -182,7 +182,7 @@ Options:
 ## `desflow test`
 
 ```text
-Usage: desflow test [OPTIONS] {FILE...}
+Usage: desflow test [OPTIONS] {FILE...}...
 
   Run the tests of each file in FILE... and report the statistics that differ.
 
@@ -198,8 +198,8 @@ Usage: desflow test [OPTIONS] {FILE...}
   if any test fails.
 
 Arguments:
-  FILE...  The blueprint files, or builder files with a tests.yaml beside them.
-           [required]
+  FILE... <list[Path]>  The blueprint files, or builder files with a tests.yaml
+                        beside them.  [required]
 
 Options:
   --fix             Write the statistics the runs gave into the expect values
@@ -230,9 +230,9 @@ Usage: desflow explain [OPTIONS] {SOURCE}
   tuning hints where the queueing formulas apply, and why where they do not.
 
 Arguments:
-  SOURCE  A YAML blueprint, or a builder Python file with a module-level
-          SimulationContext, local or a URI such as s3://bucket/sims/shop.yaml.
-          [required]
+  SOURCE <str>  A YAML blueprint, or a builder Python file with a module-level
+                SimulationContext, local or a URI such as
+                s3://bucket/sims/shop.yaml.  [required]
 
 Options:
   --json            Print the explanation as JSON (schema_version 0,
@@ -279,7 +279,7 @@ Usage: desflow experiment [OPTIONS] {FILE}
   Exits 1 if a check fails.
 
 Arguments:
-  FILE  The experiment file.  [required]
+  FILE <file>  The experiment file.  [required]
 
 Options:
   --output FOLDER  Where to write the artifacts. Overrides output in the file.
@@ -300,7 +300,8 @@ Usage: desflow report [OPTIONS] {FOLDER}
   Build the report of an experiment again from the artifacts in FOLDER.
 
 Arguments:
-  FOLDER  An experiment's output folder, with its experiment.json.  [required]
+  FOLDER <dir>  An experiment's output folder, with its experiment.json.
+                [required]
 
 Options:
   --help  Show this message and exit.
@@ -321,7 +322,7 @@ Usage: desflow fit [OPTIONS] {FILE}
   usable.
 
 Arguments:
-  FILE  A CSV file with a header row.  [required]
+  FILE <file>  A CSV file with a header row.  [required]
 
 Options:
   --column NAME                   The column to fit.  [required]
@@ -372,7 +373,7 @@ Usage: desflow dist [OPTIONS] [FAMILY]
   Exits 1 for a family with no formula from a mean and std.
 
 Arguments:
-  FAMILY  A family, such as gamma. Leave it out to list every family.
+  FAMILY <str>  A family, such as gamma. Leave it out to list every family.
 
 Options:
   --rate X   Events per second.
@@ -470,7 +471,7 @@ Usage: desflow examples get [OPTIONS] {name}
   Download an example into <dest>/<name>/<api>/, at the installed release.
 
 Arguments:
-  name  The example, as `desflow examples` lists it.  [required]
+  name <str>  The example, as `desflow examples` lists it.  [required]
 
 Options:
   --api <str>           Only this version: yaml, builder or low-level.

@@ -232,9 +232,9 @@ The block keeps the first customer and the first two orders. Each order names a 
 
 <!-- records: gd-join-across-sinks -->
 ```text
-{"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"customers-1","task":"customer","instance":0,"value":{"customer_id":1,"country":"SG"}}
-{"stream_type":"event","sim_ts":1.2761899383482334,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"order_id":1,"customer_id":4,"total":100.17}}
-{"stream_type":"event","sim_ts":1.3479226635723796,"timestamp":"...","key":"orders-2","task":"order","instance":1,"value":{"order_id":2,"customer_id":2,"total":126.8}}
+{"stream_type":"event","sim_ts":0.0,"timestamp":"...","key":"customers-1","task":"customer","instance":0,"value":{"customer_id":1,"country":"NZ"}}
+{"stream_type":"event","sim_ts":0.3141556656469718,"timestamp":"...","key":"orders-1","task":"order","instance":0,"value":{"order_id":1,"customer_id":5,"total":161.55}}
+{"stream_type":"event","sim_ts":2.4671694506095694,"timestamp":"...","key":"orders-2","task":"order","instance":1,"value":{"order_id":2,"customer_id":4,"total":177.63}}
 ```
 
 The docs test runs all three forms into real files in a temporary folder. Each file holds the records of one task, every order in the orders file names a customer in the customers file, and the three forms write the same files.

@@ -67,11 +67,11 @@ desflow run patience.yaml --stdout | grep '"reneged"' | head -2
 
 <!-- records: patience-reneged -->
 ```text
-{"stream_type":"event","sim_ts":215.10708094674916,"timestamp":"...","key":"orders-143","task":"pack_order","instance":142,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"reneged"}}
-{"stream_type":"event","sim_ts":215.36272322646022,"timestamp":"...","key":"orders-144","task":"pack_order","instance":143,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"reneged"}}
+{"stream_type":"event","sim_ts":370.51998198108714,"timestamp":"...","key":"orders-235","task":"pack_order","instance":234,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"reneged"}}
+{"stream_type":"event","sim_ts":601.3635869519446,"timestamp":"...","key":"orders-390","task":"pack_order","instance":389,"value":{"path_id":"Shop.service.packing","sim_id":"Shop","service":"packing","status":"reneged"}}
 ```
 
-Both orders were queued 30 seconds earlier, at 185.1 and 185.4 seconds, and left when their patience ran out. In the builder and the low-level API, `ConsoleEgress(format="json")` as the sink prints the same lines.
+Both orders were queued 30 seconds earlier, at 340.5 and 571.4 seconds, and left when their patience ran out. In the builder and the low-level API, `ConsoleEgress(format="json")` as the sink prints the same lines.
 
 A grant and a patience can fall at the same instant: the packer finishes the previous order at exactly the moment the next order's 30 seconds run out. desflow then does what plain SimPy does: the outcome depends on which of the two events was scheduled first. The [Add Reneging and Balking](../../how-to/modelling/reneging-and-balking.md) guide shows both cases.
 
@@ -142,9 +142,9 @@ With statistics at `basic` and above, each task publishes how many instances ren
 
 ## What You Get and Why
 
-Which orders leave or refuse to join, and what does that do to the others? Each figure here comes from one run of the hour with the seed 42. With a patience of 30 seconds, **69 orders** leave the queue during the hour, and the mean wait of the packed orders falls from **72.16 seconds** to **14.57 seconds**. No packed order waits more than 30 seconds. In both runs the **194 orders** that arrive in the last five minutes refuse to join. The wait of each packed order over the hour shows why:
+Which orders leave or refuse to join, and what does that do to the others? Each figure here comes from one run of the hour with the seed 42. With a patience of 30 seconds, **144 orders** leave the queue during the hour, and the mean wait of the packed orders falls from **120.75 seconds** to **19.56 seconds**. No packed order waits more than 30 seconds. In both runs the **217 orders** that arrive in the last five minutes refuse to join. The wait of each packed order over the hour shows why:
 
-![Without patience, the wait of packed orders climbs from 0 to about 120 seconds over the hour; with a patience of 30 seconds it stays between 0 and 30 seconds](../../assets/charts/patience-waits.png)
+![Without patience, the wait of packed orders climbs from 0 to about 240 seconds over the hour; with a patience of 30 seconds it stays between 0 and 30 seconds](../../assets/charts/patience-waits.png)
 
 Each tab prints both runs: the orders packed, reneged and balked, and the mean wait.
 
@@ -161,13 +161,13 @@ Each tab prints both runs: the orders packed, reneged and balked, and the mean w
 
     <!-- records: patience-yaml -->
     ```text
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":2173}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.balked","value":194}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.reneged","value":69}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":14.567032849554375}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":2242}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.balked","value":194}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":72.1639978932148}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":2200}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.balked","value":217}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.reneged","value":144}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":19.561415419101984}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":2344}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.balked","value":217}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":120.75119985855385}
     ```
 
 === "Builder"
@@ -177,8 +177,8 @@ Each tab prints both runs: the orders packed, reneged and balked, and the mean w
     ```
 
     ```text
-    patience 30 s: 2173 packed, 69 reneged, 194 balked, mean wait 14.57 s
-    patience none: 2242 packed, 0 reneged, 194 balked, mean wait 72.16 s
+    patience 30 s: 2200 packed, 144 reneged, 217 balked, mean wait 19.56 s
+    patience none: 2344 packed, 0 reneged, 217 balked, mean wait 120.75 s
     ```
 
 === "Low-level"
@@ -188,11 +188,11 @@ Each tab prints both runs: the orders packed, reneged and balked, and the mean w
     ```
 
     ```text
-    patience 30 s: 2173 packed, 69 reneged, 194 balked, mean wait 14.57 s
-    patience none: 2242 packed, 0 reneged, 194 balked, mean wait 72.16 s
+    patience 30 s: 2200 packed, 144 reneged, 217 balked, mean wait 19.56 s
+    patience none: 2344 packed, 0 reneged, 217 balked, mean wait 120.75 s
     ```
 
-Orders arrive at 42 a minute and bring 0.7 × 1.5 = 1.05 seconds of packing each second, more than one packer can do. So without patience the queue grows, and every order waits longer than the one before. Patience removes the orders that have waited longest, so the queue stays short for the rest. The shop packs 69 fewer orders, and every order it packs waits less. The mean wait of packed orders leaves out the orders that left. So report the reneged and balked counts beside it. [Queueing Basics](../concepts/queueing-basics.md#utilisation) explains why a queue grows without limit above utilisation 1. [Statistics](../../user-guide/results/statistics.md) describes what each count measures.
+Orders arrive at 42 a minute and bring 0.7 × 1.5 = 1.05 seconds of packing each second, more than one packer can do. So without patience the queue grows, and every order waits longer than the one before. Patience removes the orders that have waited longest, so the queue stays short for the rest. The shop packs 144 fewer orders, and every order it packs waits less. The mean wait of packed orders leaves out the orders that left. So report the reneged and balked counts beside it. [Queueing Basics](../concepts/queueing-basics.md#utilisation) explains why a queue grows without limit above utilisation 1. [Statistics](../../user-guide/results/statistics.md) describes what each count measures.
 
 ## Key Takeaways
 

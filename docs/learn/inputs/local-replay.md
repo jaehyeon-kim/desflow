@@ -119,7 +119,7 @@ A Parquet file works the same way and needs the `parquet` extra.
 
 ## What You Get and Why
 
-What does the shop do with the orders of the real morning? The replay shows something the model does not. Replayed, the orders wait **91.31 seconds** on average and up to **295.40 seconds**. In one run of the model, with exponential gaps at the same mean rate and the seed 42, orders wait **2.57 seconds** on average and at most **14.34**. The recorded morning holds two bursts of three minutes each, at 09:15 and 09:40. The packer clears the queue of the first burst only at about 09:32, and the queue of the second at about 09:54:
+What does the shop do with the orders of the real morning? The replay shows something the model does not. Replayed, the orders wait **91.31 seconds** on average and up to **295.40 seconds**. In one run of the model, with exponential gaps at the same mean rate and the seed 42, orders wait **3.79 seconds** on average and at most **19.24**. The recorded morning holds two bursts of three minutes each, at 09:15 and 09:40. The packer clears the queue of the first burst only at about 09:32, and the queue of the second at about 09:54:
 
 ![Waits by the time packing started: the recorded orders wait up to 295 s after the bursts at 15 and 40 minutes; the exponential model stays near 0 all hour](../../assets/charts/replay-waits.png)
 
@@ -143,9 +143,9 @@ Each tab prints both runs: the orders packed, the mean wait and the longest wait
     {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":1962}
     {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":91.3063678043811}
     {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_max","value":295.39999999999986}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":1905}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":2.5746837910829994}
-    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_max","value":14.342348850266262}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":1984}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":3.7877552416477402}
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_max","value":19.23704444923061}
     ```
 
 === "Builder"
@@ -156,7 +156,7 @@ Each tab prints both runs: the orders packed, the mean wait and the longest wait
 
     ```text
     recorded: 1962 packed, mean wait 91.31 s, longest 295.40 s
-    modelled: 1905 packed, mean wait  2.57 s, longest  14.34 s
+    modelled: 1984 packed, mean wait  3.79 s, longest  19.24 s
     ```
 
 === "Low-level"
@@ -167,7 +167,7 @@ Each tab prints both runs: the orders packed, the mean wait and the longest wait
 
     ```text
     recorded: 1962 packed, mean wait 91.31 s, longest 295.40 s
-    modelled: 1905 packed, mean wait  2.57 s, longest  14.34 s
+    modelled: 1984 packed, mean wait  3.79 s, longest  19.24 s
     ```
 
 A mean rate says how many orders come in an hour, not when they come. Exponential gaps spread the orders evenly over the hour, with small random clusters. The recorded morning has bursts that push the load above what one packer can pack for minutes at a time: a finite overload, like the rush of [Changing Demand](changing-demand.md). Replaying the recorded rows keeps the bursts, so it shows waits the fitted model cannot. Use a replay to check a model against the data it was fitted to, as [Checking and Validating](../concepts/checking-and-validating.md#compare-with-the-real-shop) describes. When the two disagree, the arrivals are not exponential at one rate, and the model needs a schedule, as on [Vary Arrivals by Time](../../how-to/modelling/time-varying-arrivals.md), or the replay itself.

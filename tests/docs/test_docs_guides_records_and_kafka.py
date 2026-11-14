@@ -165,7 +165,7 @@ def test_avro_forms_send_the_predictions_as_avro(
     for messages in forms.values():
         topics = collections.Counter(topic for topic, _, _ in messages)
         assert set(topics) == {"ml-predictions", "sim-events"}
-        assert topics["ml-predictions"] == 28
+        assert topics["ml-predictions"] == 20
         first = next(m for m in decoded(messages) if m[0] == "ml-predictions")
         assert first[2]["value"] == {
             "event_type": "prediction",
@@ -252,7 +252,7 @@ def test_json_schema_and_protobuf_forms_send_the_orders_in_two_formats(
     for messages in forms.values():
         topics = collections.Counter(topic for topic, _, _ in messages)
         assert set(topics) == {"orders-json", "orders-protobuf", "sim-events"}
-        assert topics["orders-json"] == 14 and topics["orders-protobuf"] == 14
+        assert topics["orders-json"] == 10 and topics["orders-protobuf"] == 10
         for topic, key, record in orders(messages):
             number = int(key.split("-")[1])
             assert (topic == "orders-protobuf") == ((number - 1) % 2 == 1)

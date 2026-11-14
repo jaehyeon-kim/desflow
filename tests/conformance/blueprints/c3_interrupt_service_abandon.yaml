@@ -3,7 +3,7 @@
 simulation:
   sim_id: C3
   factor: 0
-  random_seed: 7
+  random_seed: 2
 resources:
   machine: {current_cap: 1, max_cap: 1}
 services:

@@ -2,5 +2,5 @@
 [EVT] {'sim_ts': 0.0, 'timestamp': '...', 'key': 'customers-2', 'task': 'customer', 'instance': 1, 'value': {'customer_id': 101}}
 [EVT] {'sim_ts': 0.0, 'timestamp': '...', 'key': 'customers-3', 'task': 'customer', 'instance': 2, 'value': {'customer_id': 102}}
 [EVT] {'sim_ts': 60.0, 'timestamp': '...', 'key': 'orders-1', 'task': 'order', 'instance': 0, 'value': {'customer_id': 102}}
-[EVT] {'sim_ts': 120.0, 'timestamp': '...', 'key': 'orders-2', 'task': 'order', 'instance': 1, 'value': {'customer_id': 101}}
-[EVT] {'sim_ts': 180.0, 'timestamp': '...', 'key': 'orders-3', 'task': 'order', 'instance': 2, 'value': {'customer_id': 101}}
+[EVT] {'sim_ts': 120.0, 'timestamp': '...', 'key': 'orders-2', 'task': 'order', 'instance': 1, 'value': {'customer_id': 102}}
+[EVT] {'sim_ts': 180.0, 'timestamp': '...', 'key': 'orders-3', 'task': 'order', 'instance': 2, 'value': {'customer_id': 100}}

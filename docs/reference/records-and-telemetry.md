@@ -33,10 +33,10 @@ This is how `ConsoleEgress` prints a statistic and the three events of one task:
 
 <!-- records: record-examples -->
 ```text
-[TEL] {'sim_ts': 10.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.in_use', 'value': 0}
-[EVT] {'sim_ts': 3.672097157355851, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
-[EVT] {'sim_ts': 3.672097157355851, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
-[EVT] {'sim_ts': 5.369082605964606, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'event_type': 'order_packed'}}
+[TEL] {'sim_ts': 10.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.in_use', 'value': 1}
+[EVT] {'sim_ts': 1.6063438520913942, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 1.6063438520913942, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'sim_id': 'Shop', 'service': 'packing', 'status': 'started'}}
+[EVT] {'sim_ts': 5.58163205023515, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'event_type': 'order_packed'}}
 ```
 
 This is how a JSON Lines sink writes two labels:
@@ -193,7 +193,7 @@ KafkaEgress drops the payload key '__table__': keys that start and end with two 
 
 The record itself is not changed, so a PostgreSQL sink on the same run still finds its `__table__`. A sink drops the keys it does not route by before its router sees the record, so a router cannot route by a key its sink does not use. Rename a key such as `__source__` to `source` to keep it as data.
 
-A `__table__` key that PostgreSQL and Iceberg share on one event needs the name to hold a namespace for Iceberg: a name with none is refused with "names no namespace", and Iceberg logs the error and loses that batch, where it used to drop the key and write to `default_table`. Give Iceberg a `table_router`, or write `namespace.table` in the key.
+A `__table__` key that PostgreSQL and Iceberg share on one event needs the name to hold a namespace for Iceberg: Iceberg skips a record whose name has none, with the warning "names no namespace", and writes the other records of the batch. Give Iceberg a `table_router`, or write `namespace.table` in the key.
 
 ## What Each Sink Writes
 

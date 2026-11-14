@@ -190,16 +190,15 @@ Each arrival starts a new entity, keyed by the arrival's name and a counter from
 
     The process that creates each `Entity` gives it its key.
 
-Below are the finished events of `gifts-5` in [`task_flow.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/task_flow.yaml), the blueprint whose parts this page shows. The gift order is checked while the shelf is empty, backordered, checked again, wrapped, packed and shipped, all under one key:
+Below are the finished events of `gifts-5` in [`task_flow.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/task_flow.yaml), the blueprint whose parts this page shows. The gift order is checked while the shelf has stock, so it is not backordered and its shipping record shows `backordered: None`. It is wrapped, packed and shipped, all under one key:
 
 <!-- records: gift-flow -->
 ```text
-[EVT] {'sim_ts': 19.216390471870497, 'timestamp': '...', 'key': 'gifts-5', 'task': 'check_order', 'instance': 13, 'value': {'total': 80}}
-[EVT] {'sim_ts': 49.2163904718705, 'timestamp': '...', 'key': 'gifts-5', 'task': 'backorder', 'instance': 1, 'value': {'event_type': 'order_backordered'}}
-[EVT] {'sim_ts': 49.2163904718705, 'timestamp': '...', 'key': 'gifts-5', 'task': 'check_order', 'instance': 34, 'value': {'total': 80}}
-[EVT] {'sim_ts': 52.2163904718705, 'timestamp': '...', 'key': 'gifts-5', 'task': 'wrap_gift', 'instance': 7, 'value': {'event_type': 'gift_wrapped'}}
-[EVT] {'sim_ts': 54.36176707927986, 'timestamp': '...', 'key': 'gifts-5', 'task': 'pack_order', 'instance': 29, 'value': {'event_type': 'order_packed'}}
-[EVT] {'sim_ts': 54.36176707927986, 'timestamp': '...', 'key': 'gifts-5', 'task': 'ship_order', 'instance': 27, 'value': {'event_type': 'order_shipped', 'gift': 1, 'backordered': 1}}
+[EVT] {'sim_ts': 33.55388955498106, 'timestamp': '...', 'key': 'gifts-5', 'task': 'check_order', 'instance': 17, 'value': {'total': 80}}
+[EVT] {'sim_ts': 36.55388955498106, 'timestamp': '...', 'key': 'gifts-5', 'task': 'wrap_gift', 'instance': 3, 'value': {'event_type': 'gift_wrapped'}}
+[EVT] {'sim_ts': 38.05388955498106, 'timestamp': '...', 'key': 'gifts-5', 'task': 'pack_order', 'instance': 12, 'value': {'event_type': 'order_packed'}}
+[EVT] {'sim_ts': 39.55388955498106, 'timestamp': '...', 'key': 'gifts-5', 'task': 'pack_order', 'instance': 13, 'value': {'event_type': 'order_packed'}}
+[EVT] {'sim_ts': 39.55388955498106, 'timestamp': '...', 'key': 'gifts-5', 'task': 'ship_order', 'instance': 11, 'value': {'event_type': 'order_shipped', 'gift': 1, 'backordered': None}}
 ```
 
 A task can also set the key of its own records. A blueprint task has these keys, and the builder's `@app.task` takes the same names:
@@ -549,11 +548,11 @@ Below are the records of `task_values.yaml` that these sections show: the first 
 
 <!-- records: task-values -->
 ```text
-[EVT] {'sim_ts': 1.1718368391649996, 'timestamp': '...', 'key': 'c-0', 'task': 'sign_up', 'instance': 0, 'value': {'customer_id': 'c-0'}}
-[EVT] {'sim_ts': 2.5523798766964667, 'timestamp': '...', 'key': 'orders-1', 'task': 'place_order', 'instance': 0, 'value': {'customer_id': 'c-0', 'total': 162.94, 'running_total': 162.94}}
-[EVT] {'sim_ts': 2.5523798766964667, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack', 'instance': 0, 'value': {'weight': 2.3}}
-[EVT] {'sim_ts': 4.052379876696467, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack', 'instance': 0, 'value': {'box': 'small', 'weight': 2.3, 'fee': 0.92, 'total': 162.94}}
-[EVT] {'sim_ts': 100.0, 'timestamp': '...', 'key': 'closing-1', 'task': 'day_report', 'instance': 0, 'value': {'closed_at': 100.0, 'mean_total': 92.873}}
+[EVT] {'sim_ts': 42.95160161372071, 'timestamp': '...', 'key': 'c-0', 'task': 'sign_up', 'instance': 0, 'value': {'customer_id': 'c-0'}}
+[EVT] {'sim_ts': 43.408565140468134, 'timestamp': '...', 'key': 'orders-16', 'task': 'place_order', 'instance': 15, 'value': {'customer_id': 'c-0', 'total': 42.23, 'running_total': 42.23}}
+[EVT] {'sim_ts': 43.408565140468134, 'timestamp': '...', 'key': 'orders-16', 'task': 'pack', 'instance': 0, 'value': {'weight': 2.5}}
+[EVT] {'sim_ts': 44.908565140468134, 'timestamp': '...', 'key': 'orders-16', 'task': 'pack', 'instance': 0, 'value': {'box': 'small', 'weight': 2.5, 'fee': 1.0, 'total': 42.23}}
+[EVT] {'sim_ts': 100.0, 'timestamp': '...', 'key': 'closing-1', 'task': 'day_report', 'instance': 0, 'value': {'closed_at': 100.0, 'mean_total': 126.093}}
 ```
 
 ---
@@ -620,6 +619,7 @@ A blueprint is checked when it loads, and each error names its YAML line. Every 
 - **Flow balance.** The rate into each task follows from the rates into the tasks before it and the routing shares. With weights of 9 to ship and 1 back to packing, one packing in ten sends the order back to be packed again. Every order is packed once, one in ten a second time, one in a hundred a third time, and so on. An order is therefore packed 1 + 0.1 + 0.01 + ... = 1 ÷ 0.9 = 1.11 times on average, so the packers see 11% more work than there are orders. Weights that are expressions give `desflow explain` no shares, so it reports no flow balance for them.
 - **Rework raises utilisation.** Work the load out with the rework included, as [Queues and Capacity](../../learn/first-model/queues-and-capacity.md) does, or a rework loop can push a resource past full use. [Queueing Basics](../../learn/concepts/queueing-basics.md#utilisation) explains utilisation.
 - **Refused expressions.** A call other than the listed functions, a name without a source, `payload["total"]` (write `payload.total`), a comprehension with more than one clause or over a mapping, `lambda`, `~` and the shift operators are refused. `**` with a negative base and a fractional exponent, and `round(x, -n)` with a very large `n`, fail the run when the expression is evaluated, naming the expression. An expression nested more than 200 levels is refused when it is read.
+- **A loop needs time.** A loop of tasks that take no service time, resource, wait or get never lets the clock move. The run stops with an error that names the tasks after the flow has run 10,000 instances at one instant, as a resource breakdown does. Give one task of the loop a `service_time` above 0, or a way out in its `next` rules.
 - **One entity, one flow.** A task leads to at most one next task. Splitting one order into several, or joining several into one, comes after 1.0.
 - **`decide` is kept free.** The task key `decide` is kept for decisions sent from outside for one entity, planned after 1.0. Today it is refused like any unknown key.
 

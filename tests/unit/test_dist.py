@@ -3,6 +3,7 @@ refusals with their exit codes, the variability label and the clamped normal's
 moments."""
 
 import math
+import re
 
 import numpy as np
 import pytest
@@ -110,6 +111,21 @@ def test_dist_converts_in_both_directions():
         assert "variability: low (std / mean 0.5)" in result.output
         assert "YAML: {dist: gamma, shape: 4, scale: 1.25}" in result.output
         assert 'Python: dist="gamma", shape=4, scale=1.25' in result.output
+
+
+@pytest.mark.parametrize("mean, std", [("100000", "0.01"), ("1000", "0.05")])
+def test_dist_prints_the_digits_that_keep_the_mean_and_std(mean, std):
+    result = _dist("uniform", "--mean", mean, "--std", std)
+    assert result.exit_code == 0, result.output
+    printed = re.search(
+        r"YAML: \{dist: uniform, low: (\S+), high: (\S+)\}", result.output
+    )
+    assert printed is not None, result.output
+    low, high = float(printed[1]), float(printed[2])
+    config = DistributionConfig(dist="uniform", low=low, high=high)
+    assert config.low < config.high
+    assert (low + high) / 2 == pytest.approx(float(mean), rel=1e-12)
+    assert (high - low) / math.sqrt(12) == pytest.approx(float(std), rel=1e-3)
 
 
 def test_dist_lists_every_family_and_shows_one():

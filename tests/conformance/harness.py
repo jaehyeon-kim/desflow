@@ -155,7 +155,7 @@ def run_yaml_text(
         (folder / f"{name}.csv").write_text(
             "time\n" + "".join(f"{t}\n" for t in moments)
         )
-    (folder / "model.yaml").write_text(text)
+    (folder / "model.yaml").write_text(text, encoding="utf-8")
     rec = RecordingEgress()
     app = SimulationContext.from_yaml(folder / "model.yaml")
     app.add_egress(rec)

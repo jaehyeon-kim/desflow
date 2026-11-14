@@ -41,6 +41,12 @@ Each line is a check that passed. A failed check names the file and line, and wh
 
 ---
 
+## Check the Reply
+
+Check that every line of the check reads `ok`, and that the reply says it compared the forms at the model's seed and the two after it.
+
+---
+
 ## Full Files
 
 The three forms of the shop from [Draft a Model](draft-a-model.md). [Writing a Model](../user-guide/writing-a-model/index.md) explains how the three ways relate.

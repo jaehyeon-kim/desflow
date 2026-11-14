@@ -37,7 +37,7 @@ Write the question and its measures down before building anything. Name the meas
 
 ### What the Result Means
 
-[Queues and Capacity](../first-model/queues-and-capacity.md) answers the question: 3 packers. [Trusting Results](../studies/trusting-results.md) measures the mean wait of an order with 3 packers: 2.32 ± 0.20 seconds, the mean of 40 [replications](output-analysis.md#replications) with the half-width of its [95% interval](output-analysis.md#interval-and-half-width). Those runs use the measured packing times and a 2-minute [warm-up](output-analysis.md#one-run-starts-empty), and [other pages run the hour in other ways](output-analysis.md#busy-hour-figures). The whole interval is far below 10 seconds, so the answer holds at this precision.
+[Queues and Capacity](../first-model/queues-and-capacity.md) answers the question: 3 packers. [Trusting Results](../studies/trusting-results.md) measures the mean wait of an order with 3 packers: 2.10 ± 0.10 seconds, the mean of 40 [replications](output-analysis.md#replications) with the half-width of its [95% interval](output-analysis.md#interval-and-half-width). Those runs use the measured packing times and a 2-minute [warm-up](output-analysis.md#one-run-starts-empty), and [other pages run the hour in other ways](output-analysis.md#busy-hour-figures). The whole interval is far below 10 seconds, so the answer holds at this precision.
 
 ---
 
@@ -135,7 +135,7 @@ A model that passes the checks is fit for the question it was checked against, n
 
 ### In the Tutorial
 
-[Comparing Designs](../studies/comparing-designs.md) compares three packers with four. Over 20 replications of each design with the same seeds, a fourth packer cuts the busy hour's mean wait by 2.21 ± 0.31 seconds (the mean difference and the half-width of its 95% interval).
+[Comparing Designs](../studies/comparing-designs.md) compares three packers with four. Over 20 replications of each design with the same seeds, a fourth packer cuts the busy hour's mean wait by 1.89 ± 0.14 seconds (the mean difference and the half-width of its 95% interval).
 
 ### Why It Matters
 
@@ -147,7 +147,7 @@ Decide the run length, the warm-up and the number of replications, then run each
 
 ### What the Result Means
 
-The interval for the difference, 2.21 ± 0.31 seconds, lies wholly above 0, so the fourth packer shortens the wait at this precision. Whether 2.21 seconds is worth a packer is the shop manager's decision, not the model's.
+The interval for the difference, 1.89 ± 0.14 seconds, lies wholly above 0, so the fourth packer shortens the wait at this precision. Whether 1.89 seconds is worth a packer is the shop manager's decision, not the model's.
 
 ---
 

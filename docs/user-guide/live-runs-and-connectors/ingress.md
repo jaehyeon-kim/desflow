@@ -209,7 +209,7 @@ docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation
 
 ### PostgreSQL
 
-`PostgresIngress` polls a table, `simulation_params` by default, every `poll_interval` seconds, 2 by default. It creates the table when it is missing, with the columns `id`, `path`, `value`, `is_applied` and `created_at`. It applies the rows in two steps:
+`PostgresIngress` polls a table, `simulation_params` by default, every `poll_interval` seconds, 2 by default. It creates the table when it is missing, with the columns `id`, `path`, `value`, `is_applied` and `created_at`, and first its schema when the name has one that the database does not have, such as `dashboard` in `dashboard.params`. It applies the rows in two steps:
 
 1. At the start, it applies the latest applied value of each path, in the order the changes were made, so a restarted run resumes from the last settings. A `current_cap` that was made after a `max_cap` is applied after it, so the new maximum clamps it as it did the first time.
 2. At each poll, it applies every row whose `is_applied` is false and marks it true, so the table keeps the history of every change.
@@ -302,7 +302,7 @@ A connector is a class with one method, `async run(queue)`, so a source desflow 
 
 - **An invalid file is skipped.** An empty file, which an editor can leave for a moment while it saves, is skipped with no log line. A file that is not valid YAML, or is not a mapping, is logged as one WARNING line that names the file and the parser's error, and nothing from that read is applied. The next valid read is compared with the last valid one. An entry with an empty path or a null value is logged as one WARNING line and skipped, as for the other connectors.
 - **`LocalIngress` follows the wall clock,** so at `factor: 0` an unpaced run can end before its first change. `FileIngress` does too.
-- **Ingress needs an `until`.** The ingress monitor repeats for as long as the run lasts, so a run with ingress needs `until` or Ctrl+C, as [Run Length](../time-and-pacing/run-length.md#run-length_1) explains.
+- **Ingress needs an `until`.** A run that only waits for ingress has no model event of its own, so without `until` it ends at once. Set `until`, and Ctrl+C then stops the run before it reaches that time, as [Run Length](../time-and-pacing/run-length.md#run-length_1) explains.
 
 ---
 

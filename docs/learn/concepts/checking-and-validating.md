@@ -40,7 +40,7 @@ Checking a Model passes every verification check, and both of the shop's observe
 
 ### In the Tutorial
 
-The records of a desflow run are a trace: the record of each event in time order. In [First Simulation](../first-model/first-simulation.md), order 2 arrives at 2.696 seconds and joins the queue, and starts at 4.052 seconds, the instant order 1 is packed.
+The records of a desflow run are a trace: the record of each event in time order. In [First Simulation](../first-model/first-simulation.md), order 3 arrives at 5.024 seconds and joins the queue, and starts at 6.434 seconds, the instant order 2 is packed.
 
 ### Why It Matters
 
@@ -121,7 +121,7 @@ Then run the extremes, where the answer is known without the model. Four cases w
 
 ### What the Result Means
 
-A run that matches every case worked by hand has the logic of the model on paper. Checking a Model also runs the busy hour at its extremes over 20 replications: one packer finishes 2,318 orders on average against the most possible, 2,320, and ten packers are busy 27.08% of the time against 27% by hand. A difference in any of these cases must be found before any experiment.
+A run that matches every case worked by hand has the logic of the model on paper. Checking a Model also runs the busy hour at its extremes over 20 replications: one packer finishes 2,318 orders on average against the most possible, 2,320, and ten packers are busy 27.00% of the time against 27% by hand. A difference in any of these cases must be found before any experiment.
 
 ---
 
@@ -129,7 +129,7 @@ A run that matches every case worked by hand has the logic of the model on paper
 
 ### In the Tutorial
 
-[Measuring a Run](../first-model/measuring-a-run.md) reports the queue length, the arrival count and the mean wait of the busy hour separately. By [Little's law](queueing-basics.md#littles-law) they must agree: 2.406 orders in the queue on average, against 1.736 orders a second × 1.3817 seconds = 2.399.
+[Measuring a Run](../first-model/measuring-a-run.md) reports the queue length, the arrival count and the mean wait of the busy hour separately. By [Little's law](queueing-basics.md#littles-law) they must agree: 3.618 orders in the queue on average, against 1.802 orders a second × 2.0065 seconds = 3.616.
 
 ### Why It Matters
 
@@ -137,7 +137,7 @@ Some relations hold for every model that settles, so they test the statistics wi
 
 ### How to Use It
 
-Compare the average queue with the arrival rate times the mean wait, as [Queueing Basics](queueing-basics.md#littles-law) shows in each form of the model. Check that the counts in [Statistics](../../user-guide/results/statistics.md) add up: when no order balks or reneges, the orders started over the whole run are those finished plus those still in the shop. In Measuring a Run, 6,261 started, 6,250 finished and 11 are still in the shop.
+Compare the average queue with the arrival rate times the mean wait, as [Queueing Basics](queueing-basics.md#littles-law) shows in each form of the model. Check that the counts in [Statistics](../../user-guide/results/statistics.md) add up: when no order balks or reneges, the orders started over the whole run are those finished plus those still in the shop. In Measuring a Run, 6,491 started, 6,488 finished and 3 are still in the shop.
 
 ### What the Result Means
 
@@ -193,7 +193,7 @@ The results need to agree closely enough for the decision, not exactly. The mode
 
 ### In the Tutorial
 
-[Parameter Sweeps](../studies/parameter-sweeps.md) changes the shop's arrival rate around its estimate of 1.8 orders a second. With three packers, a rate 6% above the estimate more than doubles the mean wait, from 2.48 to 5.55 seconds, each the [mean of 20 replications after a 2-minute warm-up](output-analysis.md#busy-hour-figures). With four packers, the mean wait is at most 0.35 seconds at every rate in the sweep.
+[Parameter Sweeps](../studies/parameter-sweeps.md) changes the shop's arrival rate around its estimate of 1.8 orders a second. With three packers, a rate 6% above the estimate more than doubles the mean wait, from 2.15 to 4.52 seconds, each the [mean of 20 replications after a 2-minute warm-up](output-analysis.md#busy-hour-figures). With four packers, the mean wait is at most 0.34 seconds at every rate in the sweep.
 
 ### Why It Matters
 

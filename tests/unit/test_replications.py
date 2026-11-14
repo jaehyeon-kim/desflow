@@ -3,6 +3,10 @@
 import asyncio
 import queue
 import shlex
+import threading
+import time
+from concurrent.futures import Future
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -21,8 +25,9 @@ from desflow.cli import app as cli
 from desflow.connectors.egress.base import BaseEgress
 from desflow.connectors.ingress.base import BaseIngress
 from desflow.analysis.intervals import interval, t_quantile
+from desflow.analysis import runner
 from desflow.analysis.models import spawn_seeds
-from desflow.analysis.runner import level_for
+from desflow.analysis.runner import level_for, run_replications
 
 BLUEPRINT = """\
 simulation: {sim_id: Shop, factor: 0}
@@ -185,6 +190,22 @@ def test_mm1_mean_wait_lies_in_its_interval():
     assert abs(row["mean"] - 1.0) <= row["half_width"]
 
 
+def test_a_warmup_at_or_after_until_is_refused(blueprint):
+    """The warm-up would never end, so every value would cover the whole run."""
+    for model in (blueprint, shop, LowLevelModel(low_level, "Shop")):
+        with pytest.raises(ValueError, match="warm-up ends at 500 s"):
+            replicate(model, 2, seed=1, until=100, warmup=500)
+
+
+def test_a_blueprints_own_warmup_after_until_is_refused(tmp_path):
+    path = tmp_path / "late.yaml"
+    path.write_text(
+        BLUEPRINT.replace("factor: 0}", "factor: 0, warmup: 500}"), encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="warm-up ends at 500 s"):
+        replicate(path, 2, seed=1, until=100)
+
+
 def test_a_replication_reruns_with_its_seed(blueprint):
     """The third replication's value is what a run with its seed measures."""
     result = replicate(blueprint, 3, seed=5, until=None, measures=MEASURES)
@@ -207,6 +228,59 @@ def test_workers_give_the_same_values(blueprint):
 def test_workers_need_an_importable_model():
     with pytest.raises(ValueError, match="cannot be imported"):
         replicate(lambda: shop(), 2, seed=1, until=100, workers=2)
+
+
+def test_an_empty_measures_list_is_refused_before_any_run():
+    with pytest.raises(ValueError, match="measures is empty"):
+        replicate(shop, 3, seed=1, until=60, measures=[])
+
+
+def test_the_first_failed_replication_is_raised_at_once_and_the_rest_dropped(
+    blueprint, monkeypatch
+):
+    """With workers, a failure in one replication ends the call without waiting for
+    the runs before it, and runs not yet started are cancelled."""
+    started = time.monotonic()
+    pending: list = []
+
+    class FakePool:
+        def __init__(self, max_workers):
+            self.cancelled = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self.shutdown()
+
+        def submit(self, function, *args, **kwargs):
+            future: Future = Future()
+            if pending:
+                future.set_exception(RuntimeError("replication 2 failed"))
+            else:
+                # The first replication is a long run that ends after a second
+                timer = threading.Timer(
+                    1.0, lambda: future.cancelled() or future.set_result(None)
+                )
+                timer.daemon = True
+                timer.start()
+            pending.append(future)
+            return future
+
+        def shutdown(self, wait=True, cancel_futures=False):
+            self.cancelled = cancel_futures
+            for future in pending:
+                if cancel_futures:
+                    future.cancel()
+            pools.append(self)
+
+    pools: list = []
+    monkeypatch.setattr(runner, "ProcessPoolExecutor", FakePool)
+    with pytest.raises(RuntimeError, match="replication 2 failed"):
+        run_replications(blueprint, [1, 2, 3], until=10, workers=2)
+    assert time.monotonic() - started < 0.5
+    assert pools and pools[0].cancelled
+    assert pending[0].cancelled()
 
 
 def test_an_unknown_measure_is_refused():
@@ -412,6 +486,58 @@ def test_workers_refuse_a_function_from_an_interactive_session(monkeypatch):
         replicate(typed_in, 2, seed=1, until=100, workers=2)
     with pytest.raises(ValueError, match="Put the function in a file"):
         replicate(LowLevelModel(typed_in, "Shop"), 2, seed=1, until=100, workers=2)
+
+
+@dataclass
+class _FailsOnceThenSleeps:
+    """The first run that reaches it waits until another run is sleeping, then
+    fails; every other run marks that it sleeps and takes 20 s of wall time.
+
+    The marks' folder travels with the model, because a worker started by
+    forkserver (the default from Python 3.14 on Linux) does not see an environment
+    variable the test sets after the server started."""
+
+    marks: str
+
+    def __call__(self, env, sampler):
+        import os
+
+        first = os.path.join(self.marks, "first")
+        sleeping = os.path.join(self.marks, "sleeping")
+        try:
+            os.close(os.open(first, os.O_CREAT | os.O_EXCL))
+        except FileExistsError:
+            open(sleeping, "w").close()
+            time.sleep(20)
+            return None
+        waited = time.monotonic() + 10
+        while not os.path.exists(sleeping) and time.monotonic() < waited:
+            time.sleep(0.01)
+        raise RuntimeError("first run fails")
+
+
+def test_a_failed_replication_ends_the_workers_that_are_running(tmp_path):
+    """A worker is in a 20 s run when another run fails. `replicate` raises at once
+    instead of waiting for that run, and no worker process is left."""
+    import multiprocessing
+
+    started = time.monotonic()
+    with pytest.raises(RuntimeError, match="first run fails"):
+        replicate(
+            LowLevelModel(_FailsOnceThenSleeps(str(tmp_path)), "P"),
+            12,
+            seed=1,
+            until=10,
+            workers=2,
+        )
+    # Waiting for the sleeping run would take at least 20 s
+    assert time.monotonic() - started < 15.0
+    assert (tmp_path / "sleeping").exists()
+
+    deadline = time.monotonic() + 2.0
+    while multiprocessing.active_children() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert multiprocessing.active_children() == []
 
 
 def test_a_lower_max_cap_that_would_clamp_current_cap_is_refused(blueprint):

@@ -27,7 +27,7 @@ A task can wait for something before it queues for its resource: its `wait`. A w
 | `{request: name}` | a unit of a resource; a won unit is held through the service and given back when the task ends | the request |
 | `{get: {store: name}}` or `{get: {container: name, amount: 2}}` | an item or an amount, as a task `get` does | the item taken |
 | `{put: {store: name}}` or `{put: {container: name, amount: 2}}` | room to add the payload of the task before it, or an amount | none |
-| `{running: {task: name, where: ...}}` | every running instance of a task, on the waiter's entity and on the entities it spawned, to end, which is the end of that instance and not of its flow's process; `where` narrows them, read in each instance's scope; with `whole_flow: true` it is the end of the whole flow the instance belongs to, as `yield process` waits for a SimPy process, and the value is the flow's last payload; when none match, the wait is done at once | the one instance's finished payload, or a mapping from instance id to payload for several, in start order |
+| `{running: {task: name, where: ...}}` | every running instance of a task, on the waiter's entity and on the entities it spawned, to end, which is the end of that instance and not of its flow's process; `where` narrows them, read in each instance's scope; with `whole_flow: true` it is the end of the whole flow the instance belongs to, as `yield process` waits for a SimPy process, and the value is the flow's last payload; it selects the flows running when the wait begins, and a flow that has ended only while an instance of a task with such a wait was running and still is, so a run that waits now and then keeps no ended flow; when none match, the wait is done at once | the one instance's finished payload, or a mapping from instance id to payload for several, in start order |
 
 A `running` branch waits for tasks already running. Here an order waits for the delivery it started, unless the delivery has already left with the van:
 
@@ -486,7 +486,7 @@ A spawned task cannot share its name with an arrival, because their flow statist
 
 `spawn: {task: courier, after: 3 s}` starts the new entity 3 seconds after the task finishes, as SimPy's `start_delayed` does. `context.spawn(generator, delay=3)` does the same for a process. A drain that ends during the delay ends the run before the spawned entity starts, as it does for an arrival not yet due. An `after` of 0 or less is refused.
 
-`count` starts that many entities at once: a whole number, an expression or a generator, read once in the parent's step. A `count` of 0 or less starts none. Each new entity has its own key, and `copy_attributes: true` gives each a copy of the parent's attributes:
+`count` starts that many entities at once: a whole number, an expression or a generator, read once in the parent's step. A written `count` below 0 is refused at load, and an expression or a generator that gives 0 or less starts none. Each new entity has its own key, and `copy_attributes: true` gives each a copy of the parent's attributes:
 
 === "YAML"
 

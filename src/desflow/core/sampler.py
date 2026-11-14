@@ -1,11 +1,29 @@
-import zlib
-from typing import Dict, List, Optional, Union
+import hashlib
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
 from desflow.config import MIN_DELAY
 from desflow.models.distributions import get_distribution
 from desflow.models.params import DistributionConfig
+
+
+def stream_key(name: str) -> Tuple[int, ...]:
+    """The key that names one random sequence: the eight 32-bit words of the SHA-256
+    hash of its name.
+
+    A name, not a short checksum, picks the sequence, so two different names share a
+    sequence only if their hashes collide, which does not happen in practice. The
+    distributions of a `Sampler` and the generators of a blueprint both use it.
+
+    Args:
+        name: The name of the sequence, such as `arrival.orders`.
+
+    Returns:
+        Tuple[int, ...]: The key, for `SeedSequence(spawn_key=...)`.
+    """
+    digest = hashlib.sha256(name.encode()).digest()
+    return tuple(int(word) for word in np.frombuffer(digest, "<u4"))
 
 
 class Sampler:
@@ -17,7 +35,7 @@ class Sampler:
 
     Each distribution draws from a random sequence of its own, made from the run's
     seed and the distribution's registry path without the sim id (`arrival.orders`,
-    `service.packing`): `SeedSequence(seed, spawn_key=(CRC32 of the path,))`. Adding
+    `service.packing`): `SeedSequence(seed, spawn_key=stream_key(path))`. Adding
     an arrival therefore leaves every other distribution's draws unchanged, so two
     versions of a model run with one seed draw the same numbers for every
     distribution they share (common random numbers).
@@ -88,7 +106,7 @@ class Sampler:
             base = self._seed_sequence
             sequence = np.random.SeedSequence(
                 base.entropy,
-                spawn_key=tuple(base.spawn_key) + (zlib.crc32(name.encode()),),
+                spawn_key=tuple(base.spawn_key) + stream_key(name),
                 pool_size=base.pool_size,
             )
             generator = np.random.default_rng(sequence)

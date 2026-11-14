@@ -326,6 +326,8 @@ def _build(
         context.strict = None
         if warmup is not None:
             context.warmup = warmup
+        if context.warmup:
+            _check_warmup(context.initial_time + context.warmup, until)
         context.start(
             until,
             stop,
@@ -347,6 +349,8 @@ def _build(
             None,
         )
     assert isinstance(model, LowLevelModel)
+    if warmup:
+        _check_warmup(warmup, until)
     env = DynamicRealtimeEnvironment(factor=0.0)
     env.stats.configure(model.sim_id, stats)
     sampler = Sampler(seed=seed)
@@ -361,6 +365,24 @@ def _build(
     if warmup is not None:
         env.start_internal(_end_warmup(env, warmup))
     return env, sampler, model.sim_id, restore, None, arrivals
+
+
+def _check_warmup(start: float, until: Optional[float]) -> None:
+    """Refuses a warm-up that ends at or after `until`, where the statistics would
+    never be reset and would cover the whole run, as the experiment refuses it.
+
+    Args:
+        start: The time the warm-up ends, in seconds.
+        until: Where the run ends; None when the model's own end is used.
+
+    Raises:
+        ValueError: If `start` is at or after `until`.
+    """
+    if until is not None and start >= until:
+        raise ValueError(
+            f"the warm-up ends at {start:g} s, which is not before until "
+            f"({until:g} s); the measured window is until minus the warm-up"
+        )
 
 
 def _keep(env: DynamicRealtimeEnvironment) -> Callable[[], None]:

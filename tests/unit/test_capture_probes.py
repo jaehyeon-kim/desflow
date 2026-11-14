@@ -357,7 +357,6 @@ def _ranked_resource(bad: str) -> Change:
         }
         _section(d, "tasks")["zz_serve"] = {
             "service": "zz_work",
-            "resource": "zz_desk",
             "seize": {
                 "resource": "zz_desk",
                 "priority": f"[9, 3, {bad}, 1, 0][attr.n]",
@@ -573,6 +572,8 @@ def test_a_sweep_and_a_variant_give_summary_rows_of_every_replication(
         "experiment": "zz",
         "model": str(path),
         "until": start + SHORT,
+        # The model's own warm-up may be longer than SHORT, which is refused
+        "warmup": 0,
         "replications": 2,
         "seed": 1,
         "measures": [f"resources.{resource[0]}.utilization_avg"],

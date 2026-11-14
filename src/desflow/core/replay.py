@@ -111,12 +111,11 @@ def read_trace(
     for number, record in enumerate(read_records(source), start=1):
         when = _time(record.get(time), unit, start, initial_time)
         if when is None:
-            message = f"row {number} has no valid {time}: {record.get(time)!r}"
+            shown = _shown(record.get(time))
+            message = f"row {number} has no valid {time}: {shown}"
             if on_invalid == "error":
                 raise ValueError(message)
-            logger.warning(
-                f"Skipped row {number}, which has no valid {time}: {record.get(time)!r}"
-            )
+            logger.warning(f"Skipped row {number}, which has no valid {time}: {shown}")
             continue
         if when < initial_time:
             raise ValueError(
@@ -193,6 +192,15 @@ def _csv_records(file: Iterable[str]) -> List[Mapping[str, Any]]:
 _NUMBER = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
 
 
+def _shown(value: Any) -> str:
+    """A value as the message shows it. Python refuses the text of an integer of
+    thousands of digits, and a message must not raise."""
+    try:
+        return repr(value)
+    except ValueError:
+        return "a number too large to show"
+
+
 def _time(
     value: Any, unit: str, start: Optional[datetime], initial_time: float
 ) -> Optional[float]:
@@ -235,9 +243,11 @@ def _time_of(
         return (value - start).total_seconds()
     if isinstance(value, str) and not _NUMBER.fullmatch(value.strip()):
         return None  # such as `1_0`, `nan` or `0x1`: not a CSV number
+    if isinstance(value, bool):
+        return None  # as every other place that takes seconds refuses it
     try:
         return initial_time + float(value) * UNITS[unit]
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 

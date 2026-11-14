@@ -294,12 +294,12 @@ python check_breakdowns.py | grep "^{"
 ```
 
 ```text
-{'periods': [(84.6, 98.5), (150.1, 157.3), (238.9, 253.5), (272.7, 282.6), (285.0, 291.8)], 'downtime': 52.5, 'share_down': 0.175, 'interrupted': 8, 'resumed': 8, 'order_packed': 184}
-{'periods': [(84.6, 98.5), (150.1, 157.3), (238.9, 253.5), (272.7, 282.6), (285.0, 291.8)], 'downtime': 52.5, 'share_down': 0.175, 'interrupted': 8, 'resumed': 8, 'order_packed': 184}
-{'periods': [(84.6, 98.5), (150.1, 157.3), (238.9, 253.5), (272.7, 282.6), (285.0, 291.8)], 'downtime': 52.5, 'share_down': 0.175, 'interrupted': 8, 'resumed': 8, 'order_packed': 184}
+{'periods': [(5.6, 10.9), (63.5, 73.0), (98.7, 105.1), (187.4, 199.3), (217.4, 222.9)], 'downtime': 38.6, 'share_down': 0.129, 'interrupted': 8, 'resumed': 8, 'order_packed': 169}
+{'periods': [(5.6, 10.9), (63.5, 73.0), (98.7, 105.1), (187.4, 199.3), (217.4, 222.9)], 'downtime': 38.6, 'share_down': 0.129, 'interrupted': 8, 'resumed': 8, 'order_packed': 169}
+{'periods': [(5.6, 10.9), (63.5, 73.0), (98.7, 105.1), (187.4, 199.3), (217.4, 222.9)], 'downtime': 38.6, 'share_down': 0.129, 'interrupted': 8, 'resumed': 8, 'order_packed': 169}
 ```
 
-For one 300-second run of the example, every form returns five down periods. The first is from 84.6 to 98.5 seconds. Together they give **52.5** seconds of downtime in 300, or 17.5 percent. **8** orders are interrupted, and all 8 resume after a repair. Report the downtime beside the waits: a station that is down 17.5 percent of the time has that much less capacity, and its waits grow as on [Queues and Capacity](../../learn/first-model/queues-and-capacity.md).
+For one 300-second run of the example, every form returns five down periods. The first is from 5.6 to 10.9 seconds. Together they give **38.6** seconds of downtime in 300, or 12.9 percent. **8** orders are interrupted, and all 8 resume after a repair. Report the downtime beside the waits: a station that is down 12.9 percent of the time has that much less capacity, and its waits grow as on [Queues and Capacity](../../learn/first-model/queues-and-capacity.md).
 
 ---
 

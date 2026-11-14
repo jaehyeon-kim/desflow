@@ -6,11 +6,11 @@ tests:
   - name: two packers
     until: 600
     expect:
-      tasks.pack_order.finished: 319
-      tasks.pack_order.wait_mean: {value: 0.1106, within: 0.001}
+      tasks.pack_order.finished: 284
+      tasks.pack_order.wait_mean: {value: 0.1576, within: 0.001}
   # The same shop at another seed
   - name: another seed
     seed: 7
     until: 600
-    expect: {tasks.pack_order.finished: 313}
+    expect: {tasks.pack_order.finished: 306}
 # --8<-- [end:tests]

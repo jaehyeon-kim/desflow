@@ -40,3 +40,23 @@ def test_a_field_that_is_not_a_csv_number_stays_text(text):
 )
 def test_a_csv_number_is_read_as_a_number(text, value):
     assert plain_value(text) == value
+
+
+@pytest.mark.parametrize("bad", [True, False, 10**400], ids=["true", "false", "huge"])
+def test_a_bool_or_a_number_too_large_for_a_float_is_not_a_time(bad, caplog):
+    """`True` is not 1 second, and `10**400` does not raise from `float()`: each is
+    refused under `error` and skipped under `skip`."""
+    with pytest.raises(ValueError, match="row 1 has no valid time"):
+        read_trace([{"time": bad}])
+    with caplog.at_level(logging.WARNING):
+        rows = read_trace([{"time": bad}, {"time": 2}], on_invalid="skip")
+    assert [row.time for row in rows] == [2.0]
+
+
+def test_a_field_of_digits_past_a_float_is_read_as_python_reads_the_number():
+    """`1e400` is infinity as a float, as Python reads it, and a whole number of any
+    length stays a whole number."""
+    assert plain_value("1e400") == float("inf")
+    assert plain_value("-1e400") == float("-inf")
+    assert plain_value("1" + "0" * 400) == 10**400
+    assert plain_value("1e300") == 1e300

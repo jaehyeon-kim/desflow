@@ -95,8 +95,8 @@ The summary of the three replications above:
 <!-- records: replications-summary -->
 ```text
 measure                               n          mean    half-width (95%)
-tasks.pack.wait_mean                  3          4.16                2.22
-resources.packers.utilization_avg     3         78.51               4.363
+tasks.pack.wait_mean                  3         4.327               1.776
+resources.packers.utilization_avg     3         80.55               4.613
 ```
 
 Three replications give a wide interval. [Trusting Results](../../learn/studies/trusting-results.md#choose-the-precision) shows how to choose enough.
@@ -107,21 +107,21 @@ Each replication's seed is a plain integer, recorded in `seeds` and in every row
 
 ### What the Sinks Receive
 
-When the model has sinks, a blueprint's `egress` or a builder's `add_egress`, they receive the result once, as telemetry stamped at the end time: each replication's value, then each measure's mean, half-width and count. A low-level model has no sinks of its own. Below are the records a Console sink receives from the three replications above:
+When the model has sinks, a blueprint's `egress` or a builder's `add_egress`, they receive the result once, as telemetry stamped at the end time: each replication's value, then each measure's mean, half-width and count. A low-level model has no sinks of its own. Below are the records a Console sink receives from the three replications above, with each value rounded to 10 significant digits because the last digits differ between platforms:
 
 <!-- records: replications-telemetry -->
 ```text
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.replication.1', 'value': 3.1279921040674012}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.replication.2', 'value': 4.692163115004602}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.replication.3', 'value': 4.6595156392512935}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.replication.1', 'value': 77.72020813552408}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.replication.2', 'value': 77.2928455841536}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.replication.3', 'value': 80.52596995922565}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.mean', 'value': 4.159890286107766}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.half_width', 'value': 2.2203200883243843}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.replication.1', 'value': 4.074824798}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.replication.2', 'value': 3.77331804}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.replication.3', 'value': 5.134222175}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.replication.1', 'value': 78.48408509}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.replication.2', 'value': 81.07923191}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.replication.3', 'value': 82.08253291}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.mean', 'value': 4.327455004}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.half_width', 'value': 1.775561705}
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack.wait_mean.n', 'value': 3}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.mean', 'value': 78.51300789296778}
-[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.half_width', 'value': 4.362949200693404}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.mean', 'value': 80.54861664}
+[TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.half_width', 'value': 4.61299164}
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg.n', 'value': 3}
 ```
 
