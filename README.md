@@ -4,9 +4,9 @@
 
 [![CI Pipeline](https://github.com/jaehyeon-kim/desflow/actions/workflows/pipeline.yml/badge.svg)](https://github.com/jaehyeon-kim/desflow/actions/workflows/pipeline.yml) [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://jaehyeon.me/desflow/) [![PyPI version](https://badge.fury.io/py/desflow.svg)](https://badge.fury.io/py/desflow) [![Python Versions](https://img.shields.io/pypi/pyversions/desflow.svg)](https://pypi.org/project/desflow/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-desflow is a Python library and a command that simulate a working process, such as a shop that packs orders, and write what happens in it as events. You can change the simulation while it runs, and the events change with it.
+desflow simulates a system over time and writes each step as an event. It is a Python library and a command. One run can write its events to several destinations at once: Kafka, Redis, PostgreSQL, Parquet or JSONL files on local disk or in cloud storage, and Iceberg tables. You can change the simulation while it runs, such as how often work arrives or how many workers or machines handle it, and the events change with it.
 
-The simulation is a discrete-event simulation (DES): the model moves from one event, such as an order arriving or a packer finishing, to the next. desflow builds it on [SimPy](https://simpy.readthedocs.io/). Orders queue for the packers, waits grow at busy times, and a backlog builds when orders arrive faster than they can be packed. Each change in the data therefore has a cause in the model, as in a real shop, unlike rows drawn at random.
+desflow runs a discrete-event simulation (DES) on [SimPy](https://simpy.readthedocs.io/): the model moves from one event, such as an order arriving or a packer finishing, to the next. In a shop, orders queue for the packers, waits grow at busy times, and a backlog builds when orders arrive faster than they can be packed. Each change in the data therefore has a cause in the model, as in a real system, which rows drawn at random do not have.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/assets/diagrams/architecture.png" alt="desflow architecture" width="900" />
@@ -19,7 +19,7 @@ The simulation is a discrete-event simulation (DES): the model moves from one ev
 - **Simulation studies.** A question such as how many packers a shop needs is answered from many runs of a model, not from one. desflow repeats the runs, gives each result with its margin of error and compares designs of the shop. Before a long run, `desflow explain` names the busiest resource from the model alone.
 - **Data engineering.** Batch and streaming pipelines need test data that behaves like a real system. One run can write a week of history at full speed, then keep streaming in real time. In the [Kafka Digital Twin](https://jaehyeon.me/desflow/latest/gallery/simulation-models/kafka/) example, a dashboard changes an arrival rate or a capacity during a run, and the data follows without a restart.
 - **Machine learning and MLOps.** A model that predicts delays needs training data in which queues build and clear for a reason. A change made during a run shifts the data at a known time, which is what a drift monitor has to catch.
-- **AI.** An anomaly detector or an AI agent is scored against a known answer. A run can plant a fault, such as a label printer going offline, and record what it planted in separate label records. An AI coding assistant can write and check models with the [desflow skill](https://jaehyeon.me/desflow/latest/ai/).
+- **AI.** Scoring an anomaly detector or an AI agent needs a known answer. A run can plant a fault, such as a label printer going offline, and record what it planted in separate label records. An AI coding assistant can write and check models with the [desflow skill](https://jaehyeon.me/desflow/latest/ai/).
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/assets/dashboard-preview.gif" alt="Live parameter updates from the control dashboard" width="700" />
@@ -133,7 +133,7 @@ desflow run local.yaml
 
 ## Commands
 
-`desflow` runs a blueprint, and checks, compares and fits models without a line of Python. [Command Line](https://jaehyeon.me/desflow/latest/cli/) uses every command on one shop.
+The `desflow` command runs a blueprint, and checks, compares and fits models, with no Python code. [Command Line](https://jaehyeon.me/desflow/latest/cli/) uses every command on one shop.
 
 | Command | What you use it for | How to use it | Reference |
 |---|---|---|---|
