@@ -29,26 +29,32 @@ if [ "$(git rev-parse FETCH_HEAD)" != "$(git rev-parse HEAD)" ]; then
     uv run mkdocs build --strict --site-dir "$RUNNER_TEMP/strict-site"
 fi
 
-# The docs are deployed per minor version, so a patch release replaces its minor's
-# docs instead of adding a copy of the site: 1.0.1 replaces 1.0. The full version is
-# an alias of the minor, so a link that names it still opens the docs.
+# The docs are deployed per minor version only, so a patch release replaces its
+# minor's docs instead of adding a copy of the site: 1.0.1 replaces 1.0. No patch
+# version is listed on the site.
 DOCS_VERSION=$(echo "$VERSION" | cut -d . -f 1,2)
 echo "Docs version: $DOCS_VERSION"
 
-# A release deployed under its full version before this change is replaced by its
-# minor, which takes over its name as an alias
+# Remove every patch name of this minor from gh-pages: a version of this minor
+# deployed under its full version, and an alias of the minor other than
+# `latest`. mike delete removes a version with its aliases, or only the alias
+# it is given.
 for old in $(uv run mike list --json | uv run python -c '
 import json, sys
 minor = sys.argv[1]
 for v in json.load(sys.stdin):
-    if v["version"] != minor and ".".join(v["version"].split(".")[:2]) == minor:
+    if v["version"] == minor:
+        for a in v["aliases"]:
+            if a != "latest":
+                print(a)
+    elif ".".join(v["version"].split(".")[:2]) == minor:
         print(v["version"])
 ' "$DOCS_VERSION"); do
   uv run mike delete "$old"
 done
 
 # Deploy the minor version and tag it as 'latest'
-uv run mike deploy --update-aliases "$DOCS_VERSION" "$VERSION" latest
+uv run mike deploy --update-aliases "$DOCS_VERSION" latest
 
 # Set 'latest' as the default landing page when navigating to the root URL
 uv run mike set-default latest

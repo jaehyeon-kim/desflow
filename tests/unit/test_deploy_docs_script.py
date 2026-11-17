@@ -82,26 +82,25 @@ def test_the_commit_that_is_the_head_is_not_built_again(tmp_path: Path):
     assert any("mike deploy" in c for c in commands)
 
 
-def test_a_release_is_deployed_as_its_minor_version_with_the_full_version_as_an_alias(
+def test_a_release_is_deployed_as_its_minor_version_only(
     tmp_path: Path,
 ):
     commands = _deploy(tmp_path, head="aaa", main="aaa")
-    assert "run mike deploy --update-aliases 1.2 1.2.3 latest" in commands
+    assert "run mike deploy --update-aliases 1.2 latest" in commands
 
 
-def test_a_patch_release_deployed_under_its_full_version_is_replaced_by_its_minor(
-    tmp_path: Path,
-):
+def test_a_patch_name_of_the_minor_is_removed(tmp_path: Path):
     deployed = json.dumps(
         [
-            {"version": "1.2.0", "aliases": ["latest"]},
-            {"version": "1.1.0", "aliases": []},
-            {"version": "1.2", "aliases": []},
+            {"version": "1.2.0", "aliases": []},
+            {"version": "1.1", "aliases": []},
+            {"version": "1.2", "aliases": ["latest", "1.2.1"]},
         ]
     )
     commands = _deploy(tmp_path, head="aaa", main="aaa", deployed=deployed)
     deletes = [c for c in commands if c.startswith("run mike delete")]
-    assert deletes == ["run mike delete 1.2.0"]
-    assert commands.index(deletes[0]) < next(
-        i for i, c in enumerate(commands) if "mike deploy" in c
-    )
+    # The patch alias of the minor and the patch version of the same minor go;
+    # `latest` and the other minor stay.
+    assert sorted(deletes) == ["run mike delete 1.2.0", "run mike delete 1.2.1"]
+    deploy = commands.index("run mike deploy --update-aliases 1.2 latest")
+    assert all(commands.index(d) < deploy for d in deletes)
