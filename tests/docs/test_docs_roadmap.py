@@ -65,10 +65,15 @@ def test_one_entry_is_current_and_it_is_the_next_release():
     assert _version(now[0]) == min(versions)
 
 
-def test_every_planned_release_names_its_issues():
-    missing = [
-        title
+def test_every_issue_a_planned_release_names_is_a_link():
+    """A planned release may have no issue, as 1.1.0 has none (owner, 19 Nov 2026),
+    but each issue it names, `#N`, links to that issue."""
+    unlinked = [
+        (title, number)
         for title, body in _ENTRIES
-        if _version(title) and not re.search(r"/issues/\d+\)", body)
+        if _version(title)
+        for number in re.findall(r"#(\d+)", body)
+        if f"[#{number}](https://github.com/jaehyeon-kim/desflow/issues/{number})"
+        not in body
     ]
-    assert missing == []
+    assert unlinked == []

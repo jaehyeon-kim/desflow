@@ -1,6 +1,15 @@
 # Roadmap
 
-The items planned after 1.0 have no versions or dates yet: a release ships when it is ready. Each released item links to its GitHub issue.
+The next release is shown with its version. The other items planned after 1.0 have no versions or dates yet: a release ships when it is ready. Each released item links to its GitHub issue.
+
+## Next Release
+
+::timeline::
+- title: '1.1.0: Easier to Access desflow'
+  content: '1.1.0 has four pieces of work. `desflow run --summary` writes the statistics of a run, or of its replications, as one JSON file. `desflow mcp` serves the desflow commands as MCP tools to an AI assistant on the same machine. One plugin installs the desflow skill and the MCP server in Claude Code, Codex and Antigravity. Integrations pages run a model from Airflow, Dagster, Prefect and Kestra.'
+  icon: ':material-play:'
+  key: now
+::/timeline::
 
 ## What 1.0 means
 

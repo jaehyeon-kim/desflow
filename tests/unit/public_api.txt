@@ -621,6 +621,8 @@ desflow fit --tolerance :: option, float, default 0.25, optional
 desflow fit --drop-invalid/--no-drop-invalid :: option, boolean, default False, optional
 desflow fit --out :: option, path, default None, optional
 desflow fit --plot :: option, path, default None, optional
+desflow mcp :: exit codes 0, 1
+desflow mcp --allow-changes :: option, boolean, default False, optional
 desflow report :: exit codes 0, 2
 desflow report FOLDER :: argument, directory, default None, required
 desflow run :: exit codes 0, 1, 2
@@ -634,6 +636,7 @@ desflow run --measure :: option, str, default None, optional
 desflow run --workers :: option, int range, default 1, optional
 desflow run --sample :: option, int range, default None, optional
 desflow run --stdout :: option, boolean, default False, optional
+desflow run --summary :: option, str, default None, optional
 desflow run --var :: option, str, default None, optional
 desflow run --watch :: option, boolean, default False, optional
 desflow schema :: exit codes 0

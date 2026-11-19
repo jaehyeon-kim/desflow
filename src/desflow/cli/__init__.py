@@ -16,6 +16,7 @@ from desflow.cli import (
     experiment,
     explain,
     fit,
+    mcp,
     report,
     run,
     schema,
@@ -77,5 +78,6 @@ for _module in (
     dist,
     schema,
     examples,
+    mcp,
 ):
     _module.register(app)

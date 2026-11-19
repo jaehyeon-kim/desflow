@@ -51,6 +51,9 @@ The Code Map below lists every module.
 The diagram lists the packages from the top of the source to the bottom, one layer of the layers contract in `pyproject.toml` on each row. `blueprint` and `explain` share a row because they are one layer, and so do `examples`, `internal`, `config` and `utils`. An arrow means that the package above imports the package at its head, and it shows the imports that matter most. A package may import any package below it and none above it, so the diagram can omit an arrow that the order already allows. `cli` also imports the package of each command it runs.
 
 ```
+                       mcp_server
+                          │
+                          ▼
                           cli
              ┌─────────────┼──────────────────────────────┐
              ▼             │                              │
@@ -90,10 +93,12 @@ The diagram lists the packages from the top of the source to the bottom, one lay
    ✗ desflow.explain.verify ──► desflow.analysis.runner      explain --verify
    ✗ desflow.blueprint.model_check ──► desflow.cli.check     check_model
    ✗ desflow.analysis.runner ──► desflow                     the version number
+   ✗ desflow.cli.mcp ──► desflow.mcp_server                  desflow mcp
 ```
 
 Each name is a package of `src/desflow`:
 
+- `mcp_server`: the MCP server of `desflow mcp`, whose tools run the commands of `cli`.
 - `cli`: the `desflow` command, one module for each command. `loading`: `load_context`, which loads a blueprint or a builder file. `analysis`: replications, experiments, reports and fitting. `explain`: the graph of a model and its queueing formulas.
 - `blueprint`: the YAML loader, its models and `build`. It is a layer with `explain`, so neither imports the other.
 - `builder`: `SimulationContext` and the modules that declare a model, check it and run its tasks. [Inside Builder](#inside-builder) shows them.
@@ -110,6 +115,7 @@ Each line marked `✗` is an import against the layers that the contract allows 
 - `explain --verify` runs the model to check the formulas, so it needs `analysis`.
 - `check_model` in `desflow.blueprint`, the entry the Agent Skill calls, checks a file as `desflow check` does.
 - `analysis.runner` reads `desflow.__version__` for `experiment.json`, and the top package imports `loading`, which is above `analysis`.
+- `desflow mcp` starts the server, and the server runs every command through the `cli` app.
 
 Each of these imports sits inside a function.
 
@@ -240,7 +246,8 @@ To draw the graph of the imports for yourself, run `uv run --all-extras import-l
 | `src/desflow/examples.py` | what `desflow examples` lists and downloads; a new example file must be added there, or `test_cli_examples.py` fails |
 | `src/desflow/utils.py` | `time_to_seconds` (a time such as `10 min` in seconds) and `suggestion` (the "did you mean" text of an error) |
 | `src/desflow/loading.py` | `load_context`: loads a blueprint or a builder Python file, the one path `desflow run` and `desflow explain` use |
-| `src/desflow/cli/` | the `desflow` command: `__init__.py` (the Typer app), `_common.py` (logging, the `Error:` exits and `--until`, shared by the commands), then one module per command (`run.py`, `check.py`, `test.py`, `experiment.py`, `report.py`, `fit.py`, `schema.py`, `examples.py`, `dist.py`, `explain.py`), which parses the arguments and imports its package only when the command runs |
+| `src/desflow/cli/` | the `desflow` command: `__init__.py` (the Typer app), `_common.py` (logging, the `Error:` exits and `--until`, shared by the commands), then one module per command (`run.py`, `check.py`, `test.py`, `experiment.py`, `report.py`, `fit.py`, `schema.py`, `examples.py`, `dist.py`, `explain.py`, `mcp.py`), which parses the arguments and imports its package only when the command runs |
+| `src/desflow/mcp_server.py` | the MCP server of `desflow mcp`: each tool runs its command through the `cli` app and returns the command's JSON document or what it prints; the tools that write are added only with `--allow-changes`. It needs the `mcp` extra |
 | `src/desflow/analysis/` | replications and experiments, which run models of all three APIs unpaced: `models.py` (the one adapter for a blueprint path, a builder factory or a `LowLevelModel`, the seeds of the runs and the reader of a measure from them), `runner.py` (`replicate`, `run_experiment`), `intervals.py` (the Student t quantile, without scipy), `spec.py` (the experiment file), `results.py` (designs, comparisons, checks, the artifact files), `report.py` (`report.md`, built from the artifacts), `fit.py` (`fit_column`, which needs the `fit` extra and imports scipy lazily) |
 | `src/desflow/explain/` | what `desflow explain` and `context.analyze()` compute: `models.py` (the `Explanation` shape; `explain.schema.json` beside it is its committed schema, written by `scripts/gen_schema.py`), `graph.py` (`build_graph`), `edges.py` and `features.py` (what it reads from the builder's private state, each module listing the attributes it reads at its top), `arrivals.py` (arrival rates and a distribution's mean and variance), `rates.py` (task rates by flow balance), `poisson.py` (which inputs are Poisson), `formulas.py` (Kingman, Erlang C, the status thresholds), `waits.py` (which formula applies to a resource), `capacity.py` (capacity rows and hints), `loads.py` (each resource's load and the bottleneck), `holders.py` (stores and containers), `support.py` (the one pass that decides which values the formulas cover), `analysis.py` (`analyze`, which combines them), `verify.py` (`--verify`), `pairs.py` (what verify compares, or why not), `compare.py` (whether a measured value differs), `render.py` and `tables.py` (Rich text and JSON) |
 | `examples/` | `low-level/` (low-level API), `builder/` (builder), `yaml/` (blueprints), `gallery/` (the Gallery's data entries, each as `<name>.yaml`, `<name>_builder.py` and `<name>_low_level.py`) and `generators/` (three files for each `gen` kind: `<kind>.yaml`, `<kind>_builder.py` and `<kind>_low_level.py`, and the records they print in `<kind>_output.txt`, run by `tests/docs/test_generator_examples.py`) |

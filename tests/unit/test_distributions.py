@@ -253,7 +253,7 @@ def test_cli_seed_overrides_the_file_and_an_unseeded_run_names_the_command(
     monkeypatch.setattr(
         SimulationContext,
         "start",
-        lambda self, until=None, drain=None: seeds.append(self.random_seed),
+        lambda self, until=None, drain=None, stats=None: seeds.append(self.random_seed),
     )
     monkeypatch.setattr(SimulationContext, "finish", lambda self: None)
     CliRunner().invoke(cli, ["run", str(path), "--seed", match.group(1)])

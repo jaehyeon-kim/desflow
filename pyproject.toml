@@ -153,8 +153,14 @@ fake = [
     # for Faker(locale), seed_instance and the providers the examples use.
     "faker>=20.0.0",
 ]
+mcp = [
+    # `desflow mcp` serves its tools with the SDK's MCPServer. The range is odctl's,
+    # whose server desflow's follows, and 2.3.0 is the release both were written
+    # against.
+    "mcp>=2.3.0,<3",
+]
 all = [
-    "desflow[kafka,redis,postgres,confluent,glue,parquet,iceberg,fit,watch,fake]"
+    "desflow[kafka,redis,postgres,confluent,glue,parquet,iceberg,fit,watch,fake,mcp]"
 ]
 [build-system]
 requires = ["uv_build>=0.9.16,<0.14.0"]
@@ -244,6 +250,7 @@ exclude_type_checking_imports = true
 name = "packages import only the packages below them"
 type = "layers"
 layers = [
+    "desflow.mcp_server",
     "desflow.cli",
     "desflow.loading",
     "desflow.analysis",
@@ -272,6 +279,9 @@ ignore_imports = [
     # Convenience function: check_model, the Agent Skill's entry, checks a file as
     # `desflow check` does, importing inside the function
     "desflow.blueprint.model_check -> desflow.cli.check",
+    # Convenience command: `desflow mcp` starts the server, importing inside the
+    # command, as the server runs every other command through the app
+    "desflow.cli.mcp -> desflow.mcp_server",
     # Top-package import: analysis.runner imports desflow inside a function for
     # __version__, and desflow imports loading, which is above analysis
     "desflow.analysis.runner -> desflow",

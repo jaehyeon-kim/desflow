@@ -1,5 +1,6 @@
 """`desflow run`: runs a blueprint, or replications of it."""
 
+import contextlib
 import functools
 import logging
 import multiprocessing
@@ -8,9 +9,10 @@ import secrets
 import shlex
 import signal
 import sys
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, Iterator, List, Optional
 
 import typer
 
@@ -39,6 +41,8 @@ _EPILOG = """
   $ [bold cyan]desflow run shop.yaml --stdout[/bold cyan]\n\n
   [dim]# Run 20 replications and print the mean and interval of each statistic[/dim]\n
   $ [bold cyan]desflow run shop.yaml --replications 20 --seed 7[/bold cyan]\n\n
+  [dim]# Write the statistics of the run to a JSON file[/dim]\n
+  $ [bold cyan]desflow run shop.yaml --summary result.json[/bold cyan]\n\n
   [dim]# Print the first five events again whenever the file changes[/dim]\n
   $ [bold cyan]desflow run shop.yaml --sample 5 --watch[/bold cyan]
 """
@@ -92,6 +96,7 @@ class _RunOptions:
     sample: Optional[int] = None
     stdout: bool = False
     variables: Dict[str, str] = field(default_factory=dict)
+    summary: Optional[str] = None
 
 
 def _run_options(options: _RunOptions) -> str:
@@ -191,6 +196,18 @@ def _run(
             "lag readings describe the wall clock, not the model.",
         ),
     ] = False,
+    summary: Annotated[
+        Optional[str],
+        typer.Option(
+            metavar="PATH",
+            help="When the run ends, write its statistics to PATH as one JSON file, or "
+            "with --replications the summary and every replication's values. A single "
+            "run then keeps its statistics at the typical level or above, so a model "
+            "with sinks also sends them its statistics telemetry. A file already at "
+            "PATH is removed when the run starts, and a run that fails or is stopped "
+            "writes none.",
+        ),
+    ] = None,
     var: Annotated[
         Optional[List[str]],
         typer.Option(
@@ -229,9 +246,15 @@ def _run(
         sample,
         stdout,
         parse_variables(var),
+        summary,
     )
     if (sample is not None or stdout) and replications is not None:
         refuse("--sample and --stdout print one run; leave out --replications")
+    if summary is not None and (sample is not None or watch):
+        refuse(
+            "--summary writes the statistics of one finished run; leave out --sample "
+            "and --watch"
+        )
     # The source's name, because typer 0.28 carries its own copy of click's enum
     ignored = [
         f"--{name}"
@@ -248,7 +271,27 @@ def _run(
     if watch:
         _watch(file, options)
     else:
-        _run_once(str(file), options)
+        with _sigterm_as_interrupt():
+            _run_once(str(file), options)
+
+
+@contextlib.contextmanager
+def _sigterm_as_interrupt() -> Iterator[None]:
+    """Handles SIGTERM as Ctrl+C while the run lasts: it raises KeyboardInterrupt, so
+    the run tears down, its sinks flush, and it ends with the same message.
+
+    Airflow stops a task with SIGTERM, which would otherwise end the process at once.
+    Only the main thread can set a handler, so a run started in another thread keeps
+    the handler it has.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    previous = signal.signal(signal.SIGTERM, signal.default_int_handler)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, previous)
 
 
 def _run_once(path: str, options: _RunOptions) -> None:
@@ -261,6 +304,7 @@ def _run_once(path: str, options: _RunOptions) -> None:
         path: The blueprint file.
         options: What `desflow run` was given besides the file.
     """
+    from desflow.analysis.runner import level_for
     from desflow.blueprint.build import Preview
     from desflow.blueprint.loader import BlueprintError
     from desflow.builder.context import parts_of
@@ -272,6 +316,8 @@ def _run_once(path: str, options: _RunOptions) -> None:
     replications, sample = options.replications, options.sample
     stop_at = parse_until(until, ends=replications is not None)
     preview = Preview(sample) if sample is not None or options.stdout else None
+    if options.summary is not None:
+        _remove_earlier_summary(Path(options.summary))
 
     root = logging.getLogger()
     before = list(root.handlers)
@@ -306,18 +352,20 @@ def _run_once(path: str, options: _RunOptions) -> None:
         with quiet_builds():
             _replicate(file, replications, context, stop_at, options)
         return
+    stats = level_for(None) if options.summary is not None else None
     try:
-        context.start(until=stop_at, drain=True if drain else None)
+        context.start(until=stop_at, drain=True if drain else None, stats=stats)
     except ValueError as exc:
         # A run value refused before the run starts, such as --drain without an
         # until, is reported as a blueprint error is; an error inside the run keeps
         # its traceback
         fail(str(exc))
-    no_events = False
+    no_events = stopped = False
     try:
         context.finish()
     except KeyboardInterrupt:
         logger.info("Simulation stopped by user.")
+        stopped = True
     except RuntimeError as exc:
         # SimPy's message when the schedule empties before the run's end event; a
         # sample of a model that runs out of events ends there, as at `until`
@@ -326,6 +374,77 @@ def _run_once(path: str, options: _RunOptions) -> None:
         no_events = True
     if sample is not None and parts_of(context).run.sample_seen < sample:
         _report_short_sample(context, sample, no_events)
+    if options.summary is not None:
+        _summarise_run(file, context, stop_at, options, stopped)
+
+
+def _summarise_run(
+    file: Path,
+    context: Any,
+    until: Optional[float],
+    options: _RunOptions,
+    stopped: bool,
+) -> None:
+    """Writes the summary of a single run that has ended; a stopped run writes none,
+    and stderr says so."""
+    from desflow.analysis.models import RunResult
+    from desflow.analysis.runner import run_summary
+
+    path = str(options.summary)
+    if stopped:
+        typer.echo(
+            f"The run was stopped, so no summary was written to {path}.", err=True
+        )
+        return
+    measured = RunResult(
+        readings=context.env.stats.readings(),
+        streams=context.sampler.streams,
+        sim_id=context.sim_id,
+    )
+    settings = _summary_settings(context, until, options)
+    settings["seed"] = context.sampler.seed
+    _write_summary(path, run_summary(file, settings, measured, context.env.now))
+
+
+def _remove_earlier_summary(path: Path) -> None:
+    """Removes a summary an earlier run left at `path`, so it cannot be read as this
+    run's; exits 1 when `path` is a folder or cannot be a file."""
+    if path.is_dir():
+        fail(f"--summary {path} is a folder; give a file path")
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        fail(f"cannot write the summary to {path}: {exc}")
+
+
+def _summary_settings(
+    context: Any, until: Optional[float], options: _RunOptions
+) -> Dict[str, Any]:
+    """The settings a run summary records: the options given, else the file's."""
+    from desflow.builder.context import parts_of
+
+    defaults = parts_of(context).defaults
+    replicated = options.replications is not None
+    return {
+        "until": until if until is not None else defaults.until,
+        "drain": True if options.drain else defaults.drain or False,
+        "seed": None,
+        "replications": options.replications,
+        "level": options.level if replicated else None,
+        "measures": options.measure,
+        "workers": options.workers if replicated else None,
+        "variables": options.variables,
+    }
+
+
+def _write_summary(path: str, document: Dict[str, Any]) -> None:
+    """Writes the summary to `path`; a file that cannot be written exits 1."""
+    from desflow.analysis.runner import write_run_summary
+
+    try:
+        write_run_summary(path, document)
+    except OSError as exc:
+        fail(f"cannot write the summary to {path}: {exc}")
 
 
 # The start of the RuntimeError SimPy raises when no event is left before `until`
@@ -362,7 +481,7 @@ def _replicate(
         until: The end time, or None for the file's `run.until`.
         options: What `desflow run` was given besides the file.
     """
-    from desflow.analysis.runner import replicate
+    from desflow.analysis.runner import replicate, run_summary
     from desflow.builder.context import SimulationContext, parts_of
 
     seed = context.random_seed
@@ -396,6 +515,10 @@ def _replicate(
         "--seed <its seed>"
         f"{_run_options(options)}"
     )
+    if options.summary is not None:
+        settings = _summary_settings(context, until, options)
+        settings["seed"] = seed
+        _write_summary(options.summary, run_summary(file, settings, result))
 
 
 # How long a stopped run is given to flush its sinks: the default drain_stall_seconds

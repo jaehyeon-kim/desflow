@@ -19,6 +19,7 @@ The `desflow` command runs a model without a line of Python, and also checks it,
 | [`desflow fit`](fit.md) | Fit a column of FILE to the distribution families, and exit 1 if none is usable. |
 | [`desflow dist`](dist.md) | List the distribution families, or convert parameters to a mean and std and back. |
 | [`desflow schema`](schema.md) | Print the blueprint JSON Schema. |
+| [`desflow mcp`](mcp.md) | Serve the desflow commands as MCP tools to an AI assistant on this machine. |
 | [`desflow examples`](examples.md) | List the examples, or download one at the version you have installed. |
 | [`desflow examples list`](examples-list.md) | List the examples, with what each shows and what it needs. |
 | [`desflow examples get`](examples-get.md) | Download an example into &lt;dest&gt;/&lt;name&gt;/&lt;api&gt;/, at the installed release. |
@@ -45,6 +46,7 @@ The `desflow` command runs a model without a line of Python, and also checks it,
       fit         Fit a column of FILE to the distribution families, and exit 1...
       dist        List the distribution families, or convert parameters to a...
       schema      Print the blueprint JSON Schema.
+      mcp         Serve the desflow commands as MCP tools to an AI assistant on...
       examples    List the examples, or download one at the version you have...
 
       Examples:
@@ -404,6 +406,14 @@ Repeat one replication with: desflow run experiment/yaml/experiment_shop.yaml --
 
 The means are the same as before. At 99%, the half-width of the mean wait grows from 0.5143 to 0.7389 seconds, because more confidence needs a wider interval.
 
+`--summary` also writes the result to a JSON file, for a program that reads it, such as a task in a pipeline. A single run writes its own statistics the same way. [Write the Result to a File](../user-guide/results/replications.md#write-the-result-to-a-file) lists the keys:
+
+```bash
+desflow run experiment/yaml/experiment_shop.yaml --replications 10 --seed 42 --until 1h --summary results/summary.json
+```
+
+In `results/summary.json`, the `summary` row of `tasks.pack.wait_mean` holds the same mean wait of 4.354 seconds, with its interval from 3.84 to 4.869 seconds as `low` and `high`.
+
 `--stdout` prints the run's records as JSON lines, instead of writing to the file's sinks. The run keeps its ingress connectors, so a `KafkaIngress` still applies its `topic_policy`: it creates the control topic, and with `drop_and_create` it deletes it and creates it again. `--drain` stops the arrivals at the end time and runs on until every order has left. This run stops the arrivals at 20 seconds, and its last record is the seventh order packed, at 20.502310430365075 seconds. A record keeps its time unrounded:
 
 ```bash
@@ -561,11 +571,22 @@ desflow schema > blueprint.schema.json
 
 [Set Up Your Editor](../how-to/tools/set-up-your-editor.md) names the file in the editor's settings.
 
+### Serve the Commands to an Assistant
+
+`desflow mcp` serves the desflow commands as tools to an AI assistant on the same machine, over MCP, the Model Context Protocol. The assistant's MCP client starts the command as a process and exchanges messages with it over the process's standard input and output. Each tool runs the command of the same name and returns what the command prints, or its JSON document where the command writes one. It needs the `mcp` extra: `uv tool install "desflow[mcp]"`, or `pip install "desflow[mcp]"`.
+
+The tools `check`, `explain`, `test`, `fit`, `dist`, `schema` and `list_examples` write nothing, and the server always offers them. `--allow-changes` adds the tools that write: `run`, `experiment`, `report` and `get_example`, and the `fix` parameter of `test` and the `out` and `plot` parameters of `fit`. A run sends records to the blueprint's sinks, and the others write files. The `run` tool returns the document that `--summary` writes. The client gives the command and its options in its settings, so the option shows there:
+
+```bash
+# An MCP client runs this; in a terminal it waits for messages until Ctrl+D
+desflow mcp --allow-changes
+```
+
 ---
 
 ## How It Works
 
-Each command reads its file and calls the library function a Python script would call. `desflow run` loads the model with `load_context` and runs it once, or calls `replicate` when `--replications` is given. `desflow experiment` calls `run_experiment`, `desflow report` calls `write_report`, and `desflow fit` reads the column and calls `fit_column`. `desflow dist`, `desflow schema` and `desflow examples` read the distribution table, the blueprint schema and the list of examples. A command therefore gives the same result as the Python call with the same arguments.
+Each command reads its file and calls the library function a Python script would call. `desflow run` loads the model with `load_context` and runs it once, or calls `replicate` when `--replications` is given. `desflow experiment` calls `run_experiment`, `desflow report` calls `write_report`, and `desflow fit` reads the column and calls `fit_column`. `desflow dist`, `desflow schema` and `desflow examples` read the distribution table, the blueprint schema and the list of examples. A command therefore gives the same result as the Python call with the same arguments. `desflow mcp` runs the command of each tool in the server's own process, through the same command line, so a tool checks and refuses its arguments as the command does.
 
 `desflow explain` takes the most steps. Look at them in order:
 

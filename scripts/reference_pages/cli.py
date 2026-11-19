@@ -53,6 +53,7 @@ _CLI_SECTIONS = {
     "examples": "get-an-example",
     "examples-list": "get-an-example",
     "examples-get": "get-an-example",
+    "mcp": "serve-the-commands-to-an-assistant",
 }
 
 

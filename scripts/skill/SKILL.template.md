@@ -112,7 +112,7 @@ One run is one sample. To report a result, run a study.
 1. Set `simulation.random_seed`, or pass `--seed`, so the run can be repeated.
 2. Set `simulation.warmup` to the time the model needs to reach its usual state. The statistics start again from zero at that time, so the start of the run is left out of them.
 3. Run replications with `desflow run <file> --replications 20`. Each replication has its own seed, spawned from the seed.
-4. Report the mean of each statistic with its confidence interval. The default level is 95%, and `--level` changes it.
+4. Report the mean of each statistic with its confidence interval. The default level is 95%, and `--level` changes it. When a program or a file must hold the figures, add `--summary <file.json>`: it writes the seeds, each statistic's `mean`, `half_width`, `low` and `high` under `summary`, and each replication's value under `results`. Read the figures from that file instead of the printed table.
 5. To compare designs, such as two packers against three, write an experiment file and run `desflow experiment <file>`. It runs every design with the same seeds, compares them, checks bounds, and writes its files and `report.md`. It exits 1 when a check fails. `desflow report <folder>` builds the report again from the files.
 
 To give a service measured times, `desflow fit <file.csv> --column <name> --lower 0 --out <fit.yaml>` fits every family and writes the best as YAML for `!include`. It needs the `fit` extra.

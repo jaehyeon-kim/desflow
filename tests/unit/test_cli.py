@@ -2,17 +2,27 @@
 
 Every command's options and exit codes are pinned by `test_public_api.py`, and each
 command's own behaviour by the test module of its package. These tests pin what
-neither covers: the help with no arguments, Ctrl+C, the lower bounds of
-`--replications` and `--workers`, and how a Console record line prints.
+neither covers: the help with no arguments, Ctrl+C and SIGTERM, the lower bounds of
+`--replications` and `--workers`, how a Console record line prints, the file
+`run --summary` writes after a single run, or not at all, and `desflow mcp` without
+its extra.
 """
 
+import json
 import logging
+import os
+import signal
+import sys
+import time
 
 import click
+import pytest
 
 from typer.testing import CliRunner
 
 from desflow import SimulationContext
+from desflow.analysis import results
+from desflow.analysis.models import run_once
 from desflow.cli import app
 
 SHOP = """\
@@ -37,19 +47,139 @@ def test_help_lists_every_command():
             assert f" {name} " in click.unstyle(result.output), name
 
 
-def test_ctrl_c_logs_and_exits_0(tmp_path, monkeypatch, caplog):
+# A shop with a task and no `stats`, so a single run collects no statistics of its own
+PACKING = """\
+simulation: {sim_id: Shop, factor: 0, random_seed: 7}
+resources: {packers: {current_cap: 1, max_cap: 1}}
+arrivals: {orders: {dist: exponential, rate: 0.5, spawn: pack}}
+services: {packing: {dist: exponential, rate: 1.0}}
+tasks: {pack: {service: packing, resource: packers, payload: {event_type: packed}}}
+run: {until: 200}
+"""
+
+
+def _stop_with_ctrl_c(context):
+    raise KeyboardInterrupt
+
+
+def _stop_with_sigterm(context):
+    # The handler raises KeyboardInterrupt at the next instruction of the main thread
+    os.kill(os.getpid(), signal.SIGTERM)
+    time.sleep(5)
+
+
+@pytest.mark.parametrize(
+    "stop",
+    [
+        _stop_with_ctrl_c,
+        pytest.param(
+            _stop_with_sigterm,
+            marks=pytest.mark.skipif(
+                sys.platform == "win32", reason="os.kill ends the process on Windows"
+            ),
+        ),
+    ],
+)
+def test_ctrl_c_and_sigterm_log_and_exit_0_with_no_summary(
+    tmp_path, monkeypatch, caplog, stop
+):
+    """SIGTERM stops a run as Ctrl+C does, and a stopped run writes no summary."""
     path = tmp_path / "shop.yaml"
     path.write_text(SHOP, encoding="utf-8")
+    summary = tmp_path / "summary.json"
 
     def interrupted(self):
         self.close()
-        raise KeyboardInterrupt
+        stop(self)
 
     monkeypatch.setattr(SimulationContext, "finish", interrupted)
+    handler = signal.getsignal(signal.SIGTERM)
     with caplog.at_level(logging.INFO, logger="desflow.cli"):
-        result = CliRunner().invoke(app, ["run", str(path)])
+        result = CliRunner().invoke(app, ["run", str(path), "--summary", str(summary)])
     assert result.exit_code == 0, result.output
     assert "Simulation stopped by user." in caplog.text
+    assert "no summary was written" in result.stderr
+    assert not summary.exists()
+    assert signal.getsignal(signal.SIGTERM) == handler
+
+
+def test_summary_of_a_single_run_holds_its_statistics_at_typical(tmp_path):
+    """The rows are the statistics `run_once` reads at the typical level, although the
+    blueprint sets none, each with the unit and population of the result files."""
+    path = tmp_path / "shop.yaml"
+    path.write_text(PACKING, encoding="utf-8")
+    summary = tmp_path / "new" / "summary.json"
+    result = CliRunner().invoke(app, ["run", str(path), "--summary", str(summary)])
+    assert result.exit_code == 0, result.output
+    document = json.loads(summary.read_text(encoding="utf-8"))
+    assert list(document) == [
+        *("command", "model", "versions", "settings", "end_time", "statistics")
+    ]
+    assert document["model"]["sim_id"] == "Shop"
+    assert document["settings"]["seed"] == 7
+    assert document["settings"]["until"] == document["end_time"] == 200
+    expected = run_once(str(path), seed=7, until=200, stats="typical").readings
+    rows = {row["statistic"]: row for row in document["statistics"]}
+    assert rows["tasks.pack.wait_mean"] == {
+        "statistic": "tasks.pack.wait_mean",
+        "unit": results.unit_of("tasks.pack.wait_mean"),
+        "population": results.population_of("tasks.pack.wait_mean"),
+        "value": expected["Shop.stats.tasks.pack.wait_mean"],
+    }
+    assert {f"Shop.stats.{name}": row["value"] for name, row in rows.items()} == {
+        name: value for name, value in expected.items() if not isinstance(value, bool)
+    }
+
+
+@pytest.mark.parametrize("option", [["--sample", "2"], ["--watch"]])
+def test_summary_is_refused_with_sample_and_watch(tmp_path, option):
+    path = tmp_path / "shop.yaml"
+    path.write_text(SHOP, encoding="utf-8")
+    summary = tmp_path / "summary.json"
+    result = CliRunner().invoke(
+        app, ["run", str(path), *option, "--summary", str(summary)]
+    )
+    assert result.exit_code == 2
+    assert "--summary" in result.stderr
+    assert not summary.exists()
+
+
+def test_a_failed_run_removes_an_earlier_summary_and_writes_none(tmp_path):
+    path = tmp_path / "shop.yaml"
+    path.write_text("simulation: {sim_id: Shop}\nnot_a_section: 1\n", encoding="utf-8")
+    summary = tmp_path / "summary.json"
+    summary.write_text("{}", encoding="utf-8")
+    result = CliRunner().invoke(app, ["run", str(path), "--summary", str(summary)])
+    assert result.exit_code == 1
+    assert not summary.exists()
+
+
+def test_a_summary_that_cannot_be_written_exits_1_and_leaves_no_file(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "shop.yaml"
+    path.write_text(SHOP, encoding="utf-8")
+    folder = CliRunner().invoke(app, ["run", str(path), "--summary", str(tmp_path)])
+    assert folder.exit_code == 1 and "is a folder" in folder.stderr
+
+    def full_disk(target, data):
+        target.write_text("{", encoding="utf-8")
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr(results, "write_json", full_disk)
+    summary = tmp_path / "out" / "summary.json"
+    result = CliRunner().invoke(app, ["run", str(path), "--summary", str(summary)])
+    assert result.exit_code == 1
+    assert "No space left on device" in result.stderr
+    assert list(summary.parent.iterdir()) == []
+
+
+def test_mcp_without_the_extra_exits_1_and_names_it(monkeypatch):
+    # An entry of None makes the import fail, as it does without the SDK
+    monkeypatch.setitem(sys.modules, "desflow.mcp_server", None)
+    result = CliRunner().invoke(app, ["mcp"])
+    assert result.exit_code == 1
+    assert "pip install 'desflow[mcp]'" in result.stderr
 
 
 def test_replications_below_2_is_a_usage_error(tmp_path):

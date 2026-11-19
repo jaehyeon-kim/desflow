@@ -9,7 +9,8 @@ reviews:
   high_level_summary: true
   poem: false
   auto_review:
-    enabled: true
+    # Reviews run locally with the CodeRabbit CLI before a pull request is opened
+    enabled: false
     drafts: true
     ignore_title_keywords:
       - revert

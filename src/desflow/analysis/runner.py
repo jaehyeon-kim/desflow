@@ -10,6 +10,7 @@ compares and checks them and writes the experiment's artifacts.
 import hashlib
 import inspect
 import logging
+import os
 import platform
 import re
 import secrets
@@ -428,6 +429,105 @@ def _publish(model: Model, replications: Replications, until: Any) -> None:
         context.close()
 
 
+def run_summary(
+    file: Union[str, Path],
+    settings: Mapping[str, Any],
+    result: Union[RunResult, Replications],
+    end_time: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    Returns the document `desflow run --summary` writes for one run or for replications.
+
+    It holds `command`, then the `model` and `versions` blocks of `experiment.json`,
+    then `settings`. For one run, `end_time` and `statistics` follow, one row per
+    statistic with its value. For replications, `seeds`, `summary` and `results`
+    follow, whose rows have the columns of `summary.csv` and `results.csv` that apply
+    to one design.
+
+    Args:
+        file: The blueprint file, as the user gave it.
+        settings: The run's settings: `until`, `drain`, `seed`, `replications`,
+            `level`, `measures`, `workers` and `variables`.
+        result: What one run measured, or the replications.
+        end_time: The simulation time one run ended at; unused for replications.
+
+    Returns:
+        Dict[str, Any]: The document, in key order.
+    """
+    head = {
+        "command": "desflow run",
+        **_provenance(str(file), str(file), result.sim_id),
+        "settings": dict(settings),
+    }
+    if isinstance(result, RunResult):
+        prefix = f"{result.sim_id}.stats."
+        statistics = [
+            {**_labels(name), "value": result.readings[prefix + name]}
+            for name in select_measures([result], None)
+        ]
+        return head | {"end_time": end_time, "statistics": statistics}
+    summary = []
+    for measure in result.measures:
+        found_interval = interval(result.values[measure], result.level)
+        summary.append(
+            {
+                **_labels(measure),
+                "n": found_interval.n,
+                "mean": found_interval.mean,
+                "half_width": found_interval.half_width,
+                "low": found_interval.low,
+                "high": found_interval.high,
+                "level": result.level,
+            }
+        )
+    results = [
+        {
+            "replication": row["replication"],
+            "seed": row["seed"],
+            **_labels(row["measure"]),
+            "value": row["value"],
+        }
+        for row in result.table
+    ]
+    return head | {"seeds": result.seeds, "summary": summary, "results": results}
+
+
+def _labels(name: str) -> Dict[str, str]:
+    """A statistic's name with its unit and population, as the result files hold them."""
+    return {
+        "statistic": name,
+        "unit": found.unit_of(name),
+        "population": found.population_of(name),
+    }
+
+
+def write_run_summary(path: Union[str, Path], document: Mapping[str, Any]) -> None:
+    """
+    Writes a run summary so a reader never sees half a file.
+
+    The document goes to a temporary file in the same folder, which then replaces
+    `path` in one step. A missing folder is created.
+
+    Args:
+        path: Where the summary goes.
+        document: The summary, from `run_summary`.
+
+    Raises:
+        OSError: If the folder cannot be created or the file cannot be written.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Named by the process, not made with tempfile.mkstemp, whose file is readable by
+    # its owner alone and would keep that mode after the replace
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        found.write_json(temporary, dict(document))
+        os.replace(temporary, path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
 @dataclass(frozen=True)
 class _Checked:
     """An experiment's settings once checked: what its runs and artifacts read.
@@ -644,42 +744,13 @@ def _evidence(
     all_designs: Sequence[Any],
 ) -> Dict[str, Any]:
     """The settings and evidence `experiment.json` holds, apart from the results."""
-    from importlib.metadata import version
-
-    import desflow
-
-    source_file: Optional[Path]
-    if isinstance(model, str):
-        form, source_file = "yaml", Path(model)
-        source = str(settings.model)
-    else:
-        form = "low-level" if isinstance(model, LowLevelModel) else "builder"
-        source = describe(model)
-        target = model.function if isinstance(model, LowLevelModel) else model
-        try:
-            name = inspect.getsourcefile(target) if callable(target) else None
-        except TypeError:
-            # A `functools.partial` or an object with `__call__` has no source file
-            name = None
-        source_file = Path(name) if name else None
-    digest = (
-        hashlib.sha256(source_file.read_bytes()).hexdigest()
-        if source_file is not None and source_file.is_file()
-        else None
-    )
     return {
         "experiment": settings.experiment,
         "question": settings.question,
         "assumptions": settings.assumptions,
         "inputs": settings.inputs,
         "limits": settings.limits,
-        "model": {"form": form, "source": source, "sha256": digest, "sim_id": sim_id},
-        "versions": {
-            "desflow": desflow.__version__,
-            "simpy": version("simpy"),
-            "numpy": version("numpy"),
-            "python": platform.python_version(),
-        },
+        **_provenance(model, str(settings.model), sim_id),
         "settings": {
             "until": settings.until,
             "stop": settings.stop
@@ -710,4 +781,44 @@ def _evidence(
             }
             for d in all_designs
         ],
+    }
+
+
+def _provenance(model: Model, source: str, sim_id: str) -> Dict[str, Any]:
+    """The `model` and `versions` blocks of `experiment.json` and of a run summary.
+
+    `model` holds the model's form, its source, the SHA-256 of the file that builds it
+    and its sim id; `versions` the versions of desflow, SimPy, NumPy and Python. A YAML
+    model's source is `source`, the path as the user gave it.
+    """
+    from importlib.metadata import version
+
+    import desflow
+
+    source_file: Optional[Path]
+    if isinstance(model, str):
+        form, source_file = "yaml", Path(model)
+    else:
+        form = "low-level" if isinstance(model, LowLevelModel) else "builder"
+        source = describe(model)
+        target = model.function if isinstance(model, LowLevelModel) else model
+        try:
+            name = inspect.getsourcefile(target) if callable(target) else None
+        except TypeError:
+            # A `functools.partial` or an object with `__call__` has no source file
+            name = None
+        source_file = Path(name) if name else None
+    digest = (
+        hashlib.sha256(source_file.read_bytes()).hexdigest()
+        if source_file is not None and source_file.is_file()
+        else None
+    )
+    return {
+        "model": {"form": form, "source": source, "sha256": digest, "sim_id": sim_id},
+        "versions": {
+            "desflow": desflow.__version__,
+            "simpy": version("simpy"),
+            "numpy": version("numpy"),
+            "python": platform.python_version(),
+        },
     }

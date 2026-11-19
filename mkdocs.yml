@@ -436,6 +436,7 @@ nav:
       - desflow examples: cli/examples.md
       - desflow examples list: cli/examples-list.md
       - desflow examples get: cli/examples-get.md
+      - desflow mcp: cli/mcp.md
   - Agent Skill:
       - ai/index.md
       - Draft a Model: ai/draft-a-model.md

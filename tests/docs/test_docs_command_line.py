@@ -92,6 +92,11 @@ def test_every_command_on_the_page_runs(tmp_path, monkeypatch, caplog):
     assert "utilisation 0.9 at a request every 2.22 seconds" in verify
     measure = output(next(line for line in outputs if "--level 0.99" in line))
     assert re.search(r"tasks\.pack\.wait_mean\s+10\s+4\.354\s+0\.7389", measure)
+    summary = json.loads((tmp_path / "results/summary.json").read_text("utf-8"))
+    [wait] = [r for r in summary["summary"] if r["statistic"] == "tasks.pack.wait_mean"]
+    assert (round(wait["mean"], 3), round(wait["low"], 2), round(wait["high"], 3)) == (
+        *(4.354, 3.84, 4.869),
+    )
     records = (tmp_path / "records.jsonl").read_text("utf-8").splitlines()
     last = json.loads(records[-1])
     assert (last["sim_ts"], last["key"]) == (20.502310430365075, "orders-7")

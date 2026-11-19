@@ -72,6 +72,7 @@ Connectors and input fitting are optional extras. For example, `uv add "desflow[
 | `fit` | scipy and matplotlib, for [input fitting](https://jaehyeon.me/desflow/latest/user-guide/model-parts/input-fitting/) with `desflow fit` |
 | `fake` | Faker, for the `fake` generator of realistic names, addresses and dates |
 | `watch` | watchfiles, for `desflow run --watch`, which runs the file again each time it changes |
+| `mcp` | the MCP Python SDK, for `desflow mcp`, which serves the desflow commands as tools to an AI assistant |
 | `all` | Every extra above |
 
 Two cautions apply to the `fake` extra. A seeded `fake` field gives the same values again only with the same version of Faker. A Faker method that reads the date, such as `date_between`, reads the wall clock and not the simulation clock.
@@ -147,6 +148,7 @@ The `desflow` command runs a blueprint, and checks, compares and fits models, wi
 | `desflow fit` | fit every distribution family to measured times | [Fit Measured Times](https://jaehyeon.me/desflow/latest/cli/#fit-measured-times) | [`desflow fit`](https://jaehyeon.me/desflow/latest/cli/fit/) |
 | `desflow dist` | turn a mean and a standard deviation into a family's parameters, and back | [Convert Parameters](https://jaehyeon.me/desflow/latest/cli/#convert-parameters) | [`desflow dist`](https://jaehyeon.me/desflow/latest/cli/dist/) |
 | `desflow schema` | print the blueprint JSON Schema, for an editor | [Set Up an Editor](https://jaehyeon.me/desflow/latest/cli/#set-up-an-editor) | [`desflow schema`](https://jaehyeon.me/desflow/latest/cli/schema/) |
+| `desflow mcp` | serve the commands as tools to an AI assistant on the same machine, over MCP | [Serve the Commands to an Assistant](https://jaehyeon.me/desflow/latest/cli/#serve-the-commands-to-an-assistant) | [`desflow mcp`](https://jaehyeon.me/desflow/latest/cli/mcp/) |
 
 ## Projects Using desflow
 

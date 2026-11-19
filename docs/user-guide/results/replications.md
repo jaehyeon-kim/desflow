@@ -101,6 +101,105 @@ resources.packers.utilization_avg     3         80.55               4.613
 
 Three replications give a wide interval. [Trusting Results](../../learn/studies/trusting-results.md#choose-the-precision) shows how to choose enough.
 
+### Write the Result to a File
+
+`desflow run --summary PATH` writes the result to one JSON file when the replications end. A program that runs desflow, such as a task in a pipeline, then reads the numbers from the file instead of the printed table. A folder in the path that does not exist is created:
+
+```bash
+desflow run replications.yaml --replications 3 --measure tasks.pack.wait_mean --summary result.json
+```
+
+The file these three replications write, with the versions shown as `...`:
+
+<!-- records: replications-file -->
+```text
+{
+  "command": "desflow run",
+  "model": {
+    "form": "yaml",
+    "source": "replications.yaml",
+    "sha256": "162f01a2a9e561a706ec2b5e3dd4848b2b06a628334acc2bbd697289f6f5e833",
+    "sim_id": "Shop"
+  },
+  "versions": {
+    "desflow": "...",
+    "simpy": "...",
+    "numpy": "...",
+    "python": "..."
+  },
+  "settings": {
+    "until": 3600.0,
+    "drain": false,
+    "seed": 42,
+    "replications": 3,
+    "level": 0.95,
+    "measures": [
+      "tasks.pack.wait_mean"
+    ],
+    "workers": 1,
+    "variables": {}
+  },
+  "seeds": [
+    2684470948,
+    4091952314,
+    233227757
+  ],
+  "summary": [
+    {
+      "statistic": "tasks.pack.wait_mean",
+      "unit": "s",
+      "population": "started instances",
+      "n": 3,
+      "mean": 4.327455004,
+      "half_width": 1.775561705,
+      "low": 2.5518933,
+      "high": 6.103016709,
+      "level": 0.95
+    }
+  ],
+  "results": [
+    {
+      "replication": 1,
+      "seed": 2684470948,
+      "statistic": "tasks.pack.wait_mean",
+      "unit": "s",
+      "population": "started instances",
+      "value": 4.074824798
+    },
+    {
+      "replication": 2,
+      "seed": 4091952314,
+      "statistic": "tasks.pack.wait_mean",
+      "unit": "s",
+      "population": "started instances",
+      "value": 3.77331804
+    },
+    {
+      "replication": 3,
+      "seed": 233227757,
+      "statistic": "tasks.pack.wait_mean",
+      "unit": "s",
+      "population": "started instances",
+      "value": 5.134222175
+    }
+  ]
+}
+```
+
+The file holds these keys, in this order:
+
+- `command`: `desflow run`.
+- `model`: the form, the file as given, the file's SHA-256 and the sim id, as in an experiment's `experiment.json` ([Experiment Results](experiment-results.md)).
+- `versions`: the versions of desflow, SimPy, NumPy and Python that ran it.
+- `settings`: `until` in seconds, `drain`, `seed`, `replications`, `level`, `measures` (null for every statistic), `workers`, and the `--var` values as `variables`.
+- `seeds`: the seed of each replication, in order.
+- `summary`: one row per measure, with the columns of `summary.csv` for one design: `statistic`, `unit`, `population`, `n`, `mean`, `half_width`, `low`, `high` and `level`.
+- `results`: one row per replication and measure, with the columns of `results.csv` for one design, without `kind`: `replication`, `seed`, `statistic`, `unit`, `population` and `value`.
+
+Without `--replications`, `--summary` writes the statistics of the single run. `seeds`, `summary` and `results` are replaced by `end_time`, the simulation time the run ended at, and `statistics`, one row per statistic with `statistic`, `unit`, `population` and `value`. A single run collects no statistics unless its blueprint sets `stats`, so with `--summary` it keeps every statistic up to `typical`, as replications do. A model with sinks then also sends them the statistics telemetry that `stats: typical` publishes.
+
+The file is written only when the run ends with exit code 0. It is written to a temporary file beside it, then moved into place, so a reader never sees half a file. A file already at PATH is removed when the run starts, so a run that fails, or is stopped with Ctrl+C or SIGTERM, leaves no file to be read as its result, and a stopped run says so on stderr. `--summary` works with `--stdout`, and is refused with `--sample` and `--watch`.
+
 ### Repeat One Replication
 
 Each replication's seed is a plain integer, recorded in `seeds` and in every row of the table. Any replication can therefore be repeated on its own, with the same end time, drain and [warm-up](../../learn/concepts/output-analysis.md#one-run-starts-empty): `desflow run shop.yaml --seed <its seed>`, `random_seed` in a builder context, or `Sampler(seed=...)` in the low-level API. That run publishes its event records, which replications do not.
