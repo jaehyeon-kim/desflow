@@ -20,7 +20,7 @@ import logging
 import tempfile
 import threading
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, NamedTuple, Optional
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -41,8 +41,9 @@ def _command_logging() -> Iterator[None]:
 
     A command sets up logging with `logging.basicConfig`, which adds a handler only to
     a root logger that has none, and `desflow run --replications` quietens two of
-    desflow's loggers. So the root logger's handlers are set aside for the call, and
-    every desflow logger's level is put back after it.
+    desflow's loggers, which may not exist before the call. So the root logger's
+    handlers are set aside for the call, every desflow logger's level is put back after
+    it, and a desflow logger the call created is set back to NOTSET.
     """
     root = logging.getLogger()
     handlers, level = list(root.handlers), root.level
@@ -62,11 +63,23 @@ def _command_logging() -> Iterator[None]:
         for handler in handlers:
             root.addHandler(handler)
         root.setLevel(level)
-        for name, value in levels.items():
-            logging.getLogger(name).setLevel(value)
+        for name, logger in list(logging.root.manager.loggerDict.items()):
+            if isinstance(logger, logging.Logger) and name.startswith("desflow"):
+                logger.setLevel(levels.get(name, logging.NOTSET))
 
 
-def _run(arguments: List[str]) -> Tuple[str, str]:
+class _Printed(NamedTuple):
+    """What a command wrote to stdout and to stderr."""
+
+    stdout: str
+    stderr: str
+
+    def text(self) -> str:
+        """What the command printed, stderr first, without trailing blank lines."""
+        return (self.stderr + self.stdout).rstrip()
+
+
+def _run(arguments: List[str]) -> _Printed:
     """
     Runs a `desflow` command in this process and captures what it prints.
 
@@ -74,7 +87,7 @@ def _run(arguments: List[str]) -> Tuple[str, str]:
         arguments: The command line after `desflow`, such as `["check", "shop.yaml"]`.
 
     Returns:
-        Tuple[str, str]: What the command wrote to stdout and to stderr.
+        _Printed: What the command wrote to stdout and to stderr.
 
     Raises:
         ToolError: With the command's output as the message, when the command exits
@@ -100,14 +113,9 @@ def _run(arguments: List[str]) -> Tuple[str, str]:
             code = 1
             err.write(f"{type(exc).__name__}: {exc}\n")
     if code not in (0, None):
-        text = _text(out.getvalue(), err.getvalue())
+        text = _Printed(out.getvalue(), err.getvalue()).text()
         raise ToolError(text or f"desflow {arguments[0]} exited with code {code}.")
-    return out.getvalue(), err.getvalue()
-
-
-def _text(stdout: str, stderr: str) -> str:
-    """What a command printed, stderr first, without trailing blank lines."""
-    return (stderr + stdout).rstrip()
+    return _Printed(out.getvalue(), err.getvalue())
 
 
 def _document(text: str) -> CallToolResult:
@@ -162,8 +170,7 @@ def build_server(allow_changes: bool) -> MCPServer:
     )
     def check(files: List[str], variables: Optional[Dict[str, str]] = None) -> str:
         """Checks each file and returns what `desflow check` prints."""
-        stdout, stderr = _run(["check", *files, *_options(var=variables)])
-        return _text(stdout, stderr)
+        return _run(["check", *files, *_options(var=variables)]).text()
 
     @server.tool(
         description="Explain a model as `desflow explain --json` does: its graph, "
@@ -186,8 +193,7 @@ def build_server(allow_changes: bool) -> MCPServer:
         arguments += _options(
             verify=verify, until=until, seed=seed, replications=replications
         )
-        stdout, _ = _run(arguments)
-        return _document(stdout)
+        return _document(_run(arguments).stdout)
 
     _add_test(server, allow_changes)
     _add_fit(server, allow_changes)
@@ -225,8 +231,7 @@ def build_server(allow_changes: bool) -> MCPServer:
             scale=scale,
             p=p,
         )
-        stdout, stderr = _run(arguments)
-        return _text(stdout, stderr)
+        return _run(arguments).text()
 
     @server.tool(
         description="Return the blueprint JSON Schema, as `desflow schema` prints it.",
@@ -234,8 +239,7 @@ def build_server(allow_changes: bool) -> MCPServer:
     )
     def schema() -> CallToolResult:
         """Returns the blueprint JSON Schema."""
-        stdout, _ = _run(["schema"])
-        return _document(stdout)
+        return _document(_run(["schema"]).stdout)
 
     @server.tool(
         description="List the examples, with what each shows and the service it "
@@ -244,8 +248,7 @@ def build_server(allow_changes: bool) -> MCPServer:
     )
     def list_examples() -> str:
         """Returns what `desflow examples list` prints."""
-        stdout, stderr = _run(["examples", "list"])
-        return _text(stdout, stderr)
+        return _run(["examples", "list"]).text()
 
     if allow_changes:
         _add_changes(server)
@@ -266,8 +269,7 @@ def _add_test(server: MCPServer, allow_changes: bool) -> None:
             files: List[str], variables: Optional[Dict[str, str]] = None
         ) -> str:
             """Returns what `desflow test` prints."""
-            stdout, stderr = _run(["test", *files, *_options(var=variables)])
-            return _text(stdout, stderr)
+            return _run(["test", *files, *_options(var=variables)]).text()
 
         return
 
@@ -283,8 +285,7 @@ def _add_test(server: MCPServer, allow_changes: bool) -> None:
         fix: bool = False,
     ) -> str:
         """Returns what `desflow test` prints, after fixing with `fix`."""
-        stdout, stderr = _run(["test", *files, *_options(fix=fix, var=variables)])
-        return _text(stdout, stderr)
+        return _run(["test", *files, *_options(fix=fix, var=variables)]).text()
 
 
 def _add_fit(server: MCPServer, allow_changes: bool) -> None:
@@ -296,8 +297,7 @@ def _add_fit(server: MCPServer, allow_changes: bool) -> None:
 
     def fit_command(file: str, column: str, **options: Any) -> str:
         """Runs `desflow fit` with these options and returns what it prints."""
-        stdout, stderr = _run(["fit", file, "--column", column, *_options(**options)])
-        return _text(stdout, stderr)
+        return _run(["fit", file, "--column", column, *_options(**options)]).text()
 
     if not allow_changes:
 
@@ -374,8 +374,8 @@ def _add_changes(server: MCPServer) -> None:
         description="Run a blueprint once, or its replications, as `desflow run "
         "--summary` does, and return the summary it writes: the statistics of the "
         "run, or the seeds, the summary and every replication's values. A run "
-        "sends its records to the blueprint's sinks. variables fill ${NAME} as "
-        "--var does.",
+        "sends its records to the blueprint's sinks. measures, level and workers "
+        "apply only with replications. variables fill ${NAME} as --var does.",
         annotations=_WRITES,
     )
     def run(
@@ -395,10 +395,11 @@ def _add_changes(server: MCPServer) -> None:
             until=until, seed=seed, drain=drain, replications=replications
         )
         if replications is not None:
-            # desflow run refuses these without --replications
-            arguments += _options(level=level, measure=measures, workers=workers)
-        else:
-            arguments += _options(measure=measures)
+            arguments += _options(level=level, workers=workers)
+        # desflow run refuses --measure, --level and --workers without
+        # --replications; measures is passed on, so the tool refuses as the command
+        # does, and level and workers keep their defaults
+        arguments += _options(measure=measures)
         arguments += _options(var=variables)
         with tempfile.TemporaryDirectory() as folder:
             summary = Path(folder) / "summary.json"
@@ -412,8 +413,7 @@ def _add_changes(server: MCPServer) -> None:
     )
     def experiment(file: str, output: Optional[str] = None) -> str:
         """Returns what `desflow experiment` prints."""
-        stdout, stderr = _run(["experiment", file, *_options(output=output)])
-        return _text(stdout, stderr)
+        return _run(["experiment", file, *_options(output=output)]).text()
 
     @server.tool(
         description="Build an experiment's report.md again from the artifacts in "
@@ -422,8 +422,7 @@ def _add_changes(server: MCPServer) -> None:
     )
     def report(folder: str) -> str:
         """Returns what `desflow report` prints."""
-        stdout, stderr = _run(["report", folder])
-        return _text(stdout, stderr)
+        return _run(["report", folder]).text()
 
     @server.tool(
         description="Download an example into <dest>/<name>/<api>/ at the installed "
@@ -441,5 +440,4 @@ def _add_changes(server: MCPServer) -> None:
         """Returns what `desflow examples get` prints."""
         arguments = ["examples", "get", name]
         arguments += _options(api=api, dest=dest, ref=ref, force=force)
-        stdout, stderr = _run(arguments)
-        return _text(stdout, stderr)
+        return _run(arguments).text()

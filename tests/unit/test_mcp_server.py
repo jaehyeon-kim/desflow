@@ -27,6 +27,7 @@ from mcp import Client, StdioServerParameters  # noqa: E402
 
 from desflow import examples  # noqa: E402
 from desflow.cli import app  # noqa: E402
+from desflow import mcp_server  # noqa: E402
 from desflow.mcp_server import build_server  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -227,6 +228,16 @@ def test_run_returns_the_summary_the_command_writes(folder, arguments, options):
     assert result.structured_content == expected
     # The logging the command set up for the call is gone, and the server's is back
     assert logging.getLogger().handlers == handlers
+
+
+def test_a_desflow_logger_a_call_creates_is_set_back_to_notset():
+    """`desflow run --replications` sets the level of loggers that may not exist
+    before the call, such as `desflow.builder`; the next call starts without it."""
+    name = "desflow.test_mcp_server.created_by_the_call"
+    assert name not in logging.root.manager.loggerDict
+    with mcp_server._command_logging():
+        logging.getLogger(name).setLevel(logging.WARNING)
+    assert logging.getLogger(name).level == logging.NOTSET
 
 
 def test_test_with_fix_writes_what_the_command_writes(folder):

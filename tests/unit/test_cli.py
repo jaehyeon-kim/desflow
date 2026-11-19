@@ -103,6 +103,48 @@ def test_ctrl_c_and_sigterm_log_and_exit_0_with_no_summary(
     assert signal.getsignal(signal.SIGTERM) == handler
 
 
+@pytest.mark.parametrize(
+    "stop",
+    [
+        _stop_with_ctrl_c,
+        pytest.param(
+            _stop_with_sigterm,
+            marks=pytest.mark.skipif(
+                sys.platform == "win32", reason="os.kill ends the process on Windows"
+            ),
+        ),
+    ],
+)
+def test_stopped_replications_log_and_exit_0_with_no_summary(
+    tmp_path, monkeypatch, caplog, stop
+):
+    """Replications stopped with Ctrl+C or SIGTERM end as a stopped single run does."""
+    from desflow.analysis import runner
+
+    path = tmp_path / "shop.yaml"
+    path.write_text(SHOP, encoding="utf-8")
+    summary = tmp_path / "summary.json"
+    monkeypatch.setattr(runner, "replicate", lambda *args, **kwargs: stop(None))
+    with caplog.at_level(logging.INFO, logger="desflow.cli"):
+        result = CliRunner().invoke(
+            app,
+            [
+                "run",
+                str(path),
+                "--replications",
+                "2",
+                "--until",
+                "10",
+                "--summary",
+                str(summary),
+            ],
+        )
+    assert result.exit_code == 0, result.output
+    assert "Simulation stopped by user." in caplog.text
+    assert "no summary was written" in result.stderr
+    assert not summary.exists()
+
+
 def test_summary_of_a_single_run_holds_its_statistics_at_typical(tmp_path):
     """The rows are the statistics `run_once` reads at the typical level, although the
     blueprint sets none, each with the unit and population of the result files."""

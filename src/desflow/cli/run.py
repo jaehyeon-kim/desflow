@@ -508,6 +508,16 @@ def _replicate(
         )
     except ValueError as exc:
         fail(str(exc))
+    except KeyboardInterrupt:
+        # Ended as a single run is: the log line, and with --summary the line that no
+        # summary was written
+        logger.info("Simulation stopped by user.")
+        if options.summary is not None:
+            typer.echo(
+                f"The run was stopped, so no summary was written to {options.summary}.",
+                err=True,
+            )
+        return
     typer.echo(result.summary_text())
     typer.echo(f"\nSeed {seed}; replication seeds: {', '.join(map(str, result.seeds))}")
     typer.echo(

@@ -149,7 +149,7 @@ fit: Fit a column of a CSV file to the distribution families and rank them, as `
 dist: List the distribution families, or convert a family's parameters to its mean and standard deviation and back, as `desflow dist` does.
 schema: Return the blueprint JSON Schema, as `desflow schema` prints it.
 list_examples: List the examples, with what each shows and the service it needs, as `desflow examples list` does.
-run: Run a blueprint once, or its replications, as `desflow run --summary` does, and return the summary it writes: the statistics of the run, or the seeds, the summary and every replication's values. A run sends its records to the blueprint's sinks. variables fill ${NAME} as --var does.
+run: Run a blueprint once, or its replications, as `desflow run --summary` does, and return the summary it writes: the statistics of the run, or the seeds, the summary and every replication's values. A run sends its records to the blueprint's sinks. measures, level and workers apply only with replications. variables fill ${NAME} as --var does.
 experiment: Run an experiment file and write its artifacts and report.md, as `desflow experiment` does. output overrides the folder the file names.
 report: Build an experiment's report.md again from the artifacts in its output folder, as `desflow report` does.
 get_example: Download an example into <dest>/<name>/<api>/ at the installed release, as `desflow examples get` does. force replaces files that are already there.

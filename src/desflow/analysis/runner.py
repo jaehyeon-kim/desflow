@@ -342,10 +342,13 @@ def run_replications(
             # The first failure is raised now. Cancelling drops only the runs that
             # were not sent to a worker, so the workers are ended too: each would
             # start the run it was sent, and the process cannot exit until it ends.
+            # They are killed, not terminated: a worker forked while `desflow run`
+            # handles SIGTERM as Ctrl+C inherits that handler, and would stop only
+            # its current run.
             workers_running = list((getattr(pool, "_processes", None) or {}).values())
             pool.shutdown(wait=False, cancel_futures=True)
             for process in workers_running:
-                process.terminate()
+                process.kill()
             raise
         pool.shutdown()
         return results

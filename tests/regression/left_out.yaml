@@ -38,11 +38,13 @@ docs/snippets/yaml/iceberg_tables_catalogs/postgres.yaml: "an Iceberg catalog fi
 docs/snippets/yaml/iceberg_tables_catalogs/rest.yaml: "an Iceberg catalog file that iceberg_tables.yaml includes, not a blueprint"
 docs/snippets/yaml/iceberg_tables_catalogs/sqlite.yaml: "an Iceberg catalog file that iceberg_tables.yaml includes, not a blueprint"
 docs/snippets/yaml/test_a_model_tests.yaml: "the tests.yaml of a builder file, which `desflow test` reads beside it, not a blueprint"
+docs/snippets/orchestrators/kestra_flow.yaml: "a Kestra flow that runs desflow, not a blueprint"
 
 tests/known_cases/dx_22/catalogs/rest.yaml: "an Iceberg catalog file that the model of case DX-22 includes, not a blueprint"
 tests/known_cases/dx_22/catalogs/sqlite.yaml: "an Iceberg catalog file that the model of case DX-22 includes, not a blueprint"
 
 docs/snippets/yaml/check_against_theory_constant.yaml: "has no `run.until`, so an unpaced run never ends (it is for `desflow explain`)"
+docs/snippets/orchestrators/shop.yaml: "has no `run.until`, so an unpaced run never ends (each Integrations page runs it with `--until 3600`)"
 
 docs/snippets/yaml/complex_routing.yaml: "its Kafka admin connector connects to a broker when the run starts"
 docs/snippets/yaml/complex_routing_router.yaml: "its Kafka admin connector connects to a broker when the run starts"

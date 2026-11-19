@@ -5,6 +5,7 @@ import json
 import queue
 import shlex
 import threading
+import sys
 import time
 from concurrent.futures import Future
 from dataclasses import dataclass
@@ -582,6 +583,41 @@ def test_a_failed_replication_ends_the_workers_that_are_running(tmp_path):
     assert time.monotonic() - started < 15.0
     assert (tmp_path / "sleeping").exists()
 
+    deadline = time.monotonic() + 2.0
+    while multiprocessing.active_children() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert multiprocessing.active_children() == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows has no fork")
+def test_a_failed_replication_ends_forked_workers_while_sigterm_is_handled(
+    tmp_path, monkeypatch
+):
+    """`desflow run` handles SIGTERM as Ctrl+C while it runs, and a worker forked then
+    inherits that handler, so terminating it would only stop its current run."""
+    import functools
+    import multiprocessing
+    from concurrent.futures import ProcessPoolExecutor
+
+    from desflow.cli.run import _sigterm_as_interrupt
+
+    monkeypatch.setattr(
+        runner,
+        "ProcessPoolExecutor",
+        functools.partial(
+            ProcessPoolExecutor, mp_context=multiprocessing.get_context("fork")
+        ),
+    )
+    started = time.monotonic()
+    with _sigterm_as_interrupt(), pytest.raises(RuntimeError, match="first run fails"):
+        replicate(
+            LowLevelModel(_FailsOnceThenSleeps(str(tmp_path)), "P"),
+            12,
+            seed=1,
+            until=10,
+            workers=2,
+        )
+    assert time.monotonic() - started < 15.0
     deadline = time.monotonic() + 2.0
     while multiprocessing.active_children() and time.monotonic() < deadline:
         time.sleep(0.05)
