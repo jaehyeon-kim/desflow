@@ -2,6 +2,21 @@
 
 Each release, newest first: what changed, then under Upgrading what to change in code, commands or installs that use the previous release.
 
+## Version 1.1.0
+
+1.1.0 makes desflow easier to run from an orchestrator or an AI assistant.
+
+- `desflow run FILE --summary PATH` writes the result of a single run or of `--replications` to one JSON file, and refuses a path that names the blueprint. See [Write the Result to a File](../user-guide/results/replications.md#write-the-result-to-a-file).
+- `desflow mcp`, from the `mcp` extra (`pip install "desflow[mcp]>=1.1"`), serves desflow's commands as MCP tools to an assistant on the same machine, and its `run` tool refuses `level`, `workers` and `measures` without `replications`, and a single run with no end time. See [MCP Server](../integrations/mcp-server.md).
+- The desflow plugin installs the skill and the MCP server in Claude Code, Codex and Antigravity; delete a skill copied into `~/.claude/skills/desflow/` for 1.0 first, because Claude Code loads that copy, not the plugin's. See [AI Assistants](../integrations/ai-assistants.md).
+- The Integrations section runs a model from Airflow, Dagster, Prefect and Kestra. See [Integrations](../integrations/index.md).
+- `desflow run` stopped with SIGTERM flushes its sinks and exits 0, as it does on Ctrl+C, where 1.0 ended at once and could lose the records a sink had not written.
+
+### Upgrading
+
+- A single run with `--summary` raises a statistics level below `typical` (no `stats`, `none` or `basic`) to `typical`, so a model with sinks also sends them the statistics telemetry; leave out `--summary` to keep the blueprint's level.
+- `desflow run --replications` stopped with Ctrl+C now logs "Simulation stopped by user." and exits 0, as a single run does, where 1.0 exited 130 with no message.
+
 ## Version 1.0.0
 
 desflow 1.0 is the first stable release. From 1.0, the YAML blueprint format, the `desflow` command, the public Python API and the record format stay compatible across 1.x, as the [Compatibility Policy](compatibility.md) sets out. 1.0 also follows SimPy's rules for time, ties and failures, so results and some YAML forms change from 0.28.0, and [Upgrading to 1.0](upgrading-to-1.0.md) lists each change.
