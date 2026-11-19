@@ -36,9 +36,9 @@ Two forms are the same model when their whole record streams and their statistic
 
 An unpaced run (`factor: 0`, or `desflow run --sample`) takes as long as the computer takes, so an assert on its wall time fails on a slower computer. Only a paced test asserts on the wall clock, and it runs alone, not under `pytest -n`, because other tests slow it down.
 
-A paced bound allows for the clock of Windows before Python 3.13, which moves in steps of 15.6 ms.
+A paced test bounds the wall time from below only. Starting Python and a busy computer make a run take longer than its paced time, so an upper bound fails on a slower computer. A paced bound allows for the clock of Windows before Python 3.13, which moves in steps of 15.6 ms.
 
-Wrong: `assert wall < 0.010`.
+Wrong: `assert wall < 0.010` in an unpaced test, or `assert wall <= expected + 2.5` in a paced one.
 
 Right: `assert wall >= expected - 0.016`.
 

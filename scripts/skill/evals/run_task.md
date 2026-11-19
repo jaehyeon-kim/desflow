@@ -58,4 +58,4 @@ This file holds the main session's steps, from the two suites to the result tabl
 
 ## Counts
 
-Each suite holds the 20 cases of `cases/`. Sonnet runs each case three times on suite a with the skill (`before`, runs 1 to 3) and three times without it (`none`, runs 1 to 3), and three times on suite b (`after`): 180 runs. Haiku and Opus run each case once on each suite (run 1): 80 runs. All 260 are graded by `grade.py` and read by the reviewer. `summarise.py` expects exactly these runs, from the folder names of `cases/`.
+Each suite holds the cases of `cases/`: 20 for the 12e3 runs these counts describe, and 21 from 1.1.0, which adds `st-r03` for `desflow run --summary`. Sonnet runs each case three times on suite a with the skill (`before`, runs 1 to 3) and three times without it (`none`, runs 1 to 3), and three times on suite b (`after`): 180 runs. Haiku and Opus run each case once on each suite (run 1): 80 runs. All 260 are graded by `grade.py` and read by the reviewer. `summarise.py` expects exactly these runs, from the folder names of `cases/`.
