@@ -942,7 +942,7 @@ def test_skill_texts_match_what_they_describe():
     """Sentences of the skill that the stage 2 review found wrong, each against
     the fact it states."""
     skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
-    assert "Run python ${CLAUDE_SKILL_DIR}/scripts/check_model.py <files>" in skill
+    assert 'Run python "${CLAUDE_SKILL_DIR}/scripts/check_model.py" <files>' in skill
     assert "except a test of pacing, which runs alone" in skill
     assert "A Builder task read only from a `Template` keeps none" in skill
     testing = (SKILL / "references" / "testing.md").read_text(encoding="utf-8")

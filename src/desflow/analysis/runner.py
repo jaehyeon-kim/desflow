@@ -9,6 +9,7 @@ compares and checks them and writes the experiment's artifacts.
 
 import hashlib
 import inspect
+import json
 import logging
 import os
 import platform
@@ -524,7 +525,10 @@ def write_run_summary(path: Union[str, Path], document: Mapping[str, Any]) -> No
     # its owner alone and would keep that mode after the replace
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     try:
-        found.write_json(temporary, dict(document))
+        # Opened with "x", so an entry already at the name, such as a link another
+        # user made in a shared folder, fails the write instead of being written to
+        with open(temporary, "x", encoding="utf-8") as handle:
+            handle.write(json.dumps(dict(document), indent=2, default=str) + "\n")
         os.replace(temporary, path)
     except BaseException:
         temporary.unlink(missing_ok=True)

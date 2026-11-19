@@ -23,7 +23,7 @@ Run a desflow study as a Dagster asset, and keep its figures as the asset's meta
 
 `PipesSubprocessClient` runs the command with `cwd` set to the asset's folder, so it finds `shop.yaml` and writes `result.json` beside it. It passes desflow's output to Dagster's logs, and a non-zero exit fails the asset with `DagsterPipesExecutionError`. When a run is cancelled, it sends SIGINT to desflow and waits up to 20 seconds; desflow then flushes its sinks and writes no `result.json`.
 
-The asset then opens `result.json` and returns the three figures as `MaterializeResult` metadata, one number each, which Dagster shows on the asset's page. The figures pass through the file because desflow does not report to Dagster itself:
+The asset then opens `result.json` and returns the three figures as `MaterializeResult` metadata, one number each, which Dagster shows on the asset's page. Two materializations at the same time would share one `result.json`, so a deployment that runs them side by side gives each its own file, such as one named by `context.run_id`. The figures pass through the file because desflow does not report to Dagster itself:
 
 ```python title="docs/snippets/orchestrators/dagster_asset.py" hl_lines="38-50"
 """A Dagster asset that runs the shop with desflow and keeps its figures as metadata.
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     print({name: value.value for name, value in metadata.items()})
 ```
 
-`defs` holds the asset and its resource for Dagster's own tools: `dagster dev -f dagster_asset.py` starts Dagster's web server and daemon on your machine with the asset in them. The `__main__` block materializes the asset once with `materialize()`, which runs in the current process and needs no `DAGSTER_HOME`, web server or daemon.
+`defs` holds the asset and its resource for Dagster's own tools: `dagster dev -f dagster_asset.py` starts Dagster's web server and daemon on your machine with the asset in them, once `pip install dagster-webserver` has added the web server, which `dagster` does not install. The `__main__` block materializes the asset once with `materialize()`, which runs in the current process and needs no `DAGSTER_HOME`, web server or daemon.
 
 ### Materialize It Once
 

@@ -5,11 +5,11 @@
 # tests/docs/test_plugin.py and the CI job plugin check the files the plugin installs.
 
 # --8<-- [start:install-uv]
-uv tool install "desflow[mcp]"
+uv tool install "desflow[mcp]>=1.1"
 # --8<-- [end:install-uv]
 
 # --8<-- [start:install-pip]
-pip install "desflow[mcp]"
+pip install "desflow[mcp]>=1.1"
 # --8<-- [end:install-pip]
 
 # --8<-- [start:claude-code]

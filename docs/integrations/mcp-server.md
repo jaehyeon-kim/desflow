@@ -13,22 +13,22 @@ The server needs the `mcp` extra:
 === "uv"
 
     ```bash title="docs/snippets/integrations/commands.sh:install-uv"
-    uv tool install "desflow[mcp]"
+    uv tool install "desflow[mcp]>=1.1"
     ```
 
 === "pip"
 
     ```bash title="docs/snippets/integrations/commands.sh:install-pip"
-    pip install "desflow[mcp]"
+    pip install "desflow[mcp]>=1.1"
     ```
 
-Without the extra, `desflow mcp` exits with an error that names the `pip install` command. The scripts on this page also import the `mcp` package, so run them where `pip install "desflow[mcp]"` installed it, such as a virtual environment of their own. `uv tool install` keeps desflow in an environment that a script cannot import from.
+Without the extra, `desflow mcp` exits with an error that names the `pip install` command. The scripts on this page also import the `mcp` package, so run them where `pip install "desflow[mcp]>=1.1"` installed it, such as a virtual environment of their own. `uv tool install` keeps desflow in an environment that a script cannot import from.
 
 ---
 
 ## Tools That Write Nothing
 
-The server always offers these seven tools. Each takes the arguments and options of its command as parameters, with the same names, and `variables` fills `${NAME}` in a blueprint as `--var` does:
+The server always offers these seven tools. They write nothing themselves, but `check`, `explain` and `test` load a Python builder file by running its code, which can write files, so give them only builder files you trust. Each takes the arguments and options of its command as parameters, with the same names, and `variables` fills `${NAME}` in a blueprint as `--var` does:
 
 | Tool | Command | Returns |
 |---|---|---|
@@ -149,7 +149,7 @@ fit: Fit a column of a CSV file to the distribution families and rank them, as `
 dist: List the distribution families, or convert a family's parameters to its mean and standard deviation and back, as `desflow dist` does.
 schema: Return the blueprint JSON Schema, as `desflow schema` prints it.
 list_examples: List the examples, with what each shows and the service it needs, as `desflow examples list` does.
-run: Run a blueprint once, or its replications, as `desflow run --summary` does, and return the summary it writes: the statistics of the run, or the seeds, the summary and every replication's values. A run sends its records to the blueprint's sinks. measures, level and workers apply only with replications. variables fill ${NAME} as --var does.
+run: Run a blueprint once, or its replications, as `desflow run --summary` does, and return the summary it writes: the statistics of the run, or the seeds, the summary and every replication's values. A run sends its records to the blueprint's sinks. measures, level and workers apply only with replications, and a call that gives them without replications is refused. variables fill ${NAME} as --var does.
 experiment: Run an experiment file and write its artifacts and report.md, as `desflow experiment` does. output overrides the folder the file names.
 report: Build an experiment's report.md again from the artifacts in its output folder, as `desflow report` does.
 get_example: Download an example into <dest>/<name>/<api>/ at the installed release, as `desflow examples get` does. force replaces files that are already there.

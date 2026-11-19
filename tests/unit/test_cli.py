@@ -14,6 +14,7 @@ import os
 import signal
 import sys
 import time
+import types
 
 import click
 import pytest
@@ -21,7 +22,7 @@ import pytest
 from typer.testing import CliRunner
 
 from desflow import SimulationContext
-from desflow.analysis import results
+from desflow.analysis import results, runner
 from desflow.analysis.models import run_once
 from desflow.cli import app
 
@@ -199,6 +200,33 @@ def test_a_failed_run_removes_an_earlier_summary_and_writes_none(tmp_path):
     assert not summary.exists()
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need extra rights")
+def test_the_summary_is_never_written_through_a_link_at_its_temporary_name(tmp_path):
+    from desflow.analysis.runner import write_run_summary
+
+    target = tmp_path / "other.txt"
+    target.write_text("kept", encoding="utf-8")
+    summary = tmp_path / "summary.json"
+    (tmp_path / f".summary.json.{os.getpid()}.tmp").symlink_to(target)
+    with pytest.raises(FileExistsError):
+        write_run_summary(summary, {"statistics": []})
+    assert target.read_text(encoding="utf-8") == "kept"
+    assert not summary.exists()
+
+
+def test_a_summary_path_that_is_the_blueprint_is_refused(tmp_path, monkeypatch):
+    """The earlier summary is removed before the run, so a path that names the
+    blueprint, as written or by another path to it, would delete the model."""
+    path = tmp_path / "shop.yaml"
+    path.write_text(SHOP, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    for summary in (str(path), "./shop.yaml"):
+        result = CliRunner().invoke(app, ["run", str(path), "--summary", summary])
+        assert result.exit_code == 2, result.output
+        assert "is the file being run" in result.stderr
+        assert path.read_text(encoding="utf-8") == SHOP
+
+
 def test_a_summary_that_cannot_be_written_exits_1_and_leaves_no_file(
     tmp_path, monkeypatch
 ):
@@ -207,11 +235,11 @@ def test_a_summary_that_cannot_be_written_exits_1_and_leaves_no_file(
     folder = CliRunner().invoke(app, ["run", str(path), "--summary", str(tmp_path)])
     assert folder.exit_code == 1 and "is a folder" in folder.stderr
 
-    def full_disk(target, data):
-        target.write_text("{", encoding="utf-8")
+    def full_disk(*args, **kwargs):
+        # The temporary file is open, and empty, when the write fails
         raise OSError("No space left on device")
 
-    monkeypatch.setattr(results, "write_json", full_disk)
+    monkeypatch.setattr(runner, "json", types.SimpleNamespace(dumps=full_disk))
     summary = tmp_path / "out" / "summary.json"
     result = CliRunner().invoke(app, ["run", str(path), "--summary", str(summary)])
     assert result.exit_code == 1

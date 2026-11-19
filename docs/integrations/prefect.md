@@ -21,7 +21,7 @@ Run a desflow study as a task of a Prefect flow, and return its figures from the
 
 ### Write the Flow
 
-The `run_shop` task runs the command with `subprocess.run` in the flow's folder, so it finds `shop.yaml` and writes `result.json` beside it. `check=True` raises an error on a non-zero exit, which fails the task and the flow. The task returns the path of the file, and the `read_result` task opens it and returns the three figures. A task called inside a flow returns its value, so the flow returns the figures:
+The `run_shop` task runs the command with `subprocess.run` in the flow's folder, so it finds `shop.yaml` and writes `result.json` beside it. `check=True` raises an error on a non-zero exit, which fails the task and the flow. The task returns the path of the file, and the `read_result` task opens it and returns the three figures. Two flow runs at the same time would share one `result.json`, so a deployment that runs them side by side gives each its own file, such as one named by the flow run's id. A task called inside a flow returns its value, so the flow returns the figures:
 
 ```python title="docs/snippets/orchestrators/prefect_flow.py" hl_lines="27-46"
 """A Prefect flow that runs the shop with desflow and returns its figures.

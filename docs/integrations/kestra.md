@@ -75,10 +75,11 @@ tasks:
 This starts Kestra in one container, with a login for its API and its web page:
 
 ```bash title="docs/snippets/orchestrators/commands.sh:kestra-start"
-# Kestra 2.0.10 on http://localhost:8080, with a login: the user name must be an email
-# address, and the password at least 8 characters with an upper-case letter, a
-# lower-case letter and a digit. The Docker socket and /tmp let it start task containers.
-docker run --pull=always --rm -d --name kestra -p 8080:8080 --user=root \
+# Kestra 2.0.10 on http://localhost:8080, published on the loopback address, with
+# a login: the user name must be an email address, and the password at least 8
+# characters with an upper-case letter, a lower-case letter and a digit. The
+# Docker socket and /tmp let it start task containers.
+docker run --pull=always --rm -d --name kestra -p 127.0.0.1:8080:8080 --user=root \
   -e 'KESTRA_CONFIGURATION=kestra:
   server:
     basic-auth:

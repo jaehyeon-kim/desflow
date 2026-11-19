@@ -1,7 +1,7 @@
 {
   "name": "desflow",
   "version": "1.0.0",
-  "description": "Adds the desflow agent skill and an MCP server with the tools that write nothing. Both need desflow installed: uv tool install 'desflow[mcp]'.",
+  "description": "Adds the desflow agent skill and an MCP server with the tools that write nothing. Both need desflow installed: uv tool install 'desflow[mcp]>=1.1'.",
   "author": {
     "name": "Jaehyeon Kim"
   },

@@ -439,7 +439,7 @@ def files() -> Dict[str, str]:
 PLUGIN_NAME = "desflow"
 PLUGIN_DESCRIPTION = (
     "Adds the desflow agent skill and an MCP server with the tools that write nothing. "
-    "Both need desflow installed: uv tool install 'desflow[mcp]'."
+    "Both need desflow installed: uv tool install 'desflow[mcp]>=1.1'."
 )
 PLUGIN_REPOSITORY = "https://github.com/jaehyeon-kim/desflow"
 PLUGIN_AUTHOR = "Jaehyeon Kim"

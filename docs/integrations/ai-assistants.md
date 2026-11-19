@@ -13,13 +13,13 @@ The plugin does not install desflow. The skill tells the assistant to run `desfl
 === "uv"
 
     ```bash title="docs/snippets/integrations/commands.sh:install-uv"
-    uv tool install "desflow[mcp]"
+    uv tool install "desflow[mcp]>=1.1"
     ```
 
 === "pip"
 
     ```bash title="docs/snippets/integrations/commands.sh:install-pip"
-    pip install "desflow[mcp]"
+    pip install "desflow[mcp]>=1.1"
     ```
 
 Without the extra, `desflow mcp` exits with an error that names the `pip install` command, and the assistant shows the server as failed.

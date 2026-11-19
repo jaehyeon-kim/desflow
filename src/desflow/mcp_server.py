@@ -158,6 +158,8 @@ def _document(text: str) -> CallToolResult:
     )
 
 
+# Each tool puts the values a caller gives as file names, sources and names after
+# `--`, so a value such as `--fix` is read as a name, never as an option
 def _options(**values: Any) -> List[str]:
     """The command-line options for these values, in order: a name becomes
     `--name-with-dashes`, True a flag, a list a repeated option, a mapping repeated
@@ -201,7 +203,7 @@ def build_server(allow_changes: bool) -> MCPServer:
     )
     def check(files: List[str], variables: Optional[Dict[str, str]] = None) -> str:
         """Checks each file and returns what `desflow check` prints."""
-        return _run(["check", *files, *_options(var=variables)]).text()
+        return _run(["check", *_options(var=variables), "--", *files]).text()
 
     @server.tool(
         description="Explain a model as `desflow explain --json` does: its graph, "
@@ -220,11 +222,11 @@ def build_server(allow_changes: bool) -> MCPServer:
     ) -> CallToolResult:
         """Explains the model and returns the document `desflow explain --json`
         prints."""
-        arguments = ["explain", source, "--json", "--target", str(target)]
+        arguments = ["explain", "--json", "--target", str(target)]
         arguments += _options(
             verify=verify, until=until, seed=seed, replications=replications
         )
-        return _document(_run(arguments).stdout)
+        return _document(_run([*arguments, "--", source]).stdout)
 
     _add_test(server, allow_changes)
     _add_fit(server, allow_changes)
@@ -249,7 +251,7 @@ def build_server(allow_changes: bool) -> MCPServer:
         p: Optional[float] = None,
     ) -> str:
         """Returns what `desflow dist` prints."""
-        arguments = ["dist", *([family] if family else [])]
+        arguments = ["dist"]
         arguments += _options(
             rate=rate,
             mean=mean,
@@ -262,7 +264,7 @@ def build_server(allow_changes: bool) -> MCPServer:
             scale=scale,
             p=p,
         )
-        return _run(arguments).text()
+        return _run([*arguments, "--", *([family] if family else [])]).text()
 
     @server.tool(
         description="Return the blueprint JSON Schema, as `desflow schema` prints it.",
@@ -300,7 +302,7 @@ def _add_test(server: MCPServer, allow_changes: bool) -> None:
             files: List[str], variables: Optional[Dict[str, str]] = None
         ) -> str:
             """Returns what `desflow test` prints."""
-            return _run(["test", *files, *_options(var=variables)]).text()
+            return _run(["test", *_options(var=variables), "--", *files]).text()
 
         return
 
@@ -316,7 +318,7 @@ def _add_test(server: MCPServer, allow_changes: bool) -> None:
         fix: bool = False,
     ) -> str:
         """Returns what `desflow test` prints, after fixing with `fix`."""
-        return _run(["test", *files, *_options(fix=fix, var=variables)]).text()
+        return _run(["test", *_options(fix=fix, var=variables), "--", *files]).text()
 
 
 def _add_fit(server: MCPServer, allow_changes: bool) -> None:
@@ -328,7 +330,8 @@ def _add_fit(server: MCPServer, allow_changes: bool) -> None:
 
     def fit_command(file: str, column: str, **options: Any) -> str:
         """Runs `desflow fit` with these options and returns what it prints."""
-        return _run(["fit", file, "--column", column, *_options(**options)]).text()
+        arguments = ["fit", "--column", column, *_options(**options)]
+        return _run([*arguments, "--", file]).text()
 
     if not allow_changes:
 
@@ -406,7 +409,8 @@ def _add_changes(server: MCPServer) -> None:
         "--summary` does, and return the summary it writes: the statistics of the "
         "run, or the seeds, the summary and every replication's values. A run "
         "sends its records to the blueprint's sinks. measures, level and workers "
-        "apply only with replications. variables fill ${NAME} as --var does.",
+        "apply only with replications, and a call that gives them without "
+        "replications is refused. variables fill ${NAME} as --var does.",
         annotations=_WRITES,
     )
     def run(
@@ -415,9 +419,9 @@ def _add_changes(server: MCPServer) -> None:
         seed: Optional[int] = None,
         drain: bool = False,
         replications: Optional[int] = None,
-        level: float = 0.95,
+        level: Optional[float] = None,
         measures: Optional[List[str]] = None,
-        workers: int = 1,
+        workers: Optional[int] = None,
         variables: Optional[Dict[str, str]] = None,
     ) -> CallToolResult:
         """Runs the blueprint and returns the document `--summary` writes."""
@@ -427,20 +431,18 @@ def _add_changes(server: MCPServer) -> None:
             raise ToolError(
                 "a run needs an end time: pass until, or set run.until in the blueprint"
             )
-        arguments = ["run", file]
+        arguments = ["run"]
         arguments += _options(
             until=until, seed=seed, drain=drain, replications=replications
         )
-        if replications is not None:
-            arguments += _options(level=level, workers=workers)
         # desflow run refuses --measure, --level and --workers without
-        # --replications; measures is passed on, so the tool refuses as the command
-        # does, and level and workers keep their defaults
-        arguments += _options(measure=measures)
+        # --replications, and each is passed on only when given, so the tool refuses
+        # them as the command does; with replications the command's defaults apply
+        arguments += _options(level=level, workers=workers, measure=measures)
         arguments += _options(var=variables)
         with tempfile.TemporaryDirectory() as folder:
             summary = Path(folder) / "summary.json"
-            _run([*arguments, "--summary", str(summary)])
+            _run([*arguments, "--summary", str(summary), "--", file])
             return _document(summary.read_text(encoding="utf-8"))
 
     @server.tool(
@@ -450,7 +452,7 @@ def _add_changes(server: MCPServer) -> None:
     )
     def experiment(file: str, output: Optional[str] = None) -> str:
         """Returns what `desflow experiment` prints."""
-        return _run(["experiment", file, *_options(output=output)]).text()
+        return _run(["experiment", *_options(output=output), "--", file]).text()
 
     @server.tool(
         description="Build an experiment's report.md again from the artifacts in "
@@ -459,7 +461,7 @@ def _add_changes(server: MCPServer) -> None:
     )
     def report(folder: str) -> str:
         """Returns what `desflow report` prints."""
-        return _run(["report", folder]).text()
+        return _run(["report", "--", folder]).text()
 
     @server.tool(
         description="Download an example into <dest>/<name>/<api>/ at the installed "
@@ -475,6 +477,6 @@ def _add_changes(server: MCPServer) -> None:
         force: bool = False,
     ) -> str:
         """Returns what `desflow examples get` prints."""
-        arguments = ["examples", "get", name]
+        arguments = ["examples", "get"]
         arguments += _options(api=api, dest=dest, ref=ref, force=force)
-        return _run(arguments).text()
+        return _run([*arguments, "--", name]).text()

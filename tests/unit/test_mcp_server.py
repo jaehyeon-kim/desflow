@@ -56,6 +56,10 @@ CHANGE_PARAMETERS = TOOL_PARAMETERS | {
     "report": ["folder"],
     "get_example": ["name", "api", "dest", "ref", "force"],
 }
+# The parameters a call must give; a later 1.x release makes no other one required
+REQUIRED = {"check": ["files"], "explain": ["source"], "test": ["files"]}
+REQUIRED |= {"fit": ["column", "file"], "run": ["file"], "experiment": ["file"]}
+REQUIRED |= {"report": ["folder"], "get_example": ["name"]}
 # The 40 packing times of the tutorials, in seconds
 PACKING = [
     1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
@@ -142,6 +146,10 @@ def test_tool_and_parameter_names_stay_stable(allow_changes):
         name: sorted(tool.input_schema.get("properties", {}))
         for name, tool in tools.items()
     } == {name: sorted(parameters) for name, parameters in expected.items()}
+    assert {
+        name: sorted(tool.input_schema.get("required", []))
+        for name, tool in tools.items()
+    } == {name: REQUIRED.get(name, []) for name in expected}
 
 
 @pytest.mark.parametrize(
@@ -314,9 +322,22 @@ def test_get_example_downloads_what_the_command_downloads(folder):
             {"file": "shop.yaml", "measures": ["tasks.pack.wait_mean"]},
             "--measure can only be used with --replications",
         ),
+        (
+            "run",
+            {"file": "shop.yaml", "workers": 2},
+            "--workers can only be used with --replications",
+        ),
+        (
+            "run",
+            {"file": "shop.yaml", "level": 0.9},
+            "--level can only be used with --replications",
+        ),
         ("explain", {"source": "shop.yaml", "target": 20}, "--target must be above 0"),
     ],
-    ids=["missing-file", "refused-option", "refused-value"],
+    ids=[
+        *("missing-file", "refused-option", "refused-workers", "refused-level"),
+        "refused-value",
+    ],
 )
 def test_a_refused_call_returns_the_message_of_the_command(
     folder, tool, arguments, message
@@ -324,6 +345,16 @@ def test_a_refused_call_returns_the_message_of_the_command(
     result = _call(tool, arguments, allow_changes=True)
     assert result.is_error
     assert message in result.content[0].text
+
+
+def test_a_file_name_that_looks_like_an_option_stays_a_file_name(folder):
+    """A read-only `test` given `--fix` among its files reads it as a file that is
+    not there, not as the option that writes the expected values."""
+    before = (folder / "shop.yaml").read_text(encoding="utf-8")
+    result = _call("test", {"files": ["shop.yaml", "--fix"]})
+    assert result.is_error
+    assert "--fix" in result.content[0].text
+    assert (folder / "shop.yaml").read_text(encoding="utf-8") == before
 
 
 def test_a_single_run_with_no_end_time_is_refused(folder):

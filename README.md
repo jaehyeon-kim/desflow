@@ -152,7 +152,7 @@ The `desflow` command runs a blueprint, and checks, compares and fits models, wi
 
 ## Integrations
 
-The desflow plugin gives Claude Code, Codex or Antigravity the desflow skill and the desflow commands as MCP tools. Install desflow with the `mcp` extra, `uv tool install "desflow[mcp]"`, then the plugin:
+The desflow plugin gives Claude Code, Codex or Antigravity the desflow skill and the desflow commands as MCP tools. Install desflow with the `mcp` extra, `uv tool install "desflow[mcp]>=1.1"`, then the plugin:
 
 ```bash
 # Claude Code

@@ -317,7 +317,7 @@ def _run_once(path: str, options: _RunOptions) -> None:
     stop_at = parse_until(until, ends=replications is not None)
     preview = Preview(sample) if sample is not None or options.stdout else None
     if options.summary is not None:
-        _remove_earlier_summary(Path(options.summary))
+        _remove_earlier_summary(Path(options.summary), file)
 
     root = logging.getLogger()
     before = list(root.handlers)
@@ -412,9 +412,12 @@ def _summarise_run(
     _write_summary(path, run_summary(file, settings, measured, context.env.now))
 
 
-def _remove_earlier_summary(path: Path) -> None:
+def _remove_earlier_summary(path: Path, file: Path) -> None:
     """Removes a summary an earlier run left at `path`, so it cannot be read as this
-    run's; exits 1 when `path` is a folder or cannot be a file."""
+    run's; exits 2 when `path` is the blueprint `file` itself, and 1 when `path` is a
+    folder or cannot be a file."""
+    if path.exists() and file.exists() and os.path.samefile(path, file):
+        refuse(f"--summary {path} is the file being run; give another path")
     if path.is_dir():
         fail(f"--summary {path} is a folder; give a file path")
     try:
