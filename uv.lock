@@ -1791,7 +1791,7 @@ wheels = [
 
 [[package]]
 name = "desflow"
-version = "1.0.0"
+version = "1.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11.5' and python_full_version < '3.12') or (python_full_version < '3.11.5' and extra == 'group-7-desflow-airflow' and extra == 'group-7-desflow-dev') or (python_full_version < '3.11.5' and extra == 'group-7-desflow-dagster' and extra == 'group-7-desflow-dev') or (python_full_version < '3.11.5' and extra == 'group-7-desflow-dev' and extra == 'group-7-desflow-prefect') or (python_full_version >= '3.12' and extra == 'group-7-desflow-airflow' and extra == 'group-7-desflow-dev') or (python_full_version >= '3.12' and extra == 'group-7-desflow-dagster' and extra == 'group-7-desflow-dev') or (python_full_version >= '3.12' and extra == 'group-7-desflow-dev' and extra == 'group-7-desflow-prefect')" },

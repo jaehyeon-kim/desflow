@@ -1,15 +1,6 @@
 # Roadmap
 
-The next release is shown with its version. The other items planned after 1.0 have no versions or dates yet: a release ships when it is ready. Each released item links to its GitHub issue.
-
-## Next Release
-
-::timeline::
-- title: '1.1.0: Easier to Access desflow'
-  content: '1.1.0 has four pieces of work. `desflow run --summary` writes the statistics of a run, or of its replications, as one JSON file. `desflow mcp` serves the desflow commands as MCP tools to an AI assistant on the same machine. One plugin installs the desflow skill and the MCP server in Claude Code, Codex and Antigravity. Integrations pages run a model from Airflow, Dagster, Prefect and Kestra.'
-  icon: ':material-play:'
-  key: now
-::/timeline::
+The items planned after 1.0 have no versions or dates yet: a release ships when it is ready. Each released item links to its GitHub issue, where it has one.
 
 ## What 1.0 means
 
@@ -17,17 +8,12 @@ From 1.0, the YAML blueprint format, the `desflow` command, the public Python AP
 
 ## After 1.0
 
-The work after 1.0 has four aims, and each item below serves one of them.
+The work after 1.0 has three aims, and each item below serves one of them.
 
 ### Easier to Create Simulations
 
 - **Models from history:** a model discovered from an event log, calibrated against observed data, compared with that log, and updated from new logs.
 - **Payloads from your data:** record fields generated from a schema or a few sample records, with the real field names, types and value ranges.
-
-### Easier to Access desflow
-
-- **Orchestrators:** Airflow, Dagster and similar tools.
-- **AI assistants:** the desflow skill for Claude Code, Codex and other tools that read the Agent Skills format.
 
 ### Easier to Manage Simulations
 
@@ -45,6 +31,13 @@ The work after 1.0 has four aims, and each item below serves one of them.
 - **Delivery faults:** records delivered late, twice, damaged or not at all.
 
 ## Released
+
+??? note "1.1.0: Easier to Access desflow"
+
+    - **Run summary:** `desflow run --summary` writes the statistics of a run, or of its replications, as one JSON file.
+    - **MCP server:** `desflow mcp` serves the desflow commands as MCP tools to an AI assistant on the same machine.
+    - **Plugin:** one plugin installs the desflow skill and the MCP server in Claude Code, Codex and Antigravity.
+    - **Integrations:** pages that run a model from Airflow, Dagster, Prefect and Kestra.
 
 ??? note "1.0.0: Stable"
 
