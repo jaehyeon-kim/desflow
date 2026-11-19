@@ -2,7 +2,7 @@
 
 The desflow plugin adds the [skill](../ai/index.md) and the [MCP server](mcp-server.md) to Claude Code, Codex or Antigravity with one install. The skill gives the assistant the rules of the library, and the server gives it the desflow commands as tools. The plugin starts the server as `desflow mcp`, without `--allow-changes`, so the assistant gets the tools that write nothing.
 
-The repository holds the plugin in `plugin/`: a manifest for each tool, the MCP entry, a logo and a copy of `skills/desflow/`. `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` at the repository root point at that folder. Each tool copies the plugin folder, about 780 KB, into its own plugin folder.
+The repository holds the plugin in `plugin/`: a manifest for each tool, the MCP entry, a logo and a copy of `skills/desflow/`. `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` at the repository root point at that folder. Each tool copies the plugin folder, about 780 KB, into its own plugin folder. Claude Code and Codex also keep a copy of the repository, from which they read the marketplace file.
 
 ---
 
@@ -23,6 +23,8 @@ The plugin does not install desflow. The skill tells the assistant to run `desfl
     ```
 
 Without the extra, `desflow mcp` exits with an error that names the `pip install` command, and the assistant shows the server as failed.
+
+If you copied the skill into `~/.claude/skills/desflow/` or `.claude/skills/desflow/` for desflow 1.0, delete that folder first. Claude Code loads that copy, not the plugin's, for a request that names desflow.
 
 ---
 
@@ -84,7 +86,7 @@ A new desflow release changes the plugin's version. Upgrade desflow first, with 
 
 === "Codex"
 
-    `codex plugin marketplace upgrade desflow` refreshes Codex's copy of the repository.
+    `codex plugin marketplace upgrade desflow` fetches the repository again and reinstalls the plugin from it.
 
 === "Antigravity"
 

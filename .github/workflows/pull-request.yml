@@ -251,7 +251,7 @@ jobs:
 
       - name: Validate the Claude Code plugin and marketplace
         run: |
-          claude plugin validate --strict plugin/.claude-plugin/plugin.json
+          claude plugin validate --strict plugin
           claude plugin validate --strict .
 
       - name: Validate the Antigravity plugin

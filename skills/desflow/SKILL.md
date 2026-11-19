@@ -30,7 +30,7 @@ A blueprint can also call Python with `!python module.attribute`, so a model rar
 3. Run it with `desflow run <file>`. Add `--until 10min` to stop earlier and `--seed 7` to repeat a run. An invalid file prints every error with its file and line and exits with code 1.
 4. Read each error where it points. An unknown key names the key it is closest to.
 
-`desflow schema` prints the same JSON Schema as `assets/blueprint.schema.json`, for the installed version.
+`desflow schema` prints the same JSON Schema as `${CLAUDE_SKILL_DIR}/assets/blueprint.schema.json`, for the installed version.
 
 ## Draft a model from a description
 

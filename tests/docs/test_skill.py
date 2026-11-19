@@ -41,7 +41,9 @@ def _frontmatter(text: str) -> dict:
 
 
 @pytest.mark.parametrize(
-    "folder", gen_skill.SKILL_FOLDERS, ids=lambda folder: folder.parent.parent.name
+    "folder",
+    gen_skill.SKILL_FOLDERS,
+    ids=lambda folder: folder.relative_to(_ROOT).parts[0],
 )
 def test_committed_skill_is_current(folder: Path):
     """`skills/desflow/` and the plugin's copy in `plugin/skills/desflow/` both hold

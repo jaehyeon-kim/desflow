@@ -438,13 +438,13 @@ def files() -> Dict[str, str]:
 
 PLUGIN_NAME = "desflow"
 PLUGIN_DESCRIPTION = (
-    "Adds the desflow agent skill and an MCP server whose tools write nothing, which "
-    "need desflow installed: uv tool install 'desflow[mcp]'."
+    "Adds the desflow agent skill and an MCP server with the tools that write nothing. "
+    "Both need desflow installed: uv tool install 'desflow[mcp]'."
 )
 PLUGIN_REPOSITORY = "https://github.com/jaehyeon-kim/desflow"
 PLUGIN_AUTHOR = "Jaehyeon Kim"
 # The logo's path from the plugin folder. Antigravity leaves out a path with a part
-# that starts with a dot, and Codex needs the `./` in front
+# that starts with a dot; Claude Code's docs and Codex give the `./` in front
 PLUGIN_LOGO = "./assets/logo.png"
 # The one MCP server entry. It has no --allow-changes, so the tools that run a model or
 # write files are not served. Claude Code and Codex read it inline from their
@@ -486,7 +486,7 @@ def plugin_files(release: str = "") -> Dict[str, str]:
     documents: Dict[str, object] = {
         "plugin/.claude-plugin/plugin.json": {
             **base,
-            "icon": PLUGIN_LOGO.removeprefix("./"),
+            "icon": PLUGIN_LOGO,
             **PLUGIN_MCP,
         },
         "plugin/.codex-plugin/plugin.json": {

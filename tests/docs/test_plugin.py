@@ -117,11 +117,11 @@ def test_the_logo_is_a_square_png_of_512_px_or_more_outside_a_dot_folder(
     manifest, field
 ):
     """Claude Code's plugin directory asks for 512 to 2048 px, agy leaves out a path
-    with a part that starts with a dot, and Codex needs `./` in front."""
+    with a part that starts with a dot, and Claude Code and Codex give `./` in front."""
     logo = _json(manifest)
     for key in field:
         logo = logo[key]
-    assert logo.startswith("./") == ("interface" in field), logo
+    assert logo.startswith("./") == ("antigravity" not in manifest), logo
     relative = logo.removeprefix("./")
     assert not any(part.startswith(".") for part in relative.split("/"))
     header = (PLUGIN / relative).read_bytes()[:24]
