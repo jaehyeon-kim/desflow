@@ -1,0 +1,9 @@
+{
+  "name": "desflow",
+  "plugins": [
+    {
+      "name": "desflow",
+      "source": "./plugin"
+    }
+  ]
+}

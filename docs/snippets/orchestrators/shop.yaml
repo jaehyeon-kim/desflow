@@ -1,0 +1,21 @@
+# The shop that every page of the Integrations section runs from an orchestrator. An
+# order comes every 2 seconds on average, and the packers come from PACKERS, 2 when
+# it is not set. factor: 0 runs it as fast as it can, not at wall-clock speed.
+# Run it with: desflow run shop.yaml --var PACKERS=3 --until 3600 --seed 7 \
+#   --summary result.json
+simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+resources:
+  packers: {current_cap: "${PACKERS:-2}", max_cap: 5}
+
+services:
+  packing: {dist: normal, mean: 3 s, std: 0.5 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack}
+
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}

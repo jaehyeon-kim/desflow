@@ -11,6 +11,8 @@ metadata:
 
 desflow runs SimPy simulations whose parameters can change while they run, and writes the events and telemetry to the console, Kafka, Parquet or JSONL files, Iceberg, PostgreSQL or Redis. A model can be written in three ways, and all three give the same records.
 
+Read each reference page, asset and script at the exact path given below, with nothing added. Claude Code fills in the first part of the path with the folder that holds this file; in a tool that does not fill it in, that first part stands for the same folder.
+
 ## Pick a way to write the model
 
 | Way | Use it when |
@@ -57,12 +59,12 @@ Copy this checklist into your reply and tick each line as it is done:
 ```text
 - [ ] List every behaviour the request names, one line each.
 - [ ] For each, name the key or the code that makes it, and the record that shows it.
-- [ ] Run python <skill folder>/scripts/check_model.py <files>; fix every line it prints; run it again.
+- [ ] Run python ${CLAUDE_SKILL_DIR}/scripts/check_model.py <files>; fix every line it prints; run it again.
 - [ ] Find each listed record in the output of desflow run <file> --sample 50.
 - [ ] Read each header, docstring and comment against that output.
 ```
 
-`scripts/check_model.py` is in this skill's folder. Run it, do not read it: `python <skill folder>/scripts/check_model.py model.yaml builder.py low_level.py [--until T]`, with one, two or three forms in any order. It runs each Python file as `python FILE`, unpaced, with its sinks replaced by a JSON console, and sets and reads each form's seed through desflow. It sees only the process `python FILE` starts, so each Python file builds and runs its model in that process, not a child process. It reports:
+`scripts/check_model.py` is in this skill's folder. Run it, do not read it: `python ${CLAUDE_SKILL_DIR}/scripts/check_model.py model.yaml builder.py low_level.py [--until T]`, with one, two or three forms in any order. It runs each Python file as `python FILE`, unpaced, with its sinks replaced by a JSON console, and sets and reads each form's seed through desflow. It sees only the process `python FILE` starts, so each Python file builds and runs its model in that process, not a child process. It reports:
 
 - a file that `desflow check` refuses;
 - an import from desflow that the references do not document;

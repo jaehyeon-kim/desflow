@@ -421,6 +421,15 @@ nav:
           - Call Python from YAML: how-to/tools/yaml-advanced.md
           - Set Up Your Editor: how-to/tools/set-up-your-editor.md
           - Tune Performance: how-to/tools/performance-tuning.md
+  # A study run from an orchestrator, and the plugin and MCP server for assistants.
+  - Integrations:
+      - Overview: integrations/index.md
+      - Airflow: integrations/airflow.md
+      - Dagster: integrations/dagster.md
+      - Prefect: integrations/prefect.md
+      - Kestra: integrations/kestra.md
+      - MCP Server: integrations/mcp-server.md
+      - AI Assistants: integrations/ai-assistants.md
   # The generated page of each command, after the overview that uses them on one shop.
   - Command Line:
       - cli/index.md

@@ -169,7 +169,7 @@ This is verification, not validation. It checks that the program agrees with the
 
 ### In the Tutorial
 
-Checking a Model compares the model with values observed in the shop over 58 minutes of a busy hour: a mean wait of 2.6 seconds and a utilisation of 91%. The values are illustrative. The wait lies inside the 95% interval of the model's mean over 20 replications, 2.16 to 2.80 seconds. The utilisation lies outside its interval, 89.70% to 90.96%, but within one standard deviation of a single run, so both agree.
+Checking a Model compares the model with values observed in the shop over 58 minutes of a busy hour: a mean wait of 2.6 seconds and a utilisation of 91%. The values are illustrative. Both lie outside the 95% intervals of the model's mean over 20 replications, 2.00 to 2.30 seconds and 89.39% to 90.60%, because those intervals are for a mean and one observed hour is not a mean. The wait is 1.38 standard deviations of a single run from the model's mean, and the utilisation 0.78, so both agree.
 
 ### Why It Matters
 

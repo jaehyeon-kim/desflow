@@ -150,6 +150,32 @@ The `desflow` command runs a blueprint, and checks, compares and fits models, wi
 | `desflow schema` | print the blueprint JSON Schema, for an editor | [Set Up an Editor](https://jaehyeon.me/desflow/latest/cli/#set-up-an-editor) | [`desflow schema`](https://jaehyeon.me/desflow/latest/cli/schema/) |
 | `desflow mcp` | serve the commands as tools to an AI assistant on the same machine, over MCP | [Serve the Commands to an Assistant](https://jaehyeon.me/desflow/latest/cli/#serve-the-commands-to-an-assistant) | [`desflow mcp`](https://jaehyeon.me/desflow/latest/cli/mcp/) |
 
+## Integrations
+
+The desflow plugin gives Claude Code, Codex or Antigravity the desflow skill and the desflow commands as MCP tools. Install desflow with the `mcp` extra, `uv tool install "desflow[mcp]"`, then the plugin:
+
+```bash
+# Claude Code
+claude plugin marketplace add jaehyeon-kim/desflow
+claude plugin install desflow@desflow
+
+# Codex
+codex plugin marketplace add jaehyeon-kim/desflow
+codex plugin add desflow@desflow
+
+# Antigravity
+agy plugin install https://github.com/jaehyeon-kim/desflow
+```
+
+[AI Assistants](https://jaehyeon.me/desflow/latest/integrations/ai-assistants/) checks the install and copies the skill for another assistant. `desflow mcp` serves the tools to any MCP client, as [MCP Server](https://jaehyeon.me/desflow/latest/integrations/mcp-server/) shows.
+
+An orchestrator runs a study as one task of a pipeline, and a later task reads the figures from the file that `desflow run --summary` writes:
+
+- [Airflow](https://jaehyeon.me/desflow/latest/integrations/airflow/): a DAG with a `BashOperator` that runs the study.
+- [Dagster](https://jaehyeon.me/desflow/latest/integrations/dagster/): an asset that runs the study and keeps the figures as metadata.
+- [Prefect](https://jaehyeon.me/desflow/latest/integrations/prefect/): a flow with a task that runs the study.
+- [Kestra](https://jaehyeon.me/desflow/latest/integrations/kestra/): a flow whose Python task runs the study in a container.
+
 ## Projects Using desflow
 
 Six public projects generate their data with desflow: four data engineering and MLOps demos in [benchtop](https://github.com/jaehyeon-kim/benchtop), the [Agentic Analytics System](https://github.com/jaehyeon-kim/agentic-analytics-system) and a [hot strip mill digital twin](https://github.com/jaehyeon-kim/oml-digital-twin-hotrolling). [Projects Using desflow](https://jaehyeon.me/desflow/latest/gallery/projects/) says what desflow simulates in each.

@@ -1,4 +1,4 @@
-"""Generate the desflow skill in `skills/desflow/` for AI coding assistants.
+"""Generate the desflow skill and the plugin that installs it, for AI coding assistants.
 
 The skill follows the Agent Skills specification (https://agentskills.io/specification):
 a folder with a `SKILL.md` and files it links to. The instructions are written by hand
@@ -11,9 +11,15 @@ connectors or the `local` example:
 
     uv run --all-extras python scripts/gen_skill.py
 
-`tests/docs/test_skill.py` fails when the committed folder differs from this output.
-The skill carries the desflow version from `pyproject.toml` and no date, so a release
-changes only the lines that hold the version.
+The skill is written to two folders with the same files: `skills/desflow/`, where
+`gh skill install` and a copy by hand take it from, and `plugin/skills/desflow/`, inside
+the plugin folder that Claude Code, Codex and Antigravity copy on install. The script
+also writes the plugin's manifests, its marketplace files and its MCP entry
+(`plugin_files`).
+
+`tests/docs/test_skill.py` and `tests/docs/test_plugin.py` fail when a committed file
+differs from this output. The skill and every manifest carry the desflow version from
+`pyproject.toml` and no date, so a release changes only the lines that hold the version.
 """
 
 import importlib.util
@@ -27,6 +33,10 @@ from typing import Dict, List
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "desflow"
+# Each tool copies only the plugin folder on install, and Antigravity refuses a symlink
+# that points outside it, so the plugin holds its own copy of the skill
+PLUGIN = ROOT / "plugin"
+SKILL_FOLDERS = (SKILL, PLUGIN / "skills" / "desflow")
 TEMPLATE = ROOT / "scripts" / "skill" / "SKILL.template.md"
 # Files written by hand under scripts/skill/ and copied into the skill as they are.
 # scripts/skill/evals/ is the skill's evaluation, which the skill does not ship
@@ -96,8 +106,10 @@ def template() -> str:
     text = TEMPLATE.read_text(encoding="utf-8")
     text = text.replace("{{version}}", version())
     # Links are written `](skill:references/...)` in the template, which sits in another
-    # folder than the skill; the `skill:` is dropped here so they resolve in the skill.
-    text = text.replace("](skill:", "](")
+    # folder than the skill. Each becomes a path from `${CLAUDE_SKILL_DIR}`, which Claude
+    # Code replaces with the skill's folder, because an agent that read a relative path
+    # from its working folder found no file.
+    text = text.replace("](skill:", "](${CLAUDE_SKILL_DIR}/")
     return text.replace("<!-- gen:sections -->", sections())
 
 
@@ -405,7 +417,7 @@ def apis() -> str:
 
 
 def files() -> Dict[str, str]:
-    """Every file of the skill, by its path under `skills/desflow/`."""
+    """Every file of the skill, by its path inside the skill's folder."""
     from desflow.blueprint.schema import schema_text
 
     return {
@@ -424,17 +436,109 @@ def files() -> Dict[str, str]:
     }
 
 
+PLUGIN_NAME = "desflow"
+PLUGIN_DESCRIPTION = (
+    "Adds the desflow agent skill and an MCP server whose tools write nothing, which "
+    "need desflow installed: uv tool install 'desflow[mcp]'."
+)
+PLUGIN_REPOSITORY = "https://github.com/jaehyeon-kim/desflow"
+PLUGIN_AUTHOR = "Jaehyeon Kim"
+# The logo's path from the plugin folder. Antigravity leaves out a path with a part
+# that starts with a dot, and Codex needs the `./` in front
+PLUGIN_LOGO = "./assets/logo.png"
+# The one MCP server entry. It has no --allow-changes, so the tools that run a model or
+# write files are not served. Claude Code and Codex read it inline from their
+# plugin.json, and Antigravity from mcp_config.json at the plugin root. A root
+# .mcp.json would also be the repository's own project MCP file, which every Claude
+# Code session in desflow would load.
+PLUGIN_MCP = {"mcpServers": {"desflow": {"command": "desflow", "args": ["mcp"]}}}
+
+
+def plugin_files(release: str = "") -> Dict[str, str]:
+    """
+    Render the plugin manifests, marketplace files and MCP entry for Claude Code,
+    Codex and Antigravity.
+
+    The manifests and the MCP entry sit in `plugin/`, the folder each tool copies on
+    install. The marketplace files sit at the repository root, where `marketplace add`
+    reads them, and point at `plugin/`.
+
+    Args:
+        release (str): The version to write. Defaults to the one in `pyproject.toml`.
+
+    Returns:
+        Dict[str, str]: Each file's path from the repository root and its content.
+    """
+    release = release or version()
+    base: Dict[str, object] = {
+        "name": PLUGIN_NAME,
+        "version": release,
+        "description": PLUGIN_DESCRIPTION,
+        "author": {"name": PLUGIN_AUTHOR},
+        "homepage": PLUGIN_REPOSITORY,
+        "repository": PLUGIN_REPOSITORY,
+        "license": "MIT",
+        "keywords": ["simulation", "simpy", "discrete-event", "mcp", "skill"],
+    }
+    # A marketplace entry with its own version would differ from the manifest's, which
+    # Claude Code's validate reports as a mismatch
+    entry = {"name": PLUGIN_NAME, "source": "./plugin"}
+    documents: Dict[str, object] = {
+        "plugin/.claude-plugin/plugin.json": {
+            **base,
+            "icon": PLUGIN_LOGO.removeprefix("./"),
+            **PLUGIN_MCP,
+        },
+        "plugin/.codex-plugin/plugin.json": {
+            **base,
+            **PLUGIN_MCP,
+            "interface": {
+                "displayName": PLUGIN_NAME,
+                "shortDescription": "Write, check and run SimPy simulation models",
+                "category": "Coding",
+                "logo": PLUGIN_LOGO,
+            },
+        },
+        "plugin/.antigravity-plugin/plugin.json": {
+            "name": PLUGIN_NAME,
+            "version": release,
+            "description": PLUGIN_DESCRIPTION,
+            "logo": PLUGIN_LOGO.removeprefix("./"),
+        },
+        "plugin/mcp_config.json": PLUGIN_MCP,
+        ".claude-plugin/marketplace.json": {
+            "name": PLUGIN_NAME,
+            "description": PLUGIN_DESCRIPTION,
+            "owner": {"name": PLUGIN_AUTHOR},
+            "plugins": [{**entry, "description": PLUGIN_DESCRIPTION}],
+        },
+        ".agents/plugins/marketplace.json": {"name": PLUGIN_NAME, "plugins": [entry]},
+    }
+    return {
+        path: json.dumps(document, indent=2) + "\n"
+        for path, document in documents.items()
+    }
+
+
 def main() -> None:
-    """Writes the skill folder, removing files it no longer generates."""
+    """Writes the skill to both folders, removing files it no longer generates, and
+    the plugin's files."""
     wanted = files()
-    for path in sorted(SKILL.rglob("*")) if SKILL.exists() else []:
-        if path.is_file() and path.relative_to(SKILL).as_posix() not in wanted:
-            path.unlink()
-    for name, text in wanted.items():
-        target = SKILL / name
+    for folder in SKILL_FOLDERS:
+        for path in sorted(folder.rglob("*")) if folder.exists() else []:
+            if path.is_file() and path.relative_to(folder).as_posix() not in wanted:
+                path.unlink()
+        for name, text in wanted.items():
+            target = folder / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+        print(f"Wrote {len(wanted)} files to {folder.relative_to(ROOT)}")
+    plugin = plugin_files()
+    for name, text in plugin.items():
+        target = ROOT / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text, encoding="utf-8")
-    print(f"Wrote {len(wanted)} files to {SKILL.relative_to(ROOT)}")
+    print(f"Wrote {len(plugin)} plugin files")
 
 
 if __name__ == "__main__":

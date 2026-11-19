@@ -213,6 +213,50 @@ jobs:
           DOCS_SHARD: ${{ matrix.group }}/5
         run: uv run --all-extras pytest tests/docs/ -q -n auto
 
+  # The plugin for Claude Code, Codex and Antigravity, which scripts/gen_skill.py
+  # writes. tests/docs/test_plugin.py checks the Codex files, which have no validate
+  # command, and that every manifest carries pyproject.toml's version. It runs with
+  # the docs tests, whose files include the plugin's.
+  plugin:
+    name: Plugin manifests
+    needs: [plan, lint]
+    if: needs.plan.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      # agy's strict check fails when the MCP server's command, desflow, is not on PATH.
+      - name: Install desflow
+        run: |
+          uv tool install .
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+
+      # Pinned to the version the manifests were checked with.
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code@2.1.326
+
+      # The documented installer takes no version, so this is the latest agy; the log
+      # records which version validated the manifests.
+      - name: Install agy
+        run: |
+          curl -fsSL https://antigravity.google/cli/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/agy" --version
+
+      - name: Validate the Claude Code plugin and marketplace
+        run: |
+          claude plugin validate --strict plugin/.claude-plugin/plugin.json
+          claude plugin validate --strict .
+
+      - name: Validate the Antigravity plugin
+        run: agy plugin validate --strict plugin
+
   # Every example, conformance blueprint and regression scenario runs unpaced on the
   # last release from PyPI and on this commit, and the records are compared. A
   # difference fails the job unless tests/regression/expected.yaml lists it with a
@@ -357,7 +401,7 @@ jobs:
   checks-passed:
     name: checks-passed
     if: always()
-    needs: [plan, lint, install-checks, unit-test, services, docs-build, regression-capture, regression]
+    needs: [plan, lint, install-checks, unit-test, services, docs-build, plugin, regression-capture, regression]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

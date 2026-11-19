@@ -26,8 +26,10 @@ jobs:
         run: uv python install 3.11
 
       # A release tagged v0.16.0 must publish version 0.16.0, or PyPI receives a version
-      # nobody released. The tag goes through env, not into the script text.
-      - name: Check the tag matches the package version
+      # nobody released. Each plugin manifest must carry the same version, or the
+      # plugin's users are not offered the update. The tag goes through env, not into
+      # the script text.
+      - name: Check the tag matches the package and plugin versions
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
@@ -36,6 +38,13 @@ jobs:
             echo "Release tag $TAG does not match v$VERSION in pyproject.toml"
             exit 1
           fi
+          for manifest in plugin/.*-plugin/plugin.json; do
+            PLUGIN=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' "$manifest")
+            if [ "$TAG" != "v$PLUGIN" ]; then
+              echo "Release tag $TAG does not match v$PLUGIN in $manifest"
+              exit 1
+            fi
+          done
 
       - name: Build Wheel and sdist
         run: uv build

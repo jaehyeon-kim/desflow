@@ -649,6 +649,12 @@ A drain waits for a task's `on:` actions and for the `on:` actions of signals it
 
 ---
 
+## Stability and Limits
+
+- **A condition is checked after every change.** A `condition` branch is checked again after every change it can read, which the table in [Wait, Signals and Child Flows](#wait-signals-and-child-flows) lists, and so is the `check` of `env.watch_changes` in the low-level API. In a model with many waits on conditions and many changes, the work grows in proportion to both.
+
+---
+
 ## Example: Process Events
 
 The `process-events` example combines the event features of this page:

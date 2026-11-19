@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 EXPECTED = ["YAML", "Builder", "Low-level"]
 # Tab sets that are not about the way a simulation is written.
-OTHER_SETS = [["uv", "pip"]]
+OTHER_SETS = [["uv", "pip"], ["Claude Code", "Codex", "Antigravity"]]
 # A SimPy Examples page shows SimPy's own file after the three forms, in its Full Files
 # (owner, 30 Oct 2026), so the shared tabs keep their names and order.
 SIMPY_EXAMPLES = ROOT / "docs" / "simpy" / "examples"

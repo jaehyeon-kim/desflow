@@ -18,6 +18,11 @@ test that runs its files:
   each snippet and asserts what its page shows.
 - `docs/snippets/ai/`: test_docs_ai.py runs the three forms of the drafted shop with
   the skill's check, and its tests and experiment, and asserts what the pages show.
+- `docs/snippets/orchestrators/`: test_docs_orchestrators.py runs the Airflow,
+  Dagster and Prefect files with their orchestrator and the Kestra flow's command, and
+  asserts the figures the Integrations pages show.
+- `docs/snippets/integrations/`: test_docs_mcp_server.py runs the MCP Server page's
+  two scripts against `desflow mcp` and asserts what the page shows.
 - `docs/snippets/yaml/` and `yaml_build/`: test_docs_snippets.py runs or builds each
   blueprint that test_docs_tutorials.py and test_docs_guides.py do not run.
 """
@@ -78,6 +83,8 @@ def test_snippet_folders_are_all_run():
         "simpy",
         "generate-data",
         "ai",
+        "orchestrators",
+        "integrations",
     }
     folders = {
         p.name for p in SNIPPETS.iterdir() if p.is_dir() and p.name != "__pycache__"
