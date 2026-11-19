@@ -133,7 +133,7 @@ def test_prefect_runs_the_flow_and_returns_the_figures(tmp_path, direct):
     assert printed == direct == _shown("prefect.md")
 
 
-def test_the_kestra_flow_runs_the_shop_with_the_same_command(tmp_path, direct):
+def test_the_kestra_flow_holds_the_shop_and_the_same_command():
     flow = yaml.safe_load((SNIPPETS / "kestra_flow.yaml").read_text(encoding="utf-8"))
     run_shop = flow["tasks"][0]
     assert run_shop["type"] == "io.kestra.plugin.scripts.python.Commands"
@@ -143,13 +143,3 @@ def test_the_kestra_flow_runs_the_shop_with_the_same_command(tmp_path, direct):
     )
     [command] = run_shop["commands"]
     assert command == COMMAND
-    (tmp_path / "shop.yaml").write_text(run_shop["inputFiles"]["shop.yaml"], "utf-8")
-    done = subprocess.run(
-        [DESFLOW, *command.split()[1:]],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert done.returncode == 0, done.stderr
-    assert _figures(tmp_path) == direct

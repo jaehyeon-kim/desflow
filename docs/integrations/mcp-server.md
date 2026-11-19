@@ -1,6 +1,6 @@
 # MCP Server
 
-`desflow mcp` serves the desflow commands as tools to an AI assistant on the same machine. MCP, the Model Context Protocol, lets an assistant find the tools of a server and call them, each with named parameters. The assistant's MCP client starts `desflow mcp` as a process and exchanges messages with it over the process's standard input and output. Each tool runs the desflow command of the same name, in the server's process, so it checks and refuses its arguments as the command does.
+`desflow mcp` serves the desflow commands as tools to an AI assistant on the same machine. MCP, the Model Context Protocol, lets an assistant find the tools of a server and call them, each with named parameters. The assistant's MCP client starts `desflow mcp` as a process and exchanges messages with it over the process's standard input and output. Each tool runs one desflow command, named in the tables below, in the server's process, so it checks and refuses its arguments as the command does.
 
 The [plugin](ai-assistants.md) starts the server for Claude Code, Codex and Antigravity, with the [skill](../ai/index.md). This page sets the server up for another assistant, or for one without the plugin, and calls its tools from a Python script.
 
@@ -46,7 +46,7 @@ A tool that returns a JSON document gives it as the result's structured content 
 
 ## Tools That Write
 
-`desflow mcp --allow-changes` also offers four tools, and two parameters of the tools above:
+`desflow mcp --allow-changes` also offers four tools, and three parameters of two tools above:
 
 | Tool | Command | Returns |
 |---|---|---|
@@ -55,7 +55,7 @@ A tool that returns a JSON document gives it as the result's structured content 
 | `report` | `desflow report` | what the command prints |
 | `get_example` | `desflow examples get` | what the command prints |
 
-`test` gains `fix`, which writes the statistics into the expected values that differ, and `fit` gains `out` and `plot`, which write the best fit and a picture of the fits. A run sends its records to the blueprint's sinks, such as a Kafka topic or a table, and the other tools write files. The server marks these tools as destructive and the others as read-only, so a client can ask before it runs one. The plugin starts the server without the option. Add the option to an assistant's settings only for a project whose sinks it may write to. An option shows in those settings, where anyone can see it.
+`test` gains `fix`, which writes the statistics into the expected values that differ, and `fit` gains `out` and `plot`, which write the best fit and a picture of the fits. A run sends its records to the blueprint's sinks, such as a Kafka topic or a table, and the other tools write files. The server marks the four tools, and `test` and `fit` when it offers their writing parameters, as destructive, and the others as read-only, so a client can ask before it runs one. The plugin starts the server without the option. Add the option to an assistant's settings only for a project whose sinks it may write to. The option is part of the server's entry in the assistant's settings, so a project that shares that file shares the option.
 
 [Write the Result to a File](../user-guide/results/replications.md#write-the-result-to-a-file) lists the keys of the `run` tool's document.
 

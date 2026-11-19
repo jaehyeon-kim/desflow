@@ -65,6 +65,19 @@ def test_one_entry_is_current_and_it_is_the_next_release():
     assert _version(now[0]) == min(versions)
 
 
+def test_every_planned_release_names_its_issues():
+    """Every planned release names its issues, except 1.1.0, which has none (owner,
+    19 Nov 2026)."""
+    missing = [
+        title
+        for title, body in _ENTRIES
+        if _version(title)
+        and _version(title) != (1, 1, 0, 1, 0)
+        and not re.search(r"/issues/\d+\)", body)
+    ]
+    assert missing == []
+
+
 def test_every_issue_a_planned_release_names_is_a_link():
     """A planned release may have no issue, as 1.1.0 has none (owner, 19 Nov 2026),
     but each issue it names, `#N`, links to that issue."""

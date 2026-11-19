@@ -57,7 +57,7 @@ desflow run shop.yaml --var PACKERS=3 --until 3600 --seed 7 --summary result.jso
 
 desflow logs to stderr and prints no result to stdout in a single run, so a later task reads the figures from the file that `--summary` writes, not from the output. Airflow, for example, keeps only the last line of a command's output, which is a desflow log line. [Write the Result to a File](../user-guide/results/replications.md#write-the-result-to-a-file) lists the file's keys.
 
-Each page reads three rows of the file's `statistics` list:
+The Airflow, Dagster and Prefect pages read three rows of the file's `statistics` list, and the Kestra page logs the whole file:
 
 - `tasks.pack.finished`: the orders packed.
 - `tasks.pack.wait_mean`: the mean wait for a packer, in seconds.
@@ -65,4 +65,4 @@ Each page reads three rows of the file's `statistics` list:
 
 The fixed seed gives every orchestrator the same figures as the command run in a terminal.
 
-The command exits with 0 when the run finishes, 1 when the blueprint or a file is refused, and 2 when an option is refused. Each orchestrator fails its task on any code other than 0. A run stopped by Ctrl+C or SIGTERM, which Airflow sends when it stops a task, flushes its sinks and writes no summary. A later task then finds no file, rather than the result of an earlier run.
+The command exits with 0 when the run finishes or is stopped by Ctrl+C or SIGTERM, 1 when the blueprint or a file is refused, and 2 when an option is refused. Each orchestrator fails its task on any code other than 0. A stopped run flushes its sinks and writes no summary, so the task that reads `result.json` fails, not the task that ran desflow.

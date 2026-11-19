@@ -18,7 +18,7 @@ Run a desflow study as a Kestra flow, and keep its result as an output file. The
 
 The `run_shop` task is an `io.kestra.plugin.scripts.python.Commands` task. Kestra runs it in a new `python:3.13-slim` container, with the folder Kestra prepares for the task as the working folder:
 
-- `beforeCommands` installs desflow with pip, which puts the `desflow` command on the container's `PATH`. The task's `dependencies` list is not used, because it installs packages for Python code into a separate folder, and the `desflow` command was then not found.
+- `beforeCommands` installs desflow with pip, which puts the `desflow` command on the container's `PATH`. The task's `dependencies` list is not used, because it installs packages for Python code and does not put their commands on the `PATH`.
 - `inputFiles` writes `shop.yaml` into the working folder. It holds the blueprint of the overview page, so the flow needs no other file.
 - `commands` runs the command, and a non-zero exit fails the task.
 - `outputFiles` keeps `result.json` in Kestra's storage after the container is removed.
@@ -111,16 +111,16 @@ curl -sf -u "$LOGIN" -X POST \
 The last command prints the execution's id and its state, which is `SUCCESS` when both tasks succeed. The id differs on each run:
 
 ```text
-VUNTN3Mk5UjnVdBRLXyRM SUCCESS
+2wANPoP5mcql0TtBrQBXIq SUCCESS
 ```
 
-Kestra's web page at http://localhost:8080 shows the execution, with the log of `read_result`, which holds `result.json`, and the file itself under the outputs of `run_shop`. The three figures in that file are the figures of the command run in a terminal:
+Kestra's web page at http://localhost:8080 shows the execution, with the log of `read_result`, which holds `result.json`, and the file itself under the outputs of `run_shop`. The three figures in that file are the figures of the command run in a terminal. They are these three entries of its `statistics` list:
 
-```text
-{'resources.packers.utilization_avg': 49.47475468873524, 'tasks.pack.finished': 1775, 'tasks.pack.wait_mean': 0.25614739363776756}
+```json
+{"statistic": "resources.packers.utilization_avg", "unit": "percent", "population": "time average", "value": 49.47475468873524}
+{"statistic": "tasks.pack.finished", "unit": "count", "population": "count over the horizon", "value": 1775}
+{"statistic": "tasks.pack.wait_mean", "unit": "s", "population": "started instances", "value": 0.25614739363776756}
 ```
-
-The task's container ran Python 3.13.15 and NumPy 2.5.5, and the run in a terminal ran Python 3.12.13 and NumPy 2.5.4.
 
 Stop Kestra when you are done. `--rm` removes the container, with the flow and its executions:
 
