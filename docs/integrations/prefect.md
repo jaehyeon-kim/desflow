@@ -13,6 +13,7 @@ Run a desflow study as a task of a Prefect flow, and return its figures from the
     pip install "desflow>=1.1" prefect
     ```
 
+- Run the flow with that environment active, because the `run_shop` task starts the `desflow` command found on `PATH`.
 - Put `shop.yaml` and `prefect_flow.py` in one folder.
 
 ---

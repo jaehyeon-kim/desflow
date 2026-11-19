@@ -65,4 +65,4 @@ The Airflow, Dagster and Prefect pages read three rows of the file's `statistics
 
 The fixed seed gives every orchestrator the same figures as the command run in a terminal.
 
-The command exits with 0 when the run finishes or is stopped by Ctrl+C or SIGTERM, 1 when the blueprint or a file is refused, and 2 when an option is refused. Each orchestrator fails its task on any code other than 0. A stopped run flushes its sinks and writes no summary, so the task that reads `result.json` fails, not the task that ran desflow.
+The command exits with 0 when the run finishes or is stopped by Ctrl+C or SIGTERM, 1 when the blueprint cannot be loaded, and 2 when a file is missing or an option is refused. Each orchestrator fails its task on any code other than 0. A stopped run flushes its sinks and writes no summary, so the task that reads `result.json` fails, not the task that ran desflow.

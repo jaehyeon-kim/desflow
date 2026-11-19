@@ -642,6 +642,6 @@ A measure is not compared in these cases:
 - **Inputs are files.** `run` reads a blueprint, or a builder file with `--sample` (not with `--stdout`, `--var` or `--watch`), `check` a blueprint or a builder file, `test` a blueprint or a builder file with a `tests.yaml`, `explain` a blueprint or a builder file with a module-level `SimulationContext`, `experiment` an experiment file, and `fit` a CSV file. For a Python model, use `replicate` and `run_experiment`, as [Replications](../user-guide/results/replications.md) shows.
 - **Examples need the network.** `examples get` downloads from GitHub at the installed release's tag. `--ref` picks another tag or branch.
 - **`explain --json` is experimental.** Its shape can change in 1.x, and `schema_version` changes with it.
-- **Exit statuses:** 0 on success, 1 on a failure, 2 on a usage error.
+- **Exit statuses:** 0 on success, 1 on a failure, 2 on a usage error. A `run` stopped by Ctrl+C or SIGTERM flushes its sinks, writes no `--summary` file and exits with 0.
     - **1:** `run`, `check`, `test` or `explain` cannot load the file, a `test` differs from the measured statistics, an `experiment` check fails (its files are still written), `fit` finds no usable family, or `dist` has no formula from a mean and a standard deviation for the family.
     - **2:** a missing file, an option value that is not valid such as `--until abc`, a value that is not a number in a `fit` column, or an experiment file that is not valid.

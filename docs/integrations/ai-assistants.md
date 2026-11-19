@@ -62,7 +62,7 @@ The skill is named `desflow:desflow` in Claude Code and Codex, which join the pl
 
 === "Claude Code"
 
-    `claude plugin list` shows `desflow@desflow` as enabled, and `claude plugin details desflow` lists the skill and the MCP server.
+    `claude plugin list` shows `desflow@desflow` as enabled, and `claude plugin details desflow` lists the skill and the MCP server. `claude mcp list` shows the server as `plugin:desflow:desflow`, and each tool is named `mcp__plugin_desflow_desflow__<tool>` in permission settings and `--allowedTools`, such as `mcp__plugin_desflow_desflow__check`.
 
 === "Codex"
 
