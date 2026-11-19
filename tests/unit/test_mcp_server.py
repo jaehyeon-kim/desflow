@@ -326,6 +326,20 @@ def test_a_refused_call_returns_the_message_of_the_command(
     assert message in result.content[0].text
 
 
+def test_a_single_run_with_no_end_time_is_refused(folder):
+    """A run that never ends would hold the server's lock, so every later call would
+    wait; the tool refuses it as replications are refused, and a given until runs."""
+    shop = (folder / "shop.yaml").read_text(encoding="utf-8")
+    (folder / "endless.yaml").write_text(
+        shop.replace("run: {until: 10 min}", ""), encoding="utf-8"
+    )
+    result = _call("run", {"file": "endless.yaml"}, allow_changes=True)
+    assert result.is_error
+    assert "a run needs an end time" in result.content[0].text
+    result = _call("run", {"file": "endless.yaml", "until": "1 min"}, True)
+    assert not result.is_error, result.content[0].text
+
+
 def test_the_protocol_stream_holds_only_messages(folder):
     """`desflow mcp` is started as a client starts it, and runs a model whose Console
     sink prints records. Nothing reaches stdout outside the messages: before the first

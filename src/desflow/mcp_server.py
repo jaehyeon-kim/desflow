@@ -118,6 +118,37 @@ def _run(arguments: List[str]) -> _Printed:
     return _Printed(out.getvalue(), err.getvalue())
 
 
+def _has_no_end(file: str, variables: Optional[Dict[str, str]]) -> bool:
+    """
+    Whether a single run of the file would never end: its blueprint sets neither
+    `run.until` nor `run.stop`.
+
+    Args:
+        file: The blueprint or builder file the `run` tool was given.
+        variables: The tool's `variables`, which fill `${NAME}` in the file.
+
+    Returns:
+        bool: True when the run has no end. False also when the file cannot be
+        built, so the command reports that error itself.
+    """
+    from desflow.builder.context import parts_of
+    from desflow.loading import load_context
+
+    path = Path(file)
+    try:
+        with (
+            _lock,
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+            _command_logging(),
+        ):
+            context = load_context(path.parent, path.name, None, variables)
+    except (Exception, SystemExit):
+        return False
+    defaults = parts_of(context).defaults
+    return defaults.until is None and defaults.stop is None
+
+
 def _document(text: str) -> CallToolResult:
     """A JSON document a command printed or wrote, as the tool's structured content."""
     document = json.loads(text)
@@ -390,6 +421,12 @@ def _add_changes(server: MCPServer) -> None:
         variables: Optional[Dict[str, str]] = None,
     ) -> CallToolResult:
         """Runs the blueprint and returns the document `--summary` writes."""
+        if replications is None and until is None and _has_no_end(file, variables):
+            # A call that never returns would hold the lock, and every later call
+            # would wait; replications refuse the same model in the command
+            raise ToolError(
+                "a run needs an end time: pass until, or set run.until in the blueprint"
+            )
         arguments = ["run", file]
         arguments += _options(
             until=until, seed=seed, drain=drain, replications=replications

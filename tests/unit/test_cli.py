@@ -80,19 +80,22 @@ def _stop_with_sigterm(context):
         ),
     ],
 )
+@pytest.mark.parametrize("method", ["start", "finish"])
 def test_ctrl_c_and_sigterm_log_and_exit_0_with_no_summary(
-    tmp_path, monkeypatch, caplog, stop
+    tmp_path, monkeypatch, caplog, stop, method
 ):
-    """SIGTERM stops a run as Ctrl+C does, and a stopped run writes no summary."""
+    """SIGTERM stops a run as Ctrl+C does, while the model starts or runs, and a
+    stopped run writes no summary."""
     path = tmp_path / "shop.yaml"
     path.write_text(SHOP, encoding="utf-8")
     summary = tmp_path / "summary.json"
 
-    def interrupted(self):
-        self.close()
+    def interrupted(self, *args, **kwargs):
+        if method == "finish":
+            self.close()
         stop(self)
 
-    monkeypatch.setattr(SimulationContext, "finish", interrupted)
+    monkeypatch.setattr(SimulationContext, method, interrupted)
     handler = signal.getsignal(signal.SIGTERM)
     with caplog.at_level(logging.INFO, logger="desflow.cli"):
         result = CliRunner().invoke(app, ["run", str(path), "--summary", str(summary)])

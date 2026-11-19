@@ -353,6 +353,7 @@ def _run_once(path: str, options: _RunOptions) -> None:
             _replicate(file, replications, context, stop_at, options)
         return
     stats = level_for(None) if options.summary is not None else None
+    no_events = stopped = False
     try:
         context.start(until=stop_at, drain=True if drain else None, stats=stats)
     except ValueError as exc:
@@ -360,9 +361,14 @@ def _run_once(path: str, options: _RunOptions) -> None:
         # until, is reported as a blueprint error is; an error inside the run keeps
         # its traceback
         fail(str(exc))
-    no_events = stopped = False
+    except KeyboardInterrupt:
+        # Stopped while the model starts: start() has already stopped the
+        # connectors, so the run ends as one stopped later does
+        logger.info("Simulation stopped by user.")
+        stopped = True
     try:
-        context.finish()
+        if not stopped:
+            context.finish()
     except KeyboardInterrupt:
         logger.info("Simulation stopped by user.")
         stopped = True

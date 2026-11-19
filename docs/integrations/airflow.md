@@ -106,7 +106,7 @@ Airflow logs each task as it runs, with desflow's log lines inside `run_shop`'s 
 {'resources.packers.utilization_avg': 49.47475468873524, 'tasks.pack.finished': 1775, 'tasks.pack.wait_mean': 0.25614739363776756}
 ```
 
-Three packers packed 1775 orders in the hour, and an order waited 0.26 seconds for a packer on average. These are the figures of the command run in a terminal. After the line, Airflow 3.4.0 logs a `MissingGreenlet` error while it closes its SQLite connection at exit. The DAG run has finished by then, and the script exits with 0.
+Three packers packed 1775 orders in the hour, and an order waited 0.26 seconds for a packer on average. These are the figures of the command run in a terminal.
 
 In a deployed Airflow, the scheduler runs the DAG instead of `python airflow_dag.py`, and each worker that runs `run_shop` needs desflow installed and the two files in its DAGs folder. Passing `result.json` between the two tasks needs both on one machine, such as the `LocalExecutor` or a single worker, and a DAGs folder that Airflow can write to. With several workers, `run_shop` writes its summary to storage that both tasks read, or the two tasks become one task. Two runs of the DAG at the same time share one file, so each run writes its own, such as `result-{{ run_id }}.json`.
 
