@@ -55,6 +55,9 @@ def test_a_pull_request_tests_the_lowest_pydantic_on_python_3_11():
             for test in ci_plan.NEWEST_PYDANTIC_ONLY:
                 assert f"--deselect {test}" in leg["pytest_args"]
                 assert (SCRIPT.parents[1] / test.split("::")[0]).is_file()
+            for test in ci_plan.ABOVE_THE_FLOOR:
+                assert f"--ignore {test}" in leg["pytest_args"]
+                assert (SCRIPT.parents[1] / test).is_file()
         else:
             assert leg["uv_args"] == "" and leg["pytest_args"] == ""
     for leg in _plan("manual", [])["unit"]["include"]:

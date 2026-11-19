@@ -64,6 +64,9 @@ NEWEST_PYDANTIC_ONLY = [
     "tests/unit/test_explain.py::test_json_validates_and_the_committed_schema_is_current",
     "tests/unit/test_public_api.py::test_public_api_matches_the_snapshot",
 ]
+# Tests of an extra whose package needs a newer Pydantic than the floor: the `mcp`
+# SDK 2.3.0 requires pydantic>=2.12.0, so `desflow[mcp]` never installs with the floor
+ABOVE_THE_FLOOR = ["tests/unit/test_mcp_server.py"]
 PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 # Files no code job reads, whose change alone runs only the docs jobs. The pages and
@@ -146,7 +149,12 @@ def _leg(os: str, python: str, everything: bool, floor: bool = False) -> List[Di
     setting = ", lowest Pydantic" if floor else ""
     uv_args = f"--with pydantic=={pydantic_floor()}" if floor else ""
     pytest_args = (
-        " ".join(f"--deselect {t}" for t in NEWEST_PYDANTIC_ONLY) if floor else ""
+        " ".join(
+            [f"--deselect {t}" for t in NEWEST_PYDANTIC_ONLY]
+            + [f"--ignore {t}" for t in ABOVE_THE_FLOOR]
+        )
+        if floor
+        else ""
     )
     return [
         {

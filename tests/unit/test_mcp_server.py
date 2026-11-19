@@ -357,6 +357,18 @@ def test_a_file_name_that_looks_like_an_option_stays_a_file_name(folder):
     assert (folder / "shop.yaml").read_text(encoding="utf-8") == before
 
 
+def test_a_tool_gives_its_text_without_colour_codes(folder, monkeypatch):
+    """Typer writes colour codes when GITHUB_ACTIONS, FORCE_COLOR or PY_COLORS is set;
+    a tool's text has none, so a client reads the message as the CLI prints it."""
+    import typer.rich_utils
+
+    monkeypatch.setattr(typer.rich_utils, "FORCE_TERMINAL", True)
+    result = _call("test", {"files": ["shop.yaml", "--fix"]})
+    assert result.is_error
+    assert "\x1b" not in result.content[0].text
+    assert "--fix" in result.content[0].text
+
+
 def test_a_single_run_with_no_end_time_is_refused(folder):
     """A run that never ends would hold the server's lock, so every later call would
     wait; the tool refuses it as replications are refused, and a given until runs."""

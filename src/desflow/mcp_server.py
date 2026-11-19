@@ -17,6 +17,7 @@ import contextlib
 import io
 import json
 import logging
+import re
 import tempfile
 import threading
 from pathlib import Path
@@ -29,6 +30,10 @@ from mcp.types import CallToolResult, TextContent, ToolAnnotations
 # One tool runs at a time: the redirect of stdout and stderr, and the logging set up
 # by the command, belong to one call
 _lock = threading.Lock()
+
+# A terminal control sequence, such as the colour codes Typer's Rich console writes
+# when GITHUB_ACTIONS, FORCE_COLOR or PY_COLORS is set (typer.rich_utils.FORCE_TERMINAL)
+_CONTROL = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 _READ_ONLY = ToolAnnotations(read_only_hint=True)
 _WRITES = ToolAnnotations(read_only_hint=False, destructive_hint=True)
@@ -112,10 +117,14 @@ def _run(arguments: List[str]) -> _Printed:
             # message
             code = 1
             err.write(f"{type(exc).__name__}: {exc}\n")
+    # A client reads the text, not a terminal, so the tool gives it without colour
+    printed = _Printed(
+        _CONTROL.sub("", out.getvalue()), _CONTROL.sub("", err.getvalue())
+    )
     if code not in (0, None):
-        text = _Printed(out.getvalue(), err.getvalue()).text()
+        text = printed.text()
         raise ToolError(text or f"desflow {arguments[0]} exited with code {code}.")
-    return _Printed(out.getvalue(), err.getvalue())
+    return printed
 
 
 def _has_no_end(file: str, variables: Optional[Dict[str, str]]) -> bool:
