@@ -29,8 +29,9 @@ The control dashboard of the [Kafka Digital Twin](gallery/simulation-models/kafk
 | [Records](reference/records-and-telemetry.md) | an event for each step of each entity, telemetry with the statistics, and label records that hold the ground truth of each planned change. Records are JSON, Avro, JSON Schema or Protobuf through the Confluent or AWS Glue Schema Registry, or Pydantic models. |
 | [Connectors](user-guide/live-runs-and-connectors/egress.md) | several sinks in one run, each with its own filter: Kafka, including SASL, mTLS, OAuth and AWS IAM clusters, Redis, PostgreSQL, Parquet or JSONL files on local disk, S3-compatible storage, Google Cloud Storage or Azure Blob Storage, and Iceberg tables. A connector of your own is one class. |
 | [Studies](user-guide/results/statistics.md) | built-in statistics with a warm-up, replications with a 95% interval for each statistic, experiments that compare designs with the same random numbers and write a report, a check against the queueing formulas before a long run, and distributions fitted to measured times |
-| [Tools](ai/index.md) | the `desflow` command, a JSON Schema that gives an editor completion for blueprints, and a skill with which an AI coding assistant writes and checks blueprints |
-| [Integrations](integrations/index.md) | a study run as a task of Airflow, Dagster, Prefect or Kestra, and a plugin that gives Claude Code, Codex or Antigravity the skill and the desflow commands as MCP tools |
+| [Tools](cli/index.md) | the `desflow` command, and a JSON Schema that gives an editor completion for blueprints |
+| [Integrations](integrations/index.md) | a study run as a task of Airflow, Dagster, Prefect or Kestra, and a later task that reads the figures from the file the run writes |
+| [AI Assistants](ai/index.md) | a plugin for Claude Code, Codex or Antigravity that installs the desflow skill, with which an assistant writes, checks and runs models, and the `desflow mcp` server, which gives it the desflow commands as tools |
 
 ## Commands
 
