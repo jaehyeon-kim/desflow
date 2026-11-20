@@ -167,7 +167,7 @@ codex plugin add desflow@desflow
 agy plugin install https://github.com/jaehyeon-kim/desflow
 ```
 
-[AI Assistants](https://jaehyeon.me/desflow/latest/integrations/ai-assistants/) checks the install and copies the skill for another assistant. `desflow mcp` serves the tools to any MCP client, as [MCP Server](https://jaehyeon.me/desflow/latest/integrations/mcp-server/) shows.
+[Plugin](https://jaehyeon.me/desflow/latest/ai/plugin/) checks the install and copies the skill for another assistant. `desflow mcp` serves the tools to any MCP client, as [MCP Server](https://jaehyeon.me/desflow/latest/ai/mcp-server/) shows.
 
 An orchestrator runs a study as one task of a pipeline, and a later task reads the figures from the file that `desflow run --summary` writes:
 

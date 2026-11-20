@@ -1,6 +1,6 @@
 # Integrations
 
-desflow runs from the tools people already use. An orchestrator such as Airflow runs a study as one task of a pipeline. An AI assistant installs the desflow plugin, which gives it the skill and the desflow commands as tools.
+desflow runs from the tools people already use. An orchestrator such as Airflow runs a study as one task of a pipeline. An AI assistant gets the skill and the desflow commands from the plugin, which [AI Assistants](../ai/index.md) describes.
 
 ---
 
@@ -12,8 +12,6 @@ desflow runs from the tools people already use. An orchestrator such as Airflow 
 | [Dagster](dagster.md) | an asset that runs the shop through `PipesSubprocessClient` and keeps the figures as metadata |
 | [Prefect](prefect.md) | a flow with a task that runs the shop and a task that reads its result |
 | [Kestra](kestra.md) | a flow whose Python task installs desflow in a container and runs the shop |
-| [MCP Server](mcp-server.md) | `desflow mcp`, which serves the desflow commands as tools to an assistant on the same machine |
-| [AI Assistants](ai-assistants.md) | the plugin for Claude Code, Codex and Antigravity, which installs the skill and the MCP server |
 
 ---
 

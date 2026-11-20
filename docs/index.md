@@ -65,7 +65,7 @@ A new reader follows one path: [Installation](installation.md), then [What Is DE
 | Fit service times to measured data | [Fitting the Inputs](learn/inputs/fit-the-inputs.md) |
 | Move a SimPy model to desflow | [Coming from SimPy](simpy/coming-from-simpy.md) |
 | Run a study from Airflow, Dagster, Prefect or Kestra | [Integrations](integrations/index.md) |
-| Give an AI assistant the skill and the desflow commands | [AI Assistants](integrations/ai-assistants.md) |
+| Give an AI assistant the skill and the desflow commands | [AI Assistants](ai/index.md) |
 | Find every option of a part of desflow | [User Guide](user-guide/index.md) |
 | Do one task, step by step | [How-To](how-to/index.md) |
 | Look up a YAML key or a class | [YAML Keys](reference/yaml-keys.md) and [API Reference](reference/api.md) |

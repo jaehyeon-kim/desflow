@@ -5,8 +5,10 @@
 (function () {
   var MOVED = {
   "ai/": {
-    "install-the-skill": "integrations/ai-assistants/#install-the-plugin",
-    "check-the-install": "integrations/ai-assistants/#check-the-install"
+    "install-the-skill": "ai/plugin/#install-the-plugin",
+    "check-the-install": "ai/plugin/#check-the-install",
+    "tasks": "ai/agent-skill/#tasks",
+    "sources": "ai/agent-skill/#sources"
   },
   "reference/yaml-keys/": {
     "running-a-blueprint": "user-guide/writing-a-model/blueprints/#preview-the-records",

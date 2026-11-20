@@ -1,6 +1,6 @@
-# AI Assistants
+# Plugin
 
-The desflow plugin adds the [skill](../ai/index.md) and the [MCP server](mcp-server.md) to Claude Code, Codex or Antigravity with one install. The skill gives the assistant the rules of the library, and the server gives it the desflow commands as tools. The plugin starts the server as `desflow mcp`, without `--allow-changes`, so the assistant gets the tools that write nothing.
+The desflow plugin adds the [skill](agent-skill.md) and the [MCP server](mcp-server.md) to Claude Code, Codex or Antigravity with one install. The skill gives the assistant the rules of the library, and the server gives it the desflow commands as tools. The plugin starts the server as `desflow mcp`, without `--allow-changes`, so the assistant gets the tools that write nothing.
 
 The repository holds the plugin in `plugin/`: a manifest for each tool, the MCP entry, a logo and a copy of `skills/desflow/`. `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` at the repository root point at that folder. Each tool copies the plugin folder, about 780 KB, into its own plugin folder. Claude Code and Codex also keep a copy of the repository, from which they read the marketplace file.
 

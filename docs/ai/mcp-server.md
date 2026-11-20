@@ -2,7 +2,7 @@
 
 `desflow mcp` serves the desflow commands as tools to an AI assistant on the same machine. MCP, the Model Context Protocol, lets an assistant find the tools of a server and call them, each with named parameters. The assistant's MCP client starts `desflow mcp` as a process and exchanges messages with it over the process's standard input and output. Each tool runs one desflow command, named in the tables below, in the server's process, so it checks and refuses its arguments as the command does.
 
-The [plugin](ai-assistants.md) starts the server for Claude Code, Codex and Antigravity, with the [skill](../ai/index.md). This page sets the server up for another assistant, or for one without the plugin, and calls its tools from a Python script.
+The [plugin](plugin.md) starts the server for Claude Code, Codex and Antigravity, with the [skill](agent-skill.md). This page sets the server up for another assistant, or for one without the plugin, and calls its tools from a Python script.
 
 ---
 
@@ -159,7 +159,7 @@ get_example: Download an example into <dest>/<name>/<api>/ at the installed rele
 
 ## Run a Model Through the Tools
 
-This script checks the shop of [Integrations](index.md#one-shop-for-every-orchestrator), reads the tuning hints from its explanation, and runs it with three packers for an hour. It starts the server with `--allow-changes`, because `run` writes. Save it as `mcp_example.py` beside `shop.yaml`:
+This script checks the shop of [Integrations](../integrations/index.md#one-shop-for-every-orchestrator), reads the tuning hints from its explanation, and runs it with three packers for an hour. It starts the server with `--allow-changes`, because `run` writes. Save it as `mcp_example.py` beside `shop.yaml`:
 
 ```python title="docs/snippets/integrations/mcp_example.py"
 import anyio

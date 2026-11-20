@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PAGE = ROOT / "docs" / "integrations" / "mcp-server.md"
+PAGE = ROOT / "docs" / "ai" / "mcp-server.md"
 SNIPPETS = ROOT / "docs" / "snippets" / "integrations"
 COMMANDS = (SNIPPETS / "commands.sh").read_text(encoding="utf-8")
 

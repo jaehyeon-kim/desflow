@@ -1,4 +1,4 @@
-# Commands from docs/integrations/mcp-server.md and ai-assistants.md.
+# Commands from docs/ai/mcp-server.md and plugin.md.
 # tests/docs/test_docs_mcp_server.py runs list-tools, list-tools-changes and
 # run-example. The others install a tool globally, write to the user's home folder or
 # need Claude Code, Codex, Antigravity or the GitHub CLI, which the tests do not have.
