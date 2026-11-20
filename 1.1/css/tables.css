@@ -1,0 +1,9 @@
+/* Every table is the full width of the page. Material shows a table as an inline
+   block as wide as its text, so a table with short cells was narrow and one with
+   long cells filled the page. A table wider than the page still scrolls inside
+   Material's scrolling container. */
+.md-typeset__table,
+.md-typeset table:not([class]) {
+  display: table;
+  width: 100%;
+}
