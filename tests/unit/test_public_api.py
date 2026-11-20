@@ -230,7 +230,7 @@ def _outside_message(path: Path, found: Any) -> str:
 
 def test_docs_examples_and_the_skill_import_only_from_promised_paths():
     wrong = []
-    for folder in ("docs", "examples", "skills/desflow"):
+    for folder in ("docs", "examples", "skills/desflow", "plugin/skills/desflow"):
         for path in sorted((ROOT / folder).rglob("*.py")):
             if "__pycache__" in path.parts:
                 continue

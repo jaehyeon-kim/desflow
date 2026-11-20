@@ -1,8 +1,9 @@
 """The desflow skill in `skills/desflow/` follows the code and the Agent Skills
 specification (https://agentskills.io/specification).
 
-`scripts/gen_skill.py` writes the folder. These tests fail when the committed folder
-differs from its output, when it leaves out a section, a distribution or a connector,
+`scripts/gen_skill.py` writes the folder, and the same files to the plugin's copy in
+`plugin/skills/desflow/`. These tests fail when either committed folder differs from
+its output, when it leaves out a section, a distribution or a connector,
 when its frontmatter breaks the specification, or when it stops teaching a study.
 """
 
@@ -39,14 +40,24 @@ def _frontmatter(text: str) -> dict:
     return yaml.safe_load(match.group(1))
 
 
-def test_committed_skill_is_current():
+@pytest.mark.parametrize(
+    "folder",
+    gen_skill.SKILL_FOLDERS,
+    ids=lambda folder: folder.relative_to(_ROOT).parts[0],
+)
+def test_committed_skill_is_current(folder: Path):
+    """`skills/desflow/` and the plugin's copy in `plugin/skills/desflow/` both hold
+    exactly what the generator writes."""
+    where = folder.relative_to(_ROOT).as_posix()
     for name, text in gen_skill.files().items():
-        assert (SKILL / name).read_text(encoding="utf-8") == text, (
-            f"skills/desflow/{name} is out of date; run "
+        assert (folder / name).read_text(encoding="utf-8") == text, (
+            f"{where}/{name} is out of date; run "
             "`uv run --all-extras python scripts/gen_skill.py`"
         )
     committed = {
-        p.relative_to(SKILL).as_posix() for p in SKILL.rglob("*") if p.is_file()
+        p.relative_to(folder).as_posix()
+        for p in folder.rglob("*")
+        if p.is_file() and "__pycache__" not in p.parts
     }
     assert committed == set(gen_skill.files())
 
@@ -111,12 +122,18 @@ def test_skill_teaches_a_description():
 
 
 def test_skill_reference_links_exist():
+    """`SKILL.md` links each file from `${CLAUDE_SKILL_DIR}`, which Claude Code replaces
+    with the skill's folder; a relative link is read from the agent's working folder,
+    where the file is not."""
     for page in SKILL.rglob("*.md"):
         for target in re.findall(
             r"\]\(([^)#\s]+)(?:#[^)]*)?\)", page.read_text(encoding="utf-8")
         ):
             if "://" in target:
                 continue
+            if page.name == "SKILL.md":
+                assert target.startswith("${CLAUDE_SKILL_DIR}/"), f"{page}: {target}"
+                target = target.removeprefix("${CLAUDE_SKILL_DIR}/")
             assert (page.parent / target).resolve().exists(), f"{page}: {target}"
 
 
@@ -925,7 +942,7 @@ def test_skill_texts_match_what_they_describe():
     """Sentences of the skill that the stage 2 review found wrong, each against
     the fact it states."""
     skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
-    assert "Run python <skill folder>/scripts/check_model.py <files>" in skill
+    assert 'Run python "${CLAUDE_SKILL_DIR}/scripts/check_model.py" <files>' in skill
     assert "except a test of pacing, which runs alone" in skill
     assert "A Builder task read only from a `Template` keeps none" in skill
     testing = (SKILL / "references" / "testing.md").read_text(encoding="utf-8")

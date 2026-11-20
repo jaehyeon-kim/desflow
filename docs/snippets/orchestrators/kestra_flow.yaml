@@ -1,0 +1,42 @@
+# A Kestra flow that runs the shop with desflow and logs the result. The first task
+# installs desflow in a python:3.13-slim container, writes shop.yaml into its working
+# folder and keeps result.json as an output file. The second task reads that file.
+# pip install puts the desflow command on the container's PATH; the task's
+# `dependencies` list installs packages for Python code, without their commands.
+id: shop_study
+namespace: desflow.examples
+
+tasks:
+  - id: run_shop
+    type: io.kestra.plugin.scripts.python.Commands
+    containerImage: python:3.13-slim
+    beforeCommands:
+      - pip install --quiet "desflow>=1.1"
+    inputFiles:
+      shop.yaml: |
+        simulation: {sim_id: Shop, factor: 0, random_seed: 42}
+
+        resources:
+          packers: {current_cap: "${PACKERS:-2}", max_cap: 5}
+
+        services:
+          packing: {dist: normal, mean: 3 s, std: 0.5 s}
+
+        arrivals:
+          orders: {dist: exponential, rate: 0.5, spawn: pack}
+
+        tasks:
+          pack:
+            service: packing
+            resource: packers
+            payload: {event_type: order_packed}
+    commands:
+      - >-
+        desflow run shop.yaml --var PACKERS=3 --until 3600 --seed 7
+        --summary result.json
+    outputFiles:
+      - result.json
+
+  - id: read_result
+    type: io.kestra.plugin.core.log.Log
+    message: "{{ read(outputs.run_shop.outputFiles['result.json']) }}"

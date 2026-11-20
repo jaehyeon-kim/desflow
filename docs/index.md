@@ -29,7 +29,9 @@ The control dashboard of the [Kafka Digital Twin](gallery/simulation-models/kafk
 | [Records](reference/records-and-telemetry.md) | an event for each step of each entity, telemetry with the statistics, and label records that hold the ground truth of each planned change. Records are JSON, Avro, JSON Schema or Protobuf through the Confluent or AWS Glue Schema Registry, or Pydantic models. |
 | [Connectors](user-guide/live-runs-and-connectors/egress.md) | several sinks in one run, each with its own filter: Kafka, including SASL, mTLS, OAuth and AWS IAM clusters, Redis, PostgreSQL, Parquet or JSONL files on local disk, S3-compatible storage, Google Cloud Storage or Azure Blob Storage, and Iceberg tables. A connector of your own is one class. |
 | [Studies](user-guide/results/statistics.md) | built-in statistics with a warm-up, replications with a 95% interval for each statistic, experiments that compare designs with the same random numbers and write a report, a check against the queueing formulas before a long run, and distributions fitted to measured times |
-| [Tools](ai/index.md) | the `desflow` command, a JSON Schema that gives an editor completion for blueprints, and a skill with which an AI coding assistant writes and checks blueprints |
+| [Tools](cli/index.md) | the `desflow` command, and a JSON Schema that gives an editor completion for blueprints |
+| [Integrations](integrations/index.md) | a study run as a task of Airflow, Dagster, Prefect or Kestra, and a later task that reads the figures from the file the run writes |
+| [AI Assistants](ai/index.md) | a plugin for Claude Code, Codex or Antigravity that installs the desflow skill, with which an assistant writes, checks and runs models, and the `desflow mcp` server, which gives it the desflow commands as tools |
 
 ## Commands
 
@@ -47,6 +49,7 @@ The package comes with the `desflow` command. It runs a blueprint, and checks, c
 | `desflow fit` | fit every distribution family to measured times | [Fit Measured Times](cli/index.md#fit-measured-times) | [`desflow fit`](cli/fit.md) |
 | `desflow dist` | turn a mean and a standard deviation into a family's parameters, and back | [Convert Parameters](cli/index.md#convert-parameters) | [`desflow dist`](cli/dist.md) |
 | `desflow schema` | print the blueprint JSON Schema, for an editor | [Set Up an Editor](cli/index.md#set-up-an-editor) | [`desflow schema`](cli/schema.md) |
+| `desflow mcp` | serve the commands as tools to an AI assistant on your machine | [Serve the Commands to an Assistant](cli/index.md#serve-the-commands-to-an-assistant) | [`desflow mcp`](cli/mcp.md) |
 
 ## Where to Start
 
@@ -62,6 +65,8 @@ A new reader follows one path: [Installation](installation.md), then [What Is DE
 | Compare two designs and say which is better | [Comparing Designs](learn/studies/comparing-designs.md) |
 | Fit service times to measured data | [Fitting the Inputs](learn/inputs/fit-the-inputs.md) |
 | Move a SimPy model to desflow | [Coming from SimPy](simpy/coming-from-simpy.md) |
+| Run a study from Airflow, Dagster, Prefect or Kestra | [Integrations](integrations/index.md) |
+| Give an AI assistant the skill and the desflow commands | [AI Assistants](ai/index.md) |
 | Find every option of a part of desflow | [User Guide](user-guide/index.md) |
 | Do one task, step by step | [How-To](how-to/index.md) |
 | Look up a YAML key or a class | [YAML Keys](reference/yaml-keys.md) and [API Reference](reference/api.md) |

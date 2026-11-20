@@ -1,0 +1,25 @@
+# Records of task ST-R03, written by hand from known-cases.md and original.py before any
+# run. The fields are read by ../../grade.py (see its docstring).
+
+task: ST-R03
+
+until: 10
+
+run_end: null
+
+records:
+  - name: three users done at 1
+    match: {task: pem, value.event_type: granted}
+    at: 1
+    count: 3
+  - name: three users done at 2
+    match: {task: pem, value.event_type: granted}
+    at: 2
+    count: 3
+  - name: three users done at 3
+    match: {task: pem, value.event_type: granted}
+    at: 3
+    count: 3
+  - name: nine users in all
+    match: {task: pem, value.event_type: granted}
+    count: 9

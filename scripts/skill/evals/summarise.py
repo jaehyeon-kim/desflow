@@ -17,8 +17,9 @@ the lines of two gradings, so the runs to expect are not read from the lines. Fo
 that the lines hold, every model of that version in skill-lessons.md, Evaluation, Runs, has
 every task (each folder of `--cases-dir`, by default `cases/`; a line's `task` is that folder's name, such as `ds-a3`) for each of its run numbers:
 Sonnet runs 1 to 3 of `before`, `after` and `none` (the baseline, the arm without the skill of
-the `before` suite), Haiku and Opus run 1 of `before` and `after`, and for the release check of
-`rc3`, Haiku runs 1 to 3 and Sonnet and Opus run 1. Each run has exactly one
+the `before` suite), Haiku and Opus run 1 of `before` and `after`, for the release check of
+`rc3`, Haiku runs 1 to 3 and Sonnet and Opus run 1, and for that of `1.1.0`, Haiku runs 1 to 3.
+Each run has exactly one
 line of each kind `grade.py` writes, and exactly one `{"kind": "REVIEWED", "count": 0}` line
 of the reviewer, which may write any number of lines of its own kinds. The script lists each
 run that lacks a line, holds a line twice, or is not in that list, and each reviewer line of a
@@ -81,6 +82,7 @@ RUNS = {
     ("sonnet", "rc3"): ["1"],
     ("opus", "rc3"): ["1"],
     ("haiku", "rc4"): ["1", "2", "3"],
+    ("haiku", "1.1.0"): ["1", "2", "3"],
 }
 
 RunKey = Tuple[str, str, str, str]

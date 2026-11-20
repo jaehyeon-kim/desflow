@@ -54,8 +54,16 @@ _UNITS = {
 }
 
 
-def _unit_of(measure: str) -> str:
-    """The unit of a statistic: `s`, `percent`, `amount` or `count`."""
+def unit_of(measure: str) -> str:
+    """Returns the unit of a statistic: `s`, `percent`, `amount` or `count`.
+
+    Args:
+        measure: The statistic's name without the sim id, such as
+            `tasks.pack.wait_mean`.
+
+    Returns:
+        str: The unit.
+    """
     if _DURATION.search(measure) or _DOWNTIME.search(measure):
         return "s"
     if _PERCENT.search(measure):
@@ -65,13 +73,23 @@ def _unit_of(measure: str) -> str:
     return "count"
 
 
-def _population_of(measure: str) -> str:
-    """What a statistic is measured on: `started instances` for a wait, which is
-    recorded when an instance starts work; `finished instances` for a service,
-    recorded when it finishes; `time average`; `sum over the horizon` for a
-    resource's downtime; `count over the horizon`; or `end of run`, which includes
-    `in_system` and `in_progress`, the entities and instances still in the model when
-    the run ends."""
+def population_of(measure: str) -> str:
+    """Returns what a statistic is measured on.
+
+    A wait is measured on `started instances`, because it is recorded when an
+    instance starts work, and a service on `finished instances`, because it is
+    recorded when the instance finishes. The others are a `time average`, a `sum over
+    the horizon` (a resource's downtime), a `count over the horizon`, or `end of run`,
+    which includes `in_system` and `in_progress`, the entities and instances still in
+    the model when the run ends.
+
+    Args:
+        measure: The statistic's name without the sim id, such as
+            `tasks.pack.wait_mean`.
+
+    Returns:
+        str: The population.
+    """
     if _DURATION.search(measure):
         # The statistic is the last part, so a task whose name holds `.wait_` reads
         # as any other
@@ -218,8 +236,8 @@ def result_rows(
                         "seed": seed,
                         "statistic": name,
                         "kind": "measure" if name in measures else "count",
-                        "unit": _unit_of(name),
-                        "population": _population_of(name),
+                        "unit": unit_of(name),
+                        "population": population_of(name),
                         "value": value,
                     }
                 )
@@ -261,8 +279,8 @@ def summary_rows(
                     "variant": design.variant,
                     **design.point,
                     "statistic": name,
-                    "unit": _unit_of(name),
-                    "population": _population_of(name),
+                    "unit": unit_of(name),
+                    "population": population_of(name),
                     "n": result.n,
                     "mean": result.mean,
                     "half_width": result.half_width,
@@ -424,17 +442,17 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
                 f"it to measures, or remove the row"
             )
         unit = _UNITS.get(row["unit"].strip().lower())
-        if unit != _unit_of(measure):
+        if unit != unit_of(measure):
             raise ValueError(
-                f"{where}: {measure} is in {_unit_of(measure)}, not {row['unit']!r}; "
+                f"{where}: {measure} is in {unit_of(measure)}, not {row['unit']!r}; "
                 f"convert the observed value"
             )
         population = row["population"].strip()
-        if population != _population_of(measure):
+        if population != population_of(measure):
             raise ValueError(
-                f"{where}: {measure} is measured on {_population_of(measure)!r}, not "
+                f"{where}: {measure} is measured on {population_of(measure)!r}, not "
                 f"{population!r}; give the observed value for "
-                f"{_population_of(measure)!r}"
+                f"{population_of(measure)!r}"
             )
         text = row["horizon"].strip()
         seconds = _horizon_seconds(text, where)

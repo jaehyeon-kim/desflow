@@ -12,6 +12,7 @@ The help of every `desflow` command, generated from the command's code.
 - [`desflow fit`](#desflow-fit)
 - [`desflow dist`](#desflow-dist)
 - [`desflow schema`](#desflow-schema)
+- [`desflow mcp`](#desflow-mcp)
 - [`desflow examples`](#desflow-examples)
 - [`desflow examples list`](#desflow-examples-list)
 - [`desflow examples get`](#desflow-examples-get)
@@ -38,6 +39,7 @@ Commands:
   fit         Fit a column of FILE to the distribution families, and exit 1...
   dist        List the distribution families, or convert parameters to a...
   schema      Print the blueprint JSON Schema.
+  mcp         Serve the desflow commands as MCP tools to an AI assistant on...
   examples    List the examples, or download one at the version you have...
 
   Examples:
@@ -100,6 +102,13 @@ Options:
                     readings as a JSON line, instead of writing to the file's
                     sinks. The lag readings describe the wall clock, not the
                     model.
+  --summary PATH    When the run ends, write its statistics to PATH as one JSON
+                    file, or with --replications the summary and every
+                    replication's values. A single run then keeps its statistics
+                    at the typical level or above, so a model with sinks also
+                    sends them its statistics telemetry. A file already at PATH
+                    is removed when the run starts, and a run that fails or is
+                    stopped writes none.
   --var NAME=VALUE  Fill ${NAME} in the file and in the files it includes,
                     before the environment does. Repeat it for more.
   --watch           Run in a child process, and run again whenever the file or a
@@ -124,6 +133,10 @@ Options:
     statistic
 
     $ desflow run shop.yaml --replications 20 --seed 7
+
+    # Write the statistics of the run to a JSON file
+
+    $ desflow run shop.yaml --summary result.json
 
     # Print the first five events again whenever the file changes
 
@@ -418,6 +431,37 @@ Options:
     # Save the blueprint schema for an editor
 
     $ desflow schema > blueprint.schema.json
+```
+
+## `desflow mcp`
+
+```text
+Usage: desflow mcp [OPTIONS]
+
+  Serve the desflow commands as MCP tools to an AI assistant on this machine.
+
+  An MCP client starts the server as a process and exchanges messages with it
+  over its standard input and output. Each tool runs the command of the same
+  name. The tools that write are served only with --allow-changes, an option
+  that shows in the client's configuration. Needs the mcp extra.
+
+Options:
+  --allow-changes  Also serve the tools that write: run, experiment, report and
+                   get_example, test with fix, and fit with out and plot. A run
+                   sends records to the blueprint's sinks, and the others write
+                   files.
+  --help           Show this message and exit.
+
+  Examples:
+
+    # Serve the tools that write nothing, as an MCP client starts the
+    server
+
+    $ desflow mcp
+
+    # Also serve the tools that run models and write files
+
+    $ desflow mcp --allow-changes
 ```
 
 ## `desflow examples`

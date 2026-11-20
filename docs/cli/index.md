@@ -19,6 +19,7 @@ The `desflow` command runs a model without a line of Python, and also checks it,
 | [`desflow fit`](fit.md) | Fit a column of FILE to the distribution families, and exit 1 if none is usable. |
 | [`desflow dist`](dist.md) | List the distribution families, or convert parameters to a mean and std and back. |
 | [`desflow schema`](schema.md) | Print the blueprint JSON Schema. |
+| [`desflow mcp`](mcp.md) | Serve the desflow commands as MCP tools to an AI assistant on this machine. |
 | [`desflow examples`](examples.md) | List the examples, or download one at the version you have installed. |
 | [`desflow examples list`](examples-list.md) | List the examples, with what each shows and what it needs. |
 | [`desflow examples get`](examples-get.md) | Download an example into &lt;dest&gt;/&lt;name&gt;/&lt;api&gt;/, at the installed release. |
@@ -45,6 +46,7 @@ The `desflow` command runs a model without a line of Python, and also checks it,
       fit         Fit a column of FILE to the distribution families, and exit 1...
       dist        List the distribution families, or convert parameters to a...
       schema      Print the blueprint JSON Schema.
+      mcp         Serve the desflow commands as MCP tools to an AI assistant on...
       examples    List the examples, or download one at the version you have...
 
       Examples:
@@ -404,6 +406,14 @@ Repeat one replication with: desflow run experiment/yaml/experiment_shop.yaml --
 
 The means are the same as before. At 99%, the half-width of the mean wait grows from 0.5143 to 0.7389 seconds, because more confidence needs a wider interval.
 
+`--summary` also writes the result to a JSON file, for a program that reads it, such as a task in a pipeline. A single run writes its own statistics the same way. [Write the Result to a File](../user-guide/results/replications.md#write-the-result-to-a-file) lists the keys:
+
+```bash
+desflow run experiment/yaml/experiment_shop.yaml --replications 10 --seed 42 --until 1h --summary results/summary.json
+```
+
+In `results/summary.json`, the `summary` row of `tasks.pack.wait_mean` holds the same mean wait of 4.354 seconds, with its interval from 3.84 to 4.869 seconds as `low` and `high`.
+
 `--stdout` prints the run's records as JSON lines, instead of writing to the file's sinks. The run keeps its ingress connectors, so a `KafkaIngress` still applies its `topic_policy`: it creates the control topic, and with `drop_and_create` it deletes it and creates it again. `--drain` stops the arrivals at the end time and runs on until every order has left. This run stops the arrivals at 20 seconds, and its last record is the seventh order packed, at 20.502310430365075 seconds. A record keeps its time unrounded:
 
 ```bash
@@ -561,11 +571,22 @@ desflow schema > blueprint.schema.json
 
 [Set Up Your Editor](../how-to/tools/set-up-your-editor.md) names the file in the editor's settings.
 
+### Serve the Commands to an Assistant
+
+`desflow mcp` serves the desflow commands as tools to an AI assistant on the same machine, over MCP, the Model Context Protocol. The assistant's MCP client starts the command as a process and exchanges messages with it over the process's standard input and output. Each tool runs one desflow command, such as `check` for `desflow check` and `list_examples` for `desflow examples list`, and returns what the command prints, or its JSON document where the command writes one. It needs the `mcp` extra: `uv tool install "desflow[mcp]>=1.1"`, or `pip install "desflow[mcp]>=1.1"`.
+
+The tools `check`, `explain`, `test`, `fit`, `dist`, `schema` and `list_examples` write nothing, and the server always offers them. A Python builder file is the exception: loading it runs its own code, which can write files, so give these tools only builder files you trust. `--allow-changes` adds the tools that write: `run`, `experiment`, `report` and `get_example`, and the `fix` parameter of `test` and the `out` and `plot` parameters of `fit`. A run sends records to the blueprint's sinks, and the others write files. The `run` tool returns the document that `--summary` writes. The assistant's settings give the command and its options, so `--allow-changes` goes there:
+
+```bash
+# An MCP client runs this; in a terminal it waits for messages until Ctrl+D
+desflow mcp --allow-changes
+```
+
 ---
 
 ## How It Works
 
-Each command reads its file and calls the library function a Python script would call. `desflow run` loads the model with `load_context` and runs it once, or calls `replicate` when `--replications` is given. `desflow experiment` calls `run_experiment`, `desflow report` calls `write_report`, and `desflow fit` reads the column and calls `fit_column`. `desflow dist`, `desflow schema` and `desflow examples` read the distribution table, the blueprint schema and the list of examples. A command therefore gives the same result as the Python call with the same arguments.
+Each command reads its file and calls the library function a Python script would call. `desflow run` loads the model with `load_context` and runs it once, or calls `replicate` when `--replications` is given. `desflow experiment` calls `run_experiment`, `desflow report` calls `write_report`, and `desflow fit` reads the column and calls `fit_column`. `desflow dist`, `desflow schema` and `desflow examples` read the distribution table, the blueprint schema and the list of examples. A command therefore gives the same result as the Python call with the same arguments. `desflow mcp` runs the command of each tool in the server's own process, through the same command line, so a tool checks and refuses its arguments as the command does.
 
 `desflow explain` takes the most steps. Look at them in order:
 
@@ -621,6 +642,6 @@ A measure is not compared in these cases:
 - **Inputs are files.** `run` reads a blueprint, or a builder file with `--sample` (not with `--stdout`, `--var` or `--watch`), `check` a blueprint or a builder file, `test` a blueprint or a builder file with a `tests.yaml`, `explain` a blueprint or a builder file with a module-level `SimulationContext`, `experiment` an experiment file, and `fit` a CSV file. For a Python model, use `replicate` and `run_experiment`, as [Replications](../user-guide/results/replications.md) shows.
 - **Examples need the network.** `examples get` downloads from GitHub at the installed release's tag. `--ref` picks another tag or branch.
 - **`explain --json` is experimental.** Its shape can change in 1.x, and `schema_version` changes with it.
-- **Exit statuses:** 0 on success, 1 on a failure, 2 on a usage error.
+- **Exit statuses:** 0 on success, 1 on a failure, 2 on a usage error. A `run` stopped by Ctrl+C or SIGTERM flushes its sinks, writes no `--summary` file and exits with 0.
     - **1:** `run`, `check`, `test` or `explain` cannot load the file, a `test` differs from the measured statistics, an `experiment` check fails (its files are still written), `fit` finds no usable family, or `dist` has no formula from a mean and a standard deviation for the family.
     - **2:** a missing file, an option value that is not valid such as `--until abc`, a value that is not a number in a `fit` column, or an experiment file that is not valid.

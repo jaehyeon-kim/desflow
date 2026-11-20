@@ -41,6 +41,38 @@ def replications_summary() -> List[str]:
     return result[0].summary_text().split("\n")  # type: ignore[attr-defined]
 
 
+def replications_file() -> List[str]:
+    """Replications: the file `desflow run --summary` writes for three replications of
+    the example, run as the page gives the command in the example's folder."""
+    import json
+    import shutil
+    import tempfile
+
+    from typer.testing import CliRunner
+
+    from desflow.cli import app
+
+    with tempfile.TemporaryDirectory() as folder:
+        shutil.copy(ROOT / "examples/yaml/replications.yaml", folder)
+        with cwd(Path(folder)):
+            result = CliRunner().invoke(
+                app,
+                ["run", "replications.yaml", "--replications", "3", "--measure",
+                 "tasks.pack.wait_mean", "--summary", "result.json"],
+            )  # fmt: skip
+            assert result.exit_code == 0, result.output
+            document = json.loads(Path("result.json").read_text(encoding="utf-8"))
+    # The versions depend on the machine, and the last digits of a mean differ between
+    # macOS and Linux, so the page shows 10
+    document["versions"] = {name: "..." for name in document["versions"]}
+    text = json.dumps(document, indent=2)
+    return re.sub(
+        r"(?<=: )(-?\d+\.\d+(?:e[+-]?\d+)?)",
+        lambda m: repr(float(f"{float(m.group(1)):.10g}")),
+        text,
+    ).split("\n")
+
+
 def experiment_report() -> List[str]:
     """Experiments: the results, comparison, check and observed part of the
     experiment example's report."""
@@ -128,5 +160,6 @@ BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "blueprint-error": blueprint_error,
     "replications-telemetry": replications_telemetry,
     "replications-summary": replications_summary,
+    "replications-file": replications_file,
     "experiment-report": experiment_report,
 }

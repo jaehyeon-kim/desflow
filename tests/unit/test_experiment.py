@@ -824,8 +824,8 @@ def test_the_report_shows_each_end_setting_in_words():
 def test_a_mean_is_read_as_a_wait_or_a_service_by_its_statistic():
     """The statistic is the last part of the name, so a task whose name holds `.wait_`
     has its service mean measured on finished instances."""
-    assert found._population_of("tasks.a.wait_b.service_mean") == "finished instances"
-    assert found._population_of("tasks.a.service_b.wait_mean") == "started instances"
+    assert found.population_of("tasks.a.wait_b.service_mean") == "finished instances"
+    assert found.population_of("tasks.a.service_b.wait_mean") == "started instances"
 
 
 @pytest.mark.parametrize("name", ["builder.py", "builder.PY"])

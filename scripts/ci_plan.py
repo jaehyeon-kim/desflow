@@ -31,7 +31,7 @@ the runners: the unit, conformance and benchtop tests without those marked
 `every_model` take about 41 minutes of test time for one Python version, and about
 21 minutes of test time run in about 11 minutes on a runner. So each version runs in
 3 parts of about 8 minutes, and a pull request has 15 test jobs. With its other jobs it
-starts 27, and the plan runs 20 at once. The 7 that wait start as the shortest jobs end,
+starts 28, and the plan runs 20 at once. The 8 that wait start as the shortest jobs end,
 at 4 to 7 minutes, and end before the longest docs part of about 14 minutes, so a pull
 request takes about 17 minutes, as it did with Python 3.11 alone (simulated from the
 job times of a run). With the tests marked `every_model` and the known cases, a version
@@ -64,6 +64,9 @@ NEWEST_PYDANTIC_ONLY = [
     "tests/unit/test_explain.py::test_json_validates_and_the_committed_schema_is_current",
     "tests/unit/test_public_api.py::test_public_api_matches_the_snapshot",
 ]
+# Tests of an extra whose package needs a newer Pydantic than the floor: the `mcp`
+# SDK 2.3.0 requires pydantic>=2.12.0, so `desflow[mcp]` never installs with the floor
+ABOVE_THE_FLOOR = ["tests/unit/test_mcp_server.py"]
 PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 # Files no code job reads, whose change alone runs only the docs jobs. The pages and
@@ -78,6 +81,9 @@ DOCS = DOCS_ONLY + [
     "src/*",
     "examples/*",
     "skills/*",
+    "plugin/*",
+    ".claude-plugin/*",
+    ".agents/*",
     "scripts/*",
     "hooks/*",
     "overrides/*",
@@ -143,7 +149,12 @@ def _leg(os: str, python: str, everything: bool, floor: bool = False) -> List[Di
     setting = ", lowest Pydantic" if floor else ""
     uv_args = f"--with pydantic=={pydantic_floor()}" if floor else ""
     pytest_args = (
-        " ".join(f"--deselect {t}" for t in NEWEST_PYDANTIC_ONLY) if floor else ""
+        " ".join(
+            [f"--deselect {t}" for t in NEWEST_PYDANTIC_ONLY]
+            + [f"--ignore {t}" for t in ABOVE_THE_FLOOR]
+        )
+        if floor
+        else ""
     )
     return [
         {

@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: st-r03
+expected_outcome: >
+  The folder holds model.yaml, builder.py, low_level.py, test_model.py,
+  summary.json and reply.md for task st_r03, and the three forms give the same
+  records. summary.json was written by `desflow run --summary` on model.yaml,
+  and reply.md gives the mean wait of task pem from it, 1.0 seconds.
+context:
+  scaffold_script: setup.sh

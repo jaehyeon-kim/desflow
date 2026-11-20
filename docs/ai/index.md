@@ -1,62 +1,17 @@
-# Agent Skill
+# AI Assistants
 
-The desflow skill gives an AI coding assistant the rules of the library, so that it writes, checks, tests and runs desflow models instead of guessing them.
+An AI coding assistant can write, check and run desflow models when it has three things: the rules of the library, the desflow commands as tools it can call, and desflow's documentation as text. This section describes each and how to install them.
 
-It is one of the ways desflow makes a simulation quicker to build. A [YAML blueprint](../user-guide/writing-a-model/blueprints.md) describes a whole model with no Python. The skill lets an assistant write that blueprint for you and check it. [Models from history](../about/roadmap.md#easier-to-create-simulations), planned after 1.0, start a model from an event log.
+The parts relate as follows:
 
-The skill is a folder, `skills/desflow/`, in the Agent Skills format that Claude Code and other assistants read. An assistant that supports the format loads the skill when a request mentions desflow, a blueprint, a test of a simulation model, or a SimPy model that streams records. The folder is generated from the code, so it lists what the release has.
+| Part | What it gives the assistant | Page |
+|---|---|---|
+| Agent skill | a folder, `skills/desflow/`, of rules in the Agent Skills format: how to write, check, test and run a model, and how to run a study | [Agent Skill](agent-skill.md) |
+| MCP server | `desflow mcp`, which offers the desflow commands to an MCP client as tools; MCP, the Model Context Protocol, is the standard an assistant uses to call a tool | [MCP Server](mcp-server.md) |
+| Plugin | one install for Claude Code, Codex or Antigravity that adds the skill and the MCP server together | [Plugin](plugin.md) |
+| Schema and `llms.txt` | the blueprint's JSON Schema and the pages of this site as text | below |
 
----
-
-## Tasks
-
-Each page gives the request to type, what the skill tells the assistant to do, and the result on one example: the shop of the [Learn tutorial](../learn/first-model/first-simulation.md), one packer and an order every 2 seconds, drafted from a description in words.
-
-| Task | What the assistant gives you |
-|---|---|
-| [Draft a Model](draft-a-model.md) | a blueprint from a description of a process, with each assumed number marked, checked against queueing theory |
-| [Port a SimPy Program](port-a-simpy-program.md) | a desflow model that does what a SimPy program does, compared with the program's output |
-| [Write Another Form](write-another-form.md) | the Builder and Low-level forms of a blueprint, which give the same records |
-| [Write Tests](write-tests.md) | tests of the statistics with `desflow test`, with expected values taken from the request |
-| [Run a Study](run-a-study.md) | replications with a confidence interval, and a comparison of designs with `desflow experiment` |
-| [Fit a Distribution](fit-a-distribution.md) | a distribution fitted to measured times with `desflow fit`, loaded into the model |
-
----
-
-## Install the Skill
-
-1. Install desflow, so the assistant can run the `desflow` commands that [Command Line](../cli/index.md) shows, such as `desflow explain` and `desflow run`.
-2. Copy `skills/desflow/` into the skills folder of the assistant. Take it from the repository at the tag of the release you installed: `v` followed by what `desflow --version` prints. For Claude Code, `~/.claude/skills/desflow/` is for every project and `.claude/skills/desflow/` in a project is for that project. With git, these lines copy it for every project:
-
-    ```bash
-    # The source of the installed release, which holds the skill
-    git clone --depth 1 --branch "v$(desflow --version)" https://github.com/jaehyeon-kim/desflow /tmp/desflow-src
-    mkdir -p ~/.claude/skills
-    cp -R /tmp/desflow-src/skills/desflow ~/.claude/skills/desflow
-    ```
-
-    The block is for a first install. Before you run it again, delete `/tmp/desflow-src` and `~/.claude/skills/desflow`, because `git clone` stops at an existing folder and `cp -R` would put the new copy inside the old one. If `CLAUDE_CONFIG_DIR` is set, use that folder in place of `~/.claude`, here and in the check below.
-
-3. Ask the assistant for a model, such as "write a desflow blueprint for a shop with two packers and a lunch rush, and run it". It reads the skill when the request mentions desflow or a blueprint.
-
-With the GitHub CLI, one command does the copy. `gh skill install` is a preview command of the GitHub CLI, so it needs `gh` 2.90.0 or later:
-
-```bash
-gh skill install jaehyeon-kim/desflow desflow --agent claude-code --scope user
-```
-
-`--scope user` installs for every project, in your home folder. `--scope project`, the default, installs for the current project, inside its git repository, so run it from that repository. Another assistant takes its own `--agent` value, listed in `gh skill install --help`. Without `--agent`, `gh` asks which assistant to install for. When it cannot ask, it installs for GitHub Copilot. At project scope, Copilot uses `.agents/skills`, a folder several other assistants also read. `gh` installs the latest release. `desflow@v<version>` in place of `desflow` pins one, with `<version>` the release you installed.
-
-
----
-
-## Check the Install
-
-The folder must hold `SKILL.md`, and Claude Code lists the skills it has loaded with `/skills`, where `desflow` must appear:
-
-```bash
-ls ~/.claude/skills/desflow/SKILL.md
-```
+The plugin is a package of the other two parts. It starts the MCP server without `--allow-changes`, so the assistant gets the tools that write nothing. Install the skill without the plugin when your tool has no plugin support, and set up the MCP server by hand to allow the tools that write. The plugin does not install desflow, and its MCP server needs the `mcp` extra: see [Before You Install](plugin.md#before-you-install).
 
 ---
 
@@ -64,9 +19,3 @@ ls ~/.claude/skills/desflow/SKILL.md
 
 - **Schema.** Give the assistant `https://jaehyeon.me/desflow/latest/schema/blueprint.schema.json`, or the output of `desflow schema`, to validate what it writes.
 - **Documentation as text.** `https://jaehyeon.me/desflow/latest/llms.txt` is an index of the pages, and `https://jaehyeon.me/desflow/latest/llms-full.txt` holds all of them in one file.
-
----
-
-## Sources
-
-The folder layout and the `SKILL.md` fields follow the [Agent Skills specification](https://agentskills.io/specification). The folders Claude Code reads are in its [skills documentation](https://code.claude.com/docs/en/skills). The `gh skill install` flags are those of `gh skill install --help` in GitHub CLI 2.95.0.

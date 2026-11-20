@@ -1,9 +1,11 @@
 """Replications: seeds, intervals, the three model forms, workers and the CLI."""
 
 import asyncio
+import json
 import queue
 import shlex
 import threading
+import sys
 import time
 from concurrent.futures import Future
 from dataclasses import dataclass
@@ -423,6 +425,53 @@ def test_cli_prints_the_summary(blueprint):
     assert bad.exit_code == 1 and "no statistic called nope" in bad.output
 
 
+def test_cli_summary_holds_the_replications(blueprint):
+    """`--summary` writes the seeds, the summary row with its bounds, and each
+    replication's value, with the unit and population of the result files."""
+    path = blueprint.parent / "out" / "summary.json"
+    result = CliRunner().invoke(
+        cli,
+        [
+            *("run", str(blueprint), "--replications", "3", "--seed", "5"),
+            *("--measure", "tasks.pack.wait_mean", "--summary", str(path)),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    document = json.loads(path.read_text(encoding="utf-8"))
+    assert list(document) == [
+        *("command", "model", "versions", "settings", "seeds", "summary", "results")
+    ]
+    expected = replicate(
+        blueprint, 3, seed=5, until=None, measures=["tasks.pack.wait_mean"]
+    )
+    assert document["seeds"] == expected.seeds
+    assert document["settings"] == {
+        "until": 2000,
+        "drain": False,
+        "seed": 5,
+        "replications": 3,
+        "level": 0.95,
+        "measures": ["tasks.pack.wait_mean"],
+        "workers": 1,
+        "variables": {},
+    }
+    labels = {"statistic": "tasks.pack.wait_mean", "unit": "s"}
+    labels["population"] = "started instances"
+    bounds = interval(expected.values["tasks.pack.wait_mean"], 0.95)
+    [row] = expected.summary
+    assert document["summary"] == [
+        labels
+        | {key: row[key] for key in ("n", "mean", "half_width", "level")}
+        | {"low": bounds.low, "high": bounds.high}
+    ]
+    assert document["results"] == [
+        {"replication": i, "seed": seed, **labels, "value": value}
+        for i, (seed, value) in enumerate(
+            zip(expected.seeds, expected.values["tasks.pack.wait_mean"]), start=1
+        )
+    ]
+
+
 class _NeverRun(BaseIngress):
     """An ingress whose connection must never be opened."""
 
@@ -534,6 +583,41 @@ def test_a_failed_replication_ends_the_workers_that_are_running(tmp_path):
     assert time.monotonic() - started < 15.0
     assert (tmp_path / "sleeping").exists()
 
+    deadline = time.monotonic() + 2.0
+    while multiprocessing.active_children() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert multiprocessing.active_children() == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows has no fork")
+def test_a_failed_replication_ends_forked_workers_while_sigterm_is_handled(
+    tmp_path, monkeypatch
+):
+    """`desflow run` handles SIGTERM as Ctrl+C while it runs, and a worker forked then
+    inherits that handler, so terminating it would only stop its current run."""
+    import functools
+    import multiprocessing
+    from concurrent.futures import ProcessPoolExecutor
+
+    from desflow.cli.run import _sigterm_as_interrupt
+
+    monkeypatch.setattr(
+        runner,
+        "ProcessPoolExecutor",
+        functools.partial(
+            ProcessPoolExecutor, mp_context=multiprocessing.get_context("fork")
+        ),
+    )
+    started = time.monotonic()
+    with _sigterm_as_interrupt(), pytest.raises(RuntimeError, match="first run fails"):
+        replicate(
+            LowLevelModel(_FailsOnceThenSleeps(str(tmp_path)), "P"),
+            12,
+            seed=1,
+            until=10,
+            workers=2,
+        )
+    assert time.monotonic() - started < 15.0
     deadline = time.monotonic() + 2.0
     while multiprocessing.active_children() and time.monotonic() < deadline:
         time.sleep(0.05)

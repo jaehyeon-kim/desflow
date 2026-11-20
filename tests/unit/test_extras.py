@@ -5,8 +5,8 @@ from pathlib import Path
 
 PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
 
-# Every key of `[project.optional-dependencies]` at 1.0. A 1.x release may add an
-# extra; it may not remove or rename one.
+# Every key of `[project.optional-dependencies]` at 1.1: those of 1.0 and `mcp`. A 1.x
+# release may add an extra; it may not remove or rename one.
 FROZEN_EXTRAS = {
     "kafka",
     "redis",
@@ -18,6 +18,7 @@ FROZEN_EXTRAS = {
     "fit",
     "watch",
     "fake",
+    "mcp",
     "all",
 }
 

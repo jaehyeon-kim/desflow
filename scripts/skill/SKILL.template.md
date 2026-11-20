@@ -11,6 +11,8 @@ metadata:
 
 desflow runs SimPy simulations whose parameters can change while they run, and writes the events and telemetry to the console, Kafka, Parquet or JSONL files, Iceberg, PostgreSQL or Redis. A model can be written in three ways, and all three give the same records.
 
+Read each reference page, asset and script at the exact path given below, with nothing added. Claude Code fills in the first part of the path with the folder that holds this file; in a tool that does not fill it in, that first part stands for the same folder.
+
 ## Pick a way to write the model
 
 | Way | Use it when |
@@ -28,7 +30,7 @@ A blueprint can also call Python with `!python module.attribute`, so a model rar
 3. Run it with `desflow run <file>`. Add `--until 10min` to stop earlier and `--seed 7` to repeat a run. An invalid file prints every error with its file and line and exits with code 1.
 4. Read each error where it points. An unknown key names the key it is closest to.
 
-`desflow schema` prints the same JSON Schema as `assets/blueprint.schema.json`, for the installed version.
+`desflow schema` prints the same JSON Schema as `${CLAUDE_SKILL_DIR}/assets/blueprint.schema.json`, for the installed version.
 
 ## Draft a model from a description
 
@@ -57,12 +59,12 @@ Copy this checklist into your reply and tick each line as it is done:
 ```text
 - [ ] List every behaviour the request names, one line each.
 - [ ] For each, name the key or the code that makes it, and the record that shows it.
-- [ ] Run python <skill folder>/scripts/check_model.py <files>; fix every line it prints; run it again.
+- [ ] Run python "${CLAUDE_SKILL_DIR}/scripts/check_model.py" <files>; fix every line it prints; run it again.
 - [ ] Find each listed record in the output of desflow run <file> --sample 50.
 - [ ] Read each header, docstring and comment against that output.
 ```
 
-`scripts/check_model.py` is in this skill's folder. Run it, do not read it: `python <skill folder>/scripts/check_model.py model.yaml builder.py low_level.py [--until T]`, with one, two or three forms in any order. It runs each Python file as `python FILE`, unpaced, with its sinks replaced by a JSON console, and sets and reads each form's seed through desflow. It sees only the process `python FILE` starts, so each Python file builds and runs its model in that process, not a child process. It reports:
+`scripts/check_model.py` is in this skill's folder. Run it, do not read it: `python "${CLAUDE_SKILL_DIR}/scripts/check_model.py" model.yaml builder.py low_level.py [--until T]`, with one, two or three forms in any order. It runs each Python file as `python FILE`, unpaced, with its sinks replaced by a JSON console, and sets and reads each form's seed through desflow. It sees only the process `python FILE` starts, so each Python file builds and runs its model in that process, not a child process. It reports:
 
 - a file that `desflow check` refuses;
 - an import from desflow that the references do not document;
@@ -112,7 +114,7 @@ One run is one sample. To report a result, run a study.
 1. Set `simulation.random_seed`, or pass `--seed`, so the run can be repeated.
 2. Set `simulation.warmup` to the time the model needs to reach its usual state. The statistics start again from zero at that time, so the start of the run is left out of them.
 3. Run replications with `desflow run <file> --replications 20`. Each replication has its own seed, spawned from the seed.
-4. Report the mean of each statistic with its confidence interval. The default level is 95%, and `--level` changes it.
+4. Report the mean of each statistic with its confidence interval. The default level is 95%, and `--level` changes it. When a program or a file must hold the figures, add `--summary <file.json>`: it writes the seeds, each statistic's `mean`, `half_width`, `low` and `high` under `summary`, and each replication's value under `results`. Read the figures from that file instead of the printed table.
 5. To compare designs, such as two packers against three, write an experiment file and run `desflow experiment <file>`. It runs every design with the same seeds, compares them, checks bounds, and writes its files and `report.md`. It exits 1 when a check fails. `desflow report <folder>` builds the report again from the files.
 
 To give a service measured times, `desflow fit <file.csv> --column <name> --lower 0 --out <fit.yaml>` fits every family and writes the best as YAML for `!include`. It needs the `fit` extra.

@@ -18,13 +18,13 @@ desflow does this for any system with arrivals, work and limited capacity: a fac
 
 ### In the Tutorial
 
-The shop of [First Simulation](first-model/first-simulation.md) has one packer, orders about every 2 seconds and 1.5 seconds of packing. Its first records show the events:
+The shop of [First Simulation](first-model/first-simulation.md) has one packer, orders about every 2 seconds and 1.5 seconds of packing. Its records show the events:
 
-- At 4.934 seconds order 2 arrives, finds the packer free and starts at once.
-- At 5.024 seconds order 3 arrives and joins the queue, because the packer is busy.
-- At 6.434 seconds, 1.5 seconds after it started, order 2 is packed, and order 3 starts in the same instant.
+- An order arrives and finds the packer free, so it starts at once.
+- The next order arrives while the packer is busy, so it joins the queue.
+- 1.5 seconds after the first order started, it is packed, and the waiting order starts in the same instant.
 
-Order 3 waited from 5.024 to 6.434 seconds, which is 1.410 seconds. Nothing in the model says so: the wait comes from when the events fell. The two figures on this page use round times (0.0, 1.5, 2.6 and 4.1 seconds) to show the idea, so they differ from these records.
+The waiting order's wait is the time from its arrival to that instant. Nothing in the model sets it: the wait comes from when the events fell. The two figures on this page use round times (0.0, 1.5, 2.6 and 4.1 seconds) to show the idea, and First Simulation shows the records of a run.
 
 ### Why It Matters
 
@@ -42,7 +42,7 @@ To see these events yourself, follow [First Simulation](first-model/first-simula
 
 ### What the Result Means
 
-Read `sim_ts`, the simulation time of each record. It jumps from 4.934 to 5.024 and then to 6.434, because nothing happens in between. A run unpaced, with `factor: 0`, gives the same records in a fraction of a second. A run paced to the wall clock gives them in real time, which is how desflow feeds live data to a system that reads it.
+In the records of First Simulation, read `sim_ts`, the simulation time of each record. It jumps from one event to the next, because nothing happens in between. A run unpaced, with `factor: 0`, gives the same records in a fraction of a second. A run paced to the wall clock gives them in real time, which is how desflow feeds live data to a system that reads it.
 
 ---
 

@@ -38,7 +38,7 @@ def test_a_pull_request_tests_every_supported_python():
 
 def test_a_pull_request_runs_each_version_in_3_parts():
     """scripts/ci_plan.py sizes the run by these 15 test jobs: with the other jobs a
-    pull request starts 27, and the 7 above the 20 the plan runs at once wait."""
+    pull request starts 28, and the 8 above the 20 the plan runs at once wait."""
     assert len(_plan("pull_request", SRC)["unit"]["include"]) == 15
 
 
@@ -55,6 +55,9 @@ def test_a_pull_request_tests_the_lowest_pydantic_on_python_3_11():
             for test in ci_plan.NEWEST_PYDANTIC_ONLY:
                 assert f"--deselect {test}" in leg["pytest_args"]
                 assert (SCRIPT.parents[1] / test.split("::")[0]).is_file()
+            for test in ci_plan.ABOVE_THE_FLOOR:
+                assert f"--ignore {test}" in leg["pytest_args"]
+                assert (SCRIPT.parents[1] / test).is_file()
         else:
             assert leg["uv_args"] == "" and leg["pytest_args"] == ""
     for leg in _plan("manual", [])["unit"]["include"]:

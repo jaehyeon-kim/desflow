@@ -106,7 +106,9 @@ NOT_TABBED = {
     "simpy/examples/index.md",
     "reference/api.md",
 }
-NOT_TABBED_FOLDERS = ("reference/", "about/")
+# The Integrations pages run one blueprint with the desflow command, which takes
+# only a blueprint, from tools outside desflow.
+NOT_TABBED_FOLDERS = ("reference/", "about/", "integrations/")
 TABS = ["YAML", "Builder", "Low-level"]
 
 # Page: the batch of the 0.26.0 docs revision that brings it into line.

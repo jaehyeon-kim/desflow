@@ -45,7 +45,7 @@ def _packages_drawn(lines: List[str]) -> List[str]:
     for line in lines:
         if not line.strip():
             break
-        drawn += re.findall(r"[a-z]+", line)
+        drawn += re.findall(r"[a-z_]+", line)
     return drawn
 
 

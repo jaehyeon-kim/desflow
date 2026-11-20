@@ -1,0 +1,32 @@
+{
+  "name": "desflow",
+  "version": "1.1.0",
+  "description": "Adds the desflow agent skill and an MCP server with the tools that write nothing. Both need desflow installed: uv tool install 'desflow[mcp]>=1.1'.",
+  "author": {
+    "name": "Jaehyeon Kim"
+  },
+  "homepage": "https://github.com/jaehyeon-kim/desflow",
+  "repository": "https://github.com/jaehyeon-kim/desflow",
+  "license": "MIT",
+  "keywords": [
+    "simulation",
+    "simpy",
+    "discrete-event",
+    "mcp",
+    "skill"
+  ],
+  "mcpServers": {
+    "desflow": {
+      "command": "desflow",
+      "args": [
+        "mcp"
+      ]
+    }
+  },
+  "interface": {
+    "displayName": "desflow",
+    "shortDescription": "Write, check and run SimPy simulation models",
+    "category": "Coding",
+    "logo": "./assets/logo.png"
+  }
+}

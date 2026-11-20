@@ -4,6 +4,12 @@
 // The script acts only when the hash names no element on the page.
 (function () {
   var MOVED = {
+  "ai/": {
+    "install-the-skill": "ai/plugin/#install-the-plugin",
+    "check-the-install": "ai/plugin/#check-the-install",
+    "tasks": "ai/agent-skill/#tasks",
+    "sources": "ai/agent-skill/#sources"
+  },
   "reference/yaml-keys/": {
     "running-a-blueprint": "user-guide/writing-a-model/blueprints/#preview-the-records",
     "include-a-file": "user-guide/writing-a-model/blueprints/#include-a-file",

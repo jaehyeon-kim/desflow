@@ -77,7 +77,7 @@ A level is met when every item of it is done, not most. An item left out goes in
 
 ### In the Tutorial
 
-The Complete Model's `report.md` gives the question, the model and its versions, the assumptions, each input with its fitted parameters and where it came from, the run settings, the counts, the results, the comparisons, the checks and the observed comparison, then the limits and any input with no source. Its Comparisons section answers the question with each difference and its interval: a fourth packer cuts the packing wait by 1.77 seconds, with a half-width of 0.16 seconds.
+The Complete Model's `report.md` gives the question, the model and its versions, the assumptions, each input with its fitted parameters and where it came from, the run settings, the counts, the results, the comparisons, the checks and the observed comparison, then the limits and any input with no source. Its Comparisons section answers the question with each difference and its interval: a fourth packer cuts the packing wait by 1.58 seconds, with a half-width of 0.10 seconds.
 
 ### Why It Matters
 

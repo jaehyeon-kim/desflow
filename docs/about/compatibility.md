@@ -10,7 +10,8 @@ From 1.0, a model, a script or a pipeline written for one 1.x release runs on ev
 | The `desflow` command: every command, argument and option, and how a 1.0 command line is read | add a command, an option that is not required, or a choice; widen a limit. Every 1.0 command line parses to the same values | `tests/unit/test_cli_surface.py` |
 | The public Python API: every name at the import paths listed below, with its signature, including the schema registry serializers and deserializers | add a name, or an argument with a default | `tests/unit/test_public_api.py` and `tests/unit/public_api.txt` |
 | The record format of [Records and Telemetry](../reference/records-and-telemetry.md): each field with its name, type and position | add a field after the last one of its kind, or a record kind that reaches only the sinks that ask for it, as `trace` does | `tests/unit/test_record_contract.py` |
-| The extra names of `pip install "desflow[<extra>]"`: `kafka`, `redis`, `postgres`, `confluent`, `glue`, `parquet`, `iceberg`, `fit`, `watch`, `fake` and `all` | add an extra | `tests/unit/test_extras.py` |
+| The extra names of `pip install "desflow[<extra>]"`: `kafka`, `redis`, `postgres`, `confluent`, `glue`, `parquet`, `iceberg`, `fit`, `watch`, `fake`, `mcp` and `all` | add an extra | `tests/unit/test_extras.py` |
+| The tools of `desflow mcp`: every tool name and its parameters, as [MCP Server](../ai/mcp-server.md) lists them | add a tool, or an optional parameter to a tool | `tests/unit/test_mcp_server.py` |
 | The registry path forms, such as `<simulation>.resources.<name>.current_cap`, that an ingress message, a scenario step and `registry.update` write to | add a form | `tests/unit/test_registry_paths.py` |
 | The reserved payload keys: a key with two underscores on each side belongs to desflow, a sink drops the keys it does not route by, and `__topic__`, `__table__`, `__path__` and `__stream__` choose the destination, as [Reserved Payload Keys](../reference/records-and-telemetry.md#reserved-payload-keys) says | add a key | `tests/unit/test_record_contract.py` and the routing test of each sink |
 
@@ -33,7 +34,7 @@ The [API Reference](../reference/api.md) shows each name at its path. A name imp
 - **`desflow explain --json`.** Its shape can change in 1.x, and its `schema_version` changes with it.
 - **A form marked experimental.** A key or a command added in 1.x while it is marked experimental can change until a release removes the mark.
 - **A Python version.** A 1.x minor release may drop one, as [Supported Versions and Platforms](#supported-versions-and-platforms) says.
-- **Simulation server.** The server, its MCP tools and its `pattern` blueprint block ship after 1.0 behind the `server` extra and start as experimental. Its REST API under `/api/v1` only adds once it is released.
+- **Simulation server.** The server and its `pattern` blueprint block ship after 1.0 behind the `server` extra and start as experimental. Its REST API under `/api/v1` only adds once it is released.
 
 ## No Silent Change to Results
 
