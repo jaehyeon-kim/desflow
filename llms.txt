@@ -123,32 +123,6 @@
 - [Set Up Your Editor](https://jaehyeon.me/desflow/latest/how-to/tools/set-up-your-editor/index.md)
 - [Tune Performance](https://jaehyeon.me/desflow/latest/how-to/tools/performance-tuning/index.md)
 
-## Command Line
-
-- [Command Line](https://jaehyeon.me/desflow/latest/cli/index.md)
-- [desflow run](https://jaehyeon.me/desflow/latest/cli/run/index.md)
-- [desflow check](https://jaehyeon.me/desflow/latest/cli/check/index.md)
-- [desflow test](https://jaehyeon.me/desflow/latest/cli/test/index.md)
-- [desflow explain](https://jaehyeon.me/desflow/latest/cli/explain/index.md)
-- [desflow experiment](https://jaehyeon.me/desflow/latest/cli/experiment/index.md)
-- [desflow report](https://jaehyeon.me/desflow/latest/cli/report/index.md)
-- [desflow fit](https://jaehyeon.me/desflow/latest/cli/fit/index.md)
-- [desflow dist](https://jaehyeon.me/desflow/latest/cli/dist/index.md)
-- [desflow schema](https://jaehyeon.me/desflow/latest/cli/schema/index.md)
-- [desflow examples](https://jaehyeon.me/desflow/latest/cli/examples/index.md)
-- [desflow examples list](https://jaehyeon.me/desflow/latest/cli/examples-list/index.md)
-- [desflow examples get](https://jaehyeon.me/desflow/latest/cli/examples-get/index.md)
-
-## Agent Skill
-
-- [Agent Skill](https://jaehyeon.me/desflow/latest/ai/index.md)
-- [Draft a Model](https://jaehyeon.me/desflow/latest/ai/draft-a-model/index.md)
-- [Port a SimPy Program](https://jaehyeon.me/desflow/latest/ai/port-a-simpy-program/index.md)
-- [Write Another Form](https://jaehyeon.me/desflow/latest/ai/write-another-form/index.md)
-- [Write Tests](https://jaehyeon.me/desflow/latest/ai/write-tests/index.md)
-- [Run a Study](https://jaehyeon.me/desflow/latest/ai/run-a-study/index.md)
-- [Fit a Distribution](https://jaehyeon.me/desflow/latest/ai/fit-a-distribution/index.md)
-
 ## Generators
 
 - [Generators](https://jaehyeon.me/desflow/latest/generators/index.md)
@@ -190,6 +164,44 @@
 - [aggregate](https://jaehyeon.me/desflow/latest/generators/related-records/aggregate/index.md)
 - [row](https://jaehyeon.me/desflow/latest/generators/related-records/row/index.md)
 - [call](https://jaehyeon.me/desflow/latest/generators/python/call/index.md)
+
+## Command Line
+
+- [Command Line](https://jaehyeon.me/desflow/latest/cli/index.md)
+- [desflow run](https://jaehyeon.me/desflow/latest/cli/run/index.md)
+- [desflow check](https://jaehyeon.me/desflow/latest/cli/check/index.md)
+- [desflow test](https://jaehyeon.me/desflow/latest/cli/test/index.md)
+- [desflow explain](https://jaehyeon.me/desflow/latest/cli/explain/index.md)
+- [desflow experiment](https://jaehyeon.me/desflow/latest/cli/experiment/index.md)
+- [desflow report](https://jaehyeon.me/desflow/latest/cli/report/index.md)
+- [desflow fit](https://jaehyeon.me/desflow/latest/cli/fit/index.md)
+- [desflow dist](https://jaehyeon.me/desflow/latest/cli/dist/index.md)
+- [desflow schema](https://jaehyeon.me/desflow/latest/cli/schema/index.md)
+- [desflow mcp](https://jaehyeon.me/desflow/latest/cli/mcp/index.md)
+- [desflow examples](https://jaehyeon.me/desflow/latest/cli/examples/index.md)
+- [desflow examples list](https://jaehyeon.me/desflow/latest/cli/examples-list/index.md)
+- [desflow examples get](https://jaehyeon.me/desflow/latest/cli/examples-get/index.md)
+
+## Integrations
+
+- [Overview](https://jaehyeon.me/desflow/latest/integrations/index.md)
+- [Airflow](https://jaehyeon.me/desflow/latest/integrations/airflow/index.md)
+- [Dagster](https://jaehyeon.me/desflow/latest/integrations/dagster/index.md)
+- [Prefect](https://jaehyeon.me/desflow/latest/integrations/prefect/index.md)
+- [Kestra](https://jaehyeon.me/desflow/latest/integrations/kestra/index.md)
+
+## AI Assistants
+
+- [Overview](https://jaehyeon.me/desflow/latest/ai/index.md)
+- [Plugin](https://jaehyeon.me/desflow/latest/ai/plugin/index.md)
+- [Agent Skill](https://jaehyeon.me/desflow/latest/ai/agent-skill/index.md)
+- [Draft a Model](https://jaehyeon.me/desflow/latest/ai/draft-a-model/index.md)
+- [Port a SimPy Program](https://jaehyeon.me/desflow/latest/ai/port-a-simpy-program/index.md)
+- [Write Another Form](https://jaehyeon.me/desflow/latest/ai/write-another-form/index.md)
+- [Write Tests](https://jaehyeon.me/desflow/latest/ai/write-tests/index.md)
+- [Run a Study](https://jaehyeon.me/desflow/latest/ai/run-a-study/index.md)
+- [Fit a Distribution](https://jaehyeon.me/desflow/latest/ai/fit-a-distribution/index.md)
+- [MCP Server](https://jaehyeon.me/desflow/latest/ai/mcp-server/index.md)
 
 ## Gallery
 
