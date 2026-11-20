@@ -78,6 +78,7 @@ _TEACHING = (
     "user-guide",
     "how-to",
     "integrations",
+    "ai",
     "gallery",
 )
 
@@ -85,8 +86,8 @@ _TEACHING = (
 @pytest.mark.parametrize("command", sorted(c for c in COMMANDS if c != "desflow"))
 def test_every_command_is_used_beyond_the_command_line_page(command):
     """A command shown only on Command Line is easy to miss, so one other page of the
-    tutorials, the User Guide, the How-To and Integrations pages or the examples uses
-    it too."""
+    tutorials, the User Guide, the How-To, Integrations and AI Assistants pages or the
+    examples uses it too."""
     used = re.compile(re.escape(command) + r"(?![\w-])")
     pages = [
         page
