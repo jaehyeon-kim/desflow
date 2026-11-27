@@ -196,11 +196,11 @@
 - [Plugin](https://jaehyeon.me/desflow/latest/ai/plugin/index.md)
 - [Agent Skill](https://jaehyeon.me/desflow/latest/ai/agent-skill/index.md)
 - [Draft a Model](https://jaehyeon.me/desflow/latest/ai/draft-a-model/index.md)
-- [Port a SimPy Program](https://jaehyeon.me/desflow/latest/ai/port-a-simpy-program/index.md)
-- [Write Another Form](https://jaehyeon.me/desflow/latest/ai/write-another-form/index.md)
 - [Write Tests](https://jaehyeon.me/desflow/latest/ai/write-tests/index.md)
 - [Run a Study](https://jaehyeon.me/desflow/latest/ai/run-a-study/index.md)
 - [Fit a Distribution](https://jaehyeon.me/desflow/latest/ai/fit-a-distribution/index.md)
+- [Write Another Form](https://jaehyeon.me/desflow/latest/ai/write-another-form/index.md)
+- [Port a SimPy Program](https://jaehyeon.me/desflow/latest/ai/port-a-simpy-program/index.md)
 - [MCP Server](https://jaehyeon.me/desflow/latest/ai/mcp-server/index.md)
 
 ## Gallery
