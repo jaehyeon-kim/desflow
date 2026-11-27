@@ -503,11 +503,11 @@ nav:
       - Agent Skill:
           - ai/agent-skill.md
           - Draft a Model: ai/draft-a-model.md
-          - Port a SimPy Program: ai/port-a-simpy-program.md
-          - Write Another Form: ai/write-another-form.md
           - Write Tests: ai/write-tests.md
           - Run a Study: ai/run-a-study.md
           - Fit a Distribution: ai/fit-a-distribution.md
+          - Write Another Form: ai/write-another-form.md
+          - Port a SimPy Program: ai/port-a-simpy-program.md
       - MCP Server: ai/mcp-server.md
   - Gallery:
       - Overview: gallery/index.md

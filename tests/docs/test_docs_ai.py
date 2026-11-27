@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 PAGES = ROOT / "docs" / "ai"
 SNIPPETS = ROOT / "docs" / "snippets" / "ai"
@@ -90,3 +92,29 @@ def test_the_experiment_gives_the_comparison_run_a_study_shows(tmp_path):
     )
     for line in shown.splitlines():
         assert line in report, line
+
+
+@pytest.mark.parametrize(
+    "script",
+    ["drafted_shop_experiment_builder.py", "drafted_shop_experiment_low_level.py"],
+)
+def test_the_python_studies_give_the_comparison_of_the_experiment_file(
+    tmp_path, script
+):
+    """The Builder and Low-level tabs of Run a Study write the comparison the
+    experiment file writes."""
+    for name in (
+        "drafted_shop.yaml",
+        "drafted_shop_builder.py",
+        "drafted_shop_low_level.py",
+        "drafted_shop_experiment.yaml",
+        script,
+    ):
+        shutil.copy(SNIPPETS / name, tmp_path)
+    _run(
+        [DESFLOW, "experiment", "drafted_shop_experiment.yaml", "--output", "yaml"],
+        tmp_path,
+    )
+    _run([sys.executable, script], tmp_path)
+    written = tmp_path / "results" / "second-packer" / "comparisons.csv"
+    assert written.read_text() == (tmp_path / "yaml" / "comparisons.csv").read_text()

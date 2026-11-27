@@ -17,11 +17,11 @@ Each page gives the request to type, what the skill tells the assistant to do, a
 | Task | What the assistant gives you |
 |---|---|
 | [Draft a Model](draft-a-model.md) | a blueprint from a description of a process, with each assumed number marked, checked against queueing theory |
-| [Port a SimPy Program](port-a-simpy-program.md) | a desflow model that does what a SimPy program does, compared with the program's output |
-| [Write Another Form](write-another-form.md) | the Builder and Low-level forms of a blueprint, which give the same records |
 | [Write Tests](write-tests.md) | tests of the statistics with `desflow test`, with expected values taken from the request |
 | [Run a Study](run-a-study.md) | replications with a confidence interval, and a comparison of designs with `desflow experiment` |
 | [Fit a Distribution](fit-a-distribution.md) | a distribution fitted to measured times with `desflow fit`, loaded into the model |
+| [Write Another Form](write-another-form.md) | the Builder and Low-level forms of a blueprint, which give the same records |
+| [Port a SimPy Program](port-a-simpy-program.md) | a desflow model that does what a SimPy program does, compared with the program's output |
 
 ---
 
