@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds this version of the docs and pushes it to gh-pages as `latest`. Run by the
-# docs deploy of pipeline.yml and of docs.yml, from a checkout with the full history,
-# because mike pulls the gh-pages branch.
+# docs deploy of pipeline.yml, from a checkout with the full history, because mike
+# pulls the gh-pages branch.
 set -euo pipefail
 
 # Configure Git for the bot commit
@@ -12,7 +12,7 @@ git config --global user.email "1023748+jaehyeon-kim@users.noreply.github.com"
 VERSION=$(grep -m 1 '^version = ' pyproject.toml | cut -d '"' -f 2)
 echo "Extracted version: $VERSION"
 
-# The deploys of pipeline.yml and docs.yml wait for each other in the docs-deploy
+# The deploys of two pipeline.yml runs wait for each other in the docs-deploy
 # group, but in the order they started, not by commit, and GitHub cancels the deploy
 # that waits in the group when a newer one joins it. A run whose commit is no longer
 # the head of main would replace newer docs as `latest`, and the head's own deploy may

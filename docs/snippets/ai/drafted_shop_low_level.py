@@ -16,6 +16,7 @@ from desflow import (
     SimParameter,
 )
 
+# --8<-- [start:draft]
 PARAMS = SimParameter(
     sim_id="Shop",
     # said: an order every 2 seconds on average; assumed: orders arrive at random
@@ -39,6 +40,7 @@ def pack_order(env, sampler, packers, key, task_id):
     publish(
         {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
     )
+    env.stats.task_queued("pack_order", task_id)
     with packers.request() as request:
         yield request
         publish(
@@ -49,8 +51,10 @@ def pack_order(env, sampler, packers, key, task_id):
                 "status": "started",
             }
         )
+        env.stats.task_started("pack_order", task_id)
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         publish({"event_type": "order_packed"})
+    env.stats.task_finished("pack_order", task_id)
 
 
 def order_generator(env, sampler, packers):
@@ -61,6 +65,9 @@ def order_generator(env, sampler, packers):
         yield env.timeout(sampler.sample(arrival))
         env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
         task_id += 1
+
+
+# --8<-- [end:draft]
 
 
 def run(until=3600):  # assumed: one hour answers the question

@@ -199,6 +199,7 @@ The three forms of the shop from [Draft a Model](draft-a-model.md). [Writing a M
             publish(
                 {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
             )
+            env.stats.task_queued("pack_order", task_id)
             with packers.request() as request:
                 yield request
                 publish(
@@ -209,8 +210,10 @@ The three forms of the shop from [Draft a Model](draft-a-model.md). [Writing a M
                         "status": "started",
                     }
                 )
+                env.stats.task_started("pack_order", task_id)
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 publish({"event_type": "order_packed"})
+            env.stats.task_finished("pack_order", task_id)
 
 
         def order_generator(env, sampler, packers):

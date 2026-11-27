@@ -1,0 +1,6 @@
+{#-
+  Material's own script (9.8.1) with one change: `new URL(base_url)` throws in the
+  browser, because MkDocs makes `base_url` relative, such as ".". The page's address
+  is given as the base, so the relative address resolves.
+-#}
+<script>var el=document.querySelector("[data-md-component=outdated]"),base=new URL("{{ base_url }}",location),outdated=__md_get("__outdated",sessionStorage,base);!0===outdated&&el&&(el.hidden=!1)</script>

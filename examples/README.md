@@ -79,4 +79,4 @@ The blueprints in `yaml/` are plain YAML with no Python, apart from the two in `
 
 ## Generators
 
-`generators/` holds one example for each kind of generated value, as `<kind>.yaml`, `<kind>_builder.py` and `<kind>_low_level.py`, with the records it writes in `<kind>_output.txt`. [Generators](https://jaehyeon.me/desflow/latest/generators/) shows each beside the kind's keys. `tests/docs/test_generator_examples.py` runs them.
+`generators/` holds one example for each kind of generated value, as `<kind>.yaml`, with the records it writes in `<kind>_output.txt`. [Generators](https://jaehyeon.me/desflow/latest/generators/) shows each beside the kind's keys. `tests/docs/test_generator_examples.py` runs them.

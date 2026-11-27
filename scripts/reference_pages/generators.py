@@ -19,12 +19,6 @@ from .yaml_keys import paragraphs
 
 ROOT = Path(__file__).resolve().parents[2]
 GENERATOR_EXAMPLES = ROOT / "examples" / "generators"
-# The tab titles of every code tab set, with the suffix of each form's file
-FORMS = (
-    ("YAML", ".yaml", "yaml"),
-    ("Builder", "_builder.py", "python"),
-    ("Low-level", "_low_level.py", "python"),
-)
 # The keys every kind accepts
 MODIFIERS = ("null_rate", "unique", "omit_rate", "omit_when")
 
@@ -396,18 +390,16 @@ def _page_name(kind: str) -> str:
     return f"generators/{_group_of(kind)}/{kind.replace('_', '-')}.md"
 
 
-def _example_file(kind: str, form: str) -> Path:
-    """One form of a kind's example.
+def example_file(kind: str) -> Path:
+    """A kind's example blueprint.
 
     Args:
         kind: The kind.
-        form: The tab title: `YAML`, `Builder` or `Low-level`.
 
     Returns:
         Path: The file in `examples/generators/`.
     """
-    suffix = next(suffix for title, suffix, _ in FORMS if title == form)
-    return GENERATOR_EXAMPLES / f"{kind}{suffix}"
+    return GENERATOR_EXAMPLES / f"{kind}.yaml"
 
 
 def output_file(kind: str) -> Path:
@@ -422,14 +414,11 @@ def output_file(kind: str) -> Path:
     return GENERATOR_EXAMPLES / f"{kind}_output.txt"
 
 
-def _tab(title: str, kind: str, language: str, form: str) -> List[str]:
-    """One tab of the example: the file as a labelled block, indented under the tab."""
-    path = _example_file(kind, form)
-    label = f"examples/generators/{path.name}"
-    lines = [f'=== "{title}"', "", f'    ```{language} title="{label}"']
-    for line in path.read_text(encoding="utf-8").rstrip("\n").split("\n"):
-        lines.append(f"    {line}" if line else "")
-    return lines + ["    ```", ""]
+def _example_block(kind: str) -> List[str]:
+    """The example blueprint as a labelled block."""
+    path = example_file(kind)
+    text = path.read_text(encoding="utf-8").rstrip("\n")
+    return [f'```yaml title="examples/generators/{path.name}"', text, "```", ""]
 
 
 def _keys_table(model: str, defs: Dict[str, Any], skip: Tuple[str, ...]) -> List[str]:
@@ -489,11 +478,10 @@ def generator_page(kind: str) -> str:
         )
     lines += table + [accepts, ""] + nested_lines
     lines += ["## Example", "", f"{KINDS[kind].shows} {_RUN_LINE}", ""]
-    for title, _, language in FORMS:
-        lines += _tab(title, kind, language, title)
+    lines += _example_block(kind)
     output = output_file(kind).read_text(encoding="utf-8").rstrip("\n")
     lines += [
-        "All three print the same records:",
+        "It prints these records:",
         "",
         "```text",
         output,
@@ -528,9 +516,10 @@ def generators_index() -> str:
     lines = [
         "# Generators",
         "",
-        "A generator draws a value each time a blueprint makes a record. This section "
-        "has one page for each kind, with its keys, an example in YAML, Builder and "
-        "Low-level, the records the example prints, and its JSON Schema.",
+        "A generator draws a value each time a blueprint makes a record. Generators "
+        "are written in YAML blueprints; a Builder or Low-level model makes its values "
+        "in Python. This section has one page for each kind, with its keys, an example "
+        "blueprint, the records it prints, and its JSON Schema.",
         "",
         "## What a Generator Is",
         "",
@@ -589,14 +578,11 @@ def generators_index() -> str:
         "0, so a run takes no wall-clock time and prints the same records each time. "
         "No example needs a service.",
         "",
-        "Each kind has three files in `examples/generators/` of the repository: "
-        "`<kind>.yaml`, `<kind>_builder.py` and `<kind>_low_level.py`. Run them from "
-        "the repository's root folder:",
+        "Each kind has one blueprint in `examples/generators/` of the repository, "
+        "`<kind>.yaml`. Run it from the repository's root folder:",
         "",
         "```bash",
         "desflow run examples/generators/integer.yaml",
-        "python examples/generators/integer_builder.py",
-        "python examples/generators/integer_low_level.py",
         "```",
         "",
         '`fake` needs the `fake` extra, which `pip install "desflow[fake]"` adds. '

@@ -8,10 +8,7 @@ desflow run shop.yaml --var PACKERS=3 --until 3600 --seed 7 --summary result.jso
 # --8<-- [end:direct]
 
 # --8<-- [start:airflow-install]
-AIRFLOW_VERSION=3.4.0
-PYTHON_VERSION="$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-pip install "desflow>=1.1" "apache-airflow==${AIRFLOW_VERSION}" \
-  --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
+pip install "desflow>=1.1" apache-airflow
 # --8<-- [end:airflow-install]
 
 # --8<-- [start:airflow-run]
@@ -29,7 +26,7 @@ python dagster_asset.py
 # --8<-- [end:dagster-run]
 
 # --8<-- [start:prefect-install]
-pip install "desflow>=1.1" prefect
+pip install "desflow>=1.1" "prefect>=3,<4"
 # --8<-- [end:prefect-install]
 
 # --8<-- [start:prefect-run]

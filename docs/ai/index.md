@@ -6,7 +6,7 @@ The parts relate as follows:
 
 | Part | What it gives the assistant | Page |
 |---|---|---|
-| Agent skill | a folder, `skills/desflow/`, of rules in the Agent Skills format: how to write, check, test and run a model, and how to run a study | [Agent Skill](agent-skill.md) |
+| Agent skill | a folder, `skills/desflow/`, of rules in the Agent Skills format: how to write, check, test and run a model, and how to run a study | [Agent Skill](agent-skill/index.md) |
 | MCP server | `desflow mcp`, which offers the desflow commands to an MCP client as tools; MCP, the Model Context Protocol, is the standard an assistant uses to call a tool | [MCP Server](mcp-server.md) |
 | Plugin | one install for Claude Code, Codex or Antigravity that adds the skill and the MCP server together | [Plugin](plugin.md) |
 | Schema and `llms.txt` | the blueprint's JSON Schema and the pages of this site as text | below |

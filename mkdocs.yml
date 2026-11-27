@@ -200,7 +200,7 @@ plugins:
         guides/animate-a-run.md: how-to/analysis/animate-a-run.md
         guides/yaml-advanced.md: how-to/tools/yaml-advanced.md
         guides/set-up-your-editor.md: how-to/tools/set-up-your-editor.md
-        guides/use-an-ai-assistant.md: ai/agent-skill.md
+        guides/use-an-ai-assistant.md: ai/agent-skill/index.md
         guides/performance-tuning.md: how-to/tools/performance-tuning.md
         reference/cli/run.md: cli/run.md
         reference/cli/explain.md: cli/explain.md
@@ -231,7 +231,7 @@ plugins:
         how-to/examples/backfill-live.md: gallery/simulation-models/backfill-live.md
         how-to/examples/advanced-postgres-orders.md: gallery/simulation-models/advanced-postgres-orders.md
         how-to/projects.md: gallery/projects.md
-        how-to/tools/use-an-ai-assistant.md: ai/agent-skill.md
+        how-to/tools/use-an-ai-assistant.md: ai/agent-skill/index.md
   # llms.txt and llms-full.txt for AI assistants (#41): an index of the pages with
   # their links, and the pages themselves as Markdown. hooks/llmstxt_sections.py
   # builds the sections from the nav.
@@ -501,13 +501,13 @@ nav:
       - Overview: ai/index.md
       - Plugin: ai/plugin.md
       - Agent Skill:
-          - ai/agent-skill.md
+          - ai/agent-skill/index.md
           - Draft a Model: ai/draft-a-model.md
-          - Port a SimPy Program: ai/port-a-simpy-program.md
-          - Write Another Form: ai/write-another-form.md
           - Write Tests: ai/write-tests.md
           - Run a Study: ai/run-a-study.md
           - Fit a Distribution: ai/fit-a-distribution.md
+          - Write Another Form: ai/write-another-form.md
+          - Port a SimPy Program: ai/port-a-simpy-program.md
       - MCP Server: ai/mcp-server.md
   - Gallery:
       - Overview: gallery/index.md

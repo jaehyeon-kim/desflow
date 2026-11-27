@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from desflow import ConsoleEgress, SimulationContext
 
+# --8<-- [start:draft]
 app = (
     SimulationContext(
         sim_id="Shop",
@@ -36,6 +37,9 @@ def order_generator(context: SimulationContext):
         order = yield context.wait_for_arrival("orders")
         context.spawn(pack_order(task_id, entity=order))
         task_id += 1
+
+
+# --8<-- [end:draft]
 
 
 app.add_egress(ConsoleEgress(format="json"))

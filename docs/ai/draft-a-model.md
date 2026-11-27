@@ -59,11 +59,89 @@ The description does not say whether orders arrive at random or how much the pac
 
 === "Builder"
 
-    The skill drafts a blueprint, so the drafted model is the YAML tab. [Write Another Form](write-another-form.md) has its Builder form.
+    ```python title="docs/snippets/ai/drafted_shop_builder.py:draft"
+    app = (
+        SimulationContext(
+            sim_id="Shop",
+            factor=0,  # no pacing: the run ends as soon as it is done
+            random_seed=42,
+            # a fixed date, so two runs give the same records
+            logical_start_time=datetime(2026, 1, 5, 9, 0, tzinfo=timezone.utc),
+        )
+        .add_resource("packers", current_cap=1, max_cap=1)  # said: one packer
+        # said: 1.5 seconds; assumed: every order takes the same time
+        .add_service("packing", dist="constant", value=1.5)
+        # said: an order every 2 seconds on average; assumed: orders arrive at random
+        .add_arrival("orders", dist="exponential", rate=0.5)
+    )
+
+
+    @app.task(service_id="packing", resource_id="packers")
+    def pack_order(task_id: int):
+        return {"event_type": "order_packed"}
+
+
+    @app.arrival_loop("orders")
+    def order_generator(context: SimulationContext):
+        task_id = 0
+        while True:
+            order = yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(task_id, entity=order))
+            task_id += 1
+    ```
 
 === "Low-level"
 
-    The skill drafts a blueprint, so the drafted model is the YAML tab. [Write Another Form](write-another-form.md) has its Low-level form.
+    ```python title="docs/snippets/ai/drafted_shop_low_level.py:draft"
+    PARAMS = SimParameter(
+        sim_id="Shop",
+        # said: an order every 2 seconds on average; assumed: orders arrive at random
+        arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
+        # said: 1.5 seconds; assumed: every order takes the same time
+        service={"packing": DistributionConfig(dist="constant", value=1.5)},
+        resources={"packers": CapacityConfig(current_cap=1, max_cap=1)},  # said: one packer
+    )
+    SEED = 42
+    # a fixed date, so two runs give the same records
+    START = datetime(2026, 1, 5, 9, 0, tzinfo=timezone.utc)
+
+
+    def pack_order(env, sampler, packers, key, task_id):
+        """One order: wait for a packer, pack it, release the packer."""
+        path_id = "Shop.service.packing"
+
+        def publish(value):
+            env.publish_event(key, value, task="pack_order", instance=task_id)
+
+        publish(
+            {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+        )
+        env.stats.task_queued("pack_order", task_id)
+        with packers.request() as request:
+            yield request
+            publish(
+                {
+                    "path_id": path_id,
+                    "sim_id": "Shop",
+                    "service": "packing",
+                    "status": "started",
+                }
+            )
+            env.stats.task_started("pack_order", task_id)
+            yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+            publish({"event_type": "order_packed"})
+        env.stats.task_finished("pack_order", task_id)
+
+
+    def order_generator(env, sampler, packers):
+        """Starts one pack_order for every arrival, keyed orders-1, orders-2, ..."""
+        arrival = env.registry.get_config("Shop.arrival.orders")
+        task_id = 0
+        while True:
+            yield env.timeout(sampler.sample(arrival))
+            env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
+            task_id += 1
+    ```
 
 ---
 
@@ -179,8 +257,138 @@ The skill tells the assistant to copy a checklist into its reply and tick each l
 
     === "Builder"
 
-        [Write Another Form](write-another-form.md#full-files) has the Builder form.
+        ```python title="docs/snippets/ai/drafted_shop_builder.py"
+        """The drafted packing shop with the SimulationContext builder.
+
+        The Builder form of drafted_shop.yaml: it gives the same records at the same seed.
+        Run it with: python drafted_shop_builder.py
+        """
+
+        from datetime import datetime, timezone
+
+        from desflow import ConsoleEgress, SimulationContext
+
+        app = (
+            SimulationContext(
+                sim_id="Shop",
+                factor=0,  # no pacing: the run ends as soon as it is done
+                random_seed=42,
+                # a fixed date, so two runs give the same records
+                logical_start_time=datetime(2026, 1, 5, 9, 0, tzinfo=timezone.utc),
+            )
+            .add_resource("packers", current_cap=1, max_cap=1)  # said: one packer
+            # said: 1.5 seconds; assumed: every order takes the same time
+            .add_service("packing", dist="constant", value=1.5)
+            # said: an order every 2 seconds on average; assumed: orders arrive at random
+            .add_arrival("orders", dist="exponential", rate=0.5)
+        )
+
+
+        @app.task(service_id="packing", resource_id="packers")
+        def pack_order(task_id: int):
+            return {"event_type": "order_packed"}
+
+
+        @app.arrival_loop("orders")
+        def order_generator(context: SimulationContext):
+            task_id = 0
+            while True:
+                order = yield context.wait_for_arrival("orders")
+                context.spawn(pack_order(task_id, entity=order))
+                task_id += 1
+
+
+        app.add_egress(ConsoleEgress(format="json"))
+
+        if __name__ == "__main__":
+            app.run(until="1 hour")  # assumed: one hour answers the question
+        ```
 
     === "Low-level"
 
-        [Write Another Form](write-another-form.md#full-files) has the Low-level form.
+        ```python title="docs/snippets/ai/drafted_shop_low_level.py"
+        """The drafted packing shop on the low-level API.
+
+        The Low-level form of drafted_shop.yaml: it gives the same records at the same seed.
+        Times are in seconds. Run it with: python drafted_shop_low_level.py
+        """
+
+        from datetime import datetime, timezone
+
+        from desflow import (
+            CapacityConfig,
+            ConsoleEgress,
+            DistributionConfig,
+            DynamicRealtimeEnvironment,
+            DynamicResource,
+            Sampler,
+            SimParameter,
+        )
+
+        PARAMS = SimParameter(
+            sim_id="Shop",
+            # said: an order every 2 seconds on average; assumed: orders arrive at random
+            arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
+            # said: 1.5 seconds; assumed: every order takes the same time
+            service={"packing": DistributionConfig(dist="constant", value=1.5)},
+            resources={"packers": CapacityConfig(current_cap=1, max_cap=1)},  # said: one packer
+        )
+        SEED = 42
+        # a fixed date, so two runs give the same records
+        START = datetime(2026, 1, 5, 9, 0, tzinfo=timezone.utc)
+
+
+        def pack_order(env, sampler, packers, key, task_id):
+            """One order: wait for a packer, pack it, release the packer."""
+            path_id = "Shop.service.packing"
+
+            def publish(value):
+                env.publish_event(key, value, task="pack_order", instance=task_id)
+
+            publish(
+                {"path_id": path_id, "sim_id": "Shop", "service": "packing", "status": "queued"}
+            )
+            env.stats.task_queued("pack_order", task_id)
+            with packers.request() as request:
+                yield request
+                publish(
+                    {
+                        "path_id": path_id,
+                        "sim_id": "Shop",
+                        "service": "packing",
+                        "status": "started",
+                    }
+                )
+                env.stats.task_started("pack_order", task_id)
+                yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+                publish({"event_type": "order_packed"})
+            env.stats.task_finished("pack_order", task_id)
+
+
+        def order_generator(env, sampler, packers):
+            """Starts one pack_order for every arrival, keyed orders-1, orders-2, ..."""
+            arrival = env.registry.get_config("Shop.arrival.orders")
+            task_id = 0
+            while True:
+                yield env.timeout(sampler.sample(arrival))
+                env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
+                task_id += 1
+
+
+        def run(until=3600):  # assumed: one hour answers the question
+            env = DynamicRealtimeEnvironment(factor=0, logical_start_time=START)
+            env.registry.register_sim_parameter(PARAMS)
+            env.setup_egress([ConsoleEgress(format="json")])
+            packers = DynamicResource(env, "Shop", "packers")
+            sampler = Sampler(seed=SEED)
+            env.process(order_generator(env, sampler, packers))
+            try:
+                env.run(until=until)
+            finally:
+                env.teardown()
+            return env
+
+
+        if __name__ == "__main__":
+            run()
+        ```
