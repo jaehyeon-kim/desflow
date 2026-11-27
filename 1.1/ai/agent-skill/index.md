@@ -17,11 +17,11 @@ Each page gives the request to type, what the skill tells the assistant to do, a
 | Task                                                                                        | What the assistant gives you                                                                                  |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | [Draft a Model](https://jaehyeon.me/desflow/latest/ai/draft-a-model/index.md)               | a blueprint from a description of a process, with each assumed number marked, checked against queueing theory |
-| [Port a SimPy Program](https://jaehyeon.me/desflow/latest/ai/port-a-simpy-program/index.md) | a desflow model that does what a SimPy program does, compared with the program's output                       |
-| [Write Another Form](https://jaehyeon.me/desflow/latest/ai/write-another-form/index.md)     | the Builder and Low-level forms of a blueprint, which give the same records                                   |
 | [Write Tests](https://jaehyeon.me/desflow/latest/ai/write-tests/index.md)                   | tests of the statistics with `desflow test`, with expected values taken from the request                      |
 | [Run a Study](https://jaehyeon.me/desflow/latest/ai/run-a-study/index.md)                   | replications with a confidence interval, and a comparison of designs with `desflow experiment`                |
 | [Fit a Distribution](https://jaehyeon.me/desflow/latest/ai/fit-a-distribution/index.md)     | a distribution fitted to measured times with `desflow fit`, loaded into the model                             |
+| [Write Another Form](https://jaehyeon.me/desflow/latest/ai/write-another-form/index.md)     | the Builder and Low-level forms of a blueprint, which give the same records                                   |
+| [Port a SimPy Program](https://jaehyeon.me/desflow/latest/ai/port-a-simpy-program/index.md) | a desflow model that does what a SimPy program does, compared with the program's output                       |
 
 ______________________________________________________________________
 

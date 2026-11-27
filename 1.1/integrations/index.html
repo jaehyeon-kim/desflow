@@ -1241,10 +1241,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pass-the-result-through-a-file" class="md-nav__link">
+  <a href="#figures-each-page-reads" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Pass the Result Through a File
+        Figures Each Page Reads
       
     </span>
   </a>
@@ -1285,15 +1285,15 @@
 <tbody>
 <tr>
 <td><a href="airflow/">Airflow</a></td>
-<td>a DAG with a <code>BashOperator</code> that runs the shop and a task that reads its result</td>
+<td>a DAG whose task runs the shop in Python and returns its figures</td>
 </tr>
 <tr>
 <td><a href="dagster/">Dagster</a></td>
-<td>an asset that runs the shop through <code>PipesSubprocessClient</code> and keeps the figures as metadata</td>
+<td>an asset that runs the shop in Python and keeps its figures as metadata</td>
 </tr>
 <tr>
 <td><a href="prefect/">Prefect</a></td>
-<td>a flow with a task that runs the shop and a task that reads its result</td>
+<td>a flow whose task runs the shop in Python and returns its figures</td>
 </tr>
 <tr>
 <td><a href="kestra/">Kestra</a></td>
@@ -1303,7 +1303,7 @@
 </table>
 <hr />
 <h2 id="one-shop-for-every-orchestrator">One Shop for Every Orchestrator</h2>
-<p>The four orchestrator pages run one blueprint, <code>shop.yaml</code>, with one command. The shop takes an order every 2 seconds on average, and a packer takes 3 seconds on average to pack one. <code>factor: 0</code> runs the model as fast as it can, so an hour of simulated time ends in under a second:</p>
+<p>The four orchestrator pages run one blueprint, <code>shop.yaml</code>. The shop takes an order every 2 seconds on average, and a packer takes 3 seconds on average to pack one. <code>factor: 0</code> runs the model as fast as it can, so an hour of simulated time ends in under a second:</p>
 <div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/orchestrators/shop.yaml</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1"> 1</a></span>
 <span class="normal"><a href="#__codelineno-0-2"> 2</a></span>
 <span class="normal"><a href="#__codelineno-0-3"> 3</a></span>
@@ -1346,20 +1346,19 @@
 </span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20"></a><span class="w">    </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packers</span>
 </span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21"></a><span class="w">    </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">event_type</span><span class="p">:</span><span class="w"> </span><span class="nv">order_packed</span><span class="p p-Indicator">}</span>
 </span></code></pre></div></td></tr></table></div>
-<p>The command runs the shop with three packers for one simulated hour, at seed 7, and writes the run's statistics to <code>result.json</code>:</p>
+<p>Each page runs the shop with three packers for one simulated hour, at seed 7. In a terminal, this command does the same and writes the run's statistics to <code>result.json</code>:</p>
 <div class="language-bash highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/orchestrators/commands.sh:direct</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-1-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1"></a>desflow<span class="w"> </span>run<span class="w"> </span>shop.yaml<span class="w"> </span>--var<span class="w"> </span><span class="nv">PACKERS</span><span class="o">=</span><span class="m">3</span><span class="w"> </span>--until<span class="w"> </span><span class="m">3600</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">7</span><span class="w"> </span>--summary<span class="w"> </span>result.json
 </span></code></pre></div></td></tr></table></div>
 <hr />
-<h2 id="pass-the-result-through-a-file">Pass the Result Through a File</h2>
-<p>desflow logs to stderr and prints no result to stdout in a single run, so a later task reads the figures from the file that <code>--summary</code> writes, not from the output. Airflow, for example, keeps only the last line of a command's output, which is a desflow log line. <a href="../user-guide/results/replications/#write-the-result-to-a-file">Write the Result to a File</a> lists the file's keys.</p>
-<p>The Airflow, Dagster and Prefect pages read three rows of the file's <code>statistics</code> list, and the Kestra page logs the whole file:</p>
+<h2 id="figures-each-page-reads">Figures Each Page Reads</h2>
+<p>The Airflow, Dagster and Prefect pages call desflow in Python and read three of the run's statistics. The Kestra page runs the command and logs the whole file that <code>--summary</code> writes, whose keys <a href="../user-guide/results/replications/#write-the-result-to-a-file">Write the Result to a File</a> lists. The three statistics are:</p>
 <ul>
 <li><code>tasks.pack.finished</code>: the orders packed.</li>
 <li><code>tasks.pack.wait_mean</code>: the mean wait for a packer, in seconds.</li>
 <li><code>resources.packers.utilization_avg</code>: the packers' mean utilisation over the run, in percent.</li>
 </ul>
 <p>The fixed seed gives every orchestrator the same figures as the command run in a terminal.</p>
-<p>The command exits with 0 when the run finishes or is stopped by Ctrl+C or SIGTERM, 1 when the blueprint cannot be loaded, and 2 when a file is missing or an option is refused. Each orchestrator fails its task on any code other than 0. A stopped run flushes its sinks and writes no summary, so the task that reads <code>result.json</code> fails, not the task that ran desflow.</p>
+<p>On the Airflow, Dagster and Prefect pages, an error in the run raises an exception, which fails the task. On the Kestra page, the command exits with 0 when the run finishes or is stopped by Ctrl+C or SIGTERM, 1 when the blueprint cannot be loaded, and 2 when a file is missing or an option is refused, and Kestra fails the task on any code other than 0.</p>
 
 
 

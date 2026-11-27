@@ -1,20 +1,17 @@
 # Airflow
 
-Run a desflow study as a task of an Airflow DAG, and pass its figures to the next task. The DAG has two tasks: a `BashOperator` that runs the shop, and a Python task that reads the figures from the file the run writes.
+Run a desflow study as a task of an Airflow DAG, and pass its figures to later tasks. The task calls desflow in Python and returns the figures.
 
 ______________________________________________________________________
 
 ## Before You Start
 
-- [Integrations](https://jaehyeon.me/desflow/latest/integrations/#one-shop-for-every-orchestrator) shows the shop, the command and the figures the result file holds.
+- [Integrations](https://jaehyeon.me/desflow/latest/integrations/#one-shop-for-every-orchestrator) shows the shop and the figures each page reads.
 
-- You need Airflow 3.4 and desflow 1.1 or later in one environment. Airflow asks to be installed with its constraints file, which names one tested version of each package for your Python:
+- Install desflow 1.1 or later with a recent version of Airflow. Any version of Airflow that installs alongside desflow 1.1 or later works. On Airflow 2, import `dag` and `task` from `airflow.decorators` instead of `airflow.sdk`:
 
   ```bash
-  AIRFLOW_VERSION=3.4.0
-  PYTHON_VERSION="$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-  pip install "desflow>=1.1" "apache-airflow==${AIRFLOW_VERSION}" \
-    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
+  pip install "desflow>=1.1" apache-airflow
   ```
 
 - Put `shop.yaml` and `airflow_dag.py` in the DAGs folder, which is `~/airflow/dags` unless `AIRFLOW_HOME` names another folder for Airflow's files.
@@ -25,67 +22,54 @@ ______________________________________________________________________
 
 ### Write the DAG
 
-The `run_shop` task runs the command with `cwd` set to the DAG's folder, so it finds `shop.yaml` and writes `result.json` beside it. Without `cwd`, Airflow runs the command in a temporary folder. A non-zero exit fails the task.
-
-The `read_result` task opens `result.json` and returns the three figures, which Airflow keeps as the task's XCom value for later tasks. The result passes through the file because `BashOperator` pushes only the last line of the command's output to XCom, and desflow's last line is a log line:
+The `run_shop` task loads `shop.yaml` from the DAG's folder with three packers, runs one simulated hour at seed 7, and returns the three figures. Airflow keeps the returned dictionary as the task's XCom value, so a later task can take it as an argument. `with_stats("typical")` switches on the statistics the figures come from, because the mean wait needs the `typical` level. desflow is imported inside the task, so the scheduler does not import it each time it parses the DAG file. An error in the run raises an exception, which fails the task:
 
 ```python
-"""An Airflow DAG that runs the shop with desflow and reads the result.
+"""An Airflow DAG whose task runs the shop with desflow and returns its figures.
 
 Put this file and shop.yaml in the DAGs folder. `python airflow_dag.py` runs the DAG
 once, in this process, with no scheduler.
 """
 
-import json
 from pathlib import Path
 
-from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import dag, task
 
-# The folder that holds this file and shop.yaml, where the run writes result.json
+# The folder that holds this file and shop.yaml
 FOLDER = Path(__file__).resolve().parent
-# The figures the next task reads from the summary
+# The figures the task returns
 FIGURES = (
     "tasks.pack.finished",
     "tasks.pack.wait_mean",
     "resources.packers.utilization_avg",
 )
-# The command, run from FOLDER. It writes the run's statistics to result.json
-COMMAND = (
-    "desflow run shop.yaml --var PACKERS=3 --until 3600 --seed 7 --summary result.json"
-)
 
 
 @dag(schedule=None, catchup=False)
 def shop_study():
-    # desflow logs to stderr, and Airflow keeps only the last line of the output, so
-    # the result goes to a file that the next task reads.
-    run_shop = BashOperator(
-        task_id="run_shop",
-        bash_command=COMMAND,
-        cwd=str(FOLDER),
-    )
-
     @task
-    def read_result() -> dict:
-        summary = json.loads((FOLDER / "result.json").read_text())
-        return {
-            row["statistic"]: row["value"]
-            for row in summary["statistics"]
-            if row["statistic"] in FIGURES
-        }
+    def run_shop(packers: int = 3) -> dict:
+        # Imported here, so parsing the DAG file does not import desflow
+        from desflow import SimulationContext
 
-    run_shop >> read_result()
+        app = SimulationContext.from_yaml(
+            FOLDER / "shop.yaml", variables={"PACKERS": str(packers)}
+        )
+        app.random_seed = 7
+        app.with_stats("typical")  # keeps the mean wait as well as the counts
+        app.run(until=3600)
+        readings = app.env.stats.readings()
+        return {name: readings[f"Shop.stats.{name}"] for name in FIGURES}
+
+    run_shop()
 
 
 study = shop_study()
 
 if __name__ == "__main__":
     run = study.test()
-    print(run.get_task_instance("read_result").xcom_pull(task_ids="read_result"))
+    print(run.get_task_instance("run_shop").xcom_pull(task_ids="run_shop"))
 ```
-
-When Airflow stops a running task, it sends SIGTERM to the command. desflow then flushes its sinks and exits without writing `result.json`, so `read_result` does not read a stale file.
 
 ### Run the DAG Once
 
@@ -101,18 +85,18 @@ ______________________________________________________________________
 
 ## Check the Result
 
-Airflow logs each task as it runs, with desflow's log lines inside `run_shop`'s output. The last line the script prints is the value of `read_result`:
+Airflow logs each task as it runs, with desflow's log lines inside `run_shop`'s output. The last line the script prints is the value of `run_shop`:
 
 ```text
 {'resources.packers.utilization_avg': 49.47475468873524, 'tasks.pack.finished': 1775, 'tasks.pack.wait_mean': 0.25614739363776756}
 ```
 
-Three packers packed 1775 orders in the hour, and an order waited 0.26 seconds for a packer on average. These are the figures of the command run in a terminal.
+Three packers packed 1775 orders in the hour, and an order waited 0.26 seconds for a packer on average. These are the figures that `desflow run shop.yaml --var PACKERS=3 --until 3600 --seed 7 --summary result.json` writes to `result.json` in a terminal.
 
-In a deployed Airflow, the scheduler runs the DAG instead of `python airflow_dag.py`, and each worker that runs `run_shop` needs desflow installed and the two files in its DAGs folder. Passing `result.json` between the two tasks needs both on one machine, such as the `LocalExecutor` or a single worker, and a DAGs folder that Airflow can write to. With several workers, `run_shop` writes its summary to storage that both tasks read, or the two tasks become one task. Two runs of the DAG at the same time share one file, so each run writes its own, such as `result-{{ run_id }}.json`.
+In a deployed Airflow, the scheduler runs the DAG instead of `python airflow_dag.py`, and each worker that runs `run_shop` needs desflow installed and the two files in its DAGs folder.
 
 ______________________________________________________________________
 
 ## Sources
 
-The operator's options and its XCom value are those of `BashOperator` in `apache-airflow-providers-standard` 1.21.0. `dag.test()` and the metadata database it needs are described in Airflow's [Debugging Airflow DAGs](https://airflow.apache.org/docs/apache-airflow/3.4.0/core-concepts/debug.html), and the constraints file in [Installation from PyPI](https://airflow.apache.org/docs/apache-airflow/3.4.0/installation/installing-from-pypi.html).
+A task's return value as its XCom value is described in Airflow's [TaskFlow](https://airflow.apache.org/docs/apache-airflow/3.4.0/core-concepts/taskflow.html), and imports kept inside a task in [Best Practices](https://airflow.apache.org/docs/apache-airflow/3.4.0/best-practices.html#top-level-python-code). `dag.test()` and the metadata database it needs are described in [Debugging Airflow DAGs](https://airflow.apache.org/docs/apache-airflow/3.4.0/core-concepts/debug.html).

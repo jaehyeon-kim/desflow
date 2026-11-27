@@ -1,6 +1,6 @@
 # Generators
 
-A generator draws a value each time a blueprint makes a record. This section has one page for each kind, with its keys, an example in YAML, Builder and Low-level, the records the example prints, and its JSON Schema.
+A generator draws a value each time a blueprint makes a record. Generators are written in YAML blueprints; a Builder or Low-level model makes its values in Python. This section has one page for each kind, with its keys, an example blueprint, the records it prints, and its JSON Schema.
 
 ## What a Generator Is
 
@@ -81,12 +81,10 @@ These four keys go on any kind.
 
 Every example is a model in which an order starts every 60 seconds and the run lasts 200 seconds, so three orders start. The seed is 42 and `factor` is 0, so a run takes no wall-clock time and prints the same records each time. No example needs a service.
 
-Each kind has three files in `examples/generators/` of the repository: `<kind>.yaml`, `<kind>_builder.py` and `<kind>_low_level.py`. Run them from the repository's root folder:
+Each kind has one blueprint in `examples/generators/` of the repository, `<kind>.yaml`. Run it from the repository's root folder:
 
 ```bash
 desflow run examples/generators/integer.yaml
-python examples/generators/integer_builder.py
-python examples/generators/integer_low_level.py
 ```
 
 `fake` needs the `fake` extra, which `pip install "desflow[fake]"` adds. `row` reads `products.csv` and `call` imports `call_helpers.py`, both in the same folder.

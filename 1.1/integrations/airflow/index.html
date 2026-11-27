@@ -1430,20 +1430,14 @@
 
 
 <h1 id="airflow">Airflow</h1>
-<p>Run a desflow study as a task of an Airflow DAG, and pass its figures to the next task. The DAG has two tasks: a <code>BashOperator</code> that runs the shop, and a Python task that reads the figures from the file the run writes.</p>
+<p>Run a desflow study as a task of an Airflow DAG, and pass its figures to later tasks. The task calls desflow in Python and returns the figures.</p>
 <hr />
 <h2 id="before-you-start">Before You Start</h2>
 <ul>
-<li><a href="../#one-shop-for-every-orchestrator">Integrations</a> shows the shop, the command and the figures the result file holds.</li>
+<li><a href="../#one-shop-for-every-orchestrator">Integrations</a> shows the shop and the figures each page reads.</li>
 <li>
-<p>You need Airflow 3.4 and desflow 1.1 or later in one environment. Airflow asks to be installed with its constraints file, which names one tested version of each package for your Python:</p>
-<div class="language-bash highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/orchestrators/commands.sh:airflow-install</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1">1</a></span>
-<span class="normal"><a href="#__codelineno-0-2">2</a></span>
-<span class="normal"><a href="#__codelineno-0-3">3</a></span>
-<span class="normal"><a href="#__codelineno-0-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="nv">AIRFLOW_VERSION</span><span class="o">=</span><span class="m">3</span>.4.0
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="nv">PYTHON_VERSION</span><span class="o">=</span><span class="s2">"</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'</span><span class="k">)</span><span class="s2">"</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"desflow&gt;=1.1"</span><span class="w"> </span><span class="s2">"apache-airflow==</span><span class="si">${</span><span class="nv">AIRFLOW_VERSION</span><span class="si">}</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="w">  </span>--constraint<span class="w"> </span><span class="s2">"https://raw.githubusercontent.com/apache/airflow/constraints-</span><span class="si">${</span><span class="nv">AIRFLOW_VERSION</span><span class="si">}</span><span class="s2">/constraints-</span><span class="si">${</span><span class="nv">PYTHON_VERSION</span><span class="si">}</span><span class="s2">.txt"</span>
+<p>Install desflow 1.1 or later with a recent version of Airflow. Any version of Airflow that installs alongside desflow 1.1 or later works. On Airflow 2, import <code>dag</code> and <code>task</code> from <code>airflow.decorators</code> instead of <code>airflow.sdk</code>:</p>
+<div class="language-bash highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/orchestrators/commands.sh:airflow-install</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"desflow&gt;=1.1"</span><span class="w"> </span>apache-airflow
 </span></code></pre></div></td></tr></table></div>
 </li>
 <li>
@@ -1453,8 +1447,7 @@
 <hr />
 <h2 id="steps">Steps</h2>
 <h3 id="write-the-dag">Write the DAG</h3>
-<p>The <code>run_shop</code> task runs the command with <code>cwd</code> set to the DAG's folder, so it finds <code>shop.yaml</code> and writes <code>result.json</code> beside it. Without <code>cwd</code>, Airflow runs the command in a temporary folder. A non-zero exit fails the task.</p>
-<p>The <code>read_result</code> task opens <code>result.json</code> and returns the three figures, which Airflow keeps as the task's XCom value for later tasks. The result passes through the file because <code>BashOperator</code> pushes only the last line of the command's output to XCom, and desflow's last line is a log line:</p>
+<p>The <code>run_shop</code> task loads <code>shop.yaml</code> from the DAG's folder with three packers, runs one simulated hour at seed 7, and returns the three figures. Airflow keeps the returned dictionary as the task's XCom value, so a later task can take it as an argument. <code>with_stats("typical")</code> switches on the statistics the figures come from, because the mean wait needs the <code>typical</code> level. desflow is imported inside the task, so the scheduler does not import it each time it parses the DAG file. An error in the run raises an exception, which fails the task:</p>
 <div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/orchestrators/airflow_dag.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-1-1"> 1</a></span>
 <span class="normal"><a href="#__codelineno-1-2"> 2</a></span>
 <span class="normal"><a href="#__codelineno-1-3"> 3</a></span>
@@ -1498,70 +1491,51 @@
 <span class="normal"><a href="#__codelineno-1-41">41</a></span>
 <span class="normal"><a href="#__codelineno-1-42">42</a></span>
 <span class="normal"><a href="#__codelineno-1-43">43</a></span>
-<span class="normal"><a href="#__codelineno-1-44">44</a></span>
-<span class="normal"><a href="#__codelineno-1-45">45</a></span>
-<span class="normal"><a href="#__codelineno-1-46">46</a></span>
-<span class="normal"><a href="#__codelineno-1-47">47</a></span>
-<span class="normal"><a href="#__codelineno-1-48">48</a></span>
-<span class="normal"><a href="#__codelineno-1-49">49</a></span>
-<span class="normal"><a href="#__codelineno-1-50">50</a></span>
-<span class="normal"><a href="#__codelineno-1-51">51</a></span>
-<span class="normal"><a href="#__codelineno-1-52">52</a></span>
-<span class="normal"><a href="#__codelineno-1-53">53</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="sd">"""An Airflow DAG that runs the shop with desflow and reads the result.</span>
+<span class="normal"><a href="#__codelineno-1-44">44</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="sd">"""An Airflow DAG whose task runs the shop with desflow and returns its figures.</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2"></a>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3"></a><span class="sd">Put this file and shop.yaml in the DAGs folder. `python airflow_dag.py` runs the DAG</span>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4"></a><span class="sd">once, in this process, with no scheduler.</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5"></a><span class="sd">"""</span>
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6"></a>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7"></a><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9"></a>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10"></a><span class="kn">from</span><span class="w"> </span><span class="nn">airflow.providers.standard.operators.bash</span><span class="w"> </span><span class="kn">import</span> <span class="n">BashOperator</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11"></a><span class="kn">from</span><span class="w"> </span><span class="nn">airflow.sdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">dag</span><span class="p">,</span> <span class="n">task</span>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12"></a>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13"></a><span class="c1"># The folder that holds this file and shop.yaml, where the run writes result.json</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14"></a><span class="n">FOLDER</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span>
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15"></a><span class="c1"># The figures the next task reads from the summary</span>
-</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16"></a><span class="n">FIGURES</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17"></a>    <span class="s2">"tasks.pack.finished"</span><span class="p">,</span>
-</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18"></a>    <span class="s2">"tasks.pack.wait_mean"</span><span class="p">,</span>
-</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19"></a>    <span class="s2">"resources.packers.utilization_avg"</span><span class="p">,</span>
-</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20"></a><span class="p">)</span>
-</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21"></a><span class="c1"># The command, run from FOLDER. It writes the run's statistics to result.json</span>
-</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22"></a><span class="n">COMMAND</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23"></a>    <span class="s2">"desflow run shop.yaml --var PACKERS=3 --until 3600 --seed 7 --summary result.json"</span>
-</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24"></a><span class="p">)</span>
-</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25"></a>
-</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26"></a>
-</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27"></a><span class="nd">@dag</span><span class="p">(</span><span class="n">schedule</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">catchup</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-</span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28"></a><span class="k">def</span><span class="w"> </span><span class="nf">shop_study</span><span class="p">():</span>
-</span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29"></a>    <span class="c1"># desflow logs to stderr, and Airflow keeps only the last line of the output, so</span>
-</span><span id="__span-1-30"><a id="__codelineno-1-30" name="__codelineno-1-30"></a>    <span class="c1"># the result goes to a file that the next task reads.</span>
-</span><span id="__span-1-31"><a id="__codelineno-1-31" name="__codelineno-1-31"></a><span class="hll">    <span class="n">run_shop</span> <span class="o">=</span> <span class="n">BashOperator</span><span class="p">(</span>
-</span></span><span id="__span-1-32"><a id="__codelineno-1-32" name="__codelineno-1-32"></a><span class="hll">        <span class="n">task_id</span><span class="o">=</span><span class="s2">"run_shop"</span><span class="p">,</span>
-</span></span><span id="__span-1-33"><a id="__codelineno-1-33" name="__codelineno-1-33"></a><span class="hll">        <span class="n">bash_command</span><span class="o">=</span><span class="n">COMMAND</span><span class="p">,</span>
-</span></span><span id="__span-1-34"><a id="__codelineno-1-34" name="__codelineno-1-34"></a><span class="hll">        <span class="n">cwd</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">FOLDER</span><span class="p">),</span>
-</span></span><span id="__span-1-35"><a id="__codelineno-1-35" name="__codelineno-1-35"></a><span class="hll">    <span class="p">)</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8"></a>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9"></a><span class="kn">from</span><span class="w"> </span><span class="nn">airflow.sdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">dag</span><span class="p">,</span> <span class="n">task</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10"></a>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11"></a><span class="c1"># The folder that holds this file and shop.yaml</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12"></a><span class="n">FOLDER</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13"></a><span class="c1"># The figures the task returns</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14"></a><span class="n">FIGURES</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15"></a>    <span class="s2">"tasks.pack.finished"</span><span class="p">,</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16"></a>    <span class="s2">"tasks.pack.wait_mean"</span><span class="p">,</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17"></a>    <span class="s2">"resources.packers.utilization_avg"</span><span class="p">,</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18"></a><span class="p">)</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19"></a>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20"></a>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21"></a><span class="nd">@dag</span><span class="p">(</span><span class="n">schedule</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">catchup</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22"></a><span class="k">def</span><span class="w"> </span><span class="nf">shop_study</span><span class="p">():</span>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23"></a><span class="hll">    <span class="nd">@task</span>
+</span></span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24"></a><span class="hll">    <span class="k">def</span><span class="w"> </span><span class="nf">run_shop</span><span class="p">(</span><span class="n">packers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span></span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25"></a><span class="hll">        <span class="c1"># Imported here, so parsing the DAG file does not import desflow</span>
+</span></span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26"></a><span class="hll">        <span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
+</span></span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27"></a><span class="hll">
+</span></span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28"></a><span class="hll">        <span class="n">app</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span>
+</span></span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29"></a><span class="hll">            <span class="n">FOLDER</span> <span class="o">/</span> <span class="s2">"shop.yaml"</span><span class="p">,</span> <span class="n">variables</span><span class="o">=</span><span class="p">{</span><span class="s2">"PACKERS"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">packers</span><span class="p">)}</span>
+</span></span><span id="__span-1-30"><a id="__codelineno-1-30" name="__codelineno-1-30"></a><span class="hll">        <span class="p">)</span>
+</span></span><span id="__span-1-31"><a id="__codelineno-1-31" name="__codelineno-1-31"></a><span class="hll">        <span class="n">app</span><span class="o">.</span><span class="n">random_seed</span> <span class="o">=</span> <span class="mi">7</span>
+</span></span><span id="__span-1-32"><a id="__codelineno-1-32" name="__codelineno-1-32"></a><span class="hll">        <span class="n">app</span><span class="o">.</span><span class="n">with_stats</span><span class="p">(</span><span class="s2">"typical"</span><span class="p">)</span>  <span class="c1"># keeps the mean wait as well as the counts</span>
+</span></span><span id="__span-1-33"><a id="__codelineno-1-33" name="__codelineno-1-33"></a><span class="hll">        <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>
+</span></span><span id="__span-1-34"><a id="__codelineno-1-34" name="__codelineno-1-34"></a><span class="hll">        <span class="n">readings</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">readings</span><span class="p">()</span>
+</span></span><span id="__span-1-35"><a id="__codelineno-1-35" name="__codelineno-1-35"></a><span class="hll">        <span class="k">return</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">readings</span><span class="p">[</span><span class="sa">f</span><span class="s2">"Shop.stats.</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">]</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">FIGURES</span><span class="p">}</span>
 </span></span><span id="__span-1-36"><a id="__codelineno-1-36" name="__codelineno-1-36"></a>
-</span><span id="__span-1-37"><a id="__codelineno-1-37" name="__codelineno-1-37"></a><span class="hll">    <span class="nd">@task</span>
-</span></span><span id="__span-1-38"><a id="__codelineno-1-38" name="__codelineno-1-38"></a><span class="hll">    <span class="k">def</span><span class="w"> </span><span class="nf">read_result</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-</span></span><span id="__span-1-39"><a id="__codelineno-1-39" name="__codelineno-1-39"></a><span class="hll">        <span class="n">summary</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">((</span><span class="n">FOLDER</span> <span class="o">/</span> <span class="s2">"result.json"</span><span class="p">)</span><span class="o">.</span><span class="n">read_text</span><span class="p">())</span>
-</span></span><span id="__span-1-40"><a id="__codelineno-1-40" name="__codelineno-1-40"></a><span class="hll">        <span class="k">return</span> <span class="p">{</span>
-</span></span><span id="__span-1-41"><a id="__codelineno-1-41" name="__codelineno-1-41"></a><span class="hll">            <span class="n">row</span><span class="p">[</span><span class="s2">"statistic"</span><span class="p">]:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"value"</span><span class="p">]</span>
-</span></span><span id="__span-1-42"><a id="__codelineno-1-42" name="__codelineno-1-42"></a><span class="hll">            <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">summary</span><span class="p">[</span><span class="s2">"statistics"</span><span class="p">]</span>
-</span></span><span id="__span-1-43"><a id="__codelineno-1-43" name="__codelineno-1-43"></a><span class="hll">            <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s2">"statistic"</span><span class="p">]</span> <span class="ow">in</span> <span class="n">FIGURES</span>
-</span></span><span id="__span-1-44"><a id="__codelineno-1-44" name="__codelineno-1-44"></a><span class="hll">        <span class="p">}</span>
-</span></span><span id="__span-1-45"><a id="__codelineno-1-45" name="__codelineno-1-45"></a>
-</span><span id="__span-1-46"><a id="__codelineno-1-46" name="__codelineno-1-46"></a>    <span class="n">run_shop</span> <span class="o">&gt;&gt;</span> <span class="n">read_result</span><span class="p">()</span>
-</span><span id="__span-1-47"><a id="__codelineno-1-47" name="__codelineno-1-47"></a>
-</span><span id="__span-1-48"><a id="__codelineno-1-48" name="__codelineno-1-48"></a>
-</span><span id="__span-1-49"><a id="__codelineno-1-49" name="__codelineno-1-49"></a><span class="n">study</span> <span class="o">=</span> <span class="n">shop_study</span><span class="p">()</span>
-</span><span id="__span-1-50"><a id="__codelineno-1-50" name="__codelineno-1-50"></a>
-</span><span id="__span-1-51"><a id="__codelineno-1-51" name="__codelineno-1-51"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
-</span><span id="__span-1-52"><a id="__codelineno-1-52" name="__codelineno-1-52"></a>    <span class="n">run</span> <span class="o">=</span> <span class="n">study</span><span class="o">.</span><span class="n">test</span><span class="p">()</span>
-</span><span id="__span-1-53"><a id="__codelineno-1-53" name="__codelineno-1-53"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">run</span><span class="o">.</span><span class="n">get_task_instance</span><span class="p">(</span><span class="s2">"read_result"</span><span class="p">)</span><span class="o">.</span><span class="n">xcom_pull</span><span class="p">(</span><span class="n">task_ids</span><span class="o">=</span><span class="s2">"read_result"</span><span class="p">))</span>
+</span><span id="__span-1-37"><a id="__codelineno-1-37" name="__codelineno-1-37"></a>    <span class="n">run_shop</span><span class="p">()</span>
+</span><span id="__span-1-38"><a id="__codelineno-1-38" name="__codelineno-1-38"></a>
+</span><span id="__span-1-39"><a id="__codelineno-1-39" name="__codelineno-1-39"></a>
+</span><span id="__span-1-40"><a id="__codelineno-1-40" name="__codelineno-1-40"></a><span class="n">study</span> <span class="o">=</span> <span class="n">shop_study</span><span class="p">()</span>
+</span><span id="__span-1-41"><a id="__codelineno-1-41" name="__codelineno-1-41"></a>
+</span><span id="__span-1-42"><a id="__codelineno-1-42" name="__codelineno-1-42"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+</span><span id="__span-1-43"><a id="__codelineno-1-43" name="__codelineno-1-43"></a>    <span class="n">run</span> <span class="o">=</span> <span class="n">study</span><span class="o">.</span><span class="n">test</span><span class="p">()</span>
+</span><span id="__span-1-44"><a id="__codelineno-1-44" name="__codelineno-1-44"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">run</span><span class="o">.</span><span class="n">get_task_instance</span><span class="p">(</span><span class="s2">"run_shop"</span><span class="p">)</span><span class="o">.</span><span class="n">xcom_pull</span><span class="p">(</span><span class="n">task_ids</span><span class="o">=</span><span class="s2">"run_shop"</span><span class="p">))</span>
 </span></code></pre></div></td></tr></table></div>
-<p>When Airflow stops a running task, it sends SIGTERM to the command. desflow then flushes its sinks and exits without writing <code>result.json</code>, so <code>read_result</code> does not read a stale file.</p>
 <h3 id="run-the-dag-once">Run the DAG Once</h3>
 <p><code>dag.test()</code> runs every task of one DAG run in the current process, with no scheduler or API server. It needs Airflow's metadata database, which <code>airflow db migrate</code> creates as a SQLite file in Airflow's home folder. Run these from the DAGs folder:</p>
 <div class="language-bash highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/orchestrators/commands.sh:airflow-run</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-2-1">1</a></span>
@@ -1572,14 +1546,14 @@
 </span></code></pre></div></td></tr></table></div>
 <hr />
 <h2 id="check-the-result">Check the Result</h2>
-<p>Airflow logs each task as it runs, with desflow's log lines inside <code>run_shop</code>'s output. The last line the script prints is the value of <code>read_result</code>:</p>
+<p>Airflow logs each task as it runs, with desflow's log lines inside <code>run_shop</code>'s output. The last line the script prints is the value of <code>run_shop</code>:</p>
 <div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-3-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1"></a>{'resources.packers.utilization_avg': 49.47475468873524, 'tasks.pack.finished': 1775, 'tasks.pack.wait_mean': 0.25614739363776756}
 </span></code></pre></div></td></tr></table></div>
-<p>Three packers packed 1775 orders in the hour, and an order waited 0.26 seconds for a packer on average. These are the figures of the command run in a terminal.</p>
-<p>In a deployed Airflow, the scheduler runs the DAG instead of <code>python airflow_dag.py</code>, and each worker that runs <code>run_shop</code> needs desflow installed and the two files in its DAGs folder. Passing <code>result.json</code> between the two tasks needs both on one machine, such as the <code>LocalExecutor</code> or a single worker, and a DAGs folder that Airflow can write to. With several workers, <code>run_shop</code> writes its summary to storage that both tasks read, or the two tasks become one task. Two runs of the DAG at the same time share one file, so each run writes its own, such as <code>result-{{ run_id }}.json</code>.</p>
+<p>Three packers packed 1775 orders in the hour, and an order waited 0.26 seconds for a packer on average. These are the figures that <code>desflow run shop.yaml --var PACKERS=3 --until 3600 --seed 7 --summary result.json</code> writes to <code>result.json</code> in a terminal.</p>
+<p>In a deployed Airflow, the scheduler runs the DAG instead of <code>python airflow_dag.py</code>, and each worker that runs <code>run_shop</code> needs desflow installed and the two files in its DAGs folder.</p>
 <hr />
 <h2 id="sources">Sources</h2>
-<p>The operator's options and its XCom value are those of <code>BashOperator</code> in <code>apache-airflow-providers-standard</code> 1.21.0. <code>dag.test()</code> and the metadata database it needs are described in Airflow's <a href="https://airflow.apache.org/docs/apache-airflow/3.4.0/core-concepts/debug.html">Debugging Airflow DAGs</a>, and the constraints file in <a href="https://airflow.apache.org/docs/apache-airflow/3.4.0/installation/installing-from-pypi.html">Installation from PyPI</a>.</p>
+<p>A task's return value as its XCom value is described in Airflow's <a href="https://airflow.apache.org/docs/apache-airflow/3.4.0/core-concepts/taskflow.html">TaskFlow</a>, and imports kept inside a task in <a href="https://airflow.apache.org/docs/apache-airflow/3.4.0/best-practices.html#top-level-python-code">Best Practices</a>. <code>dag.test()</code> and the metadata database it needs are described in <a href="https://airflow.apache.org/docs/apache-airflow/3.4.0/core-concepts/debug.html">Debugging Airflow DAGs</a>.</p>
 
 
 

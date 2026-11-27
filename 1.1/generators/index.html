@@ -1757,7 +1757,7 @@
 
 
 <h1 id="generators">Generators</h1>
-<p>A generator draws a value each time a blueprint makes a record. This section has one page for each kind, with its keys, an example in YAML, Builder and Low-level, the records the example prints, and its JSON Schema.</p>
+<p>A generator draws a value each time a blueprint makes a record. Generators are written in YAML blueprints; a Builder or Low-level model makes its values in Python. This section has one page for each kind, with its keys, an example blueprint, the records it prints, and its JSON Schema.</p>
 <h2 id="what-a-generator-is">What a Generator Is</h2>
 <p>A place that takes a value, such as a field of a task's <code>payload</code> or of an arrival's <code>attributes</code>, takes a constant or a generator. A generator is a mapping with a <code>gen</code> key that names its kind, such as <code>{gen: integer, bounds: [1, 6]}</code>. The tables of this section call such a place <code>Value</code>. <a href="../reference/yaml-keys/">YAML Keys</a> calls the generator part of such a place <code>Generator</code>: a key that takes a generator, an integer or text is written <code>Generator or integer or text</code>.</p>
 <p>Each generator draws from a random sequence of its own, named for the place it is written at. The same seed gives the same values. Adding a field to a mapping moves no other draw. Inserting an item into a list moves the draws of the items after it. The keys of every other part of a blueprint are on <a href="../reference/yaml-keys/">YAML Keys</a>.</p>
@@ -2017,12 +2017,8 @@
 <p><code>omit_rate</code> and <code>omit_when</code> apply to a field of a mapping, such as a field of a <code>payload</code>. A blueprint that writes them on any other value is refused when it loads.</p>
 <h2 id="run-the-examples">Run the Examples</h2>
 <p>Every example is a model in which an order starts every 60 seconds and the run lasts 200 seconds, so three orders start. The seed is 42 and <code>factor</code> is 0, so a run takes no wall-clock time and prints the same records each time. No example needs a service.</p>
-<p>Each kind has three files in <code>examples/generators/</code> of the repository: <code>&lt;kind&gt;.yaml</code>, <code>&lt;kind&gt;_builder.py</code> and <code>&lt;kind&gt;_low_level.py</code>. Run them from the repository's root folder:</p>
-<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1">1</a></span>
-<span class="normal"><a href="#__codelineno-0-2">2</a></span>
-<span class="normal"><a href="#__codelineno-0-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1"></a>desflow<span class="w"> </span>run<span class="w"> </span>examples/generators/integer.yaml
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2"></a>python<span class="w"> </span>examples/generators/integer_builder.py
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3"></a>python<span class="w"> </span>examples/generators/integer_low_level.py
+<p>Each kind has one blueprint in <code>examples/generators/</code> of the repository, <code>&lt;kind&gt;.yaml</code>. Run it from the repository's root folder:</p>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1"></a>desflow<span class="w"> </span>run<span class="w"> </span>examples/generators/integer.yaml
 </span></code></pre></div></td></tr></table></div>
 <p><code>fake</code> needs the <code>fake</code> extra, which <code>pip install "desflow[fake]"</code> adds. <code>row</code> reads <code>products.csv</code> and <code>call</code> imports <code>call_helpers.py</code>, both in the same folder.</p>
 

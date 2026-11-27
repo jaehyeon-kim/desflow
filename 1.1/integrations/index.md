@@ -6,18 +6,18 @@ ______________________________________________________________________
 
 ## Pages
 
-| Page                                                                        | What it does                                                                                  |
-| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| [Airflow](https://jaehyeon.me/desflow/latest/integrations/airflow/index.md) | a DAG with a `BashOperator` that runs the shop and a task that reads its result               |
-| [Dagster](https://jaehyeon.me/desflow/latest/integrations/dagster/index.md) | an asset that runs the shop through `PipesSubprocessClient` and keeps the figures as metadata |
-| [Prefect](https://jaehyeon.me/desflow/latest/integrations/prefect/index.md) | a flow with a task that runs the shop and a task that reads its result                        |
-| [Kestra](https://jaehyeon.me/desflow/latest/integrations/kestra/index.md)   | a flow whose Python task installs desflow in a container and runs the shop                    |
+| Page                                                                        | What it does                                                               |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| [Airflow](https://jaehyeon.me/desflow/latest/integrations/airflow/index.md) | a DAG whose task runs the shop in Python and returns its figures           |
+| [Dagster](https://jaehyeon.me/desflow/latest/integrations/dagster/index.md) | an asset that runs the shop in Python and keeps its figures as metadata    |
+| [Prefect](https://jaehyeon.me/desflow/latest/integrations/prefect/index.md) | a flow whose task runs the shop in Python and returns its figures          |
+| [Kestra](https://jaehyeon.me/desflow/latest/integrations/kestra/index.md)   | a flow whose Python task installs desflow in a container and runs the shop |
 
 ______________________________________________________________________
 
 ## One Shop for Every Orchestrator
 
-The four orchestrator pages run one blueprint, `shop.yaml`, with one command. The shop takes an order every 2 seconds on average, and a packer takes 3 seconds on average to pack one. `factor: 0` runs the model as fast as it can, so an hour of simulated time ends in under a second:
+The four orchestrator pages run one blueprint, `shop.yaml`. The shop takes an order every 2 seconds on average, and a packer takes 3 seconds on average to pack one. `factor: 0` runs the model as fast as it can, so an hour of simulated time ends in under a second:
 
 ```yaml
 # The shop that every page of the Integrations section runs from an orchestrator. An
@@ -43,7 +43,7 @@ tasks:
     payload: {event_type: order_packed}
 ```
 
-The command runs the shop with three packers for one simulated hour, at seed 7, and writes the run's statistics to `result.json`:
+Each page runs the shop with three packers for one simulated hour, at seed 7. In a terminal, this command does the same and writes the run's statistics to `result.json`:
 
 ```bash
 desflow run shop.yaml --var PACKERS=3 --until 3600 --seed 7 --summary result.json
@@ -51,11 +51,9 @@ desflow run shop.yaml --var PACKERS=3 --until 3600 --seed 7 --summary result.jso
 
 ______________________________________________________________________
 
-## Pass the Result Through a File
+## Figures Each Page Reads
 
-desflow logs to stderr and prints no result to stdout in a single run, so a later task reads the figures from the file that `--summary` writes, not from the output. Airflow, for example, keeps only the last line of a command's output, which is a desflow log line. [Write the Result to a File](https://jaehyeon.me/desflow/latest/user-guide/results/replications/#write-the-result-to-a-file) lists the file's keys.
-
-The Airflow, Dagster and Prefect pages read three rows of the file's `statistics` list, and the Kestra page logs the whole file:
+The Airflow, Dagster and Prefect pages call desflow in Python and read three of the run's statistics. The Kestra page runs the command and logs the whole file that `--summary` writes, whose keys [Write the Result to a File](https://jaehyeon.me/desflow/latest/user-guide/results/replications/#write-the-result-to-a-file) lists. The three statistics are:
 
 - `tasks.pack.finished`: the orders packed.
 - `tasks.pack.wait_mean`: the mean wait for a packer, in seconds.
@@ -63,4 +61,4 @@ The Airflow, Dagster and Prefect pages read three rows of the file's `statistics
 
 The fixed seed gives every orchestrator the same figures as the command run in a terminal.
 
-The command exits with 0 when the run finishes or is stopped by Ctrl+C or SIGTERM, 1 when the blueprint cannot be loaded, and 2 when a file is missing or an option is refused. Each orchestrator fails its task on any code other than 0. A stopped run flushes its sinks and writes no summary, so the task that reads `result.json` fails, not the task that ran desflow.
+On the Airflow, Dagster and Prefect pages, an error in the run raises an exception, which fails the task. On the Kestra page, the command exits with 0 when the run finishes or is stopped by Ctrl+C or SIGTERM, 1 when the blueprint cannot be loaded, and 2 when a file is missing or an option is refused, and Kestra fails the task on any code other than 0.

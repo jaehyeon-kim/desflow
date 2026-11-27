@@ -1,20 +1,18 @@
 # Prefect
 
-Run a desflow study as a task of a Prefect flow, and return its figures from the flow. The flow has two tasks: one runs the shop, and one reads the figures from the file the run writes.
+Run a desflow study as a task of a Prefect flow, and return its figures from the flow. The task calls desflow in Python and returns the figures.
 
 ______________________________________________________________________
 
 ## Before You Start
 
-- [Integrations](https://jaehyeon.me/desflow/latest/integrations/#one-shop-for-every-orchestrator) shows the shop, the command and the figures the result file holds.
+- [Integrations](https://jaehyeon.me/desflow/latest/integrations/#one-shop-for-every-orchestrator) shows the shop and the figures each page reads.
 
-- You need Prefect 3.9 and desflow 1.1 or later in one environment:
+- Install desflow 1.1 or later with a recent version of Prefect 3. Any version of Prefect 3 that installs alongside desflow 1.1 or later works:
 
   ```bash
-  pip install "desflow>=1.1" prefect
+  pip install "desflow>=1.1" "prefect>=3,<4"
   ```
-
-- Run the flow with that environment active, because the `run_shop` task starts the `desflow` command found on `PATH`.
 
 - Put `shop.yaml` and `prefect_flow.py` in one folder.
 
@@ -24,62 +22,50 @@ ______________________________________________________________________
 
 ### Write the Flow
 
-The `run_shop` task runs the command with `subprocess.run` in the flow's folder, so it finds `shop.yaml` and writes `result.json` beside it. `check=True` raises an error on a non-zero exit, which fails the task and the flow. The task returns the path of the file, and the `read_result` task opens it and returns the three figures. Two flow runs at the same time would share one `result.json`, so a deployment that runs them side by side gives each its own file, such as one named by the flow run's id. A task called inside a flow returns its value, so the flow returns the figures:
+The `run_shop` task loads `shop.yaml` from the flow's folder with the packers the flow passes, three by default, runs one simulated hour at seed 7, and returns the three figures. `with_stats("typical")` switches on the statistics the figures come from, because the mean wait needs the `typical` level. An error in the run raises an exception, which fails the task and the flow. A task called inside a flow returns its value, so the flow returns the figures:
 
 ```python
-"""A Prefect flow that runs the shop with desflow and returns its figures.
+"""A Prefect flow whose task runs the shop with desflow and returns its figures.
 
 Keep this file beside shop.yaml. `python prefect_flow.py` runs the flow once; with no
 Prefect server set, Prefect starts a temporary one for the run.
 """
 
-import json
-import subprocess
 from pathlib import Path
 
+from desflow import SimulationContext
 from prefect import flow, task
 
-# The folder that holds this file and shop.yaml, where the run writes result.json
+# The folder that holds this file and shop.yaml
 FOLDER = Path(__file__).resolve().parent
-# The figures the flow returns from the summary
+# The figures the task returns
 FIGURES = (
     "tasks.pack.finished",
     "tasks.pack.wait_mean",
     "resources.packers.utilization_avg",
 )
-# The command, run from FOLDER. It writes the run's statistics to result.json
-COMMAND = (
-    "desflow run shop.yaml --var PACKERS=3 --until 3600 --seed 7 --summary result.json"
-)
 
 
 @task
-def run_shop() -> Path:
-    # check=True fails the task when desflow exits with an error
-    subprocess.run(COMMAND.split(), cwd=FOLDER, check=True)
-    return FOLDER / "result.json"
-
-
-@task
-def read_result(path: Path) -> dict:
-    summary = json.loads(path.read_text())
-    return {
-        row["statistic"]: row["value"]
-        for row in summary["statistics"]
-        if row["statistic"] in FIGURES
-    }
+def run_shop(packers: int) -> dict:
+    app = SimulationContext.from_yaml(
+        FOLDER / "shop.yaml", variables={"PACKERS": str(packers)}
+    )
+    app.random_seed = 7
+    app.with_stats("typical")  # keeps the mean wait as well as the counts
+    app.run(until=3600)
+    readings = app.env.stats.readings()
+    return {name: readings[f"Shop.stats.{name}"] for name in FIGURES}
 
 
 @flow
-def shop_study() -> dict:
-    return read_result(run_shop())
+def shop_study(packers: int = 3) -> dict:
+    return run_shop(packers)
 
 
 if __name__ == "__main__":
     print(shop_study())
 ```
-
-The figures pass through the file because desflow logs to stderr and prints no result in a single run.
 
 ### Run the Flow Once
 
@@ -101,7 +87,7 @@ Prefect logs the flow run and each task run, and the script prints the value the
 {'resources.packers.utilization_avg': 49.47475468873524, 'tasks.pack.finished': 1775, 'tasks.pack.wait_mean': 0.25614739363776756}
 ```
 
-These are the figures of the command run in a terminal. The `prefect-shell` package can also run a command as a task, but `subprocess.run` needs no package beyond Prefect.
+These are the figures that `desflow run shop.yaml --var PACKERS=3 --until 3600 --seed 7 --summary result.json` writes to `result.json` in a terminal.
 
 ______________________________________________________________________
 
