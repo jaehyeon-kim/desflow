@@ -46,7 +46,7 @@ jobs:
     permissions:
       contents: write
       pages: write
-    # docs.yml deploys too; both push to gh-pages, so one deploy waits for the other
+    # One deploy pushes to gh-pages at a time
     concurrency:
       group: docs-deploy
       cancel-in-progress: false
